@@ -23,8 +23,9 @@ func main() {
 	udpInput := hekagrater.NewUdpInput(udpAddr)
 	inputs := []hekagrater.Input{&udpInput}
 
-	logOutput := hekagrater.LogOutput{}
-	outputs := []hekagrater.Output{&logOutput}
+	//logOutput := hekagrater.LogOutput{}
+	counterOutput := hekagrater.NewCounterOutput()
+	outputs := []hekagrater.Output{counterOutput}
 
 	config := hekagrater.GraterConfig{Inputs: inputs, Outputs: outputs}
 	fmt.Println("Starting UDP listener at: %s", udpAddr)
