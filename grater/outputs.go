@@ -19,7 +19,7 @@ import (
 )
 
 type Output interface {
-	run(inChan <-chan *Message)
+	deliver(msg *Message)
 }
 
 type OutputRunner struct {
@@ -28,18 +28,22 @@ type OutputRunner struct {
 
 func (self *OutputRunner) Start() chan *Message {
 	inChan := make(chan *Message)
-	go self.output.run(inChan)
+	go self.run(inChan)
 	return inChan
+}
+
+func (self *OutputRunner) run(inChan <-chan *Message) {
+	for {
+		msg := <- inChan
+		go self.output.deliver(msg)
+	}
 }
 
 type LogOutput struct {
 }
 
-func (self *LogOutput) run(inChan <-chan *Message) {
-	for {
-		msg := <-inChan
-		log.Printf("%+v\n", msg)
-	}
+func (self *LogOutput) deliver(msg *Message) {
+	log.Printf("%+v\n", msg)
 }
 
 type counterOutput struct {
@@ -53,11 +57,8 @@ func NewCounterOutput () *counterOutput {
 	return &self
 }
 
-func (self *counterOutput) run(inChan <-chan *Message) {
-	for {
-		_ = <-inChan
-		self.count++
-	}
+func (self *counterOutput) deliver(msg *Message) {
+	self.count++
 }
 
 func (self *counterOutput) timerLoop(ticker *time.Ticker) {

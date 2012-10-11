@@ -19,20 +19,20 @@ import (
 )
 
 type Input interface {
-	Start(receivedChan chan []byte)
+	Start(receivedChan chan *[]byte)
 }
 
 type UdpInput struct {
 	Address *net.UDPAddr
 }
 
-func NewUdpInput(addrStr string) UdpInput {
+func NewUdpInput(addrStr string) *UdpInput {
 	address, _ := net.ResolveUDPAddr("udp", addrStr)
 	input := UdpInput{address}
-	return input
+	return &input
 }
 
-func (self *UdpInput) Start(receivedChan chan []byte) {
+func (self *UdpInput) Start(receivedChan chan *[]byte) {
 	listener, err := net.ListenUDP("udp", self.Address)
 	defer listener.Close()
 	if err != nil {
@@ -45,6 +45,6 @@ func (self *UdpInput) Start(receivedChan chan []byte) {
 			continue
 		}
 		inData = inData[:n]
-		receivedChan <- inData
+		receivedChan <- &inData
 	}
 }

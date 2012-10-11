@@ -37,53 +37,59 @@ type Message struct {
 }
 
 type GraterConfig struct {
-	Inputs []Input
-	Outputs []Output
+	Inputs map[string]Input
+	Decoders map[string]Decoder
+	Outputs map[string]Output
+	DefaultDecoder string
 }
 
-func decode(msgBytes []byte) (Message, error) {
-	msgJson, err := simplejson.NewJson(msgBytes)
-	var msg Message
-	msg.Type = msgJson.Get("type").MustString()
-	timeStr := msgJson.Get("timestamp").MustString()
-	msg.Timestamp, _ = time.Parse(timeFormat, timeStr)
-	msg.Logger = msgJson.Get("logger").MustString()
-	msg.Severity = msgJson.Get("severity").MustInt()
-	msg.Payload, _ = msgJson.Get("payload").String()
-	msg.Fields = msgJson.Get("fields")
-	msg.Env_version = msgJson.Get("env_version").MustString()
-	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
-	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
-	return msg, err
-}
-
-func decoder(receivedChan chan []byte, decodedChan chan Message) {
+func decodeDelegator(inChan <-chan *[]byte, decoderChans *map[string]chan *[]byte,
+                     defaultDecoder string) {
+	var decoder string
+	var decoderChan chan *[]byte
+	var ok bool
 	for {
-		msgBytes := <-receivedChan
-		msg, _ := decode(msgBytes)
-		decodedChan <- msg
+		msgBytes := <-inChan
+		if (*msgBytes)[0] == 0 {
+			log.Println("TODO: Wire protocol not yet implemented")
+			decoder = defaultDecoder
+		} else {
+			decoder = defaultDecoder
+		}
+		decoderChan, ok = (*decoderChans)[decoder]
+		if !ok {
+			log.Printf("Decoder doesn't exist: %s\n", decoder)
+		}
+		decoderChan <- msgBytes
 	}
 }
 
-func outputter(decodedChan chan Message, outputChan chan *Message) {
+func outputter(decodedChan chan *Message, outputChan chan *Message) {
 	for {
 		msg := <-decodedChan
-		outputChan <- &msg
+		outputChan <- msg
 	}
 }
 
 func Run(config *GraterConfig) {
-	log.Println("hekagrater.Run()")
+	log.Println("Starting hekagrater...")
 
-	receivedChan := make(chan []byte)
-	for _, input := range config.Inputs {
+	receivedChan := make(chan *[]byte)
+	for name, input := range config.Inputs {
 		go input.Start(receivedChan)
+		log.Printf("Input started: %s\n", name)
 	}
-	log.Println("Inputs started")
 
-	decodedChan := make(chan Message)
-	go decoder(receivedChan, decodedChan)
-	log.Println("Decoder started")
+	decodedChan := make(chan *Message)
+	decoderChans := make(map[string]chan *[]byte)
+	for name, decoder := range config.Decoders {
+		runner := DecoderRunner{decoder}
+		decoderChan := runner.Start(decodedChan)
+		log.Printf("Decoder started: %s\n", name)
+		decoderChans[name] = decoderChan
+	}
+	go decodeDelegator(receivedChan, &decoderChans, config.DefaultDecoder)
+	log.Println("Decode delegator started")
 
 	for _, output := range config.Outputs {
 		runner := OutputRunner{output}

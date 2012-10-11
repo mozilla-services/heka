@@ -14,20 +14,36 @@
 package main
 
 import (
-	"fmt"
 	"heka/grater"
+	"runtime"
 )
 
 func main() {
 	const udpAddr = "127.0.0.1:5565"
+	const MAXPROCS = 2
+	runtime.GOMAXPROCS(MAXPROCS)
+
+	config := hekagrater.GraterConfig{}
+
 	udpInput := hekagrater.NewUdpInput(udpAddr)
-	inputs := []hekagrater.Input{&udpInput}
+	var inputs = map[string]hekagrater.Input {
+		"udp": udpInput,
+	}
+	config.Inputs = inputs
+
+	jsonDecoder := hekagrater.JsonDecoder{}
+	var decoders = map[string]hekagrater.Decoder {
+		"json": &jsonDecoder,
+	}
+	config.Decoders = decoders
+	config.DefaultDecoder = "json"
 
 	//logOutput := hekagrater.LogOutput{}
 	counterOutput := hekagrater.NewCounterOutput()
-	outputs := []hekagrater.Output{counterOutput}
+	var outputs = map[string]hekagrater.Output {
+		"counter": counterOutput,
+	}
+	config.Outputs = outputs
 
-	config := hekagrater.GraterConfig{Inputs: inputs, Outputs: outputs}
-	fmt.Println("Starting UDP listener at: %s", udpAddr)
 	hekagrater.Run(&config)
 }
