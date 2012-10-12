@@ -14,8 +14,8 @@
 package hekagrater
 
 import (
-	"log"
 	"github.com/bitly/go-simplejson"
+	"log"
 	"time"
 )
 
@@ -46,12 +46,13 @@ type JsonDecoder struct {
 }
 
 func (self *JsonDecoder) decode(msgBytes *[]byte, outChan chan<- *Message) {
+	var msg Message
 	msgJson, err := simplejson.NewJson(*msgBytes)
 	if err != nil {
 		log.Printf("Error decoding message: %s\n", err.Error())
 		return
 	}
-	var msg Message
+
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
 	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
@@ -65,5 +66,6 @@ func (self *JsonDecoder) decode(msgBytes *[]byte, outChan chan<- *Message) {
 	msg.Env_version = msgJson.Get("env_version").MustString()
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
+
 	outChan <- &msg
 }
