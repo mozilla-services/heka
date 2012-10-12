@@ -39,8 +39,10 @@ type Message struct {
 type GraterConfig struct {
 	Inputs map[string]Input
 	Decoders map[string]Decoder
-	Outputs map[string]Output
 	DefaultDecoder string
+	Filters []Filter
+	Outputs map[string]Output
+	DefaultOutputs []string
 }
 
 func decodeDelegator(inChan <-chan *[]byte, decoderChans *map[string]chan *[]byte,
@@ -64,10 +66,31 @@ func decodeDelegator(inChan <-chan *[]byte, decoderChans *map[string]chan *[]byt
 	}
 }
 
-func outputter(decodedChan chan *Message, outputChan chan *Message) {
+func filterProcessor(inChan <-chan *Message, outputChans *map[string]chan *Message,
+                     config *GraterConfig) {
 	for {
-		msg := <-decodedChan
-		outputChan <- msg
+		msg := <-inChan
+		outputs := make(map[string]bool)
+		for _, outputName := range config.DefaultOutputs {
+			outputs[outputName] = true
+		}
+		for _, filter := range config.Filters {
+			filter.FilterMsg(msg, &outputs)
+			if msg == nil {
+				break
+			}
+		}
+		if msg == nil {
+			continue
+		}
+		for outputName, _ := range outputs {
+			outputChan, ok := (*outputChans)[outputName]
+			if !ok {
+				log.Printf("Output doesn't exist: %s", outputName)
+				continue
+			}
+			outputChan <- msg
+		}
 	}
 }
 
@@ -75,13 +98,15 @@ func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
 	receivedChan := make(chan *[]byte)
+	decodedChan := make(chan *Message)
+	decoderChans := make(map[string]chan *[]byte)
+	outputChans := make(map[string]chan *Message)
+
 	for name, input := range config.Inputs {
-		go input.Start(receivedChan)
+		input.Start(receivedChan)
 		log.Printf("Input started: %s\n", name)
 	}
 
-	decodedChan := make(chan *Message)
-	decoderChans := make(map[string]chan *[]byte)
 	for name, decoder := range config.Decoders {
 		runner := DecoderRunner{decoder}
 		decoderChan := runner.Start(decodedChan)
@@ -91,12 +116,15 @@ func Run(config *GraterConfig) {
 	go decodeDelegator(receivedChan, &decoderChans, config.DefaultDecoder)
 	log.Println("Decode delegator started")
 
-	for _, output := range config.Outputs {
+	for name, output := range config.Outputs {
 		runner := OutputRunner{output}
 		outputChan := runner.Start()
-		go outputter(decodedChan, outputChan)
+		log.Printf("Output started: %s\n", name)
+		outputChans[name] = outputChan
 	}
-	log.Println("Output started")
+
+	go filterProcessor(decodedChan, &outputChans, config)
+	log.Println("Filter processor started")
 
 	// wait forever
 	var wg sync.WaitGroup
