@@ -23,24 +23,31 @@ type Input interface {
 }
 
 type UdpInput struct {
-	Address *net.UDPAddr
+	listener *net.UDPConn
 }
 
 func NewUdpInput(addrStr string) *UdpInput {
-	address, _ := net.ResolveUDPAddr("udp", addrStr)
-	input := UdpInput{address}
-	return &input
+	address, err := net.ResolveUDPAddr("udp", addrStr)
+	if err != nil {
+		log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
+		return nil
+	}
+	listener, err := net.ListenUDP("udp", address)
+	if err != nil {
+		log.Printf("ListenUDP failed: %s\n", err.Error())
+		return nil
+	}
+	return &UdpInput{listener}
 }
 
 func (self *UdpInput) Start(receivedChan chan *[]byte) {
-	listener, err := net.ListenUDP("udp", self.Address)
-	defer listener.Close()
-	if err != nil {
-		log.Fatalf("ListenUDP failed: %s", err.Error())
-	}
+	go self.doRead(receivedChan)
+}
+
+func (self *UdpInput) doRead(receivedChan chan *[]byte) {
 	for {
 		inData := make([]byte, 60000)
-		n, _, error := listener.ReadFrom(inData)
+		n, _, error := self.listener.ReadFrom(inData)
 		if error != nil {
 			continue
 		}
