@@ -14,7 +14,6 @@
 package hekagrater
 
 import (
-	"github.com/bitly/go-simplejson"
 	"log"
 	"os"
 	"os/signal"
@@ -32,7 +31,7 @@ type Message struct {
 	Logger string
 	Severity int
 	Payload string
-	Fields *simplejson.Json
+	Fields interface{}
 	Env_version string
 	Pid int
 	Hostname string
