@@ -16,7 +16,9 @@ package hekagrater
 import (
 	"github.com/bitly/go-simplejson"
 	"log"
-	"sync"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -107,8 +109,14 @@ func Run(config *GraterConfig) {
 		log.Printf("Input started: %s\n", name)
 	}
 
-	// wait forever
-	var wg sync.WaitGroup
-	wg.Add(1)
-	wg.Wait()
+	// wait for sigint
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGINT)
+	for {
+		sigint := <-sigChan
+		if sigint != nil {
+			log.Println("Clean shutdown.")
+			break
+		}
+	}
 }
