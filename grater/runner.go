@@ -14,8 +14,8 @@
 package hekagrater
 
 import (
-	"log"
 	"github.com/bitly/go-simplejson"
+	"log"
 	"sync"
 	"time"
 )
@@ -45,86 +45,67 @@ type GraterConfig struct {
 	DefaultOutputs []string
 }
 
-func decodeDelegator(inChan <-chan *[]byte, decoderChans *map[string]chan *[]byte,
-                     defaultDecoder string) {
-	var decoder string
-	var decoderChan chan *[]byte
-	var ok bool
-	for {
-		msgBytes := <-inChan
-		if (*msgBytes)[0] == 0 {
-			log.Println("TODO: Wire protocol not yet implemented")
-			decoder = defaultDecoder
-		} else {
-			decoder = defaultDecoder
-		}
-		decoderChan, ok = (*decoderChans)[decoder]
-		if !ok {
-			log.Printf("Decoder doesn't exist: %s\n", decoder)
-		}
-		decoderChan <- msgBytes
+func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
+                     defaultDecoder string) Decoder {
+	var decoderName string
+	if (*msgBytes)[0] == 0 {
+		log.Println("TODO: Wire protocol not yet implemented")
+		return nil
+	} else {
+		decoderName = defaultDecoder
 	}
+	decoder, ok := (*decoders)[decoderName]
+	if !ok {
+		log.Printf("Decoder doesn't exist: %s\n", decoder)
+		return nil
+	}
+	return decoder
 }
 
-func filterProcessor(inChan <-chan *Message, outputChans *map[string]chan *Message,
-                     config *GraterConfig) {
-	for {
-		msg := <-inChan
-		outputs := make(map[string]bool)
-		for _, outputName := range config.DefaultOutputs {
-			outputs[outputName] = true
-		}
-		for _, filter := range config.Filters {
-			filter.FilterMsg(msg, &outputs)
-			if msg == nil {
-				break
-			}
-		}
+func filterProcessor(msg *Message, config *GraterConfig) (*Message,
+	                                                  *map[string]bool) {
+	outputs := make(map[string]bool)
+	for _, outputName := range config.DefaultOutputs {
+		outputs[outputName] = true
+	}
+	for _, filter := range config.Filters {
+		filter.FilterMsg(msg, &outputs)
 		if msg == nil {
-			continue
-		}
-		for outputName, _ := range outputs {
-			outputChan, ok := (*outputChans)[outputName]
-			if !ok {
-				log.Printf("Output doesn't exist: %s", outputName)
-				continue
-			}
-			outputChan <- msg
+			return nil, nil
 		}
 	}
+	return msg, &outputs
 }
 
 func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
-	receivedChan := make(chan *[]byte)
-	decodedChan := make(chan *Message)
-	decoderChans := make(map[string]chan *[]byte)
-	outputChans := make(map[string]chan *Message)
+	pipeline := func(msgBytes *[]byte) {
+		decoder := decodeDelegator(msgBytes, &config.Decoders,
+			                   config.DefaultDecoder)
+		if decoder == nil {
+			return
+		}
+		msg := decoder.Decode(msgBytes)
+
+		msg, outputNames := filterProcessor(msg, config)
+		if msg == nil {
+			return
+		}
+
+		for outputName, _ := range *outputNames {
+			output, ok := config.Outputs[outputName]
+			if !ok {
+				log.Printf("Output doesn't exist: %s\n", outputName)
+			}
+			output.Deliver(msg)
+		}
+	}
 
 	for name, input := range config.Inputs {
-		input.Start(receivedChan)
+		input.Start(pipeline)
 		log.Printf("Input started: %s\n", name)
 	}
-
-	for name, decoder := range config.Decoders {
-		runner := DecoderRunner{decoder}
-		decoderChan := runner.Start(decodedChan)
-		log.Printf("Decoder started: %s\n", name)
-		decoderChans[name] = decoderChan
-	}
-	go decodeDelegator(receivedChan, &decoderChans, config.DefaultDecoder)
-	log.Println("Decode delegator started")
-
-	for name, output := range config.Outputs {
-		runner := OutputRunner{output}
-		outputChan := runner.Start()
-		log.Printf("Output started: %s\n", name)
-		outputChans[name] = outputChan
-	}
-
-	go filterProcessor(decodedChan, &outputChans, config)
-	log.Println("Filter processor started")
 
 	// wait forever
 	var wg sync.WaitGroup

@@ -15,34 +15,18 @@ package hekagrater
 
 import (
 	"log"
+	"runtime"
 	"time"
 )
 
 type Output interface {
-	deliver(msg *Message)
-}
-
-type OutputRunner struct {
-	output Output
-}
-
-func (self *OutputRunner) Start() chan *Message {
-	inChan := make(chan *Message)
-	go self.run(inChan)
-	return inChan
-}
-
-func (self *OutputRunner) run(inChan <-chan *Message) {
-	for {
-		msg := <- inChan
-		go self.output.deliver(msg)
-	}
+	Deliver(msg *Message)
 }
 
 type LogOutput struct {
 }
 
-func (self *LogOutput) deliver(msg *Message) {
+func (self *LogOutput) Deliver(msg *Message) {
 	log.Printf("%+v\n", msg)
 }
 
@@ -57,8 +41,9 @@ func NewCounterOutput () *counterOutput {
 	return &self
 }
 
-func (self *counterOutput) deliver(msg *Message) {
+func (self *counterOutput) Deliver(msg *Message) {
 	self.count++
+	runtime.Gosched()
 }
 
 func (self *counterOutput) timerLoop(ticker *time.Ticker) {

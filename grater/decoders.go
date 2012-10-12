@@ -20,37 +20,18 @@ import (
 )
 
 type Decoder interface {
-	decode(msgBytes *[]byte, outChan chan<- *Message)
+	Decode(msgBytes *[]byte) *Message
 }
-
-type DecoderRunner struct {
-	decoder Decoder
-}
-
-func (self *DecoderRunner) Start(decodedChan chan<- *Message) chan *[]byte {
-	inChan := make(chan *[]byte)
-	go self.run(inChan, decodedChan)
-	return inChan
-}
-
-func (self *DecoderRunner) run(inChan <-chan *[]byte,
-                               decodedChan chan<- *Message) {
-	for {
-		msgBytes := <-inChan
-		go self.decoder.decode(msgBytes, decodedChan)
-	}
-}
-
 
 type JsonDecoder struct {
 }
 
-func (self *JsonDecoder) decode(msgBytes *[]byte, outChan chan<- *Message) {
+func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
 	var msg Message
 	msgJson, err := simplejson.NewJson(*msgBytes)
 	if err != nil {
 		log.Printf("Error decoding message: %s\n", err.Error())
-		return
+		return nil
 	}
 
 	msg.Type = msgJson.Get("type").MustString()
@@ -67,5 +48,5 @@ func (self *JsonDecoder) decode(msgBytes *[]byte, outChan chan<- *Message) {
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
 
-	outChan <- &msg
+	return &msg
 }
