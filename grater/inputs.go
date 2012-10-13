@@ -53,9 +53,10 @@ func (self *UdpInput) Start(pipeline func(*[]byte, chan<- *[]byte)) {
 		recycleChan := make(chan *[]byte, 1000)
 		for {
 			var inData []byte
+			// try to get a recycled message buffer
 			select {
 			case inDataPtr := <-recycleChan:
-				inData = *inDataPtr
+				inData = (*inDataPtr)[:cap(*inDataPtr)]
 			default:
 				inData = make([]byte, 65536)
 			}
