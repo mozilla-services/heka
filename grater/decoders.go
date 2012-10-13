@@ -38,7 +38,10 @@ func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
 	timeStr := msgJson.Get("timestamp").MustString()
 	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
 	if err != nil {
-		log.Printf("Timestamp parsing error: %s\n", err.Error())
+		msg.Timestamp, err = time.Parse(timeFormatFullSecond, timeStr)
+		if err != nil {
+			log.Printf("Timestamp parsing error: %s\n", err.Error())
+		}
 	}
 	msg.Logger = msgJson.Get("logger").MustString()
 	msg.Severity = msgJson.Get("severity").MustInt()
