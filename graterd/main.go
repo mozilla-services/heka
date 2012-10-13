@@ -14,18 +14,36 @@
 package main
 
 import (
+	"flag"
 	"heka/grater"
+	"log"
+	"os"
 	"runtime"
+	"runtime/pprof"
 )
 
 func main() {
-	const udpAddr = "127.0.0.1:5565"
-	const MAXPROCS = 2
-	runtime.GOMAXPROCS(MAXPROCS)
+	udpAddr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
+	udpFdInt := flag.Uint64("udpfd", 0, "UDP socket file descriptor")
+	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
+	pprofName := flag.String("pprof", "", "pprof output file path")
+	flag.Parse()
+	udpFdIntPtr := uintptr(*udpFdInt)
+
+	runtime.GOMAXPROCS(*maxprocs)
+
+	if *pprofName != "" {
+		profFile, err := os.Create(*pprofName)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		pprof.StartCPUProfile(profFile)
+		defer pprof.StopCPUProfile()
+	}
 
 	config := hekagrater.GraterConfig{}
 
-	udpInput := hekagrater.NewUdpInput(udpAddr)
+	udpInput := hekagrater.NewUdpInput(udpAddr, &udpFdIntPtr)
 	var inputs = map[string]hekagrater.Input {
 		"udp": udpInput,
 	}

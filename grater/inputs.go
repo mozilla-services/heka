@@ -16,6 +16,7 @@ package hekagrater
 import (
 	"log"
 	"net"
+	"os"
 )
 
 type Input interface {
@@ -23,21 +24,28 @@ type Input interface {
 }
 
 type UdpInput struct {
-	listener *net.UDPConn
+	listener *net.PacketConn
 }
 
-func NewUdpInput(addrStr string) *UdpInput {
-	address, err := net.ResolveUDPAddr("udp", addrStr)
-	if err != nil {
-		log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
-		return nil
+func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
+	var listener net.PacketConn
+	if *fd != 0 {
+		udpFile := os.NewFile(*fd, "udpFile")
+		fdConn, err := net.FilePacketConn(udpFile)
+		if err != nil {
+			log.Printf("Error accessing UDP fd: %s\n", err.Error())
+			return nil
+		}
+		listener = fdConn
+	} else {
+		var err error
+		listener, err = net.ListenPacket("udp", *addrStr)
+		if err != nil {
+			log.Printf("ListenPacket failed: %s\n", err.Error())
+			return nil
+		}
 	}
-	listener, err := net.ListenUDP("udp", address)
-	if err != nil {
-		log.Printf("ListenUDP failed: %s\n", err.Error())
-		return nil
-	}
-	return &UdpInput{listener}
+	return &UdpInput{&listener}
 }
 
 func (self *UdpInput) Start(pipeline func(*[]byte, chan<- *[]byte)) {
