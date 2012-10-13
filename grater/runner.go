@@ -47,17 +47,17 @@ type GraterConfig struct {
 }
 
 func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
-                     defaultDecoder string) Decoder {
-	var decoderName string
+                     defaultDecoder *string) Decoder {
+	var decoderName *string
 	if (*msgBytes)[0] == 0 {
 		log.Println("TODO: Wire protocol not yet implemented")
 		return nil
 	} else {
 		decoderName = defaultDecoder
 	}
-	decoder, ok := (*decoders)[decoderName]
+	decoder, ok := (*decoders)[*decoderName]
 	if !ok {
-		log.Printf("Decoder doesn't exist: %s\n", decoder)
+		log.Printf("Decoder doesn't exist: %s\n", *decoderName)
 		return nil
 	}
 	return decoder
@@ -83,7 +83,7 @@ func Run(config *GraterConfig) {
 
 	pipeline := func(msgBytes *[]byte, recycleChan chan<- *[]byte) {
 		decoder := decodeDelegator(msgBytes, &config.Decoders,
-			                   config.DefaultDecoder)
+			                   &config.DefaultDecoder)
 		if decoder == nil {
 			return
 		}
