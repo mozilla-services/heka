@@ -83,6 +83,15 @@ func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
 	pipeline := func(msgBytes *[]byte, recycleChan chan<- *[]byte) {
+		defer func() {
+			// recycle message buffer if we can, or skip it if the
+			// recycle channel buffer is already full
+			select {
+			case recycleChan <- msgBytes:
+			default:
+			}
+		}()
+
 		decoder := decodeDelegator(msgBytes, &config.Decoders,
 			                   &config.DefaultDecoder)
 		if decoder == nil {
@@ -102,7 +111,6 @@ func Run(config *GraterConfig) {
 			}
 			output.Deliver(msg)
 		}
-		recycleChan <- msgBytes
 	}
 
 	for name, input := range config.Inputs {
