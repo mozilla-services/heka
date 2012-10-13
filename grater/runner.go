@@ -81,7 +81,7 @@ func filterProcessor(msg *Message, config *GraterConfig) (*Message,
 func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
-	pipeline := func(msgBytes *[]byte) {
+	pipeline := func(msgBytes *[]byte, recycleChan chan<- *[]byte) {
 		decoder := decodeDelegator(msgBytes, &config.Decoders,
 			                   config.DefaultDecoder)
 		if decoder == nil {
@@ -101,6 +101,7 @@ func Run(config *GraterConfig) {
 			}
 			output.Deliver(msg)
 		}
+		recycleChan <- msgBytes
 	}
 
 	for name, input := range config.Inputs {

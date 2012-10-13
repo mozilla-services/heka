@@ -19,7 +19,7 @@ import (
 )
 
 type Input interface {
-	Start(pipeline func(*[]byte))
+	Start(pipeline func(*[]byte, chan<- *[]byte))
 }
 
 type UdpInput struct {
@@ -40,16 +40,23 @@ func NewUdpInput(addrStr string) *UdpInput {
 	return &UdpInput{listener}
 }
 
-func (self *UdpInput) Start(pipeline func(*[]byte)) {
+func (self *UdpInput) Start(pipeline func(*[]byte, chan<- *[]byte)) {
 	go func() {
+		recycleChan := make(chan *[]byte, 1000)
 		for {
-			inData := make([]byte, 60000)
-			n, _, error := self.listener.ReadFrom(inData)
+			var inData []byte
+			select {
+			case inDataPtr := <-recycleChan:
+				inData = *inDataPtr
+			default:
+				inData = make([]byte, 65536)
+			}
+			n, _, error := (*self.listener).ReadFrom(inData)
 			if error != nil {
 				continue
 			}
 			inData = inData[:n]
-			go pipeline(&inData)
+			go pipeline(&inData, recycleChan)
 		}
 	}()
 }
