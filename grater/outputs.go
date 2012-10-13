@@ -66,7 +66,7 @@ func (self *counterOutput) timerLoop(ticker *time.Ticker) {
 		lastTime = now
 		rate = float64(msgsSent) / elapsedTime.Seconds()
 		if msgsSent == 0 {
-			if zeroes == 3 {
+			if newCount == 0 || zeroes == 3 {
 				continue
 			}
 			zeroes++
