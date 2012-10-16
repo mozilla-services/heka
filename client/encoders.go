@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/gob"
+	"fmt"
 )
 
 type JsonEncoder struct {
@@ -25,6 +26,55 @@ type JsonEncoder struct {
 func (self *JsonEncoder) EncodeMessage(msg *Message) (*[]byte, error) {
 	result, err := json.Marshal(msg)
 	return &result, err
+}
+
+var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":"%s","env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+var hex = "0123456789abcdef"
+
+func escapeStr(inStr string) *string {
+	result := new(bytes.Buffer)
+	for i := 0; i < len(inStr); i++ {
+		b := inStr[i]
+		if 0x20 <= b && b != '\\' && b != '"' && b != '<' && b != '>' {
+			result.WriteByte(b)
+			continue
+		}
+		switch b {
+		case '\\', '"':
+			result.WriteByte('\\')
+			result.WriteByte(b)
+		case '\n':
+			result.WriteByte('\\')
+			result.WriteByte('n')
+		case '\r':
+			result.WriteByte('\\')
+			result.WriteByte('r')
+		default:
+			result.WriteString(`\u00`)
+			result.WriteByte(hex[b>>4])
+			result.WriteByte(hex[b&0xF])
+		}
+	}
+	resultStr := result.String()
+	return &resultStr
+}
+
+func (self *Message) MarshalJSON() ([]byte, error) {
+	fieldsJson, err := json.Marshal(self.Fields)
+	if err != nil {
+		return nil, err
+	}
+	timestampJson, err := json.Marshal(self.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	result := fmt.Sprintf(fmtString, *(escapeStr(self.Type)),
+                string(timestampJson), *(escapeStr(self.Logger)),
+                self.Severity, *(escapeStr(self.Payload)),
+                string(fieldsJson), *(escapeStr(self.Env_version)), self.Pid,
+                *(escapeStr(self.Hostname)))
+	fmt.Println(result)
+	return []byte(result), nil
 }
 
 type GobEncoder struct {
