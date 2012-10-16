@@ -14,11 +14,11 @@
 package hekagrater
 
 import (
+	"heka/message"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 const (
@@ -26,17 +26,7 @@ const (
 	timeFormatFullSecond = "2006-01-02T15:04:05"
 )
 
-type Message struct {
-	Type string
-	Timestamp time.Time
-	Logger string
-	Severity int
-	Payload string
-	Fields interface{}
-	Env_version string
-	Pid int
-	Hostname string
-}
+type Message hekamessage.Message
 
 type GraterConfig struct {
 	Inputs map[string]Input
