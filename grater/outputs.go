@@ -27,7 +27,7 @@ type LogOutput struct {
 }
 
 func (self *LogOutput) Deliver(msg *Message) {
-	log.Printf("%+v\n", msg)
+	log.Printf("%+v\n", *msg)
 }
 
 type counterOutput struct {
