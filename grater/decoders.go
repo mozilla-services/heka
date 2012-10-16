@@ -23,6 +23,11 @@ type Decoder interface {
 	Decode(msgBytes *[]byte) *Message
 }
 
+const (
+	timeFormat = "2006-01-02T15:04:05.000000-07:00"
+	timeFormatFullSecond = "2006-01-02T15:04:05-07:00"
+)
+
 type JsonDecoder struct {
 }
 
@@ -30,7 +35,7 @@ func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
 	var msg Message
 	msgJson, err := simplejson.NewJson(*msgBytes)
 	if err != nil {
-		log.Printf("Error decoding message: %s\n", err.Error())
+		log.Printf("Error decoding JSON message: %s\n", err.Error())
 		return nil
 	}
 
