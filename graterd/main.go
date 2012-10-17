@@ -27,6 +27,7 @@ func main() {
 	udpFdInt := flag.Uint64("udpfd", 0, "UDP socket file descriptor")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
 	pprofName := flag.String("pprof", "", "pprof output file path")
+	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
 	flag.Parse()
 	udpFdIntPtr := uintptr(*udpFdInt)
 
@@ -50,10 +51,10 @@ func main() {
 	config.Inputs = inputs
 
 	jsonDecoder := hekagrater.JsonDecoder{}
-	gobDecoder := hekagrater.NewGobDecoder()
+	gobDecoder := hekagrater.GobDecoder{}
 	var decoders = map[string]hekagrater.Decoder {
 		"json": &jsonDecoder,
-		"gob": gobDecoder,
+		"gob": &gobDecoder,
 	}
 	config.Decoders = decoders
 	config.DefaultDecoder = "gob"
@@ -71,6 +72,7 @@ func main() {
 	}
 	config.Outputs = outputs
 	config.DefaultOutputs = []string{}
+	config.PipelinePoolSize = *poolSize
 
 	hekagrater.Run(&config)
 }

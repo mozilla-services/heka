@@ -20,7 +20,7 @@ import (
 )
 
 type Input interface {
-	Start(pipeline func(*[]byte, chan<- *[]byte))
+	Start(pipeline func(*PipelinePack), recycleChan <-chan *PipelinePack)
 }
 
 type UdpInput struct {
@@ -48,24 +48,19 @@ func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
 	return &UdpInput{&listener}
 }
 
-func (self *UdpInput) Start(pipeline func(*[]byte, chan<- *[]byte)) {
+func (self *UdpInput) Start(pipeline func(*PipelinePack),
+	                    recycleChan <-chan *PipelinePack) {
 	go func() {
-		recycleChan := make(chan *[]byte, 1000)
 		for {
-			var inData []byte
-			// try to get a recycled message buffer
-			select {
-			case inDataPtr := <-recycleChan:
-				inData = (*inDataPtr)[:cap(*inDataPtr)]
-			default:
-				inData = make([]byte, 65536)
-			}
-			n, _, error := (*self.listener).ReadFrom(inData)
+			pipelinePack := <-recycleChan
+			msgBytesFull := pipelinePack.MsgBytes
+			n, _, error := (*self.listener).ReadFrom(*msgBytesFull)
 			if error != nil {
 				continue
 			}
-			inData = inData[:n]
-			go pipeline(&inData, recycleChan)
+			msgBytes := (*msgBytesFull)[:n]
+			pipelinePack.MsgBytes = &msgBytes
+			go pipeline(pipelinePack)
 		}
 	}()
 }

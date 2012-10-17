@@ -30,6 +30,12 @@ type GraterConfig struct {
 	Filters []Filter
 	Outputs map[string]Output
 	DefaultOutputs []string
+	PipelinePoolSize int
+}
+
+type PipelinePack struct {
+	MsgBytes *[]byte
+	PluginData map[string]map[string]interface{}
 }
 
 func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
@@ -67,22 +73,23 @@ func filterProcessor(msg *Message, config *GraterConfig) (*Message,
 func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
-	pipeline := func(msgBytes *[]byte, recycleChan chan<- *[]byte) {
+	recycleChan := make(chan *PipelinePack, config.PipelinePoolSize)
+	pipeline := func(pipelinePack *PipelinePack) {
 		defer func() {
-			// recycle message buffer if we can, or skip it if the
-			// recycle channel buffer is already full
-			select {
-			case recycleChan <- msgBytes:
-			default:
-			}
+			// recycle the allocated PipelinePack
+			msgBytes := pipelinePack.MsgBytes
+			msgBytesFull := (*msgBytes)[:cap(*msgBytes)]
+			pipelinePack.MsgBytes = &msgBytesFull
+			recycleChan <- pipelinePack
 		}()
 
+		msgBytes := pipelinePack.MsgBytes
 		decoder := decodeDelegator(msgBytes, &config.Decoders,
 			                   &config.DefaultDecoder)
 		if decoder == nil {
 			return
 		}
-		msg := decoder.Decode(msgBytes)
+		msg := decoder.Decode(pipelinePack)
 
 		msg, outputNames := filterProcessor(msg, config)
 		if msg == nil {
@@ -98,8 +105,15 @@ func Run(config *GraterConfig) {
 		}
 	}
 
+	for i := 0; i < config.PipelinePoolSize; i++ {
+		msgBytes := make([]byte, 65536)
+		pluginData := make(map[string]map[string]interface{})
+		pipelinePack := PipelinePack{&msgBytes, pluginData}
+		recycleChan <- &pipelinePack
+	}
+
 	for name, input := range config.Inputs {
-		input.Start(pipeline)
+		input.Start(pipeline, recycleChan)
 		log.Printf("Input started: %s\n", name)
 	}
 

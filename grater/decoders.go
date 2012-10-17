@@ -22,7 +22,7 @@ import (
 )
 
 type Decoder interface {
-	Decode(msgBytes *[]byte) *Message
+	Decode(pipelinePack *PipelinePack) *Message
 }
 
 const (
@@ -33,7 +33,8 @@ const (
 type JsonDecoder struct {
 }
 
-func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
+func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) *Message {
+	msgBytes := pipelinePack.MsgBytes
 	var msg Message
 	msgJson, err := simplejson.NewJson(*msgBytes)
 	if err != nil {
@@ -64,13 +65,21 @@ func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
 type GobDecoder struct {
 }
 
-func NewGobDecoder() *GobDecoder {
-	return &(GobDecoder{})
-}
-
-func (self *GobDecoder) Decode(msgBytes *[]byte) *Message {
-	buffer := new(bytes.Buffer)
-	decoder := gob.NewDecoder(buffer)
+func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
+	var buffer *bytes.Buffer
+	var decoder *gob.Decoder
+	gobData, ok := pipelinePack.PluginData["decoder.gob"]
+	if ok {
+		buffer, _ = gobData["buffer"].(*bytes.Buffer)
+		decoder, _ = gobData["decoder"].(*gob.Decoder)
+	} else {
+		gobData := make(map[string]interface{})
+		buffer = new(bytes.Buffer)
+		gobData["buffer"] = buffer
+		decoder = gob.NewDecoder(buffer)
+		gobData["decoder"] = decoder
+	}
+	msgBytes := pipelinePack.MsgBytes
 	_, err := buffer.Write(*msgBytes)
 	if err != nil {
 		log.Printf("Error writing to Gob buffer: %s\n", err.Error())

@@ -14,16 +14,32 @@
 package main
 
 import (
+	"flag"
 	"heka/client"
 	"log"
 	"os"
+	"os/signal"
+	"runtime/pprof"
+	"syscall"
 	"time"
 )
 
 func main() {
+	addrStr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
+	pprofName := flag.String("pprof", "", "pprof output file path")
+	flag.Parse()
+
+	if *pprofName != "" {
+		profFile, err := os.Create(*pprofName)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		pprof.StartCPUProfile(profFile)
+		defer pprof.StopCPUProfile()
+	}
+
 	var err error
-	addrStr := "127.0.0.1:5565"
-	sender, err := hekaclient.NewUdpSender(&addrStr)
+	sender, err := hekaclient.NewUdpSender(addrStr)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
@@ -38,10 +54,19 @@ func main() {
 	}
 	msgBytes, err := encoder.EncodeMessage(&message)
 
+	// wait for sigint
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGINT)
 	for {
 		err = sender.SendMessage(msgBytes)
 		if err != nil {
 			log.Printf("Error sending message: %s\n", err.Error())
+		}
+		select {
+		case sigint := <-sigChan:
+			log.Println("Clean shutdown")
+			break
+		default:
 		}
 	}
 }
