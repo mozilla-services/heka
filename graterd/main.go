@@ -50,11 +50,13 @@ func main() {
 	config.Inputs = inputs
 
 	jsonDecoder := hekagrater.JsonDecoder{}
+	gobDecoder := hekagrater.NewGobDecoder()
 	var decoders = map[string]hekagrater.Decoder {
 		"json": &jsonDecoder,
+		"gob": gobDecoder,
 	}
 	config.Decoders = decoders
-	config.DefaultDecoder = "json"
+	config.DefaultDecoder = "gob"
 
 	outputNames := []string{"counter"}
 	namedOutputFilter := hekagrater.NewNamedOutputFilter(&outputNames)

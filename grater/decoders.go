@@ -14,6 +14,8 @@
 package hekagrater
 
 import (
+	"bytes"
+	"encoding/gob"
 	"github.com/bitly/go-simplejson"
 	"log"
 	"time"
@@ -56,5 +58,29 @@ func (self *JsonDecoder) Decode(msgBytes *[]byte) *Message {
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
 
+	return &msg
+}
+
+type GobDecoder struct {
+}
+
+func NewGobDecoder() *GobDecoder {
+	return &(GobDecoder{})
+}
+
+func (self *GobDecoder) Decode(msgBytes *[]byte) *Message {
+	buffer := new(bytes.Buffer)
+	decoder := gob.NewDecoder(buffer)
+	_, err := buffer.Write(*msgBytes)
+	if err != nil {
+		log.Printf("Error writing to Gob buffer: %s\n", err.Error())
+		return nil
+	}
+	msg := Message{}
+	_ = decoder.Decode(&msg)
+	if err != nil {
+		log.Printf("Error decoding Gob message: %s\n", err.Error())
+		return nil
+	}
 	return &msg
 }
