@@ -29,6 +29,7 @@ func (self *JsonEncoder) EncodeMessage(msg *Message) (*[]byte, error) {
 }
 
 var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":"%s","env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+
 var hex = "0123456789abcdef"
 
 func escapeStr(inStr string) *string {
@@ -73,7 +74,6 @@ func (self *Message) MarshalJSON() ([]byte, error) {
                 self.Severity, *(escapeStr(self.Payload)),
                 string(fieldsJson), *(escapeStr(self.Env_version)), self.Pid,
                 *(escapeStr(self.Hostname)))
-	fmt.Println(result)
 	return []byte(result), nil
 }
 
