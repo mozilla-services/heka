@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
-	encoder := hekaclient.JsonEncoder{}
+	encoder := hekaclient.NewGobEncoder()
 	timestamp := time.Now()
 	hostname, _ := os.Hostname()
 	message := hekaclient.Message{
