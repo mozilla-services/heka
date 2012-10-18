@@ -72,7 +72,7 @@ func main() {
 	}
 	config.Outputs = outputs
 	config.DefaultOutputs = []string{}
-	config.PipelinePoolSize = *poolSize
+	config.PoolSize = *poolSize
 
 	hekagrater.Run(&config)
 }

@@ -30,7 +30,7 @@ type GraterConfig struct {
 	Filters []Filter
 	Outputs map[string]Output
 	DefaultOutputs []string
-	PipelinePoolSize int
+	PoolSize int
 }
 
 type PipelinePack struct {
@@ -73,7 +73,7 @@ func filterProcessor(msg *Message, config *GraterConfig) (*Message,
 func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
-	recycleChan := make(chan *PipelinePack, config.PipelinePoolSize)
+	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 	pipeline := func(pipelinePack *PipelinePack) {
 		defer func() {
 			// recycle the allocated PipelinePack
@@ -105,7 +105,7 @@ func Run(config *GraterConfig) {
 		}
 	}
 
-	for i := 0; i < config.PipelinePoolSize; i++ {
+	for i := 0; i < config.PoolSize; i++ {
 		msgBytes := make([]byte, 65536)
 		pluginData := make(map[string]map[string]interface{})
 		pipelinePack := PipelinePack{&msgBytes, pluginData}
