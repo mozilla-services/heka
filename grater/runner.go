@@ -35,7 +35,6 @@ type GraterConfig struct {
 
 type PipelinePack struct {
 	MsgBytes *[]byte
-	PluginData map[string]map[string]interface{}
 }
 
 func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
@@ -107,8 +106,9 @@ func Run(config *GraterConfig) {
 
 	for i := 0; i < config.PoolSize; i++ {
 		msgBytes := make([]byte, 65536)
-		pluginData := make(map[string]map[string]interface{})
-		pipelinePack := PipelinePack{&msgBytes, pluginData}
+		pipelinePack := PipelinePack{
+			MsgBytes: &msgBytes,
+		}
 		recycleChan <- &pipelinePack
 	}
 

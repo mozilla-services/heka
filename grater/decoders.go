@@ -66,27 +66,16 @@ type GobDecoder struct {
 }
 
 func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
-	var buffer *bytes.Buffer
-	var decoder *gob.Decoder
-	gobData, ok := pipelinePack.PluginData["decoder.gob"]
-	if ok {
-		buffer, _ = gobData["buffer"].(*bytes.Buffer)
-		decoder, _ = gobData["decoder"].(*gob.Decoder)
-	} else {
-		gobData := make(map[string]interface{})
-		buffer = new(bytes.Buffer)
-		gobData["buffer"] = buffer
-		decoder = gob.NewDecoder(buffer)
-		gobData["decoder"] = decoder
-	}
 	msgBytes := pipelinePack.MsgBytes
-	_, err := buffer.Write(*msgBytes)
-	if err != nil {
-		log.Printf("Error writing to Gob buffer: %s\n", err.Error())
-		return nil
-	}
+	buffer := bytes.NewBuffer(*msgBytes)
+	decoder := gob.NewDecoder(buffer)
+	 _, err := buffer.Write(*msgBytes)
+	 if err != nil {
+	 	log.Printf("Error writing to Gob buffer: %s\n", err.Error())
+	 	return nil
+	 }
 	msg := Message{}
-	_ = decoder.Decode(&msg)
+	err = decoder.Decode(&msg)
 	if err != nil {
 		log.Printf("Error decoding Gob message: %s\n", err.Error())
 		return nil
