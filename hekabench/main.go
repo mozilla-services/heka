@@ -20,9 +20,41 @@ import (
 	"os"
 	"os/signal"
 	"runtime/pprof"
+	"strings"
 	"syscall"
 	"time"
 )
+
+func timerLoop(count *uint64, ticker *time.Ticker) {
+	lastTime := time.Now()
+	lastCount := *count
+	zeroes := int8(0)
+	var (
+		msgsSent, newCount uint64
+		elapsedTime time.Duration
+		now time.Time
+		rate float64
+	)
+	for {
+		_ = <-ticker.C
+		newCount = *count
+		now = time.Now()
+		msgsSent = newCount - lastCount
+		lastCount = newCount
+		elapsedTime = now.Sub(lastTime)
+		lastTime = now
+		rate = float64(msgsSent) / elapsedTime.Seconds()
+		if msgsSent == 0 {
+			if newCount == 0 || zeroes == 3 {
+				continue
+			}
+			zeroes++
+		} else {
+			zeroes = 0
+		}
+		log.Printf("Sent %d messages. %0.2f msg/sec\n", newCount, rate)
+	}
+}
 
 func main() {
 	addrStr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
@@ -55,18 +87,30 @@ func main() {
 	msgBytes, err := encoder.EncodeMessage(&message)
 
 	// wait for sigint
-	sigChan := make(chan os.Signal)
+	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
-	for {
-		err = sender.SendMessage(msgBytes)
-		if err != nil {
-			log.Printf("Error sending message: %s\n", err.Error())
-		}
+	var msgsSent uint64
+
+	// set up counter loop
+	ticker := time.NewTicker(time.Duration(time.Second))
+	go timerLoop(&msgsSent, ticker)
+
+	for gotsigint := false; !gotsigint; {
 		select {
-		case sigint := <-sigChan:
-			log.Println("Clean shutdown")
-			break
+		case <-sigChan:
+			gotsigint = true
+			continue
 		default:
 		}
+		err = sender.SendMessage(msgBytes)
+		if err != nil {
+			if !strings.Contains(err.Error(), "connection refused") {
+				log.Printf("Error sending message: %s\n",
+					err.Error())
+			}
+		} else {
+			msgsSent++
+		}
 	}
+	log.Println("Clean shutdown")
 }
