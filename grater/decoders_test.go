@@ -14,6 +14,8 @@
 package hekagrater
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
@@ -24,7 +26,7 @@ func DecodersSpec(c gospec.Context) {
 
 	msg := getTestMessage()
 
-	c.Specify("A JsonDecoder object", func() {
+	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 		timestampJson, err := json.Marshal(msg.Timestamp)
 		fieldsJson, err := json.Marshal(msg.Fields)
@@ -37,7 +39,7 @@ func DecodersSpec(c gospec.Context) {
 		pipelinePack := &PipelinePack{&msgBytes}
 		jsonDecoder := &JsonDecoder{}
 
-		c.Specify("can decode valid JSON", func() {
+		c.Specify("can decode a JSON message", func() {
 			decodedMsg := jsonDecoder.Decode(pipelinePack)
 			c.Expect(decodedMsg, gs.Equals, msg)
 		})
@@ -45,6 +47,30 @@ func DecodersSpec(c gospec.Context) {
 		c.Specify("returns `fields` as a map", func() {
 			decodedMsg := jsonDecoder.Decode(pipelinePack)
 			c.Expect(decodedMsg.Fields["foo"], gs.Equals, "bar")
+		})
+
+		c.Specify("returns nil for bogus JSON", func() {
+			badJson := fmt.Sprint("{{", jsonString)
+			msgBytes = []byte(badJson)
+			pipelinePack = &PipelinePack{&msgBytes}
+			decodedMsg := jsonDecoder.Decode(pipelinePack)
+			c.Expect(decodedMsg, gs.IsNil)
+		})
+	})
+
+	c.Specify("A GobDecoder", func() {
+		buffer := &bytes.Buffer{}
+		encoder := gob.NewEncoder(buffer)
+		err := encoder.Encode(msg)
+		c.Assume(err, gs.IsNil)
+		decoder := &GobDecoder{}
+		msgBytes := buffer.Bytes()
+		c.Assume(err, gs.IsNil)
+		pipelinePack := &PipelinePack{&msgBytes}
+
+		c.Specify("can decode a gob message", func() {
+			decodedMsg := decoder.Decode(pipelinePack)
+			c.Expect(decodedMsg, gs.Equals, msg)
 		})
 	})
 }
