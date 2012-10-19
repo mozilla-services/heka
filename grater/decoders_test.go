@@ -14,43 +14,37 @@
 package hekagrater
 
 import (
-	"heka/client"
-	"os"
-	"log"
-	"time"
+	"encoding/json"
+	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
 )
 
 func DecodersSpec(c gospec.Context) {
 
-	timestamp := time.Now()
-	hostname, _ := os.Hostname()
-	fields := make(map[string]interface{})
-	fields["foo"] = "bar"
-	origMsg := hekaclient.Message{
-		Type: "TEST", Timestamp: timestamp,
-		Logger: "DecodersSpec", Severity: 6,
-		Payload: "Test Payload", Env_version: "0.8",
-		Pid: os.Getpid(), Hostname: hostname,
-		Fields: fields,
-	}
-
-	pipelinePack := &PipelinePack{}
+	msg := getTestMessage()
 
 	c.Specify("A JsonDecoder object", func() {
-		jsonEncoder := &hekaclient.JsonEncoder{}
-		var err error
-		msgBytes, err := jsonEncoder.EncodeMessage(&origMsg)
-		pipelinePack.MsgBytes = msgBytes
+		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+		timestampJson, err := json.Marshal(msg.Timestamp)
+		fieldsJson, err := json.Marshal(msg.Fields)
 		c.Assume(err, gs.IsNil)
+		jsonString := fmt.Sprintf(fmtString, msg.Type,
+			timestampJson, msg.Logger, msg.Severity, msg.Payload,
+			fieldsJson, msg.Env_version, msg.Pid, msg.Hostname)
 
+		msgBytes := []byte(jsonString)
+		pipelinePack := &PipelinePack{&msgBytes}
 		jsonDecoder := &JsonDecoder{}
 
 		c.Specify("can decode valid JSON", func() {
-			log.Println(pipelinePack)
 			decodedMsg := jsonDecoder.Decode(pipelinePack)
-			c.Expect(decodedMsg, gs.Equals, &origMsg)
+			c.Expect(decodedMsg, gs.Equals, msg)
+		})
+
+		c.Specify("returns `fields` as a map", func() {
+			decodedMsg := jsonDecoder.Decode(pipelinePack)
+			c.Expect(decodedMsg.Fields["foo"], gs.Equals, "bar")
 		})
 	})
 }
