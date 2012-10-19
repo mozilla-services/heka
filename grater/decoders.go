@@ -54,7 +54,7 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	msg.Logger = msgJson.Get("logger").MustString()
 	msg.Severity = msgJson.Get("severity").MustInt()
 	msg.Payload, _ = msgJson.Get("payload").String()
-	msg.Fields = msgJson.Get("fields")
+	msg.Fields, _ = msgJson.Get("fields").Map()
 	msg.Env_version = msgJson.Get("env_version").MustString()
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
