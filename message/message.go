@@ -23,7 +23,7 @@ type Message struct {
 	Logger string
 	Severity int
 	Payload string
-	Fields interface{}
+	Fields map[string]interface{}
 	Env_version string
 	Pid int
 	Hostname string
