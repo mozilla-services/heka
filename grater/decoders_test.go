@@ -72,5 +72,14 @@ func DecodersSpec(c gospec.Context) {
 			decodedMsg := decoder.Decode(pipelinePack)
 			c.Expect(decodedMsg, gs.Equals, msg)
 		})
+
+		c.Specify("returns nil for bogus gob data", func() {
+			longerBytes := make([]byte, len(msgBytes) + 1)
+			copy([]byte{'x'}, longerBytes[0:1])
+			copy(msgBytes[:], longerBytes[1:])
+			pipelinePack := &PipelinePack{&longerBytes}
+			decodedMsg := decoder.Decode(pipelinePack)
+			c.Expect(decodedMsg, gs.IsNil)
+		})
 	})
 }
