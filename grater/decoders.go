@@ -69,11 +69,11 @@ func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	msgBytes := pipelinePack.MsgBytes
 	buffer := bytes.NewBuffer(*msgBytes)
 	decoder := gob.NewDecoder(buffer)
-	 _, err := buffer.Write(*msgBytes)
-	 if err != nil {
+	_, err := buffer.Write(*msgBytes)
+	if err != nil {
 	 	log.Printf("Error writing to Gob buffer: %s\n", err.Error())
 	 	return nil
-	 }
+	}
 	msg := Message{}
 	err = decoder.Decode(&msg)
 	if err != nil {
