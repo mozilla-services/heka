@@ -17,14 +17,19 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
+	"time"
 )
 
 type Input interface {
-	Start(pipeline func(*PipelinePack), recycleChan <-chan *PipelinePack)
+	Start(pipeline func(*PipelinePack), recycleChan <-chan *PipelinePack,
+		wg *sync.WaitGroup)
+	Stop()
 }
 
 type UdpInput struct {
 	listener *net.PacketConn
+	running bool
 }
 
 func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
@@ -45,15 +50,21 @@ func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
 			return nil
 		}
 	}
-	return &UdpInput{&listener}
+	return &UdpInput{&listener, false}
 }
 
 func (self *UdpInput) Start(pipeline func(*PipelinePack),
-	                    recycleChan <-chan *PipelinePack) {
+	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
+	self.running = true
+	var deadline time.Time
+	timeout := time.Duration(time.Second / 2)
+
 	go func() {
-		for {
+		for self.running {
 			pipelinePack := <-recycleChan
 			msgBytesFull := pipelinePack.MsgBytes
+			deadline = time.Now().Add(timeout)
+			(*self.listener).SetReadDeadline(deadline)
 			n, _, error := (*self.listener).ReadFrom(*msgBytesFull)
 			if error != nil {
 				continue
@@ -62,5 +73,10 @@ func (self *UdpInput) Start(pipeline func(*PipelinePack),
 			pipelinePack.MsgBytes = &msgBytes
 			go pipeline(pipelinePack)
 		}
+		wg.Done()
 	}()
+}
+
+func (self *UdpInput) Stop() {
+	self.running = false
 }

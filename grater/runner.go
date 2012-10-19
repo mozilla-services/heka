@@ -18,6 +18,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -112,8 +113,10 @@ func Run(config *GraterConfig) {
 		recycleChan <- &pipelinePack
 	}
 
+	var wg sync.WaitGroup
 	for name, input := range config.Inputs {
-		input.Start(pipeline, recycleChan)
+		input.Start(pipeline, recycleChan, &wg)
+		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
 
@@ -123,8 +126,14 @@ func Run(config *GraterConfig) {
 	for {
 		sigint := <-sigChan
 		if sigint != nil {
-			log.Println("Clean shutdown.")
 			break
 		}
 	}
+
+	for name, input := range config.Inputs {
+		input.Stop()
+		log.Printf("Stopping input: %s\n", name)
+	}
+	wg.Wait()
+	log.Println("Shutdown complete.")
 }
