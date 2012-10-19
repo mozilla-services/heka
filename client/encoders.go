@@ -28,7 +28,7 @@ func (self *JsonEncoder) EncodeMessage(msg *Message) (*[]byte, error) {
 	return &result, err
 }
 
-var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":"%s","env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 
 var hex = "0123456789abcdef"
 
