@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type Message hekamessage.Message
@@ -77,9 +78,6 @@ func Run(config *GraterConfig) {
 	pipeline := func(pipelinePack *PipelinePack) {
 		defer func() {
 			// recycle the allocated PipelinePack
-			msgBytes := pipelinePack.MsgBytes
-			msgBytesFull := (*msgBytes)[:cap(*msgBytes)]
-			pipelinePack.MsgBytes = &msgBytesFull
 			recycleChan <- pipelinePack
 		}()
 
@@ -114,8 +112,14 @@ func Run(config *GraterConfig) {
 	}
 
 	var wg sync.WaitGroup
+	var runner InputRunner
+	timeout := time.Duration(time.Second / 2)
+	inputRunners := make(map[string]*InputRunner)
+
 	for name, input := range config.Inputs {
-		input.Start(pipeline, recycleChan, &wg)
+		runner = InputRunner{input, &timeout, false}
+		inputRunners[name] = &runner
+		runner.Start(pipeline, recycleChan, &wg)
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
@@ -130,8 +134,8 @@ func Run(config *GraterConfig) {
 		}
 	}
 
-	for name, input := range config.Inputs {
-		input.Stop()
+	for name, runner := range inputRunners {
+		runner.Stop()
 		log.Printf("Stopping input: %s\n", name)
 	}
 	wg.Wait()

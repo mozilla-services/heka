@@ -21,15 +21,45 @@ import (
 	"time"
 )
 
+type InputRunner struct {
+	input Input
+	timeout *time.Duration
+	running bool
+}
+
+func (self *InputRunner) Start(pipeline func(*PipelinePack),
+	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
+	self.running = true
+
+	go func() {
+		for self.running {
+			pipelinePack := <-recycleChan
+			msgBytes := pipelinePack.MsgBytes
+			*msgBytes = (*msgBytes)[:cap(*msgBytes)]
+
+			n, err := self.input.Read(msgBytes, self.timeout)
+			if err != nil {
+				continue
+			}
+			*msgBytes = (*msgBytes)[:n]
+			pipelinePack.MsgBytes = msgBytes
+			go pipeline(pipelinePack)
+		}
+		wg.Done()
+	}()
+}
+
+func (self *InputRunner) Stop() {
+	self.running = false
+}
+
 type Input interface {
-	Start(pipeline func(*PipelinePack), recycleChan <-chan *PipelinePack,
-		wg *sync.WaitGroup)
-	Stop()
+	Read(msgBytes *[]byte, timeout *time.Duration) (int, error)
 }
 
 type UdpInput struct {
 	listener *net.PacketConn
-	running bool
+	deadline time.Time
 }
 
 func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
@@ -50,33 +80,12 @@ func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
 			return nil
 		}
 	}
-	return &UdpInput{&listener, false}
+	return &UdpInput{listener: &listener}
 }
 
-func (self *UdpInput) Start(pipeline func(*PipelinePack),
-	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
-	self.running = true
-	var deadline time.Time
-	timeout := time.Duration(time.Second / 2)
-
-	go func() {
-		for self.running {
-			pipelinePack := <-recycleChan
-			msgBytesFull := pipelinePack.MsgBytes
-			deadline = time.Now().Add(timeout)
-			(*self.listener).SetReadDeadline(deadline)
-			n, _, error := (*self.listener).ReadFrom(*msgBytesFull)
-			if error != nil {
-				continue
-			}
-			msgBytes := (*msgBytesFull)[:n]
-			pipelinePack.MsgBytes = &msgBytes
-			go pipeline(pipelinePack)
-		}
-		wg.Done()
-	}()
-}
-
-func (self *UdpInput) Stop() {
-	self.running = false
+func (self *UdpInput) Read(msgBytes *[]byte, timeout *time.Duration) (int, error) {
+	self.deadline = time.Now().Add(*timeout)
+	(*self.listener).SetReadDeadline(self.deadline)
+	n, _, err := (*self.listener).ReadFrom(*msgBytes)
+	return n, err
 }
