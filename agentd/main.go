@@ -6,11 +6,11 @@ import (
 )
 
 func main() {
-	serviceAddress := flag.String("Statsd address", ":8125", "UDP service address")
+	serviceAddress := flag.String("Statsd address", "127.0.0.1:8125", "UDP service address")
 	flushInterval := flag.Int64("Statsd flush-interval", 10, "Flush interval")
 	percentThreshold := flag.Int("Statsd percent-threshold", 90, "Threshold percent")
 	flag.Parse()
 
-	go hekaagent.StatsdUdpListener(serviceAddress)
-	hekaagent.StatsdMonitor(flushInterval, percentThreshold)
+	go agent.StatsdUdpListener(serviceAddress)
+	agent.StatsdMonitor(flushInterval, percentThreshold)
 }

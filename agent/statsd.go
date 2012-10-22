@@ -1,4 +1,4 @@
-package hekaagent
+package agent
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ type Packet struct {
 }
 
 var (
-	In             = make(chan Packet, 10000)
+	StatsdIn       = make(chan Packet, 10000)
 	counters       = make(map[string]int)
 	timers         = make(map[string][]int)
 	gauges         = make(map[string]int)
@@ -32,6 +32,9 @@ var (
 	packetRegexp   = regexp.MustCompile("([a-zA-Z0-9_]+):([0-9]+)\\|(c|ms)(\\|@([0-9\\.]+))?")
 )
 
+// Monitor for Statsd that pulls the stats counters off the StatsdIn
+// channel, and every flushInterval seconds dumps them in a StatDump
+// packet to the StatsdOut channel
 func StatsdMonitor(flushInterval *int64, percentThreshold *int) {
 	var err error
 	if err != nil {
@@ -42,7 +45,7 @@ func StatsdMonitor(flushInterval *int64, percentThreshold *int) {
 		select {
 		case <-t.C:
 			dump(flushInterval, percentThreshold)
-		case s := <-In:
+		case s := <-StatsdIn:
 			if s.Modifier == "ms" {
 				_, ok := timers[s.Bucket]
 				if !ok {
@@ -159,6 +162,6 @@ func handleMessage(conn *net.UDPConn, remaddr net.Addr, buf *bytes.Buffer) {
 		packet.Value = value
 		packet.Modifier = item[3]
 		packet.Sampling = float32(sampleRate)
-		In <- packet
+		StatsdIn <- packet
 	}
 }
