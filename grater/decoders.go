@@ -71,8 +71,8 @@ func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	decoder := gob.NewDecoder(buffer)
 	_, err := buffer.Write(*msgBytes)
 	if err != nil {
-	 	log.Printf("Error writing to Gob buffer: %s\n", err.Error())
-	 	return nil
+		log.Printf("Error writing to Gob buffer: %s\n", err.Error())
+		return nil
 	}
 	msg := Message{}
 	err = decoder.Decode(&msg)
