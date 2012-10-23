@@ -18,13 +18,13 @@ import (
 )
 
 type Message struct {
-	Type string
-	Timestamp time.Time
-	Logger string
-	Severity int
-	Payload string
-	Fields map[string]interface{}
+	Type        string
+	Timestamp   time.Time
+	Logger      string
+	Severity    int
+	Payload     string
+	Fields      map[string]interface{}
 	Env_version string
-	Pid int
-	Hostname string
+	Pid         int
+	Hostname    string
 }

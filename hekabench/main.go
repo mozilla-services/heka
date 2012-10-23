@@ -31,9 +31,9 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 	zeroes := int8(0)
 	var (
 		msgsSent, newCount uint64
-		elapsedTime time.Duration
-		now time.Time
-		rate float64
+		elapsedTime        time.Duration
+		now                time.Time
+		rate               float64
 	)
 	for {
 		_ = <-ticker.C

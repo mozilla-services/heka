@@ -30,18 +30,18 @@ type Encoder interface {
 }
 
 type Client struct {
-	Sender Sender
-	Encoder Encoder
-	Logger string
+	Sender   Sender
+	Encoder  Encoder
+	Logger   string
 	Severity int
 	Hostname string
-	Pid int
+	Pid      int
 }
 
 var defaultClient = Client{Logger: "", Severity: 6, Hostname: "", Pid: 0}
 
 func NewHekaClient(sender Sender, encoder Encoder, logger *string,
-                   severity *int) *Client {
+	severity *int) *Client {
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Printf("Error getting hostname: %s\n", err.Error())

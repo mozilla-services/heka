@@ -15,8 +15,8 @@ package hekaclient
 
 import (
 	"bytes"
-	"encoding/json"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 )
 
