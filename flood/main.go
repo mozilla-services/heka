@@ -71,14 +71,14 @@ func main() {
 	}
 
 	var err error
-	sender, err := hekaclient.NewUdpSender(addrStr)
+	sender, err := client.NewUdpSender(addrStr)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
-	encoder := hekaclient.NewGobEncoder()
+	encoder := client.NewGobEncoder()
 	timestamp := time.Now()
 	hostname, _ := os.Hostname()
-	message := hekaclient.Message{
+	message := client.Message{
 		Type: "hekabench", Timestamp: timestamp,
 		Logger: "hekabench", Severity: 6,
 		Payload: "Test Payload", Env_version: "0.8",

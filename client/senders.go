@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekaclient
+package client
 
 import (
 	"net"

@@ -15,7 +15,7 @@ package main
 
 import (
 	"flag"
-	"heka/grater"
+	"heka/pipeline"
 	"log"
 	"os"
 	"runtime"
@@ -43,17 +43,17 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	config := hekagrater.GraterConfig{}
+	config := pipeline.GraterConfig{}
 
-	udpInput := hekagrater.NewUdpInput(udpAddr, &udpFdIntPtr)
-	var inputs = map[string]hekagrater.Input{
+	udpInput := pipeline.NewUdpInput(udpAddr, &udpFdIntPtr)
+	var inputs = map[string]pipeline.Input{
 		"udp": udpInput,
 	}
 	config.Inputs = inputs
 
-	jsonDecoder := hekagrater.JsonDecoder{}
-	gobDecoder := hekagrater.GobDecoder{}
-	var decoders = map[string]hekagrater.Decoder{
+	jsonDecoder := pipeline.JsonDecoder{}
+	gobDecoder := pipeline.GobDecoder{}
+	var decoders = map[string]pipeline.Decoder{
 		"json": &jsonDecoder,
 		"gob":  &gobDecoder,
 	}
@@ -61,13 +61,13 @@ func main() {
 	config.DefaultDecoder = *decoder
 
 	outputNames := []string{"counter"}
-	namedOutputFilter := hekagrater.NewNamedOutputFilter(&outputNames)
-	filters := []hekagrater.Filter{namedOutputFilter}
+	namedOutputFilter := pipeline.NewNamedOutputFilter(&outputNames)
+	filters := []pipeline.Filter{namedOutputFilter}
 	config.Filters = filters
 
-	counterOutput := hekagrater.NewCounterOutput()
-	logOutput := hekagrater.LogOutput{}
-	var outputs = map[string]hekagrater.Output{
+	counterOutput := pipeline.NewCounterOutput()
+	logOutput := pipeline.LogOutput{}
+	var outputs = map[string]pipeline.Output{
 		"counter": counterOutput,
 		"log":     &logOutput,
 	}
@@ -75,5 +75,5 @@ func main() {
 	config.DefaultOutputs = []string{}
 	config.PoolSize = *poolSize
 
-	hekagrater.Run(&config)
+	pipeline.Run(&config)
 }

@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekagrater
+package pipeline
 
 import (
 	"heka/message"
@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-type Message hekamessage.Message
+type Message message.Message
 
 type GraterConfig struct {
 	Inputs         map[string]Input

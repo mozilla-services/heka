@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekagrater
+package pipeline
 
 import (
 	"log"

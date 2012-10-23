@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekagrater
+package pipeline
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func DecodersSpec(c gospec.Context) {
 		})
 
 		c.Specify("returns nil for bogus gob data", func() {
-			longerBytes := make([]byte, len(msgBytes) + 1)
+			longerBytes := make([]byte, len(msgBytes)+1)
 			copy([]byte{'x'}, longerBytes[0:1])
 			copy(msgBytes[:], longerBytes[1:])
 			pipelinePack := &PipelinePack{&longerBytes}

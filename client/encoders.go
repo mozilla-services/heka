@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekaclient
+package client
 
 import (
 	"bytes"
@@ -70,16 +70,16 @@ func (self *Message) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	result := fmt.Sprintf(fmtString, *(escapeStr(self.Type)),
-                string(timestampJson), *(escapeStr(self.Logger)),
-                self.Severity, *(escapeStr(self.Payload)),
-                string(fieldsJson), *(escapeStr(self.Env_version)), self.Pid,
-                *(escapeStr(self.Hostname)))
+		string(timestampJson), *(escapeStr(self.Logger)),
+		self.Severity, *(escapeStr(self.Payload)),
+		string(fieldsJson), *(escapeStr(self.Env_version)), self.Pid,
+		*(escapeStr(self.Hostname)))
 	return []byte(result), nil
 }
 
 type GobEncoder struct {
 	encoder *gob.Encoder
-	buffer *bytes.Buffer
+	buffer  *bytes.Buffer
 }
 
 func NewGobEncoder() *GobEncoder {

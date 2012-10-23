@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekaclient
+package client
 
 import (
 	"heka/message"
@@ -19,7 +19,7 @@ import (
 	"os"
 )
 
-type Message hekamessage.Message
+type Message message.Message
 
 type Sender interface {
 	SendMessage(msgBytes *[]byte) error

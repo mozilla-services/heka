@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package hekagrater
+package pipeline
 
 import (
 	"log"
@@ -94,4 +94,8 @@ func (self *UdpInput) Read(msgBytes *[]byte, timeout *time.Duration) (int, error
 	(*self.listener).SetReadDeadline(self.deadline)
 	n, _, err := (*self.listener).ReadFrom(*msgBytes)
 	return n, err
+}
+
+func (self *UdpInput) LoadConfig(config *InputConfig) error {
+	return nil
 }
