@@ -22,7 +22,7 @@ import (
 )
 
 type InputRunner struct {
-	input Input
+	input   Input
 	timeout *time.Duration
 	running bool
 }
@@ -53,7 +53,13 @@ func (self *InputRunner) Stop() {
 	self.running = false
 }
 
+// Represents a generic config section for the given Input
+type InputConfig interface{}
+
+// An Input can initialize itself as appropriate when LoadConfig is
+// called, before Read will be run.
 type Input interface {
+	LoadConfig(config *InputConfig) error
 	Read(msgBytes *[]byte, timeout *time.Duration) (int, error)
 }
 

@@ -1,13 +1,29 @@
 package agent
 
-type InputCreator interface {
-	New(config *AgentConfig) *Streamer
+import (
+	"encoding/json"
+	"github.com/howeyc/fsnotify"
+	"heka/grater"
+	"os"
+	"time"
+)
+
+type LogfileInput struct {
+	filename string
+	file     *os.File
+	deadline *time.Time
 }
 
-// A Streamer takes input based on its config and type and streams to
-// the appropriate streams channel. A 1 on the streams.quit channel
-// indicates that the Streamer should gracefully quit and return a 1 on
-// the streams.quit channel when completed.
-type Streamer interface {
-	Stream(streams *Streams) (err error)
+func (self *LogfileInput) LoadConfig(config *InputConfig) (err error) {
+	self.filename = config.file
+
+}
+
+func LoadInput(config *InputConfig) (*Streamer, error) {
+	switch (*config).Type {
+	case "logfile":
+		var plugin = new(LogfileInput)
+		err := plugin.LoadConfig(config)
+		return plugin, err
+	}
 }

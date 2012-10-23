@@ -26,13 +26,13 @@ import (
 type Message hekamessage.Message
 
 type GraterConfig struct {
-	Inputs map[string]Input
-	Decoders map[string]Decoder
+	Inputs         map[string]Input
+	Decoders       map[string]Decoder
 	DefaultDecoder string
-	Filters []Filter
-	Outputs map[string]Output
+	Filters        []Filter
+	Outputs        map[string]Output
 	DefaultOutputs []string
-	PoolSize int
+	PoolSize       int
 }
 
 type PipelinePack struct {
@@ -40,7 +40,7 @@ type PipelinePack struct {
 }
 
 func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
-                     defaultDecoder *string) Decoder {
+	defaultDecoder *string) Decoder {
 	var decoderName *string
 	if (*msgBytes)[0] == 0 {
 		log.Println("TODO: Wire protocol not yet implemented")
@@ -57,7 +57,7 @@ func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
 }
 
 func filterProcessor(msg *Message, config *GraterConfig) (*Message,
-	                                                  *map[string]bool) {
+	*map[string]bool) {
 	outputs := make(map[string]bool)
 	for _, outputName := range config.DefaultOutputs {
 		outputs[outputName] = true
@@ -83,7 +83,7 @@ func Run(config *GraterConfig) {
 
 		msgBytes := pipelinePack.MsgBytes
 		decoder := decodeDelegator(msgBytes, &config.Decoders,
-			                   &config.DefaultDecoder)
+			&config.DefaultDecoder)
 		if decoder == nil {
 			return
 		}

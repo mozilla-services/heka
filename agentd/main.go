@@ -3,14 +3,20 @@ package main
 import (
 	"flag"
 	"heka/agent"
+	"log"
 )
 
 func main() {
-	serviceAddress := flag.String("Statsd address", "127.0.0.1:8125", "UDP service address")
-	flushInterval := flag.Int64("Statsd flush-interval", 10, "Flush interval")
-	percentThreshold := flag.Int("Statsd percent-threshold", 90, "Threshold percent")
+	configFile := flag.String("config", "agent.conf", "Agent Config file")
 	flag.Parse()
 
-	go agent.StatsdUdpListener(serviceAddress)
-	agent.StatsdMonitor(flushInterval, percentThreshold)
+	config, err := agent.ReadConfigFile(*configFile)
+	if err != nil {
+		log.Fatal("Error reading config: ", err)
+	}
+
+	// Setup the system stat aggregator
+	statsd := (*config).Statsd
+	go agent.StatsdUdpListener(&statsd.Host)
+	agent.StatsdMonitor(&statsd.Flush, &statsd.Threshold)
 }
