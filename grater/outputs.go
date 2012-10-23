@@ -34,7 +34,7 @@ type counterOutput struct {
 	count uint
 }
 
-func NewCounterOutput () *counterOutput {
+func NewCounterOutput() *counterOutput {
 	self := counterOutput{0}
 	ticker := time.NewTicker(time.Duration(time.Second))
 	go self.timerLoop(ticker)
@@ -52,9 +52,9 @@ func (self *counterOutput) timerLoop(ticker *time.Ticker) {
 	zeroes := int8(0)
 	var (
 		msgsSent, newCount uint
-		elapsedTime time.Duration
-		now time.Time
-		rate float64
+		elapsedTime        time.Duration
+		now                time.Time
+		rate               float64
 	)
 	for {
 		_ = <-ticker.C

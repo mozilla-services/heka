@@ -46,16 +46,16 @@ func main() {
 	config := hekagrater.GraterConfig{}
 
 	udpInput := hekagrater.NewUdpInput(udpAddr, &udpFdIntPtr)
-	var inputs = map[string]hekagrater.Input {
+	var inputs = map[string]hekagrater.Input{
 		"udp": udpInput,
 	}
 	config.Inputs = inputs
 
 	jsonDecoder := hekagrater.JsonDecoder{}
 	gobDecoder := hekagrater.GobDecoder{}
-	var decoders = map[string]hekagrater.Decoder {
+	var decoders = map[string]hekagrater.Decoder{
 		"json": &jsonDecoder,
-		"gob": &gobDecoder,
+		"gob":  &gobDecoder,
 	}
 	config.Decoders = decoders
 	config.DefaultDecoder = *decoder
@@ -67,9 +67,9 @@ func main() {
 
 	counterOutput := hekagrater.NewCounterOutput()
 	logOutput := hekagrater.LogOutput{}
-	var outputs = map[string]hekagrater.Output {
+	var outputs = map[string]hekagrater.Output{
 		"counter": counterOutput,
-		"log": &logOutput,
+		"log":     &logOutput,
 	}
 	config.Outputs = outputs
 	config.DefaultOutputs = []string{}

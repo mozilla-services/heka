@@ -26,7 +26,7 @@ type Decoder interface {
 }
 
 const (
-	timeFormat = "2006-01-02T15:04:05.000000-07:00"
+	timeFormat           = "2006-01-02T15:04:05.000000-07:00"
 	timeFormatFullSecond = "2006-01-02T15:04:05-07:00"
 )
 
