@@ -21,9 +21,9 @@ type UdpSender struct {
 	connection *net.UDPConn
 }
 
-func NewUdpSender(addrStr *string) (*UdpSender, error) {
+func NewUdpSender(addrStr string) (*UdpSender, error) {
 	var self *UdpSender
-	udpAddr, err := net.ResolveUDPAddr("udp", *addrStr)
+	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err == nil {
 		self = &(UdpSender{conn})
@@ -33,7 +33,7 @@ func NewUdpSender(addrStr *string) (*UdpSender, error) {
 	return self, err
 }
 
-func (self *UdpSender) SendMessage(msgBytes *[]byte) error {
-	_, err := self.connection.Write(*msgBytes)
+func (self *UdpSender) SendMessage(msgBytes []byte) error {
+	_, err := self.connection.Write(msgBytes)
 	return err
 }

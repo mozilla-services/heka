@@ -23,16 +23,16 @@ import (
 type JsonEncoder struct {
 }
 
-func (self *JsonEncoder) EncodeMessage(msg *Message) (*[]byte, error) {
+func (self *JsonEncoder) EncodeMessage(msg *Message) ([]byte, error) {
 	result, err := json.Marshal(msg)
-	return &result, err
+	return result, err
 }
 
 var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 
 var hex = "0123456789abcdef"
 
-func escapeStr(inStr string) *string {
+func escapeStr(inStr string) string {
 	result := new(bytes.Buffer)
 	for i := 0; i < len(inStr); i++ {
 		b := inStr[i]
@@ -57,7 +57,7 @@ func escapeStr(inStr string) *string {
 		}
 	}
 	resultStr := result.String()
-	return &resultStr
+	return resultStr
 }
 
 func (self *Message) MarshalJSON() ([]byte, error) {
@@ -69,11 +69,11 @@ func (self *Message) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := fmt.Sprintf(fmtString, *(escapeStr(self.Type)),
-		string(timestampJson), *(escapeStr(self.Logger)),
-		self.Severity, *(escapeStr(self.Payload)),
-		string(fieldsJson), *(escapeStr(self.Env_version)), self.Pid,
-		*(escapeStr(self.Hostname)))
+	result := fmt.Sprintf(fmtString, escapeStr(self.Type),
+		string(timestampJson), escapeStr(self.Logger),
+		self.Severity, escapeStr(self.Payload),
+		string(fieldsJson), escapeStr(self.Env_version), self.Pid,
+		escapeStr(self.Hostname))
 	return []byte(result), nil
 }
 
@@ -88,11 +88,11 @@ func NewGobEncoder() *GobEncoder {
 	return &(GobEncoder{encoder, buffer})
 }
 
-func (self *GobEncoder) EncodeMessage(msg *Message) (*[]byte, error) {
+func (self *GobEncoder) EncodeMessage(msg *Message) ([]byte, error) {
 	err := self.encoder.Encode(msg)
 	var result []byte
 	if err == nil {
 		result = self.buffer.Bytes()
 	}
-	return &result, err
+	return result, err
 }

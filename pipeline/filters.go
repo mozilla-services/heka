@@ -18,13 +18,13 @@ import (
 )
 
 type Filter interface {
-	FilterMsg(msg *Message, outputs *map[string]bool)
+	FilterMsg(msg *Message, outputs map[string]bool)
 }
 
 type LogFilter struct {
 }
 
-func (self *LogFilter) FilterMsg(msg *Message, outputs *map[string]bool) {
+func (self *LogFilter) FilterMsg(msg *Message, outputs map[string]bool) {
 	log.Printf("Message: %+v\n", *msg)
 }
 
@@ -32,13 +32,13 @@ type namedOutputFilter struct {
 	outputNames []string
 }
 
-func NewNamedOutputFilter(outputNames *[]string) *namedOutputFilter {
-	self := namedOutputFilter{*outputNames}
+func NewNamedOutputFilter(outputNames []string) *namedOutputFilter {
+	self := namedOutputFilter{outputNames}
 	return &self
 }
 
-func (self *namedOutputFilter) FilterMsg(msg *Message, outputs *map[string]bool) {
+func (self *namedOutputFilter) FilterMsg(msg *Message, outputs map[string]bool) {
 	for _, outputName := range self.outputNames {
-		(*outputs)[outputName] = true
+		outputs[outputName] = true
 	}
 }

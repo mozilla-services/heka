@@ -45,7 +45,7 @@ func main() {
 
 	config := pipeline.GraterConfig{}
 
-	udpInput := pipeline.NewUdpInput(udpAddr, &udpFdIntPtr)
+	udpInput := pipeline.NewUdpInput(*udpAddr, &udpFdIntPtr)
 	var inputs = map[string]pipeline.Input{
 		"udp": udpInput,
 	}
@@ -61,7 +61,7 @@ func main() {
 	config.DefaultDecoder = *decoder
 
 	outputNames := []string{"counter"}
-	namedOutputFilter := pipeline.NewNamedOutputFilter(&outputNames)
+	namedOutputFilter := pipeline.NewNamedOutputFilter(outputNames)
 	filters := []pipeline.Filter{namedOutputFilter}
 	config.Filters = filters
 

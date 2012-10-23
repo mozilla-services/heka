@@ -36,7 +36,7 @@ type JsonDecoder struct {
 func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	msgBytes := pipelinePack.MsgBytes
 	var msg Message
-	msgJson, err := simplejson.NewJson(*msgBytes)
+	msgJson, err := simplejson.NewJson(msgBytes)
 	if err != nil {
 		log.Printf("Error decoding JSON message: %s\n", err.Error())
 		return nil
@@ -67,9 +67,9 @@ type GobDecoder struct {
 
 func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	msgBytes := pipelinePack.MsgBytes
-	buffer := bytes.NewBuffer(*msgBytes)
+	buffer := bytes.NewBuffer(msgBytes)
 	decoder := gob.NewDecoder(buffer)
-	_, err := buffer.Write(*msgBytes)
+	_, err := buffer.Write(msgBytes)
 	if err != nil {
 		log.Printf("Error writing to Gob buffer: %s\n", err.Error())
 		return nil

@@ -71,7 +71,7 @@ func main() {
 	}
 
 	var err error
-	sender, err := client.NewUdpSender(addrStr)
+	sender, err := client.NewUdpSender(*addrStr)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}

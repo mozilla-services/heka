@@ -35,13 +35,13 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 		for self.running {
 			pipelinePack := <-recycleChan
 			msgBytes := pipelinePack.MsgBytes
-			*msgBytes = (*msgBytes)[:cap(*msgBytes)]
+			msgBytes = msgBytes[:cap(msgBytes)]
 
 			n, err := self.input.Read(msgBytes, self.timeout)
 			if err != nil {
 				continue
 			}
-			*msgBytes = (*msgBytes)[:n]
+			msgBytes = msgBytes[:n]
 			pipelinePack.MsgBytes = msgBytes
 			go pipeline(pipelinePack)
 		}
@@ -60,7 +60,7 @@ type InputConfig interface{}
 // called, before Read will be run.
 type Input interface {
 	LoadConfig(config *InputConfig) error
-	Read(msgBytes *[]byte, timeout *time.Duration) (int, error)
+	Read(msgBytes []byte, timeout *time.Duration) (int, error)
 }
 
 type UdpInput struct {
@@ -68,7 +68,7 @@ type UdpInput struct {
 	deadline time.Time
 }
 
-func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
+func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 	var listener net.PacketConn
 	if *fd != 0 {
 		udpFile := os.NewFile(*fd, "udpFile")
@@ -80,7 +80,7 @@ func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
 		listener = fdConn
 	} else {
 		var err error
-		listener, err = net.ListenPacket("udp", *addrStr)
+		listener, err = net.ListenPacket("udp", addrStr)
 		if err != nil {
 			log.Printf("ListenPacket failed: %s\n", err.Error())
 			return nil
@@ -89,10 +89,10 @@ func NewUdpInput(addrStr *string, fd *uintptr) *UdpInput {
 	return &UdpInput{listener: &listener}
 }
 
-func (self *UdpInput) Read(msgBytes *[]byte, timeout *time.Duration) (int, error) {
+func (self *UdpInput) Read(msgBytes []byte, timeout *time.Duration) (int, error) {
 	self.deadline = time.Now().Add(*timeout)
 	(*self.listener).SetReadDeadline(self.deadline)
-	n, _, err := (*self.listener).ReadFrom(*msgBytes)
+	n, _, err := (*self.listener).ReadFrom(msgBytes)
 	return n, err
 }
 

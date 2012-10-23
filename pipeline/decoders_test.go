@@ -36,7 +36,7 @@ func DecodersSpec(c gospec.Context) {
 			fieldsJson, msg.Env_version, msg.Pid, msg.Hostname)
 
 		msgBytes := []byte(jsonString)
-		pipelinePack := &PipelinePack{&msgBytes}
+		pipelinePack := &PipelinePack{msgBytes}
 		jsonDecoder := &JsonDecoder{}
 
 		c.Specify("can decode a JSON message", func() {
@@ -52,7 +52,7 @@ func DecodersSpec(c gospec.Context) {
 		c.Specify("returns nil for bogus JSON", func() {
 			badJson := fmt.Sprint("{{", jsonString)
 			msgBytes = []byte(badJson)
-			pipelinePack = &PipelinePack{&msgBytes}
+			pipelinePack = &PipelinePack{msgBytes}
 			decodedMsg := jsonDecoder.Decode(pipelinePack)
 			c.Expect(decodedMsg, gs.IsNil)
 		})
@@ -66,7 +66,7 @@ func DecodersSpec(c gospec.Context) {
 		decoder := &GobDecoder{}
 		msgBytes := buffer.Bytes()
 		c.Assume(err, gs.IsNil)
-		pipelinePack := &PipelinePack{&msgBytes}
+		pipelinePack := &PipelinePack{msgBytes}
 
 		c.Specify("can decode a gob message", func() {
 			decodedMsg := decoder.Decode(pipelinePack)
@@ -77,7 +77,7 @@ func DecodersSpec(c gospec.Context) {
 			longerBytes := make([]byte, len(msgBytes)+1)
 			copy([]byte{'x'}, longerBytes[0:1])
 			copy(msgBytes[:], longerBytes[1:])
-			pipelinePack := &PipelinePack{&longerBytes}
+			pipelinePack := &PipelinePack{longerBytes}
 			decodedMsg := decoder.Decode(pipelinePack)
 			c.Expect(decodedMsg, gs.IsNil)
 		})

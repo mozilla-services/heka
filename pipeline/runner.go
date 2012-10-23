@@ -36,39 +36,39 @@ type GraterConfig struct {
 }
 
 type PipelinePack struct {
-	MsgBytes *[]byte
+	MsgBytes []byte
 }
 
-func decodeDelegator(msgBytes *[]byte, decoders *map[string]Decoder,
-	defaultDecoder *string) Decoder {
-	var decoderName *string
-	if (*msgBytes)[0] == 0 {
+func decodeDelegator(msgBytes []byte, decoders map[string]Decoder,
+	defaultDecoder string) Decoder {
+	var decoderName string
+	if msgBytes[0] == 0 {
 		log.Println("TODO: Wire protocol not yet implemented")
 		return nil
 	} else {
 		decoderName = defaultDecoder
 	}
-	decoder, ok := (*decoders)[*decoderName]
+	decoder, ok := decoders[decoderName]
 	if !ok {
-		log.Printf("Decoder doesn't exist: %s\n", *decoderName)
+		log.Printf("Decoder doesn't exist: %s\n", decoderName)
 		return nil
 	}
 	return decoder
 }
 
 func filterProcessor(msg *Message, config *GraterConfig) (*Message,
-	*map[string]bool) {
+	map[string]bool) {
 	outputs := make(map[string]bool)
 	for _, outputName := range config.DefaultOutputs {
 		outputs[outputName] = true
 	}
 	for _, filter := range config.Filters {
-		filter.FilterMsg(msg, &outputs)
+		filter.FilterMsg(msg, outputs)
 		if msg == nil {
 			return nil, nil
 		}
 	}
-	return msg, &outputs
+	return msg, outputs
 }
 
 func Run(config *GraterConfig) {
@@ -82,8 +82,8 @@ func Run(config *GraterConfig) {
 		}()
 
 		msgBytes := pipelinePack.MsgBytes
-		decoder := decodeDelegator(msgBytes, &config.Decoders,
-			&config.DefaultDecoder)
+		decoder := decodeDelegator(msgBytes, config.Decoders,
+			config.DefaultDecoder)
 		if decoder == nil {
 			return
 		}
@@ -94,7 +94,7 @@ func Run(config *GraterConfig) {
 			return
 		}
 
-		for outputName, _ := range *outputNames {
+		for outputName, _ := range outputNames {
 			output, ok := config.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
@@ -106,7 +106,7 @@ func Run(config *GraterConfig) {
 	for i := 0; i < config.PoolSize; i++ {
 		msgBytes := make([]byte, 65536)
 		pipelinePack := PipelinePack{
-			MsgBytes: &msgBytes,
+			MsgBytes: msgBytes,
 		}
 		recycleChan <- &pipelinePack
 	}
