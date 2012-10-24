@@ -73,7 +73,7 @@ type UdpInput struct {
 }
 
 type MessageGeneratorInput struct {
-	messages chan *Message
+	messages chan Message
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
@@ -120,7 +120,7 @@ func (self *MessageGeneratorInput) Deliver(msg *Message) {
 func (self *MessageGeneratorInput) Read(pipeline *PipelinePack, timeout *time.Duration) error {
 	select {
 	case msg := <-self.messages:
-		pipeline.Message = msg
+		pipeline.Message = &msg
 		pipeline.Decoded = true
 		return nil
 	case <-time.After(timeout):
