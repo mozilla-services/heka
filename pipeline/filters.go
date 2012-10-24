@@ -161,11 +161,11 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	var packet Packet
 	msg := *pipeline.Message
 	switch msg.Type {
-	case "Timer":
+	case "timer":
 		packet.Modifier = "ms"
-	case "Gauge":
+	case "gauge":
 		packet.Modifier = "g"
-	case "Counter":
+	case "counter":
 		packet.Modifier = ""
 	default:
 		return
