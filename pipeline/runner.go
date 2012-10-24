@@ -27,6 +27,10 @@ type Message message.Message
 
 type PluginConfig interface{}
 
+type Plugin interface {
+	Init(config *PluginConfig) error
+}
+
 type GraterConfig struct {
 	Inputs             map[string]Input
 	Decoders           map[string]Decoder

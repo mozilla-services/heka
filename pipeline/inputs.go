@@ -56,10 +56,8 @@ func (self *InputRunner) Stop() {
 	self.running = false
 }
 
-// An Input can initialize itself as appropriate when LoadConfig is
-// called, before Read will be run.
 type Input interface {
-	Init(config *PluginConfig) error
+	Plugin
 	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
 }
 
