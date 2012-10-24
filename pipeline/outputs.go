@@ -20,33 +20,42 @@ import (
 )
 
 type Output interface {
-	Deliver(msg *Message)
+	Plugin
+	Deliver(pipelinePack *PipelinePack)
 }
 
 type LogOutput struct {
 }
 
-func (self *LogOutput) Deliver(msg *Message) {
-	log.Printf("%+v\n", *msg)
+func (self *LogOutput) Init(config *PluginConfig) err {
+	return nil
 }
 
-type counterOutput struct {
+func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
+	log.Printf("%+v\n", *(pipelinePack.Message))
+}
+
+type CounterOutput struct {
 	count uint
 }
 
-func NewCounterOutput() *counterOutput {
-	self := counterOutput{0}
+func NewCounterOutput() *CounterOutput {
+	self := CounterOutput{0}
 	ticker := time.NewTicker(time.Duration(time.Second))
 	go self.timerLoop(ticker)
 	return &self
 }
 
-func (self *counterOutput) Deliver(msg *Message) {
+func (self *CounterOutput) Init(config *PluginConfig) err {
+	return nil
+}
+
+func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
 	self.count++
 	runtime.Gosched()
 }
 
-func (self *counterOutput) timerLoop(ticker *time.Ticker) {
+func (self *CounterOutput) timerLoop(ticker *time.Ticker) {
 	lastTime := time.Now()
 	lastCount := self.count
 	zeroes := int8(0)
