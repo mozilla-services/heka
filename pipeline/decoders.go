@@ -22,7 +22,8 @@ import (
 )
 
 type Decoder interface {
-	Decode(pipelinePack *PipelinePack) *Message
+	Plugin
+	Decode(pipelinePack *PipelinePack) error
 }
 
 const (
@@ -33,15 +34,18 @@ const (
 type JsonDecoder struct {
 }
 
-func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) *Message {
+func (self *JsonDecoder) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
-	var msg Message
 	msgJson, err := simplejson.NewJson(msgBytes)
 	if err != nil {
-		log.Printf("Error decoding JSON message: %s\n", err.Error())
-		return nil
+		return err
 	}
 
+	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
 	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
@@ -59,26 +63,26 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) *Message {
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
 
-	return &msg
+	pipelinePack.Decoded = true
+	return nil
 }
 
 type GobDecoder struct {
 }
 
-func (self *GobDecoder) Decode(pipelinePack *PipelinePack) *Message {
+func (self *GobDecoder) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *GobDecoder) Decode(pipelinePack *PipelinePack) {
 	msgBytes := pipelinePack.MsgBytes
 	buffer := bytes.NewBuffer(msgBytes)
 	decoder := gob.NewDecoder(buffer)
-	_, err := buffer.Write(msgBytes)
+	msg := pipelinePack.Message
+	err := decoder.Decode(msg)
 	if err != nil {
-		log.Printf("Error writing to Gob buffer: %s\n", err.Error())
-		return nil
+		return err
 	}
-	msg := Message{}
-	err = decoder.Decode(&msg)
-	if err != nil {
-		log.Printf("Error decoding Gob message: %s\n", err.Error())
-		return nil
-	}
-	return &msg
+	pipelinePack.Decoded = true
+	return nil
 }

@@ -99,12 +99,18 @@ func Run(config *GraterConfig) {
 
 		// Decode messgae if necessary
 		if !pipelinePack.Decoded {
-			decoder, ok := config.Decoders[pipelinePack.Decoder]
+			decoderName := pipelinePack.Decoder
+			decoder, ok := config.Decoders[decoderName]
 			if !ok {
-				log.Printf("Decoder doesn't exist: %s\n", pipelinePack.Decoder)
+				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
 			}
-			decoder.Decode(pipelinePack)
+			err := decoder.Decode(pipelinePack)
+			if err != nil {
+				log.Printf("Error decoding message (%s decoder): %s",
+					decoderName, err.Error())
+				return
+			}
 		}
 
 		// Run message through the appropriate filters
