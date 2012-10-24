@@ -25,6 +25,8 @@ import (
 
 type Message message.Message
 
+type PluginConfig interface{}
+
 type GraterConfig struct {
 	Inputs         map[string]Input
 	Decoders       map[string]Decoder
