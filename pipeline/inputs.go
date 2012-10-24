@@ -53,19 +53,20 @@ func (self *InputRunner) Stop() {
 	self.running = false
 }
 
-// Represents a generic config section for the given Input
-type InputConfig interface{}
-
 // An Input can initialize itself as appropriate when LoadConfig is
 // called, before Read will be run.
 type Input interface {
-	LoadConfig(config *InputConfig) error
+	Init(config *PluginConfig) error
 	Read(msgBytes []byte, timeout *time.Duration) (int, error)
 }
 
 type UdpInput struct {
 	listener *net.PacketConn
 	deadline time.Time
+}
+
+type MessageGeneratorInput struct {
+	messages chan *Message
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
@@ -96,6 +97,25 @@ func (self *UdpInput) Read(msgBytes []byte, timeout *time.Duration) (int, error)
 	return n, err
 }
 
-func (self *UdpInput) LoadConfig(config *InputConfig) error {
+func (self *UdpInput) Init(config *PluginConfig) error {
 	return nil
+}
+
+func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
+	self.messages = make(chan *Message, 100)
+	return nil
+}
+
+func (self *MessageGeneratorInput) Deliver(msg *Message) {
+	self.messages <- msg
+}
+
+func (self *MessageGeneratorInput) Read(pipeline *PipelinePack, timeout *time.Duration) (int, error) {
+	select {
+	case msg := <-self.messages:
+		pipeline.Message = msg
+		pipeline.Decoded = true
+	case <-time.After(timeout):
+		return 0, nil
+	}
 }
