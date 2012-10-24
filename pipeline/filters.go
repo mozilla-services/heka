@@ -21,8 +21,8 @@ import (
 )
 
 type Filter interface {
-	Init(config *PluginConfig) error
-	FilterMsg(msg *Message, outputs map[string]bool)
+	Plugin
+	FilterMsg(pipelinePack *PipelinePack)
 }
 
 type LogFilter struct {
@@ -44,22 +44,30 @@ type StatRollupFilter struct {
 	gauges           map[string]int
 }
 
-func (self *LogFilter) FilterMsg(msg *Message, outputs map[string]bool) {
-	log.Printf("Message: %+v\n", *msg)
+func (self *LogFilter) Init(config *PluginConfig) error {
+	return nil
 }
 
-type namedOutputFilter struct {
+func (self *LogFilter) FilterMsg(pipelinePack *PipelinePack) {
+	log.Printf("Message: %+v\n", pipelinePack.Message)
+}
+
+type NamedOutputFilter struct {
 	outputNames []string
 }
 
-func NewNamedOutputFilter(outputNames []string) *namedOutputFilter {
-	self := namedOutputFilter{outputNames}
+func NewNamedOutputFilter(outputNames []string) *NamedOutputFilter {
+	self := NamedOutputFilter{outputNames}
 	return &self
 }
 
-func (self *namedOutputFilter) FilterMsg(msg *Message, outputs map[string]bool) {
+func (self *NamedOutputFilter) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *NamedOutputFilter) FilterMsg(pipelinePack *PipelinePack) {
 	for _, outputName := range self.outputNames {
-		outputs[outputName] = true
+		pipelinePack.Outputs[outputName] = true
 	}
 }
 
