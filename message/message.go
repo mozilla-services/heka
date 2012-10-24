@@ -28,3 +28,11 @@ type Message struct {
 	Pid         int
 	Hostname    string
 }
+
+func (self *Message) Copy(dst *Message) {
+	*dst = *self
+	dst.Fields = make(map[string]interface{})
+	for k, v := range self.Fields {
+		dst.Fields[k] = v
+	}
+}
