@@ -112,7 +112,9 @@ func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
 }
 
 func (self *MessageGeneratorInput) Deliver(msg *Message) {
-	self.messages <- msg
+	newMessage := new(Message)
+	msg.Copy(newMessage)
+	self.messages <- newMessage
 }
 
 func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,

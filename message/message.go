@@ -28,3 +28,13 @@ type Message struct {
 	Pid         int
 	Hostname    string
 }
+
+// Copies a message to a newly initialized Message, including a deep
+// copy of the Fields
+func (self *Message) Copy(dst *Message) {
+	*dst = *self
+	dst.Fields = make(map[string]interface{})
+	for k, v := range self.Fields {
+		dst.Fields[k] = v
+	}
+}
