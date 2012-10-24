@@ -21,6 +21,10 @@ import (
 	"time"
 )
 
+type TimeoutError struct {
+	*Error
+}
+
 type InputRunner struct {
 	input   Input
 	timeout *time.Duration
@@ -110,12 +114,13 @@ func (self *MessageGeneratorInput) Deliver(msg *Message) {
 	self.messages <- msg
 }
 
-func (self *MessageGeneratorInput) Read(pipeline *PipelinePack, timeout *time.Duration) (int, error) {
+func (self *MessageGeneratorInput) Read(pipeline *PipelinePack, timeout *time.Duration) error {
 	select {
 	case msg := <-self.messages:
 		pipeline.Message = msg
 		pipeline.Decoded = true
+		return nil
 	case <-time.After(timeout):
-		return 0, nil
+		return new(TimeoutError)
 	}
 }
