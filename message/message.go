@@ -29,6 +29,8 @@ type Message struct {
 	Hostname    string
 }
 
+// Copies a message to a newly initialized Message, including a deep
+// copy of the Fields
 func (self *Message) Copy(dst *Message) {
 	*dst = *self
 	dst.Fields = make(map[string]interface{})
