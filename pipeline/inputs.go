@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -21,8 +22,10 @@ import (
 	"time"
 )
 
-type TimeoutError struct {
-	*Error
+type TimeoutError string
+
+func (self *TimeoutError) Error() string {
+	return fmt.Sprint("Error: Read timed out")
 }
 
 type InputRunner struct {
