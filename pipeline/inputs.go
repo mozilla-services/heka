@@ -39,17 +39,13 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 	self.running = true
 
 	go func() {
+		var err error
 		for self.running {
 			pipelinePack := <-recycleChan
-			msgBytes := pipelinePack.MsgBytes
-			msgBytes = msgBytes[:cap(msgBytes)]
-
-			n, err := self.input.Read(msgBytes, self.timeout)
+			err = self.input.Read(pipelinePack, self.timeout)
 			if err != nil {
 				continue
 			}
-			msgBytes = msgBytes[:n]
-			pipelinePack.MsgBytes = msgBytes
 			go pipeline(pipelinePack)
 		}
 		wg.Done()
@@ -60,11 +56,9 @@ func (self *InputRunner) Stop() {
 	self.running = false
 }
 
-// An Input can initialize itself as appropriate when LoadConfig is
-// called, before Read will be run.
 type Input interface {
-	Init(config *PluginConfig) error
-	Read(msgBytes []byte, timeout *time.Duration) (int, error)
+	Plugin
+	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
 }
 
 type UdpInput struct {
@@ -97,15 +91,19 @@ func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 	return &UdpInput{listener: &listener}
 }
 
-func (self *UdpInput) Read(msgBytes []byte, timeout *time.Duration) (int, error) {
-	self.deadline = time.Now().Add(*timeout)
-	(*self.listener).SetReadDeadline(self.deadline)
-	n, _, err := (*self.listener).ReadFrom(msgBytes)
-	return n, err
-}
-
 func (self *UdpInput) Init(config *PluginConfig) error {
 	return nil
+}
+
+func (self *UdpInput) Read(pipelinePack *PipelinePack,
+	timeout *time.Duration) (int, error) {
+	self.deadline = time.Now().Add(*timeout)
+	(*self.listener).SetReadDeadline(self.deadline)
+	n, _, err := (*self.listener).ReadFrom(pipelinePack.MsgBytes)
+	if err == nil {
+		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
+	}
+	return err
 }
 
 func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
@@ -117,7 +115,8 @@ func (self *MessageGeneratorInput) Deliver(msg *Message) {
 	self.messages <- msg
 }
 
-func (self *MessageGeneratorInput) Read(pipeline *PipelinePack, timeout *time.Duration) error {
+func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
+	timeout *time.Duration) error {
 	select {
 	case msg := <-self.messages:
 		pipeline.Message = &msg
