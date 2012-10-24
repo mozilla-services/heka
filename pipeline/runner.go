@@ -28,75 +28,92 @@ type Message message.Message
 type PluginConfig interface{}
 
 type GraterConfig struct {
-	Inputs         map[string]Input
-	Decoders       map[string]Decoder
-	DefaultDecoder string
-	Filters        []Filter
-	Outputs        map[string]Output
-	DefaultOutputs []string
-	PoolSize       int
+	Inputs             map[string]Input
+	Decoders           map[string]Decoder
+	DefaultDecoder     string
+	Filters            map[string]Filter
+	FilterChains       map[string][]*Filter
+	DefaultFilterChain string
+	Outputs            map[string]Output
+	DefaultOutputs     []string
+	PoolSize           int
 }
 
 type PipelinePack struct {
-	MsgBytes []byte
+	MsgBytes    []byte
+	Message     *Message
+	Config      *GraterConfig
+	Decoder     string
+	Decoded     bool
+	FilterChain string
+	Outputs     map[string]bool
 }
 
-func decodeDelegator(msgBytes []byte, decoders map[string]Decoder,
-	defaultDecoder string) Decoder {
-	var decoderName string
-	if msgBytes[0] == 0 {
-		log.Println("TODO: Wire protocol not yet implemented")
-		return nil
-	} else {
-		decoderName = defaultDecoder
-	}
-	decoder, ok := decoders[decoderName]
-	if !ok {
-		log.Printf("Decoder doesn't exist: %s\n", decoderName)
-		return nil
-	}
-	return decoder
-}
-
-func filterProcessor(msg *Message, config *GraterConfig) (*Message,
-	map[string]bool) {
-	outputs := make(map[string]bool)
+func filterProcessor(pipelinePack *PipelinePack) {
+	pipelinePack.Outputs = map[string]bool{}
 	for _, outputName := range config.DefaultOutputs {
-		outputs[outputName] = true
+		pipelinePack.Outputs[outputName] = true
 	}
-	for _, filter := range config.Filters {
-		filter.FilterMsg(msg, outputs)
-		if msg == nil {
-			return nil, nil
+	filterChainName := pipelinePack.FilterChain
+	filterChain, ok := config.FilterChains[filterChainName]
+	if !ok {
+		log.Printf("Filter chain doesn't exist: %s", filterChainName)
+		return
+	}
+	for _, filter := range filterChain {
+		filter.FilterMsg(pipelinePack)
+		if pipelinePack.Message == nil {
+			return
 		}
 	}
-	return msg, outputs
 }
 
 func Run(config *GraterConfig) {
 	log.Println("Starting hekagrater...")
 
+	// Used for recycling PipelinePack objects
 	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
+
+	// Main pipeline function, inputs spawn a goroutine of this for every
+	// message
 	pipeline := func(pipelinePack *PipelinePack) {
+
+		// When finished, reset and recycle the allocated PipelinePack
 		defer func() {
-			// recycle the allocated PipelinePack
+			msgBytes := pipeline.MsgBytes
+			msgBytes = msgBytes[:cap(msgBytes)]
+			pipelinePack.Decoder = config.DefaultDecoder
+			pipelinePack.Decoded = false
+			pipelinePack.FilterChain = config.DefaultFilterChain
+			outputs := make(map[string]bool)
+			for _, outputName := range config.DefaultOutputs {
+				outputs[outputName] = true
+			}
+			pipelinePack.Outputs = outputs
 			recycleChan <- pipelinePack
 		}()
 
-		msgBytes := pipelinePack.MsgBytes
-		decoder := decodeDelegator(msgBytes, config.Decoders,
-			config.DefaultDecoder)
-		if decoder == nil {
-			return
-		}
-		msg := decoder.Decode(pipelinePack)
-
-		msg, outputNames := filterProcessor(msg, config)
-		if msg == nil {
-			return
+		// Decode messgae if necessary
+		if !pipelinePack.Decoded {
+			decoder, ok := config.Decoders[pipelinePack.Decoder]
+			if !ok {
+				log.Printf("Decoder doesn't exist: %s\n", pipelinePack.Decoder)
+				return
+			}
+			decoder.Decode(pipelinePack)
 		}
 
-		for outputName, _ := range outputNames {
+		// Run message through the appropriate filters
+		filterProcessor(pipelinePack)
+		if pipelinePack.Message == nil {
+			return
+		}
+
+		// Deliver message to appropriate outputs
+		for outputName, use := range pipelinePack.Outputs {
+			if !use {
+				continue
+			}
 			output, ok := config.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
@@ -105,10 +122,22 @@ func Run(config *GraterConfig) {
 		}
 	}
 
+	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
-		msgBytes := make([]byte, 65536)
+		msgBytes := make([]byte, 0, 65536)
+		message := Message{}
+		outputs := make(map[string]bool)
+		for _, outputName := range config.DefaultOutputs {
+			outputs[outputName] = true
+		}
 		pipelinePack := PipelinePack{
-			MsgBytes: msgBytes,
+			MsgBytes:    msgBytes,
+			Message:     &Message,
+			Config:      config,
+			Decoder:     config.DefaultDecoder,
+			Decoded:     false,
+			FilterChain: config.DefaultFilterChain,
+			Outputs:     outputs,
 		}
 		recycleChan <- &pipelinePack
 	}
