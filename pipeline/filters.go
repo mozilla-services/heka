@@ -189,7 +189,7 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	// If there's an message generator input, configure it. This has to
 	// be setup during run-time as the inputs aren't setup or during
 	// filter initialization
-	if messageGenerator == nil {
+	if self.messageGenerator == nil {
 		self.SetupMessageGenerator(pipeline.Config)
 	}
 	var packet Packet
