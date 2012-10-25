@@ -15,19 +15,52 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
 	"time"
 )
 
 type Filter interface {
-	Init(config *PluginConfig) error
-	FilterMsg(msg *Message, outputs map[string]bool)
+	Plugin
+	FilterMsg(pipelinePack *PipelinePack)
 }
 
+// LogFilter
 type LogFilter struct {
 }
 
+func (self *LogFilter) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *LogFilter) FilterMsg(pipelinePack *PipelinePack) {
+	log.Printf("Message: %+v\n", pipelinePack.Message)
+}
+
+// NamedOutputFilter
+type NamedOutputFilter struct {
+	outputNames []string
+}
+
+func NewNamedOutputFilter(outputNames []string) *NamedOutputFilter {
+	self := NamedOutputFilter{outputNames}
+	return &self
+}
+
+func (self *NamedOutputFilter) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *NamedOutputFilter) FilterMsg(pipelinePack *PipelinePack) {
+	for _, outputName := range self.outputNames {
+		pipelinePack.Outputs[outputName] = true
+	}
+}
+
+// StatRollupFilter
 type Packet struct {
 	Bucket   string
 	Value    int
@@ -45,29 +78,20 @@ type StatRollupFilter struct {
 	gauges           map[string]int
 }
 
-func (self *LogFilter) FilterMsg(msg *Message, outputs map[string]bool) {
-	log.Printf("Message: %+v\n", *msg)
-}
-
-type namedOutputFilter struct {
-	outputNames []string
-}
-
-func NewNamedOutputFilter(outputNames []string) *namedOutputFilter {
-	self := namedOutputFilter{outputNames}
-	return &self
-}
-
-func (self *namedOutputFilter) FilterMsg(msg *Message, outputs map[string]bool) {
-	for _, outputName := range self.outputNames {
-		outputs[outputName] = true
+func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
+	var ok bool
+	var value interface{}
+	value, ok = (*config)["FlushInterval"]
+	if !ok {
+		return errors.New("StatRollupFilter config: Missing FlushInterval")
 	}
-}
-
-func (self *StatRollupFilter) Init(config *FilterConfig) (err error) {
-	self.flushInterval = int64(config.FlushInterval)
-	self.percentThreshold = int(config.PercentThreshold)
-	self.StatdIn = make(chan Packet, 10000)
+	self.flushInterval = value.(int64)
+	value, ok = (*config)["PercentThreshold"]
+	if !ok {
+		return errors.New("StatRollupFilter config: Missing PercentThreshold")
+	}
+	self.percentThreshold = value.(int)
+	self.StatsIn = make(chan *Packet, 10000)
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
 	self.gauges = make(map[string]int)
@@ -169,20 +193,29 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 		self.SetupMessageGenerator(pipeline.Config)
 	}
 	var packet Packet
-	msg := *pipeline.Message
+	msg := pipeline.Message
 	switch msg.Type {
-	case "timer":
+	case "statsd_timer":
 		packet.Modifier = "ms"
-	case "gauge":
+	case "statsd_gauge":
 		packet.Modifier = "g"
-	case "counter":
+	case "statsd_counter":
 		packet.Modifier = ""
 	default:
 		return
 	}
-	packet.Bucket = msg.Fields["name"]
-	packet.Value = int(msg.Payload)
-	packet.Sampling = float32(msg.Fields["rate"])
+
+	defer func() {
+		pipeline.Message = nil
+	}()
+
+	packet.Bucket = msg.Fields["name"].(string)
+	value, err := strconv.ParseInt(msg.Payload, 0, 0)
+	if err != nil {
+		log.Println("StatRollupFilter error parsing value: %s", err.Error())
+		return
+	}
+	packet.Value = int(value)
+	packet.Sampling = msg.Fields["rate"].(float32)
 	self.StatsIn <- &packet
-	pipeline.Message = nil
 }
