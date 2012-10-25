@@ -74,7 +74,7 @@ func (self *GobDecoder) Init(config *PluginConfig) error {
 	return nil
 }
 
-func (self *GobDecoder) Decode(pipelinePack *PipelinePack) {
+func (self *GobDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
 	buffer := bytes.NewBuffer(msgBytes)
 	decoder := gob.NewDecoder(buffer)
