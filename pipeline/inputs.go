@@ -96,7 +96,7 @@ func (self *UdpInput) Init(config *PluginConfig) error {
 }
 
 func (self *UdpInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) (int, error) {
+	timeout *time.Duration) error {
 	self.deadline = time.Now().Add(*timeout)
 	(*self.listener).SetReadDeadline(self.deadline)
 	n, _, err := (*self.listener).ReadFrom(pipelinePack.MsgBytes)
