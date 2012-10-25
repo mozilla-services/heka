@@ -50,6 +50,25 @@ type PipelinePack struct {
 	Outputs     map[string]bool
 }
 
+func NewPipelinePack(config *GraterConfig) *PipelinePack {
+	msgBytes := make([]byte, 65536)
+	message := Message{}
+	outputs := make(map[string]bool)
+	for _, outputName := range config.DefaultOutputs {
+		outputs[outputName] = true
+	}
+	pipelinePack := PipelinePack{
+		MsgBytes:    msgBytes,
+		Message:     &message,
+		Config:      config,
+		Decoder:     config.DefaultDecoder,
+		Decoded:     false,
+		FilterChain: config.DefaultFilterChain,
+		Outputs:     outputs,
+	}
+	return &pipelinePack
+}
+
 func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
@@ -132,22 +151,7 @@ func Run(config *GraterConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
-		msgBytes := make([]byte, 65536)
-		message := Message{}
-		outputs := make(map[string]bool)
-		for _, outputName := range config.DefaultOutputs {
-			outputs[outputName] = true
-		}
-		pipelinePack := PipelinePack{
-			MsgBytes:    msgBytes,
-			Message:     &message,
-			Config:      config,
-			Decoder:     config.DefaultDecoder,
-			Decoded:     false,
-			FilterChain: config.DefaultFilterChain,
-			Outputs:     outputs,
-		}
-		recycleChan <- &pipelinePack
+		recycleChan <- NewPipelinePack(config)
 	}
 
 	var wg sync.WaitGroup
