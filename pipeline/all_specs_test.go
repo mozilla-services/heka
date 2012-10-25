@@ -21,6 +21,8 @@ import (
 	"time"
 )
 
+var config = GraterConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(DecodersSpec)
@@ -40,4 +42,8 @@ func getTestMessage() *Message {
 		Fields: fields,
 	}
 	return &msg
+}
+
+func getTestPipelinePack() *PipelinePack {
+	return NewPipelinePack(&config)
 }

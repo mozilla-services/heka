@@ -35,26 +35,25 @@ func DecodersSpec(c gospec.Context) {
 			timestampJson, msg.Logger, msg.Severity, msg.Payload,
 			fieldsJson, msg.Env_version, msg.Pid, msg.Hostname)
 
-		msgBytes := []byte(jsonString)
-		pipelinePack := &PipelinePack{msgBytes}
+		pipelinePack := getTestPipelinePack()
+		pipelinePack.MsgBytes = []byte(jsonString)
 		jsonDecoder := &JsonDecoder{}
 
 		c.Specify("can decode a JSON message", func() {
-			decodedMsg := jsonDecoder.Decode(pipelinePack)
-			c.Expect(decodedMsg, gs.Equals, msg)
+			jsonDecoder.Decode(pipelinePack)
+			c.Expect(pipelinePack.Message, gs.Equals, msg)
 		})
 
 		c.Specify("returns `fields` as a map", func() {
-			decodedMsg := jsonDecoder.Decode(pipelinePack)
-			c.Expect(decodedMsg.Fields["foo"], gs.Equals, "bar")
+			jsonDecoder.Decode(pipelinePack)
+			c.Expect(pipelinePack.Message.Fields["foo"], gs.Equals, "bar")
 		})
 
 		c.Specify("returns nil for bogus JSON", func() {
 			badJson := fmt.Sprint("{{", jsonString)
-			msgBytes = []byte(badJson)
-			pipelinePack = &PipelinePack{msgBytes}
-			decodedMsg := jsonDecoder.Decode(pipelinePack)
-			c.Expect(decodedMsg, gs.IsNil)
+			pipelinePack.MsgBytes = []byte(badJson)
+			jsonDecoder.Decode(pipelinePack)
+			c.Expect(pipelinePack.Message, gs.IsNil)
 		})
 	})
 
@@ -64,22 +63,22 @@ func DecodersSpec(c gospec.Context) {
 		err := encoder.Encode(msg)
 		c.Assume(err, gs.IsNil)
 		decoder := &GobDecoder{}
-		msgBytes := buffer.Bytes()
+		pipelinePack := getTestPipelinePack()
+		pipelinePack.MsgBytes = buffer.Bytes()
 		c.Assume(err, gs.IsNil)
-		pipelinePack := &PipelinePack{msgBytes}
 
 		c.Specify("can decode a gob message", func() {
-			decodedMsg := decoder.Decode(pipelinePack)
-			c.Expect(decodedMsg, gs.Equals, msg)
+			decoder.Decode(pipelinePack)
+			c.Expect(pipelinePack.Message, gs.Equals, msg)
 		})
 
 		c.Specify("returns nil for bogus gob data", func() {
-			longerBytes := make([]byte, len(msgBytes)+1)
+			longerBytes := make([]byte, len(pipelinePack.MsgBytes)+1)
 			copy([]byte{'x'}, longerBytes[0:1])
-			copy(msgBytes[:], longerBytes[1:])
-			pipelinePack := &PipelinePack{longerBytes}
-			decodedMsg := decoder.Decode(pipelinePack)
-			c.Expect(decodedMsg, gs.IsNil)
+			copy(pipelinePack.MsgBytes[:], longerBytes[1:])
+			pipelinePack.MsgBytes = longerBytes
+			decoder.Decode(pipelinePack)
+			c.Expect(pipelinePack.Message, gs.IsNil)
 		})
 	})
 }
