@@ -73,7 +73,7 @@ type Packet struct {
 // messages and later creates a StatMetric type message which is
 // inserted via the MessageGeneratorInput
 type StatRollupFilter struct {
-	messageGenerator *Plugin
+	messageGenerator *MessageGeneratorInput
 	flushInterval    int64
 	percentThreshold int
 	StatsIn          chan *Packet
@@ -185,15 +185,19 @@ func (self *StatRollupFilter) Flush() {
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
 
 	fmt.Println(buffer) // Prints to std out just for fun
+
+	msg := Message{Type: "statmetric", Timestamp: time.Now()}
+	msg.Fields = make(map[string]interface{})
+	self.messageGenerator.Deliver(&msg)
 }
 
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
 func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) bool {
-	for name, output := range config.Outputs {
-		convert, ok := output.(MessageGeneratorInput)
+	for name, input := range config.Inputs {
+		convert, ok := input.(MessageGeneratorInput)
 		if ok {
-			self.messageGenerator = output
+			self.messageGenerator = convert
 			return true
 		}
 	}
