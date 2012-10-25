@@ -124,7 +124,7 @@ func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 		pipeline.Message = msg
 		pipeline.Decoded = true
 		return nil
-	case <-time.After(timeout):
+	case <-time.After(*timeout):
 		return new(TimeoutError)
 	}
 }
