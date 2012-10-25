@@ -62,8 +62,10 @@ func main() {
 
 	outputNames := []string{"counter"}
 	namedOutputFilter := pipeline.NewNamedOutputFilter(outputNames)
-	filters := []pipeline.Filter{namedOutputFilter}
-	config.Filters = filters
+	config.FilterChains = map[string][]pipeline.Filter{
+		"default": {namedOutputFilter},
+	}
+	config.DefaultFilterChain = "default"
 
 	counterOutput := pipeline.NewCounterOutput()
 	logOutput := pipeline.LogOutput{}

@@ -33,7 +33,6 @@ type GraterConfig struct {
 	Inputs             map[string]Input
 	Decoders           map[string]Decoder
 	DefaultDecoder     string
-	Filters            map[string]Filter
 	FilterChains       map[string][]Filter
 	DefaultFilterChain string
 	Outputs            map[string]Output
