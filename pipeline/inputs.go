@@ -128,4 +128,6 @@ func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 	case <-time.After(*timeout):
 		return new(TimeoutError)
 	}
+	// shouldn't get here, compiler makes us have a return
+	return nil
 }
