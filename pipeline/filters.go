@@ -69,6 +69,7 @@ type Packet struct {
 }
 
 type StatRollupFilter struct {
+	messageGenerator *Plugin
 	flushInterval    int64
 	percentThreshold int
 	StatsIn          chan *Packet
@@ -181,7 +182,16 @@ func (self *StatRollupFilter) Flush() {
 	fmt.Println(buffer)
 }
 
+func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) {
+}
+
 func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
+	// If there's an message generator input, configure it. This has to
+	// be setup during run-time as the inputs aren't setup or during
+	// filter initialization
+	if messageGenerator == nil {
+		self.SetupMessageGenerator(pipeline.Config)
+	}
 	var packet Packet
 	msg := pipeline.Message
 	switch msg.Type {
