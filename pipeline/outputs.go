@@ -27,7 +27,7 @@ type Output interface {
 type LogOutput struct {
 }
 
-func (self *LogOutput) Init(config *PluginConfig) err {
+func (self *LogOutput) Init(config *PluginConfig) error {
 	return nil
 }
 
@@ -46,7 +46,7 @@ func NewCounterOutput() *CounterOutput {
 	return &self
 }
 
-func (self *CounterOutput) Init(config *PluginConfig) err {
+func (self *CounterOutput) Init(config *PluginConfig) error {
 	return nil
 }
 
