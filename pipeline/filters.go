@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	. "heka/message"
 	"log"
 	"sort"
 	"strconv"
@@ -182,7 +183,8 @@ func (self *StatRollupFilter) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
-	fmt.Println(buffer)
+
+	fmt.Println(buffer) // Prints to std out just for fun
 }
 
 // Scans the config to locate the MessageGeneratorInput and saves a
