@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	. "heka/message"
 	"log"
 	"sort"
 	"strconv"
@@ -68,6 +69,9 @@ type Packet struct {
 	Sampling float32
 }
 
+// A local statsd like structure that rolls-up counter/timer/gauge type
+// messages and later creates a StatMetric type message which is
+// inserted via the MessageGeneratorInput
 type StatRollupFilter struct {
 	messageGenerator *Plugin
 	flushInterval    int64
@@ -179,18 +183,33 @@ func (self *StatRollupFilter) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
-	fmt.Println(buffer)
+
+	fmt.Println(buffer) // Prints to std out just for fun
 }
 
-func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) {
+// Scans the config to locate the MessageGeneratorInput and saves a
+// reference to it for use when filtering messages
+func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) bool {
+	for name, output := range config.Outputs {
+		convert, ok := output.(MessageGeneratorInput)
+		if ok {
+			self.messageGenerator = output
+			return true
+		}
+	}
+	return false
 }
 
 func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	// If there's an message generator input, configure it. This has to
 	// be setup during run-time as the inputs aren't setup or during
-	// filter initialization
+	// filter initialization. Filtering will *not* occur if no message
+	// generator is found
 	if self.messageGenerator == nil {
-		self.SetupMessageGenerator(pipeline.Config)
+		ok := self.SetupMessageGenerator(pipeline.Config)
+		if !ok {
+			return
+		}
 	}
 	var packet Packet
 	msg := pipeline.Message
