@@ -29,6 +29,12 @@ func (self *TimeoutError) Error() string {
 	return fmt.Sprint("Error: Read timed out")
 }
 
+type Input interface {
+	Plugin
+	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
+}
+
+// InputRunner
 type InputRunner struct {
 	input   Input
 	timeout *time.Duration
@@ -63,18 +69,10 @@ func (self *InputRunner) Stop() {
 	self.running = false
 }
 
-type Input interface {
-	Plugin
-	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
-}
-
+// UdpInput
 type UdpInput struct {
 	listener *net.PacketConn
 	deadline time.Time
-}
-
-type MessageGeneratorInput struct {
-	messages chan *Message
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
@@ -111,6 +109,11 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
 	}
 	return err
+}
+
+// MessageGeneratorInput
+type MessageGeneratorInput struct {
+	messages chan *Message
 }
 
 func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
