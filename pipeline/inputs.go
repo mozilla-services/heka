@@ -41,13 +41,19 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 
 	go func() {
 		var err error
+		var pipelinePack *PipelinePack
+		needOne := true
 		for self.running {
-			pipelinePack := <-recycleChan
+			if needOne {
+				pipelinePack = <-recycleChan
+			}
 			err = self.input.Read(pipelinePack, self.timeout)
 			if err != nil {
+				needOne = false
 				continue
 			}
 			go pipeline(pipelinePack)
+			needOne = true
 		}
 		wg.Done()
 	}()
