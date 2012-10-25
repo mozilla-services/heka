@@ -53,6 +53,7 @@ type PipelinePack struct {
 
 func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
+	config := pipelinePack.Config
 	for _, outputName := range config.DefaultOutputs {
 		pipelinePack.Outputs[outputName] = true
 	}
@@ -82,7 +83,7 @@ func Run(config *GraterConfig) {
 
 		// When finished, reset and recycle the allocated PipelinePack
 		defer func() {
-			msgBytes := pipeline.MsgBytes
+			msgBytes := pipelinePack.MsgBytes
 			msgBytes = msgBytes[:cap(msgBytes)]
 			pipelinePack.Decoder = config.DefaultDecoder
 			pipelinePack.Decoded = false
@@ -126,7 +127,7 @@ func Run(config *GraterConfig) {
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
 			}
-			output.Deliver(msg)
+			output.Deliver(pipelinePack)
 		}
 	}
 
@@ -140,7 +141,7 @@ func Run(config *GraterConfig) {
 		}
 		pipelinePack := PipelinePack{
 			MsgBytes:    msgBytes,
-			Message:     &Message,
+			Message:     &message,
 			Config:      config,
 			Decoder:     config.DefaultDecoder,
 			Decoded:     false,
