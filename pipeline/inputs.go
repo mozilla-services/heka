@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+	"encoding/gob"
 	"fmt"
 	. "heka/message"
 	"log"
@@ -107,6 +108,54 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	n, _, err := (*self.listener).ReadFrom(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
+	}
+	return err
+}
+
+// UdpGobInput
+type UdpGobInput struct {
+	listener *net.Conn
+	deadline time.Time
+	decoder  *gob.Decoder
+}
+
+func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
+	var listener net.Conn
+	if *fd != 0 {
+		udpFile := os.NewFile(*fd, "udpFile")
+		fdConn, err := net.FileConn(udpFile)
+		if err != nil {
+			log.Printf("Error accessing UDP fd: %s\n", err.Error())
+			return nil
+		}
+		listener = fdConn
+	} else {
+		udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
+		if err != nil {
+			log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
+			return nil
+		}
+		listener, err = net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			log.Printf("ListenUDP failed: %s\n", err.Error())
+			return nil
+		}
+	}
+	decoder := gob.NewDecoder(listener)
+	return &UdpGobInput{listener: &listener, decoder: decoder}
+}
+
+func (self *UdpGobInput) Init(config *PluginConfig) error {
+	return nil
+}
+
+func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
+	timeout *time.Duration) error {
+	self.deadline = time.Now().Add(*timeout)
+	(*self.listener).SetReadDeadline(self.deadline)
+	err := self.decoder.Decode(pipelinePack.Message)
+	if err == nil {
+		pipelinePack.Decoded = true
 	}
 	return err
 }
