@@ -188,7 +188,10 @@ func (self *StatRollupFilter) Flush() {
 
 	msg := Message{Type: "statmetric", Timestamp: time.Now()}
 	msg.Fields = make(map[string]interface{})
-	self.messageGenerator.Deliver(&msg)
+
+	if self.messageGenerator != nil {
+		self.messageGenerator.Deliver(&msg)
+	}
 }
 
 // Scans the config to locate the MessageGeneratorInput and saves a
