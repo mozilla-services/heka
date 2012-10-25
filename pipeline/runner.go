@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"heka/message"
+	. "heka/message"
 	"log"
 	"os"
 	"os/signal"
@@ -22,8 +22,6 @@ import (
 	"syscall"
 	"time"
 )
-
-type Message message.Message
 
 type PluginConfig map[string]interface{}
 

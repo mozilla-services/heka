@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"fmt"
+	. "heka/message"
 	"log"
 	"net"
 	"os"
