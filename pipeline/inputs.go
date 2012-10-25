@@ -72,25 +72,29 @@ func (self *InputRunner) Stop() {
 
 // UdpInput
 type UdpInput struct {
-	listener *net.PacketConn
+	listener *net.Conn
 	deadline time.Time
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
-	var listener net.PacketConn
+	var listener net.Conn
 	if *fd != 0 {
 		udpFile := os.NewFile(*fd, "udpFile")
-		fdConn, err := net.FilePacketConn(udpFile)
+		fdConn, err := net.FileConn(udpFile)
 		if err != nil {
 			log.Printf("Error accessing UDP fd: %s\n", err.Error())
 			return nil
 		}
 		listener = fdConn
 	} else {
-		var err error
-		listener, err = net.ListenPacket("udp", addrStr)
+		udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
 		if err != nil {
-			log.Printf("ListenPacket failed: %s\n", err.Error())
+			log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
+			return nil
+		}
+		listener, err = net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			log.Printf("ListenUDP failed: %s\n", err.Error())
 			return nil
 		}
 	}
@@ -105,7 +109,7 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
 	self.deadline = time.Now().Add(*timeout)
 	(*self.listener).SetReadDeadline(self.deadline)
-	n, _, err := (*self.listener).ReadFrom(pipelinePack.MsgBytes)
+	n, err := (*self.listener).Read(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
 	}
