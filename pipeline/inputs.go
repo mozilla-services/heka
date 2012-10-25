@@ -184,7 +184,7 @@ func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 		pipeline.Decoded = true
 		return nil
 	case <-time.After(*timeout):
-		return new(TimeoutError)
+		return TimeoutError("No messages to read")
 	}
 	// shouldn't get here, compiler makes us have a return
 	return nil
