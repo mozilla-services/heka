@@ -25,23 +25,8 @@ type Filter interface {
 	FilterMsg(pipelinePack *PipelinePack)
 }
 
+// LogFilter
 type LogFilter struct {
-}
-
-type Packet struct {
-	Bucket   string
-	Value    int
-	Modifier string
-	Sampling float32
-}
-
-type StatRollupFilter struct {
-	flushInterval    int64
-	percentThreshold int
-	StatsIn          chan *Packet
-	counters         map[string]int
-	timers           map[string][]int
-	gauges           map[string]int
 }
 
 func (self *LogFilter) Init(config *PluginConfig) error {
@@ -52,6 +37,7 @@ func (self *LogFilter) FilterMsg(pipelinePack *PipelinePack) {
 	log.Printf("Message: %+v\n", pipelinePack.Message)
 }
 
+// NamedOutputFilter
 type NamedOutputFilter struct {
 	outputNames []string
 }
@@ -75,6 +61,22 @@ func (self *StatRollupFilter) Init(config *FilterConfig) (err error) {
 	self.flushInterval = int64(config.FlushInterval)
 	self.percentThreshold = int(config.PercentThreshold)
 	self.StatdIn = make(chan Packet, 10000)
+// StatRollupFilter
+type Packet struct {
+	Bucket   string
+	Value    int
+	Modifier string
+	Sampling float32
+}
+
+type StatRollupFilter struct {
+	flushInterval    int64
+	percentThreshold int
+	StatsIn          chan *Packet
+	counters         map[string]int
+	timers           map[string][]int
+	gauges           map[string]int
+}
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
 	self.gauges = make(map[string]int)
