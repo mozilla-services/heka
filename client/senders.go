@@ -17,6 +17,10 @@ import (
 	"net"
 )
 
+type Sender interface {
+	SendMessage(msgBytes []byte) error
+}
+
 type UdpSender struct {
 	connection *net.UDPConn
 }

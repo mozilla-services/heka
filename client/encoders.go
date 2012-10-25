@@ -20,6 +20,10 @@ import (
 	"fmt"
 )
 
+type Encoder interface {
+	EncodeMessage(msg *Message) ([]byte, error)
+}
+
 type JsonEncoder struct {
 }
 

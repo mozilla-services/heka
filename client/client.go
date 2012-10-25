@@ -21,14 +21,6 @@ import (
 
 type Message message.Message
 
-type Sender interface {
-	SendMessage(msgBytes []byte) error
-}
-
-type Encoder interface {
-	EncodeMessage(msg *Message) ([]byte, error)
-}
-
 type Client struct {
 	Sender   Sender
 	Encoder  Encoder
