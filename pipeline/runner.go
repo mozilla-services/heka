@@ -132,7 +132,7 @@ func Run(config *GraterConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
-		msgBytes := make([]byte, 0, 65536)
+		msgBytes := make([]byte, 65536)
 		message := Message{}
 		outputs := make(map[string]bool)
 		for _, outputName := range config.DefaultOutputs {
