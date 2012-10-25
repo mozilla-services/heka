@@ -15,8 +15,11 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
 	"time"
 )
 
@@ -57,10 +60,6 @@ func (self *NamedOutputFilter) FilterMsg(pipelinePack *PipelinePack) {
 	}
 }
 
-func (self *StatRollupFilter) Init(config *FilterConfig) (err error) {
-	self.flushInterval = int64(config.FlushInterval)
-	self.percentThreshold = int(config.PercentThreshold)
-	self.StatdIn = make(chan Packet, 10000)
 // StatRollupFilter
 type Packet struct {
 	Bucket   string
@@ -77,6 +76,21 @@ type StatRollupFilter struct {
 	timers           map[string][]int
 	gauges           map[string]int
 }
+
+func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
+	var ok bool
+	var value interface{}
+	value, ok = (*config)["FlushInterval"]
+	if !ok {
+		return errors.New("StatRollupFilter config: Missing FlushInterval")
+	}
+	self.flushInterval = value.(int64)
+	value, ok = (*config)["PercentThreshold"]
+	if !ok {
+		return errors.New("StatRollupFilter config: Missing PercentThreshold")
+	}
+	self.percentThreshold = value.(int)
+	self.StatsIn = make(chan *Packet, 10000)
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
 	self.gauges = make(map[string]int)
@@ -169,20 +183,29 @@ func (self *StatRollupFilter) Flush() {
 
 func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	var packet Packet
-	msg := *pipeline.Message
+	msg := pipeline.Message
 	switch msg.Type {
-	case "timer":
+	case "statsd_timer":
 		packet.Modifier = "ms"
-	case "gauge":
+	case "statsd_gauge":
 		packet.Modifier = "g"
-	case "counter":
+	case "statsd_counter":
 		packet.Modifier = ""
 	default:
 		return
 	}
-	packet.Bucket = msg.Fields["name"]
-	packet.Value = int(msg.Payload)
-	packet.Sampling = float32(msg.Fields["rate"])
+
+	defer func() {
+		pipeline.Message = nil
+	}()
+
+	packet.Bucket = msg.Fields["name"].(string)
+	value, err := strconv.ParseInt(msg.Payload, 0, 0)
+	if err != nil {
+		log.Println("StatRollupFilter error parsing value: %s", err.Error())
+		return
+	}
+	packet.Value = int(value)
+	packet.Sampling = msg.Fields["rate"].(float32)
 	self.StatsIn <- &packet
-	pipeline.Message = nil
 }

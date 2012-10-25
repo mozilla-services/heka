@@ -25,7 +25,7 @@ import (
 
 type Message message.Message
 
-type PluginConfig interface{}
+type PluginConfig map[string]interface{}
 
 type Plugin interface {
 	Init(config *PluginConfig) error
