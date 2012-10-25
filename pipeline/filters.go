@@ -194,8 +194,8 @@ func (self *StatRollupFilter) Flush() {
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
 func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) bool {
-	for name, input := range config.Inputs {
-		convert, ok := input.(MessageGeneratorInput)
+	for _, input := range config.Inputs {
+		convert, ok := input.(*MessageGeneratorInput)
 		if ok {
 			self.messageGenerator = convert
 			return true
