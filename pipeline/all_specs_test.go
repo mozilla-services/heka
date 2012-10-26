@@ -16,6 +16,7 @@ package pipeline
 import (
 	"github.com/orfjackal/gospec/src/gospec"
 	. "heka/message"
+	"heka/testsupport"
 	"os"
 	"testing"
 	"time"
@@ -24,8 +25,10 @@ import (
 var config = GraterConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
 
 func TestAllSpecs(t *testing.T) {
+	testsupport.SetTestingT(t)
 	r := gospec.NewRunner()
 	r.AddSpec(DecodersSpec)
+	r.AddSpec(InputsSpec)
 	gospec.MainGoTest(r, t)
 }
 
