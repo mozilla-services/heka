@@ -72,8 +72,8 @@ func (self *InputRunner) Stop() {
 
 // UdpInput
 type UdpInput struct {
-	listener *net.Conn
-	deadline time.Time
+	Listener *net.Conn
+	Deadline time.Time
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
@@ -98,7 +98,7 @@ func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 			return nil
 		}
 	}
-	return &UdpInput{listener: &listener}
+	return &UdpInput{Listener: &listener}
 }
 
 func (self *UdpInput) Init(config *PluginConfig) error {
@@ -107,9 +107,9 @@ func (self *UdpInput) Init(config *PluginConfig) error {
 
 func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
-	self.deadline = time.Now().Add(*timeout)
-	(*self.listener).SetReadDeadline(self.deadline)
-	n, err := (*self.listener).Read(pipelinePack.MsgBytes)
+	self.Deadline = time.Now().Add(*timeout)
+	(*self.Listener).SetReadDeadline(self.Deadline)
+	n, err := (*self.Listener).Read(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
 	}
@@ -118,9 +118,9 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 
 // UdpGobInput
 type UdpGobInput struct {
-	listener *net.Conn
-	deadline time.Time
-	decoder  *gob.Decoder
+	Listener *net.Conn
+	Deadline time.Time
+	Decoder  *gob.Decoder
 }
 
 func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
@@ -146,7 +146,7 @@ func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
 		}
 	}
 	decoder := gob.NewDecoder(listener)
-	return &UdpGobInput{listener: &listener, decoder: decoder}
+	return &UdpGobInput{Listener: &listener, Decoder: decoder}
 }
 
 func (self *UdpGobInput) Init(config *PluginConfig) error {
@@ -155,9 +155,9 @@ func (self *UdpGobInput) Init(config *PluginConfig) error {
 
 func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
-	self.deadline = time.Now().Add(*timeout)
-	(*self.listener).SetReadDeadline(self.deadline)
-	err := self.decoder.Decode(pipelinePack.Message)
+	self.Deadline = time.Now().Add(*timeout)
+	(*self.Listener).SetReadDeadline(self.Deadline)
+	err := self.Decoder.Decode(pipelinePack.Message)
 	if err == nil {
 		pipelinePack.Decoded = true
 	}
