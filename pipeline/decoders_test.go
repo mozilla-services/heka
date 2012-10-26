@@ -53,7 +53,8 @@ func DecodersSpec(c gospec.Context) {
 			badJson := fmt.Sprint("{{", jsonString)
 			pipelinePack.MsgBytes = []byte(badJson)
 			jsonDecoder.Decode(pipelinePack)
-			c.Expect(pipelinePack.Message, gs.IsNil)
+			c.Expect(pipelinePack.Decoded, gs.IsFalse)
+			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
 		})
 	})
 
@@ -78,7 +79,8 @@ func DecodersSpec(c gospec.Context) {
 			copy(pipelinePack.MsgBytes[:], longerBytes[1:])
 			pipelinePack.MsgBytes = longerBytes
 			decoder.Decode(pipelinePack)
-			c.Expect(pipelinePack.Message, gs.IsNil)
+			c.Expect(pipelinePack.Decoded, gs.IsFalse)
+			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
 		})
 	})
 }
