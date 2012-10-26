@@ -18,7 +18,6 @@ import (
 	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -27,30 +26,6 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(MessageEqualsSpec)
 	gospec.MainGoTest(r, t)
-}
-
-func (self *Message) Equals(other interface{}) bool {
-	vSelf := reflect.ValueOf(self).Elem()
-	vOther := reflect.ValueOf(other).Elem()
-
-	var sField, oField reflect.Value
-	var sMap, oMap map[string]interface{}
-	for i := 0; i < vSelf.NumField(); i++ {
-		sField = vSelf.Field(i)
-		oField = vOther.Field(i)
-		if sField.Kind() == reflect.Map {
-			sMap = sField.Interface().(map[string]interface{})
-			oMap = oField.Interface().(map[string]interface{})
-			if !reflect.DeepEqual(sMap, oMap) {
-				return false
-			}
-		} else {
-			if sField.Interface() != oField.Interface() {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func getTestMessage() *Message {

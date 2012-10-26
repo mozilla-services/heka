@@ -14,6 +14,7 @@
 package message
 
 import (
+	"reflect"
 	"time"
 )
 
@@ -37,4 +38,28 @@ func (self *Message) Copy(dst *Message) {
 	for k, v := range self.Fields {
 		dst.Fields[k] = v
 	}
+}
+
+func (self *Message) Equals(other interface{}) bool {
+	vSelf := reflect.ValueOf(self).Elem()
+	vOther := reflect.ValueOf(other).Elem()
+
+	var sField, oField reflect.Value
+	var sMap, oMap map[string]interface{}
+	for i := 0; i < vSelf.NumField(); i++ {
+		sField = vSelf.Field(i)
+		oField = vOther.Field(i)
+		if sField.Kind() == reflect.Map {
+			sMap = sField.Interface().(map[string]interface{})
+			oMap = oField.Interface().(map[string]interface{})
+			if !reflect.DeepEqual(sMap, oMap) {
+				return false
+			}
+		} else {
+			if sField.Interface() != oField.Interface() {
+				return false
+			}
+		}
+	}
+	return true
 }
