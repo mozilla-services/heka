@@ -72,13 +72,13 @@ func (self *InputRunner) Stop() {
 
 // UdpInput
 type UdpInput struct {
-	Listener *net.Conn
+	Listener net.Conn
 	Deadline time.Time
 }
 
 func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 	var listener net.Conn
-	if *fd != 0 {
+	if fd != nil && *fd != 0 {
 		udpFile := os.NewFile(*fd, "udpFile")
 		fdConn, err := net.FileConn(udpFile)
 		if err != nil {
@@ -98,7 +98,7 @@ func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 			return nil
 		}
 	}
-	return &UdpInput{Listener: &listener}
+	return &UdpInput{Listener: listener}
 }
 
 func (self *UdpInput) Init(config *PluginConfig) error {
@@ -108,8 +108,8 @@ func (self *UdpInput) Init(config *PluginConfig) error {
 func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
 	self.Deadline = time.Now().Add(*timeout)
-	(*self.Listener).SetReadDeadline(self.Deadline)
-	n, err := (*self.Listener).Read(pipelinePack.MsgBytes)
+	self.Listener.SetReadDeadline(self.Deadline)
+	n, err := self.Listener.Read(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
 	}
@@ -118,7 +118,7 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 
 // UdpGobInput
 type UdpGobInput struct {
-	Listener *net.Conn
+	Listener net.Conn
 	Deadline time.Time
 	Decoder  *gob.Decoder
 }
@@ -146,7 +146,7 @@ func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
 		}
 	}
 	decoder := gob.NewDecoder(listener)
-	return &UdpGobInput{Listener: &listener, Decoder: decoder}
+	return &UdpGobInput{Listener: listener, Decoder: decoder}
 }
 
 func (self *UdpGobInput) Init(config *PluginConfig) error {
@@ -156,7 +156,7 @@ func (self *UdpGobInput) Init(config *PluginConfig) error {
 func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
 	self.Deadline = time.Now().Add(*timeout)
-	(*self.Listener).SetReadDeadline(self.Deadline)
+	self.Listener.SetReadDeadline(self.Deadline)
 	err := self.Decoder.Decode(pipelinePack.Message)
 	if err == nil {
 		pipelinePack.Decoded = true
