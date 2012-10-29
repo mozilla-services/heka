@@ -47,6 +47,7 @@ type PipelinePack struct {
 	Decoder     string
 	Decoded     bool
 	FilterChain string
+	ChainCount  int
 	Outputs     map[string]bool
 }
 

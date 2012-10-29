@@ -190,7 +190,7 @@ func (self *StatRollupFilter) Flush() {
 	msg.Fields = make(map[string]interface{})
 
 	if self.messageGenerator != nil {
-		self.messageGenerator.Deliver(&msg)
+		self.messageGenerator.Deliver(&msg, 1)
 	}
 }
 

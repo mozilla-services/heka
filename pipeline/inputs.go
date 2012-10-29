@@ -165,8 +165,13 @@ func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 }
 
 // MessageGeneratorInput
+type messageHolder struct {
+	message    *Message
+	chainCount int
+}
+
 type MessageGeneratorInput struct {
-	messages chan *Message
+	messages chan *messageHolder
 }
 
 func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
@@ -174,18 +179,20 @@ func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
 	return nil
 }
 
-func (self *MessageGeneratorInput) Deliver(msg *Message) {
+func (self *MessageGeneratorInput) Deliver(msg *Message, chainCount int) {
 	newMessage := new(Message)
 	msg.Copy(newMessage)
-	self.messages <- newMessage
+	msgHolder := messageHolder{newMessage, chainCount + 1}
+	self.messages <- &msgHolder
 }
 
 func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 	timeout *time.Duration) error {
 	select {
-	case msg := <-self.messages:
-		pipeline.Message = msg
+	case msgHolder := <-self.messages:
+		pipeline.Message = msgHolder.message
 		pipeline.Decoded = true
+		pipeline.ChainCount = msgHolder.chainCount
 		return nil
 	case <-time.After(*timeout):
 		err := TimeoutError("No messages to read")
