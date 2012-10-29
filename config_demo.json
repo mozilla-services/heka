@@ -15,7 +15,7 @@
         }
     ],
     "decoders": [
-        {"type": "JsonDecoder"},
+        {"type": "JsonDecoder", "default": true},
         {"type": "GobDecoder"}
     ],
     "filters": [
@@ -32,8 +32,17 @@
             "host": "192.149.324.132:4233"
         },
     ],
-    "chains": [
-        ["message_generator", "graphite_filter"],
-        ["UdpStatInput", "StatRollupFilter"],
-    ]
+    "chains": {
+        "stats": {
+            "type": "Counter",
+            "filters": ["StatRollupFilter"]
+        },
+        "stat_dump": {
+            "type": "StatMetric",
+            "outputs": ["GraphiteOutput"]
+        },
+        "default": {
+            "outputs": ["LogFileOutput"]
+        }
+    }
 }
