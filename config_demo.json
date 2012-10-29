@@ -10,7 +10,7 @@
             "file": "/var/log/apache/access.log"
         },
         {
-            "type": "UdpGobInput",
+            "type": "UdpStatInput",
             "bind": "127.0.0.1:2423"
         }
     ],
@@ -19,14 +19,21 @@
         {"type": "GobDecoder"}
     ],
     "filters": [
+        {"type": "StatRollupFilter"},
         {
-            "type": ""
+            "type": "NamedOutputFilter",
+            "name": "graphite_filter",
+            "outputs": ["GraphiteOutput"]
         }
     ],
     "outputs": [
-
+        {
+            "type": "GraphiteOutput",
+            "host": "192.149.324.132:4233"
+        },
     ],
     "chains": [
-
+        ["message_generator", "graphite_filter"],
+        ["UdpStatInput", "StatRollupFilter"],
     ]
 }
