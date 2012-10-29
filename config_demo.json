@@ -1,0 +1,32 @@
+{
+    "inputs": [
+        {
+            "type": "MessageGeneratorInput",
+            "name": "message_generator" // Defaults to type name if left out
+        },
+        {
+            "type": "LogfileInput",
+            "name": "apache_access_log",  // Necessary here cause there'll be more
+            "file": "/var/log/apache/access.log"
+        },
+        {
+            "type": "UdpGobInput",
+            "bind": "127.0.0.1:2423"
+        }
+    ],
+    "decoders": [
+        {"type": "JsonDecoder"},
+        {"type": "GobDecoder"}
+    ],
+    "filters": [
+        {
+            "type": ""
+        }
+    ],
+    "outputs": [
+
+    ],
+    "chains": [
+
+    ]
+}
