@@ -175,7 +175,7 @@ type MessageGeneratorInput struct {
 }
 
 func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
-	self.messages = make(chan *Message, 100)
+	self.messages = make(chan *messageHolder, 100)
 	return nil
 }
 
