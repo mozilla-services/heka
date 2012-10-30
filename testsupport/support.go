@@ -14,15 +14,15 @@
 package testsupport
 
 import (
-	"testing"
+	"log"
 )
 
-var testingT *testing.T
+type SimpleT struct {}
 
-func TestingT() *testing.T {
-	return testingT
+func (*SimpleT) Errorf(format string, args ...interface{}) {
+	log.Printf(format, args...)
 }
 
-func SetTestingT(t *testing.T) {
-	testingT = t
+func (*SimpleT) Fatalf(format string, args ...interface{}) {
+	log.Fatalf(format, args...)
 }

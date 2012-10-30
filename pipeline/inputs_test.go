@@ -15,20 +15,27 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"encoding/json"
+	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"heka/testsupport"
 	"net"
+	"time"
 )
 
 func InputsSpec(c gospec.Context) {
-	t := testsupport.TestingT()
+	t := &testsupport.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	// msg := getTestMessage()
 
-	// putMsgInBytes := func([]byte) {
-	// }
+	msg := getTestMessage()
+	msgJson, _ := json.Marshal(msg)
+	pipelinePack := getTestPipelinePack()
+
+	putMsgJsonInBytes := func(msgBytes []byte) {
+		copy(msgBytes, msgJson)
+	}
 
 	c.Specify("A UdpInput", func() {
 		mockListener := testsupport.NewMockConn(ctrl)
@@ -38,9 +45,22 @@ func InputsSpec(c gospec.Context) {
 		udpInput := NewUdpInput(addrStr, nil)
 		realListener := (udpInput.Listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
+
+		// Replace the listener object w/ a mock listener
 		udpInput.Listener = mockListener
 
-		c.Specify("", func() {
+		c.Specify("reads a message from its listener", func() {
+			mockListener.EXPECT().SetReadDeadline(gomock.Any())
+			readCall := mockListener.EXPECT().Read(pipelinePack.MsgBytes)
+			readCall.Return(len(msgJson), nil)
+			readCall.Do(putMsgJsonInBytes)
+			second := time.Second
+			err := udpInput.Read(pipelinePack, &second)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pipelinePack.Decoded, gs.IsFalse)
+			fmt.Println(msgJson)
+			fmt.Println(pipelinePack.MsgBytes)
+			c.Expect(string(pipelinePack.MsgBytes), gs.Equals, string(msgJson))
 		})
 	})
 }
