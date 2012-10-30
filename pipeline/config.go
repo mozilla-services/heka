@@ -15,8 +15,7 @@ package pipeline
 
 import (
 	"encoding/json"
-	"errors"
-	"fmt"
+	"log"
 	"os"
 )
 
@@ -31,7 +30,7 @@ type ConfigFile struct {
 // LoadSection can be passed a config section, the appropriate mapping
 // of available plugins for that section, and will then load and
 // instantiate the plugins into the config value.
-func LoadSection(configSection []PluginConfig, config map[string]Plugin) error {
+func LoadSection(configSection []PluginConfig, config map[string]Plugin) {
 	var (
 		plugin                 Plugin
 		pluginType, pluginName string
@@ -49,18 +48,17 @@ func LoadSection(configSection []PluginConfig, config map[string]Plugin) error {
 		}
 
 		if pluginFunc, ok := AvailablePlugins[pluginType]; !ok {
-			return errors.New("Error: No such plugin of that name")
+			log.Fatalln("Error: No such plugin of that name: ", pluginType)
 		} else {
 			plugin = pluginFunc()
 			if err := plugin.Init(&section); err != nil {
-				msg := fmt.Sprintf("Unable to load config section: %s. Error: %s",
+				log.Fatalf("Unable to load config section: %s. Error: %s",
 					pluginName, err)
-				return errors.New(msg)
 			}
 			config[pluginName] = plugin
 		}
 	}
-	return nil
+	return
 }
 
 // LoadFromConfigFile loads a JSON configuration file and stores the
@@ -96,49 +94,37 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	filterConfig := make(map[string]Plugin)
 	outputConfig := make(map[string]Plugin)
 
-	if err := LoadSection(configFile.Inputs, inputConfig); err != nil {
-		return err
-	} else {
-		for name, plugin := range inputConfig {
-			config.Inputs[name] = plugin.(Input)
+	LoadSection(configFile.Inputs, inputConfig)
+	for name, plugin := range inputConfig {
+		config.Inputs[name] = plugin.(Input)
+	}
+
+	LoadSection(configFile.Decoders, decoderConfig)
+	for name, plugin := range decoderConfig {
+		config.Decoders[name] = plugin.(Decoder)
+	}
+
+	// Locate and set the default decoder
+	for _, section := range configFile.Decoders {
+		if _, ok := section["default"]; !ok {
+			continue
+		}
+		// Determine if its keyed by type or name
+		if name, ok := section["name"]; ok {
+			config.DefaultDecoder = name.(string)
+		} else {
+			config.DefaultDecoder = section["type"].(string)
 		}
 	}
 
-	if err := LoadSection(configFile.Decoders, decoderConfig); err != nil {
-		return err
-	} else {
-		for name, plugin := range decoderConfig {
-			config.Decoders[name] = plugin.(Decoder)
-		}
-
-		// Locate and set the default decoder
-		for _, section := range configFile.Decoders {
-			if _, ok := section["default"]; !ok {
-				continue
-			}
-			// Determine if its keyed by type or name
-			if name, ok := section["name"]; ok {
-				config.DefaultDecoder = name.(string)
-			} else {
-				config.DefaultDecoder = section["type"].(string)
-			}
-		}
+	LoadSection(configFile.Filters, filterConfig)
+	for name, plugin := range filterConfig {
+		config.Filters[name] = plugin.(Filter)
 	}
 
-	if err := LoadSection(configFile.Filters, filterConfig); err != nil {
-		return err
-	} else {
-		for name, plugin := range filterConfig {
-			config.Filters[name] = plugin.(Filter)
-		}
-	}
-
-	if err := LoadSection(configFile.Outputs, outputConfig); err != nil {
-		return err
-	} else {
-		for name, plugin := range outputConfig {
-			config.Outputs[name] = plugin.(Output)
-		}
+	LoadSection(configFile.Outputs, outputConfig)
+	for name, plugin := range outputConfig {
+		config.Outputs[name] = plugin.(Output)
 	}
 
 	for name, section := range configFile.Chains {
