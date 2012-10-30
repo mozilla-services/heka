@@ -125,7 +125,7 @@ type UdpGobInput struct {
 
 func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
 	var listener net.Conn
-	if *fd != 0 {
+	if fd != nil && *fd != 0 {
 		udpFile := os.NewFile(*fd, "udpFile")
 		fdConn, err := net.FileConn(udpFile)
 		if err != nil {
