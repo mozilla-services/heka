@@ -130,6 +130,7 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	jsonBytes := make([]byte, 1e5)
 	n, err := file.Read(jsonBytes)
