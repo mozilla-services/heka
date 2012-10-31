@@ -11,13 +11,13 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package testsupport
+package pipeline
 
 import (
 	"log"
 )
 
-type SimpleT struct {}
+type SimpleT struct{}
 
 func (*SimpleT) Errorf(format string, args ...interface{}) {
 	log.Printf(format, args...)

@@ -52,7 +52,12 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 		needOne := true
 		for self.running {
 			if needOne {
-				pipelinePack = <-recycleChan
+				select {
+				case pipelinePack = <-recycleChan:
+				case <-time.After(*self.timeout):
+					continue
+				}
+
 			}
 			err = self.input.Read(pipelinePack, self.timeout)
 			if err != nil {

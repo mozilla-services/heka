@@ -18,15 +18,65 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/gob"
 	"encoding/json"
-	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
-	"heka/testsupport"
+	"github.com/orfjackal/gospec/src/gospec"
+	mocks "heka/pipeline/mocks"
 	"net"
+	"sync"
 	"time"
 )
 
+func InputRunnerSpec(c gospec.Context) {
+	t := &SimpleT{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	c.Specify("An InputRunner", func() {
+		second := time.Second
+
+		poolSize := 5
+		pipelineCalls := int32(0)
+		recycleChan := make(chan *PipelinePack, poolSize+1)
+		var wg sync.WaitGroup
+
+		for i := 0; i < poolSize; i++ {
+			recycleChan <- getTestPipelinePack()
+		}
+
+		//msg := getTestMessage()
+		//msgJson, _ := json.Marshal(msg)
+
+		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
+			mockInput := NewMockInput(ctrl)
+			inputRunner := InputRunner{mockInput, &second, false}
+			readCall := mockInput.EXPECT().Read(getTestPipelinePack(),
+				&second).Times(poolSize)
+			readCall.Return(nil)
+
+			done := make(chan bool, 1)
+			mockPipeline := func(pipelinePack *PipelinePack) {
+				pipelineCalls++
+				if int(pipelineCalls) == poolSize {
+					done <- true
+				}
+			}
+
+			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			defer inputRunner.Stop()
+
+			var allUsed bool
+			select {
+			case allUsed = <-done:
+			case <-time.After(second):
+			}
+
+			c.Expect(allUsed, gs.IsTrue)
+		})
+	})
+}
+
 func InputsSpec(c gospec.Context) {
-	t := &testsupport.SimpleT{}
+	t := &SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -44,7 +94,7 @@ func InputsSpec(c gospec.Context) {
 		realListener.Close()
 
 		// Replace the listener object w/ a mock listener
-		mockListener := testsupport.NewMockConn(ctrl)
+		mockListener := mocks.NewMockConn(ctrl)
 		udpInput.Listener = mockListener
 
 		msgJson, _ := json.Marshal(msg)
@@ -72,7 +122,7 @@ func InputsSpec(c gospec.Context) {
 		realListener.Close()
 
 		// Replace the listener object w/ a mock listener
-		mockListener := testsupport.NewMockConn(ctrl)
+		mockListener := mocks.NewMockConn(ctrl)
 		udpGobInput.Listener = mockListener
 		udpGobInput.Decoder = gob.NewDecoder(mockListener)
 

@@ -27,6 +27,7 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
+	r.AddSpec(InputRunnerSpec)
 	gospec.MainGoTest(r, t)
 }
 
