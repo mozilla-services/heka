@@ -117,7 +117,8 @@ func InputsSpec(c gospec.Context) {
 	resolvedAddrStr := "127.0.0.1:5565"
 
 	c.Specify("A UdpInput", func() {
-		udpInput := NewUdpInput(addrStr, nil)
+		udpInput := UdpInput{}
+		udpInput.Init(&UdpInputConfig{addrStr})
 		realListener := (udpInput.Listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
 		realListener.Close()
@@ -145,14 +146,15 @@ func InputsSpec(c gospec.Context) {
 	})
 
 	c.Specify("A UdpGobInput", func() {
-		udpGobInput := NewUdpGobInput(addrStr, nil)
-		realListener := (udpGobInput.Listener).(*net.UDPConn)
+		udpGobInput := UdpGobInput{}
+		udpGobInput.Init(&UdpInputConfig{addrStr})
+		realListener := (udpGobInput.UdpInput.Listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
 		realListener.Close()
 
 		// Replace the listener object w/ a mock listener
 		mockListener := mocks.NewMockConn(ctrl)
-		udpGobInput.Listener = mockListener
+		udpGobInput.UdpInput.Listener = mockListener
 		udpGobInput.Decoder = gob.NewDecoder(mockListener)
 
 		encodeBuffer := new(bytes.Buffer)
