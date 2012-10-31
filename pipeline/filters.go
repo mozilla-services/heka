@@ -86,7 +86,7 @@ type StatConfig struct {
 	PercentThreshold int
 }
 
-func (self *StatRollupFilter) JsonConfig() interface{} {
+func (self *StatRollupFilter) ConfigStruct() interface{} {
 	conf := new(StatConfig)
 	conf.FlushInterval = 10
 	conf.PercentThreshold = 90
@@ -201,7 +201,7 @@ func (self *StatRollupFilter) Flush() {
 
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
-func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) bool {
+func (self *StatRollupFilter) SetupMessageGenerator(config *PipelineConfig) bool {
 	for _, input := range config.Inputs {
 		convert, ok := input.(*MessageGeneratorInput)
 		if ok {
