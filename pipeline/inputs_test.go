@@ -18,6 +18,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"github.com/orfjackal/gospec/src/gospec"
 	mocks "heka/pipeline/mocks"
@@ -35,33 +36,35 @@ func InputRunnerSpec(c gospec.Context) {
 		second := time.Second
 
 		poolSize := 5
-		pipelineCalls := int32(0)
-		recycleChan := make(chan *PipelinePack, poolSize+1)
-		var wg sync.WaitGroup
+		pipelineCalls := 0
+		mockInput := NewMockInput(ctrl)
+		inputRunner := InputRunner{mockInput, &second, false}
 
+		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
 			recycleChan <- getTestPipelinePack()
 		}
 
-		//msg := getTestMessage()
-		//msgJson, _ := json.Marshal(msg)
+		var wg sync.WaitGroup
+		comparePack := getTestPipelinePack()
+		done := make(chan bool, 1)
+		mu := sync.Mutex{}
+
+		mockPipeline := func(pipelinePack *PipelinePack) {
+			mu.Lock()
+			pipelineCalls++
+			mu.Unlock()
+			if pipelineCalls == poolSize {
+				done <- true
+			}
+		}
 
 		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
-			mockInput := NewMockInput(ctrl)
-			inputRunner := InputRunner{mockInput, &second, false}
-			readCall := mockInput.EXPECT().Read(getTestPipelinePack(),
-				&second).Times(poolSize)
+			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize)
 			readCall.Return(nil)
 
-			done := make(chan bool, 1)
-			mockPipeline := func(pipelinePack *PipelinePack) {
-				pipelineCalls++
-				if int(pipelineCalls) == poolSize {
-					done <- true
-				}
-			}
-
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			wg.Add(1)
 			defer inputRunner.Stop()
 
 			var allUsed bool
@@ -71,6 +74,32 @@ func InputRunnerSpec(c gospec.Context) {
 			}
 
 			c.Expect(allUsed, gs.IsTrue)
+		})
+
+		c.Specify("even if there are read errors", func() {
+			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize * 2)
+			i := 0
+			readCall.Do(func(pipelinePack *PipelinePack, timeout *time.Duration) {
+				if i < poolSize {
+					readCall.Return(errors.New("Test Error"))
+				} else {
+					readCall.Return(nil)
+				}
+				i++
+			})
+
+			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			wg.Add(1)
+			defer inputRunner.Stop()
+
+			var allUsed bool
+			select {
+			case allUsed = <-done:
+			case <-time.After(second):
+			}
+
+			c.Expect(allUsed, gs.IsTrue)
+
 		})
 	})
 }
