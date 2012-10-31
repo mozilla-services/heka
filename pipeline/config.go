@@ -125,7 +125,6 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 					log.Fatalf("Unable to load config section: %s. Error: %s",
 						pluginName, err)
 				}
-				log.Println("wooo, it worked")
 			} else {
 				if err := plugin.Init(&section); err != nil {
 					log.Fatalf("Unable to load config section: %s. Error: %s",
