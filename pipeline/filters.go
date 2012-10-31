@@ -89,12 +89,12 @@ func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
 	if !ok {
 		return errors.New("StatRollupFilter config: Missing FlushInterval")
 	}
-	self.flushInterval = value.(int64)
+	self.flushInterval = int64(value.(float64))
 	value, ok = (*config)["PercentThreshold"]
 	if !ok {
 		return errors.New("StatRollupFilter config: Missing PercentThreshold")
 	}
-	self.percentThreshold = value.(int)
+	self.percentThreshold = int(value.(float64))
 	self.StatsIn = make(chan *Packet, 10000)
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
