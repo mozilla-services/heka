@@ -139,7 +139,7 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	}
 	jsonBytes = jsonBytes[:n]
 
-	configFile := ConfigFile{}
+	configFile := new(ConfigFile)
 	err = json.Unmarshal(jsonBytes, configFile)
 	if err != nil {
 		return err
