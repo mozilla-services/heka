@@ -141,31 +141,37 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 	return config
 }
 
-// LoadFromConfigFile loads a JSON configuration file and stores the
-// result in the value pointed to by config. The maps in the config
-// will be initialized as needed.
-//
-// The PipelineConfig should be already initialized before passed in via
-// its Init function.
-func LoadFromConfigFile(filename string, config *PipelineConfig) error {
+// Given a filename string and JSON structure, read the file and
+// un-marshal it into the structure
+func ReadJsonFromFile(filename string, configFile *ConfigFile) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return err
+		log.Fatalf("Error reading file: %s", err)
 	}
 	defer file.Close()
 
 	jsonBytes := make([]byte, 1e5)
 	n, err := file.Read(jsonBytes)
 	if err != nil {
-		return err
+		log.Fatalf("Error reading byte in file: %s", err)
 	}
 	jsonBytes = jsonBytes[:n]
 
-	configFile := new(ConfigFile)
-	err = json.Unmarshal(jsonBytes, configFile)
-	if err != nil {
-		return err
+	if err = json.Unmarshal(jsonBytes, configFile); err != nil {
+		log.Fatalf("Error with Unmarshal: %s", err)
 	}
+	return
+}
+
+// LoadFromConfigFile loads a JSON configuration file and stores the
+// result in the value pointed to by config. The maps in the config
+// will be initialized as needed.
+//
+// The PipelineConfig should be already initialized before passed in via
+// its Init function.
+func LoadFromConfigFile(filename string, config *PipelineConfig) {
+	configFile := new(ConfigFile)
+	ReadJsonFromFile(filename, configFile)
 
 	for name, plugin := range LoadSection(configFile.Inputs) {
 		config.Inputs[name] = plugin.(Input)
@@ -231,6 +237,5 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 		}
 		config.FilterChains[name] = chain
 	}
-
-	return nil
+	return
 }
