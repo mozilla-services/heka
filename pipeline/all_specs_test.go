@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-var config = GraterConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()

@@ -27,15 +27,10 @@ type Plugin interface {
 	Init(config interface{}) error
 }
 
-type PluginJsonConfig interface {
-	Plugin
-	JsonConfig() interface{}
-}
-
 type PipelinePack struct {
 	MsgBytes    []byte
 	Message     *Message
-	Config      *GraterConfig
+	Config      *PipelineConfig
 	Decoder     string
 	Decoded     bool
 	FilterChain string
@@ -43,7 +38,7 @@ type PipelinePack struct {
 	Outputs     map[string]bool
 }
 
-func NewPipelinePack(config *GraterConfig) *PipelinePack {
+func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
 	outputs := make(map[string]bool)
@@ -83,7 +78,7 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	}
 }
 
-func Run(config *GraterConfig) {
+func Run(config *PipelineConfig) {
 	log.Println("Starting hekagrater...")
 
 	// Used for recycling PipelinePack objects
