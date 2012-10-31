@@ -88,62 +88,65 @@ type ConfigFile struct {
 	Chains   map[string]PluginConfig
 }
 
-// LoadSection can be passed a configSection, the appropriate mapping
+// InitPlugin initializes a plugin with its section while also
+// attempting to use a config struct if available
+func initPlugin(plugin Plugin, section *PluginConfig) {
+	pluginName := (*section)["type"].(string)
+	// Determine if we should re-marshal
+	if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
+		data, err := json.Marshal(section)
+		if err != nil {
+			log.Fatal("Error: Can't marshal section.")
+		}
+		configStruct := hasConfigStruct.ConfigStruct()
+		err = json.Unmarshal(data, configStruct)
+		if err != nil {
+			log.Fatalln("Error: Can't unmarshal section again.")
+		}
+		if err := plugin.Init(configStruct); err != nil {
+			log.Fatalf("Unable to load config section: %s. Error: %s",
+				pluginName, err)
+		}
+	} else {
+		if err := plugin.Init(section); err != nil {
+			log.Fatalf("Unable to load config section: %s. Error: %s",
+				pluginName, err)
+		}
+	}
+	return
+}
+
+// loadSection can be passed a configSection, the appropriate mapping
 // of available plugins for that section, and will then load and
 // instantiate the plugins into the returned config value
-func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
-	var (
-		plugin                 Plugin
-		pluginType, pluginName string
-		ok                     bool
-	)
+func loadSection(configSection []PluginConfig) (config map[string]Plugin) {
+	var pluginName string
 	config = make(map[string]Plugin)
 	for _, section := range configSection {
-		pluginType = section["type"].(string)
+		pluginType := section["type"].(string)
 
 		// Use the section naming if applicable, or default to the type
 		// name
-		if _, ok = section["name"]; ok {
+		if _, ok := section["name"]; ok {
 			pluginName = section["name"].(string)
 		} else {
 			pluginName = pluginType
 		}
 
-		if pluginFunc, ok := AvailablePlugins[pluginType]; !ok {
+		pluginFunc, ok := AvailablePlugins[pluginType]
+		if !ok {
 			log.Fatalln("Error: No such plugin of that name: ", pluginType)
-		} else {
-			plugin = pluginFunc()
-
-			// Determine if we should re-marshal
-			if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
-				data, err := json.Marshal(section)
-				if err != nil {
-					log.Fatal("Error: Can't marshal section.")
-				}
-				configStruct := hasConfigStruct.ConfigStruct()
-				err = json.Unmarshal(data, configStruct)
-				if err != nil {
-					log.Fatalln("Error: Can't unmarshal section again.")
-				}
-				if err := plugin.Init(configStruct); err != nil {
-					log.Fatalf("Unable to load config section: %s. Error: %s",
-						pluginName, err)
-				}
-			} else {
-				if err := plugin.Init(section); err != nil {
-					log.Fatalf("Unable to load config section: %s. Error: %s",
-						pluginName, err)
-				}
-			}
-			config[pluginName] = plugin
 		}
+		plugin := pluginFunc()
+		initPlugin(plugin, &section)
+		config[pluginName] = plugin
 	}
 	return config
 }
 
 // Given a filename string and JSON structure, read the file and
 // un-marshal it into the structure
-func ReadJsonFromFile(filename string, configFile *ConfigFile) {
+func readJsonFromFile(filename string, configFile *ConfigFile) {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("Error reading file: %s", err)
@@ -171,18 +174,18 @@ func ReadJsonFromFile(filename string, configFile *ConfigFile) {
 // its Init function.
 func LoadFromConfigFile(filename string, config *PipelineConfig) {
 	configFile := new(ConfigFile)
-	ReadJsonFromFile(filename, configFile)
+	readJsonFromFile(filename, configFile)
 
-	for name, plugin := range LoadSection(configFile.Inputs) {
+	for name, plugin := range loadSection(configFile.Inputs) {
 		config.Inputs[name] = plugin.(Input)
 	}
-	for name, plugin := range LoadSection(configFile.Decoders) {
+	for name, plugin := range loadSection(configFile.Decoders) {
 		config.Decoders[name] = plugin.(Decoder)
 	}
-	for name, plugin := range LoadSection(configFile.Filters) {
+	for name, plugin := range loadSection(configFile.Filters) {
 		config.Filters[name] = plugin.(Filter)
 	}
-	for name, plugin := range LoadSection(configFile.Outputs) {
+	for name, plugin := range loadSection(configFile.Outputs) {
 		config.Outputs[name] = plugin.(Output)
 	}
 
