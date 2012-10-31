@@ -23,38 +23,8 @@ import (
 	"time"
 )
 
-type PluginConfig map[string]interface{}
-
 type Plugin interface {
 	Init(config *PluginConfig) error
-}
-
-type FilterChain struct {
-	Outputs []string
-	Filters []string
-}
-
-// Represents message lookup hashes
-//
-// MessageType is populated such that a message type should exactly
-// match and return a list representing keys in FilterChains. At the
-// moment the list will always be a single element, but in the future
-// with more ways to restrict the filter chain to other components of
-// the message narrowing down the set for several will be needed.
-type MessageLookup struct {
-	MessageType map[string][]string
-}
-
-type GraterConfig struct {
-	Inputs             map[string]Input
-	Decoders           map[string]Decoder
-	DefaultDecoder     string
-	FilterChains       map[string]FilterChain
-	Filters            map[string]Filter
-	DefaultFilterChain string
-	Outputs            map[string]Output
-	DefaultOutputs     []string
-	PoolSize           int
 }
 
 type PipelinePack struct {

@@ -19,6 +19,63 @@ import (
 	"os"
 )
 
+var AvailablePlugins = map[string]func() Plugin{
+	"MessageGeneratorInput": func() Plugin { return new(MessageGeneratorInput) },
+	"UdpInput":              func() Plugin { return new(UdpInput) },
+	"UdpGobInput":           func() Plugin { return new(UdpGobInput) },
+	"JsonDecoder":           func() Plugin { return new(JsonDecoder) },
+	"GobDecoder":            func() Plugin { return new(GobDecoder) },
+	"StatRollupFilter":      func() Plugin { return new(StatRollupFilter) },
+	"NamedOutputFilter":     func() Plugin { return new(NamedOutputFilter) },
+	"LogFilter":             func() Plugin { return new(LogFilter) },
+	"LogOutput":             func() Plugin { return new(LogOutput) },
+	"CounterOutput":         func() Plugin { return new(CounterOutput) },
+}
+
+type PluginConfig map[string]interface{}
+
+type GraterConfig struct {
+	Inputs             map[string]Input
+	Decoders           map[string]Decoder
+	DefaultDecoder     string
+	FilterChains       map[string]FilterChain
+	Filters            map[string]Filter
+	DefaultFilterChain string
+	Outputs            map[string]Output
+	DefaultOutputs     []string
+	PoolSize           int
+	Lookup             MessageLookup
+}
+
+// Initialize a GraterConfig for use
+func (this *GraterConfig) Init() {
+	this.Inputs = make(map[string]Input)
+	this.Decoders = make(map[string]Decoder)
+	this.FilterChains = make(map[string]FilterChain)
+	this.Outputs = make(map[string]Output)
+	this.Filters = make(map[string]Filter)
+	this.Lookup = MessageLookup{}
+	this.Lookup.MessageType = make(map[string][]string)
+	return
+}
+
+type FilterChain struct {
+	Outputs []string
+	Filters []string
+}
+
+// Represents message lookup hashes
+//
+// MessageType is populated such that a message type should exactly
+// match and return a list representing keys in FilterChains. At the
+// moment the list will always be a single element, but in the future
+// with more ways to restrict the filter chain to other components of
+// the message narrowing down the set for several will be needed.
+type MessageLookup struct {
+	MessageType map[string][]string
+}
+
+// The JSON config file spec
 type ConfigFile struct {
 	Inputs   []PluginConfig
 	Decoders []PluginConfig
@@ -27,15 +84,16 @@ type ConfigFile struct {
 	Chains   map[string]PluginConfig
 }
 
-// LoadSection can be passed a config section, the appropriate mapping
+// LoadSection can be passed a configSection, the appropriate mapping
 // of available plugins for that section, and will then load and
-// instantiate the plugins into the config value.
-func LoadSection(configSection []PluginConfig, config map[string]Plugin) {
+// instantiate the plugins into the returned config value
+func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 	var (
 		plugin                 Plugin
 		pluginType, pluginName string
 		ok                     bool
 	)
+	config = make(map[string]Plugin)
 	for _, section := range configSection {
 		pluginType = section["type"].(string)
 
@@ -58,12 +116,15 @@ func LoadSection(configSection []PluginConfig, config map[string]Plugin) {
 			config[pluginName] = plugin
 		}
 	}
-	return
+	return config
 }
 
 // LoadFromConfigFile loads a JSON configuration file and stores the
 // result in the value pointed to by config. The maps in the config
 // will be initialized as needed.
+//
+// The GraterConfig should be already initialized before passed in via
+// its Init function.
 func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -83,25 +144,17 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 		return err
 	}
 
-	config.Inputs = make(map[string]Input)
-	config.Decoders = make(map[string]Decoder)
-	config.FilterChains = make(map[string]FilterChain)
-	config.Outputs = make(map[string]Output)
-	config.Filters = make(map[string]Filter)
-
-	inputConfig := make(map[string]Plugin)
-	decoderConfig := make(map[string]Plugin)
-	filterConfig := make(map[string]Plugin)
-	outputConfig := make(map[string]Plugin)
-
-	LoadSection(configFile.Inputs, inputConfig)
-	for name, plugin := range inputConfig {
+	for name, plugin := range LoadSection(configFile.Inputs) {
 		config.Inputs[name] = plugin.(Input)
 	}
-
-	LoadSection(configFile.Decoders, decoderConfig)
-	for name, plugin := range decoderConfig {
+	for name, plugin := range LoadSection(configFile.Decoders) {
 		config.Decoders[name] = plugin.(Decoder)
+	}
+	for name, plugin := range LoadSection(configFile.Filters) {
+		config.Filters[name] = plugin.(Filter)
+	}
+	for name, plugin := range LoadSection(configFile.Outputs) {
+		config.Outputs[name] = plugin.(Output)
 	}
 
 	// Locate and set the default decoder
@@ -117,22 +170,16 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 		}
 	}
 
-	LoadSection(configFile.Filters, filterConfig)
-	for name, plugin := range filterConfig {
-		config.Filters[name] = plugin.(Filter)
-	}
-
-	LoadSection(configFile.Outputs, outputConfig)
-	for name, plugin := range outputConfig {
-		config.Outputs[name] = plugin.(Output)
-	}
-
 	for name, section := range configFile.Chains {
 		chain := FilterChain{}
 		if outputs, ok := section["outputs"]; ok {
 			outputList := outputs.([]string)
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
+				if _, ok := config.Outputs[output]; !ok {
+					log.Fatalln("Error during chain loading. Output by name ",
+						output, " was not defined.")
+				}
 				chain.Outputs[i] = output
 			}
 		}
@@ -140,8 +187,22 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 			filterList := filters.([]string)
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
+				if _, ok := config.Filters[filter]; !ok {
+					log.Fatalln("Error during chain loading. Filter by name ",
+						filter, " was not defined.")
+				}
 				chain.Filters[i] = filter
 			}
+		}
+
+		// Add the message type to the lookup table if present
+		if _, ok := section["type"]; ok {
+			msgType := section["type"].(string)
+			msgLookup := config.Lookup
+			if _, ok := msgLookup.MessageType[msgType]; !ok {
+				msgLookup.MessageType[msgType] = make([]string, 0, 10)
+			}
+			msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
 		}
 		config.FilterChains[name] = chain
 	}
