@@ -15,7 +15,6 @@ package pipeline
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	. "heka/message"
 	"log"
@@ -82,19 +81,26 @@ type StatRollupFilter struct {
 	gauges           map[string]int
 }
 
+type StatConfig struct {
+	FlushInterval    int64
+	PercentThreshold int
+}
+
 func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
-	var ok bool
-	var value interface{}
-	value, ok = (*config)["FlushInterval"]
-	if !ok {
-		return errors.New("StatRollupFilter config: Missing FlushInterval")
-	}
-	self.flushInterval = int64(value.(float64))
-	value, ok = (*config)["PercentThreshold"]
-	if !ok {
-		return errors.New("StatRollupFilter config: Missing PercentThreshold")
-	}
-	self.percentThreshold = int(value.(float64))
+	return nil
+}
+
+func (self *StatRollupFilter) JsonConfig() interface{} {
+	conf := new(StatConfig)
+	conf.FlushInterval = 10
+	conf.PercentThreshold = 90
+	return conf
+}
+
+func (self *StatRollupFilter) JsonInit(config interface{}) (err error) {
+	conf := config.(*StatConfig)
+	self.flushInterval = conf.FlushInterval
+	self.percentThreshold = conf.PercentThreshold
 	self.StatsIn = make(chan *Packet, 10000)
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
@@ -189,6 +195,9 @@ func (self *StatRollupFilter) Flush() {
 	msg := Message{Type: "statmetric", Timestamp: time.Now()}
 	msg.Fields = make(map[string]interface{})
 
+	if numStats == 0 {
+		log.Println("No stats collected, not delivering.")
+	}
 	if self.messageGenerator != nil {
 		self.messageGenerator.Deliver(&msg, 1)
 	}
