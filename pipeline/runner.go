@@ -79,7 +79,7 @@ func filterProcessor(pipelinePack *PipelinePack) {
 }
 
 func Run(config *PipelineConfig) {
-	log.Println("Starting hekagrater...")
+	log.Println("Starting hekad...")
 
 	// Used for recycling PipelinePack objects
 	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
