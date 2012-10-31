@@ -34,7 +34,11 @@ var AvailablePlugins = map[string]func() Plugin{
 
 type PluginConfig map[string]interface{}
 
-type GraterConfig struct {
+type HasConfigStruct interface {
+	ConfigStruct() interface{}
+}
+
+type PipelineConfig struct {
 	Inputs             map[string]Input
 	Decoders           map[string]Decoder
 	DefaultDecoder     string
@@ -47,8 +51,8 @@ type GraterConfig struct {
 	Lookup             MessageLookup
 }
 
-// Initialize a GraterConfig for use
-func (this *GraterConfig) Init() {
+// Initialize a PipelineConfig for use
+func (this *PipelineConfig) Init() {
 	this.Inputs = make(map[string]Input)
 	this.Decoders = make(map[string]Decoder)
 	this.FilterChains = make(map[string]FilterChain)
@@ -111,17 +115,17 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 			plugin = pluginFunc()
 
 			// Determine if we should re-marshal
-			if jsonPlugin, ok := plugin.(PluginJsonConfig); ok {
+			if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
 				data, err := json.Marshal(section)
 				if err != nil {
 					log.Fatal("Error: Can't marshal section.")
 				}
-				newsection := jsonPlugin.JsonConfig()
-				err = json.Unmarshal(data, newsection)
+				configStruct := hasConfigStruct.ConfigStruct()
+				err = json.Unmarshal(data, configStruct)
 				if err != nil {
 					log.Fatalln("Error: Can't unmarshal section again.")
 				}
-				if err := jsonPlugin.Init(newsection); err != nil {
+				if err := plugin.Init(configStruct); err != nil {
 					log.Fatalf("Unable to load config section: %s. Error: %s",
 						pluginName, err)
 				}
@@ -141,9 +145,9 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 // result in the value pointed to by config. The maps in the config
 // will be initialized as needed.
 //
-// The GraterConfig should be already initialized before passed in via
+// The PipelineConfig should be already initialized before passed in via
 // its Init function.
-func LoadFromConfigFile(filename string, config *GraterConfig) error {
+func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err

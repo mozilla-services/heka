@@ -29,7 +29,7 @@ func (_m *MockInput) EXPECT() *_MockInputRecorder {
 	return _m.recorder
 }
 
-func (_m *MockInput) Init(_param0 *PluginConfig) error {
+func (_m *MockInput) Init(_param0 interface{}) error {
 	ret := _m.ctrl.Call(_m, "Init", _param0)
 	ret0, _ := ret[0].(error)
 	return ret0

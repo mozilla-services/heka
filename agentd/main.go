@@ -10,7 +10,7 @@ func main() {
 	configFile := flag.String("config", "agent.conf", "Agent Config file")
 	flag.Parse()
 
-	config := new(pipeline.GraterConfig)
+	config := new(pipeline.PipelineConfig)
 	config.Init()
 	err := pipeline.LoadFromConfigFile(*configFile, config)
 	if err != nil {

@@ -43,7 +43,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	config := pipeline.GraterConfig{}
+	config := pipeline.PipelineConfig{}
 
 	udpInput := pipeline.NewUdpInput(*udpAddr, &udpFdIntPtr)
 	var inputs = map[string]pipeline.Input{
@@ -62,8 +62,12 @@ func main() {
 
 	outputNames := []string{"counter"}
 	namedOutputFilter := pipeline.NewNamedOutputFilter(outputNames)
-	config.FilterChains = map[string][]pipeline.Filter{
-		"default": {namedOutputFilter},
+	config.Filters = map[string]pipeline.Filter{
+		"NamedOutputFilter": namedOutputFilter,
+	}
+	defaultChain := pipeline.FilterChain{Filters: []string{"NamedOutputFilter"}}
+	config.FilterChains = map[string]pipeline.FilterChain{
+		"default": defaultChain,
 	}
 	config.DefaultFilterChain = "default"
 
