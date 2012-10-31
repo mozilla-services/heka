@@ -27,6 +27,12 @@ type Plugin interface {
 	Init(config *PluginConfig) error
 }
 
+type PluginJsonConfig interface {
+	Plugin
+	JsonConfig() interface{}
+	JsonInit(config interface{}) error
+}
+
 type PipelinePack struct {
 	MsgBytes    []byte
 	Message     *Message

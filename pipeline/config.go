@@ -109,9 +109,28 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 			log.Fatalln("Error: No such plugin of that name: ", pluginType)
 		} else {
 			plugin = pluginFunc()
-			if err := plugin.Init(&section); err != nil {
-				log.Fatalf("Unable to load config section: %s. Error: %s",
-					pluginName, err)
+
+			// Determine if we should re-marshal
+			if jsonPlugin, ok := plugin.(PluginJsonConfig); ok {
+				data, err := json.Marshal(section)
+				if err != nil {
+					log.Fatal("Error: Can't marshal section.")
+				}
+				newsection := jsonPlugin.JsonConfig()
+				err = json.Unmarshal(data, newsection)
+				if err != nil {
+					log.Fatalln("Error: Can't unmarshal section again.")
+				}
+				if err := jsonPlugin.JsonInit(newsection); err != nil {
+					log.Fatalf("Unable to load config section: %s. Error: %s",
+						pluginName, err)
+				}
+				log.Println("wooo, it worked")
+			} else {
+				if err := plugin.Init(&section); err != nil {
+					log.Fatalf("Unable to load config section: %s. Error: %s",
+						pluginName, err)
+				}
 			}
 			config[pluginName] = plugin
 		}
