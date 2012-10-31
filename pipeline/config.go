@@ -174,25 +174,27 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	for name, section := range configFile.Chains {
 		chain := FilterChain{}
 		if outputs, ok := section["outputs"]; ok {
-			outputList := outputs.([]string)
+			outputList := outputs.([]interface{})
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
-				if _, ok := config.Outputs[output]; !ok {
+				strOutput := output.(string)
+				if _, ok := config.Outputs[strOutput]; !ok {
 					log.Fatalln("Error during chain loading. Output by name ",
 						output, " was not defined.")
 				}
-				chain.Outputs[i] = output
+				chain.Outputs[i] = strOutput
 			}
 		}
 		if filters, ok := section["filters"]; ok {
-			filterList := filters.([]string)
+			filterList := filters.([]interface{})
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
-				if _, ok := config.Filters[filter]; !ok {
+				strFilter := filter.(string)
+				if _, ok := config.Filters[strFilter]; !ok {
 					log.Fatalln("Error during chain loading. Filter by name ",
 						filter, " was not defined.")
 				}
-				chain.Filters[i] = filter
+				chain.Filters[i] = strFilter
 			}
 		}
 
