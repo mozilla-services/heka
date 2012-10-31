@@ -121,12 +121,12 @@ func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
 				if err != nil {
 					log.Fatalln("Error: Can't unmarshal section again.")
 				}
-				if err := jsonPlugin.JsonInit(newsection); err != nil {
+				if err := jsonPlugin.Init(newsection); err != nil {
 					log.Fatalf("Unable to load config section: %s. Error: %s",
 						pluginName, err)
 				}
 			} else {
-				if err := plugin.Init(&section); err != nil {
+				if err := plugin.Init(section); err != nil {
 					log.Fatalf("Unable to load config section: %s. Error: %s",
 						pluginName, err)
 				}

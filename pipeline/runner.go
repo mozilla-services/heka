@@ -24,13 +24,12 @@ import (
 )
 
 type Plugin interface {
-	Init(config *PluginConfig) error
+	Init(config interface{}) error
 }
 
 type PluginJsonConfig interface {
 	Plugin
 	JsonConfig() interface{}
-	JsonInit(config interface{}) error
 }
 
 type PipelinePack struct {

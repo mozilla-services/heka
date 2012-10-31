@@ -106,7 +106,7 @@ func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
 	return &UdpInput{Listener: listener}
 }
 
-func (self *UdpInput) Init(config *PluginConfig) error {
+func (self *UdpInput) Init(config interface{}) error {
 	return nil
 }
 
@@ -154,7 +154,7 @@ func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
 	return &UdpGobInput{Listener: listener, Decoder: decoder}
 }
 
-func (self *UdpGobInput) Init(config *PluginConfig) error {
+func (self *UdpGobInput) Init(config interface{}) error {
 	return nil
 }
 
@@ -179,7 +179,7 @@ type MessageGeneratorInput struct {
 	messages chan *messageHolder
 }
 
-func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
+func (self *MessageGeneratorInput) Init(config interface{}) error {
 	self.messages = make(chan *messageHolder, 100)
 	return nil
 }

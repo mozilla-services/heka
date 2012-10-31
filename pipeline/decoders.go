@@ -34,7 +34,7 @@ const (
 type JsonDecoder struct {
 }
 
-func (self *JsonDecoder) Init(config *PluginConfig) error {
+func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
 }
 
@@ -70,7 +70,7 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 type GobDecoder struct {
 }
 
-func (self *GobDecoder) Init(config *PluginConfig) error {
+func (self *GobDecoder) Init(config interface{}) error {
 	return nil
 }
 

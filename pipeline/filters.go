@@ -32,7 +32,7 @@ type Filter interface {
 type LogFilter struct {
 }
 
-func (self *LogFilter) Init(config *PluginConfig) error {
+func (self *LogFilter) Init(config interface{}) error {
 	return nil
 }
 
@@ -50,7 +50,7 @@ func NewNamedOutputFilter(outputNames []string) *NamedOutputFilter {
 	return &self
 }
 
-func (self *NamedOutputFilter) Init(config *PluginConfig) error {
+func (self *NamedOutputFilter) Init(config interface{}) error {
 	return nil
 }
 
@@ -86,10 +86,6 @@ type StatConfig struct {
 	PercentThreshold int
 }
 
-func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
-	return nil
-}
-
 func (self *StatRollupFilter) JsonConfig() interface{} {
 	conf := new(StatConfig)
 	conf.FlushInterval = 10
@@ -97,7 +93,7 @@ func (self *StatRollupFilter) JsonConfig() interface{} {
 	return conf
 }
 
-func (self *StatRollupFilter) JsonInit(config interface{}) (err error) {
+func (self *StatRollupFilter) Init(config interface{}) (err error) {
 	conf := config.(*StatConfig)
 	self.flushInterval = conf.FlushInterval
 	self.percentThreshold = conf.PercentThreshold
