@@ -21,6 +21,12 @@ import (
 	"time"
 )
 
+type StatsdClient interface {
+	// Interface that all statsd clients must implement
+	IncrementSampledCounter(bucket string, n int, srate float32)
+	SendSampledTiming(bucket string, ms int, srate float32)
+}
+
 type Output interface {
 	Plugin
 	Deliver(pipelinePack *PipelinePack)
@@ -86,12 +92,6 @@ func (self *CounterOutput) timerLoop(ticker *time.Ticker) {
 		}
 		log.Printf("Got %d messages. %0.2f msg/sec\n", newCount, rate)
 	}
-}
-
-type StatsdClient interface {
-	// Interface that all statsd clients must implement
-	IncrementSampledCounter(bucket string, n int, srate float32)
-	SendSampledTiming(bucket string, ms int, srate float32)
 }
 
 type StatsdOutput struct {
