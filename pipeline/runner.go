@@ -58,7 +58,6 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
 	filterChainName := pipelinePack.FilterChain
-	log.Println(filterChainName)
 	filterChain, ok := config.FilterChains[filterChainName]
 	if !ok {
 		log.Printf("Filter chain doesn't exist: %s", filterChainName)
