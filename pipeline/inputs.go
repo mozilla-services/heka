@@ -86,8 +86,8 @@ type UdpInputConfig struct {
 	Address string
 }
 
-func (self *UdpInput) ConfigStruct() *UdpInputConfig {
-	return &UdpInputConfig{}
+func (self *UdpInput) ConfigStruct() interface{} {
+	return new(UdpInputConfig)
 }
 
 func (self *UdpInput) Init(config interface{}) error {
