@@ -39,14 +39,9 @@ type CounterOutput struct {
 	count uint
 }
 
-func NewCounterOutput() *CounterOutput {
-	self := CounterOutput{0}
+func (self *CounterOutput) Init(config interface{}) error {
 	ticker := time.NewTicker(time.Duration(time.Second))
 	go self.timerLoop(ticker)
-	return &self
-}
-
-func (self *CounterOutput) Init(config interface{}) error {
 	return nil
 }
 
