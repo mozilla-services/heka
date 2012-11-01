@@ -73,14 +73,14 @@ type FilterChain struct {
 // with more ways to restrict the filter chain to other components of
 // the message narrowing down the set for several will be needed.
 type MessageLookup struct {
-	MessageType map[string][]*FilterChain
+	MessageType map[string][]string
 }
 
-func (self *MessageLookup) LocateChain(message *Message) (chain *FilterChain, ok bool) {
+func (self *MessageLookup) LocateChain(message *Message) (chain string, ok bool) {
 	if chains, ok := self.MessageType[message.Type]; ok {
 		return chains[0], true
 	}
-	return nil, false
+	return "", false
 }
 
 // InitPlugin initializes a plugin with its section while also
@@ -230,9 +230,9 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			msgType := section["type"].(string)
 			msgLookup := self.Lookup
 			if _, ok := msgLookup.MessageType[msgType]; !ok {
-				msgLookup.MessageType[msgType] = make([]*FilterChain, 0, 10)
+				msgLookup.MessageType[msgType] = make([]string, 0, 10)
 			}
-			msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], &chain)
+			msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
 		}
 		self.FilterChains[name] = chain
 	}

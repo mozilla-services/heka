@@ -57,7 +57,10 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
-	filterChainName := pipelinePack.FilterChain
+	filterChainName, ok := config.Lookup.LocateChain(pipelinePack.Message)
+	if !ok {
+		filterChainName = pipelinePack.FilterChain
+	}
 	filterChain, ok := config.FilterChains[filterChainName]
 	if !ok {
 		log.Printf("Filter chain doesn't exist: %s", filterChainName)
@@ -85,7 +88,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.Outputs = make(map[string]Output)
 	config.Filters = make(map[string]Filter)
 	config.Lookup = new(MessageLookup)
-	config.Lookup.MessageType = make(map[string][]*FilterChain)
+	config.Lookup.MessageType = make(map[string][]string)
 	return config
 }
 
