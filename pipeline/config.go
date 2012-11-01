@@ -46,7 +46,6 @@ type PipelineConfig struct {
 	Filters            map[string]Filter
 	DefaultFilterChain string
 	Outputs            map[string]Output
-	DefaultOutputs     []string
 	PoolSize           int
 	Lookup             MessageLookup
 }
@@ -56,6 +55,7 @@ func (this *PipelineConfig) Init() {
 	this.Inputs = make(map[string]Input)
 	this.Decoders = make(map[string]Decoder)
 	this.FilterChains = make(map[string]FilterChain)
+	this.DefaultFilterChain = "default"
 	this.Outputs = make(map[string]Output)
 	this.Filters = make(map[string]Filter)
 	this.Lookup = MessageLookup{}

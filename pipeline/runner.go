@@ -42,9 +42,6 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
 	outputs := make(map[string]bool)
-	for _, outputName := range config.DefaultOutputs {
-		outputs[outputName] = true
-	}
 	pipelinePack := PipelinePack{
 		MsgBytes:    msgBytes,
 		Message:     &message,
@@ -61,6 +58,7 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
 	filterChainName := pipelinePack.FilterChain
+	log.Println(filterChainName)
 	filterChain, ok := config.FilterChains[filterChainName]
 	if !ok {
 		log.Printf("Filter chain doesn't exist: %s", filterChainName)
@@ -96,9 +94,6 @@ func Run(config *PipelineConfig) {
 			pipelinePack.Decoded = false
 			pipelinePack.FilterChain = config.DefaultFilterChain
 			outputs := make(map[string]bool)
-			for _, outputName := range config.DefaultOutputs {
-				outputs[outputName] = true
-			}
 			pipelinePack.Outputs = outputs
 			recycleChan <- pipelinePack
 		}()
