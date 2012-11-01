@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	. "heka/message"
 	"log"
@@ -45,12 +46,13 @@ type NamedOutputFilter struct {
 	outputNames []string
 }
 
-func NewNamedOutputFilter(outputNames []string) *NamedOutputFilter {
-	self := NamedOutputFilter{outputNames}
-	return &self
-}
-
 func (self *NamedOutputFilter) Init(config interface{}) error {
+	conf := config.(map[string]interface{})
+	outputNames, ok := conf["OutputNames"]
+	if !ok {
+		return errors.New("No `OutputNames` in config.")
+	}
+	self.outputNames = outputNames.([]string)
 	return nil
 }
 
