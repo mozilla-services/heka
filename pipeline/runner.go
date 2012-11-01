@@ -58,7 +58,9 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
 	filterChainName, ok := config.Lookup.LocateChain(pipelinePack.Message)
-	if !ok {
+	if ok {
+		pipelinePack.FilterChain = filterChainName
+	} else {
 		filterChainName = pipelinePack.FilterChain
 	}
 	filterChain, ok := config.FilterChains[filterChainName]
