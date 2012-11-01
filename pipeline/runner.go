@@ -42,9 +42,6 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
 	outputs := make(map[string]bool)
-	for _, outputName := range config.DefaultOutputs {
-		outputs[outputName] = true
-	}
 	pipelinePack := PipelinePack{
 		MsgBytes:    msgBytes,
 		Message:     &message,
@@ -60,7 +57,10 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.Outputs = map[string]bool{}
 	config := pipelinePack.Config
-	filterChainName := pipelinePack.FilterChain
+	filterChainName, ok := config.Lookup.LocateChain(pipelinePack.Message)
+	if !ok {
+		filterChainName = pipelinePack.FilterChain
+	}
 	filterChain, ok := config.FilterChains[filterChainName]
 	if !ok {
 		log.Printf("Filter chain doesn't exist: %s", filterChainName)
@@ -78,11 +78,25 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	}
 }
 
-func Run(config *PipelineConfig) {
+func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
+	config = new(PipelineConfig)
+	config.PoolSize = poolSize
+	config.Inputs = make(map[string]Input)
+	config.Decoders = make(map[string]Decoder)
+	config.FilterChains = make(map[string]FilterChain)
+	config.DefaultFilterChain = "default"
+	config.Outputs = make(map[string]Output)
+	config.Filters = make(map[string]Filter)
+	config.Lookup = new(MessageLookup)
+	config.Lookup.MessageType = make(map[string][]string)
+	return config
+}
+
+func (self *PipelineConfig) Run() {
 	log.Println("Starting hekad...")
 
 	// Used for recycling PipelinePack objects
-	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
+	recycleChan := make(chan *PipelinePack, self.PoolSize+1)
 
 	// Main pipeline function, inputs spawn a goroutine of this for every
 	// message
@@ -92,21 +106,18 @@ func Run(config *PipelineConfig) {
 		defer func() {
 			msgBytes := pipelinePack.MsgBytes
 			msgBytes = msgBytes[:cap(msgBytes)]
-			pipelinePack.Decoder = config.DefaultDecoder
+			pipelinePack.Decoder = self.DefaultDecoder
 			pipelinePack.Decoded = false
-			pipelinePack.FilterChain = config.DefaultFilterChain
+			pipelinePack.FilterChain = self.DefaultFilterChain
 			outputs := make(map[string]bool)
-			for _, outputName := range config.DefaultOutputs {
-				outputs[outputName] = true
-			}
 			pipelinePack.Outputs = outputs
 			recycleChan <- pipelinePack
 		}()
 
-		// Decode messgae if necessary
+		// Decode message if necessary
 		if !pipelinePack.Decoded {
 			decoderName := pipelinePack.Decoder
-			decoder, ok := config.Decoders[decoderName]
+			decoder, ok := self.Decoders[decoderName]
 			if !ok {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
@@ -130,7 +141,7 @@ func Run(config *PipelineConfig) {
 			if !use {
 				continue
 			}
-			output, ok := config.Outputs[outputName]
+			output, ok := self.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
 			}
@@ -139,8 +150,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
-	for i := 0; i < config.PoolSize; i++ {
-		recycleChan <- NewPipelinePack(config)
+	for i := 0; i < self.PoolSize; i++ {
+		recycleChan <- NewPipelinePack(self)
 	}
 
 	var wg sync.WaitGroup
@@ -148,7 +159,7 @@ func Run(config *PipelineConfig) {
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
-	for name, input := range config.Inputs {
+	for name, input := range self.Inputs {
 		runner = InputRunner{input, &timeout, false}
 		inputRunners[name] = &runner
 		runner.Start(pipeline, recycleChan, &wg)

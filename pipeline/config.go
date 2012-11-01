@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	. "heka/message"
 	"log"
 	"os"
 )
@@ -46,21 +47,17 @@ type PipelineConfig struct {
 	Filters            map[string]Filter
 	DefaultFilterChain string
 	Outputs            map[string]Output
-	DefaultOutputs     []string
 	PoolSize           int
-	Lookup             MessageLookup
+	Lookup             *MessageLookup
 }
 
-// Initialize a PipelineConfig for use
-func (this *PipelineConfig) Init() {
-	this.Inputs = make(map[string]Input)
-	this.Decoders = make(map[string]Decoder)
-	this.FilterChains = make(map[string]FilterChain)
-	this.Outputs = make(map[string]Output)
-	this.Filters = make(map[string]Filter)
-	this.Lookup = MessageLookup{}
-	this.Lookup.MessageType = make(map[string][]string)
-	return
+// The JSON config file spec
+type ConfigFile struct {
+	Inputs   []PluginConfig
+	Decoders []PluginConfig
+	Filters  []PluginConfig
+	Outputs  []PluginConfig
+	Chains   map[string]PluginConfig
 }
 
 type FilterChain struct {
@@ -79,13 +76,11 @@ type MessageLookup struct {
 	MessageType map[string][]string
 }
 
-// The JSON config file spec
-type ConfigFile struct {
-	Inputs   []PluginConfig
-	Decoders []PluginConfig
-	Filters  []PluginConfig
-	Outputs  []PluginConfig
-	Chains   map[string]PluginConfig
+func (self *MessageLookup) LocateChain(message *Message) (chain string, ok bool) {
+	if chains, ok := self.MessageType[message.Type]; ok {
+		return chains[0], true
+	}
+	return "", false
 }
 
 // InitPlugin initializes a plugin with its section while also
@@ -173,21 +168,21 @@ func readJsonFromFile(filename string, configFile *ConfigFile) {
 //
 // The PipelineConfig should be already initialized before passed in via
 // its Init function.
-func LoadFromConfigFile(filename string, config *PipelineConfig) error {
+func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	configFile := new(ConfigFile)
 	readJsonFromFile(filename, configFile)
 
 	for name, plugin := range loadSection(configFile.Inputs) {
-		config.Inputs[name] = plugin.(Input)
+		self.Inputs[name] = plugin.(Input)
 	}
 	for name, plugin := range loadSection(configFile.Decoders) {
-		config.Decoders[name] = plugin.(Decoder)
+		self.Decoders[name] = plugin.(Decoder)
 	}
 	for name, plugin := range loadSection(configFile.Filters) {
-		config.Filters[name] = plugin.(Filter)
+		self.Filters[name] = plugin.(Filter)
 	}
 	for name, plugin := range loadSection(configFile.Outputs) {
-		config.Outputs[name] = plugin.(Output)
+		self.Outputs[name] = plugin.(Output)
 	}
 
 	// Locate and set the default decoder
@@ -197,9 +192,9 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 		}
 		// Determine if its keyed by type or name
 		if name, ok := section["name"]; ok {
-			config.DefaultDecoder = name.(string)
+			self.DefaultDecoder = name.(string)
 		} else {
-			config.DefaultDecoder = section["type"].(string)
+			self.DefaultDecoder = section["type"].(string)
 		}
 	}
 
@@ -210,7 +205,7 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
 				strOutput := output.(string)
-				if _, ok := config.Outputs[strOutput]; !ok {
+				if _, ok := self.Outputs[strOutput]; !ok {
 					log.Fatalln("Error during chain loading. Output by name ",
 						output, " was not defined.")
 				}
@@ -222,7 +217,7 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
 				strFilter := filter.(string)
-				if _, ok := config.Filters[strFilter]; !ok {
+				if _, ok := self.Filters[strFilter]; !ok {
 					log.Fatalln("Error during chain loading. Filter by name ",
 						filter, " was not defined.")
 				}
@@ -233,13 +228,13 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 		// Add the message type to the lookup table if present
 		if _, ok := section["type"]; ok {
 			msgType := section["type"].(string)
-			msgLookup := config.Lookup
+			msgLookup := self.Lookup
 			if _, ok := msgLookup.MessageType[msgType]; !ok {
 				msgLookup.MessageType[msgType] = make([]string, 0, 10)
 			}
 			msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
 		}
-		config.FilterChains[name] = chain
+		self.FilterChains[name] = chain
 	}
 	return nil
 }

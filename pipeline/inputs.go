@@ -60,6 +60,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 				}
 
 			}
+
 			err = self.input.Read(pipelinePack, self.timeout)
 			if err != nil {
 				needOne = false
