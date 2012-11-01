@@ -33,7 +33,7 @@ type Filter interface {
 type LogFilter struct {
 }
 
-func (self *LogFilter) Init(config *PluginConfig) error {
+func (self *LogFilter) Init(config interface{}) error {
 	return nil
 }
 
@@ -46,12 +46,13 @@ type NamedOutputFilter struct {
 	outputNames []string
 }
 
-func NewNamedOutputFilter(outputNames []string) *NamedOutputFilter {
-	self := NamedOutputFilter{outputNames}
-	return &self
-}
-
-func (self *NamedOutputFilter) Init(config *PluginConfig) error {
+func (self *NamedOutputFilter) Init(config interface{}) error {
+	conf := config.(map[string]interface{})
+	outputNames, ok := conf["OutputNames"]
+	if !ok {
+		return errors.New("No `OutputNames` in config.")
+	}
+	self.outputNames = outputNames.([]string)
 	return nil
 }
 
@@ -82,19 +83,22 @@ type StatRollupFilter struct {
 	gauges           map[string]int
 }
 
-func (self *StatRollupFilter) Init(config *PluginConfig) (err error) {
-	var ok bool
-	var value interface{}
-	value, ok = (*config)["FlushInterval"]
-	if !ok {
-		return errors.New("StatRollupFilter config: Missing FlushInterval")
-	}
-	self.flushInterval = value.(int64)
-	value, ok = (*config)["PercentThreshold"]
-	if !ok {
-		return errors.New("StatRollupFilter config: Missing PercentThreshold")
-	}
-	self.percentThreshold = value.(int)
+type StatConfig struct {
+	FlushInterval    int64
+	PercentThreshold int
+}
+
+func (self *StatRollupFilter) ConfigStruct() interface{} {
+	conf := new(StatConfig)
+	conf.FlushInterval = 10
+	conf.PercentThreshold = 90
+	return conf
+}
+
+func (self *StatRollupFilter) Init(config interface{}) (err error) {
+	conf := config.(*StatConfig)
+	self.flushInterval = conf.FlushInterval
+	self.percentThreshold = conf.PercentThreshold
 	self.StatsIn = make(chan *Packet, 10000)
 	self.counters = make(map[string]int)
 	self.timers = make(map[string][]int)
@@ -184,19 +188,18 @@ func (self *StatRollupFilter) Flush() {
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
 
-	fmt.Println(buffer) // Prints to std out just for fun
-
-	msg := Message{Type: "statmetric", Timestamp: time.Now()}
-	msg.Fields = make(map[string]interface{})
-
+	if numStats == 0 {
+		log.Println("No stats collected, not delivering.")
+	}
 	if self.messageGenerator != nil {
+		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer.String()}
 		self.messageGenerator.Deliver(&msg, 1)
 	}
 }
 
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
-func (self *StatRollupFilter) SetupMessageGenerator(config *GraterConfig) bool {
+func (self *StatRollupFilter) SetupMessageGenerator(config *PipelineConfig) bool {
 	for _, input := range config.Inputs {
 		convert, ok := input.(*MessageGeneratorInput)
 		if ok {

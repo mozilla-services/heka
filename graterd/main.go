@@ -24,13 +24,11 @@ import (
 
 func main() {
 	udpAddr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
-	udpFdInt := flag.Uint64("udpfd", 0, "UDP socket file descriptor")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
 	pprofName := flag.String("pprof", "", "pprof output file path")
 	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
 	decoder := flag.String("decoder", "json", "Default decoder")
 	flag.Parse()
-	udpFdIntPtr := uintptr(*udpFdInt)
 
 	runtime.GOMAXPROCS(*maxprocs)
 
@@ -43,9 +41,10 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	config := pipeline.GraterConfig{}
+	config := pipeline.PipelineConfig{}
 
-	udpInput := pipeline.NewUdpInput(*udpAddr, &udpFdIntPtr)
+	udpInput := &pipeline.UdpInput{}
+	udpInput.Init(pipeline.UdpInputConfig{*udpAddr})
 	var inputs = map[string]pipeline.Input{
 		"udp": udpInput,
 	}
@@ -61,9 +60,14 @@ func main() {
 	config.DefaultDecoder = *decoder
 
 	outputNames := []string{"counter"}
-	namedOutputFilter := pipeline.NewNamedOutputFilter(outputNames)
-	config.FilterChains = map[string][]pipeline.Filter{
-		"default": {namedOutputFilter},
+	namedOutputFilter := &pipeline.NamedOutputFilter{}
+	namedOutputFilter.Init(map[string][]string{"OutputNames": outputNames})
+	config.Filters = map[string]pipeline.Filter{
+		"NamedOutputFilter": namedOutputFilter,
+	}
+	defaultChain := pipeline.FilterChain{Filters: []string{"NamedOutputFilter"}}
+	config.FilterChains = map[string]pipeline.FilterChain{
+		"default": defaultChain,
 	}
 	config.DefaultFilterChain = "default"
 

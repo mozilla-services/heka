@@ -20,6 +20,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -81,32 +82,41 @@ type UdpInput struct {
 	Deadline time.Time
 }
 
-func NewUdpInput(addrStr string, fd *uintptr) *UdpInput {
-	var listener net.Conn
-	if fd != nil && *fd != 0 {
-		udpFile := os.NewFile(*fd, "udpFile")
-		fdConn, err := net.FileConn(udpFile)
-		if err != nil {
-			log.Printf("Error accessing UDP fd: %s\n", err.Error())
-			return nil
-		}
-		listener = fdConn
-	} else {
-		udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
-		if err != nil {
-			log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
-			return nil
-		}
-		listener, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			log.Printf("ListenUDP failed: %s\n", err.Error())
-			return nil
-		}
-	}
-	return &UdpInput{Listener: listener}
+type UdpInputConfig struct {
+	Address string
 }
 
-func (self *UdpInput) Init(config *PluginConfig) error {
+func (self *UdpInput) ConfigStruct() interface{} {
+	return new(UdpInputConfig)
+}
+
+func (self *UdpInput) Init(config interface{}) error {
+	conf := config.(*UdpInputConfig)
+	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
+		// File descriptor
+		fdStr := conf.Address[3:]
+		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
+		if err != nil {
+			log.Println(err)
+			return fmt.Errorf("Invalid file descriptor: %s", conf.Address)
+		}
+		fd := uintptr(fdInt)
+		udpFile := os.NewFile(fd, "udpFile")
+		self.Listener, err = net.FileConn(udpFile)
+		if err != nil {
+			return fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
+		}
+	} else {
+		// IP address
+		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+		if err != nil {
+			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
+		}
+		self.Listener, err = net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+		}
+	}
 	return nil
 }
 
@@ -123,45 +133,28 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 
 // UdpGobInput
 type UdpGobInput struct {
-	Listener net.Conn
-	Deadline time.Time
+	UdpInput UdpInput
 	Decoder  *gob.Decoder
 }
 
-func NewUdpGobInput(addrStr string, fd *uintptr) *UdpGobInput {
-	var listener net.Conn
-	if fd != nil && *fd != 0 {
-		udpFile := os.NewFile(*fd, "udpFile")
-		fdConn, err := net.FileConn(udpFile)
-		if err != nil {
-			log.Printf("Error accessing UDP fd: %s\n", err.Error())
-			return nil
-		}
-		listener = fdConn
-	} else {
-		udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
-		if err != nil {
-			log.Printf("ResolveUDPAddr failed: %s\n", err.Error())
-			return nil
-		}
-		listener, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			log.Printf("ListenUDP failed: %s\n", err.Error())
-			return nil
-		}
-	}
-	decoder := gob.NewDecoder(listener)
-	return &UdpGobInput{Listener: listener, Decoder: decoder}
+func (self *UdpGobInput) ConfigStruct() *UdpInputConfig {
+	return &UdpInputConfig{}
 }
 
-func (self *UdpGobInput) Init(config *PluginConfig) error {
+func (self *UdpGobInput) Init(config interface{}) error {
+	self.UdpInput = UdpInput{}
+	err := self.UdpInput.Init(config)
+	if err != nil {
+		return err
+	}
+	self.Decoder = gob.NewDecoder(self.UdpInput.Listener)
 	return nil
 }
 
 func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
-	self.Deadline = time.Now().Add(*timeout)
-	self.Listener.SetReadDeadline(self.Deadline)
+	self.UdpInput.Deadline = time.Now().Add(*timeout)
+	self.UdpInput.Listener.SetReadDeadline(self.UdpInput.Deadline)
 	err := self.Decoder.Decode(pipelinePack.Message)
 	if err == nil {
 		pipelinePack.Decoded = true
@@ -170,16 +163,16 @@ func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 }
 
 // MessageGeneratorInput
+type MessageGeneratorInput struct {
+	messages chan *messageHolder
+}
+
 type messageHolder struct {
 	message    *Message
 	chainCount int
 }
 
-type MessageGeneratorInput struct {
-	messages chan *messageHolder
-}
-
-func (self *MessageGeneratorInput) Init(config *PluginConfig) error {
+func (self *MessageGeneratorInput) Init(config interface{}) error {
 	self.messages = make(chan *messageHolder, 100)
 	return nil
 }

@@ -34,7 +34,11 @@ var AvailablePlugins = map[string]func() Plugin{
 
 type PluginConfig map[string]interface{}
 
-type GraterConfig struct {
+type HasConfigStruct interface {
+	ConfigStruct() interface{}
+}
+
+type PipelineConfig struct {
 	Inputs             map[string]Input
 	Decoders           map[string]Decoder
 	DefaultDecoder     string
@@ -47,8 +51,8 @@ type GraterConfig struct {
 	Lookup             MessageLookup
 }
 
-// Initialize a GraterConfig for use
-func (this *GraterConfig) Init() {
+// Initialize a PipelineConfig for use
+func (this *PipelineConfig) Init() {
 	this.Inputs = make(map[string]Input)
 	this.Decoders = make(map[string]Decoder)
 	this.FilterChains = make(map[string]FilterChain)
@@ -84,77 +88,105 @@ type ConfigFile struct {
 	Chains   map[string]PluginConfig
 }
 
-// LoadSection can be passed a configSection, the appropriate mapping
+// InitPlugin initializes a plugin with its section while also
+// attempting to use a config struct if available
+func initPlugin(plugin Plugin, section *PluginConfig) {
+	pluginName := (*section)["type"].(string)
+	// Determine if we should re-marshal
+	if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
+		data, err := json.Marshal(section)
+		if err != nil {
+			log.Fatal("Error: Can't marshal section.")
+		}
+		configStruct := hasConfigStruct.ConfigStruct()
+		err = json.Unmarshal(data, configStruct)
+		if err != nil {
+			log.Fatalln("Error: Can't unmarshal section again.")
+		}
+		if err := plugin.Init(configStruct); err != nil {
+			log.Fatalf("Unable to load config section: %s. Error: %s",
+				pluginName, err)
+		}
+	} else {
+		if err := plugin.Init(section); err != nil {
+			log.Fatalf("Unable to load config section: %s. Error: %s",
+				pluginName, err)
+		}
+	}
+	return
+}
+
+// loadSection can be passed a configSection, the appropriate mapping
 // of available plugins for that section, and will then load and
 // instantiate the plugins into the returned config value
-func LoadSection(configSection []PluginConfig) (config map[string]Plugin) {
-	var (
-		plugin                 Plugin
-		pluginType, pluginName string
-		ok                     bool
-	)
+func loadSection(configSection []PluginConfig) (config map[string]Plugin) {
+	var pluginName string
 	config = make(map[string]Plugin)
 	for _, section := range configSection {
-		pluginType = section["type"].(string)
+		pluginType := section["type"].(string)
 
 		// Use the section naming if applicable, or default to the type
 		// name
-		if _, ok = section["name"]; ok {
+		if _, ok := section["name"]; ok {
 			pluginName = section["name"].(string)
 		} else {
 			pluginName = pluginType
 		}
 
-		if pluginFunc, ok := AvailablePlugins[pluginType]; !ok {
+		pluginFunc, ok := AvailablePlugins[pluginType]
+		if !ok {
 			log.Fatalln("Error: No such plugin of that name: ", pluginType)
-		} else {
-			plugin = pluginFunc()
-			if err := plugin.Init(&section); err != nil {
-				log.Fatalf("Unable to load config section: %s. Error: %s",
-					pluginName, err)
-			}
-			config[pluginName] = plugin
 		}
+
+		plugin := pluginFunc()
+		initPlugin(plugin, &section)
+		config[pluginName] = plugin
 	}
 	return config
 }
 
-// LoadFromConfigFile loads a JSON configuration file and stores the
-// result in the value pointed to by config. The maps in the config
-// will be initialized as needed.
-//
-// The GraterConfig should be already initialized before passed in via
-// its Init function.
-func LoadFromConfigFile(filename string, config *GraterConfig) error {
+// Given a filename string and JSON structure, read the file and
+// un-marshal it into the structure
+func readJsonFromFile(filename string, configFile *ConfigFile) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return err
+		log.Fatalf("Error reading file: %s", err)
 	}
 	defer file.Close()
 
 	jsonBytes := make([]byte, 1e5)
 	n, err := file.Read(jsonBytes)
 	if err != nil {
-		return err
+		log.Fatalf("Error reading byte in file: %s", err)
 	}
 	jsonBytes = jsonBytes[:n]
 
-	configFile := ConfigFile{}
-	err = json.Unmarshal(jsonBytes, configFile)
-	if err != nil {
-		return err
+	if err = json.Unmarshal(jsonBytes, configFile); err != nil {
+		log.Fatalf("Error with Unmarshal: %s", err)
 	}
+	return
+}
 
-	for name, plugin := range LoadSection(configFile.Inputs) {
+// LoadFromConfigFile loads a JSON configuration file and stores the
+// result in the value pointed to by config. The maps in the config
+// will be initialized as needed.
+//
+// The PipelineConfig should be already initialized before passed in via
+// its Init function.
+func LoadFromConfigFile(filename string, config *PipelineConfig) error {
+	configFile := new(ConfigFile)
+	readJsonFromFile(filename, configFile)
+
+	for name, plugin := range loadSection(configFile.Inputs) {
 		config.Inputs[name] = plugin.(Input)
 	}
-	for name, plugin := range LoadSection(configFile.Decoders) {
+	for name, plugin := range loadSection(configFile.Decoders) {
 		config.Decoders[name] = plugin.(Decoder)
 	}
-	for name, plugin := range LoadSection(configFile.Filters) {
+	for name, plugin := range loadSection(configFile.Filters) {
 		config.Filters[name] = plugin.(Filter)
 	}
-	for name, plugin := range LoadSection(configFile.Outputs) {
+	for name, plugin := range loadSection(configFile.Outputs) {
 		config.Outputs[name] = plugin.(Output)
 	}
 
@@ -174,25 +206,27 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 	for name, section := range configFile.Chains {
 		chain := FilterChain{}
 		if outputs, ok := section["outputs"]; ok {
-			outputList := outputs.([]string)
+			outputList := outputs.([]interface{})
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
-				if _, ok := config.Outputs[output]; !ok {
+				strOutput := output.(string)
+				if _, ok := config.Outputs[strOutput]; !ok {
 					log.Fatalln("Error during chain loading. Output by name ",
 						output, " was not defined.")
 				}
-				chain.Outputs[i] = output
+				chain.Outputs[i] = strOutput
 			}
 		}
 		if filters, ok := section["filters"]; ok {
-			filterList := filters.([]string)
+			filterList := filters.([]interface{})
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
-				if _, ok := config.Filters[filter]; !ok {
+				strFilter := filter.(string)
+				if _, ok := config.Filters[strFilter]; !ok {
 					log.Fatalln("Error during chain loading. Filter by name ",
 						filter, " was not defined.")
 				}
-				chain.Filters[i] = filter
+				chain.Filters[i] = strFilter
 			}
 		}
 
@@ -207,6 +241,5 @@ func LoadFromConfigFile(filename string, config *GraterConfig) error {
 		}
 		config.FilterChains[name] = chain
 	}
-
 	return nil
 }
