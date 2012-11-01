@@ -76,7 +76,7 @@ type MessageLookup struct {
 	MessageType map[string][]string
 }
 
-func (self *MessageLookup) LocateChain(message *Message) (chain string, ok bool) {
+func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
 	if chains, ok := self.MessageType[message.Type]; ok {
 		return chains[0], true
 	}
