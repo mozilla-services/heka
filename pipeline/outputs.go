@@ -14,8 +14,10 @@
 package pipeline
 
 import (
+	"github.com/peterbourgon/g2s"
 	"log"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -84,4 +86,72 @@ func (self *CounterOutput) timerLoop(ticker *time.Ticker) {
 		}
 		log.Printf("Got %d messages. %0.2f msg/sec\n", newCount, rate)
 	}
+}
+
+type StatsdClient interface {
+	// Interface that all statsd clients must implement
+	IncrementSampledCounter(bucket string, n int, srate float32)
+	SendSampledTiming(bucket string, ms int, srate float32)
+}
+
+type StatsdOutput struct {
+	statsdClient StatsdClient
+}
+
+func NewStatsdClient(url string) StatsdClient {
+	sd, sd_err := g2s.NewStatsd(url)
+	if sd_err != nil {
+		// TODO: do something with the error
+	}
+	return sd
+}
+
+func (self *StatsdOutput) runLoop() {
+	for {
+		runtime.Gosched()
+	}
+}
+
+func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
+
+	// Ok, got the float
+	msg := pipelinePack.Message
+
+	// TODO: we need the ns for the full key
+	// ns := msg.Logger
+
+	key := msg.Fields["name"].(string)
+
+	tmp_value, value_err := strconv.ParseInt(msg.Payload, 10, 32)
+	if value_err != nil {
+		// Do something on error
+	}
+	// Downcast this
+	value := int(tmp_value)
+
+	// TODO: handle a bad rate
+	tmp_rate, rate_err := strconv.ParseFloat(msg.Fields["rate"].(string), 0)
+	if rate_err != nil {
+		// TODO: Do something on error
+	}
+	rate := float32(tmp_rate)
+
+	switch msg.Fields["type"] {
+	case "counter":
+		// TODO: Handle the ns
+		self.statsdClient.IncrementSampledCounter(key, value, rate)
+	case "timer":
+		// TODO: handle the ns
+		self.statsdClient.SendSampledTiming(key, value, rate)
+	default:
+		// TODO: need a better warning logger when things go wrong
+		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
+	}
+	runtime.Gosched()
+}
+
+func NewStatsdOutput(statsdClient StatsdClient) *StatsdOutput {
+	self := StatsdOutput{statsdClient}
+	go self.runLoop()
+	return &self
 }

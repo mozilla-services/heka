@@ -77,8 +77,15 @@ func (self *GobDecoder) Init(config *PluginConfig) error {
 func (self *GobDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
 	buffer := bytes.NewBuffer(msgBytes)
-	decoder := gob.NewDecoder(buffer)
+
+    // stuffs byte buffer into decoder
+	decoder := gob.NewDecoder(buffer) 
+
+    // piplinePack.Message is a pointer type, so writing into msg
 	msg := pipelinePack.Message
+
+    // .Decode write decoded message into msg.  Note that the Gob
+    // system only uses Message types on Encode and Decode
 	err := decoder.Decode(msg)
 	if err != nil {
 		return err
