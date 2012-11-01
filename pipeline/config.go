@@ -137,6 +137,7 @@ func loadSection(configSection []PluginConfig) (config map[string]Plugin) {
 		if !ok {
 			log.Fatalln("Error: No such plugin of that name: ", pluginType)
 		}
+
 		plugin := pluginFunc()
 		initPlugin(plugin, &section)
 		config[pluginName] = plugin
@@ -172,7 +173,7 @@ func readJsonFromFile(filename string, configFile *ConfigFile) {
 //
 // The PipelineConfig should be already initialized before passed in via
 // its Init function.
-func LoadFromConfigFile(filename string, config *PipelineConfig) {
+func LoadFromConfigFile(filename string, config *PipelineConfig) error {
 	configFile := new(ConfigFile)
 	readJsonFromFile(filename, configFile)
 
@@ -240,5 +241,5 @@ func LoadFromConfigFile(filename string, config *PipelineConfig) {
 		}
 		config.FilterChains[name] = chain
 	}
-	return
+	return nil
 }
