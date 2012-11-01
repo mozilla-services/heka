@@ -15,27 +15,38 @@
 package pipeline
 
 import (
+	"code.google.com/p/gomock/gomock"
 	gs "github.com/orfjackal/gospec/src/gospec"
+	mocks "heka/pipeline/mocks"
 )
 
-func OutputsSpec(c gs.Context) {
-	// TODO: add stuff here
+func getIncrPipelinePack() *PipelinePack {
+	pipelinePack := getTestPipelinePack()
 
+	fields := make(map[string]interface{})
+	pipelinePack.Message.Fields = fields
+
+	// Force the message to be a statsd increment message
+	pipelinePack.Message.Logger = "thenamespace"
+	pipelinePack.Message.Fields["name"] = "myname"
+	pipelinePack.Message.Fields["rate"] = "30"
+	pipelinePack.Message.Fields["type"] = "counter"
+	pipelinePack.Message.Payload = "-1"
+	return pipelinePack
+}
+
+func OutputsSpec(c gs.Context) {
 	c.Specify("A StatsdOutput", func() {
 
-		pipelinePack := getTestPipelinePack()
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
 
-		fields := make(map[string]interface{})
-		pipelinePack.Message.Fields = fields
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
 
-		// Force the message to be a statsd increment message
-		pipelinePack.Message.Logger = "thenamespace"
-		pipelinePack.Message.Fields["name"] = "myname"
-		pipelinePack.Message.Fields["rate"] = "30"
-		pipelinePack.Message.Fields["type"] = "counter"
-		pipelinePack.Message.Payload = "-1"
-
-		statsdOutput := NewStatsdOutput(NewStatsdClient("localhost:5565"))
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient.EXPECT().IncrementSampledCounter("myname", -1, float32(30))
+		statsdOutput := NewStatsdOutput(mockClient)
 		statsdOutput.Deliver(pipelinePack)
 	})
 }
