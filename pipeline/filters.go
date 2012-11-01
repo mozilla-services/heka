@@ -188,15 +188,11 @@ func (self *StatRollupFilter) Flush() {
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
 
-	fmt.Println(buffer) // Prints to std out just for fun
-
-	msg := Message{Type: "statmetric", Timestamp: time.Now()}
-	msg.Fields = make(map[string]interface{})
-
 	if numStats == 0 {
 		log.Println("No stats collected, not delivering.")
 	}
 	if self.messageGenerator != nil {
+		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer}
 		self.messageGenerator.Deliver(&msg, 1)
 	}
 }

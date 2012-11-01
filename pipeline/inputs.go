@@ -163,13 +163,13 @@ func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 }
 
 // MessageGeneratorInput
+type MessageGeneratorInput struct {
+	messages chan *messageHolder
+}
+
 type messageHolder struct {
 	message    *Message
 	chainCount int
-}
-
-type MessageGeneratorInput struct {
-	messages chan *messageHolder
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
