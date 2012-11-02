@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"log"
+	"runtime"
 	"time"
 )
 
@@ -35,51 +36,47 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 }
 
 type CounterOutput struct {
-	counting chan uint
+	count uint
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
-	self.counting = make(chan uint)
-	go self.timerLoop()
+	ticker := time.NewTicker(time.Duration(time.Second))
+	go self.timerLoop(ticker)
 	return nil
 }
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	self.counting <- 1
+	self.count++
+	runtime.Gosched()
 }
 
-func (self *CounterOutput) timerLoop() {
-	t := time.NewTicker(time.Duration(time.Second))
+func (self *CounterOutput) timerLoop(ticker *time.Ticker) {
 	lastTime := time.Now()
-	lastCount := uint(0)
-	count := uint(0)
+	lastCount := self.count
 	zeroes := int8(0)
 	var (
-		msgsSent, newCount, inc uint
-		elapsedTime             time.Duration
-		now                     time.Time
-		rate                    float64
+		msgsSent, newCount uint
+		elapsedTime        time.Duration
+		now                time.Time
+		rate               float64
 	)
 	for {
-		select {
-		case <-t.C:
-			now = time.Now()
-			msgsSent = count - lastCount
-			lastCount = count
-			elapsedTime = now.Sub(lastTime)
-			lastTime = now
-			rate = float64(msgsSent) / elapsedTime.Seconds()
-			if msgsSent == 0 {
-				if newCount == 0 || zeroes == 3 {
-					continue
-				}
-				zeroes++
-			} else {
-				zeroes = 0
+		_ = <-ticker.C
+		newCount = self.count
+		now = time.Now()
+		msgsSent = newCount - lastCount
+		lastCount = newCount
+		elapsedTime = now.Sub(lastTime)
+		lastTime = now
+		rate = float64(msgsSent) / elapsedTime.Seconds()
+		if msgsSent == 0 {
+			if newCount == 0 || zeroes == 3 {
+				continue
 			}
-			log.Printf("Got %d messages. %0.2f msg/sec\n", newCount, rate)
-		case inc = <-self.counting:
-			count += inc
+			zeroes++
+		} else {
+			zeroes = 0
 		}
+		log.Printf("Got %d messages. %0.2f msg/sec\n", newCount, rate)
 	}
 }
