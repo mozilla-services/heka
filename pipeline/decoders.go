@@ -40,6 +40,9 @@ func (self *JsonDecoder) Init(config interface{}) error {
 
 func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
+
+	log.Printf("Bytes in the pack: %v", string(msgBytes))
+
 	msgJson, err := simplejson.NewJson(msgBytes)
 	if err != nil {
 		return err
@@ -78,14 +81,14 @@ func (self *GobDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
 	buffer := bytes.NewBuffer(msgBytes)
 
-    // stuffs byte buffer into decoder
-	decoder := gob.NewDecoder(buffer) 
+	// stuffs byte buffer into decoder
+	decoder := gob.NewDecoder(buffer)
 
-    // piplinePack.Message is a pointer type, so writing into msg
+	// piplinePack.Message is a pointer type, so writing into msg
 	msg := pipelinePack.Message
 
-    // .Decode write decoded message into msg.  Note that the Gob
-    // system only uses Message types on Encode and Decode
+	// .Decode write decoded message into msg.  Note that the Gob
+	// system only uses Message types on Encode and Decode
 	err := decoder.Decode(msg)
 	if err != nil {
 		return err

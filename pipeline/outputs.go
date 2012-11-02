@@ -96,9 +96,16 @@ type StatsdOutput struct {
 func NewStatsdClient(url string) StatsdClient {
 	sd, sd_err := g2s.NewStatsd(url)
 	if sd_err != nil {
-		// TODO: do something with the error
+		log.Printf("Error!! No statsd client was created! %v", sd_err)
+	} else {
+		log.Printf("g2s statsd client created")
 	}
 	return sd
+}
+
+func (self *StatsdOutput) Init(config interface{}) error {
+	self.statsdClient = NewStatsdClient("localhost:5565")
+	return nil
 }
 
 func (self *StatsdOutput) runLoop() {
@@ -109,7 +116,6 @@ func (self *StatsdOutput) runLoop() {
 
 func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 
-	// Ok, got the float
 	msg := pipelinePack.Message
 
 	// TODO: we need the ns for the full key
@@ -124,29 +130,26 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	// Downcast this
 	value := int(tmp_value)
 
-	// TODO: handle a bad rate
-	tmp_rate, rate_err := strconv.ParseFloat(msg.Fields["rate"].(string), 0)
-	if rate_err != nil {
-		// TODO: Do something on error
-	}
-	rate := float32(tmp_rate)
+	rate := float32(msg.Fields["rate"].(float64))
 
-	switch msg.Fields["type"] {
+	switch msg.Type {
 	case "counter":
 		// TODO: Handle the ns
-		self.statsdClient.IncrementSampledCounter(key, value, rate)
+		self.statsdClient.IncrementSampledCounter("foo", 2, 1)
 	case "timer":
 		// TODO: handle the ns
-		self.statsdClient.SendSampledTiming(key, value, rate)
+		//self.statsdClient.SendSampledTiming(key, value, rate)
 	default:
 		// TODO: need a better warning logger when things go wrong
 		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
+	log.Printf("key: %v value: %v rate: %v", key, value, rate)
+	log.Printf("==================")
 	runtime.Gosched()
 }
 
 func NewStatsdOutput(statsdClient StatsdClient) *StatsdOutput {
-	self := StatsdOutput{statsdClient}
+	self := StatsdOutput{}
 	go self.runLoop()
 	return &self
 }
