@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"log"
+	"sync"
 	"time"
 )
 
@@ -35,20 +36,28 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 }
 
 type CounterOutput struct {
-	counting chan uint
+}
+
+var (
+	countingChan chan uint
+	countingOnce sync.Once
+)
+
+func InitCountChan() {
+	countingChan = make(chan uint, 30000)
+	go timerLoop()
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
-	self.counting = make(chan uint, 30000)
-	go self.timerLoop()
+	countingOnce.Do(InitCountChan)
 	return nil
 }
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	self.counting <- 1
+	countingChan <- 1
 }
 
-func (self *CounterOutput) timerLoop() {
+func timerLoop() {
 	t := time.NewTicker(time.Duration(time.Second))
 	lastTime := time.Now()
 	lastCount := uint(0)
@@ -78,7 +87,7 @@ func (self *CounterOutput) timerLoop() {
 				zeroes = 0
 			}
 			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
-		case inc = <-self.counting:
+		case inc = <-countingChan:
 			count += inc
 		}
 	}
