@@ -38,23 +38,25 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 type CounterOutput struct {
 }
 
-var (
-	countingChan chan uint
-	countingOnce sync.Once
-)
+type CounterGlobal struct {
+	count chan uint
+	once  sync.Once
+}
+
+var counterGlobal CounterGlobal
 
 func InitCountChan() {
-	countingChan = make(chan uint, 30000)
+	counterGlobal.count = make(chan uint, 30000)
 	go timerLoop()
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
-	countingOnce.Do(InitCountChan)
+	counterGlobal.once.Do(InitCountChan)
 	return nil
 }
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	countingChan <- 1
+	counterGlobal.count <- 1
 }
 
 func timerLoop() {
@@ -87,7 +89,7 @@ func timerLoop() {
 				zeroes = 0
 			}
 			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
-		case inc = <-countingChan:
+		case inc = <-counterGlobal.count:
 			count += inc
 		}
 	}

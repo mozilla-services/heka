@@ -81,9 +81,9 @@ type StatConfig struct {
 	PercentThreshold int
 }
 
-// StatRollupObj is used for the global StatRollup object that collects
+// StatRollupGlobal is used for the global StatRollup object that collects
 // the stats from all the StatRollupFilter instances
-type StatRollupObj struct {
+type StatRollupGlobal struct {
 	flushInterval    int64
 	percentThreshold int
 	StatsIn          chan *Packet
@@ -91,14 +91,12 @@ type StatRollupObj struct {
 	timers           map[string][]int
 	gauges           map[string]int
 	messageGenerator *MessageGeneratorInput
+	once             sync.Once
 }
 
-var (
-	// A single StatRollup global instance for use by the statrollup
-	// filters
-	StatRollup StatRollupObj = StatRollupObj{}
-	onceStat   sync.Once
-)
+// A single StatRollup global instance for use by the statrollup
+// filters
+var StatRollup StatRollupGlobal
 
 func SetupStatConfig(config interface{}) {
 	conf := config.(*StatConfig)
@@ -119,7 +117,7 @@ func (self *StatRollupFilter) ConfigStruct() interface{} {
 }
 
 func (self *StatRollupFilter) Init(config interface{}) (err error) {
-	onceStat.Do(func() { SetupStatConfig(config) })
+	StatRollup.once.Do(func() { SetupStatConfig(config) })
 	return nil
 }
 
@@ -164,7 +162,7 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
-func (self *StatRollupObj) SetupMessageGenerator(config *PipelineConfig) bool {
+func (self *StatRollupGlobal) SetupMessageGenerator(config *PipelineConfig) bool {
 	for _, input := range config.Inputs {
 		convert, ok := input.(*MessageGeneratorInput)
 		if ok {
@@ -175,7 +173,7 @@ func (self *StatRollupObj) SetupMessageGenerator(config *PipelineConfig) bool {
 	return false
 }
 
-func (self *StatRollupObj) Monitor() {
+func (self *StatRollupGlobal) Monitor() {
 	t := time.NewTicker(time.Duration(self.flushInterval) * time.Second)
 	for {
 		select {
@@ -206,7 +204,7 @@ func (self *StatRollupObj) Monitor() {
 	}
 }
 
-func (self *StatRollupObj) Flush() {
+func (self *StatRollupGlobal) Flush() {
 	numStats := 0
 	now := time.Now()
 	buffer := bytes.NewBufferString("")
