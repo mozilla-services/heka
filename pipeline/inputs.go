@@ -20,6 +20,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -53,6 +54,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 		needOne := true
 		for self.running {
 			if needOne {
+				runtime.Gosched()
 				select {
 				case pipelinePack = <-recycleChan:
 				case <-time.After(*self.timeout):
