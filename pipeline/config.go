@@ -43,6 +43,7 @@ type PipelineConfig struct {
 	Inputs             map[string]Input
 	Decoders           map[string]Decoder
 	DefaultDecoder     string
+	DecoderCreator     func() map[string]Decoder
 	FilterChains       map[string]FilterChain
 	Filters            map[string]Filter
 	DefaultFilterChain string
@@ -175,9 +176,15 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	for name, plugin := range loadSection(configFile.Inputs) {
 		self.Inputs[name] = plugin.(Input)
 	}
-	for name, plugin := range loadSection(configFile.Decoders) {
-		self.Decoders[name] = plugin.(Decoder)
+
+	self.DecoderCreator = func() (decoders map[string]Decoder) {
+		decoders = make(map[string]Decoder)
+		for name, plugin := range loadSection(configFile.Decoders) {
+			decoders[name] = plugin.(Decoder)
+		}
+		return decoders
 	}
+
 	for name, plugin := range loadSection(configFile.Filters) {
 		self.Filters[name] = plugin.(Filter)
 	}

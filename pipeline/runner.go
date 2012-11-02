@@ -32,6 +32,7 @@ type PipelinePack struct {
 	Message     *Message
 	Config      *PipelineConfig
 	Decoder     string
+	Decoders    map[string]Decoder
 	Decoded     bool
 	FilterChain string
 	ChainCount  int
@@ -42,16 +43,24 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
 	outputs := make(map[string]bool)
+	decoders := make(map[string]Decoder)
 	pipelinePack := PipelinePack{
 		MsgBytes:    msgBytes,
 		Message:     &message,
 		Config:      config,
 		Decoder:     config.DefaultDecoder,
+		Decoders:    decoders,
 		Decoded:     false,
 		FilterChain: config.DefaultFilterChain,
 		Outputs:     outputs,
 	}
 	return &pipelinePack
+}
+
+func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
+	for name, plugin := range config.DecoderCreator() {
+		self.Decoders[name] = plugin
+	}
 }
 
 func filterProcessor(pipelinePack *PipelinePack) {
@@ -119,7 +128,7 @@ func (self *PipelineConfig) Run() {
 		// Decode message if necessary
 		if !pipelinePack.Decoded {
 			decoderName := pipelinePack.Decoder
-			decoder, ok := self.Decoders[decoderName]
+			decoder, ok := pipelinePack.Decoders[decoderName]
 			if !ok {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
@@ -153,7 +162,9 @@ func (self *PipelineConfig) Run() {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < self.PoolSize; i++ {
-		recycleChan <- NewPipelinePack(self)
+		pack := NewPipelinePack(self)
+		pack.InitDecoders(self)
+		recycleChan <- pack
 	}
 
 	var wg sync.WaitGroup
