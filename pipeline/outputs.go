@@ -15,7 +15,6 @@ package pipeline
 
 import (
 	"log"
-	"runtime"
 	"time"
 )
 
@@ -47,7 +46,6 @@ func (self *CounterOutput) Init(config interface{}) error {
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
 	self.count++
-	runtime.Gosched()
 }
 
 func (self *CounterOutput) timerLoop(ticker *time.Ticker) {
