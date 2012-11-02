@@ -41,13 +41,12 @@ type HasConfigStruct interface {
 
 type PipelineConfig struct {
 	Inputs             map[string]Input
-	Decoders           map[string]Decoder
 	DefaultDecoder     string
 	DecoderCreator     func() map[string]Decoder
 	FilterChains       map[string]FilterChain
-	Filters            map[string]Filter
+	FilterCreator      func() map[string]Filter
+	OutputCreator      func() map[string]Output
 	DefaultFilterChain string
-	Outputs            map[string]Output
 	PoolSize           int
 	Lookup             *MessageLookup
 }
@@ -185,12 +184,24 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		return decoders
 	}
 
-	for name, plugin := range loadSection(configFile.Filters) {
-		self.Filters[name] = plugin.(Filter)
+	self.FilterCreator = func() (filters map[string]Filter) {
+		filters = make(map[string]Filter)
+		for name, plugin := range loadSection(configFile.Filters) {
+			filters[name] = plugin.(Filter)
+		}
+		return filters
 	}
-	for name, plugin := range loadSection(configFile.Outputs) {
-		self.Outputs[name] = plugin.(Output)
+
+	self.OutputCreator = func() (outputs map[string]Output) {
+		outputs = make(map[string]Output)
+		for name, plugin := range loadSection(configFile.Outputs) {
+			outputs[name] = plugin.(Output)
+		}
+		return outputs
 	}
+
+	availOutputs := self.OutputCreator()
+	availFilters := self.FilterCreator()
 
 	// Locate and set the default decoder
 	for _, section := range configFile.Decoders {
@@ -212,7 +223,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
 				strOutput := output.(string)
-				if _, ok := self.Outputs[strOutput]; !ok {
+				if _, ok := availOutputs[strOutput]; !ok {
 					log.Fatalln("Error during chain loading. Output by name ",
 						output, " was not defined.")
 				}
@@ -224,7 +235,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
 				strFilter := filter.(string)
-				if _, ok := self.Filters[strFilter]; !ok {
+				if _, ok := availFilters[strFilter]; !ok {
 					log.Fatalln("Error during chain loading. Filter by name ",
 						filter, " was not defined.")
 				}
