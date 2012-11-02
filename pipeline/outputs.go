@@ -55,10 +55,10 @@ func (self *CounterOutput) timerLoop() {
 	count := uint(0)
 	zeroes := int8(0)
 	var (
-		msgsSent, newCount, inc uint
-		elapsedTime             time.Duration
-		now                     time.Time
-		rate                    float64
+		msgsSent, inc uint
+		elapsedTime   time.Duration
+		now           time.Time
+		rate          float64
 	)
 	for {
 		select {
@@ -70,14 +70,14 @@ func (self *CounterOutput) timerLoop() {
 			lastTime = now
 			rate = float64(msgsSent) / elapsedTime.Seconds()
 			if msgsSent == 0 {
-				if newCount == 0 || zeroes == 3 {
+				if msgsSent == 0 || zeroes == 3 {
 					continue
 				}
 				zeroes++
 			} else {
 				zeroes = 0
 			}
-			log.Printf("Got %d messages. %0.2f msg/sec\n", newCount, rate)
+			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
 		case inc = <-self.counting:
 			count += inc
 		}
