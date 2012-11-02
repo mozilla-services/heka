@@ -140,7 +140,7 @@ type UdpGobInput struct {
 	Decoder  *gob.Decoder
 }
 
-func (self *UdpGobInput) ConfigStruct() *UdpInputConfig {
+func (self *UdpGobInput) ConfigStruct() interface{} {
 	return &UdpInputConfig{}
 }
 
