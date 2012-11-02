@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"log"
+	"sort"
 	"sync"
 	"time"
 )
@@ -60,7 +61,8 @@ func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
 }
 
 func timerLoop() {
-	t := time.NewTicker(time.Duration(time.Second))
+	tick := time.NewTicker(time.Duration(time.Second))
+	aggregate := time.NewTicker(time.Duration(10 * time.Second))
 	lastTime := time.Now()
 	lastCount := uint(0)
 	count := uint(0)
@@ -70,10 +72,28 @@ func timerLoop() {
 		elapsedTime   time.Duration
 		now           time.Time
 		rate          float64
+		rates         []float64
 	)
 	for {
 		select {
-		case <-t.C:
+		case <-aggregate.C:
+			amount := len(rates)
+			if amount < 1 {
+				continue
+			}
+			sort.Float64s(rates)
+			min := rates[0]
+			max := rates[amount-1]
+			mean := min
+			sum := float64(0)
+			for _, val := range rates {
+				sum += val
+			}
+			mean = sum / float64(amount)
+			log.Printf("AGG Sum. Min: %0.2f   Max: %0.2f     Mean: %0.2f",
+				min, max, mean)
+			rates = rates[:0]
+		case <-tick.C:
 			now = time.Now()
 			msgsSent = count - lastCount
 			lastCount = count
@@ -89,6 +109,7 @@ func timerLoop() {
 				zeroes = 0
 			}
 			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
+			rates = append(rates, rate)
 		case inc = <-counterGlobal.count:
 			count += inc
 		}
