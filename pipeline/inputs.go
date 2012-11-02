@@ -81,6 +81,8 @@ func (self *InputRunner) Stop() {
 
 // UdpInput
 type UdpInput struct {
+	// Deadline is stored on the struct so we don't have to allocate / GC
+	// a new time.Time object for each message received.
 	Listener net.Conn
 	Deadline time.Time
 }
