@@ -15,9 +15,9 @@ package client
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"github.com/ugorji/go-msgpack"
 )
 
 type Encoder interface {
@@ -81,22 +81,21 @@ func (self *Message) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
-type GobEncoder struct {
-	encoder *gob.Encoder
-	buffer  *bytes.Buffer
+type MsgPackEncoder struct {
+	Buffer  *bytes.Buffer
+	Encoder *msgpack.Encoder
 }
 
-func NewGobEncoder() *GobEncoder {
-	buffer := new(bytes.Buffer)
-	encoder := gob.NewEncoder(buffer)
-	return &(GobEncoder{encoder, buffer})
+func NewMsgPackEncoder() *MsgPackEncoder {
+	self := new(MsgPackEncoder)
+	self.Buffer = new(bytes.Buffer)
+	self.Encoder = msgpack.NewEncoder(self.Buffer)
+	return self
 }
 
-func (self *GobEncoder) EncodeMessage(msg *Message) ([]byte, error) {
-	err := self.encoder.Encode(msg)
-	var result []byte
-	if err == nil {
-		result = self.buffer.Bytes()
+func (self *MsgPackEncoder) EncodeMessage(msg *Message) ([]byte, error) {
+	if err := self.Encoder.Encode(msg); err != nil {
+		return nil, err
 	}
-	return result, err
+	return self.Buffer.Bytes(), nil
 }

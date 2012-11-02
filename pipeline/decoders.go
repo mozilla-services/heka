@@ -14,7 +14,9 @@
 package pipeline
 
 import (
+	"bytes"
 	"github.com/bitly/go-simplejson"
+	"github.com/ugorji/go-msgpack"
 	"log"
 	"time"
 )
@@ -29,8 +31,7 @@ const (
 	timeFormatFullSecond = "2006-01-02T15:04:05-07:00"
 )
 
-type JsonDecoder struct {
-}
+type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
@@ -61,6 +62,27 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
 
+	pipelinePack.Decoded = true
+	return nil
+}
+
+type MsgPackDecoder struct {
+	Buffer  *bytes.Buffer
+	Decoder *msgpack.Decoder
+}
+
+func (self *MsgPackDecoder) Init(config interface{}) error {
+	self.Buffer = new(bytes.Buffer)
+	self.Decoder = msgpack.NewDecoder(self.Buffer, nil)
+	return nil
+}
+
+func (self *MsgPackDecoder) Decode(pipelinePack *PipelinePack) error {
+	self.Buffer.Write(pipelinePack.MsgBytes)
+	defer self.Buffer.Reset() // Needed? Shouldn't be, unless there's an error.
+	if err := self.Decoder.Decode(pipelinePack.Message); err != nil {
+		return err
+	}
 	pipelinePack.Decoded = true
 	return nil
 }
