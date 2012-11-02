@@ -21,7 +21,21 @@ import (
 	"time"
 )
 
-var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+func mockDecoderCreator() map[string]Decoder {
+	return make(map[string]Decoder)
+}
+
+func mockFilterCreator() map[string]Filter {
+	return make(map[string]Filter)
+}
+
+func mockOutputCreator() map[string]Output {
+	return make(map[string]Output)
+}
+
+var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST",
+	DecoderCreator: mockDecoderCreator, FilterCreator: mockFilterCreator,
+	OutputCreator: mockOutputCreator}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
