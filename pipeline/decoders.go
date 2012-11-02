@@ -14,8 +14,6 @@
 package pipeline
 
 import (
-	"bytes"
-	"encoding/gob"
 	"github.com/bitly/go-simplejson"
 	"log"
 	"time"
@@ -63,26 +61,6 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
 
-	pipelinePack.Decoded = true
-	return nil
-}
-
-type GobDecoder struct {
-}
-
-func (self *GobDecoder) Init(config interface{}) error {
-	return nil
-}
-
-func (self *GobDecoder) Decode(pipelinePack *PipelinePack) error {
-	msgBytes := pipelinePack.MsgBytes
-	buffer := bytes.NewBuffer(msgBytes)
-	decoder := gob.NewDecoder(buffer)
-	msg := pipelinePack.Message
-	err := decoder.Decode(msg)
-	if err != nil {
-		return err
-	}
 	pipelinePack.Decoded = true
 	return nil
 }

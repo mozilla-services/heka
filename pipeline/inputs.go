@@ -14,7 +14,6 @@
 package pipeline
 
 import (
-	"encoding/gob"
 	"fmt"
 	. "heka/message"
 	"log"
@@ -134,38 +133,6 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	n, err := self.Listener.Read(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
-	}
-	return err
-}
-
-// UdpGobInput
-
-type UdpGobInput struct {
-	UdpInput UdpInput
-	Decoder  *gob.Decoder
-}
-
-func (self *UdpGobInput) ConfigStruct() interface{} {
-	return &UdpInputConfig{}
-}
-
-func (self *UdpGobInput) Init(config interface{}) error {
-	self.UdpInput = UdpInput{}
-	err := self.UdpInput.Init(config)
-	if err != nil {
-		return err
-	}
-	self.Decoder = gob.NewDecoder(self.UdpInput.Listener)
-	return nil
-}
-
-func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) error {
-	self.UdpInput.Deadline = time.Now().Add(*timeout)
-	self.UdpInput.Listener.SetReadDeadline(self.UdpInput.Deadline)
-	err := self.Decoder.Decode(pipelinePack.Message)
-	if err == nil {
-		pipelinePack.Decoded = true
 	}
 	return err
 }
