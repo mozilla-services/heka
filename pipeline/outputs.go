@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"log"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -75,6 +76,8 @@ func timerLoop() {
 		rates         []float64
 	)
 	for {
+		// Here for performance reasons
+		runtime.Gosched()
 		select {
 		case <-aggregate.C:
 			amount := len(rates)
