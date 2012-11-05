@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"github.com/peterbourgon/g2s"
+	"github.com/crankycoder/g2s"
 	"log"
 	"runtime"
 	"strconv"
@@ -94,32 +94,24 @@ type StatsdOutput struct {
 }
 
 func NewStatsdClient(url string) StatsdClient {
-	sd, sd_err := g2s.NewStatsd(url)
-	if sd_err != nil {
-		log.Printf("Error!! No statsd client was created! %v", sd_err)
-	} else {
-		log.Printf("g2s statsd client created")
+	sd, err := g2s.NewStatsd(url, 0)
+	if err != nil {
+		log.Printf("Error!! No statsd client was created! %v", err)
 	}
 	return sd
 }
 
 func (self *StatsdOutput) Init(config interface{}) error {
-	self.statsdClient = NewStatsdClient("localhost:5565")
+	self.statsdClient = NewStatsdClient("localhost:9000")
 	return nil
-}
-
-func (self *StatsdOutput) runLoop() {
-	for {
-		runtime.Gosched()
-	}
 }
 
 func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 
 	msg := pipelinePack.Message
 
-	// TODO: we need the ns for the full key
-	// ns := msg.Logger
+	// we need the ns for the full key
+	ns := msg.Logger
 
 	key := msg.Fields["name"].(string)
 
@@ -143,13 +135,12 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 		// TODO: need a better warning logger when things go wrong
 		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
-	log.Printf("key: %v value: %v rate: %v", key, value, rate)
+	log.Printf("key: %v ns: %v value: %v rate: %v", ns, key, value, rate)
 	log.Printf("==================")
 	runtime.Gosched()
 }
 
 func NewStatsdOutput(statsdClient StatsdClient) *StatsdOutput {
 	self := StatsdOutput{}
-	go self.runLoop()
 	return &self
 }
