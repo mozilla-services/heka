@@ -102,7 +102,8 @@ func NewStatsdClient(url string) StatsdClient {
 }
 
 func (self *StatsdOutput) Init(config interface{}) error {
-	self.statsdClient = NewStatsdClient("localhost:9000")
+	statsd_url := (*config.(*PluginConfig))["url"].(string)
+	self.statsdClient = NewStatsdClient(statsd_url)
 	return nil
 }
 
