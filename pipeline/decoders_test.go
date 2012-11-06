@@ -70,6 +70,7 @@ func DecodersSpec(c gospec.Context) {
 			pack.MsgBytes = encoded
 			decoder.Decode(pack)
 			c.Expect(pack.Message, gs.Equals, msg)
+			c.Expect(pack.Decoded, gs.IsTrue)
 		})
 	})
 }
