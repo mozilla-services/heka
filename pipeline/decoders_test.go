@@ -39,8 +39,9 @@ func DecodersSpec(c gospec.Context) {
 		jsonDecoder := new(JsonDecoder)
 
 		c.Specify("can decode a JSON message", func() {
-			jsonDecoder.Decode(pipelinePack)
+			err := jsonDecoder.Decode(pipelinePack)
 			c.Expect(pipelinePack.Message, gs.Equals, msg)
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("returns `fields` as a map", func() {
@@ -48,10 +49,11 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(pipelinePack.Message.Fields["foo"], gs.Equals, "bar")
 		})
 
-		c.Specify("returns nil for bogus JSON", func() {
+		c.Specify("returns an error for bogus JSON", func() {
 			badJson := fmt.Sprint("{{", jsonString)
 			pipelinePack.MsgBytes = []byte(badJson)
-			jsonDecoder.Decode(pipelinePack)
+			err := jsonDecoder.Decode(pipelinePack)
+			c.Expect(err, gs.Not(gs.IsNil))
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
 		})
