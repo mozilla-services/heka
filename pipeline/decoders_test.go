@@ -66,13 +66,22 @@ func DecodersSpec(c gospec.Context) {
 
 		decoder := new(MsgPackDecoder)
 		decoder.Init(nil)
+		pack := getTestPipelinePack()
 
 		c.Specify("decodes a msgpack message", func() {
-			pack := getTestPipelinePack()
 			pack.MsgBytes = encoded
-			decoder.Decode(pack)
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
 			c.Expect(pack.Message, gs.Equals, msg)
 			c.Expect(pack.Decoded, gs.IsTrue)
+		})
+
+		c.Specify("returns an error for bunk encoding", func() {
+			bunk := append([]byte{0, 0, 0}, encoded...)
+			pack.MsgBytes = bunk
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(pack.Decoded, gs.IsFalse)
 		})
 	})
 }
