@@ -46,7 +46,7 @@ func TestAllSpecs(t *testing.T) {
 }
 
 func getTestMessage() *Message {
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
 	fields := make(map[string]interface{})
 	fields["foo"] = "bar"

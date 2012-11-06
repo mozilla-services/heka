@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
+	"github.com/ugorji/go-msgpack"
 )
 
 func DecodersSpec(c gospec.Context) {
@@ -35,7 +36,7 @@ func DecodersSpec(c gospec.Context) {
 
 		pipelinePack := getTestPipelinePack()
 		pipelinePack.MsgBytes = []byte(jsonString)
-		jsonDecoder := &JsonDecoder{}
+		jsonDecoder := new(JsonDecoder)
 
 		c.Specify("can decode a JSON message", func() {
 			jsonDecoder.Decode(pipelinePack)
@@ -53,6 +54,22 @@ func DecodersSpec(c gospec.Context) {
 			jsonDecoder.Decode(pipelinePack)
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
+		})
+	})
+
+	c.Specify("A MsgPackDecoder", func() {
+		msg := getTestMessage()
+		encoded, err := msgpack.Marshal(msg)
+		c.Assume(err, gs.IsNil)
+
+		decoder := new(MsgPackDecoder)
+		decoder.Init(nil)
+
+		c.Specify("decodes a msgpack message", func() {
+			pack := getTestPipelinePack()
+			pack.MsgBytes = encoded
+			decoder.Decode(pack)
+			c.Expect(pack.Message, gs.Equals, msg)
 		})
 	})
 }

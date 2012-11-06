@@ -84,7 +84,7 @@ func main() {
 	case "msgpack":
 		encoder = client.NewMsgPackEncoder()
 	}
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
 	message := client.Message{
 		Type: "hekabench", Timestamp: timestamp,
