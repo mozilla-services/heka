@@ -1,0 +1,21 @@
+{
+    "inputs": [
+        {
+            "type": "UdpStatInput"
+        }
+    ],
+    "decoders": [
+        {"type": "JsonDecoder", "default": true}
+    ],
+    "filters": [
+        {"type": "StatRollupFilter"}
+    ],
+    "outputs": [
+        {"type": "CounterOutput"}
+    ],
+    "chains": {
+        "default": {
+            "outputs": ["CounterOutput"]
+        }
+    }
+}
