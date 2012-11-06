@@ -20,6 +20,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type Input interface {
 }
 
 // InputRunner
+
 type InputRunner struct {
 	input   Input
 	timeout *time.Duration
@@ -53,6 +55,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 		needOne := true
 		for self.running {
 			if needOne {
+				runtime.Gosched()
 				select {
 				case pipelinePack = <-recycleChan:
 				case <-time.After(*self.timeout):
@@ -78,6 +81,9 @@ func (self *InputRunner) Stop() {
 }
 
 // UdpInput
+
+// Deadline is stored on the struct so we don't have to allocate / GC
+// a new time.Time object for each message received.
 type UdpInput struct {
 	Listener net.Conn
 	Deadline time.Time
@@ -133,12 +139,13 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 }
 
 // UdpGobInput
+
 type UdpGobInput struct {
 	UdpInput UdpInput
 	Decoder  *gob.Decoder
 }
 
-func (self *UdpGobInput) ConfigStruct() *UdpInputConfig {
+func (self *UdpGobInput) ConfigStruct() interface{} {
 	return &UdpInputConfig{}
 }
 
@@ -164,6 +171,7 @@ func (self *UdpGobInput) Read(pipelinePack *PipelinePack,
 }
 
 // MessageGeneratorInput
+
 type MessageGeneratorInput struct {
 	messages chan *messageHolder
 }

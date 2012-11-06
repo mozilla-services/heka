@@ -32,33 +32,67 @@ type PipelinePack struct {
 	Message     *Message
 	Config      *PipelineConfig
 	Decoder     string
+	Decoders    map[string]Decoder
+	Filters     map[string]Filter
+	Outputs     map[string]Output
 	Decoded     bool
 	FilterChain string
 	ChainCount  int
-	Outputs     map[string]bool
+	OutputNames map[string]bool
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
-	outputs := make(map[string]bool)
+	outputnames := make(map[string]bool)
+	filters := make(map[string]Filter)
+	decoders := make(map[string]Decoder)
+	outputs := make(map[string]Output)
+
 	pipelinePack := PipelinePack{
 		MsgBytes:    msgBytes,
 		Message:     &message,
 		Config:      config,
 		Decoder:     config.DefaultDecoder,
+		Decoders:    decoders,
 		Decoded:     false,
+		Filters:     filters,
 		FilterChain: config.DefaultFilterChain,
 		Outputs:     outputs,
+		OutputNames: outputnames,
 	}
-	return &pipelinePack
+	pack := &pipelinePack
+	pack.InitDecoders(config)
+	pack.InitFilters(config)
+	pack.InitOutputs(config)
+	return pack
+}
+
+func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
+	for name, plugin := range config.DecoderCreator() {
+		self.Decoders[name] = plugin
+	}
+}
+
+func (self *PipelinePack) InitFilters(config *PipelineConfig) {
+	for name, plugin := range config.FilterCreator() {
+		self.Filters[name] = plugin
+	}
+}
+
+func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
+	for name, plugin := range config.OutputCreator() {
+		self.Outputs[name] = plugin
+	}
 }
 
 func filterProcessor(pipelinePack *PipelinePack) {
-	pipelinePack.Outputs = map[string]bool{}
+	pipelinePack.OutputNames = map[string]bool{}
 	config := pipelinePack.Config
 	filterChainName, ok := config.Lookup.LocateChain(pipelinePack.Message)
-	if !ok {
+	if ok {
+		pipelinePack.FilterChain = filterChainName
+	} else {
 		filterChainName = pipelinePack.FilterChain
 	}
 	filterChain, ok := config.FilterChains[filterChainName]
@@ -67,10 +101,10 @@ func filterProcessor(pipelinePack *PipelinePack) {
 		return
 	}
 	for _, outputName := range filterChain.Outputs {
-		pipelinePack.Outputs[outputName] = true
+		pipelinePack.OutputNames[outputName] = true
 	}
 	for _, filterName := range filterChain.Filters {
-		filter := config.Filters[filterName]
+		filter := pipelinePack.Filters[filterName]
 		filter.FilterMsg(pipelinePack)
 		if pipelinePack.Message == nil {
 			return
@@ -82,11 +116,8 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
 	config.Inputs = make(map[string]Input)
-	config.Decoders = make(map[string]Decoder)
 	config.FilterChains = make(map[string]FilterChain)
 	config.DefaultFilterChain = "default"
-	config.Outputs = make(map[string]Output)
-	config.Filters = make(map[string]Filter)
 	config.Lookup = new(MessageLookup)
 	config.Lookup.MessageType = make(map[string][]string)
 	return config
@@ -112,14 +143,14 @@ func (self *PipelineConfig) Run() {
 			pipelinePack.Decoded = false
 			pipelinePack.FilterChain = self.DefaultFilterChain
 			outputs := make(map[string]bool)
-			pipelinePack.Outputs = outputs
+			pipelinePack.OutputNames = outputs
 			recycleChan <- pipelinePack
 		}()
 
 		// Decode message if necessary
 		if !pipelinePack.Decoded {
 			decoderName := pipelinePack.Decoder
-			decoder, ok := self.Decoders[decoderName]
+			decoder, ok := pipelinePack.Decoders[decoderName]
 			if !ok {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
@@ -139,11 +170,11 @@ func (self *PipelineConfig) Run() {
 		}
 
 		// Deliver message to appropriate outputs
-		for outputName, use := range pipelinePack.Outputs {
+		for outputName, use := range pipelinePack.OutputNames {
 			if !use {
 				continue
 			}
-			output, ok := self.Outputs[outputName]
+			output, ok := pipelinePack.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
 			}

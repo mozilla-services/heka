@@ -21,6 +21,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -58,7 +59,7 @@ func (self *NamedOutputFilter) Init(config interface{}) error {
 
 func (self *NamedOutputFilter) FilterMsg(pipelinePack *PipelinePack) {
 	for _, outputName := range self.outputNames {
-		pipelinePack.Outputs[outputName] = true
+		pipelinePack.OutputNames[outputName] = true
 	}
 }
 
@@ -70,22 +71,44 @@ type Packet struct {
 	Sampling float32
 }
 
-// A local statsd like structure that rolls-up counter/timer/gauge type
-// messages and later creates a StatMetric type message which is
-// inserted via the MessageGeneratorInput
+// StatRollupFilter is created per pipelinePack
 type StatRollupFilter struct {
-	messageGenerator *MessageGeneratorInput
+}
+
+// StatConfig is used to specify the config vars this takes
+type StatConfig struct {
+	FlushInterval    int64
+	PercentThreshold int
+}
+
+// StatRollupObj is used for the global StatRollup object that collects
+// the stats from all the StatRollupFilter instances
+type StatRollupObj struct {
 	flushInterval    int64
 	percentThreshold int
 	StatsIn          chan *Packet
 	counters         map[string]int
 	timers           map[string][]int
 	gauges           map[string]int
+	messageGenerator *MessageGeneratorInput
 }
 
-type StatConfig struct {
-	FlushInterval    int64
-	PercentThreshold int
+var (
+	// A single StatRollup global instance for use by the statrollup
+	// filters
+	StatRollup StatRollupObj = StatRollupObj{}
+	onceStat   sync.Once
+)
+
+func SetupStatConfig(config interface{}) {
+	conf := config.(*StatConfig)
+	StatRollup.flushInterval = conf.FlushInterval
+	StatRollup.percentThreshold = conf.PercentThreshold
+	StatRollup.StatsIn = make(chan *Packet, 10000)
+	StatRollup.counters = make(map[string]int)
+	StatRollup.timers = make(map[string][]int)
+	StatRollup.gauges = make(map[string]int)
+	go StatRollup.Monitor()
 }
 
 func (self *StatRollupFilter) ConfigStruct() interface{} {
@@ -96,18 +119,63 @@ func (self *StatRollupFilter) ConfigStruct() interface{} {
 }
 
 func (self *StatRollupFilter) Init(config interface{}) (err error) {
-	conf := config.(*StatConfig)
-	self.flushInterval = conf.FlushInterval
-	self.percentThreshold = conf.PercentThreshold
-	self.StatsIn = make(chan *Packet, 10000)
-	self.counters = make(map[string]int)
-	self.timers = make(map[string][]int)
-	self.gauges = make(map[string]int)
-	go self.Monitor()
+	onceStat.Do(func() { SetupStatConfig(config) })
 	return nil
 }
 
-func (self *StatRollupFilter) Monitor() {
+func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
+	// If there's an message generator input, configure it. This has to
+	// be setup during run-time as the inputs aren't setup or during
+	// filter initialization. Filtering will *not* occur if no message
+	// generator is found
+	if StatRollup.messageGenerator == nil {
+		ok := StatRollup.SetupMessageGenerator(pipeline.Config)
+		if !ok {
+			return
+		}
+	}
+	var packet Packet
+	msg := pipeline.Message
+	switch msg.Type {
+	case "statsd_timer":
+		packet.Modifier = "ms"
+	case "statsd_gauge":
+		packet.Modifier = "g"
+	case "statsd_counter":
+		packet.Modifier = ""
+	default:
+		return
+	}
+
+	defer func() {
+		pipeline.Message = nil
+	}()
+
+	packet.Bucket = msg.Fields["name"].(string)
+	value, err := strconv.ParseInt(msg.Payload, 0, 0)
+	if err != nil {
+		log.Println("StatRollupFilter error parsing value: %s", err.Error())
+		return
+	}
+	packet.Value = int(value)
+	packet.Sampling = msg.Fields["rate"].(float32)
+	StatRollup.StatsIn <- &packet
+}
+
+// Scans the config to locate the MessageGeneratorInput and saves a
+// reference to it for use when filtering messages
+func (self *StatRollupObj) SetupMessageGenerator(config *PipelineConfig) bool {
+	for _, input := range config.Inputs {
+		convert, ok := input.(*MessageGeneratorInput)
+		if ok {
+			self.messageGenerator = convert
+			return true
+		}
+	}
+	return false
+}
+
+func (self *StatRollupObj) Monitor() {
 	t := time.NewTicker(time.Duration(self.flushInterval) * time.Second)
 	for {
 		select {
@@ -138,7 +206,7 @@ func (self *StatRollupFilter) Monitor() {
 	}
 }
 
-func (self *StatRollupFilter) Flush() {
+func (self *StatRollupObj) Flush() {
 	numStats := 0
 	now := time.Now()
 	buffer := bytes.NewBufferString("")
@@ -195,56 +263,4 @@ func (self *StatRollupFilter) Flush() {
 		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer.String()}
 		self.messageGenerator.Deliver(&msg, 1)
 	}
-}
-
-// Scans the config to locate the MessageGeneratorInput and saves a
-// reference to it for use when filtering messages
-func (self *StatRollupFilter) SetupMessageGenerator(config *PipelineConfig) bool {
-	for _, input := range config.Inputs {
-		convert, ok := input.(*MessageGeneratorInput)
-		if ok {
-			self.messageGenerator = convert
-			return true
-		}
-	}
-	return false
-}
-
-func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
-	// If there's an message generator input, configure it. This has to
-	// be setup during run-time as the inputs aren't setup or during
-	// filter initialization. Filtering will *not* occur if no message
-	// generator is found
-	if self.messageGenerator == nil {
-		ok := self.SetupMessageGenerator(pipeline.Config)
-		if !ok {
-			return
-		}
-	}
-	var packet Packet
-	msg := pipeline.Message
-	switch msg.Type {
-	case "statsd_timer":
-		packet.Modifier = "ms"
-	case "statsd_gauge":
-		packet.Modifier = "g"
-	case "statsd_counter":
-		packet.Modifier = ""
-	default:
-		return
-	}
-
-	defer func() {
-		pipeline.Message = nil
-	}()
-
-	packet.Bucket = msg.Fields["name"].(string)
-	value, err := strconv.ParseInt(msg.Payload, 0, 0)
-	if err != nil {
-		log.Println("StatRollupFilter error parsing value: %s", err.Error())
-		return
-	}
-	packet.Value = int(value)
-	packet.Sampling = msg.Fields["rate"].(float32)
-	self.StatsIn <- &packet
 }
