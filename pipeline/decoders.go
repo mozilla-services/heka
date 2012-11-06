@@ -26,9 +26,11 @@ type Decoder interface {
 	Decode(pipelinePack *PipelinePack) error
 }
 
+// The timezone information has been stripped as 
+// everything should be encoded to UTC time
 const (
-	timeFormat           = "2006-01-02T15:04:05.000000-07:00"
-	timeFormatFullSecond = "2006-01-02T15:04:05-07:00"
+	timeFormat           = "2006-01-02T15:04:05.000000"
+	timeFormatFullSecond = "2006-01-02T15:04:05"
 )
 
 type JsonDecoder struct {
@@ -40,8 +42,6 @@ func (self *JsonDecoder) Init(config interface{}) error {
 
 func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
-
-	log.Printf("Bytes in the pack: %v", string(msgBytes))
 
 	msgJson, err := simplejson.NewJson(msgBytes)
 	if err != nil {

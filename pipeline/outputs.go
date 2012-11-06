@@ -18,6 +18,7 @@ import (
 	"log"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -115,10 +116,15 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	ns := msg.Logger
 
 	key := msg.Fields["name"].(string)
+	if strings.TrimSpace(ns) != "" {
+		s := []string{ns, key}
+		key = strings.Join(s, ".")
+	}
 
 	tmp_value, value_err := strconv.ParseInt(msg.Payload, 10, 32)
 	if value_err != nil {
-		// Do something on error
+		log.Printf("Error parsing value for statsd")
+		return
 	}
 	// Downcast this
 	value := int(tmp_value)
@@ -127,17 +133,12 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 
 	switch msg.Type {
 	case "counter":
-		// TODO: Handle the ns
-		self.statsdClient.IncrementSampledCounter("foo", 2, 1)
+		self.statsdClient.IncrementSampledCounter(key, value, rate)
 	case "timer":
-		// TODO: handle the ns
-		//self.statsdClient.SendSampledTiming(key, value, rate)
+		self.statsdClient.SendSampledTiming(key, value, rate)
 	default:
-		// TODO: need a better warning logger when things go wrong
 		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
-	log.Printf("key: %v ns: %v value: %v rate: %v", ns, key, value, rate)
-	log.Printf("==================")
 	runtime.Gosched()
 }
 
