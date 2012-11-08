@@ -26,7 +26,7 @@ import (
 )
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
-	lastTime := time.Now()
+	lastTime := time.Now().UTC()
 	lastCount := *count
 	zeroes := int8(0)
 	var (
