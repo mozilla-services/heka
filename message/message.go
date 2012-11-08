@@ -40,6 +40,7 @@ func (self *Message) Copy(dst *Message) {
 	}
 }
 
+// Test for message equality, for use in tests.
 func (self *Message) Equals(other interface{}) bool {
 	vSelf := reflect.ValueOf(self).Elem()
 	vOther := reflect.ValueOf(other).Elem()

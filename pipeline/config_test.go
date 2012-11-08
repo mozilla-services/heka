@@ -19,10 +19,44 @@ import (
 )
 
 func LoadFromConfigSpec(c gospec.Context) {
+
 	c.Specify("The config file can be loaded", func() {
 		pipeConfig := NewPipelineConfig(1)
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
 		pipeConfig.LoadFromConfigFile("config_test.json")
 		c.Expect(pipeConfig.DefaultDecoder, gs.Equals, "JsonDecoder")
+	})
+
+	c.Specify("The good config file can be loaded", func() {
+		pipeConfig := NewPipelineConfig(1)
+		c.Assume(pipeConfig, gs.Not(gs.IsNil))
+		pipeConfig.LoadFromConfigFile("config_test.json")
+
+		c.Specify("and the default decoder is loaded", func() {
+			c.Expect(pipeConfig.DefaultDecoder, gs.Equals, "JsonDecoder")
+		})
+
+		c.Specify("and the inputs section loads properly", func() {
+			_, ok := pipeConfig.Inputs["udp_stats"]
+			c.Expect(ok, gs.Equals, true)
+		})
+
+		c.Specify("and the decoders section loads", func() {
+			decoders := pipeConfig.DecoderCreator()
+			_, ok := decoders["default"]
+			c.Expect(ok, gs.Equals, true)
+		})
+
+		c.Specify("and the filters section loads", func() {
+			filters := pipeConfig.FilterCreator()
+			_, ok := filters["StatRollupFilter"]
+			c.Expect(ok, gs.Equals, true)
+		})
+
+		c.Specify("and the outputs section loads", func() {
+			outputs := pipeConfig.OutputCreator()
+			_, ok := outputs["CounterOutput"]
+			c.Expect(ok, gs.Equals, true)
+		})
 	})
 }

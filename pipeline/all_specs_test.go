@@ -16,8 +16,8 @@ package pipeline
 import (
 	"github.com/orfjackal/gospec/src/gospec"
 	. "heka/message"
+	hekatime "heka/time"
 	"os"
-    hekatime "heka/time"
 	"testing"
 	"time"
 )

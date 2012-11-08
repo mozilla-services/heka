@@ -26,8 +26,8 @@ import (
 // The timezone information has been stripped as 
 // everything should be encoded to UTC time
 const (
-	timeFormat           = "2006-01-02T15:04:05.000000"
-	timeFormatFullSecond = "2006-01-02T15:04:05"
+	timeFormat           = "2006-01-02T15:04:05.000000Z"
+	timeFormatFullSecond = "2006-01-02T15:04:05Z"
 )
 
 type UTCTimestamp struct {

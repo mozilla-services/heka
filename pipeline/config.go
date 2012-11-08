@@ -31,6 +31,7 @@ var AvailablePlugins = map[string]func() Plugin{
 	"LogOutput":             func() Plugin { return new(LogOutput) },
 	"CounterOutput":         func() Plugin { return new(CounterOutput) },
 	"StatsdOutput":          func() Plugin { return new(StatsdOutput) },
+	"FileOutput":            func() Plugin { return new(FileOutput) },
 }
 
 type PluginConfig map[string]interface{}

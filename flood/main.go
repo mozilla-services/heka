@@ -26,7 +26,7 @@ import (
 )
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
-	lastTime := time.Now()
+	lastTime := time.Now().UTC()
 	lastCount := *count
 	zeroes := int8(0)
 	var (
@@ -84,7 +84,7 @@ func main() {
 	case "msgpack":
 		encoder = client.NewMsgPackEncoder()
 	}
-	timestamp := time.Now()
+	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
 	message := client.Message{
 		Type: "hekabench", Timestamp: timestamp,

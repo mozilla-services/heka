@@ -30,8 +30,8 @@ type Decoder interface {
 // The timezone information has been stripped as 
 // everything should be encoded to UTC time
 const (
-	timeFormat           = "2006-01-02T15:04:05.000000"
-	timeFormatFullSecond = "2006-01-02T15:04:05"
+	timeFormat           = "2006-01-02T15:04:05.000000Z"
+	timeFormatFullSecond = "2006-01-02T15:04:05Z"
 )
 
 type JsonDecoder struct{}
@@ -56,7 +56,7 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 
 	if err != nil {
 		tmp_time, err = time.Parse(timeFormatFullSecond, timeStr)
-		msg.Timestamp = hekatime.UTCTimestamp{Timestamp : tmp_time}
+		msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
 		if err != nil {
 			log.Printf("Timestamp parsing error: %s\n", err.Error())
 		}

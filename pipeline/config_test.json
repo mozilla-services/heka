@@ -1,7 +1,8 @@
 {
     "inputs": [
         {
-            "type": "UdpStatInput"
+            "type": "UdpStatInput",
+            "name": "udp_stats"
         }
     ],
     "decoders": [
@@ -15,6 +16,11 @@
     ],
     "chains": {
         "default": {
+            "outputs": ["CounterOutput"]
+        },
+        "sample": {
+            "type": "counter",
+            "filters": ["StatRollupFilter"],
             "outputs": ["CounterOutput"]
         }
     }
