@@ -168,12 +168,16 @@ func (self *FileWriter) writeLoop() {
 	}
 }
 
-var FileWriters = make(map[string]*FileWriter)
+var (
+	FileWriters = make(map[string]*FileWriter)
 
-var FILEFORMATS = map[string]bool{
-	"json": true,
-	"text": true,
-}
+	FILEFORMATS = map[string]bool{
+		"json": true,
+		"text": true,
+	}
+
+	TSFORMAT []byte = []byte("[2006/Jan/02:15:04:05 -0700] ")
+)
 
 const NEWLINE byte = 10
 
@@ -239,5 +243,8 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 		self.outData = []byte(pack.Message.Payload)
 	}
 	self.outData = append(self.outData, NEWLINE)
+	if self.prefix_ts {
+		self.outData = append(TSFORMAT, self.outData...)
+	}
 	self.dataChan <- self.outData
 }
