@@ -145,8 +145,13 @@ func NewStatsdClient(url string) StatsdClient {
 	return sd
 }
 
+func (self *StatsdOutput) ConfigStruct() interface{} {
+	return &StatsdOutputConfig{Url: "localhost:5555"}
+}
+
 func (self *StatsdOutput) Init(config interface{}) error {
-	statsd_url := (*config.(*PluginConfig))["url"].(string)
+	conf := config.(*StatsdOutputConfig)
+	statsd_url := conf.Url
 	self.statsdClient = NewStatsdClient(statsd_url)
 	return nil
 }
@@ -251,6 +256,10 @@ type FileOutput struct {
 	format    string
 	prefix_ts bool
 	outData   []byte
+}
+
+type StatsdOutputConfig struct {
+	Url string
 }
 
 type FileOutputConfig struct {
