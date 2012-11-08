@@ -15,7 +15,6 @@ package pipeline
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	. "heka/message"
 	"log"
@@ -40,27 +39,6 @@ func (self *LogFilter) Init(config interface{}) error {
 
 func (self *LogFilter) FilterMsg(pipelinePack *PipelinePack) {
 	log.Printf("Message: %+v\n", pipelinePack.Message)
-}
-
-// NamedOutputFilter
-type NamedOutputFilter struct {
-	outputNames []string
-}
-
-func (self *NamedOutputFilter) Init(config interface{}) error {
-	conf := config.(map[string]interface{})
-	outputNames, ok := conf["OutputNames"]
-	if !ok {
-		return errors.New("No `OutputNames` in config.")
-	}
-	self.outputNames = outputNames.([]string)
-	return nil
-}
-
-func (self *NamedOutputFilter) FilterMsg(pipelinePack *PipelinePack) {
-	for _, outputName := range self.outputNames {
-		pipelinePack.OutputNames[outputName] = true
-	}
 }
 
 // StatRollupFilter
