@@ -14,10 +14,15 @@
 package pipeline
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"runtime"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -49,7 +54,7 @@ var counterGlobal CounterGlobal
 
 func InitCountChan() {
 	counterGlobal.count = make(chan uint, 30000)
-	go timerLoop()
+	go counterLoop()
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
@@ -61,7 +66,7 @@ func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
 	counterGlobal.count <- 1
 }
 
-func timerLoop() {
+func counterLoop() {
 	tick := time.NewTicker(time.Duration(time.Second))
 	aggregate := time.NewTicker(time.Duration(10 * time.Second))
 	lastTime := time.Now()
@@ -117,4 +122,122 @@ func timerLoop() {
 			count += inc
 		}
 	}
+}
+
+// FileWriters actually do the work of writing out to the filesystem.
+type FileWriter struct {
+	DataChan chan []byte
+	path     string
+	file     *os.File
+}
+
+// Create the data channel and the open the file for writing
+func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
+	if err != nil {
+		return nil, err
+	}
+	dataChan := make(chan []byte, 1000)
+	self := &FileWriter{dataChan, path, file}
+	go self.writeLoop()
+	return self, nil
+}
+
+// Wait for messages to come through the data channel and write them out to
+// the file
+func (self *FileWriter) writeLoop() {
+	sigChan := make(chan os.Signal)
+	signal.Notify(sigChan, syscall.SIGINT)
+	for {
+		// Yielding before a channel select improves scheduler performance
+		runtime.Gosched()
+		select {
+		case outputBytes := <-self.DataChan:
+			n, err := self.file.Write(outputBytes)
+			if err != nil {
+				log.Printf("Error writing to %s: %s", self.path, err.Error())
+			} else if n != len(outputBytes) {
+				log.Printf("Truncated output for %s", self.path)
+			}
+		case <-sigChan:
+			// For now we know it's a sigint, but if we start listening for
+			// other signals we'll need a switch on signal type here.
+			self.file.Close()
+			break
+		}
+	}
+}
+
+var FileWriters = make(map[string]*FileWriter)
+
+var FILEFORMATS = map[string]bool{
+	"json": true,
+	"text": true,
+}
+
+const NEWLINE byte = 10
+
+// FileOutput formats the output and then hands it off to the dataChan so the
+// FileWriter can do its thing.
+type FileOutput struct {
+	dataChan  chan []byte
+	path      string
+	format    string
+	prefix_ts bool
+	outData   []byte
+}
+
+type FileOutputConfig struct {
+	Path      string
+	Format    string
+	Prefix_ts bool
+	Perm      os.FileMode
+}
+
+func (self *FileOutput) ConfigStruct() interface{} {
+	return &FileOutputConfig{Format: "text", Perm: 0666}
+}
+
+// Initialize a FileWriter, but only once.
+func (self *FileOutput) Init(config interface{}) error {
+	conf := config.(*FileOutputConfig)
+	_, ok := FILEFORMATS[conf.Format]
+	if !ok {
+		return fmt.Errorf("Unsupported FileOutput format: %s", conf.Format)
+	}
+	// Using a map to guarantee there's only one FileWriter is only safe b/c
+	// the PipelinePacks (and therefore the FileOutputs) are initialized in
+	// series. If this ever changes such that outputs might be created in
+	// different threads then this will require a lock to make sure we don't
+	// end up w/ two FileWriters for the same file.
+	writer, ok := FileWriters[conf.Path]
+	if !ok {
+		var err error
+		writer, err = NewFileWriter(conf.Path, conf.Perm)
+		if err != nil {
+			return fmt.Errorf("Error creating FileWriter: %s\n", err.Error())
+		}
+		FileWriters[conf.Path] = writer
+	}
+	self.dataChan = writer.DataChan
+	self.path = conf.Path
+	self.format = conf.Format
+	self.prefix_ts = conf.Prefix_ts
+	return nil
+}
+
+func (self *FileOutput) Deliver(pack *PipelinePack) {
+	switch self.format {
+	case "json":
+		var err error
+		self.outData, err = json.Marshal(pack.Message)
+		if err != nil {
+			log.Printf("Error converting message to JSON for %s", self.path)
+			return
+		}
+	case "text":
+		self.outData = []byte(pack.Message.Payload)
+	}
+	self.outData = append(self.outData, NEWLINE)
+	self.dataChan <- self.outData
 }
