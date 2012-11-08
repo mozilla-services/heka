@@ -26,8 +26,8 @@ import (
 // The timezone information has been stripped as 
 // everything should be encoded to UTC time
 const (
-	timeFormat           = "2006-01-02T15:04:05.000000Z"
-	timeFormatFullSecond = "2006-01-02T15:04:05Z"
+	TimeFormat           = "2006-01-02T15:04:05.000000"
+	TimeFormatFullSecond = "2006-01-02T15:04:05"
 )
 
 type UTCTimestamp struct {
@@ -45,9 +45,9 @@ func (self *UTCTimestamp) IsZero() bool {
 }
 
 func (self *UTCTimestamp) String() string {
-	return "<hekatime: " + self.Format(timeFormat) + ">"
+	return "<hekatime: " + self.Format(TimeFormat) + ">"
 }
 
 func (self *UTCTimestamp) Marshal(v interface{}) ([]byte, error) {
-	return []byte(v.(time.Time).Format(timeFormat)), nil
+	return []byte(v.(time.Time).Format(TimeFormat)), nil
 }

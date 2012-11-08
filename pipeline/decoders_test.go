@@ -19,6 +19,7 @@ import (
 	"github.com/orfjackal/gospec/src/gospec"
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"github.com/ugorji/go-msgpack"
+	hekatime "heka/time"
 )
 
 func DecodersSpec(c gospec.Context) {
@@ -28,7 +29,7 @@ func DecodersSpec(c gospec.Context) {
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 		utctime := msg.Timestamp
-		timestampJson, err := json.Marshal(utctime.Format(timeFormat))
+		timestampJson, err := json.Marshal(utctime.Format(hekatime.TimeFormat))
 		fieldsJson, err := json.Marshal(msg.Fields)
 		c.Assume(err, gs.IsNil)
 		jsonString := fmt.Sprintf(fmtString, msg.Type,

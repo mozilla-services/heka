@@ -27,13 +27,6 @@ type Decoder interface {
 	Decode(pipelinePack *PipelinePack) error
 }
 
-// The timezone information has been stripped as 
-// everything should be encoded to UTC time
-const (
-	timeFormat           = "2006-01-02T15:04:05.000000Z"
-	timeFormatFullSecond = "2006-01-02T15:04:05Z"
-)
-
 type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
@@ -51,11 +44,11 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
-	tmp_time, err := time.Parse(timeFormat, timeStr)
+	tmp_time, err := time.Parse(hekatime.TimeFormat, timeStr)
 	msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
 
 	if err != nil {
-		tmp_time, err = time.Parse(timeFormatFullSecond, timeStr)
+		tmp_time, err = time.Parse(hekatime.TimeFormatFullSecond, timeStr)
 		msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
 		if err != nil {
 			log.Printf("Timestamp parsing error: %s\n", err.Error())
