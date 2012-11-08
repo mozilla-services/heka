@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	. "heka/message"
+    hekatime "heka/time"
 	"log"
 	"sort"
 	"strconv"
@@ -75,15 +76,15 @@ type Packet struct {
 type StatRollupFilter struct {
 }
 
-// StatConfig is used to specify the config vars this takes
-type StatConfig struct {
+// StatRollupFilterConfig is used to specify the config vars this takes
+type StatRollupFilterConfig struct {
 	FlushInterval    int64
 	PercentThreshold int
 }
 
-// StatRollupObj is used for the global StatRollup object that collects
-// the stats from all the StatRollupFilter instances
-type StatRollupObj struct {
+// StatRollupFilterGlobal is used for the statRollupGlobal object that
+// collects the stats from all the StatRollupFilter instances
+type StatRollupFilterGlobal struct {
 	flushInterval    int64
 	percentThreshold int
 	StatsIn          chan *Packet
@@ -91,35 +92,33 @@ type StatRollupObj struct {
 	timers           map[string][]int
 	gauges           map[string]int
 	messageGenerator *MessageGeneratorInput
+	once             sync.Once
 }
 
-var (
-	// A single StatRollup global instance for use by the statrollup
-	// filters
-	StatRollup StatRollupObj = StatRollupObj{}
-	onceStat   sync.Once
-)
+// A single StatRollup global instance for use by the statrollup
+// filters
+var statRollupGlobal StatRollupFilterGlobal
 
 func SetupStatConfig(config interface{}) {
-	conf := config.(*StatConfig)
-	StatRollup.flushInterval = conf.FlushInterval
-	StatRollup.percentThreshold = conf.PercentThreshold
-	StatRollup.StatsIn = make(chan *Packet, 10000)
-	StatRollup.counters = make(map[string]int)
-	StatRollup.timers = make(map[string][]int)
-	StatRollup.gauges = make(map[string]int)
-	go StatRollup.Monitor()
+	conf := config.(*StatRollupFilterConfig)
+	statRollupGlobal.flushInterval = conf.FlushInterval
+	statRollupGlobal.percentThreshold = conf.PercentThreshold
+	statRollupGlobal.StatsIn = make(chan *Packet, 10000)
+	statRollupGlobal.counters = make(map[string]int)
+	statRollupGlobal.timers = make(map[string][]int)
+	statRollupGlobal.gauges = make(map[string]int)
+	go statRollupGlobal.Monitor()
 }
 
 func (self *StatRollupFilter) ConfigStruct() interface{} {
-	conf := new(StatConfig)
+	conf := new(StatRollupFilterConfig)
 	conf.FlushInterval = 10
 	conf.PercentThreshold = 90
 	return conf
 }
 
 func (self *StatRollupFilter) Init(config interface{}) (err error) {
-	onceStat.Do(func() { SetupStatConfig(config) })
+	statRollupGlobal.once.Do(func() { SetupStatConfig(config) })
 	return nil
 }
 
@@ -128,8 +127,8 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	// be setup during run-time as the inputs aren't setup or during
 	// filter initialization. Filtering will *not* occur if no message
 	// generator is found
-	if StatRollup.messageGenerator == nil {
-		ok := StatRollup.SetupMessageGenerator(pipeline.Config)
+	if statRollupGlobal.messageGenerator == nil {
+		ok := statRollupGlobal.SetupMessageGenerator(pipeline.Config)
 		if !ok {
 			return
 		}
@@ -159,12 +158,12 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	}
 	packet.Value = int(value)
 	packet.Sampling = msg.Fields["rate"].(float32)
-	StatRollup.StatsIn <- &packet
+	statRollupGlobal.StatsIn <- &packet
 }
 
 // Scans the config to locate the MessageGeneratorInput and saves a
 // reference to it for use when filtering messages
-func (self *StatRollupObj) SetupMessageGenerator(config *PipelineConfig) bool {
+func (self *StatRollupFilterGlobal) SetupMessageGenerator(config *PipelineConfig) bool {
 	for _, input := range config.Inputs {
 		convert, ok := input.(*MessageGeneratorInput)
 		if ok {
@@ -175,7 +174,7 @@ func (self *StatRollupObj) SetupMessageGenerator(config *PipelineConfig) bool {
 	return false
 }
 
-func (self *StatRollupObj) Monitor() {
+func (self *StatRollupFilterGlobal) Monitor() {
 	t := time.NewTicker(time.Duration(self.flushInterval) * time.Second)
 	for {
 		select {
@@ -206,7 +205,7 @@ func (self *StatRollupObj) Monitor() {
 	}
 }
 
-func (self *StatRollupObj) Flush() {
+func (self *StatRollupFilterGlobal) Flush() {
 	numStats := 0
 	now := time.Now()
 	buffer := bytes.NewBufferString("")
@@ -260,7 +259,9 @@ func (self *StatRollupObj) Flush() {
 		log.Println("No stats collected, not delivering.")
 	}
 	if self.messageGenerator != nil {
-		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer.String()}
+		msg := Message{Type: "statmetric",
+			Timestamp: hekatime.UTCTimestamp{now},
+			Payload:   buffer.String()}
 		self.messageGenerator.Deliver(&msg, 1)
 	}
 }

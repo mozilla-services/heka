@@ -15,8 +15,9 @@ package pipeline
 
 import (
 	"bytes"
-	"encoding/gob"
 	"github.com/bitly/go-simplejson"
+	"github.com/ugorji/go-msgpack"
+	hekatime "heka/time"
 	"log"
 	"time"
 )
@@ -33,8 +34,7 @@ const (
 	timeFormatFullSecond = "2006-01-02T15:04:05"
 )
 
-type JsonDecoder struct {
-}
+type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
@@ -51,9 +51,12 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
-	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
+	tmp_time, err := time.Parse(timeFormat, timeStr)
+	msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
+
 	if err != nil {
-		msg.Timestamp, err = time.Parse(timeFormatFullSecond, timeStr)
+		tmp_time, err = time.Parse(timeFormatFullSecond, timeStr)
+		msg.Timestamp = hekatime.UTCTimestamp{Timestamp : tmp_time}
 		if err != nil {
 			log.Printf("Timestamp parsing error: %s\n", err.Error())
 		}
@@ -70,27 +73,21 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	return nil
 }
 
-type GobDecoder struct {
+type MsgPackDecoder struct {
+	Buffer  *bytes.Buffer
+	Decoder *msgpack.Decoder
 }
 
-func (self *GobDecoder) Init(config interface{}) error {
+func (self *MsgPackDecoder) Init(config interface{}) error {
+	self.Buffer = new(bytes.Buffer)
+	self.Decoder = msgpack.NewDecoder(self.Buffer, nil)
 	return nil
 }
 
-func (self *GobDecoder) Decode(pipelinePack *PipelinePack) error {
-	msgBytes := pipelinePack.MsgBytes
-	buffer := bytes.NewBuffer(msgBytes)
-
-	// stuffs byte buffer into decoder
-	decoder := gob.NewDecoder(buffer)
-
-	// piplinePack.Message is a pointer type, so writing into msg
-	msg := pipelinePack.Message
-
-	// .Decode write decoded message into msg.  Note that the Gob
-	// system only uses Message types on Encode and Decode
-	err := decoder.Decode(msg)
-	if err != nil {
+func (self *MsgPackDecoder) Decode(pipelinePack *PipelinePack) error {
+	self.Buffer.Write(pipelinePack.MsgBytes)
+	defer self.Buffer.Reset() // Needed? Shouldn't be, unless there's an error.
+	if err := self.Decoder.Decode(pipelinePack.Message); err != nil {
 		return err
 	}
 	pipelinePack.Decoded = true

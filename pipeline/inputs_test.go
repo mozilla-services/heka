@@ -14,9 +14,7 @@
 package pipeline
 
 import (
-	"bytes"
 	"code.google.com/p/gomock/gomock"
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	gs "github.com/orfjackal/gospec/src/gospec"
@@ -142,43 +140,6 @@ func InputsSpec(c gospec.Context) {
 			c.Expect(err, gs.IsNil)
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(string(pipelinePack.MsgBytes), gs.Equals, string(msgJson))
-		})
-	})
-
-	c.Specify("A UdpGobInput", func() {
-		udpGobInput := UdpGobInput{}
-		udpGobInput.Init(&UdpInputConfig{addrStr})
-		realListener := (udpGobInput.UdpInput.Listener).(*net.UDPConn)
-		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
-		realListener.Close()
-
-		// Replace the listener object w/ a mock listener
-		mockListener := mocks.NewMockConn(ctrl)
-		udpGobInput.UdpInput.Listener = mockListener
-		udpGobInput.Decoder = gob.NewDecoder(mockListener)
-
-		encodeBuffer := new(bytes.Buffer)
-		gobEncoder := gob.NewEncoder(encodeBuffer)
-		gobEncoder.Encode(msg)
-		msgGob := make([]byte, 300)
-		n, err := encodeBuffer.Read(msgGob)
-		msgGob = msgGob[:n]
-		c.Assume(err, gs.IsNil)
-
-		putMsgGobInBytes := func(msgBytes []byte) {
-			copy(msgBytes, msgGob)
-		}
-
-		c.Specify("successfully decodes a message from its listener", func() {
-			mockListener.EXPECT().SetReadDeadline(gomock.Any())
-			readCall := mockListener.EXPECT().Read(gomock.Any())
-			readCall.Return(n, nil)
-			readCall.Do(putMsgGobInBytes)
-			second := time.Second
-			err := udpGobInput.Read(pipelinePack, &second)
-			c.Expect(err, gs.IsNil)
-			c.Expect(pipelinePack.Decoded, gs.IsTrue)
-			c.Expect(pipelinePack.Message, gs.Equals, msg)
 		})
 	})
 }

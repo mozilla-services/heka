@@ -14,8 +14,6 @@
 package pipeline
 
 import (
-	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"github.com/orfjackal/gospec/src/gospec"
@@ -28,7 +26,8 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-		timestampJson, err := json.Marshal(msg.Timestamp)
+		utctime := msg.Timestamp
+		timestampJson, err := json.Marshal(utctime.Format(timeFormat))
 		fieldsJson, err := json.Marshal(msg.Fields)
 		c.Assume(err, gs.IsNil)
 		jsonString := fmt.Sprintf(fmtString, msg.Type,
@@ -53,32 +52,6 @@ func DecodersSpec(c gospec.Context) {
 			badJson := fmt.Sprint("{{", jsonString)
 			pipelinePack.MsgBytes = []byte(badJson)
 			jsonDecoder.Decode(pipelinePack)
-			c.Expect(pipelinePack.Decoded, gs.IsFalse)
-			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
-		})
-	})
-
-	c.Specify("A GobDecoder", func() {
-		buffer := &bytes.Buffer{}
-		encoder := gob.NewEncoder(buffer)
-		err := encoder.Encode(msg)
-		c.Assume(err, gs.IsNil)
-		decoder := &GobDecoder{}
-		pipelinePack := getTestPipelinePack()
-		pipelinePack.MsgBytes = buffer.Bytes()
-		c.Assume(err, gs.IsNil)
-
-		c.Specify("can decode a gob message", func() {
-			decoder.Decode(pipelinePack)
-			c.Expect(pipelinePack.Message, gs.Equals, msg)
-		})
-
-		c.Specify("returns nil for bogus gob data", func() {
-			longerBytes := make([]byte, len(pipelinePack.MsgBytes)+1)
-			copy([]byte{'x'}, longerBytes[0:1])
-			copy(pipelinePack.MsgBytes[:], longerBytes[1:])
-			pipelinePack.MsgBytes = longerBytes
-			decoder.Decode(pipelinePack)
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
 		})

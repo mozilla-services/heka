@@ -17,6 +17,7 @@ import (
 	"github.com/crankycoder/g2s"
 	"log"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,27 +49,30 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 type CounterOutput struct {
 }
 
-var (
-	countingChan chan uint
-	countingOnce sync.Once
-)
+type CounterGlobal struct {
+	count chan uint
+	once  sync.Once
+}
+
+var counterGlobal CounterGlobal
 
 func InitCountChan() {
-	countingChan = make(chan uint, 30000)
+	counterGlobal.count = make(chan uint, 30000)
 	go timerLoop()
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
-	countingOnce.Do(InitCountChan)
+	counterGlobal.once.Do(InitCountChan)
 	return nil
 }
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	countingChan <- 1
+	counterGlobal.count <- 1
 }
 
 func timerLoop() {
-	t := time.NewTicker(time.Duration(time.Second))
+	tick := time.NewTicker(time.Duration(time.Second))
+	aggregate := time.NewTicker(time.Duration(10 * time.Second))
 	lastTime := time.Now()
 	lastCount := uint(0)
 	count := uint(0)
@@ -78,10 +82,30 @@ func timerLoop() {
 		elapsedTime   time.Duration
 		now           time.Time
 		rate          float64
+		rates         []float64
 	)
 	for {
+		// Here for performance reasons
+		runtime.Gosched()
 		select {
-		case <-t.C:
+		case <-aggregate.C:
+			amount := len(rates)
+			if amount < 1 {
+				continue
+			}
+			sort.Float64s(rates)
+			min := rates[0]
+			max := rates[amount-1]
+			mean := min
+			sum := float64(0)
+			for _, val := range rates {
+				sum += val
+			}
+			mean = sum / float64(amount)
+			log.Printf("AGG Sum. Min: %0.2f   Max: %0.2f     Mean: %0.2f",
+				min, max, mean)
+			rates = rates[:0]
+		case <-tick.C:
 			now = time.Now()
 			msgsSent = count - lastCount
 			lastCount = count
@@ -97,7 +121,8 @@ func timerLoop() {
 				zeroes = 0
 			}
 			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
-		case inc = <-countingChan:
+			rates = append(rates, rate)
+		case inc = <-counterGlobal.count:
 			count += inc
 		}
 	}
@@ -149,8 +174,8 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 		self.statsdClient.IncrementSampledCounter(key, value, rate)
 	case "timer":
 		self.statsdClient.SendSampledTiming(key, value, rate)
-	default:
-		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
+    //default:
+//		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
 	runtime.Gosched()
 }

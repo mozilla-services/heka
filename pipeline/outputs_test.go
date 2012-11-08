@@ -29,7 +29,7 @@ func getIncrPipelinePack() *PipelinePack {
 	// Force the message to be a statsd increment message
 	pipelinePack.Message.Logger = "thenamespace"
 	pipelinePack.Message.Fields["name"] = "myname"
-	pipelinePack.Message.Fields["rate"] = "30"
+	pipelinePack.Message.Fields["rate"] = float64(30.0)
 	pipelinePack.Message.Fields["type"] = "counter"
 	pipelinePack.Message.Payload = "-1"
 	return pipelinePack

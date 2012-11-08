@@ -23,9 +23,8 @@ import (
 var AvailablePlugins = map[string]func() Plugin{
 	"MessageGeneratorInput": func() Plugin { return new(MessageGeneratorInput) },
 	"UdpInput":              func() Plugin { return new(UdpInput) },
-	"UdpGobInput":           func() Plugin { return new(UdpGobInput) },
 	"JsonDecoder":           func() Plugin { return new(JsonDecoder) },
-	"GobDecoder":            func() Plugin { return new(GobDecoder) },
+	"MsgPackDecoder":        func() Plugin { return new(MsgPackDecoder) },
 	"StatRollupFilter":      func() Plugin { return new(StatRollupFilter) },
 	"NamedOutputFilter":     func() Plugin { return new(NamedOutputFilter) },
 	"LogFilter":             func() Plugin { return new(LogFilter) },

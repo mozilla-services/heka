@@ -59,7 +59,8 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 func main() {
 	addrStr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
 	pprofName := flag.String("pprof", "", "pprof output file path")
-	encoderName := flag.String("encoder", "json", "Message encoder (json|gob)")
+	encoderName := flag.String("encoder", "json", "Message encoder (json|msgpack)")
+	numToSend := flag.Uint64("num", 0, "Number of messages to send")
 	flag.Parse()
 
 	if *pprofName != "" {
@@ -79,9 +80,9 @@ func main() {
 	var encoder client.Encoder
 	switch *encoderName {
 	case "json":
-		encoder = &client.JsonEncoder{}
-	case "gob":
-		encoder = client.NewGobEncoder()
+		encoder = new(client.JsonEncoder)
+	case "msgpack":
+		encoder = client.NewMsgPackEncoder()
 	}
 	timestamp := time.Now()
 	hostname, _ := os.Hostname()
@@ -117,6 +118,9 @@ func main() {
 			}
 		} else {
 			msgsSent++
+			if *numToSend != 0 && msgsSent >= *numToSend {
+				break
+			}
 		}
 	}
 	log.Println("Clean shutdown")

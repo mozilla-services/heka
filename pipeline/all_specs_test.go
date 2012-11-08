@@ -17,11 +17,26 @@ import (
 	"github.com/orfjackal/gospec/src/gospec"
 	. "heka/message"
 	"os"
+    hekatime "heka/time"
 	"testing"
 	"time"
 )
 
-var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+func mockDecoderCreator() map[string]Decoder {
+	return make(map[string]Decoder)
+}
+
+func mockFilterCreator() map[string]Filter {
+	return make(map[string]Filter)
+}
+
+func mockOutputCreator() map[string]Output {
+	return make(map[string]Output)
+}
+
+var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST",
+	DecoderCreator: mockDecoderCreator, FilterCreator: mockFilterCreator,
+	OutputCreator: mockOutputCreator}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
@@ -33,13 +48,14 @@ func TestAllSpecs(t *testing.T) {
 }
 
 func getTestMessage() *Message {
-	timestamp := time.Now()
+	timestamp := hekatime.UTCTimestamp{time.Now().UTC()}
 	hostname, _ := os.Hostname()
 	fields := make(map[string]interface{})
 	fields["foo"] = "bar"
 	msg := Message{
-		Type: "TEST", Timestamp: timestamp,
-		Logger: "GoSpec", Severity: 6,
+		Type:      "TEST",
+		Timestamp: timestamp,
+		Logger:    "GoSpec", Severity: 6,
 		Payload: "Test Payload", Env_version: "0.8",
 		Pid: os.Getpid(), Hostname: hostname,
 		Fields: fields,

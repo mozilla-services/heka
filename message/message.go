@@ -14,13 +14,13 @@
 package message
 
 import (
+	hekatime "heka/time"
 	"reflect"
-	"time"
 )
 
 type Message struct {
 	Type        string
-	Timestamp   time.Time
+	Timestamp   hekatime.UTCTimestamp
 	Logger      string
 	Severity    int
 	Payload     string
