@@ -107,4 +107,23 @@ func OutputsSpec(c gs.Context) {
 		// expected
 		ctrl.Finish()
 	})
+
+	c.Specify("statsdoutput doesn't crash on invalid msg.Type", func() {
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Type = "garbage"
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
 }

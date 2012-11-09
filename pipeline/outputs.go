@@ -194,8 +194,8 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 		self.statsdClient.IncrementSampledCounter(key, value, rate)
 	case "timer":
 		self.statsdClient.SendSampledTiming(key, value, rate)
-		//default:
-		//		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
+    default:
+        log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
 	runtime.Gosched()
 }
