@@ -134,8 +134,7 @@ func (self *PipelineConfig) Run() {
 
 		// When finished, reset and recycle the allocated PipelinePack
 		defer func() {
-			msgBytes := pack.MsgBytes
-			msgBytes = msgBytes[:cap(msgBytes)]
+			pack.MsgBytes = pack.MsgBytes[:cap(pack.MsgBytes)]
 			pack.Decoder = self.DefaultDecoder
 			pack.Decoded = false
 			pack.FilterChain = self.DefaultFilterChain
