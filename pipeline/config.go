@@ -97,8 +97,8 @@ func initPlugin(plugin Plugin, section *PluginConfig) {
 		configStruct := hasConfigStruct.ConfigStruct()
 		err = json.Unmarshal(data, configStruct)
 		if err != nil {
-			log.Fatalln("Error: Can't unmarshal section again. %v",
-            err)
+			log.Fatalln("Error: Can't unmarshal section %s. Error: %s",
+				pluginName, err)
 		}
 		if err := plugin.Init(configStruct); err != nil {
 			log.Fatalf("Unable to load config section: %s. Error: %s",
