@@ -16,7 +16,17 @@ package pipeline
 import (
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"github.com/orfjackal/gospec/src/gospec"
+	"strings"
 )
+
+func StringContains(actual interface{}, criteria interface{}) (match bool, pos gs.Message, neg gs.Message, err error) {
+	toTest := actual.(string)
+	critTest := criteria.(string)
+	match = strings.Contains(toTest, critTest)
+	pos = gs.Messagef(toTest, "starts with "+critTest)
+	neg = gs.Messagef(toTest, "does not start with "+critTest)
+	return
+}
 
 func LoadFromConfigSpec(c gospec.Context) {
 	c.Specify("The good config file can be loaded", func() {
@@ -24,31 +34,52 @@ func LoadFromConfigSpec(c gospec.Context) {
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
 		pipeConfig.LoadFromConfigFile("config_test.json")
 
-		c.Specify("and the default decoder is loaded", func() {
-			c.Expect(pipeConfig.DefaultDecoder, gs.Equals, "JsonDecoder")
-		})
+		// We use a set of Expect's rather than c.Specify because the
+		// pipeConfig can't be re-loaded per child as gospec will do
+		// since each one needs to bind to the same address
 
-		c.Specify("and the inputs section loads properly", func() {
-			_, ok := pipeConfig.Inputs["udp_stats"]
-			c.Expect(ok, gs.Equals, true)
-		})
+		// and the default decoder is loaded
+		c.Expect(pipeConfig.DefaultDecoder, gs.Equals, "JsonDecoder")
 
-		c.Specify("and the decoders section loads", func() {
-			decoders := pipeConfig.DecoderCreator()
-			_, ok := decoders["default"]
-			c.Expect(ok, gs.Equals, true)
-		})
+		// and the inputs section loads properly with a custom name
+		_, ok := pipeConfig.Inputs["udp_stats"]
+		c.Expect(ok, gs.Equals, true)
 
-		c.Specify("and the filters section loads", func() {
-			filters := pipeConfig.FilterCreator()
-			_, ok := filters["StatRollupFilter"]
-			c.Expect(ok, gs.Equals, true)
-		})
+		// and the decoders section loads
+		decoders := pipeConfig.DecoderCreator()
+		_, ok = decoders[pipeConfig.DefaultDecoder]
+		c.Expect(ok, gs.Equals, true)
 
-		c.Specify("and the outputs section loads", func() {
-			outputs := pipeConfig.OutputCreator()
-			_, ok := outputs["CounterOutput"]
-			c.Expect(ok, gs.Equals, true)
-		})
+		// and the filters section loads
+		filters := pipeConfig.FilterCreator()
+		_, ok = filters["StatRollupFilter"]
+		c.Expect(ok, gs.Equals, true)
+
+		// and the outputs section loads
+		outputs := pipeConfig.OutputCreator()
+		_, ok = outputs["CounterOutput"]
+		c.Expect(ok, gs.Equals, true)
+
+		// and the non-default chain loaded
+		sampleSection, ok := pipeConfig.FilterChains["sample"]
+		c.Expect(ok, gs.Equals, true)
+
+		// and the non-default section has the right filter/outputs
+		c.Assume(sampleSection, gs.Not(gs.IsNil))
+		c.Expect(len(sampleSection.Filters), gs.Equals, 1)
+		c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
+
+		// and the message lookup is set properly
+		filterName, ok := pipeConfig.Lookup.MessageType["counter"]
+		c.Expect(ok, gs.Equals, true)
+		c.Expect(filterName[0], gs.Equals, "sample")
+	})
+
+	c.Specify("Loading a bad config file explodes", func() {
+		pipeConfig := NewPipelineConfig(1)
+		c.Assume(pipeConfig, gs.Not(gs.IsNil))
+		err := pipeConfig.LoadFromConfigFile("config_bad_test.json")
+		c.Assume(err, gs.Not(gs.IsNil))
+		c.Expect(err.Error(), StringContains, "Unable to plugin init: Resolve")
 	})
 }
