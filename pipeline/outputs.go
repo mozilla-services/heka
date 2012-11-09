@@ -16,13 +16,12 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/bitly/go-notify"
 	"log"
 	"os"
-	"os/signal"
 	"runtime"
 	"sort"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -146,8 +145,8 @@ func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
 // Wait for messages to come through the data channel and write them out to
 // the file
 func (self *FileWriter) writeLoop() {
-	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT)
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
 	for {
 		// Yielding before a channel select improves scheduler performance
 		runtime.Gosched()
@@ -159,9 +158,9 @@ func (self *FileWriter) writeLoop() {
 			} else if n != len(outputBytes) {
 				log.Printf("Truncated output for %s", self.path)
 			}
-		case <-sigChan:
-			// For now we know it's a sigint, but if we start listening for
-			// other signals we'll need a switch on signal type here.
+		case <-time.After(time.Second):
+			self.file.Sync()
+		case <-stopChan:
 			self.file.Close()
 			break
 		}
@@ -176,7 +175,7 @@ var (
 		"text": true,
 	}
 
-	TSFORMAT []byte = []byte("[2006/Jan/02:15:04:05 -0700] ")
+	TSFORMAT = "[2006/Jan/02:15:04:05 -0700] "
 )
 
 const NEWLINE byte = 10
@@ -244,7 +243,8 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 	}
 	self.outData = append(self.outData, NEWLINE)
 	if self.prefix_ts {
-		self.outData = append(TSFORMAT, self.outData...)
+		ts := time.Now().Format(TSFORMAT)
+		self.outData = append([]byte(ts), self.outData...)
 	}
 	self.dataChan <- self.outData
 }

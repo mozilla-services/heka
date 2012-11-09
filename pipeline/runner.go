@@ -23,6 +23,12 @@ import (
 	"time"
 )
 
+// Control channel event types used by go-notify
+const (
+	RELOAD = "reload"
+	STOP   = "stop"
+)
+
 type Plugin interface {
 	Init(config interface{}) error
 }
