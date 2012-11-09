@@ -15,8 +15,8 @@ package pipeline
 
 import (
 	"encoding/json"
+	"errors"
 	. "heka/message"
-	"log"
 	"os"
 )
 
@@ -84,36 +84,33 @@ func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
 
 // InitPlugin initializes a plugin with its section while also
 // attempting to use a config struct if available
-func initPlugin(plugin Plugin, section *PluginConfig) {
-	pluginName := (*section)["type"].(string)
+func initPlugin(plugin Plugin, section *PluginConfig) error {
 	// Determine if we should re-marshal
 	if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
 		data, err := json.Marshal(section)
 		if err != nil {
-			log.Fatalf("Error: Can't marshal section: %s", err.Error())
+			return errors.New("Unable to marshal: " + err.Error())
 		}
 		configStruct := hasConfigStruct.ConfigStruct()
 		err = json.Unmarshal(data, configStruct)
 		if err != nil {
-			log.Fatalf("Error: Can't unmarshal section again: %s", err.Error())
+			return errors.New("Unable to unmarshal: " + err.Error())
 		}
 		if err := plugin.Init(configStruct); err != nil {
-			log.Fatalf("Unable to load config section: %s. Error: %s",
-				pluginName, err)
+			return errors.New("Unable to plugin init: " + err.Error())
 		}
 	} else {
 		if err := plugin.Init(section); err != nil {
-			log.Fatalf("Unable to load config section: %s. Error: %s",
-				pluginName, err)
+			return errors.New("Unable to plugin init: " + err.Error())
 		}
 	}
-	return
+	return nil
 }
 
 // loadSection can be passed a configSection, the appropriate mapping
 // of available plugins for that section, and will then load and
 // instantiate the plugins into the returned config value
-func loadSection(configSection []PluginConfig) (config map[string]Plugin) {
+func loadSection(configSection []PluginConfig) (config map[string]Plugin, err error) {
 	var pluginName string
 	config = make(map[string]Plugin)
 	for _, section := range configSection {
@@ -129,36 +126,39 @@ func loadSection(configSection []PluginConfig) (config map[string]Plugin) {
 
 		pluginFunc, ok := AvailablePlugins[pluginType]
 		if !ok {
-			log.Fatalln("Error: No such plugin of that name: ", pluginType)
+			err := errors.New("No such plugin of that name: " + pluginType)
+			return nil, err
 		}
 
 		plugin := pluginFunc()
-		initPlugin(plugin, &section)
+		if err := initPlugin(plugin, &section); err != nil {
+			return nil, err
+		}
 		config[pluginName] = plugin
 	}
-	return config
+	return config, nil
 }
 
 // Given a filename string and JSON structure, read the file and
 // un-marshal it into the structure
-func readJsonFromFile(filename string, configFile *ConfigFile) {
+func readJsonFromFile(filename string, configFile *ConfigFile) error {
 	file, err := os.Open(filename)
 	if err != nil {
-		log.Fatalf("Error reading file: %s", err)
+		return errors.New("Unable to open file: " + err.Error())
 	}
 	defer file.Close()
 
 	jsonBytes := make([]byte, 1e5)
 	n, err := file.Read(jsonBytes)
 	if err != nil {
-		log.Fatalf("Error reading byte in file: %s", err)
+		return errors.New("Error reading byte in file: " + err.Error())
 	}
 	jsonBytes = jsonBytes[:n]
 
 	if err = json.Unmarshal(jsonBytes, configFile); err != nil {
-		log.Fatalf("Error with Unmarshal: %s", err)
+		return errors.New("Error with config file unmarshal: " + err.Error())
 	}
-	return
+	return nil
 }
 
 // LoadFromConfigFile loads a JSON configuration file and stores the
@@ -169,15 +169,22 @@ func readJsonFromFile(filename string, configFile *ConfigFile) {
 // its Init function.
 func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	configFile := new(ConfigFile)
-	readJsonFromFile(filename, configFile)
+	if err := readJsonFromFile(filename, configFile); err != nil {
+		return err
+	}
 
-	for name, plugin := range loadSection(configFile.Inputs) {
-		self.Inputs[name] = plugin.(Input)
+	if inputs, err := loadSection(configFile.Inputs); err != nil {
+		return err
+	} else {
+		for name, plugin := range inputs {
+			self.Inputs[name] = plugin.(Input)
+		}
 	}
 
 	self.DecoderCreator = func() (decoders map[string]Decoder) {
 		decoders = make(map[string]Decoder)
-		for name, plugin := range loadSection(configFile.Decoders) {
+		conf, _ := loadSection(configFile.Decoders)
+		for name, plugin := range conf {
 			decoders[name] = plugin.(Decoder)
 		}
 		return decoders
@@ -185,7 +192,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 
 	self.FilterCreator = func() (filters map[string]Filter) {
 		filters = make(map[string]Filter)
-		for name, plugin := range loadSection(configFile.Filters) {
+		conf, _ := loadSection(configFile.Filters)
+		for name, plugin := range conf {
 			filters[name] = plugin.(Filter)
 		}
 		return filters
@@ -193,10 +201,23 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 
 	self.OutputCreator = func() (outputs map[string]Output) {
 		outputs = make(map[string]Output)
-		for name, plugin := range loadSection(configFile.Outputs) {
+		conf, _ := loadSection(configFile.Outputs)
+		for name, plugin := range conf {
 			outputs[name] = plugin.(Output)
 		}
 		return outputs
+	}
+
+	// Load them all so we can capture errors here instead of later
+	// during pipeline pack initializations
+	if _, err := loadSection(configFile.Outputs); err != nil {
+		return errors.New("Error reading outputs: " + err.Error())
+	}
+	if _, err := loadSection(configFile.Decoders); err != nil {
+		return errors.New("Error reading decoders: " + err.Error())
+	}
+	if _, err := loadSection(configFile.Filters); err != nil {
+		return errors.New("Error reading filters: " + err.Error())
 	}
 
 	availOutputs := self.OutputCreator()
@@ -223,8 +244,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			for i, output := range outputList {
 				strOutput := output.(string)
 				if _, ok := availOutputs[strOutput]; !ok {
-					log.Fatalln("Error during chain loading. Output by name ",
-						output, " was not defined.")
+					return errors.New("Error during chain loading. Output by name " +
+						strOutput + " was not defined.")
 				}
 				chain.Outputs[i] = strOutput
 			}
@@ -235,8 +256,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			for i, filter := range filterList {
 				strFilter := filter.(string)
 				if _, ok := availFilters[strFilter]; !ok {
-					log.Fatalln("Error during chain loading. Filter by name ",
-						filter, " was not defined.")
+					return errors.New("Error during chain loading. Filter by name " +
+						strFilter + " was not defined.")
 				}
 				chain.Filters[i] = strFilter
 			}
