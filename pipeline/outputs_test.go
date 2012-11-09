@@ -49,4 +49,62 @@ func OutputsSpec(c gs.Context) {
 		statsdOutput := NewStatsdOutput(mockClient)
 		statsdOutput.Deliver(pipelinePack)
 	})
+
+	c.Specify("statsdoutput doesn't crash on missing rate", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Fields["rate"] = nil
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
+	c.Specify("statsdoutput doesn't crash on missing name", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Fields["name"] = nil
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
+	c.Specify("statsdoutput doesn't crash on incomplete fields dict", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		// Clear the Fields map, let gc clean it up
+		pipelinePack.Message.Fields = make(map[string]interface{})
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
 }

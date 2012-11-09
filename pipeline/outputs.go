@@ -29,8 +29,8 @@ import (
 	"time"
 )
 
+// Interface that all statsd clients must implement.
 type StatsdClient interface {
-	// Interface that all statsd clients must implement
 	IncrementSampledCounter(bucket string, n int, srate float32)
 	SendSampledTiming(bucket string, ms int, srate float32)
 }
@@ -163,7 +163,12 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	// we need the ns for the full key
 	ns := msg.Logger
 
+	if msg.Fields["name"] == nil {
+		log.Printf("Error parsing key for statsd from msg.Fields[\"name\"]")
+		return
+	}
 	key := msg.Fields["name"].(string)
+
 	if strings.TrimSpace(ns) != "" {
 		s := []string{ns, key}
 		key = strings.Join(s, ".")
@@ -176,6 +181,11 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	}
 	// Downcast this
 	value := int(tmp_value)
+
+	if msg.Fields["rate"] == nil {
+		log.Printf("Error parsing key for statsd from msg.Fields[\"rate\"]")
+		return
+	}
 
 	rate := float32(msg.Fields["rate"].(float64))
 
