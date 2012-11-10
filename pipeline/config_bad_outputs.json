@@ -1,0 +1,28 @@
+{
+    "inputs": [
+        {
+            "type": "UdpInput",
+            "address": "127.0.0.1:29330",
+            "name": "udp_stats"
+        }
+    ],
+    "decoders": [
+        {"type": "JsonDecoder", "default": true}
+    ],
+    "filters": [
+        {"type": "StatRollupFilter"}
+    ],
+    "outputs": [
+        {"type": "WhatOutput"}
+    ],
+    "chains": {
+        "default": {
+            "outputs": ["CounterOutput"]
+        },
+        "sample": {
+            "type": "counter",
+            "filters": ["StatRollupFilter"],
+            "outputs": ["CounterOutput"]
+        }
+    }
+}

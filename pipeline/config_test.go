@@ -72,4 +72,21 @@ func LoadFromConfigSpec(c gospec.Context) {
 		c.Assume(err, gs.Not(gs.IsNil))
 		c.Expect(err.Error(), StringContains, "Unable to plugin init: Resolve")
 	})
+
+	c.Specify("No config file found", func() {
+		pipeConfig := NewPipelineConfig(1)
+		c.Assume(pipeConfig, gs.Not(gs.IsNil))
+		err := pipeConfig.LoadFromConfigFile("no_such_file.json")
+		c.Assume(err, gs.Not(gs.IsNil))
+		c.Expect(err.Error(), StringContains, "Unable to open file")
+		c.Expect(err.Error(), StringContains, "no such file or directory")
+	})
+
+	c.Specify("Error reading outputs", func() {
+		pipeConfig := NewPipelineConfig(1)
+		c.Assume(pipeConfig, gs.Not(gs.IsNil))
+		err := pipeConfig.LoadFromConfigFile("config_bad_outputs.json")
+		c.Assume(err, gs.Not(gs.IsNil))
+		c.Expect(err.Error(), StringContains, "Error reading outputs: No such plugin")
+	})
 }
