@@ -14,7 +14,9 @@
 package pipeline
 
 import (
+	"github.com/orfjackal/gospec/src/gospec"
 	"log"
+	"strings"
 )
 
 type SimpleT struct{}
@@ -25,4 +27,14 @@ func (*SimpleT) Errorf(format string, args ...interface{}) {
 
 func (*SimpleT) Fatalf(format string, args ...interface{}) {
 	log.Fatalf(format, args...)
+}
+
+func StringContains(actual interface{}, criteria interface{}) (match bool,
+	pos gospec.Message, neg gospec.Message, err error) {
+	toTest := actual.(string)
+	critTest := criteria.(string)
+	match = strings.Contains(toTest, critTest)
+	pos = gospec.Messagef(toTest, "starts with "+critTest)
+	neg = gospec.Messagef(toTest, "does not start with "+critTest)
+	return
 }

@@ -16,17 +16,7 @@ package pipeline
 import (
 	gs "github.com/orfjackal/gospec/src/gospec"
 	"github.com/orfjackal/gospec/src/gospec"
-	"strings"
 )
-
-func StringContains(actual interface{}, criteria interface{}) (match bool, pos gs.Message, neg gs.Message, err error) {
-	toTest := actual.(string)
-	critTest := criteria.(string)
-	match = strings.Contains(toTest, critTest)
-	pos = gs.Messagef(toTest, "starts with "+critTest)
-	neg = gs.Messagef(toTest, "does not start with "+critTest)
-	return
-}
 
 func LoadFromConfigSpec(c gospec.Context) {
 	c.Specify("The good config file can be loaded", func() {
