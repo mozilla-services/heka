@@ -163,31 +163,32 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	// we need the ns for the full key
 	ns := msg.Logger
 
-	if msg.Fields["name"] == nil {
+	key, key_ok := msg.Fields["name"].(string)
+	if key_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"name\"]")
 		return
 	}
-	key := msg.Fields["name"].(string)
 
 	if strings.TrimSpace(ns) != "" {
 		s := []string{ns, key}
 		key = strings.Join(s, ".")
 	}
 
-	tmp_value, value_err := strconv.ParseInt(msg.Payload, 10, 32)
-	if value_err != nil {
+	tmp_value, value_ok := strconv.ParseInt(msg.Payload, 10, 32)
+	if value_ok != nil {
 		log.Printf("Error parsing value for statsd")
 		return
 	}
 	// Downcast this
 	value := int(tmp_value)
 
-	if msg.Fields["rate"] == nil {
+	tmp_rate, rate_ok := msg.Fields["rate"].(float64)
+	if rate_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"rate\"]")
 		return
 	}
 
-	rate := float32(msg.Fields["rate"].(float64))
+	rate := float32(tmp_rate)
 
 	switch msg.Type {
 	case "counter":
