@@ -38,7 +38,7 @@ func getIncrPipelinePack() *PipelinePack {
 func OutputsSpec(c gs.Context) {
 	c.Specify("A StatsdOutput", func() {
 
-		t := &SimpleT{}
+		t := new(SimpleT)
 		ctrl := gomock.NewController(t)
 
 		// Setup of the pipelinePack in here
