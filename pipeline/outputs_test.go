@@ -46,7 +46,7 @@ func OutputsSpec(c gs.Context) {
 
 		mockClient := mocks.NewMockStatsdClient(ctrl)
 		mockClient.EXPECT().IncrementSampledCounter("myname", -1, float32(30))
-		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 	})
 
@@ -61,7 +61,7 @@ func OutputsSpec(c gs.Context) {
 		pipelinePack.Message.Fields["rate"] = nil
 
 		mockClient := mocks.NewMockStatsdClient(ctrl)
-		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
 		// Finish() will only run successfully if all calls have been
@@ -80,7 +80,7 @@ func OutputsSpec(c gs.Context) {
 		pipelinePack.Message.Fields["name"] = nil
 
 		mockClient := mocks.NewMockStatsdClient(ctrl)
-		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
 		// Finish() will only run successfully if all calls have been
@@ -100,7 +100,7 @@ func OutputsSpec(c gs.Context) {
 		pipelinePack.Message.Fields = make(map[string]interface{})
 
 		mockClient := mocks.NewMockStatsdClient(ctrl)
-		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
 		// Finish() will only run successfully if all calls have been
@@ -118,7 +118,7 @@ func OutputsSpec(c gs.Context) {
 		pipelinePack.Message.Type = "garbage"
 
 		mockClient := mocks.NewMockStatsdClient(ctrl)
-		statsdOutput := NewStatsdOutput(mockClient)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
 		statsdOutput.Deliver(pipelinePack)
 
 		// Finish() will only run successfully if all calls have been

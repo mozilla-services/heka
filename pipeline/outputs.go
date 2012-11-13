@@ -141,6 +141,7 @@ func NewStatsdClient(url string) StatsdClient {
 	sd, err := g2s.NewStatsd(url, 0)
 	if err != nil {
 		log.Printf("Error!! No statsd client was created! %v", err)
+		return nil
 	}
 	return sd
 }
@@ -197,11 +198,6 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	default:
 		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
-}
-
-func NewStatsdOutput(statsdClient StatsdClient) *StatsdOutput {
-	self := StatsdOutput{}
-	return &self
 }
 
 // FileWriters actually do the work of writing out to the filesystem.
