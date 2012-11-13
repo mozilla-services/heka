@@ -44,6 +44,8 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(InputsSpec)
 	r.AddSpec(InputRunnerSpec)
 	r.AddSpec(OutputsSpec)
+	r.AddSpec(StatsdOutputsSpec)
+	r.AddSpec(LoadFromConfigSpec)
 	gospec.MainGoTest(r, t)
 }
 

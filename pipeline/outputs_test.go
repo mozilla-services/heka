@@ -16,6 +16,15 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"fmt"
+	"github.com/bitly/go-notify"
+	"github.com/orfjackal/gospec/src/gospec"
+	"io/ioutil"
+	"math/rand"
+	"os"
+	"runtime"
+	"strings"
+	"time"
 	gs "github.com/orfjackal/gospec/src/gospec"
 	mocks "heka/pipeline/mocks"
 )
@@ -35,7 +44,7 @@ func getIncrPipelinePack() *PipelinePack {
 	return pipelinePack
 }
 
-func OutputsSpec(c gs.Context) {
+func StatsdOutputsSpec(c gs.Context) {
 	c.Specify("A StatsdOutput", func() {
 
 		t := new(SimpleT)
@@ -125,5 +134,73 @@ func OutputsSpec(c gs.Context) {
 		// expected
 		ctrl.Finish()
 	})
+}
 
+func OutputsSpec(c gospec.Context) {
+	t := new(SimpleT)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rand.Seed(time.Now().Unix())
+
+	c.Specify("A FileOutput", func() {
+		fileOutput := new(FileOutput)
+		tmpFileName := fmt.Sprintf("fileoutput-test-%d", rand.Int())
+		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
+			tmpFileName)
+		config := fileOutput.ConfigStruct().(*FileOutputConfig)
+		config.Path = tmpFilePath
+
+		msg := getTestMessage()
+		pipelinePack := getTestPipelinePack()
+		pipelinePack.Message = msg
+		pipelinePack.Decoded = true
+
+		// The actual tests are littered w/ scheduler yields (i.e.
+		// runtime.Gosched() calls) so we give the output a chance to respond
+		// to the messages we're sending.
+
+		c.Specify("writes text", func() {
+			err := fileOutput.Init(config)
+			runtime.Gosched()
+			c.Assume(err, gs.IsNil)
+
+			c.Specify("by default", func() {
+				fileOutput.Deliver(pipelinePack)
+				runtime.Gosched()
+
+				err = notify.Post(STOP, nil)
+				c.Assume(err, gs.IsNil)
+				runtime.Gosched()
+
+				tmpFile, err := os.Open(tmpFilePath)
+				defer tmpFile.Close()
+				c.Assume(err, gs.IsNil)
+				contents, err := ioutil.ReadAll(tmpFile)
+				c.Assume(err, gs.IsNil)
+				c.Expect(string(contents), gs.Equals, msg.Payload+"\n")
+			})
+
+			c.Specify("w/ a prepended timestamp when specified", func() {
+				fileOutput.prefix_ts = true
+				fileOutput.Deliver(pipelinePack)
+				runtime.Gosched()
+
+				err = notify.Post(STOP, nil)
+				c.Assume(err, gs.IsNil)
+				runtime.Gosched()
+
+				tmpFile, err := os.Open(tmpFilePath)
+				defer tmpFile.Close()
+				c.Expect(err, gs.IsNil)
+				contents, err := ioutil.ReadAll(tmpFile)
+				c.Expect(err, gs.IsNil)
+				strContents := string(contents)
+				c.Expect(strContents, gs.Satisfies,
+					strings.Contains(strContents, msg.Payload))
+			})
+		})
+
+		os.Remove(tmpFilePath) // clean up after ourselves
+	})
 }

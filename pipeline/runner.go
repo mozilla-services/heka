@@ -23,6 +23,12 @@ import (
 	"time"
 )
 
+// Control channel event types used by go-notify
+const (
+	RELOAD = "reload"
+	STOP   = "stop"
+)
+
 type Plugin interface {
 	Init(config interface{}) error
 }
@@ -49,7 +55,7 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	decoders := make(map[string]Decoder)
 	outputs := make(map[string]Output)
 
-	pipelinePack := PipelinePack{
+	pack := &PipelinePack{
 		MsgBytes:    msgBytes,
 		Message:     &message,
 		Config:      config,
@@ -61,7 +67,6 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 		Outputs:     outputs,
 		OutputNames: outputnames,
 	}
-	pack := &pipelinePack
 	pack.InitDecoders(config)
 	pack.InitFilters(config)
 	pack.InitOutputs(config)
@@ -131,52 +136,51 @@ func (self *PipelineConfig) Run() {
 
 	// Main pipeline function, inputs spawn a goroutine of this for every
 	// message
-	pipeline := func(pipelinePack *PipelinePack) {
+	pipeline := func(pack *PipelinePack) {
 
 		// When finished, reset and recycle the allocated PipelinePack
 		defer func() {
-			msgBytes := pipelinePack.MsgBytes
-			msgBytes = msgBytes[:cap(msgBytes)]
-			pipelinePack.Decoder = self.DefaultDecoder
-			pipelinePack.Decoded = false
-			pipelinePack.FilterChain = self.DefaultFilterChain
+			pack.MsgBytes = pack.MsgBytes[:cap(pack.MsgBytes)]
+			pack.Decoder = self.DefaultDecoder
+			pack.Decoded = false
+			pack.FilterChain = self.DefaultFilterChain
 			outputs := make(map[string]bool)
-			pipelinePack.OutputNames = outputs
-			recycleChan <- pipelinePack
+			pack.OutputNames = outputs
+			recycleChan <- pack
 		}()
 
 		// Decode message if necessary
-		if !pipelinePack.Decoded {
-			decoderName := pipelinePack.Decoder
-			decoder, ok := pipelinePack.Decoders[decoderName]
+		if !pack.Decoded {
+			decoderName := pack.Decoder
+			decoder, ok := pack.Decoders[decoderName]
 			if !ok {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
 			}
-			err := decoder.Decode(pipelinePack)
+			err := decoder.Decode(pack)
 			if err != nil {
-				log.Printf("Error decoding message (%s decoder): %s",
-					decoderName, err.Error())
+				log.Fatalf("Error decoding message (%s): %s", decoderName,
+					err.Error())
 				return
 			}
 		}
 
 		// Run message through the appropriate filters
-		filterProcessor(pipelinePack)
-		if pipelinePack.Message == nil {
+		filterProcessor(pack)
+		if pack.Message == nil {
 			return
 		}
 
 		// Deliver message to appropriate outputs
-		for outputName, use := range pipelinePack.OutputNames {
+		for outputName, use := range pack.OutputNames {
 			if !use {
 				continue
 			}
-			output, ok := pipelinePack.Outputs[outputName]
+			output, ok := pack.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
 			}
-			output.Deliver(pipelinePack)
+			output.Deliver(pack)
 		}
 	}
 

@@ -2,7 +2,7 @@
     "inputs": [
         {
             "type": "UdpInput",
-            "address": "127.0.0.1:29329",
+            "address": "127.0.0.1:29330",
             "name": "udp_stats"
         }
     ],
@@ -13,7 +13,7 @@
         {"type": "StatRollupFilter"}
     ],
     "outputs": [
-        {"type": "CounterOutput"}
+        {"type": "WhatOutput"}
     ],
     "chains": {
         "default": {
