@@ -17,9 +17,15 @@ import (
 	"bytes"
 	"github.com/bitly/go-simplejson"
 	"github.com/ugorji/go-msgpack"
-	hekatime "heka/time"
 	"log"
 	"time"
+)
+
+// The timezone information has been stripped as 
+// everything should be encoded to UTC time
+const (
+	TimeFormat           = "2006-01-02T15:04:05.000000Z"
+	TimeFormatFullSecond = "2006-01-02T15:04:05Z"
 )
 
 type Decoder interface {
@@ -44,12 +50,12 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
-	tmp_time, err := time.Parse(hekatime.TimeFormat, timeStr)
-	msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
+	tmp_time, err := time.Parse(TimeFormat, timeStr)
+	msg.Timestamp = tmp_time
 
 	if err != nil {
-		tmp_time, err = time.Parse(hekatime.TimeFormatFullSecond, timeStr)
-		msg.Timestamp = hekatime.UTCTimestamp{Timestamp: tmp_time}
+		tmp_time, err = time.Parse(TimeFormatFullSecond, timeStr)
+		msg.Timestamp = tmp_time
 		if err != nil {
 			log.Printf("Timestamp parsing error: %s\n", err.Error())
 		}

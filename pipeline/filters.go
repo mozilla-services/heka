@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"fmt"
 	. "heka/message"
-    hekatime "heka/time"
 	"log"
 	"sort"
 	"strconv"
@@ -238,7 +237,7 @@ func (self *StatRollupFilterGlobal) Flush() {
 	}
 	if self.messageGenerator != nil {
 		msg := Message{Type: "statmetric",
-			Timestamp: hekatime.UTCTimestamp{now},
+			Timestamp: now,
 			Payload:   buffer.String()}
 		self.messageGenerator.Deliver(&msg, 1)
 	}

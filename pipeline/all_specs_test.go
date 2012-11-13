@@ -16,7 +16,6 @@ package pipeline
 import (
 	"github.com/orfjackal/gospec/src/gospec"
 	. "heka/message"
-	hekatime "heka/time"
 	"os"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func TestAllSpecs(t *testing.T) {
 }
 
 func getTestMessage() *Message {
-	timestamp := hekatime.UTCTimestamp{time.Now().UTC()}
+	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
 	fields := make(map[string]interface{})
 	fields["foo"] = "bar"
