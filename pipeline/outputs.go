@@ -134,6 +134,22 @@ func counterLoop() {
 
 type StatsdOutput struct {
 	statsdClient StatsdClient
+
+	/* The variables below are used when decoding the ns, key, value
+	 * and rate from the pipelinepack
+	 */
+	ns string
+
+	key    string
+	key_ok bool
+
+	tmp_value int64
+	value_ok  error
+	value     int
+
+	rate     float32
+	tmp_rate float64
+	rate_ok  bool
 }
 
 func NewStatsdClient(url string) StatsdClient {
@@ -161,40 +177,40 @@ func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
 	msg := pipelinePack.Message
 
 	// we need the ns for the full key
-	ns := msg.Logger
+	self.ns = msg.Logger
 
-	key, key_ok := msg.Fields["name"].(string)
-	if key_ok == false {
+	self.key, self.key_ok = msg.Fields["name"].(string)
+	if self.key_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"name\"]")
 		return
 	}
 
-	if strings.TrimSpace(ns) != "" {
-		s := []string{ns, key}
-		key = strings.Join(s, ".")
+	if strings.TrimSpace(self.ns) != "" {
+		s := []string{self.ns, self.key}
+		self.key = strings.Join(s, ".")
 	}
 
-	tmp_value, value_ok := strconv.ParseInt(msg.Payload, 10, 32)
-	if value_ok != nil {
+	self.tmp_value, self.value_ok = strconv.ParseInt(msg.Payload, 10, 32)
+	if self.value_ok != nil {
 		log.Printf("Error parsing value for statsd")
 		return
 	}
 	// Downcast this
-	value := int(tmp_value)
+	self.value = int(self.tmp_value)
 
-	tmp_rate, rate_ok := msg.Fields["rate"].(float64)
-	if rate_ok == false {
+	self.tmp_rate, self.rate_ok = msg.Fields["rate"].(float64)
+	if self.rate_ok == false {
 		log.Printf("Error parsing key for statsd from msg.Fields[\"rate\"]")
 		return
 	}
 
-	rate := float32(tmp_rate)
+	self.rate = float32(self.tmp_rate)
 
 	switch msg.Type {
 	case "counter":
-		self.statsdClient.IncrementSampledCounter(key, value, rate)
+		self.statsdClient.IncrementSampledCounter(self.key, self.value, self.rate)
 	case "timer":
-		self.statsdClient.SendSampledTiming(key, value, rate)
+		self.statsdClient.SendSampledTiming(self.key, self.value, self.rate)
 	default:
 		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
 	}
