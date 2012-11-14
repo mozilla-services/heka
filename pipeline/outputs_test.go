@@ -44,9 +44,14 @@ func OutputsSpec(c gospec.Context) {
 		pipelinePack.Message = msg
 		pipelinePack.Decoded = true
 
-		// The actual tests are littered w/ scheduler yields (i.e.
-		// runtime.Gosched() calls) so we give the output a chance to respond
-		// to the messages we're sending.
+		closeAndStop := func(tmpFile *os.File) {
+			tmpFile.Close()
+			notify.Post(STOP, nil)
+		}
+
+		// The tests are littered w/ scheduler yields (i.e. runtime.Gosched()
+		// calls) so we give the output a chance to respond to the messages
+		// we're sending.
 
 		c.Specify("writes text", func() {
 			err := fileOutput.Init(config)
@@ -56,13 +61,9 @@ func OutputsSpec(c gospec.Context) {
 			c.Specify("by default", func() {
 				fileOutput.Deliver(pipelinePack)
 				runtime.Gosched()
-
-				err = notify.Post(STOP, nil)
-				c.Assume(err, gs.IsNil)
 				runtime.Gosched()
-
 				tmpFile, err := os.Open(tmpFilePath)
-				defer tmpFile.Close()
+				defer closeAndStop(tmpFile)
 				c.Assume(err, gs.IsNil)
 				contents, err := ioutil.ReadAll(tmpFile)
 				c.Assume(err, gs.IsNil)
@@ -73,16 +74,11 @@ func OutputsSpec(c gospec.Context) {
 				fileOutput.prefix_ts = true
 				fileOutput.Deliver(pipelinePack)
 				runtime.Gosched()
-
-				err = notify.Post(STOP, nil)
-				c.Assume(err, gs.IsNil)
 				runtime.Gosched()
-
 				tmpFile, err := os.Open(tmpFilePath)
-				defer tmpFile.Close()
+				defer closeAndStop(tmpFile)
 				c.Expect(err, gs.IsNil)
 				contents, err := ioutil.ReadAll(tmpFile)
-				c.Expect(err, gs.IsNil)
 				strContents := string(contents)
 				c.Expect(strContents, gs.Satisfies,
 					strings.Contains(strContents, msg.Payload))

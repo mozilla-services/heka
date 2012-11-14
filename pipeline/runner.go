@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+	"github.com/bitly/go-notify"
 	. "heka/message"
 	"log"
 	"os"
@@ -204,18 +205,29 @@ func (self *PipelineConfig) Run() {
 
 	// wait for sigint
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+sigListener:
 	for {
-		sigint := <-sigChan
-		if sigint != nil {
-			break
+		sig := <-sigChan
+		switch sig {
+		case syscall.SIGHUP:
+			err := notify.Post(RELOAD, nil)
+			if err != nil {
+				log.Println("Error sending RELOAD event:", err.Error())
+			}
+		case syscall.SIGINT:
+			for name, runner := range inputRunners {
+				log.Println("Stopping input: ", name)
+				runner.Stop()
+			}
+			err := notify.Post(STOP, nil)
+			if err != nil {
+				log.Println("Error sending STOP event: ", err.Error())
+			}
+			break sigListener
 		}
 	}
 
-	for name, runner := range inputRunners {
-		runner.Stop()
-		log.Printf("Stopping input: %s\n", name)
-	}
 	wg.Wait()
 	log.Println("Shutdown complete.")
 }
