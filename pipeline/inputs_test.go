@@ -62,7 +62,7 @@ func InputRunnerSpec(c gospec.Context) {
 			readCall.Return(nil)
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
-			wg.Add(1)
+			defer inputRunner.Stop()
 
 			var allUsed bool
 			select {
@@ -71,8 +71,6 @@ func InputRunnerSpec(c gospec.Context) {
 			}
 
 			c.Expect(allUsed, gs.IsTrue)
-			inputRunner.Stop()
-			wg.Wait()
 		})
 
 		c.Specify("even if there are read errors", func() {
@@ -88,7 +86,7 @@ func InputRunnerSpec(c gospec.Context) {
 			})
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
-			wg.Add(1)
+			defer inputRunner.Stop()
 
 			var allUsed bool
 			select {
@@ -97,8 +95,6 @@ func InputRunnerSpec(c gospec.Context) {
 			}
 
 			c.Expect(allUsed, gs.IsTrue)
-			inputRunner.Stop()
-			wg.Wait()
 		})
 	})
 }
