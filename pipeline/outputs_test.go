@@ -20,7 +20,6 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"runtime"
 	"strings"
@@ -32,11 +31,9 @@ func OutputsSpec(c gospec.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	rand.Seed(time.Now().Unix())
-
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
-		tmpFileName := fmt.Sprintf("fileoutput-test-%d", rand.Int())
+		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
 		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
 			tmpFileName)
 		config := fileOutput.ConfigStruct().(*FileOutputConfig)
