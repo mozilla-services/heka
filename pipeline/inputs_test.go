@@ -36,7 +36,7 @@ func InputRunnerSpec(c gospec.Context) {
 		poolSize := 5
 		pipelineCalls := 0
 		mockInput := NewMockInput(ctrl)
-		inputRunner := InputRunner{mockInput, &second, false}
+		inputRunner := InputRunner{"mock", mockInput, &second, false}
 
 		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
@@ -48,7 +48,7 @@ func InputRunnerSpec(c gospec.Context) {
 		done := make(chan bool, 1)
 		mu := sync.Mutex{}
 
-		mockPipeline := func(pipelinePack *PipelinePack) {
+		mockPipeline := func(pack *PipelinePack) {
 			mu.Lock()
 			pipelineCalls++
 			mu.Unlock()
@@ -63,7 +63,6 @@ func InputRunnerSpec(c gospec.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer inputRunner.Stop()
 
 			var allUsed bool
 			select {
@@ -72,6 +71,8 @@ func InputRunnerSpec(c gospec.Context) {
 			}
 
 			c.Expect(allUsed, gs.IsTrue)
+			inputRunner.Stop()
+			wg.Wait()
 		})
 
 		c.Specify("even if there are read errors", func() {
@@ -88,7 +89,6 @@ func InputRunnerSpec(c gospec.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer inputRunner.Stop()
 
 			var allUsed bool
 			select {
@@ -97,7 +97,8 @@ func InputRunnerSpec(c gospec.Context) {
 			}
 
 			c.Expect(allUsed, gs.IsTrue)
-
+			inputRunner.Stop()
+			wg.Wait()
 		})
 	})
 }

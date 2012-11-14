@@ -190,13 +190,13 @@ func (self *PipelineConfig) Run() {
 	}
 
 	var wg sync.WaitGroup
-	var runner InputRunner
+	var runner *InputRunner
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
 	for name, input := range self.Inputs {
-		runner = InputRunner{input, &timeout, false}
-		inputRunners[name] = &runner
+		runner = &InputRunner{name, input, &timeout, false}
+		inputRunners[name] = runner
 		runner.Start(pipeline, recycleChan, &wg)
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)

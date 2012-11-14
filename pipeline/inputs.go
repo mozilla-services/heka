@@ -39,6 +39,7 @@ type Input interface {
 // InputRunner
 
 type InputRunner struct {
+	name    string
 	input   Input
 	timeout *time.Duration
 	running bool
@@ -71,6 +72,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 			go pipeline(pack)
 			needOne = true
 		}
+		log.Println("Input stopped: ", self.name)
 		wg.Done()
 	}()
 }
