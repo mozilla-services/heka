@@ -16,8 +16,8 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/orfjackal/gospec/src/gospec"
-	gs "github.com/orfjackal/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/ugorji/go-msgpack"
 )
 

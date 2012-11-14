@@ -15,8 +15,8 @@ package message
 
 import (
 	//"fmt"
-	"github.com/orfjackal/gospec/src/gospec"
-	gs "github.com/orfjackal/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"testing"
 	"time"

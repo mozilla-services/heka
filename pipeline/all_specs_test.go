@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"github.com/orfjackal/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
 	. "heka/message"
 	"os"
 	"testing"
@@ -39,6 +39,7 @@ var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST",
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
+	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
 	r.AddSpec(InputRunnerSpec)

@@ -14,8 +14,8 @@
 package pipeline
 
 import (
-	gs "github.com/orfjackal/gospec/src/gospec"
-	"github.com/orfjackal/gospec/src/gospec"
+	gs "github.com/rafrombrc/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
 )
 
 func LoadFromConfigSpec(c gospec.Context) {

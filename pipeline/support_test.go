@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"github.com/orfjackal/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
 	"log"
 	"strings"
 )
