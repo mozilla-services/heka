@@ -50,25 +50,25 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 
 	go func() {
 		var err error
-		var pipelinePack *PipelinePack
+		var pack *PipelinePack
 		needOne := true
 		for self.running {
 			if needOne {
 				runtime.Gosched()
 				select {
-				case pipelinePack = <-recycleChan:
+				case pack = <-recycleChan:
 				case <-time.After(*self.timeout):
 					continue
 				}
 
 			}
 
-			err = self.input.Read(pipelinePack, self.timeout)
+			err = self.input.Read(pack, self.timeout)
 			if err != nil {
 				needOne = false
 				continue
 			}
-			go pipeline(pipelinePack)
+			go pipeline(pack)
 			needOne = true
 		}
 		wg.Done()
