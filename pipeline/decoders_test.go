@@ -27,7 +27,8 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-		timestampJson, err := json.Marshal(msg.Timestamp)
+		utctime := msg.Timestamp
+		timestampJson, err := json.Marshal(utctime.Format(TimeFormat))
 		fieldsJson, err := json.Marshal(msg.Fields)
 		c.Assume(err, gs.IsNil)
 		jsonString := fmt.Sprintf(fmtString, msg.Type,

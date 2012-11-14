@@ -1,0 +1,30 @@
+{
+    "inputs": [
+    {
+        "type": "UdpInput",
+        "name": "udp",
+        "address": "localhost:5565"
+    }
+    ],
+        "decoders": [
+        {"type": "JsonDecoder", "default": true}
+    ],
+        "filters": [
+            ],
+        "outputs": [
+        {
+            "type": "CounterOutput",
+            "name": "counter"
+        },
+        {
+            "type": "StatsdOutput",
+            "name": "statsd",
+            "Url": "localhost:9000"
+        }
+    ],
+        "chains": {
+            "default": {
+                "outputs": ["statsd"]
+            }
+        }
+}

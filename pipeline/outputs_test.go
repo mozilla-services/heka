@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
@@ -17,7 +18,6 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"fmt"
 	"github.com/bitly/go-notify"
-	gs "github.com/orfjackal/gospec/src/gospec"
 	"github.com/orfjackal/gospec/src/gospec"
 	"io/ioutil"
 	"math/rand"
@@ -25,7 +25,116 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	gs "github.com/orfjackal/gospec/src/gospec"
+	mocks "heka/pipeline/mocks"
 )
+
+func getIncrPipelinePack() *PipelinePack {
+	pipelinePack := getTestPipelinePack()
+
+	fields := make(map[string]interface{})
+	pipelinePack.Message.Fields = fields
+
+	// Force the message to be a statsd increment message
+	pipelinePack.Message.Logger = "thenamespace"
+	pipelinePack.Message.Fields["name"] = "myname"
+	pipelinePack.Message.Fields["rate"] = float64(30.0)
+	pipelinePack.Message.Fields["type"] = "counter"
+	pipelinePack.Message.Payload = "-1"
+	return pipelinePack
+}
+
+func StatsdOutputsSpec(c gs.Context) {
+	c.Specify("A StatsdOutput", func() {
+
+		t := new(SimpleT)
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		mockClient.EXPECT().IncrementSampledCounter("myname", -1, float32(30))
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
+		statsdOutput.Deliver(pipelinePack)
+	})
+
+	c.Specify("statsdoutput doesn't crash on missing rate", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Fields["rate"] = nil
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
+	c.Specify("statsdoutput doesn't crash on missing name", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Fields["name"] = nil
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
+	c.Specify("statsdoutput doesn't crash on incomplete fields dict", func() {
+
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		// Clear the Fields map, let gc clean it up
+		pipelinePack.Message.Fields = make(map[string]interface{})
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+
+	c.Specify("statsdoutput doesn't crash on invalid msg.Type", func() {
+		t := &SimpleT{}
+		ctrl := gomock.NewController(t)
+
+		// Setup of the pipelinePack in here
+		pipelinePack := getIncrPipelinePack()
+
+		pipelinePack.Message.Type = "garbage"
+
+		mockClient := mocks.NewMockStatsdClient(ctrl)
+		statsdOutput := StatsdOutput{statsdClient: mockClient}
+		statsdOutput.Deliver(pipelinePack)
+
+		// Finish() will only run successfully if all calls have been
+		// expected
+		ctrl.Finish()
+	})
+}
 
 func OutputsSpec(c gospec.Context) {
 	t := new(SimpleT)

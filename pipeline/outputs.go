@@ -17,13 +17,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-notify"
+	"github.com/crankycoder/g2s"
 	"log"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
+
+// Interface that all statsd clients must implement.
+type StatsdClient interface {
+	IncrementSampledCounter(bucket string, n int, srate float32)
+	SendSampledTiming(bucket string, ms int, srate float32)
+}
 
 type Output interface {
 	Plugin
@@ -123,6 +132,90 @@ func counterLoop() {
 	}
 }
 
+type StatsdOutput struct {
+	statsdClient StatsdClient
+
+	/* The variables below are used when decoding the ns, key, value
+	 * and rate from the pipelinepack
+	 */
+	ns string
+
+	key    string
+	key_ok bool
+
+	tmp_value int64
+	value_ok  error
+	value     int
+
+	rate     float32
+	tmp_rate float64
+	rate_ok  bool
+}
+
+func NewStatsdClient(url string) StatsdClient {
+	sd, err := g2s.NewStatsd(url, 0)
+	if err != nil {
+		log.Printf("Error!! No statsd client was created! %v", err)
+		return nil
+	}
+	return sd
+}
+
+func (self *StatsdOutput) ConfigStruct() interface{} {
+	return &StatsdOutputConfig{Url: "localhost:5555"}
+}
+
+func (self *StatsdOutput) Init(config interface{}) error {
+	conf := config.(*StatsdOutputConfig)
+	statsd_url := conf.Url
+	self.statsdClient = NewStatsdClient(statsd_url)
+	return nil
+}
+
+func (self *StatsdOutput) Deliver(pipelinePack *PipelinePack) {
+
+	msg := pipelinePack.Message
+
+	// we need the ns for the full key
+	self.ns = msg.Logger
+
+	self.key, self.key_ok = msg.Fields["name"].(string)
+	if self.key_ok == false {
+		log.Printf("Error parsing key for statsd from msg.Fields[\"name\"]")
+		return
+	}
+
+	if strings.TrimSpace(self.ns) != "" {
+		s := []string{self.ns, self.key}
+		self.key = strings.Join(s, ".")
+	}
+
+	self.tmp_value, self.value_ok = strconv.ParseInt(msg.Payload, 10, 32)
+	if self.value_ok != nil {
+		log.Printf("Error parsing value for statsd")
+		return
+	}
+	// Downcast this
+	self.value = int(self.tmp_value)
+
+	self.tmp_rate, self.rate_ok = msg.Fields["rate"].(float64)
+	if self.rate_ok == false {
+		log.Printf("Error parsing key for statsd from msg.Fields[\"rate\"]")
+		return
+	}
+
+	self.rate = float32(self.tmp_rate)
+
+	switch msg.Type {
+	case "counter":
+		self.statsdClient.IncrementSampledCounter(self.key, self.value, self.rate)
+	case "timer":
+		self.statsdClient.SendSampledTiming(self.key, self.value, self.rate)
+	default:
+		log.Printf("Warning: Unexpected event passed into StatsdOutput.\nEvent => %+v\n", *(pipelinePack.Message))
+	}
+}
+
 // FileWriters actually do the work of writing out to the filesystem.
 type FileWriter struct {
 	DataChan chan []byte
@@ -188,6 +281,10 @@ type FileOutput struct {
 	format    string
 	prefix_ts bool
 	outData   []byte
+}
+
+type StatsdOutputConfig struct {
+	Url string
 }
 
 type FileOutputConfig struct {

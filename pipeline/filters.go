@@ -236,7 +236,9 @@ func (self *StatRollupFilterGlobal) Flush() {
 		log.Println("No stats collected, not delivering.")
 	}
 	if self.messageGenerator != nil {
-		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer.String()}
+		msg := Message{Type: "statmetric",
+			Timestamp: now,
+			Payload:   buffer.String()}
 		self.messageGenerator.Deliver(&msg, 1)
 	}
 }

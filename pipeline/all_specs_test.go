@@ -43,6 +43,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(InputsSpec)
 	r.AddSpec(InputRunnerSpec)
 	r.AddSpec(OutputsSpec)
+	r.AddSpec(StatsdOutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
 	gospec.MainGoTest(r, t)
 }
@@ -53,8 +54,9 @@ func getTestMessage() *Message {
 	fields := make(map[string]interface{})
 	fields["foo"] = "bar"
 	msg := Message{
-		Type: "TEST", Timestamp: timestamp,
-		Logger: "GoSpec", Severity: 6,
+		Type:      "TEST",
+		Timestamp: timestamp,
+		Logger:    "GoSpec", Severity: 6,
 		Payload: "Test Payload", Env_version: "0.8",
 		Pid: os.Getpid(), Hostname: hostname,
 		Fields: fields,

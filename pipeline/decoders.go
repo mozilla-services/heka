@@ -21,15 +21,17 @@ import (
 	"time"
 )
 
+// The timezone information has been stripped as 
+// everything should be encoded to UTC time
+const (
+	TimeFormat           = "2006-01-02T15:04:05.000000Z"
+	TimeFormatFullSecond = "2006-01-02T15:04:05Z"
+)
+
 type Decoder interface {
 	Plugin
 	Decode(pipelinePack *PipelinePack) error
 }
-
-const (
-	timeFormat           = "2006-01-02T15:04:05.000000Z"
-	timeFormatFullSecond = "2006-01-02T15:04:05Z"
-)
 
 type JsonDecoder struct{}
 
@@ -39,6 +41,7 @@ func (self *JsonDecoder) Init(config interface{}) error {
 
 func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msgBytes := pipelinePack.MsgBytes
+
 	msgJson, err := simplejson.NewJson(msgBytes)
 	if err != nil {
 		return err
@@ -47,9 +50,12 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
-	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
+	tmp_time, err := time.Parse(TimeFormat, timeStr)
+	msg.Timestamp = tmp_time
+
 	if err != nil {
-		msg.Timestamp, err = time.Parse(timeFormatFullSecond, timeStr)
+		tmp_time, err = time.Parse(TimeFormatFullSecond, timeStr)
+		msg.Timestamp = tmp_time
 		if err != nil {
 			log.Printf("Timestamp parsing error: %s\n", err.Error())
 		}
