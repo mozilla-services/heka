@@ -34,7 +34,7 @@ func StringContains(actual interface{}, criteria interface{}) (match bool,
 	toTest := actual.(string)
 	critTest := criteria.(string)
 	match = strings.Contains(toTest, critTest)
-	pos = gospec.Messagef(toTest, "starts with "+critTest)
-	neg = gospec.Messagef(toTest, "does not start with "+critTest)
+	pos = gospec.Messagef(toTest, "contains "+critTest)
+	neg = gospec.Messagef(toTest, "does not contain "+critTest)
 	return
 }

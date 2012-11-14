@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -80,8 +79,7 @@ func OutputsSpec(c gospec.Context) {
 				c.Expect(err, gs.IsNil)
 				contents, err := ioutil.ReadAll(tmpFile)
 				strContents := string(contents)
-				c.Expect(strContents, gs.Satisfies,
-					strings.Contains(strContents, msg.Payload))
+				c.Expect(strContents, StringContains, msg.Payload)
 			})
 		})
 
