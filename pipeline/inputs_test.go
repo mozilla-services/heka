@@ -62,6 +62,7 @@ func InputRunnerSpec(c gospec.Context) {
 			readCall.Return(nil)
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			wg.Add(1)
 			defer inputRunner.Stop()
 
 			var allUsed bool
@@ -86,6 +87,7 @@ func InputRunnerSpec(c gospec.Context) {
 			})
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			wg.Add(1)
 			defer inputRunner.Stop()
 
 			var allUsed bool
