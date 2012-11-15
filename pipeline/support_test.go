@@ -38,3 +38,13 @@ func StringContains(actual interface{}, criteria interface{}) (match bool,
 	neg = gospec.Messagef(toTest, "does not contain "+critTest)
 	return
 }
+
+func StringStartsWith(actual interface{}, criteria interface{}) (match bool,
+	pos gospec.Message, neg gospec.Message, err error) {
+	actStr := actual.(string)
+	critStr := criteria.(string)
+	match = actStr[:len(critStr)] == critStr
+	pos = gospec.Messagef(actStr, "starts with %s", critStr)
+	neg = gospec.Messagef(actStr, "does not start with %s", critStr)
+	return
+}
