@@ -56,6 +56,11 @@ func (self *Message) Equals(other interface{}) bool {
 			if !reflect.DeepEqual(sMap, oMap) {
 				return false
 			}
+		} else if sTime, ok := sField.Interface().(time.Time); ok {
+			oTime := oField.Interface().(time.Time)
+			if !reflect.DeepEqual(sTime, oTime) {
+				return false
+			}
 		} else {
 			if sField.Interface() != oField.Interface() {
 				return false
