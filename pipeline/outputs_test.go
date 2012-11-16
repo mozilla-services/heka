@@ -86,6 +86,23 @@ func OutputsSpec(c gospec.Context) {
 			})
 		})
 
+		c.Specify("honors different Perm settings", func() {
+			config.Perm = 0600
+			err := fileOutput.Init(config)
+			c.Assume(err, gs.IsNil)
+			runtime.Gosched()
+			fileOutput.Deliver(pipelinePack)
+			runtime.Gosched()
+			tmpFile, err := os.Open(tmpFilePath)
+			defer closeAndStop(tmpFile)
+			c.Assume(err, gs.IsNil)
+			fileInfo, err := tmpFile.Stat()
+			c.Assume(err, gs.IsNil)
+			fileMode := fileInfo.Mode()
+			// 7 consecutive dashes implies no perms for group or other
+			c.Expect(fileMode.String(), StringContains, "-------")
+		})
+
 		c.Specify("writes JSON", func() {
 			config.Format = "json"
 			err := fileOutput.Init(config)
