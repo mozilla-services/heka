@@ -72,6 +72,8 @@ func OutputsSpec(c gospec.Context) {
 			c.Specify("w/ a prepended timestamp when specified", func() {
 				fileOutput.prefix_ts = true
 				fileOutput.Deliver(pipelinePack)
+				// Test will fail if date flips btn delivery and todayStr
+				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
 				runtime.Gosched()
 				tmpFile, err := os.Open(tmpFilePath)
@@ -80,10 +82,6 @@ func OutputsSpec(c gospec.Context) {
 				contents, err := ioutil.ReadAll(tmpFile)
 				strContents := string(contents)
 				c.Expect(strContents, StringContains, msg.Payload)
-				// NOTE: This will fail if you hit the very unusual edge case
-				// of the date changing btn when the message is written to the
-				// file and the calculation of `todayStr`, immediately
-				// afterwards.
 				c.Expect(strContents, StringStartsWith, todayStr)
 			})
 		})
@@ -105,6 +103,24 @@ func OutputsSpec(c gospec.Context) {
 				msgJson, err := json.Marshal(pipelinePack.Message)
 				c.Assume(err, gs.IsNil)
 				c.Expect(string(contents), gs.Equals, string(msgJson)+"\n")
+			})
+
+			c.Specify("and with a timestamp", func() {
+				fileOutput.prefix_ts = true
+				fileOutput.Deliver(pipelinePack)
+				// Test will fail if date flips btn delivery and todayStr
+				// calculation... should be extremely rare.
+				todayStr := time.Now().Format("[2006/Jan/02:")
+				runtime.Gosched()
+				tmpFile, err := os.Open(tmpFilePath)
+				defer closeAndStop(tmpFile)
+				c.Expect(err, gs.IsNil)
+				contents, err := ioutil.ReadAll(tmpFile)
+				strContents := string(contents)
+				msgJson, err := json.Marshal(pipelinePack.Message)
+				c.Assume(err, gs.IsNil)
+				c.Expect(strContents, StringContains, string(msgJson)+"\n")
+				c.Expect(strContents, StringStartsWith, todayStr)
 			})
 		})
 
