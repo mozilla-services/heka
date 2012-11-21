@@ -17,16 +17,15 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"errors"
-	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	mocks "heka/pipeline/mocks"
+	ts "heka/testsupport"
 	"net"
 	"sync"
 	"time"
 )
 
-func InputRunnerSpec(c gospec.Context) {
-	t := &SimpleT{}
+func InputRunnerSpec(c gs.Context) {
+	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -101,8 +100,8 @@ func InputRunnerSpec(c gospec.Context) {
 	})
 }
 
-func InputsSpec(c gospec.Context) {
-	t := &SimpleT{}
+func InputsSpec(c gs.Context) {
+	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -121,7 +120,7 @@ func InputsSpec(c gospec.Context) {
 		realListener.Close()
 
 		// Replace the listener object w/ a mock listener
-		mockListener := mocks.NewMockConn(ctrl)
+		mockListener := ts.NewMockConn(ctrl)
 		udpInput.Listener = mockListener
 
 		msgJson, _ := json.Marshal(msg)

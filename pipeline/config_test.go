@@ -15,14 +15,14 @@ package pipeline
 
 import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"github.com/rafrombrc/gospec/src/gospec"
+	ts "heka/testsupport"
 )
 
-func LoadFromConfigSpec(c gospec.Context) {
+func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("The good config file can be loaded", func() {
 		pipeConfig := NewPipelineConfig(1)
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
-		pipeConfig.LoadFromConfigFile("config_test.json")
+		pipeConfig.LoadFromConfigFile("../testsupport/config_test.json")
 
 		// We use a set of Expect's rather than c.Specify because the
 		// pipeConfig can't be re-loaded per child as gospec will do
@@ -68,9 +68,9 @@ func LoadFromConfigSpec(c gospec.Context) {
 	c.Specify("Loading a bad config file explodes", func() {
 		pipeConfig := NewPipelineConfig(1)
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
-		err := pipeConfig.LoadFromConfigFile("config_bad_test.json")
+		err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.json")
 		c.Assume(err, gs.Not(gs.IsNil))
-		c.Expect(err.Error(), StringContains, "Unable to plugin init: Resolve")
+		c.Expect(err.Error(), ts.StringContains, "Unable to plugin init: Resolve")
 	})
 
 	c.Specify("No config file found", func() {
@@ -78,15 +78,15 @@ func LoadFromConfigSpec(c gospec.Context) {
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
 		err := pipeConfig.LoadFromConfigFile("no_such_file.json")
 		c.Assume(err, gs.Not(gs.IsNil))
-		c.Expect(err.Error(), StringContains, "Unable to open file")
-		c.Expect(err.Error(), StringContains, "no such file or directory")
+		c.Expect(err.Error(), ts.StringContains, "Unable to open file")
+		c.Expect(err.Error(), ts.StringContains, "no such file or directory")
 	})
 
 	c.Specify("Error reading outputs", func() {
 		pipeConfig := NewPipelineConfig(1)
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
-		err := pipeConfig.LoadFromConfigFile("config_bad_outputs.json")
+		err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_outputs.json")
 		c.Assume(err, gs.Not(gs.IsNil))
-		c.Expect(err.Error(), StringContains, "Error reading outputs: No such plugin")
+		c.Expect(err.Error(), ts.StringContains, "Error reading outputs: No such plugin")
 	})
 }

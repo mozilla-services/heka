@@ -19,15 +19,15 @@ import (
 	"fmt"
 	"github.com/bitly/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"github.com/rafrombrc/gospec/src/gospec"
+	ts "heka/testsupport"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"time"
 )
 
-func OutputsSpec(c gospec.Context) {
-	t := new(SimpleT)
+func OutputsSpec(c gs.Context) {
+	t := new(ts.SimpleT)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -81,8 +81,8 @@ func OutputsSpec(c gospec.Context) {
 				c.Expect(err, gs.IsNil)
 				contents, err := ioutil.ReadAll(tmpFile)
 				strContents := string(contents)
-				c.Expect(strContents, StringContains, msg.Payload)
-				c.Expect(strContents, StringStartsWith, todayStr)
+				c.Expect(strContents, ts.StringContains, msg.Payload)
+				c.Expect(strContents, ts.StringStartsWith, todayStr)
 			})
 		})
 
@@ -100,7 +100,7 @@ func OutputsSpec(c gospec.Context) {
 			c.Assume(err, gs.IsNil)
 			fileMode := fileInfo.Mode()
 			// 7 consecutive dashes implies no perms for group or other
-			c.Expect(fileMode.String(), StringContains, "-------")
+			c.Expect(fileMode.String(), ts.StringContains, "-------")
 		})
 
 		c.Specify("writes JSON", func() {
@@ -136,8 +136,8 @@ func OutputsSpec(c gospec.Context) {
 				strContents := string(contents)
 				msgJson, err := json.Marshal(pipelinePack.Message)
 				c.Assume(err, gs.IsNil)
-				c.Expect(strContents, StringContains, string(msgJson)+"\n")
-				c.Expect(strContents, StringStartsWith, todayStr)
+				c.Expect(strContents, ts.StringContains, string(msgJson)+"\n")
+				c.Expect(strContents, ts.StringStartsWith, todayStr)
 			})
 		})
 
