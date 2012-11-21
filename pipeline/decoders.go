@@ -26,11 +26,6 @@ type Decoder interface {
 	Decode(pipelinePack *PipelinePack) error
 }
 
-const (
-	timeFormat           = "2006-01-02T15:04:05.000000Z"
-	timeFormatFullSecond = "2006-01-02T15:04:05Z"
-)
-
 type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
@@ -47,12 +42,9 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	msg.Type = msgJson.Get("type").MustString()
 	timeStr := msgJson.Get("timestamp").MustString()
-	msg.Timestamp, err = time.Parse(timeFormat, timeStr)
+	msg.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	if err != nil {
-		msg.Timestamp, err = time.Parse(timeFormatFullSecond, timeStr)
-		if err != nil {
-			log.Printf("Timestamp parsing error: %s\n", err.Error())
-		}
+		log.Printf("Timestamp parsing error: %s\n", err.Error())
 	}
 	msg.Logger = msgJson.Get("logger").MustString()
 	msg.Severity = msgJson.Get("severity").MustInt()
