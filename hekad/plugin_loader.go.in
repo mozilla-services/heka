@@ -1,0 +1,36 @@
+/***** BEGIN LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2012
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Rob Miller (rmiller@mozilla.com)
+#
+# ***** END LICENSE BLOCK *****/
+package main
+
+/*
+This file can be used to load plugins that have been defined in other
+packages. Simply rename `plugin_loader.go.in` to `plugin_loader.go`,
+import the packages that define the plugins, and change the
+`LoadExternalPlugins` method so your plugins are added to `AvailablePlugins`
+correctly.
+
+Commented out below you'll find some example code that demonstrates how we use
+this in capability within Mozilla Services.
+*/
+
+import (
+	//mozsvc "github.com/mozilla-services/heka-mozsvc-plugins"
+	"heka/pipeline"
+)
+
+func (self *PluginLoader) LoadExternalPlugins() {
+	//pipeline.AvailablePlugins["CefOutput"] = func() pipeline.Plugin {
+	//	return new(mozsvc.CefOutput)
+	//}
+}
