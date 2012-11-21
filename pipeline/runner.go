@@ -118,17 +118,6 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	}
 }
 
-func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
-	config = new(PipelineConfig)
-	config.PoolSize = poolSize
-	config.Inputs = make(map[string]Input)
-	config.FilterChains = make(map[string]FilterChain)
-	config.DefaultFilterChain = "default"
-	config.Lookup = new(MessageLookup)
-	config.Lookup.MessageType = make(map[string][]string)
-	return config
-}
-
 func (self *PipelineConfig) Run() {
 	log.Println("Starting hekad...")
 
