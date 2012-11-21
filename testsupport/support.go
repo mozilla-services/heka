@@ -11,7 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package pipeline
+package testsupport
 
 import (
 	"github.com/rafrombrc/gospec/src/gospec"
