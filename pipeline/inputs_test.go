@@ -37,6 +37,7 @@ func InputRunnerSpec(c gs.Context) {
 		pipelineCalls := 0
 		mockInput := NewMockInput(ctrl)
 		inputRunner := InputRunner{"mock", mockInput, &second}
+		defer notify.StopAll(STOP)
 
 		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
@@ -63,9 +64,8 @@ func InputRunnerSpec(c gs.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer func() {
-				notify.PostTimeout(STOP, nil, &ts.PostTimeout)
-			}()
+			defer notify.Post(STOP, nil)
+
 			var allUsed bool
 			select {
 			case allUsed = <-done:
@@ -89,9 +89,7 @@ func InputRunnerSpec(c gs.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer func() {
-				notify.PostTimeout(STOP, nil, &ts.PostTimeout)
-			}()
+			defer notify.Post(STOP, nil)
 
 			var allUsed bool
 			select {

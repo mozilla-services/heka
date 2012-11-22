@@ -33,6 +33,7 @@ func OutputsSpec(c gs.Context) {
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
+		defer notify.StopAll(STOP)
 		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
 		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
 			tmpFileName)
