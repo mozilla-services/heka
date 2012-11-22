@@ -16,7 +16,7 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bitly/go-notify"
+	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
 	"runtime"

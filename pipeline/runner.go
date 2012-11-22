@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"github.com/bitly/go-notify"
+	"github.com/rafrombrc/go-notify"
 	. "heka/message"
 	"log"
 	"os"

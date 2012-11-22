@@ -17,7 +17,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"fmt"
-	"github.com/bitly/go-notify"
+	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	ts "heka/testsupport"
 	"io/ioutil"
