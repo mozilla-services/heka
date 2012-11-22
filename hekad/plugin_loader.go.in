@@ -15,22 +15,21 @@ package main
 
 /*
 This file can be used to load plugins that have been defined in other
-packages. Simply rename `plugin_loader.go.in` to `plugin_loader.go`,
-import the packages that define the plugins, and change the
-`LoadExternalPlugins` method so your plugins are added to `AvailablePlugins`
-correctly.
+packages. Simply rename `plugin_loader.go.in` to `plugin_loader.go`, import
+the packages that define the plugins, and modify the `init` function so your
+plugins are added to `AvailablePlugins` correctly.
 
-Commented out below you'll find some example code that demonstrates how we use
-this in capability within Mozilla Services.
+The sample code below demonstrates how we use this capability within Mozilla
+Services.
 */
 
 import (
-	//mozsvc "github.com/mozilla-services/heka-mozsvc-plugins"
+	mozsvc "github.com/mozilla-services/heka-mozsvc-plugins"
 	"heka/pipeline"
 )
 
-func (self *PluginLoader) LoadExternalPlugins() {
-	//pipeline.AvailablePlugins["CefOutput"] = func() pipeline.Plugin {
-	//	return new(mozsvc.CefOutput)
-	//}
+func init() {
+	pipeline.AvailablePlugins["CefOutput"] = func() pipeline.Plugin {
+		return new(mozsvc.CefOutput)
+	}
 }
