@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/rafrombrc/go-notify"
 	. "heka/message"
 	"log"
 	"net"
@@ -38,36 +39,45 @@ type Input interface {
 
 // InputRunner
 
+// An InputRunner wraps each Input plugin and starts a goroutine for waiting
+// for message data to come in via that input. It also listens for STOP events
+// to cleanly exit the goroutine.
 type InputRunner struct {
 	name    string
 	input   Input
 	timeout *time.Duration
-	running bool
 }
 
 func (self *InputRunner) Start(pipeline func(*PipelinePack),
 	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
-	self.running = true
+
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
 
 	go func() {
 		var err error
 		var pack *PipelinePack
 		needOne := true
-		for self.running {
+	runnerLoop:
+		for {
 			if needOne {
 				runtime.Gosched()
 				select {
 				case pack = <-recycleChan:
-				case <-time.After(*self.timeout):
-					continue
+				case <-stopChan:
+					break runnerLoop
 				}
-
 			}
 
 			err = self.input.Read(pack, self.timeout)
 			if err != nil {
-				needOne = false
-				continue
+				select {
+				case <-stopChan:
+					break runnerLoop
+				default:
+					needOne = false
+					continue
+				}
 			}
 			go pipeline(pack)
 			needOne = true
@@ -75,10 +85,6 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 		log.Println("Input stopped: ", self.name)
 		wg.Done()
 	}()
-}
-
-func (self *InputRunner) Stop() {
-	self.running = false
 }
 
 // UdpInput

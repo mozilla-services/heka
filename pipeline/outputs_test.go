@@ -46,7 +46,7 @@ func OutputsSpec(c gs.Context) {
 
 		closeAndStop := func(tmpFile *os.File) {
 			tmpFile.Close()
-			notify.Post(STOP, nil)
+			notify.PostTimeout(STOP, nil, &ts.PostTimeout)
 		}
 
 		// The tests are littered w/ scheduler yields (i.e. runtime.Gosched()

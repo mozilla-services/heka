@@ -17,6 +17,11 @@ import (
 	"github.com/rafrombrc/gospec/src/gospec"
 	"log"
 	"strings"
+	"time"
+)
+
+var (
+	PostTimeout = time.Duration(10 * time.Millisecond)
 )
 
 type SimpleT struct{}

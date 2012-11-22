@@ -145,7 +145,7 @@ func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
 // Wait for messages to come through the data channel and write them out to
 // the file
 func (self *FileWriter) writeLoop() {
-	stopChan := make(chan interface{}, 5)
+	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 writeloop:
 	for {
