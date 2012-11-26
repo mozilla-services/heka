@@ -17,7 +17,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"fmt"
-	"github.com/bitly/go-notify"
+	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	ts "heka/testsupport"
 	"io/ioutil"
@@ -33,6 +33,7 @@ func OutputsSpec(c gs.Context) {
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
+		defer notify.StopAll(STOP)
 		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
 		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
 			tmpFileName)
@@ -46,7 +47,7 @@ func OutputsSpec(c gs.Context) {
 
 		closeAndStop := func(tmpFile *os.File) {
 			tmpFile.Close()
-			notify.Post(STOP, nil)
+			notify.PostTimeout(STOP, nil, &ts.PostTimeout)
 		}
 
 		// The tests are littered w/ scheduler yields (i.e. runtime.Gosched()

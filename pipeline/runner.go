@@ -14,7 +14,7 @@
 package pipeline
 
 import (
-	"github.com/bitly/go-notify"
+	"github.com/rafrombrc/go-notify"
 	. "heka/message"
 	"log"
 	"os"
@@ -185,7 +185,7 @@ func (self *PipelineConfig) Run() {
 	inputRunners := make(map[string]*InputRunner)
 
 	for name, input := range self.Inputs {
-		runner = &InputRunner{name, input, &timeout, false}
+		runner = &InputRunner{name, input, &timeout}
 		inputRunners[name] = runner
 		runner.Start(pipeline, recycleChan, &wg)
 		wg.Add(1)
@@ -205,10 +205,6 @@ sigListener:
 				log.Println("Error sending RELOAD event:", err.Error())
 			}
 		case syscall.SIGINT:
-			for name, runner := range inputRunners {
-				log.Println("Stopping input: ", name)
-				runner.Stop()
-			}
 			err := notify.Post(STOP, nil)
 			if err != nil {
 				log.Println("Error sending STOP event: ", err.Error())
