@@ -17,6 +17,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"errors"
+	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	ts "heka/testsupport"
 	"net"
@@ -35,7 +36,8 @@ func InputRunnerSpec(c gs.Context) {
 		poolSize := 5
 		pipelineCalls := 0
 		mockInput := NewMockInput(ctrl)
-		inputRunner := InputRunner{"mock", mockInput, &second, false}
+		inputRunner := InputRunner{"mock", mockInput, &second}
+		defer notify.StopAll(STOP)
 
 		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
@@ -62,7 +64,7 @@ func InputRunnerSpec(c gs.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer inputRunner.Stop()
+			defer notify.Post(STOP, nil)
 
 			var allUsed bool
 			select {
@@ -87,7 +89,7 @@ func InputRunnerSpec(c gs.Context) {
 
 			inputRunner.Start(mockPipeline, recycleChan, &wg)
 			wg.Add(1)
-			defer inputRunner.Stop()
+			defer notify.Post(STOP, nil)
 
 			var allUsed bool
 			select {
