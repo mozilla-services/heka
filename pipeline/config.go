@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	. "heka/message"
+	"log"
 	"os"
 )
 
@@ -198,7 +199,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 
 	self.DecoderCreator = func() (decoders map[string]Decoder) {
 		decoders = make(map[string]Decoder)
-		conf, _ := loadSection(configFile.Decoders)
+		conf, err := loadSection(configFile.Decoders)
+		if err != nil {
+			log.Println("Error loading decoder section", err)
+		}
 		for name, plugin := range conf {
 			decoders[name] = plugin.(Decoder)
 		}
@@ -207,7 +211,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 
 	self.FilterCreator = func() (filters map[string]Filter) {
 		filters = make(map[string]Filter)
-		conf, _ := loadSection(configFile.Filters)
+		conf, err := loadSection(configFile.Filters)
+		if err != nil {
+			log.Println("Error loading filter section: ", err)
+		}
 		for name, plugin := range conf {
 			filters[name] = plugin.(Filter)
 		}
@@ -216,7 +223,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 
 	self.OutputCreator = func() (outputs map[string]Output) {
 		outputs = make(map[string]Output)
-		conf, _ := loadSection(configFile.Outputs)
+		conf, err := loadSection(configFile.Outputs)
+		if err != nil {
+			log.Println("Error loading output section: ", err)
+		}
 		for name, plugin := range conf {
 			outputs[name] = plugin.(Output)
 		}
