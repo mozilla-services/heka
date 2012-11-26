@@ -169,6 +169,7 @@ func (self *PipelineConfig) Run() {
 			output, ok := pack.Outputs[outputName]
 			if !ok {
 				log.Printf("Output doesn't exist: %s\n", outputName)
+				continue
 			}
 			output.Deliver(pack)
 		}
