@@ -34,10 +34,13 @@ var AvailablePlugins = map[string]func() Plugin{
 
 type PluginConfig map[string]interface{}
 
+// Indicates a plugin has a specific-to-itself config struct that should be
+// passed in to its Init method.
 type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
+// Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	Inputs             map[string]Input
 	DefaultDecoder     string
@@ -48,6 +51,18 @@ type PipelineConfig struct {
 	DefaultFilterChain string
 	PoolSize           int
 	Lookup             *MessageLookup
+}
+
+// Creates and initializes a PipelineConfig object.
+func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
+	config = new(PipelineConfig)
+	config.PoolSize = poolSize
+	config.Inputs = make(map[string]Input)
+	config.FilterChains = make(map[string]FilterChain)
+	config.DefaultFilterChain = "default"
+	config.Lookup = new(MessageLookup)
+	config.Lookup.MessageType = make(map[string][]string)
+	return config
 }
 
 // The JSON config file spec

@@ -27,10 +27,11 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	pipe := pipeline.NewPipelineConfig(*poolSize)
-	err := pipe.LoadFromConfigFile(*configFile)
+	// Set up and load the pipeline configuration and start the daemon.
+	pipeconf := pipeline.NewPipelineConfig(*poolSize)
+	err := pipeconf.LoadFromConfigFile(*configFile)
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
-	pipe.Run()
+	pipeconf.Run()
 }
