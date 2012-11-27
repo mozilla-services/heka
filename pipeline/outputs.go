@@ -147,12 +147,13 @@ func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
 func (self *FileWriter) writeLoop() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
+	var outputBytes []byte
 writeloop:
 	for {
 		// Yielding before a channel select improves scheduler performance
 		runtime.Gosched()
 		select {
-		case outputBytes := <-self.DataChan:
+		case outputBytes = <-self.DataChan:
 			n, err := self.file.Write(outputBytes)
 			if err != nil {
 				log.Printf("Error writing to %s: %s", self.path, err.Error())
