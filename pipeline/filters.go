@@ -88,10 +88,7 @@ func SetupStatConfig(config interface{}) {
 }
 
 func (self *StatRollupFilter) ConfigStruct() interface{} {
-	conf := new(StatRollupFilterConfig)
-	conf.FlushInterval = 10
-	conf.PercentThreshold = 90
-	return conf
+	return &StatRollupFilterConfig{FlushInterval: 10, PercentThreshold: 90}
 }
 
 func (self *StatRollupFilter) Init(config interface{}) (err error) {
