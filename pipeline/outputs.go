@@ -125,9 +125,10 @@ func counterLoop() {
 
 // FileWriters actually do the work of writing out to the filesystem.
 type FileWriter struct {
-	DataChan chan []byte
-	path     string
-	file     *os.File
+	DataChan    chan []byte
+	RecycleChan chan []byte
+	path        string
+	file        *os.File
 }
 
 // Create the data channel and the open the file for writing
@@ -136,8 +137,15 @@ func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	dataChan := make(chan []byte, 1000)
-	self := &FileWriter{dataChan, path, file}
+	dataChan := make(chan []byte, 2*PoolSize)
+	recycleChan := make(chan []byte, 2*PoolSize)
+
+	// Stuff the recycle channel with 2 * poolsize
+	for i := 0; i < 2*PoolSize; i++ {
+		recycleChan <- make([]byte, 0, 2000)
+	}
+
+	self := &FileWriter{dataChan, recycleChan, path, file}
 	go self.writeLoop()
 	return self, nil
 }
@@ -160,6 +168,8 @@ writeloop:
 			} else if n != len(outputBytes) {
 				log.Printf("Truncated output for %s", self.path)
 			}
+			outputBytes = outputBytes[:cap(outputBytes)]
+			self.RecycleChan <- outputBytes
 		case <-time.After(time.Second):
 			self.file.Sync()
 		case <-stopChan:
@@ -185,11 +195,11 @@ const NEWLINE byte = 10
 // FileOutput formats the output and then hands it off to the dataChan so the
 // FileWriter can do its thing.
 type FileOutput struct {
-	dataChan  chan []byte
-	path      string
-	format    string
-	prefix_ts bool
-	outData   []byte
+	dataChan    chan []byte
+	recycleChan chan []byte
+	path        string
+	format      string
+	prefix_ts   bool
 }
 
 type FileOutputConfig struct {
@@ -225,20 +235,19 @@ func (self *FileOutput) Init(config interface{}) error {
 		FileWriters[conf.Path] = writer
 	}
 	self.dataChan = writer.DataChan
+	self.recycleChan = writer.RecycleChan
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
+
 	return nil
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	// Alloc a max capacity that should be large enough for the JSON
-	// structure with no further malloc's by doubling the raw message
-	// payload
-	self.outData = make([]byte, 0, 50+2*len(pack.Message.Payload))
+	outputBytes := <-self.recycleChan
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
-		self.outData = append(self.outData, ts...)
+		outputBytes = append(outputBytes, ts...)
 	}
 
 	switch self.format {
@@ -248,10 +257,10 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 			log.Printf("Error converting message to JSON for %s", self.path)
 			return
 		}
-		self.outData = append(self.outData, jsonMessage...)
+		outputBytes = append(outputBytes, jsonMessage...)
 	case "text":
-		self.outData = append(self.outData, pack.Message.Payload...)
+		outputBytes = append(outputBytes, pack.Message.Payload...)
 	}
-	self.outData = append(self.outData, NEWLINE)
-	self.dataChan <- self.outData
+	outputBytes = append(outputBytes, NEWLINE)
+	self.dataChan <- outputBytes
 }
