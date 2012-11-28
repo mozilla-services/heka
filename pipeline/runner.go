@@ -30,6 +30,8 @@ const (
 	STOP   = "stop"
 )
 
+var PoolSize int
+
 type Plugin interface {
 	Init(config interface{}) error
 }

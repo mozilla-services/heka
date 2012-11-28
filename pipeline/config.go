@@ -56,6 +56,7 @@ type PipelineConfig struct {
 
 // Creates and initializes a PipelineConfig object.
 func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
+	PoolSize = poolSize
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
 	config.Inputs = make(map[string]Input)
