@@ -232,21 +232,26 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
+	// Alloc a max capacity that should be large enough for the JSON
+	// structure with no further malloc's by doubling the raw message
+	// payload
+	self.outData = make([]byte, 0, 50+2*len(pack.Message.Payload))
+	if self.prefix_ts {
+		ts := time.Now().Format(TSFORMAT)
+		self.outData = append(self.outData, ts...)
+	}
+
 	switch self.format {
 	case "json":
-		var err error
-		self.outData, err = json.Marshal(pack.Message)
+		jsonMessage, err := json.Marshal(pack.Message)
 		if err != nil {
 			log.Printf("Error converting message to JSON for %s", self.path)
 			return
 		}
+		self.outData = append(self.outData, jsonMessage...)
 	case "text":
-		self.outData = []byte(pack.Message.Payload)
+		self.outData = append(self.outData, pack.Message.Payload...)
 	}
 	self.outData = append(self.outData, NEWLINE)
-	if self.prefix_ts {
-		ts := time.Now().Format(TSFORMAT)
-		self.outData = append([]byte(ts), self.outData...)
-	}
 	self.dataChan <- self.outData
 }
