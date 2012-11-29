@@ -197,6 +197,7 @@ const NEWLINE byte = 10
 type FileOutput struct {
 	dataChan    chan []byte
 	recycleChan chan []byte
+	outputBytes []byte
 	path        string
 	format      string
 	prefix_ts   bool
@@ -244,10 +245,10 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	outputBytes := <-self.recycleChan
+	self.outputBytes = <-self.recycleChan
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
-		outputBytes = append(outputBytes, ts...)
+		self.outputBytes = append(self.outputBytes, ts...)
 	}
 
 	switch self.format {
@@ -257,10 +258,10 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 			log.Printf("Error converting message to JSON for %s", self.path)
 			return
 		}
-		outputBytes = append(outputBytes, jsonMessage...)
+		self.outputBytes = append(self.outputBytes, jsonMessage...)
 	case "text":
-		outputBytes = append(outputBytes, pack.Message.Payload...)
+		self.outputBytes = append(self.outputBytes, pack.Message.Payload...)
 	}
-	outputBytes = append(outputBytes, NEWLINE)
-	self.dataChan <- outputBytes
+	self.outputBytes = append(self.outputBytes, NEWLINE)
+	self.dataChan <- self.outputBytes
 }
