@@ -29,18 +29,6 @@ type Filter interface {
 	FilterMsg(pipelinePack *PipelinePack)
 }
 
-// LogFilter
-type LogFilter struct {
-}
-
-func (self *LogFilter) Init(config interface{}) error {
-	return nil
-}
-
-func (self *LogFilter) FilterMsg(pipelinePack *PipelinePack) {
-	log.Printf("Message: %+v\n", pipelinePack.Message)
-}
-
 // StatRollupFilter
 type Packet struct {
 	Bucket   string

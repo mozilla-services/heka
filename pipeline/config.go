@@ -27,7 +27,6 @@ var AvailablePlugins = map[string]func() Plugin{
 	"JsonDecoder":           func() Plugin { return new(JsonDecoder) },
 	"MsgPackDecoder":        func() Plugin { return new(MsgPackDecoder) },
 	"StatRollupFilter":      func() Plugin { return new(StatRollupFilter) },
-	"LogFilter":             func() Plugin { return new(LogFilter) },
 	"LogOutput":             func() Plugin { return new(LogOutput) },
 	"CounterOutput":         func() Plugin { return new(CounterOutput) },
 	"FileOutput":            func() Plugin { return new(FileOutput) },
