@@ -273,7 +273,7 @@ func (self *FileOutput) Init(config interface{}) error {
 	if !ok {
 		fileOutputWriter, err := NewFileOutputWriter(conf.Path, conf.Perm)
 		if err != nil {
-			return fmt.Errorf("Error creating FileOutputWriter: %s\n", err)
+			return fmt.Errorf("Error creating FileOutputWriter: %s", err)
 		}
 		writeRunner = NewWriteRunner(fileOutputWriter)
 		FileWriteRunners[conf.Path] = writeRunner
