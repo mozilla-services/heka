@@ -63,6 +63,11 @@ func LoadFromConfigSpec(c gs.Context) {
 		filterName, ok := pipeConfig.Lookup.MessageType["counter"]
 		c.Expect(ok, gs.Equals, true)
 		c.Expect(filterName[0], gs.Equals, "sample")
+
+		// and the second message lookup is set properly
+		filterName, ok = pipeConfig.Lookup.MessageType["gauge"]
+		c.Expect(ok, gs.Equals, true)
+		c.Expect(filterName[0], gs.Equals, "sample")
 	})
 
 	c.Specify("Loading a bad config file explodes", func() {
