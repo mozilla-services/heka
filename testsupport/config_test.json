@@ -20,7 +20,7 @@
             "outputs": ["CounterOutput"]
         },
         "sample": {
-            "type": "counter",
+            "message_type": ["counter", "gauge"],
             "filters": ["StatRollupFilter"],
             "outputs": ["CounterOutput"]
         }

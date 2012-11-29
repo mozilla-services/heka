@@ -289,13 +289,24 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		}
 
 		// Add the message type to the lookup table if present
-		if _, ok := section["type"]; ok {
-			msgType := section["type"].(string)
+		if _, ok := section["message_type"]; ok {
+			messageTypeList := section["message_type"].([]interface{})
 			msgLookup := self.Lookup
-			if _, ok := msgLookup.MessageType[msgType]; !ok {
-				msgLookup.MessageType[msgType] = make([]string, 0, 10)
+			var msgType string
+			for _, rawType := range messageTypeList {
+				// Create the string slice for this msgType if it
+				// doesn't exist already.
+
+				// TODO: Later on we'll support additional ways to
+				// restrict the chain used based on more than just the
+				// message type which is why we store a slice of
+				// strings here at the moment
+				msgType = rawType.(string)
+				if _, ok := msgLookup.MessageType[msgType]; !ok {
+					msgLookup.MessageType[msgType] = make([]string, 0, 10)
+				}
+				msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
 			}
-			msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
 		}
 		self.FilterChains[name] = chain
 	}
