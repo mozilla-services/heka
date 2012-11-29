@@ -20,7 +20,7 @@
             "outputs": ["CounterOutput"]
         },
         "sample": {
-            "type": "counter",
+            "message_type": ["counter"],
             "filters": ["StatRollupFilter"],
             "outputs": ["CounterOutput"]
         }
