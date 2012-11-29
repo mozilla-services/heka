@@ -202,6 +202,7 @@ const NEWLINE byte = 10
 type FileOutput struct {
 	writer      *FileWriter
 	outputBytes *[]byte
+	byteNum     int
 	path        string
 	format      string
 	prefix_ts   bool
@@ -247,8 +248,8 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	byteNum := <-self.writer.RecycleChan
-	self.outputBytes = &self.writer.ByteArena[byteNum]
+	self.byteNum = <-self.writer.RecycleChan
+	self.outputBytes = &self.writer.ByteArena[self.byteNum]
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
 		*self.outputBytes = append(*self.outputBytes, ts...)
@@ -266,5 +267,5 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 		*self.outputBytes = append(*self.outputBytes, pack.Message.Payload...)
 	}
 	*self.outputBytes = append(*self.outputBytes, NEWLINE)
-	self.writer.DataChan <- byteNum
+	self.writer.DataChan <- self.byteNum
 }
