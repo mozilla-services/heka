@@ -123,64 +123,107 @@ func counterLoop() {
 	}
 }
 
-// FileWriters actually do the work of writing out to the filesystem.
-type FileWriter struct {
-	DataChan    chan []byte
-	RecycleChan chan []byte
-	path        string
-	file        *os.File
+type OutputWriter interface {
+	MakeOutputData() interface{}
+	Write(outputData interface{}) error
+	Stop()
 }
 
-// Create the data channel and the open the file for writing
-func NewFileWriter(path string, perm os.FileMode) (*FileWriter, error) {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
-	if err != nil {
-		return nil, err
-	}
-	dataChan := make(chan []byte, 2*PoolSize)
-	recycleChan := make(chan []byte, 2*PoolSize)
+// Wrapper object that launches initializes communication channels and starts
+// a goroutine for cases where a single output mechanism needs to be shared by
+// all of the separate output plugin instances.
+type WriteRunner struct {
+	DataChan     chan interface{}
+	RecycleChan  chan interface{}
+	outputWriter OutputWriter
+}
 
-	// Stuff the recycle channel with 2 * poolsize
+func NewWriteRunner(outputWriter OutputWriter) *WriteRunner {
+	dataChan := make(chan interface{}, 2*PoolSize)
+	recycleChan := make(chan interface{}, 2*PoolSize)
+
+	// Stuff the recycle channel w/ usable output data objects
 	for i := 0; i < 2*PoolSize; i++ {
-		recycleChan <- make([]byte, 0, 2000)
+		recycleChan <- outputWriter.MakeOutputData()
 	}
-
-	self := &FileWriter{dataChan, recycleChan, path, file}
+	self := &WriteRunner{dataChan, recycleChan, outputWriter}
 	go self.writeLoop()
-	return self, nil
+	return self
 }
 
-// Wait for messages to come through the data channel and write them out to
-// the file
-func (self *FileWriter) writeLoop() {
+func (self *WriteRunner) writeLoop() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
-	var outputBytes []byte
-writeloop:
+	var outputData interface{}
+	var err error
+writeLoop:
 	for {
 		// Yielding before a channel select improves scheduler performance
 		runtime.Gosched()
 		select {
-		case outputBytes = <-self.DataChan:
-			n, err := self.file.Write(outputBytes)
+		case outputData = <-self.DataChan:
+			err = self.outputWriter.Write(outputData)
 			if err != nil {
-				log.Printf("Error writing to %s: %s", self.path, err.Error())
-			} else if n != len(outputBytes) {
-				log.Printf("Truncated output for %s", self.path)
+				log.Println("OutputWriter error: ", err)
 			}
-			outputBytes = outputBytes[:cap(outputBytes)]
-			self.RecycleChan <- outputBytes
-		case <-time.After(time.Second):
-			self.file.Sync()
+			self.RecycleChan <- outputData
 		case <-stopChan:
-			self.file.Close()
-			break writeloop
+			self.outputWriter.Stop()
+			break writeLoop
 		}
 	}
 }
 
+type FileOutputWriter struct {
+	path        string
+	file        *os.File
+	outputBytes []byte
+	err         error
+	n           int
+	ticker      *time.Ticker
+}
+
+func NewFileOutputWriter(path string, perm os.FileMode) (*FileOutputWriter,
+	error) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
+	if err != nil {
+		return nil, err
+	}
+	self := &FileOutputWriter{path: path, file: file}
+	go self.fileSyncer()
+	return self, nil
+}
+
+func (self *FileOutputWriter) fileSyncer() {
+	self.ticker = time.NewTicker(time.Second)
+	for _ = range self.ticker.C {
+		self.file.Sync()
+	}
+}
+
+func (self *FileOutputWriter) MakeOutputData() interface{} {
+	return make([]byte, 0, 2000)
+}
+
+func (self *FileOutputWriter) Write(outputData interface{}) error {
+	self.outputBytes = outputData.([]byte)
+	self.n, self.err = self.file.Write(self.outputBytes)
+	if self.err != nil {
+		return fmt.Errorf("FileOutput error writing to %s: %s", self.path,
+			self.err)
+	} else if self.n != len(self.outputBytes) {
+		return fmt.Errorf("FileOutput truncated output for %s", self.path)
+	}
+	return nil
+}
+
+func (self *FileOutputWriter) Stop() {
+	self.ticker.Stop()
+	self.file.Close()
+}
+
 var (
-	FileWriters = make(map[string]*FileWriter)
+	FileWriteRunners = make(map[string]*WriteRunner)
 
 	FILEFORMATS = map[string]bool{
 		"json": true,
@@ -195,8 +238,8 @@ const NEWLINE byte = 10
 // FileOutput formats the output and then hands it off to the dataChan so the
 // FileWriter can do its thing.
 type FileOutput struct {
-	dataChan    chan []byte
-	recycleChan chan []byte
+	dataChan    chan interface{}
+	recycleChan chan interface{}
 	outputBytes []byte
 	path        string
 	format      string
@@ -214,29 +257,29 @@ func (self *FileOutput) ConfigStruct() interface{} {
 	return &FileOutputConfig{Format: "text", Perm: 0666}
 }
 
-// Initialize a FileWriter, but only once.
+// Initialize a WriteRunner, but only once.
 func (self *FileOutput) Init(config interface{}) error {
 	conf := config.(*FileOutputConfig)
 	_, ok := FILEFORMATS[conf.Format]
 	if !ok {
 		return fmt.Errorf("Unsupported FileOutput format: %s", conf.Format)
 	}
-	// Using a map to guarantee there's only one FileWriter is only safe b/c
+	// Using a map to guarantee there's only one WriteRunner is only safe b/c
 	// the PipelinePacks (and therefore the FileOutputs) are initialized in
 	// series. If this ever changes such that outputs might be created in
 	// different threads then this will require a lock to make sure we don't
-	// end up w/ two FileWriters for the same file.
-	writer, ok := FileWriters[conf.Path]
+	// end up w/ two WriteRunners for the same file.
+	writeRunner, ok := FileWriteRunners[conf.Path]
 	if !ok {
-		var err error
-		writer, err = NewFileWriter(conf.Path, conf.Perm)
+		fileOutputWriter, err := NewFileOutputWriter(conf.Path, conf.Perm)
 		if err != nil {
-			return fmt.Errorf("Error creating FileWriter: %s\n", err.Error())
+			return fmt.Errorf("Error creating FileOutputWriter: %s\n", err)
 		}
-		FileWriters[conf.Path] = writer
+		writeRunner = NewWriteRunner(fileOutputWriter)
+		FileWriteRunners[conf.Path] = writeRunner
 	}
-	self.dataChan = writer.DataChan
-	self.recycleChan = writer.RecycleChan
+	self.dataChan = writeRunner.DataChan
+	self.recycleChan = writeRunner.RecycleChan
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
@@ -245,7 +288,7 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	self.outputBytes = <-self.recycleChan
+	self.outputBytes = (<-self.recycleChan).([]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
 		self.outputBytes = append(self.outputBytes, ts...)
