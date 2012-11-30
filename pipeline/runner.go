@@ -149,11 +149,12 @@ func (self *PipelineConfig) Run() {
 				log.Printf("Decoder doesn't exist: %s\n", decoderName)
 				return
 			}
-			err := decoder.Decode(pack)
-			if err != nil {
-				log.Fatalf("Error decoding message (%s): %s", decoderName,
-					err.Error())
+			if err := decoder.Decode(pack); err != nil {
+				log.Printf("Error decoding message (%s): %s", decoderName,
+					err)
 				return
+			} else {
+				pack.Decoded = true
 			}
 		}
 

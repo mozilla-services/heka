@@ -54,7 +54,6 @@ func DecodersSpec(c gospec.Context) {
 			pipelinePack.MsgBytes = []byte(badJson)
 			err := jsonDecoder.Decode(pipelinePack)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
 		})
 	})
@@ -73,7 +72,6 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Decode(pack)
 			c.Expect(err, gs.IsNil)
 			c.Expect(pack.Message, gs.Equals, msg)
-			c.Expect(pack.Decoded, gs.IsTrue)
 		})
 
 		c.Specify("returns an error for bunk encoding", func() {
@@ -81,7 +79,6 @@ func DecodersSpec(c gospec.Context) {
 			pack.MsgBytes = bunk
 			err := decoder.Decode(pack)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(pack.Decoded, gs.IsFalse)
 		})
 	})
 }

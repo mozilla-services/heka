@@ -53,8 +53,6 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg.Env_version = msgJson.Get("env_version").MustString()
 	msg.Pid, _ = msgJson.Get("metlog_pid").Int()
 	msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
-
-	pipelinePack.Decoded = true
 	return nil
 }
 
@@ -75,6 +73,5 @@ func (self *MsgPackDecoder) Decode(pipelinePack *PipelinePack) error {
 	if err := self.Decoder.Decode(pipelinePack.Message); err != nil {
 		return err
 	}
-	pipelinePack.Decoded = true
 	return nil
 }
