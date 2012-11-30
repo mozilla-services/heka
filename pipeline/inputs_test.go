@@ -111,12 +111,13 @@ func InputsSpec(c gs.Context) {
 	pipelinePack := getTestPipelinePack()
 
 	// Specify localhost, but we're not really going to use the network
-	addrStr := "localhost:5565"
-	resolvedAddrStr := "127.0.0.1:5565"
+	addrStr := "localhost:55565"
+	resolvedAddrStr := "127.0.0.1:55565"
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		udpInput.Init(&UdpInputConfig{addrStr})
+		err := udpInput.Init(&UdpInputConfig{addrStr})
+		c.Assume(err, gs.IsNil)
 		realListener := (udpInput.Listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
 		realListener.Close()
