@@ -45,6 +45,7 @@ type PipelinePack struct {
 	Filters     map[string]Filter
 	Outputs     map[string]Output
 	Decoded     bool
+	Blocked     bool
 	FilterChain string
 	ChainCount  int
 	OutputNames map[string]bool
@@ -65,6 +66,7 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 		Decoder:     config.DefaultDecoder,
 		Decoders:    decoders,
 		Decoded:     false,
+		Blocked:     false,
 		Filters:     filters,
 		FilterChain: config.DefaultFilterChain,
 		Outputs:     outputs,
@@ -94,6 +96,17 @@ func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
 	}
 }
 
+func (self *PipelinePack) Zero() {
+	self.MsgBytes = self.MsgBytes[:cap(self.MsgBytes)]
+	self.Decoder = self.Config.DefaultDecoder
+	self.Decoded = false
+	self.Blocked = false
+	self.FilterChain = self.Config.DefaultFilterChain
+	for outputName, _ := range self.OutputNames {
+		delete(self.OutputNames, outputName)
+	}
+}
+
 func filterProcessor(pipelinePack *PipelinePack) {
 	pipelinePack.OutputNames = map[string]bool{}
 	config := pipelinePack.Config
@@ -114,7 +127,7 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	for _, filterName := range filterChain.Filters {
 		filter := pipelinePack.Filters[filterName]
 		filter.FilterMsg(pipelinePack)
-		if pipelinePack.Message == nil {
+		if pipelinePack.Blocked {
 			return
 		}
 	}
@@ -132,12 +145,7 @@ func (self *PipelineConfig) Run() {
 
 		// When finished, reset and recycle the allocated PipelinePack
 		defer func() {
-			pack.MsgBytes = pack.MsgBytes[:cap(pack.MsgBytes)]
-			pack.Decoder = self.DefaultDecoder
-			pack.Decoded = false
-			pack.FilterChain = self.DefaultFilterChain
-			outputs := make(map[string]bool)
-			pack.OutputNames = outputs
+			pack.Zero()
 			recycleChan <- pack
 		}()
 
@@ -159,7 +167,7 @@ func (self *PipelineConfig) Run() {
 
 		// Run message through the appropriate filters
 		filterProcessor(pack)
-		if pack.Message == nil {
+		if pack.Blocked {
 			return
 		}
 
