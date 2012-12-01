@@ -109,7 +109,7 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	}
 
 	defer func() {
-		pipeline.Message = nil
+		pipeline.Blocked = true
 	}()
 
 	packet.Bucket = msg.Fields["name"].(string)
