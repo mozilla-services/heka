@@ -168,43 +168,44 @@ func (self *StatRollupFilterGlobal) Monitor() {
 }
 
 func (self *StatRollupFilterGlobal) Flush() {
+	var value int64
 	numStats := 0
 	now := time.Now()
 	buffer := bytes.NewBufferString("")
 	for s, c := range self.counters {
-		value := int64(c) / ((self.flushInterval * int64(time.Second)) / 1e3)
+		value = int64(c) / ((self.flushInterval * int64(time.Second)) / 1e3)
 		fmt.Fprintf(buffer, "stats.%s %d %d\n", s, value, now)
 		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, now)
 		self.counters[s] = 0
 		numStats++
 	}
 	for i, g := range self.gauges {
-		value := int64(g)
+		value = int64(g)
 		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, value, now)
 		numStats++
 	}
+	var count, min, max, mean, maxAtThreshold, thresholdIndex, numInThreshold, sum, i int
+	var values []int
 	for u, t := range self.timers {
 		if len(t) > 0 {
 			sort.Ints(t)
-			min := t[0]
-			max := t[len(t)-1]
-			mean := min
-			maxAtThreshold := max
-			count := len(t)
+			min = t[0]
+			max = t[len(t)-1]
+			mean = min
+			maxAtThreshold = max
+			count = len(t)
 			if len(t) > 1 {
-				var thresholdIndex int
 				thresholdIndex = ((100 - self.percentThreshold) / 100) * count
-				numInThreshold := count - thresholdIndex
-				values := t[0:numInThreshold]
+				numInThreshold = count - thresholdIndex
+				values = t[0:numInThreshold]
 
-				sum := 0
-				for i := 0; i < numInThreshold; i++ {
+				sum = 0
+				for i = 0; i < numInThreshold; i++ {
 					sum += values[i]
 				}
 				mean = sum / numInThreshold
 			}
-			var z []int
-			self.timers[u] = z
+			self.timers[u] = t[:0]
 
 			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, mean, now)
 			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, max, now)
