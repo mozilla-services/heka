@@ -164,15 +164,6 @@ type messageHolder struct {
 	ChainCount int
 }
 
-func mgiSetup() {
-	MGIGlobal.MessageChan = make(chan *messageHolder, PoolSize/2)
-	MGIGlobal.RecycleChan = make(chan *messageHolder, PoolSize/2)
-	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 0}
-		MGIGlobal.RecycleChan <- &msg
-	}
-}
-
 // Retrieve a message for use by the MessageGeneratorInput
 // This is actually a messageHolder object that has a message and
 // chainCount. The chainCount should remain untouched, and all the
@@ -191,7 +182,14 @@ func InjectMessage(msg *messageHolder) {
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
-	MGIGlobal.Once.Do(mgiSetup)
+	MGIGlobal.Once.Do(func() {
+		MGIGlobal.MessageChan = make(chan *messageHolder, PoolSize/2)
+		MGIGlobal.RecycleChan = make(chan *messageHolder, PoolSize/2)
+		for i := 0; i < PoolSize/2; i++ {
+			msg := messageHolder{new(Message), 0}
+			MGIGlobal.RecycleChan <- &msg
+		}
+	})
 	self.messageChan = MGIGlobal.MessageChan
 	self.recycleChan = MGIGlobal.RecycleChan
 	return nil
