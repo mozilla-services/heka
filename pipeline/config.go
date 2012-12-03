@@ -195,6 +195,11 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		for name, plugin := range inputs {
 			self.Inputs[name] = plugin.(Input)
 		}
+		// Setup our message generator input
+		noConfig := new(PluginConfig)
+		mgi := new(MessageGeneratorInput)
+		mgi.Init(noConfig)
+		self.Inputs["MessageGeneratorInput"] = mgi
 	}
 
 	self.DecoderCreator = func() (decoders map[string]Decoder) {
