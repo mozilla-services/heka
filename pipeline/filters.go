@@ -16,7 +16,6 @@ package pipeline
 import (
 	"bytes"
 	"fmt"
-	. "heka/message"
 	"log"
 	"sort"
 	"strconv"
@@ -85,16 +84,6 @@ func (self *StatRollupFilter) Init(config interface{}) (err error) {
 }
 
 func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
-	// If there's an message generator input, configure it. This has to
-	// be setup during run-time as the inputs aren't setup or during
-	// filter initialization. Filtering will *not* occur if no message
-	// generator is found
-	if statRollupGlobal.messageGenerator == nil {
-		ok := statRollupGlobal.SetupMessageGenerator(pipeline.Config)
-		if !ok {
-			return
-		}
-	}
 	var packet Packet
 	msg := pipeline.Message
 	switch msg.Type {
@@ -121,19 +110,6 @@ func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
 	packet.Value = int(value)
 	packet.Sampling = msg.Fields["rate"].(float32)
 	statRollupGlobal.StatsIn <- &packet
-}
-
-// Scans the config to locate the MessageGeneratorInput and saves a
-// reference to it for use when filtering messages
-func (self *StatRollupFilterGlobal) SetupMessageGenerator(config *PipelineConfig) bool {
-	for _, input := range config.Inputs {
-		convert, ok := input.(*MessageGeneratorInput)
-		if ok {
-			self.messageGenerator = convert
-			return true
-		}
-	}
-	return false
 }
 
 func (self *StatRollupFilterGlobal) Monitor() {
@@ -221,8 +197,9 @@ func (self *StatRollupFilterGlobal) Flush() {
 	if numStats == 0 {
 		log.Println("No stats collected, not delivering.")
 	}
-	if self.messageGenerator != nil {
-		msg := Message{Type: "statmetric", Timestamp: now, Payload: buffer.String()}
-		self.messageGenerator.Deliver(&msg, 1)
-	}
+	msgHolder := MessageGenerator.Retrieve()
+	msgHolder.Message.Type = "statmetric"
+	msgHolder.Message.Timestamp = now
+	msgHolder.Message.Payload = buffer.String()
+	MessageGenerator.Inject(msgHolder)
 }

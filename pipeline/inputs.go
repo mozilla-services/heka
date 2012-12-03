@@ -145,36 +145,67 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 	return err
 }
 
-// MessageGeneratorInput
+// Global MessageGenerator
+var MessageGenerator msgGenerator
 
+type msgGenerator struct {
+	MessageChan chan *messageHolder
+	RecycleChan chan *messageHolder
+}
+
+func (self msgGenerator) Init() {
+	self.MessageChan = make(chan *messageHolder, PoolSize/2)
+	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
+	for i := 0; i < PoolSize/2; i++ {
+		msg := messageHolder{new(Message), 0}
+		self.RecycleChan <- &msg
+	}
+}
+
+// Retrieve a message for use by the MessageGenerator
+// This is actually a messageHolder object that has a message and
+// chainCount. The chainCount should remain untouched, and all the
+// fields of the returned msg.Message should be overwritten as needed
+// The msg.Message
+func (self msgGenerator) Retrieve() (msg *messageHolder) {
+	msg = <-self.RecycleChan
+	msg.ChainCount = 0
+	return msg
+}
+
+// Injects a message using the MessageGenerator
+func (self msgGenerator) Inject(msg *messageHolder) {
+	msg.ChainCount++
+	self.MessageChan <- msg
+}
+
+// MessageGeneratorInput
 type MessageGeneratorInput struct {
-	messages chan *messageHolder
+	messageChan chan *messageHolder
+	recycleChan chan *messageHolder
+	msg         *messageHolder
 }
 
 type messageHolder struct {
-	message    *Message
-	chainCount int
+	Message    *Message
+	ChainCount int
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
-	self.messages = make(chan *messageHolder, 100)
+	MessageGenerator.Init()
+	self.messageChan = MessageGenerator.MessageChan
+	self.recycleChan = MessageGenerator.RecycleChan
 	return nil
-}
-
-func (self *MessageGeneratorInput) Deliver(msg *Message, chainCount int) {
-	newMessage := new(Message)
-	msg.Copy(newMessage)
-	msgHolder := messageHolder{newMessage, chainCount + 1}
-	self.messages <- &msgHolder
 }
 
 func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 	timeout *time.Duration) error {
 	select {
-	case msgHolder := <-self.messages:
-		pipeline.Message = msgHolder.message
+	case msgHolder := <-self.messageChan:
+		pipeline.Message.Copy(msgHolder.Message)
 		pipeline.Decoded = true
-		pipeline.ChainCount = msgHolder.chainCount
+		pipeline.ChainCount = msgHolder.ChainCount
+		self.recycleChan <- msgHolder
 		return nil
 	case <-time.After(*timeout):
 		err := TimeoutError("No messages to read")

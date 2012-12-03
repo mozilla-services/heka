@@ -22,14 +22,13 @@ import (
 )
 
 var AvailablePlugins = map[string]func() Plugin{
-	"MessageGeneratorInput": func() Plugin { return new(MessageGeneratorInput) },
-	"UdpInput":              func() Plugin { return new(UdpInput) },
-	"JsonDecoder":           func() Plugin { return new(JsonDecoder) },
-	"MsgPackDecoder":        func() Plugin { return new(MsgPackDecoder) },
-	"StatRollupFilter":      func() Plugin { return new(StatRollupFilter) },
-	"LogOutput":             func() Plugin { return new(LogOutput) },
-	"CounterOutput":         func() Plugin { return new(CounterOutput) },
-	"FileOutput":            func() Plugin { return new(FileOutput) },
+	"UdpInput":         func() Plugin { return new(UdpInput) },
+	"JsonDecoder":      func() Plugin { return new(JsonDecoder) },
+	"MsgPackDecoder":   func() Plugin { return new(MsgPackDecoder) },
+	"StatRollupFilter": func() Plugin { return new(StatRollupFilter) },
+	"LogOutput":        func() Plugin { return new(LogOutput) },
+	"CounterOutput":    func() Plugin { return new(CounterOutput) },
+	"FileOutput":       func() Plugin { return new(FileOutput) },
 }
 
 type PluginConfig map[string]interface{}
@@ -195,6 +194,11 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		for name, plugin := range inputs {
 			self.Inputs[name] = plugin.(Input)
 		}
+		// Setup our message generator input
+		noConfig := new(PluginConfig)
+		mgi := new(MessageGeneratorInput)
+		mgi.Init(noConfig)
+		self.Inputs["MessageGeneratorInput"] = mgi
 	}
 
 	self.DecoderCreator = func() (decoders map[string]Decoder) {
