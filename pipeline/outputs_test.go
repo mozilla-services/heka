@@ -32,6 +32,12 @@ func OutputsSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	c.Specify("A FileOutput", func() {
+		origPoolSize := PoolSize
+		NewPipelineConfig(1)
+		defer func() {
+			PoolSize = origPoolSize
+		}()
+
 		fileOutput := new(FileOutput)
 		defer notify.StopAll(STOP)
 		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
