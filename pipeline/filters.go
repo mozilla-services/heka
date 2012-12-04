@@ -197,7 +197,7 @@ func (self *StatRollupFilterGlobal) Flush() {
 	if numStats == 0 {
 		log.Println("No stats collected, not delivering.")
 	}
-	msgHolder := MessageGenerator.Retrieve()
+	msgHolder := MessageGenerator.Retrieve(0)
 	msgHolder.Message.Type = "statmetric"
 	msgHolder.Message.Timestamp = now
 	msgHolder.Message.Payload = buffer.String()

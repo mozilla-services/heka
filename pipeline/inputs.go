@@ -162,14 +162,16 @@ func (self msgGenerator) Init() {
 	}
 }
 
-// Retrieve a message for use by the MessageGenerator
+// Retrieve a message for use by the MessageGenerator.
+// Must be passed the current pipeline.ChainCount.
+//
 // This is actually a messageHolder object that has a message and
 // chainCount. The chainCount should remain untouched, and all the
 // fields of the returned msg.Message should be overwritten as needed
 // The msg.Message
-func (self msgGenerator) Retrieve() (msg *messageHolder) {
+func (self msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
 	msg = <-self.RecycleChan
-	msg.ChainCount = 0
+	msg.ChainCount = chainCount
 	return msg
 }
 
