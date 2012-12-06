@@ -208,6 +208,7 @@ func (self *FileOutputWriter) MakeOutputData() interface{} {
 func (self *FileOutputWriter) Write(outputData interface{}) error {
 	self.outputBytes = outputData.([]byte)
 	self.n, self.err = self.file.Write(self.outputBytes)
+	self.outputBytes = self.outputBytes[:0]
 	if self.err != nil {
 		return fmt.Errorf("FileOutput error writing to %s: %s", self.path,
 			self.err)
@@ -238,8 +239,7 @@ const NEWLINE byte = 10
 // FileOutput formats the output and then hands it off to the dataChan so the
 // FileWriter can do its thing.
 type FileOutput struct {
-	dataChan    chan interface{}
-	recycleChan chan interface{}
+	writeRunner *WriteRunner
 	outputBytes []byte
 	path        string
 	format      string
@@ -269,17 +269,15 @@ func (self *FileOutput) Init(config interface{}) error {
 	// series. If this ever changes such that outputs might be created in
 	// different threads then this will require a lock to make sure we don't
 	// end up w/ two WriteRunners for the same file.
-	writeRunner, ok := FileWriteRunners[conf.Path]
+	self.writeRunner, ok = FileWriteRunners[conf.Path]
 	if !ok {
 		fileOutputWriter, err := NewFileOutputWriter(conf.Path, conf.Perm)
 		if err != nil {
 			return fmt.Errorf("Error creating FileOutputWriter: %s", err)
 		}
-		writeRunner = NewWriteRunner(fileOutputWriter)
-		FileWriteRunners[conf.Path] = writeRunner
+		self.writeRunner = NewWriteRunner(fileOutputWriter)
+		FileWriteRunners[conf.Path] = self.writeRunner
 	}
-	self.dataChan = writeRunner.DataChan
-	self.recycleChan = writeRunner.RecycleChan
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
@@ -288,7 +286,7 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	self.outputBytes = (<-self.recycleChan).([]byte)
+	self.outputBytes = (<-self.writeRunner.RecycleChan).([]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
 		self.outputBytes = append(self.outputBytes, ts...)
@@ -306,5 +304,5 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 		self.outputBytes = append(self.outputBytes, pack.Message.Payload...)
 	}
 	self.outputBytes = append(self.outputBytes, NEWLINE)
-	self.dataChan <- self.outputBytes
+	self.writeRunner.DataChan <- self.outputBytes
 }
