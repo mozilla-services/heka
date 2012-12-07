@@ -2,7 +2,8 @@
     "inputs": [
         {
             "type": "UdpInput",
-            "name": "udp_stats"
+            "name": "udp_stats",
+            "address": "1000"
         }
     ],
     "chains": {
