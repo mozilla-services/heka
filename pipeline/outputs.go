@@ -178,8 +178,6 @@ type FileOutputWriter struct {
 	path        string
 	file        *os.File
 	outputBytes []byte
-	err         error
-	n           int
 	ticker      *time.Ticker
 }
 
@@ -205,17 +203,16 @@ func (self *FileOutputWriter) MakeOutputData() interface{} {
 	return make([]byte, 0, 2000)
 }
 
-func (self *FileOutputWriter) Write(outputData interface{}) error {
+func (self *FileOutputWriter) Write(outputData interface{}) (err error) {
 	self.outputBytes = outputData.([]byte)
-	self.n, self.err = self.file.Write(self.outputBytes)
-	self.outputBytes = self.outputBytes[:0]
-	if self.err != nil {
-		return fmt.Errorf("FileOutput error writing to %s: %s", self.path,
-			self.err)
-	} else if self.n != len(self.outputBytes) {
-		return fmt.Errorf("FileOutput truncated output for %s", self.path)
+	n, err := self.file.Write(self.outputBytes)
+	if err != nil {
+		err = fmt.Errorf("FileOutput error writing to %s: %s", self.path, err)
+	} else if n != len(self.outputBytes) {
+		err = fmt.Errorf("FileOutput truncated output for %s", self.path)
 	}
-	return nil
+	self.outputBytes = self.outputBytes[:0]
+	return err
 }
 
 func (self *FileOutputWriter) Stop() {
