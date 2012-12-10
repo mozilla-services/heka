@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"runtime"
 	"sort"
 	"strconv"
 	"sync"
@@ -28,122 +29,85 @@ type Filter interface {
 	FilterMsg(pipelinePack *PipelinePack)
 }
 
-// StatRollupFilter
-type Packet struct {
+type StatPacket struct {
 	Bucket   string
 	Value    int
 	Modifier string
 	Sampling float32
 }
 
-// StatRollupFilter is created per pipelinePack
-type StatRollupFilter struct {
-}
-
-// StatRollupFilterConfig is used to specify the config vars this takes
-type StatRollupFilterConfig struct {
-	FlushInterval    int64
-	PercentThreshold int
-}
-
-// StatRollupFilterGlobal is used for the statRollupGlobal object that
-// collects the stats from all the StatRollupFilter instances
-type StatRollupFilterGlobal struct {
+// StatFilter global
+type statFilter struct {
 	flushInterval    int64
 	percentThreshold int
-	StatsIn          chan *Packet
+	StatsIn          chan *StatPacket
+	recycleChan      chan *StatPacket
 	counters         map[string]int
 	timers           map[string][]int
 	gauges           map[string]int
-	messageGenerator *MessageGeneratorInput
 	once             sync.Once
+	p                *StatPacket
 }
 
-// A single StatRollup global instance for use by the statrollup
-// filters
-var statRollupGlobal StatRollupFilterGlobal
+var StatFilter *statFilter = new(statFilter)
 
-func SetupStatConfig(config interface{}) {
-	conf := config.(*StatRollupFilterConfig)
-	statRollupGlobal.flushInterval = conf.FlushInterval
-	statRollupGlobal.percentThreshold = conf.PercentThreshold
-	statRollupGlobal.StatsIn = make(chan *Packet, 10000)
-	statRollupGlobal.counters = make(map[string]int)
-	statRollupGlobal.timers = make(map[string][]int)
-	statRollupGlobal.gauges = make(map[string]int)
-	go statRollupGlobal.Monitor()
-}
-
-func (self *StatRollupFilter) ConfigStruct() interface{} {
-	return &StatRollupFilterConfig{FlushInterval: 10, PercentThreshold: 90}
-}
-
-func (self *StatRollupFilter) Init(config interface{}) (err error) {
-	statRollupGlobal.once.Do(func() { SetupStatConfig(config) })
-	return nil
-}
-
-func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
-	var packet Packet
-	msg := pipeline.Message
-	switch msg.Type {
-	case "statsd_timer":
-		packet.Modifier = "ms"
-	case "statsd_gauge":
-		packet.Modifier = "g"
-	case "statsd_counter":
-		packet.Modifier = ""
-	default:
-		return
+// Initialize the StatFilter global
+//
+// This must be called only once, using the StatFilter.once.Do.
+func (self *statFilter) Init(flushInterval int64, percentThreshold int) {
+	log.Println("Made ithere")
+	self.flushInterval = flushInterval
+	self.percentThreshold = percentThreshold
+	self.StatsIn = make(chan *StatPacket, PoolSize)
+	self.recycleChan = make(chan *StatPacket, PoolSize)
+	self.counters = make(map[string]int)
+	self.timers = make(map[string][]int)
+	self.gauges = make(map[string]int)
+	for i := 0; i < PoolSize; i++ {
+		self.recycleChan <- new(StatPacket)
 	}
-
-	defer func() {
-		pipeline.Blocked = true
-	}()
-
-	packet.Bucket = msg.Fields["name"].(string)
-	value, err := strconv.ParseInt(msg.Payload, 0, 0)
-	if err != nil {
-		log.Println("StatRollupFilter error parsing value: %s", err.Error())
-		return
-	}
-	packet.Value = int(value)
-	packet.Sampling = msg.Fields["rate"].(float32)
-	statRollupGlobal.StatsIn <- &packet
+	go self.Monitor()
 }
 
-func (self *StatRollupFilterGlobal) Monitor() {
+// StatFilter Monitor pulls StatPackets off the StatsIn channel,
+// updates the internal stat counters then recycles the StatPacket
+func (self *statFilter) Monitor() {
 	t := time.NewTicker(time.Duration(self.flushInterval) * time.Second)
 	for {
+		// Yielding before a channel select improves scheduler performance
+		runtime.Gosched()
 		select {
 		case <-t.C:
 			self.Flush()
-		case s := <-self.StatsIn:
-			if s.Modifier == "ms" {
-				_, ok := self.timers[s.Bucket]
+		case self.p = <-self.StatsIn:
+			if self.p.Modifier == "ms" {
+				_, ok := self.timers[self.p.Bucket]
 				if !ok {
 					var t []int
-					self.timers[s.Bucket] = t
+					self.timers[self.p.Bucket] = t
 				}
-				self.timers[s.Bucket] = append(self.timers[s.Bucket], s.Value)
-			} else if s.Modifier == "g" {
-				_, ok := self.gauges[s.Bucket]
+				self.timers[self.p.Bucket] = append(self.timers[self.p.Bucket], self.p.Value)
+			} else if self.p.Modifier == "g" {
+				_, ok := self.gauges[self.p.Bucket]
 				if !ok {
-					self.gauges[s.Bucket] = 0
+					self.gauges[self.p.Bucket] = 0
 				}
-				self.gauges[s.Bucket] += s.Value
+				self.gauges[self.p.Bucket] += self.p.Value
 			} else {
-				_, ok := self.counters[s.Bucket]
+				_, ok := self.counters[self.p.Bucket]
 				if !ok {
-					self.counters[s.Bucket] = 0
+					self.counters[self.p.Bucket] = 0
 				}
-				self.counters[s.Bucket] += int(float32(s.Value) * (1 / s.Sampling))
+				self.counters[self.p.Bucket] += int(float32(self.p.Value) * (1 / self.p.Sampling))
 			}
+			self.recycleChan <- self.p
 		}
 	}
 }
 
-func (self *StatRollupFilterGlobal) Flush() {
+// statFilter Flush is called every flushInterval seconds to flush a
+// the aggregated stats as a statmetric injected message
+func (self *statFilter) Flush() {
 	var value int64
 	numStats := 0
 	now := time.Now()
@@ -202,4 +166,55 @@ func (self *StatRollupFilterGlobal) Flush() {
 	msgHolder.Message.Timestamp = now
 	msgHolder.Message.Payload = buffer.String()
 	MessageGenerator.Inject(msgHolder)
+}
+
+// StatRollupFilterConfig is used to specify the config vars this takes
+type StatRollupFilterConfig struct {
+	FlushInterval    int64
+	PercentThreshold int
+}
+
+func (self *StatRollupFilter) ConfigStruct() interface{} {
+	return &StatRollupFilterConfig{FlushInterval: 10, PercentThreshold: 90}
+}
+
+// StatRollupFilter is created per pipelinePack
+type StatRollupFilter struct {
+	packet *StatPacket
+}
+
+func (self *StatRollupFilter) Init(config interface{}) (err error) {
+	StatFilter.once.Do(func() {
+		conf := config.(*StatRollupFilterConfig)
+		StatFilter.Init(conf.FlushInterval, conf.PercentThreshold)
+	})
+	return nil
+}
+
+func (self *StatRollupFilter) FilterMsg(pipeline *PipelinePack) {
+	self.packet = <-StatFilter.recycleChan
+	switch pipeline.Message.Type {
+	case "statsd_timer":
+		self.packet.Modifier = "ms"
+	case "statsd_gauge":
+		self.packet.Modifier = "g"
+	case "statsd_counter":
+		self.packet.Modifier = ""
+	default:
+		return
+	}
+
+	defer func() {
+		pipeline.Blocked = true
+	}()
+
+	self.packet.Bucket = pipeline.Message.Fields["name"].(string)
+	value, err := strconv.ParseInt(pipeline.Message.Payload, 0, 0)
+	if err != nil {
+		log.Println("StatRollupFilter error parsing value: %s", err.Error())
+		return
+	}
+	self.packet.Value = int(value)
+	self.packet.Sampling = pipeline.Message.Fields["rate"].(float32)
+	StatFilter.StatsIn <- self.packet
 }
