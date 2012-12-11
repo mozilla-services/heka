@@ -44,13 +44,11 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders section loads
-			decoders := pipeConfig.DecoderCreator()
-			_, ok = decoders[pipeConfig.DefaultDecoder]
+			_, ok = pipeConfig.Decoders[pipeConfig.DefaultDecoder]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the outputs section loads
-			outputs := pipeConfig.OutputCreator()
-			_, ok = outputs["CounterOutput"]
+			_, ok = pipeConfig.Outputs["CounterOutput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the non-default chain loaded

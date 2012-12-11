@@ -17,7 +17,6 @@ import (
 	"encoding/json"
 	"errors"
 	. "heka/message"
-	"log"
 	"os"
 )
 
@@ -41,12 +40,12 @@ type HasConfigStruct interface {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs             map[string]Input
-	DefaultDecoder     string
-	DecoderCreator     func() map[string]Decoder
+	Inputs             map[string]*PluginWrapper
+	Decoders           map[string]*PluginWrapper
+	Filters            map[string]*PluginWrapper
+	Outputs            map[string]*PluginWrapper
 	FilterChains       map[string]FilterChain
-	FilterCreator      func() map[string]Filter
-	OutputCreator      func() map[string]Output
+	DefaultDecoder     string
 	DefaultFilterChain string
 	PoolSize           int
 	Lookup             *MessageLookup
@@ -57,7 +56,6 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	PoolSize = poolSize
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
-	config.Inputs = make(map[string]Input)
 	config.FilterChains = make(map[string]FilterChain)
 	config.DefaultFilterChain = "default"
 	config.Lookup = new(MessageLookup)
@@ -97,59 +95,89 @@ func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
 	return "", false
 }
 
-// InitPlugin initializes a plugin with its section while also
-// attempting to use a config struct if available
-func initPlugin(plugin Plugin, section *PluginConfig) error {
-	// Determine if we should re-marshal
-	if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
-		data, err := json.Marshal(section)
-		if err != nil {
-			return errors.New("Unable to marshal: " + err.Error())
-		}
-		configStruct := hasConfigStruct.ConfigStruct()
-		err = json.Unmarshal(data, configStruct)
-		if err != nil {
-			return errors.New("Unable to unmarshal: " + err.Error())
-		}
-		if err := plugin.Init(configStruct); err != nil {
-			return errors.New("Unable to plugin init: " + err.Error())
-		}
+// A plugin wrapper wraps a plugin so that more instances of it can be
+// easily created and a reference can be held to the plugins global if
+// it needs one
+type PluginWrapper struct {
+	name          string
+	configCreator func() interface{}
+	pluginCreator func() Plugin
+	global        PluginGlobal
+}
+
+// Create a new instance of the plugin and return it, or an error
+func (self *PluginWrapper) Create() (plugin Plugin) {
+	plugin = self.pluginCreator()
+	if self.global == nil {
+		plugin.Init(self.configCreator())
 	} else {
-		if err := plugin.Init(section); err != nil {
-			return errors.New("Unable to plugin init: " + err.Error())
-		}
+		// pluginCreator only returns a Plugin int, so we type assert
+		plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
 	}
-	return nil
+	return
 }
 
 // loadSection can be passed a configSection, the appropriate mapping
-// of available plugins for that section, and will then load and
-// instantiate the plugins into the returned config value
-func loadSection(configSection []PluginConfig) (config map[string]Plugin, err error) {
-	var pluginName string
-	config = make(map[string]Plugin)
+// of available plugins for that section, and will then create
+// PluginWrappers for each plugin instance defined
+func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper, err error) {
+	var ok bool
+	config = make(map[string]*PluginWrapper)
 	for _, section := range configSection {
+		wrapper := new(PluginWrapper)
 		pluginType := section["type"].(string)
 
 		// Use the section naming if applicable, or default to the type
 		// name
 		if _, ok := section["name"]; ok {
-			pluginName = section["name"].(string)
+			wrapper.name = section["name"].(string)
 		} else {
-			pluginName = pluginType
+			wrapper.name = pluginType
 		}
 
-		pluginFunc, ok := AvailablePlugins[pluginType]
-		if !ok {
+		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
 			err := errors.New("No such plugin of that name: " + pluginType)
 			return nil, err
 		}
 
-		plugin := pluginFunc()
-		if err := initPlugin(plugin, &section); err != nil {
-			return nil, err
+		// Create an instance so we can see if we need to marshall the
+		// JSON
+		plugin := wrapper.pluginCreator()
+		if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
+			data, err := json.Marshal(&section)
+			if err != nil {
+				return config, errors.New("Unable to marshal: " + err.Error())
+			}
+			configStruct := hasConfigStruct.ConfigStruct()
+			err = json.Unmarshal(data, configStruct)
+			if err != nil {
+				return config, errors.New("Unable to unmarshal: " + err.Error())
+			}
+			wrapper.configCreator = func() interface{} { return configStruct }
+		} else {
+			wrapper.configCreator = func() interface{} { return &section }
 		}
-		config[pluginName] = plugin
+
+		// Determine if this plugin has a global, if it does, make it
+		// now
+		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
+			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
+			if err != nil {
+				return config, errors.New("Unable to InitOnce: " + err.Error())
+			}
+		}
+
+		// Initialize the plugin once to ensure it will work
+		if wrapper.global == nil {
+			err = plugin.Init(wrapper.configCreator())
+		} else {
+			err = plugin.(PluginWithGlobal).Init(wrapper.global, wrapper.configCreator())
+		}
+		if err != nil {
+			return config, errors.New("Unable to plugin init: " + err.Error())
+		}
+
+		config[wrapper.name] = wrapper
 	}
 	return config, nil
 }
@@ -182,75 +210,37 @@ func readJsonFromFile(filename string, configFile *ConfigFile) error {
 //
 // The PipelineConfig should be already initialized before passed in via
 // its Init function.
-func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
+func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	configFile := new(ConfigFile)
-	if err := readJsonFromFile(filename, configFile); err != nil {
+	if err = readJsonFromFile(filename, configFile); err != nil {
 		return err
 	}
 
-	if inputs, err := loadSection(configFile.Inputs); err != nil {
+	if self.Inputs, err = loadSection(configFile.Inputs); err != nil {
 		return err
 	} else {
-		for name, plugin := range inputs {
-			self.Inputs[name] = plugin.(Input)
-		}
 		// Setup our message generator input
-		noConfig := new(PluginConfig)
-		mgi := new(MessageGeneratorInput)
-		mgi.Init(noConfig)
-		self.Inputs["MessageGeneratorInput"] = mgi
+		mgiWrapper := new(PluginWrapper)
+		mgiWrapper.name = "MessageGeneratorInput"
+		mgiWrapper.pluginCreator = func() Plugin { return new(MessageGeneratorInput) }
+		mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
+		self.Inputs["MessageGeneratorInput"] = mgiWrapper
 	}
 
-	self.DecoderCreator = func() (decoders map[string]Decoder) {
-		decoders = make(map[string]Decoder)
-		conf, err := loadSection(configFile.Decoders)
-		if err != nil {
-			log.Println("Error loading decoder section", err)
-		}
-		for name, plugin := range conf {
-			decoders[name] = plugin.(Decoder)
-		}
-		return decoders
-	}
-
-	self.FilterCreator = func() (filters map[string]Filter) {
-		filters = make(map[string]Filter)
-		conf, err := loadSection(configFile.Filters)
-		if err != nil {
-			log.Println("Error loading filter section: ", err)
-		}
-		for name, plugin := range conf {
-			filters[name] = plugin.(Filter)
-		}
-		return filters
-	}
-
-	self.OutputCreator = func() (outputs map[string]Output) {
-		outputs = make(map[string]Output)
-		conf, err := loadSection(configFile.Outputs)
-		if err != nil {
-			log.Println("Error loading output section: ", err)
-		}
-		for name, plugin := range conf {
-			outputs[name] = plugin.(Output)
-		}
-		return outputs
-	}
-
-	// Load them all so we can capture errors here instead of later
-	// during pipeline pack initializations
-	if _, err := loadSection(configFile.Outputs); err != nil {
-		return errors.New("Error reading outputs: " + err.Error())
-	}
-	if _, err := loadSection(configFile.Decoders); err != nil {
+	self.Decoders, err = loadSection(configFile.Decoders)
+	if err != nil {
 		return errors.New("Error reading decoders: " + err.Error())
 	}
-	if _, err := loadSection(configFile.Filters); err != nil {
+
+	self.Filters, err = loadSection(configFile.Filters)
+	if err != nil {
 		return errors.New("Error reading filters: " + err.Error())
 	}
 
-	availOutputs := self.OutputCreator()
-	availFilters := self.FilterCreator()
+	self.Outputs, err = loadSection(configFile.Outputs)
+	if err != nil {
+		return errors.New("Error reading outputs: " + err.Error())
+	}
 
 	// Locate and set the default decoder
 	for _, section := range configFile.Decoders {
@@ -272,7 +262,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			chain.Outputs = make([]string, len(outputList))
 			for i, output := range outputList {
 				strOutput := output.(string)
-				if _, ok := availOutputs[strOutput]; !ok {
+				if _, ok := self.Outputs[strOutput]; !ok {
 					return errors.New("Error during chain loading. Output by name " +
 						strOutput + " was not defined.")
 				}
@@ -284,7 +274,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			chain.Filters = make([]string, len(filterList))
 			for i, filter := range filterList {
 				strFilter := filter.(string)
-				if _, ok := availFilters[strFilter]; !ok {
+				if _, ok := self.Filters[strFilter]; !ok {
 					return errors.New("Error during chain loading. Filter by name " +
 						strFilter + " was not defined.")
 				}
