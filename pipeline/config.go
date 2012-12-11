@@ -112,7 +112,7 @@ func (self *PluginWrapper) Create() (plugin Plugin) {
 		plugin.Init(self.configCreator())
 	} else {
 		// pluginCreator only returns a Plugin int, so we type assert
-		plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
+		plugin.(PluginWithGlobal).InitWithGlobal(self.global, self.configCreator())
 	}
 	return
 }
@@ -171,7 +171,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 		if wrapper.global == nil {
 			err = plugin.Init(wrapper.configCreator())
 		} else {
-			err = plugin.(PluginWithGlobal).Init(wrapper.global, wrapper.configCreator())
+			err = plugin.(PluginWithGlobal).InitWithGlobal(wrapper.global, wrapper.configCreator())
 		}
 		if err != nil {
 			return config, errors.New("Unable to plugin init: " + err.Error())

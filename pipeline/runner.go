@@ -42,7 +42,7 @@ type PluginGlobal interface {
 }
 
 type PluginWithGlobal interface {
-	Init(global PluginGlobal, config interface{}) error
+	InitWithGlobal(global PluginGlobal, config interface{}) error
 	InitOnce(config interface{}) (global PluginGlobal, err error)
 }
 
