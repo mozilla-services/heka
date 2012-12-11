@@ -32,10 +32,15 @@ var AvailablePlugins = map[string]func() Plugin{
 
 type PluginConfig map[string]interface{}
 
-// Indicates a plugin has a specific-to-itself config struct that should be
+// Indicates a plug-in has a specific-to-itself config struct that should be
 // passed in to its Init method.
 type HasConfigStruct interface {
 	ConfigStruct() interface{}
+}
+
+type FilterChain struct {
+	Outputs []string
+	Filters []string
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.
@@ -70,11 +75,6 @@ type ConfigFile struct {
 	Filters  []PluginConfig
 	Outputs  []PluginConfig
 	Chains   map[string]PluginConfig
-}
-
-type FilterChain struct {
-	Outputs []string
-	Filters []string
 }
 
 // Represents message lookup hashes
@@ -118,8 +118,8 @@ func (self *PluginWrapper) Create() (plugin Plugin) {
 }
 
 // loadSection can be passed a configSection, the appropriate mapping
-// of available plugins for that section, and will then create
-// PluginWrappers for each plugin instance defined
+// of available plug-ins for that section, and will then create
+// PluginWrappers for each plug-in instance defined
 func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper, err error) {
 	var ok bool
 	config = make(map[string]*PluginWrapper)
@@ -140,7 +140,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			return nil, err
 		}
 
-		// Create an instance so we can see if we need to marshall the
+		// Create an instance so we can see if we need to marshal the
 		// JSON
 		plugin := wrapper.pluginCreator()
 		if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
@@ -158,7 +158,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			wrapper.configCreator = func() interface{} { return &section }
 		}
 
-		// Determine if this plugin has a global, if it does, make it
+		// Determine if this plug-in has a global, if it does, make it
 		// now
 		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
 			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
