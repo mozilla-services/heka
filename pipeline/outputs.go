@@ -132,21 +132,21 @@ type OutputWriter interface {
 	Stop()
 }
 
-type WriteRunner interface {
+type DataRecycler interface {
 	RetrieveDataObject() interface{}
 	SendOutputData(outputData interface{})
 }
 
-// Wrapper object that launches initializes communication channels and starts
-// a goroutine for cases where a single output mechanism needs to be shared by
-// all of the separate output plugin instances.
-type ChanWriteRunner struct {
+// DataRecycler implementation that uses internal channels to manage and
+// and recycle the data objects.
+
+type ChanDataRecycler struct {
 	dataChan     chan interface{}
 	recycleChan  chan interface{}
 	outputWriter OutputWriter
 }
 
-func NewWriteRunner(outputWriter OutputWriter) WriteRunner {
+func NewDataRecycler(outputWriter OutputWriter) DataRecycler {
 	dataChan := make(chan interface{}, 2*PoolSize)
 	recycleChan := make(chan interface{}, 2*PoolSize)
 
@@ -154,20 +154,20 @@ func NewWriteRunner(outputWriter OutputWriter) WriteRunner {
 	for i := 0; i < 2*PoolSize; i++ {
 		recycleChan <- outputWriter.MakeOutputData()
 	}
-	self := &ChanWriteRunner{dataChan, recycleChan, outputWriter}
+	self := &ChanDataRecycler{dataChan, recycleChan, outputWriter}
 	go self.writeLoop()
 	return self
 }
 
-func (self *ChanWriteRunner) RetrieveDataObject() interface{} {
+func (self *ChanDataRecycler) RetrieveDataObject() interface{} {
 	return <-self.recycleChan
 }
 
-func (self *ChanWriteRunner) SendOutputData(outputData interface{}) {
+func (self *ChanDataRecycler) SendOutputData(outputData interface{}) {
 	self.dataChan <- outputData
 }
 
-func (self *ChanWriteRunner) writeLoop() {
+func (self *ChanDataRecycler) writeLoop() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 	var outputData interface{}
@@ -237,7 +237,7 @@ func (self *FileOutputWriter) Stop() {
 }
 
 var (
-	FileWriteRunners = make(map[string]WriteRunner)
+	FileDataRecyclers = make(map[string]DataRecycler)
 
 	FILEFORMATS = map[string]bool{
 		"json": true,
@@ -252,11 +252,11 @@ const NEWLINE byte = 10
 // FileOutput formats the output and then hands it off to the dataChan so the
 // FileWriter can do its thing.
 type FileOutput struct {
-	writeRunner WriteRunner
-	outputBytes []byte
-	path        string
-	format      string
-	prefix_ts   bool
+	dataRecycler DataRecycler
+	outputBytes  []byte
+	path         string
+	format       string
+	prefix_ts    bool
 }
 
 type FileOutputConfig struct {
@@ -282,14 +282,14 @@ func (self *FileOutput) Init(config interface{}) error {
 	// series. If this ever changes such that outputs might be created in
 	// different threads then this will require a lock to make sure we don't
 	// end up w/ two WriteRunners for the same file.
-	self.writeRunner, ok = FileWriteRunners[conf.Path]
+	self.dataRecycler, ok = FileDataRecyclers[conf.Path]
 	if !ok {
 		fileOutputWriter, err := NewFileOutputWriter(conf.Path, conf.Perm)
 		if err != nil {
 			return fmt.Errorf("Error creating FileOutputWriter: %s", err)
 		}
-		self.writeRunner = NewWriteRunner(fileOutputWriter)
-		FileWriteRunners[conf.Path] = self.writeRunner
+		self.dataRecycler = NewDataRecycler(fileOutputWriter)
+		FileDataRecyclers[conf.Path] = self.dataRecycler
 	}
 	self.path = conf.Path
 	self.format = conf.Format
@@ -299,7 +299,7 @@ func (self *FileOutput) Init(config interface{}) error {
 }
 
 func (self *FileOutput) Deliver(pack *PipelinePack) {
-	self.outputBytes = self.writeRunner.RetrieveDataObject().([]byte)
+	self.outputBytes = self.dataRecycler.RetrieveDataObject().([]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
 		self.outputBytes = append(self.outputBytes, ts...)
@@ -317,5 +317,5 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 		self.outputBytes = append(self.outputBytes, pack.Message.Payload...)
 	}
 	self.outputBytes = append(self.outputBytes, NEWLINE)
-	self.writeRunner.SendOutputData(self.outputBytes)
+	self.dataRecycler.SendOutputData(self.outputBytes)
 }
