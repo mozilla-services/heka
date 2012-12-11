@@ -12,7 +12,6 @@
         },
         "sample": {
             "message_type": ["counter"],
-            "filters": ["StatRollupFilter"],
             "outputs": ["CounterOutput"]
         }
     }

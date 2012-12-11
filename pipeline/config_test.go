@@ -48,11 +48,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			_, ok = decoders[pipeConfig.DefaultDecoder]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the filters section loads
-			filters := pipeConfig.FilterCreator()
-			_, ok = filters["StatRollupFilter"]
-			c.Expect(ok, gs.Equals, true)
-
 			// and the outputs section loads
 			outputs := pipeConfig.OutputCreator()
 			_, ok = outputs["CounterOutput"]
@@ -64,7 +59,6 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// and the non-default section has the right filter/outputs
 			c.Assume(sampleSection, gs.Not(gs.IsNil))
-			c.Expect(len(sampleSection.Filters), gs.Equals, 1)
 			c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
 
 			// and the message lookup is set properly
