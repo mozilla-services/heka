@@ -36,6 +36,16 @@ type Plugin interface {
 	Init(config interface{}) error
 }
 
+type PluginGlobal interface {
+	// Called when an event occurs, either RELOAD or STOP
+	Event(eventType string)
+}
+
+type PluginWithGlobal interface {
+	Init(global PluginGlobal, config interface{}) error
+	InitOnce(config interface{}) (global PluginGlobal, err error)
+}
+
 type PipelinePack struct {
 	MsgBytes    []byte
 	Message     *Message
@@ -79,20 +89,20 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 }
 
 func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
-	for name, plugin := range config.DecoderCreator() {
-		self.Decoders[name] = plugin
+	for name, wrapper := range config.Decoders {
+		self.Decoders[name] = wrapper.Create().(Decoder)
 	}
 }
 
 func (self *PipelinePack) InitFilters(config *PipelineConfig) {
-	for name, plugin := range config.FilterCreator() {
-		self.Filters[name] = plugin
+	for name, wrapper := range config.Filters {
+		self.Filters[name] = wrapper.Create().(Filter)
 	}
 }
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
-	for name, plugin := range config.OutputCreator() {
-		self.Outputs[name] = plugin
+	for name, wrapper := range config.Outputs {
+		self.Outputs[name] = wrapper.Create().(Output)
 	}
 }
 
@@ -129,6 +139,20 @@ func filterProcessor(pipelinePack *PipelinePack) {
 		filter.FilterMsg(pipelinePack)
 		if pipelinePack.Blocked {
 			return
+		}
+	}
+}
+
+func (self *PipelineConfig) BroadcastEvent(eventType string) {
+	var wrapper *PluginWrapper
+	for _, wrapper = range self.Filters {
+		if wrapper.global != nil {
+			wrapper.global.Event(eventType)
+		}
+	}
+	for _, wrapper = range self.Outputs {
+		if wrapper.global != nil {
+			wrapper.global.Event(eventType)
 		}
 	}
 }
@@ -196,7 +220,8 @@ func (self *PipelineConfig) Run() {
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
-	for name, input := range self.Inputs {
+	for name, wrapper := range self.Inputs {
+		input := wrapper.Create().(Input)
 		runner = &InputRunner{name, input, &timeout}
 		inputRunners[name] = runner
 		runner.Start(pipeline, recycleChan, &wg)
@@ -212,11 +237,13 @@ sigListener:
 		sig := <-sigChan
 		switch sig {
 		case syscall.SIGHUP:
+			self.BroadcastEvent(RELOAD)
 			err := notify.Post(RELOAD, nil)
 			if err != nil {
 				log.Println("Error sending RELOAD event:", err.Error())
 			}
 		case syscall.SIGINT:
+			self.BroadcastEvent(STOP)
 			err := notify.Post(STOP, nil)
 			if err != nil {
 				log.Println("Error sending STOP event: ", err.Error())
