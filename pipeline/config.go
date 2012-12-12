@@ -220,6 +220,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return err
 	} else {
 		// Setup our message generator input
+		MessageGenerator.Init()
 		mgiWrapper := new(PluginWrapper)
 		mgiWrapper.name = "MessageGeneratorInput"
 		mgiWrapper.pluginCreator = func() Plugin { return new(MessageGeneratorInput) }

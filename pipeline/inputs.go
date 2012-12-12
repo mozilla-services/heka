@@ -146,14 +146,14 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 }
 
 // Global MessageGenerator
-var MessageGenerator msgGenerator
+var MessageGenerator *msgGenerator = new(msgGenerator)
 
 type msgGenerator struct {
 	MessageChan chan *messageHolder
 	RecycleChan chan *messageHolder
 }
 
-func (self msgGenerator) Init() {
+func (self *msgGenerator) Init() {
 	self.MessageChan = make(chan *messageHolder, PoolSize/2)
 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
 	for i := 0; i < PoolSize/2; i++ {
@@ -169,14 +169,14 @@ func (self msgGenerator) Init() {
 // chainCount. The chainCount should remain untouched, and all the
 // fields of the returned msg.Message should be overwritten as needed
 // The msg.Message
-func (self msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
 	msg = <-self.RecycleChan
 	msg.ChainCount = chainCount
 	return msg
 }
 
 // Injects a message using the MessageGenerator
-func (self msgGenerator) Inject(msg *messageHolder) {
+func (self *msgGenerator) Inject(msg *messageHolder) {
 	msg.ChainCount++
 	self.MessageChan <- msg
 }
@@ -204,7 +204,7 @@ func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
 	timeout *time.Duration) error {
 	select {
 	case msgHolder := <-self.messageChan:
-		pipeline.Message.Copy(msgHolder.Message)
+		msgHolder.Message.Copy(pipeline.Message)
 		pipeline.Decoded = true
 		pipeline.ChainCount = msgHolder.ChainCount
 		self.recycleChan <- msgHolder
