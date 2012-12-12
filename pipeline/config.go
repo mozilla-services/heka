@@ -20,14 +20,14 @@ import (
 	"os"
 )
 
-var AvailablePlugins = map[string]func() Plugin{
-	"UdpInput":       func() Plugin { return new(UdpInput) },
-	"JsonDecoder":    func() Plugin { return new(JsonDecoder) },
-	"MsgPackDecoder": func() Plugin { return new(MsgPackDecoder) },
-	"StatsdUdpInput": func() Plugin { return new(StatsdUdpInput) },
-	"LogOutput":      func() Plugin { return new(LogOutput) },
-	"CounterOutput":  func() Plugin { return new(CounterOutput) },
-	"FileOutput":     func() Plugin { return new(FileOutput) },
+var AvailablePlugins = map[string]func() interface{}{
+	"UdpInput":       func() interface{} { return new(UdpInput) },
+	"JsonDecoder":    func() interface{} { return new(JsonDecoder) },
+	"MsgPackDecoder": func() interface{} { return new(MsgPackDecoder) },
+	"StatsdUdpInput": func() interface{} { return new(StatsdUdpInput) },
+	"LogOutput":      func() interface{} { return new(LogOutput) },
+	"CounterOutput":  func() interface{} { return new(CounterOutput) },
+	"FileOutput":     func() interface{} { return new(FileOutput) },
 }
 
 type PluginConfig map[string]interface{}
@@ -101,18 +101,18 @@ func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
 type PluginWrapper struct {
 	name          string
 	configCreator func() interface{}
-	pluginCreator func() Plugin
+	pluginCreator func() interface{}
 	global        PluginGlobal
 }
 
 // Create a new instance of the plugin and return it, or an error
-func (self *PluginWrapper) Create() (plugin Plugin) {
+func (self *PluginWrapper) Create() (plugin interface{}) {
 	plugin = self.pluginCreator()
 	if self.global == nil {
-		plugin.Init(self.configCreator())
+		plugin.(Plugin).Init(self.configCreator())
 	} else {
 		// pluginCreator only returns a Plugin int, so we type assert
-		plugin.(PluginWithGlobal).InitWithGlobal(self.global, self.configCreator())
+		plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
 	}
 	return
 }
@@ -169,9 +169,9 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 
 		// Initialize the plugin once to ensure it will work
 		if wrapper.global == nil {
-			err = plugin.Init(wrapper.configCreator())
+			err = plugin.(Plugin).Init(wrapper.configCreator())
 		} else {
-			err = plugin.(PluginWithGlobal).InitWithGlobal(wrapper.global, wrapper.configCreator())
+			err = plugin.(PluginWithGlobal).Init(wrapper.global, wrapper.configCreator())
 		}
 		if err != nil {
 			return config, errors.New("Unable to plugin init: " + err.Error())
@@ -223,7 +223,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		MessageGenerator.Init()
 		mgiWrapper := new(PluginWrapper)
 		mgiWrapper.name = "MessageGeneratorInput"
-		mgiWrapper.pluginCreator = func() Plugin { return new(MessageGeneratorInput) }
+		mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
 		mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
 		self.Inputs["MessageGeneratorInput"] = mgiWrapper
 	}

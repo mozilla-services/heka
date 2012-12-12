@@ -76,10 +76,7 @@ func (self *StatsdUdpInput) InitOnce(config interface{}) (global PluginGlobal, e
 	return stat, nil
 }
 
-// Unused Init to meet Plugin interface
-func (self *StatsdUdpInput) Init(config interface{}) error { return nil }
-
-func (self *StatsdUdpInput) InitWithGlobal(global PluginGlobal, config interface{}) error {
+func (self *StatsdUdpInput) Init(global PluginGlobal, config interface{}) error {
 	conf := config.(*StatsdUdpInputConfig)
 	stat := global.(*statsUdp)
 	self.StatsIn = stat.StatsIn
