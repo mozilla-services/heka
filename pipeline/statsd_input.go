@@ -51,23 +51,39 @@ func (self *StatsdUdpInput) ConfigStruct() interface{} {
 // Deadline is stored on the struct so we don't have to allocate / GC
 // a new time.Time object for each message received.
 type StatsdUdpInput struct {
-	Listener         net.Conn
-	Deadline         time.Time
-	FlushInterval    int64
-	PercentThreshold int
-	StatsIn          chan *StatPacket
-	recycleChan      chan *StatPacket
-	counters         map[string]int
-	timers           map[string][]float64
-	gauges           map[string]int
-	p                *StatPacket
-	value            string
+	Listener    net.Conn
+	Deadline    time.Time
+	StatsIn     chan *StatPacket
+	recycleChan chan *StatPacket
+	p           *StatPacket
+	value       string
 }
 
-func (self *StatsdUdpInput) Init(config interface{}) error {
+func (self *StatsdUdpInput) InitOnce(config interface{}) (global PluginGlobal, err error) {
 	conf := config.(*StatsdUdpInputConfig)
-	self.FlushInterval = conf.FlushInterval
-	self.PercentThreshold = conf.PercentThreshold
+	stat := new(statsUdp)
+	stat.FlushInterval = conf.FlushInterval
+	stat.PercentThreshold = conf.PercentThreshold
+	stat.StatsIn = make(chan *StatPacket, PoolSize*2)
+	stat.recycleChan = make(chan *StatPacket, PoolSize*2)
+	stat.counters = make(map[string]int)
+	stat.timers = make(map[string][]float64)
+	stat.gauges = make(map[string]int)
+	for i := 0; i < PoolSize; i++ {
+		stat.recycleChan <- new(StatPacket)
+	}
+	go stat.Monitor()
+	return stat, nil
+}
+
+// Unused Init to meet Plugin interface
+func (self *StatsdUdpInput) Init(config interface{}) error { return nil }
+
+func (self *StatsdUdpInput) InitWithGlobal(global PluginGlobal, config interface{}) error {
+	conf := config.(*StatsdUdpInputConfig)
+	stat := global.(*statsUdp)
+	self.StatsIn = stat.StatsIn
+	self.recycleChan = stat.recycleChan
 	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := conf.Address[3:]
@@ -92,14 +108,6 @@ func (self *StatsdUdpInput) Init(config interface{}) error {
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
-	}
-	self.StatsIn = make(chan *StatPacket, PoolSize*2)
-	self.recycleChan = make(chan *StatPacket, PoolSize*2)
-	self.counters = make(map[string]int)
-	self.timers = make(map[string][]float64)
-	self.gauges = make(map[string]int)
-	for i := 0; i < PoolSize; i++ {
-		self.recycleChan <- new(StatPacket)
 	}
 	return nil
 }
@@ -139,9 +147,23 @@ func (self *StatsdUdpInput) Read(pipelinePack *PipelinePack,
 	return err
 }
 
+type statsUdp struct {
+	FlushInterval    int64
+	PercentThreshold int
+	StatsIn          chan *StatPacket
+	recycleChan      chan *StatPacket
+	counters         map[string]int
+	timers           map[string][]float64
+	gauges           map[string]int
+	p                *StatPacket
+}
+
+func (self *statsUdp) Event(eventType string) {
+}
+
 // StatsdUdpInput Monitor pulls StatPackets off the StatsIn channel,
 // updates the internal stat counters then recycles the StatPacket
-func (self *StatsdUdpInput) Monitor() {
+func (self *statsUdp) Monitor() {
 	t := time.NewTicker(time.Duration(self.FlushInterval) * time.Second)
 	var floatValue float64
 	var intValue int
@@ -180,9 +202,9 @@ func (self *StatsdUdpInput) Monitor() {
 	}
 }
 
-// StatsdUdpInput Flush is called every flushInterval seconds to flush a
+// statsUdp Flush is called every flushInterval seconds to flush a
 // the aggregated stats as a statmetric injected message
-func (self *StatsdUdpInput) Flush() {
+func (self *statsUdp) Flush() {
 	var value float64
 	var intval int64
 	numStats := 0
@@ -234,10 +256,6 @@ func (self *StatsdUdpInput) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
-
-	if numStats == 0 {
-		log.Println("No stats collected, not delivering.")
-	}
 	msgHolder := MessageGenerator.Retrieve(0)
 	msgHolder.Message.Type = "statmetric"
 	msgHolder.Message.Timestamp = now
