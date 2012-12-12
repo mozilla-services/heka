@@ -105,14 +105,22 @@ type PluginWrapper struct {
 	global        PluginGlobal
 }
 
-// Create a new instance of the plugin and return it, or an error
+// Create a new instance of the plugin and return it
+//
+// Errors are ignored. Call with CreateWithError if an error is needed
 func (self *PluginWrapper) Create() (plugin interface{}) {
+	plugin, _ = self.CreateWithError()
+	return
+}
+
+// Creates a new instance
+func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	plugin = self.pluginCreator()
 	if self.global == nil {
-		plugin.(Plugin).Init(self.configCreator())
+		err = plugin.(Plugin).Init(self.configCreator())
 	} else {
 		// pluginCreator only returns a Plugin int, so we type assert
-		plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
+		err = plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
 	}
 	return
 }
@@ -140,8 +148,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			return nil, err
 		}
 
-		// Create an instance so we can see if we need to marshal the
-		// JSON
+		// Create an instance so we can see if we need to marshal the JSON
 		plugin := wrapper.pluginCreator()
 		if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
 			data, err := json.Marshal(&section)
@@ -158,8 +165,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			wrapper.configCreator = func() interface{} { return &section }
 		}
 
-		// Determine if this plug-in has a global, if it does, make it
-		// now
+		// Determine if this plug-in has a global, if it does, make it now
 		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
 			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
 			if err != nil {
@@ -167,13 +173,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			}
 		}
 
-		// Initialize the plugin once to ensure it will work
-		if wrapper.global == nil {
-			err = plugin.(Plugin).Init(wrapper.configCreator())
-		} else {
-			err = plugin.(PluginWithGlobal).Init(wrapper.global, wrapper.configCreator())
-		}
-		if err != nil {
+		if _, err = wrapper.CreateWithError(); err != nil {
 			return config, errors.New("Unable to plugin init: " + err.Error())
 		}
 
