@@ -16,6 +16,9 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	"github.com/rafrombrc/go-notify"
+	"log"
+	"runtime"
 )
 
 // Interface for output objects that need to share a global resource (such as
@@ -51,9 +54,10 @@ type OutputWriter interface {
 
 // Output plugin that drives an OutputWriter
 type RunnerOutput struct {
-	Writer   OutputWriter
-	outChan  chan interface{}
-	backChan chan interface{}
+	Writer      OutputWriter
+	dataChan    chan interface{}
+	recycleChan chan interface{}
+	outData     *interface{}
 }
 
 func RunnerOutputMaker(writer OutputWriter) func() *RunnerOutput {
@@ -69,11 +73,43 @@ func (self *RunnerOutput) InitOnce(config interface{}) (global PluginGlobal, err
 	if err = self.Writer.Init(confLoaded); err != nil {
 		return self.Writer, errors.New("WriteRunner initialization error: ", err)
 	}
-	self.outChan = make(chan interface{}, 2*PoolSize)
-	self.backChan = make(chan interface{}, 2*PoolSize)
+
+	self.dataChan = make(chan *interface{}, 2*PoolSize)
+	self.recycleChan = make(chan *interface{}, 2*PoolSize)
+	for i := 0; i < 2*PoolSize; i++ {
+		self.recycleChan <- self.Writer.MakeOutData()
+	}
+	go self.runner()
 	return self.Writer, nil
 }
 
 func (self *RunnerOutput) Init(global PluginGlobal, config interface{}) error {
 	return nil
+}
+
+func (self *RunnerOutput) runner() {
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+	var outData *interface{}
+	var err error
+	for {
+		// Yield before channel select can improve scheduler performance
+		runtime.Gosched()
+		select {
+		case outData = <-self.dataChan:
+			if err = self.Writer.Write(outData); err != nil {
+				log.Println("OutputWriter error: ", err)
+			}
+			self.Writer.ZeroOutData(outData)
+			self.recycleChan <- outData
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+func (self *RunnerOutput) Deliver(pack *PipelinePack) {
+	self.outData = <-self.recycleChan
+	self.Writer.PrepOutData(pack, self.outData)
+	self.dataChan <- self.outData
 }
