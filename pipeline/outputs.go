@@ -16,7 +16,6 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
 	"runtime"
@@ -135,10 +134,12 @@ var (
 const NEWLINE byte = 10
 
 type FileWriter struct {
-	path     string
-	file     *os.File
-	outBytes *[]byte
-	ticker   *time.Ticker
+	path      string
+	format    string
+	prefix_ts bool
+	file      *os.File
+	outBytes  *[]byte
+	ticker    *time.Ticker
 }
 
 type FileWriterConfig struct {
@@ -161,9 +162,11 @@ func (self *FileWriter) Init(config interface{}) (err error) {
 		return fmt.Errorf("Unsupported FileOutput format: %s", conf.Format)
 	}
 	self.path = conf.Path
+	self.format = conf.Format
+	self.prefix_ts = conf.Prefix_ts
 
-	if self.file, err = os.OpenFile(path,
-		os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm); err == nil {
+	if self.file, err = os.OpenFile(conf.Path,
+		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err == nil {
 		go self.fileSyncer()
 	}
 	return err

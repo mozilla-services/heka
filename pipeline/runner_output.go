@@ -14,7 +14,6 @@
 package pipeline
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/rafrombrc/go-notify"
 	"log"
@@ -43,8 +42,8 @@ type OutputWriter interface {
 	// Extracts relevant information from the provided `PipelinePack`
 	// (probably from the `Message` attribute) and uses it to populate the
 	// provided output object. This method will be in use by multiple
-	// goroutines simultaneously, it should modify the passed `outData`
-	// object **only**.
+	// goroutines simultaneously, it should modify the passed `outData` object
+	// **only**.
 	PrepOutData(pack *PipelinePack, outData interface{})
 
 	// Receives a populated output object, handles the actual work of writing
@@ -60,18 +59,18 @@ type RunnerOutput struct {
 	outData     interface{}
 }
 
-func RunnerOutputMaker(writer OutputWriter) func() *RunnerOutput {
-	return func() *RunnerOutput { return &RunnerOutput{Writer: writer} }
+func RunnerOutputMaker(writer OutputWriter) func() interface{} {
+	return func() interface{} { return &RunnerOutput{Writer: writer} }
 }
 
 func (self *RunnerOutput) InitOnce(config interface{}) (global PluginGlobal, err error) {
 	conf := config.(*PluginConfig)
 	confLoaded, err := LoadConfigStruct(conf, self.Writer)
 	if err != nil {
-		return self.Writer, errors.New("WriteRunner config parsing error: ", err)
+		return self.Writer, errors.New("WriteRunner config parsing error: " + err.Error())
 	}
 	if err = self.Writer.Init(confLoaded); err != nil {
-		return self.Writer, errors.New("WriteRunner initialization error: ", err)
+		return self.Writer, errors.New("WriteRunner initialization error: " + err.Error())
 	}
 
 	self.dataChan = make(chan interface{}, 2*PoolSize)

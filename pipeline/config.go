@@ -27,7 +27,7 @@ var AvailablePlugins = map[string]func() interface{}{
 	"StatsdUdpInput": func() interface{} { return new(StatsdUdpInput) },
 	"LogOutput":      func() interface{} { return new(LogOutput) },
 	"CounterOutput":  func() interface{} { return new(CounterOutput) },
-	"FileOutput":     func() interface{} { return new(FileOutput) },
+	"FileOutput":     RunnerOutputMaker(new(FileWriter)),
 }
 
 type PluginConfig map[string]interface{}
@@ -136,12 +136,12 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 
 	data, err := json.Marshal(config)
 	if err != nil {
-		return nil, errors.New("Unable to marshal: ", err)
+		return nil, errors.New("Unable to marshal: " + err.Error())
 	}
 	configStruct := hasConfigStruct.ConfigStruct()
 	err = json.Unmarshal(data, configStruct)
 	if err != nil {
-		return nil, errors.New("Unable to unmarshal: ", err)
+		return nil, errors.New("Unable to unmarshal: " + err.Error())
 	}
 	return configStruct, nil
 }
@@ -171,7 +171,10 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 
 		// Create an instance so we can see if we need to marshal the JSON
 		plugin := wrapper.pluginCreator()
-		configLoaded := LoadConfigStruct(&section, plugin)
+		configLoaded, err := LoadConfigStruct(&section, plugin)
+		if err != nil {
+			return nil, err
+		}
 		wrapper.configCreator = func() interface{} { return configLoaded }
 
 		// Determine if this plug-in has a global, if it does, make it now
