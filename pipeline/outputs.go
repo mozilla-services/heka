@@ -26,7 +26,6 @@ import (
 )
 
 type Output interface {
-	Plugin
 	Deliver(pipelinePack *PipelinePack)
 }
 
@@ -119,64 +118,6 @@ func counterLoop() {
 			rates = append(rates, rate)
 		case inc = <-counterGlobal.count:
 			count += inc
-		}
-	}
-}
-
-type DataRecycler interface {
-	RetrieveDataObject() interface{}
-	SendOutputData(outputData interface{})
-}
-
-// DataRecycler implementation that uses internal channels to manage and
-// and recycle the data objects.
-
-type ChanDataRecycler struct {
-	dataChan     chan interface{}
-	recycleChan  chan interface{}
-	outputWriter OutputWriter
-}
-
-func NewDataRecycler(outputWriter OutputWriter) DataRecycler {
-	dataChan := make(chan interface{}, 2*PoolSize)
-	recycleChan := make(chan interface{}, 2*PoolSize)
-
-	// Stuff the recycle channel w/ usable output data objects
-	for i := 0; i < 2*PoolSize; i++ {
-		recycleChan <- outputWriter.MakeOutputData()
-	}
-	self := &ChanDataRecycler{dataChan, recycleChan, outputWriter}
-	go self.writeLoop()
-	return self
-}
-
-func (self *ChanDataRecycler) RetrieveDataObject() interface{} {
-	return <-self.recycleChan
-}
-
-func (self *ChanDataRecycler) SendOutputData(outputData interface{}) {
-	self.dataChan <- outputData
-}
-
-func (self *ChanDataRecycler) writeLoop() {
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-	var outputData interface{}
-	var err error
-writeLoop:
-	for {
-		// Yielding before a channel select improves scheduler performance
-		runtime.Gosched()
-		select {
-		case outputData = <-self.dataChan:
-			err = self.outputWriter.Write(outputData)
-			if err != nil {
-				log.Println("OutputWriter error: ", err)
-			}
-			self.recycleChan <- outputData
-		case <-stopChan:
-			self.outputWriter.Stop()
-			break writeLoop
 		}
 	}
 }
