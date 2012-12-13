@@ -125,6 +125,27 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	return
 }
 
+// If `configable` supports the `HasConfigStruct` interface this will use said
+// interface to fetch a config struct object and populate it w/ the values in
+// provided `config`. If not, simply returns `config` unchanged.
+func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}, error) {
+	hasConfigStruct, ok := configable.(HasConfigStruct)
+	if !ok {
+		return config, nil
+	}
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		return nil, errors.New("Unable to marshal: ", err)
+	}
+	configStruct := hasConfigStruct.ConfigStruct()
+	err = json.Unmarshal(data, configStruct)
+	if err != nil {
+		return nil, errors.New("Unable to unmarshal: ", err)
+	}
+	return configStruct, nil
+}
+
 // loadSection can be passed a configSection, the appropriate mapping
 // of available plug-ins for that section, and will then create
 // PluginWrappers for each plug-in instance defined
@@ -150,20 +171,8 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 
 		// Create an instance so we can see if we need to marshal the JSON
 		plugin := wrapper.pluginCreator()
-		if hasConfigStruct, ok := plugin.(HasConfigStruct); ok {
-			data, err := json.Marshal(&section)
-			if err != nil {
-				return config, errors.New("Unable to marshal: " + err.Error())
-			}
-			configStruct := hasConfigStruct.ConfigStruct()
-			err = json.Unmarshal(data, configStruct)
-			if err != nil {
-				return config, errors.New("Unable to unmarshal: " + err.Error())
-			}
-			wrapper.configCreator = func() interface{} { return configStruct }
-		} else {
-			wrapper.configCreator = func() interface{} { return &section }
-		}
+		configLoaded := LoadConfigStruct(&section, plugin)
+		wrapper.configCreator = func() interface{} { return configLoaded }
 
 		// Determine if this plug-in has a global, if it does, make it now
 		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {

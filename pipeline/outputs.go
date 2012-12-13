@@ -123,15 +123,6 @@ func counterLoop() {
 	}
 }
 
-// Interface for objects that manage a resource (e.g. file handle, network
-// connection) that is to be shared by all of the copies of a specific output
-// plugin.
-type OutputWriter interface {
-	MakeOutputData() interface{}
-	Write(outputData interface{}) error
-	Stop()
-}
-
 type DataRecycler interface {
 	RetrieveDataObject() interface{}
 	SendOutputData(outputData interface{})
