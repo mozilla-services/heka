@@ -17,12 +17,10 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"fmt"
-	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	ts "heka/testsupport"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"time"
 )
 
@@ -31,19 +29,13 @@ func OutputsSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	c.Specify("A FileOutput", func() {
-		origPoolSize := PoolSize
-		NewPipelineConfig(1)
-		defer func() {
-			PoolSize = origPoolSize
-		}()
+	c.Specify("A FileWriter", func() {
+		fileWriter := new(FileWriter)
 
-		fileOutput := new(FileOutput)
-		defer notify.StopAll(STOP)
 		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
 		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
 			tmpFileName)
-		config := fileOutput.ConfigStruct().(*FileOutputConfig)
+		config := fileWriter.ConfigStruct().(*FileWriterConfig)
 		config.Path = tmpFilePath
 
 		msg := getTestMessage()
@@ -51,96 +43,74 @@ func OutputsSpec(c gs.Context) {
 		pipelinePack.Message = msg
 		pipelinePack.Decoded = true
 
-		closeAndStop := func(tmpFile *os.File) {
-			tmpFile.Close()
-			notify.PostTimeout(STOP, nil, &ts.PostTimeout)
+		stopAndDelete := func() {
+			os.Remove(tmpFilePath)
+			fileWriter.Event(STOP)
 		}
 
-		// The tests are littered w/ scheduler yields (i.e. runtime.Gosched()
-		// calls) so we give the output a chance to respond to the messages
-		// we're sending.
+		toString := func(outData interface{}) string {
+			return string(*(outData.(*[]byte)))
+		}
 
-		c.Specify("writes text", func() {
-			err := fileOutput.Init(config)
+		c.Specify("makes a pointer to a byte slice", func() {
+			outData := fileWriter.MakeOutData()
+			_, ok := outData.(*[]byte)
+			c.Expect(ok, gs.IsTrue)
+		})
+
+		c.Specify("zeroes a byte slice", func() {
+			outBytes := make([]byte, 0, 100)
+			str := "This is a test"
+			outBytes = append(outBytes, []byte(str)...)
+			c.Expect(len(outBytes), gs.Equals, len(str))
+			fileWriter.ZeroOutData(outBytes)
+			c.Expect(len(outBytes), gs.Equals, 0)
+		})
+
+		c.Specify("correctly formats text output", func() {
+			err := fileWriter.Init(config)
+			defer stopAndDelete()
 			c.Assume(err, gs.IsNil)
-			runtime.Gosched()
+			outData := fileWriter.MakeOutData()
 
 			c.Specify("by default", func() {
-				fileOutput.Deliver(pipelinePack)
-				runtime.Gosched()
-				tmpFile, err := os.Open(tmpFilePath)
-				defer closeAndStop(tmpFile)
-				c.Assume(err, gs.IsNil)
-				contents, err := ioutil.ReadAll(tmpFile)
-				c.Assume(err, gs.IsNil)
-				c.Expect(string(contents), gs.Equals, msg.Payload+"\n")
+				fileWriter.PrepOutData(pipelinePack, outData)
+				c.Expect(toString(outData), gs.Equals, msg.Payload+"\n")
 			})
 
 			c.Specify("w/ a prepended timestamp when specified", func() {
-				fileOutput.prefix_ts = true
-				fileOutput.Deliver(pipelinePack)
-				// Test will fail if date flips btn delivery and todayStr
+				fileWriter.prefix_ts = true
+				fileWriter.PrepOutData(pipelinePack, outData)
+				// Test will fail if date flips btn PrepOutData and todayStr
 				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
-				runtime.Gosched()
-				tmpFile, err := os.Open(tmpFilePath)
-				defer closeAndStop(tmpFile)
-				c.Expect(err, gs.IsNil)
-				contents, err := ioutil.ReadAll(tmpFile)
-				strContents := string(contents)
+				strContents := toString(outData)
 				c.Expect(strContents, ts.StringContains, msg.Payload)
 				c.Expect(strContents, ts.StringStartsWith, todayStr)
 			})
 		})
 
-		c.Specify("honors different Perm settings", func() {
-			config.Perm = 0600
-			err := fileOutput.Init(config)
-			c.Assume(err, gs.IsNil)
-			runtime.Gosched()
-			fileOutput.Deliver(pipelinePack)
-			runtime.Gosched()
-			tmpFile, err := os.Open(tmpFilePath)
-			defer closeAndStop(tmpFile)
-			c.Assume(err, gs.IsNil)
-			fileInfo, err := tmpFile.Stat()
-			c.Assume(err, gs.IsNil)
-			fileMode := fileInfo.Mode()
-			// 7 consecutive dashes implies no perms for group or other
-			c.Expect(fileMode.String(), ts.StringContains, "-------")
-		})
-
-		c.Specify("writes JSON", func() {
+		c.Specify("correctly formats JSON output", func() {
 			config.Format = "json"
-			err := fileOutput.Init(config)
+			err := fileWriter.Init(config)
+			defer stopAndDelete()
 			c.Assume(err, gs.IsNil)
-			runtime.Gosched()
+			outData := fileWriter.MakeOutData()
 
 			c.Specify("when specified", func() {
-				fileOutput.Deliver(pipelinePack)
-				runtime.Gosched()
-				tmpFile, err := os.Open(tmpFilePath)
-				defer closeAndStop(tmpFile)
-				c.Assume(err, gs.IsNil)
-				contents, err := ioutil.ReadAll(tmpFile)
-				c.Assume(err, gs.IsNil)
+				fileWriter.PrepOutData(pipelinePack, outData)
 				msgJson, err := json.Marshal(pipelinePack.Message)
 				c.Assume(err, gs.IsNil)
-				c.Expect(string(contents), gs.Equals, string(msgJson)+"\n")
+				c.Expect(toString(outData), gs.Equals, string(msgJson)+"\n")
 			})
 
 			c.Specify("and with a timestamp", func() {
-				fileOutput.prefix_ts = true
-				fileOutput.Deliver(pipelinePack)
-				// Test will fail if date flips btn delivery and todayStr
+				fileWriter.prefix_ts = true
+				fileWriter.PrepOutData(pipelinePack, outData)
+				// Test will fail if date flips btn PrepOutData and todayStr
 				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
-				runtime.Gosched()
-				tmpFile, err := os.Open(tmpFilePath)
-				defer closeAndStop(tmpFile)
-				c.Expect(err, gs.IsNil)
-				contents, err := ioutil.ReadAll(tmpFile)
-				strContents := string(contents)
+				strContents := toString(outData)
 				msgJson, err := json.Marshal(pipelinePack.Message)
 				c.Assume(err, gs.IsNil)
 				c.Expect(strContents, ts.StringContains, string(msgJson)+"\n")
@@ -148,6 +118,43 @@ func OutputsSpec(c gs.Context) {
 			})
 		})
 
-		os.Remove(tmpFilePath) // clean up after ourselves
+		c.Specify("writes out to a file", func() {
+			outData := fileWriter.MakeOutData()
+			outBytes := outData.(*[]byte)
+			outStr := "Write me out to the log file"
+			*outBytes = append(*outBytes, []byte(outStr)...)
+
+			c.Specify("with default settings", func() {
+				err := fileWriter.Init(config)
+				defer stopAndDelete()
+				c.Assume(err, gs.IsNil)
+				err = fileWriter.Write(outData)
+				c.Expect(err, gs.IsNil)
+
+				tmpFile, err := os.Open(tmpFilePath)
+				defer tmpFile.Close()
+				c.Assume(err, gs.IsNil)
+				contents, err := ioutil.ReadAll(tmpFile)
+				c.Assume(err, gs.IsNil)
+				c.Expect(string(contents), gs.Equals, outStr+"\n")
+			})
+
+			c.Specify("honors different Perm settings", func() {
+				config.Perm = 0600
+				err := fileWriter.Init(config)
+				defer stopAndDelete()
+				c.Assume(err, gs.IsNil)
+				err = fileWriter.Write(outData)
+				c.Expect(err, gs.IsNil)
+				tmpFile, err := os.Open(tmpFilePath)
+				defer tmpFile.Close()
+				c.Assume(err, gs.IsNil)
+				fileInfo, err := tmpFile.Stat()
+				c.Assume(err, gs.IsNil)
+				fileMode := fileInfo.Mode()
+				// 7 consecutive dashes implies no perms for group or other
+				c.Expect(fileMode.String(), ts.StringContains, "-------")
+			})
+		})
 	})
 }
