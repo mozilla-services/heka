@@ -32,24 +32,24 @@ type OutputWriter interface {
 	// This must create exactly one instance of the `outData` data object type
 	// expected by the `Write` method. Will be called multiple times to create
 	// a pool of reusable objects.
-	MakeOutData() *interface{}
+	MakeOutData() interface{}
 
 	// Will be handed a used output object which should be reset to a zero
 	// state for in preparation for reuse. This method will be in use by
 	// multiple goroutines simultaneously, it should modify the passed
 	// `outData` object **only**.
-	ZeroOutData(outData *interface{})
+	ZeroOutData(outData interface{})
 
 	// Extracts relevant information from the provided `PipelinePack`
 	// (probably from the `Message` attribute) and uses it to populate the
 	// provided output object. This method will be in use by multiple
-	// goroutines simultaneously, it should modify the passed `emptyOutData`
+	// goroutines simultaneously, it should modify the passed `outData`
 	// object **only**.
-	PrepOutData(pack *PipelinePack, emptyOutData *interface{})
+	PrepOutData(pack *PipelinePack, outData interface{})
 
 	// Receives a populated output object, handles the actual work of writing
 	// data out to an external destination.
-	Write(outData *interface{}) error
+	Write(outData interface{}) error
 }
 
 // Output plugin that drives an OutputWriter
@@ -57,7 +57,7 @@ type RunnerOutput struct {
 	Writer      OutputWriter
 	dataChan    chan interface{}
 	recycleChan chan interface{}
-	outData     *interface{}
+	outData     interface{}
 }
 
 func RunnerOutputMaker(writer OutputWriter) func() *RunnerOutput {
@@ -74,8 +74,8 @@ func (self *RunnerOutput) InitOnce(config interface{}) (global PluginGlobal, err
 		return self.Writer, errors.New("WriteRunner initialization error: ", err)
 	}
 
-	self.dataChan = make(chan *interface{}, 2*PoolSize)
-	self.recycleChan = make(chan *interface{}, 2*PoolSize)
+	self.dataChan = make(chan interface{}, 2*PoolSize)
+	self.recycleChan = make(chan interface{}, 2*PoolSize)
 	for i := 0; i < 2*PoolSize; i++ {
 		self.recycleChan <- self.Writer.MakeOutData()
 	}
@@ -90,7 +90,7 @@ func (self *RunnerOutput) Init(global PluginGlobal, config interface{}) error {
 func (self *RunnerOutput) runner() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
-	var outData *interface{}
+	var outData interface{}
 	var err error
 	for {
 		// Yield before channel select can improve scheduler performance
