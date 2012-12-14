@@ -24,7 +24,7 @@ var AvailablePlugins = map[string]func() interface{}{
 	"UdpInput":       func() interface{} { return new(UdpInput) },
 	"JsonDecoder":    func() interface{} { return new(JsonDecoder) },
 	"MsgPackDecoder": func() interface{} { return new(MsgPackDecoder) },
-	"StatsdUdpInput": func() interface{} { return new(StatsdUdpInput) },
+	"StatsdUdpInput": RunnerMaker(new(StatsdWriter)),
 	"LogOutput":      func() interface{} { return new(LogOutput) },
 	"CounterOutput":  func() interface{} { return new(CounterOutput) },
 	"FileOutput":     RunnerMaker(new(FileWriter)),
