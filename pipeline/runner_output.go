@@ -38,7 +38,8 @@ type DataRecycler interface {
 	// provided output object. This method will be in use by multiple
 	// goroutines simultaneously, it should modify the passed `outData` object
 	// **only**.
-	PrepOutData(pack *PipelinePack, outData interface{})
+	// timeout will be nil unless this Plugin will be used as an Input
+	PrepOutData(pack *PipelinePack, outData interface{}, timeout *time.Duration) error
 }
 
 // Interface for output objects that need to share a global resource (such as
@@ -61,7 +62,7 @@ type BatchWriter interface {
 
 	// Setup method, called exactly once, returns a channel that ticks when the
 	// Commit should be called
-	Init(config interface{}) (chan<- time.Time, error)
+	Init(config interface{}) (<-chan time.Time, error)
 
 	// Receives a populated output object, handles batching it as needed before
 	// its to be committed
@@ -79,7 +80,7 @@ type Runner struct {
 	dataChan    chan interface{}
 	recycleChan chan interface{}
 	outData     interface{}
-	ticker      chan time.Time
+	ticker      <-chan time.Time
 }
 
 func RunnerMaker(writer interface{}) func() interface{} {
@@ -91,13 +92,19 @@ func RunnerMaker(writer interface{}) func() interface{} {
 			runner.Writer = writer.(Writer)
 		}
 		runner.Recycler = writer.(DataRecycler)
+		return runner
 	}
 	return func() interface{} { return makeRunner() }
 }
 
 func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error) {
 	conf := config.(*PluginConfig)
-	confLoaded, err := LoadConfigStruct(conf, self.Writer)
+	var confLoaded interface{}
+	if self.BatchWriter != nil {
+		confLoaded, err = LoadConfigStruct(conf, self.BatchWriter)
+	} else {
+		confLoaded, err = LoadConfigStruct(conf, self.Writer)
+	}
 	if err != nil {
 		return self.Writer, errors.New("WriteRunner config parsing error: " + err.Error())
 	}
@@ -125,9 +132,8 @@ func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error
 
 	if self.BatchWriter != nil {
 		return self.BatchWriter, nil
-	} else {
-		return self.Writer, nil
 	}
+	return self.Writer, nil
 }
 
 func (self *Runner) Init(global PluginGlobal, config interface{}) error {
@@ -138,13 +144,12 @@ func (self *Runner) batch_runner() {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 	var outData interface{}
-	var tick time.Time
 	var err error
 	for {
 		// Yield before channel select can improve scheduler performance
 		runtime.Gosched()
 		select {
-		case tick = <-self.ticker:
+		case <-self.ticker:
 			self.BatchWriter.Commit()
 		case outData = <-self.dataChan:
 			if err = self.BatchWriter.Batch(outData); err != nil {
@@ -181,6 +186,20 @@ func (self *Runner) runner() {
 
 func (self *Runner) Deliver(pack *PipelinePack) {
 	self.outData = <-self.recycleChan
-	self.Recycler.PrepOutData(pack, self.outData)
+	self.Recycler.PrepOutData(pack, self.outData, nil)
 	self.dataChan <- self.outData
+}
+
+func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
+	self.outData = <-self.recycleChan
+	self.Recycler.PrepOutData(pipelinePack, self.outData, nil)
+	self.dataChan <- self.outData
+}
+
+func (self *Runner) Read(pipelinePack *PipelinePack,
+	timeout *time.Duration) (err error) {
+	self.outData = <-self.recycleChan
+	err = self.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
+	self.dataChan <- self.outData
+	return
 }
