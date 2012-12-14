@@ -16,7 +16,6 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
 	"runtime"
@@ -26,7 +25,6 @@ import (
 )
 
 type Output interface {
-	Plugin
 	Deliver(pipelinePack *PipelinePack)
 }
 
@@ -123,122 +121,8 @@ func counterLoop() {
 	}
 }
 
-// Interface for objects that manage a resource (e.g. file handle, network
-// connection) that is to be shared by all of the copies of a specific output
-// plugin.
-type OutputWriter interface {
-	MakeOutputData() interface{}
-	Write(outputData interface{}) error
-	Stop()
-}
-
-type DataRecycler interface {
-	RetrieveDataObject() interface{}
-	SendOutputData(outputData interface{})
-}
-
-// DataRecycler implementation that uses internal channels to manage and
-// and recycle the data objects.
-
-type ChanDataRecycler struct {
-	dataChan     chan interface{}
-	recycleChan  chan interface{}
-	outputWriter OutputWriter
-}
-
-func NewDataRecycler(outputWriter OutputWriter) DataRecycler {
-	dataChan := make(chan interface{}, 2*PoolSize)
-	recycleChan := make(chan interface{}, 2*PoolSize)
-
-	// Stuff the recycle channel w/ usable output data objects
-	for i := 0; i < 2*PoolSize; i++ {
-		recycleChan <- outputWriter.MakeOutputData()
-	}
-	self := &ChanDataRecycler{dataChan, recycleChan, outputWriter}
-	go self.writeLoop()
-	return self
-}
-
-func (self *ChanDataRecycler) RetrieveDataObject() interface{} {
-	return <-self.recycleChan
-}
-
-func (self *ChanDataRecycler) SendOutputData(outputData interface{}) {
-	self.dataChan <- outputData
-}
-
-func (self *ChanDataRecycler) writeLoop() {
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-	var outputData interface{}
-	var err error
-writeLoop:
-	for {
-		// Yielding before a channel select improves scheduler performance
-		runtime.Gosched()
-		select {
-		case outputData = <-self.dataChan:
-			err = self.outputWriter.Write(outputData)
-			if err != nil {
-				log.Println("OutputWriter error: ", err)
-			}
-			self.recycleChan <- outputData
-		case <-stopChan:
-			self.outputWriter.Stop()
-			break writeLoop
-		}
-	}
-}
-
-type FileOutputWriter struct {
-	path        string
-	file        *os.File
-	outputBytes []byte
-	ticker      *time.Ticker
-}
-
-func NewFileOutputWriter(path string, perm os.FileMode) (*FileOutputWriter,
-	error) {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
-	if err != nil {
-		return nil, err
-	}
-	self := &FileOutputWriter{path: path, file: file}
-	go self.fileSyncer()
-	return self, nil
-}
-
-func (self *FileOutputWriter) fileSyncer() {
-	self.ticker = time.NewTicker(time.Second)
-	for _ = range self.ticker.C {
-		self.file.Sync()
-	}
-}
-
-func (self *FileOutputWriter) MakeOutputData() interface{} {
-	return make([]byte, 0, 2000)
-}
-
-func (self *FileOutputWriter) Write(outputData interface{}) (err error) {
-	self.outputBytes = outputData.([]byte)
-	n, err := self.file.Write(self.outputBytes)
-	if err != nil {
-		err = fmt.Errorf("FileOutput error writing to %s: %s", self.path, err)
-	} else if n != len(self.outputBytes) {
-		err = fmt.Errorf("FileOutput truncated output for %s", self.path)
-	}
-	self.outputBytes = self.outputBytes[:0]
-	return err
-}
-
-func (self *FileOutputWriter) Stop() {
-	self.ticker.Stop()
-	self.file.Close()
-}
-
+// FileWriter implementation
 var (
-	FileDataRecyclers = make(map[string]DataRecycler)
-
 	FILEFORMATS = map[string]bool{
 		"json": true,
 		"text": true,
@@ -249,60 +133,67 @@ var (
 
 const NEWLINE byte = 10
 
-// FileOutput formats the output and then hands it off to the dataChan so the
-// FileWriter can do its thing.
-type FileOutput struct {
-	dataRecycler DataRecycler
-	outputBytes  []byte
-	path         string
-	format       string
-	prefix_ts    bool
+type FileWriter struct {
+	path      string
+	format    string
+	prefix_ts bool
+	file      *os.File
+	outBytes  *[]byte
+	ticker    *time.Ticker
 }
 
-type FileOutputConfig struct {
+type FileWriterConfig struct {
 	Path      string
 	Format    string
 	Prefix_ts bool
 	Perm      os.FileMode
 }
 
-func (self *FileOutput) ConfigStruct() interface{} {
-	return &FileOutputConfig{Format: "text", Perm: 0666}
+func (self *FileWriter) ConfigStruct() interface{} {
+	return &FileWriterConfig{Format: "text", Perm: 0666}
 }
 
-// Initialize a WriteRunner, but only once.
-func (self *FileOutput) Init(config interface{}) error {
-	conf := config.(*FileOutputConfig)
+func (self *FileWriter) Init(config interface{}) (err error) {
+	//path string, perm os.FileMode) (*FileOutputWriter,
+	//error) {
+	conf := config.(*FileWriterConfig)
 	_, ok := FILEFORMATS[conf.Format]
 	if !ok {
 		return fmt.Errorf("Unsupported FileOutput format: %s", conf.Format)
-	}
-	// Using a map to guarantee there's only one WriteRunner is only safe b/c
-	// the PipelinePacks (and therefore the FileOutputs) are initialized in
-	// series. If this ever changes such that outputs might be created in
-	// different threads then this will require a lock to make sure we don't
-	// end up w/ two WriteRunners for the same file.
-	self.dataRecycler, ok = FileDataRecyclers[conf.Path]
-	if !ok {
-		fileOutputWriter, err := NewFileOutputWriter(conf.Path, conf.Perm)
-		if err != nil {
-			return fmt.Errorf("Error creating FileOutputWriter: %s", err)
-		}
-		self.dataRecycler = NewDataRecycler(fileOutputWriter)
-		FileDataRecyclers[conf.Path] = self.dataRecycler
 	}
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
 
-	return nil
+	if self.file, err = os.OpenFile(conf.Path,
+		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err == nil {
+		go self.fileSyncer()
+	}
+	return err
 }
 
-func (self *FileOutput) Deliver(pack *PipelinePack) {
-	self.outputBytes = self.dataRecycler.RetrieveDataObject().([]byte)
+func (self *FileWriter) fileSyncer() {
+	self.ticker = time.NewTicker(time.Second)
+	for _ = range self.ticker.C {
+		self.file.Sync()
+	}
+}
+
+func (self *FileWriter) MakeOutData() interface{} {
+	b := make([]byte, 0, 2000)
+	return &b
+}
+
+func (self *FileWriter) ZeroOutData(outData interface{}) {
+	outBytes := outData.(*[]byte)
+	*outBytes = (*outBytes)[:0]
+}
+
+func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}) {
+	outBytes := outData.(*[]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
-		self.outputBytes = append(self.outputBytes, ts...)
+		*outBytes = append(*outBytes, ts...)
 	}
 
 	switch self.format {
@@ -312,10 +203,27 @@ func (self *FileOutput) Deliver(pack *PipelinePack) {
 			log.Printf("Error converting message to JSON for %s", self.path)
 			return
 		}
-		self.outputBytes = append(self.outputBytes, jsonMessage...)
+		*outBytes = append(*outBytes, jsonMessage...)
 	case "text":
-		self.outputBytes = append(self.outputBytes, pack.Message.Payload...)
+		*outBytes = append(*outBytes, pack.Message.Payload...)
 	}
-	self.outputBytes = append(self.outputBytes, NEWLINE)
-	self.dataRecycler.SendOutputData(self.outputBytes)
+	*outBytes = append(*outBytes, NEWLINE)
+}
+
+func (self *FileWriter) Write(outData interface{}) (err error) {
+	self.outBytes = outData.(*[]byte)
+	n, err := self.file.Write(*self.outBytes)
+	if err != nil {
+		err = fmt.Errorf("FileOutput error writing to %s: %s", self.path, err)
+	} else if n != len(*self.outBytes) {
+		err = fmt.Errorf("FileOutput truncated output for %s", self.path)
+	}
+	return
+}
+
+func (self *FileWriter) Event(eventType string) {
+	if eventType == STOP {
+		self.ticker.Stop()
+		self.file.Close()
+	}
 }
