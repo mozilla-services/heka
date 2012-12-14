@@ -63,7 +63,7 @@ func OutputsSpec(c gs.Context) {
 			str := "This is a test"
 			outBytes = append(outBytes, []byte(str)...)
 			c.Expect(len(outBytes), gs.Equals, len(str))
-			fileWriter.ZeroOutData(outBytes)
+			fileWriter.ZeroOutData(&outBytes)
 			c.Expect(len(outBytes), gs.Equals, 0)
 		})
 
@@ -136,7 +136,7 @@ func OutputsSpec(c gs.Context) {
 				c.Assume(err, gs.IsNil)
 				contents, err := ioutil.ReadAll(tmpFile)
 				c.Assume(err, gs.IsNil)
-				c.Expect(string(contents), gs.Equals, outStr+"\n")
+				c.Expect(string(contents), gs.Equals, outStr)
 			})
 
 			c.Specify("honors different Perm settings", func() {
