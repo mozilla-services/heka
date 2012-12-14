@@ -22,7 +22,6 @@ import (
 )
 
 func DecodersSpec(c gospec.Context) {
-
 	msg := getTestMessage()
 
 	c.Specify("A JsonDecoder", func() {
