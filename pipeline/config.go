@@ -27,7 +27,7 @@ var AvailablePlugins = map[string]func() interface{}{
 	"StatsdUdpInput": func() interface{} { return new(StatsdUdpInput) },
 	"LogOutput":      func() interface{} { return new(LogOutput) },
 	"CounterOutput":  func() interface{} { return new(CounterOutput) },
-	"FileOutput":     RunnerOutputMaker(new(FileWriter)),
+	"FileOutput":     RunnerMaker(new(FileWriter)),
 }
 
 type PluginConfig map[string]interface{}
