@@ -189,7 +189,7 @@ func (self *FileWriter) ZeroOutData(outData interface{}) {
 	*outBytes = (*outBytes)[:0]
 }
 
-func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}) {
+func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}, timeout *time.Duration) error {
 	outBytes := outData.(*[]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
@@ -201,13 +201,14 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}) {
 		jsonMessage, err := json.Marshal(pack.Message)
 		if err != nil {
 			log.Printf("Error converting message to JSON for %s", self.path)
-			return
+			return err
 		}
 		*outBytes = append(*outBytes, jsonMessage...)
 	case "text":
 		*outBytes = append(*outBytes, pack.Message.Payload...)
 	}
 	*outBytes = append(*outBytes, NEWLINE)
+	return nil
 }
 
 func (self *FileWriter) Write(outData interface{}) (err error) {

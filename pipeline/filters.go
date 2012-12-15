@@ -14,6 +14,5 @@
 package pipeline
 
 type Filter interface {
-	Plugin
 	FilterMsg(pipelinePack *PipelinePack)
 }
