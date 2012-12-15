@@ -137,10 +137,10 @@ func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error
 
 	if self.BatchWriter != nil {
 		go self.batch_runner()
-		return
+		return g, nil
 	}
 	go self.runner()
-	return
+	return g, nil
 }
 
 func (self *Runner) Init(global PluginGlobal, config interface{}) error {
