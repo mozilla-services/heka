@@ -24,10 +24,10 @@ var AvailablePlugins = map[string]func() interface{}{
 	"UdpInput":       func() interface{} { return new(UdpInput) },
 	"JsonDecoder":    func() interface{} { return new(JsonDecoder) },
 	"MsgPackDecoder": func() interface{} { return new(MsgPackDecoder) },
-	"StatsdUdpInput": RunnerMaker(new(StatsdWriter)),
+	"StatsdUdpInput": func() interface{} { return RunnerMaker(new(StatsdWriter)) },
 	"LogOutput":      func() interface{} { return new(LogOutput) },
 	"CounterOutput":  func() interface{} { return new(CounterOutput) },
-	"FileOutput":     RunnerMaker(new(FileWriter)),
+	"FileOutput":     func() interface{} { return RunnerMaker(new(FileWriter)) },
 }
 
 type PluginConfig map[string]interface{}

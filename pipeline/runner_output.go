@@ -72,71 +72,79 @@ type BatchWriter interface {
 	Commit() error
 }
 
-// Plugin that drives a Writer or BatchWriter
+// Plugin that drives a Writer or BatchWriter, instantiated many times
 type Runner struct {
 	Writer      Writer
 	BatchWriter BatchWriter
+	outData     interface{}
+	global      *RunnerGlobal
+}
+
+// Global instance used by every runner
+type RunnerGlobal struct {
 	Recycler    DataRecycler
+	Events      PluginGlobal
 	dataChan    chan interface{}
 	recycleChan chan interface{}
-	outData     interface{}
 	ticker      <-chan time.Time
 }
 
-func RunnerMaker(writer interface{}) func() interface{} {
-	makeRunner := func() interface{} {
-		runner := new(Runner)
-		if batch, ok := writer.(BatchWriter); ok {
-			runner.BatchWriter = batch
-		} else {
-			runner.Writer = writer.(Writer)
-		}
-		runner.Recycler = writer.(DataRecycler)
-		return runner
+func (self *RunnerGlobal) Event(eventType string) {
+	if self.Events != nil {
+		self.Events.Event(eventType)
 	}
-	return func() interface{} { return makeRunner() }
+}
+
+func RunnerMaker(writer interface{}) interface{} {
+	runner := new(Runner)
+	if batch, ok := writer.(BatchWriter); ok {
+		runner.BatchWriter = batch
+	} else {
+		runner.Writer = writer.(Writer)
+	}
+	return runner
 }
 
 func (self *Runner) InitOnce(config interface{}) (global PluginGlobal, err error) {
 	conf := config.(*PluginConfig)
+	g := new(RunnerGlobal)
+	self.global = g
 	var confLoaded interface{}
-	if self.BatchWriter != nil {
-		confLoaded, err = LoadConfigStruct(conf, self.BatchWriter)
-	} else {
-		confLoaded, err = LoadConfigStruct(conf, self.Writer)
-	}
-	if err != nil {
-		return self.Writer, errors.New("WriteRunner config parsing error: " + err.Error())
-	}
 
 	// Determine how to initialize and if we hold a ticker
 	if self.BatchWriter != nil {
-		if self.ticker, err = self.BatchWriter.Init(confLoaded); err != nil {
-			return self.BatchWriter, errors.New("WriteRunner initialization error: " + err.Error())
-		} else {
-			go self.batch_runner()
+		g.Recycler = self.BatchWriter.(DataRecycler)
+		confLoaded, err = LoadConfigStruct(conf, self.BatchWriter)
+		if g.ticker, err = self.BatchWriter.Init(confLoaded); err != nil {
+			return g, errors.New("WriteRunner initialization error: " + err.Error())
 		}
 	} else {
+		g.Recycler = self.Writer.(DataRecycler)
+		confLoaded, err = LoadConfigStruct(conf, self.Writer)
 		if err = self.Writer.Init(confLoaded); err != nil {
-			return self.Writer, errors.New("WriteRunner initialization error: " + err.Error())
-		} else {
-			go self.runner()
+			return g, errors.New("WriteRunner initialization error: " + err.Error())
 		}
 	}
+	if err != nil {
+		return g, errors.New("WriteRunner config parsing error: " + err.Error())
+	}
 
-	self.dataChan = make(chan interface{}, 2*PoolSize)
-	self.recycleChan = make(chan interface{}, 2*PoolSize)
+	g.dataChan = make(chan interface{}, 2*PoolSize)
+	g.recycleChan = make(chan interface{}, 2*PoolSize)
 	for i := 0; i < 2*PoolSize; i++ {
-		self.recycleChan <- self.Recycler.MakeOutData()
+		g.recycleChan <- g.Recycler.MakeOutData()
 	}
 
 	if self.BatchWriter != nil {
-		return self.BatchWriter, nil
+		go self.batch_runner()
+		return
 	}
-	return self.Writer, nil
+	go self.runner()
+	return
 }
 
 func (self *Runner) Init(global PluginGlobal, config interface{}) error {
+	self.global = global.(*RunnerGlobal)
 	return nil
 }
 
@@ -149,14 +157,14 @@ func (self *Runner) batch_runner() {
 		// Yield before channel select can improve scheduler performance
 		runtime.Gosched()
 		select {
-		case <-self.ticker:
+		case <-self.global.ticker:
 			self.BatchWriter.Commit()
-		case outData = <-self.dataChan:
+		case outData = <-self.global.dataChan:
 			if err = self.BatchWriter.Batch(outData); err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
-			self.Recycler.ZeroOutData(outData)
-			self.recycleChan <- outData
+			self.global.Recycler.ZeroOutData(outData)
+			self.global.recycleChan <- outData
 		case <-stopChan:
 			return
 		}
@@ -172,12 +180,12 @@ func (self *Runner) runner() {
 		// Yield before channel select can improve scheduler performance
 		runtime.Gosched()
 		select {
-		case outData = <-self.dataChan:
+		case outData = <-self.global.dataChan:
 			if err = self.Writer.Write(outData); err != nil {
 				log.Println("OutputWriter error: ", err)
 			}
-			self.Recycler.ZeroOutData(outData)
-			self.recycleChan <- outData
+			self.global.Recycler.ZeroOutData(outData)
+			self.global.recycleChan <- outData
 		case <-stopChan:
 			return
 		}
@@ -185,21 +193,29 @@ func (self *Runner) runner() {
 }
 
 func (self *Runner) Deliver(pack *PipelinePack) {
-	self.outData = <-self.recycleChan
-	self.Recycler.PrepOutData(pack, self.outData, nil)
-	self.dataChan <- self.outData
+	self.outData = <-self.global.recycleChan
+	self.global.Recycler.PrepOutData(pack, self.outData, nil)
+	self.global.dataChan <- self.outData
 }
 
 func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
-	self.outData = <-self.recycleChan
-	self.Recycler.PrepOutData(pipelinePack, self.outData, nil)
-	self.dataChan <- self.outData
+	self.outData = <-self.global.recycleChan
+	self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
+	self.global.dataChan <- self.outData
 }
 
 func (self *Runner) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) (err error) {
-	self.outData = <-self.recycleChan
-	err = self.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
-	self.dataChan <- self.outData
+	log.Println("Pulling a value out of recyclechan")
+	self.outData = <-self.global.recycleChan
+	log.Println("Calling prep")
+	err = self.global.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
+	log.Println("Called the prep")
+	if err != nil {
+		self.global.Recycler.ZeroOutData(self.outData)
+		self.global.recycleChan <- self.outData
+		return
+	}
+	self.global.dataChan <- self.outData
 	return
 }

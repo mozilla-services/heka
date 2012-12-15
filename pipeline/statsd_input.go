@@ -64,11 +64,14 @@ func (self *StatsdWriter) ConfigStruct() interface{} {
 }
 
 func (self *StatsdWriter) Event(eventType string) {
+	if eventType == STOP {
+		fmt.Println("Closing connection")
+		self.Listener.Close()
+	}
 }
 
 func (self *StatsdWriter) MakeOutData() interface{} {
-	d := make([]byte, 2000)
-	return &d
+	return make([]byte, 2000)
 }
 
 func (self *StatsdWriter) ZeroOutData(outData interface{}) {
@@ -115,6 +118,7 @@ func (self *StatsdWriter) Init(config interface{}) (<-chan time.Time, error) {
 
 func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interface{},
 	timeout *time.Duration) error {
+	log.Println("Called our udp read!")
 	pipelinePack.Blocked = true
 	self.Deadline = time.Now().Add(*timeout)
 	self.Listener.SetReadDeadline(self.Deadline)
@@ -127,7 +131,7 @@ func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interf
 }
 
 func (self *StatsdWriter) Batch(outData interface{}) (err error) {
-	s := sanitizeRegexp.ReplaceAllString(string(*(outData.(*[]byte))), "")
+	s := sanitizeRegexp.ReplaceAllString(string(outData.([]byte)), "")
 	var sampleRate float64
 	var floatValue float64
 	var intValue int
