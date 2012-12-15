@@ -118,7 +118,6 @@ func (self *StatsdWriter) Init(config interface{}) (<-chan time.Time, error) {
 
 func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interface{},
 	timeout *time.Duration) error {
-	log.Println("Called our udp read!")
 	pipelinePack.Blocked = true
 	self.Deadline = time.Now().Add(*timeout)
 	self.Listener.SetReadDeadline(self.Deadline)

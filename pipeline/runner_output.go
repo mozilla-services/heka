@@ -206,11 +206,8 @@ func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 
 func (self *Runner) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) (err error) {
-	log.Println("Pulling a value out of recyclechan")
 	self.outData = <-self.global.recycleChan
-	log.Println("Calling prep")
 	err = self.global.Recycler.PrepOutData(pipelinePack, self.outData, timeout)
-	log.Println("Called the prep")
 	if err != nil {
 		self.global.Recycler.ZeroOutData(self.outData)
 		self.global.recycleChan <- self.outData
