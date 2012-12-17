@@ -33,7 +33,6 @@ func (self *TimeoutError) Error() string {
 }
 
 type Input interface {
-	Plugin
 	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
 }
 

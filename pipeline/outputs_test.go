@@ -74,13 +74,13 @@ func OutputsSpec(c gs.Context) {
 			outData := fileWriter.MakeOutData()
 
 			c.Specify("by default", func() {
-				fileWriter.PrepOutData(pipelinePack, outData)
+				fileWriter.PrepOutData(pipelinePack, outData, nil)
 				c.Expect(toString(outData), gs.Equals, msg.Payload+"\n")
 			})
 
 			c.Specify("w/ a prepended timestamp when specified", func() {
 				fileWriter.prefix_ts = true
-				fileWriter.PrepOutData(pipelinePack, outData)
+				fileWriter.PrepOutData(pipelinePack, outData, nil)
 				// Test will fail if date flips btn PrepOutData and todayStr
 				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
@@ -98,7 +98,7 @@ func OutputsSpec(c gs.Context) {
 			outData := fileWriter.MakeOutData()
 
 			c.Specify("when specified", func() {
-				fileWriter.PrepOutData(pipelinePack, outData)
+				fileWriter.PrepOutData(pipelinePack, outData, nil)
 				msgJson, err := json.Marshal(pipelinePack.Message)
 				c.Assume(err, gs.IsNil)
 				c.Expect(toString(outData), gs.Equals, string(msgJson)+"\n")
@@ -106,7 +106,7 @@ func OutputsSpec(c gs.Context) {
 
 			c.Specify("and with a timestamp", func() {
 				fileWriter.prefix_ts = true
-				fileWriter.PrepOutData(pipelinePack, outData)
+				fileWriter.PrepOutData(pipelinePack, outData, nil)
 				// Test will fail if date flips btn PrepOutData and todayStr
 				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
