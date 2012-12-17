@@ -71,11 +71,12 @@ func (self *StatsdWriter) Event(eventType string) {
 }
 
 func (self *StatsdWriter) MakeOutData() interface{} {
-	return make([]byte, 2000)
+	slice := make([]byte, 2000)
+	return &slice
 }
 
 func (self *StatsdWriter) ZeroOutData(outData interface{}) {
-	outData = (outData.([]byte))[:0]
+	*(outData.(*[]byte)) = (*(outData.(*[]byte)))[:0]
 }
 
 func (self *StatsdWriter) Init(config interface{}) (<-chan time.Time, error) {
@@ -124,13 +125,14 @@ func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interf
 	n, err := self.Listener.Read(pipelinePack.MsgBytes)
 	if err == nil {
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
-		outData = append(outData.([]byte), pipelinePack.MsgBytes...)
+		*(outData.(*[]byte)) = append(*(outData.(*[]byte)), pipelinePack.MsgBytes...)
+		pipelinePack.Decoded = true
 	}
 	return err
 }
 
 func (self *StatsdWriter) Batch(outData interface{}) (err error) {
-	s := sanitizeRegexp.ReplaceAllString(string(outData.([]byte)), "")
+	s := sanitizeRegexp.ReplaceAllString(string(*(outData.(*[]byte))), "")
 	var sampleRate float64
 	var floatValue float64
 	var intValue int
