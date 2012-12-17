@@ -147,8 +147,12 @@ func (self *StatsdWriter) Batch(outData interface{}) (err error) {
 			}
 		}
 
-		sampleRate, err = strconv.ParseFloat(item[5], 32)
-		if err != nil {
+		if item[5] != "" {
+			sampleRate, err = strconv.ParseFloat(item[5], 32)
+			if err != nil {
+				sampleRate = 1
+			}
+		} else {
 			sampleRate = 1
 		}
 		self.p.Sampling = float32(sampleRate)
