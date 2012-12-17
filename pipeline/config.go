@@ -316,6 +316,13 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 			}
 		}
 		self.FilterChains[name] = chain
+
 	}
+
+	// Ensure there's a default decoder available
+	if self.DefaultDecoder == "" {
+		return errors.New("No default decoder defined.")
+	}
+
 	return nil
 }
