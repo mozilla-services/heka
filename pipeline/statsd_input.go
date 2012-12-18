@@ -38,7 +38,7 @@ type StatsdUdpInputConfig struct {
 
 // Deadline is stored on the struct so we don't have to allocate / GC
 // a new time.Time object for each message received.
-type StatsdWriter struct {
+type StatsdInWriter struct {
 	Listener         net.Conn
 	Deadline         time.Time
 	PercentThreshold int
@@ -59,27 +59,27 @@ type StatPacket struct {
 	Sampling float32
 }
 
-func (self *StatsdWriter) ConfigStruct() interface{} {
+func (self *StatsdInWriter) ConfigStruct() interface{} {
 	return &StatsdUdpInputConfig{FlushInterval: 10, PercentThreshold: 90}
 }
 
-func (self *StatsdWriter) Event(eventType string) {
+func (self *StatsdInWriter) Event(eventType string) {
 	if eventType == STOP {
 		fmt.Println("Closing connection")
 		self.Listener.Close()
 	}
 }
 
-func (self *StatsdWriter) MakeOutData() interface{} {
+func (self *StatsdInWriter) MakeOutData() interface{} {
 	slice := make([]byte, 2000)
 	return &slice
 }
 
-func (self *StatsdWriter) ZeroOutData(outData interface{}) {
+func (self *StatsdInWriter) ZeroOutData(outData interface{}) {
 	*(outData.(*[]byte)) = (*(outData.(*[]byte)))[:0]
 }
 
-func (self *StatsdWriter) Init(config interface{}) (<-chan time.Time, error) {
+func (self *StatsdInWriter) Init(config interface{}) (<-chan time.Time, error) {
 	conf := config.(*StatsdUdpInputConfig)
 	self.FlushInterval = conf.FlushInterval
 	self.PercentThreshold = conf.PercentThreshold
@@ -117,7 +117,7 @@ func (self *StatsdWriter) Init(config interface{}) (<-chan time.Time, error) {
 	return ticker.C, nil
 }
 
-func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interface{},
+func (self *StatsdInWriter) PrepOutData(pipelinePack *PipelinePack, outData interface{},
 	timeout *time.Duration) error {
 	pipelinePack.Blocked = true
 	self.Deadline = time.Now().Add(*timeout)
@@ -131,7 +131,7 @@ func (self *StatsdWriter) PrepOutData(pipelinePack *PipelinePack, outData interf
 	return err
 }
 
-func (self *StatsdWriter) Batch(outData interface{}) (err error) {
+func (self *StatsdInWriter) Batch(outData interface{}) (err error) {
 	s := sanitizeRegexp.ReplaceAllString(string(*(outData.(*[]byte))), "")
 	var sampleRate float64
 	var floatValue float64
@@ -186,7 +186,7 @@ func (self *StatsdWriter) Batch(outData interface{}) (err error) {
 
 // statsUdp Flush is called every flushInterval seconds to flush a
 // the aggregated stats as a statmetric injected message
-func (self *StatsdWriter) Commit() (err error) {
+func (self *StatsdInWriter) Commit() (err error) {
 	var value float64
 	var intval int64
 	numStats := 0
