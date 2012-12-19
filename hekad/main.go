@@ -33,5 +33,5 @@ func main() {
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
-	pipeconf.Run()
+	pipeline.Run(pipeconf)
 }
