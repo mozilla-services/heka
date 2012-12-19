@@ -160,8 +160,7 @@ func (self *StatsdInWriter) Batch(outData interface{}) (err error) {
 		if self.p.Modifier == "ms" {
 			_, ok := self.timers[self.p.Bucket]
 			if !ok {
-				var t []float64
-				self.timers[self.p.Bucket] = t
+				self.timers[self.p.Bucket] = make([]float64, 100)
 			}
 			floatValue, _ = strconv.ParseFloat(self.p.Value, 64)
 			self.timers[self.p.Bucket] = append(self.timers[self.p.Bucket], floatValue)
