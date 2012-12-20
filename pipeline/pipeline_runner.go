@@ -143,25 +143,30 @@ func filterProcessor(pipelinePack *PipelinePack) {
 	}
 }
 
-func (self *PipelineConfig) BroadcastEvent(eventType string) {
+func BroadcastEvent(config *PipelineConfig, eventType string) {
+	err := notify.Post(eventType, nil)
+	if err != nil {
+		log.Printf("Error sending %s event:", err.Error())
+	}
+
 	var wrapper *PluginWrapper
-	for _, wrapper = range self.Filters {
+	for _, wrapper = range config.Filters {
 		if wrapper.global != nil {
 			wrapper.global.Event(eventType)
 		}
 	}
-	for _, wrapper = range self.Outputs {
+	for _, wrapper = range config.Outputs {
 		if wrapper.global != nil {
 			wrapper.global.Event(eventType)
 		}
 	}
 }
 
-func (self *PipelineConfig) Run() {
+func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	// Used for recycling PipelinePack objects
-	recycleChan := make(chan *PipelinePack, self.PoolSize+1)
+	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 
 	// Main pipeline function, inputs spawn a goroutine of this for every
 	// message
@@ -211,8 +216,8 @@ func (self *PipelineConfig) Run() {
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
-	for i := 0; i < self.PoolSize; i++ {
-		recycleChan <- NewPipelinePack(self)
+	for i := 0; i < config.PoolSize; i++ {
+		recycleChan <- NewPipelinePack(config)
 	}
 
 	var wg sync.WaitGroup
@@ -220,7 +225,7 @@ func (self *PipelineConfig) Run() {
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
-	for name, wrapper := range self.Inputs {
+	for name, wrapper := range config.Inputs {
 		input := wrapper.Create().(Input)
 		runner = &InputRunner{name, input, &timeout}
 		inputRunners[name] = runner
@@ -237,17 +242,9 @@ sigListener:
 		sig := <-sigChan
 		switch sig {
 		case syscall.SIGHUP:
-			self.BroadcastEvent(RELOAD)
-			err := notify.Post(RELOAD, nil)
-			if err != nil {
-				log.Println("Error sending RELOAD event:", err.Error())
-			}
+			BroadcastEvent(config, RELOAD)
 		case syscall.SIGINT:
-			self.BroadcastEvent(STOP)
-			err := notify.Post(STOP, nil)
-			if err != nil {
-				log.Println("Error sending STOP event: ", err.Error())
-			}
+			BroadcastEvent(config, STOP)
 			break sigListener
 		}
 	}
