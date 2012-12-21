@@ -22,7 +22,6 @@ import (
 )
 
 type Decoder interface {
-	Plugin
 	Decode(pipelinePack *PipelinePack) error
 }
 
