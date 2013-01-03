@@ -25,7 +25,7 @@ type DataRecycler interface {
 	// This must create exactly one instance of the `outData` data object type
 	// expected by the `Write` method. Will be called multiple times to create
 	// a pool of reusable objects.
-	MakeOutData() interface{}
+	MakeOutData() (outData interface{})
 
 	// Will be handed a used output object which should be reset to a zero
 	// state for in preparation for reuse. This method will be in use by
@@ -37,8 +37,8 @@ type DataRecycler interface {
 	// (probably from the `Message` attribute) and uses it to populate the
 	// provided output object. This method will be in use by multiple
 	// goroutines simultaneously, it should modify the passed `outData` object
-	// **only**.
-	// timeout will be nil unless this Plugin will be used as an Input
+	// **only**. `timeout` will be nil unless the Runner plugin is being used
+	// as an Input.
 	PrepOutData(pack *PipelinePack, outData interface{}, timeout *time.Duration) error
 }
 
