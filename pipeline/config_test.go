@@ -14,8 +14,8 @@
 package pipeline
 
 import (
+	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	ts "heka/testsupport"
 )
 
 func LoadFromConfigSpec(c gs.Context) {

@@ -14,7 +14,7 @@
 package client
 
 import (
-	"heka/message"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"os"
 )

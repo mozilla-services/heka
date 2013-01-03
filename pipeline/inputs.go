@@ -15,8 +15,8 @@ package pipeline
 
 import (
 	"fmt"
+	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
-	. "heka/message"
 	"log"
 	"net"
 	"os"

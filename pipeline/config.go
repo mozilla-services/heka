@@ -16,7 +16,7 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
-	. "heka/message"
+	. "github.com/mozilla-services/heka/message"
 	"os"
 )
 

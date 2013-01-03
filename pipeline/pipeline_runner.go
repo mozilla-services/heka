@@ -14,8 +14,8 @@
 package pipeline
 
 import (
+	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
-	. "heka/message"
 	"log"
 	"os"
 	"os/signal"

@@ -25,7 +25,7 @@ Services.
 
 import (
 	mozsvc "github.com/mozilla-services/heka-mozsvc-plugins"
-	"heka/pipeline"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 func init() {

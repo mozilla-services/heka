@@ -15,7 +15,7 @@ package main
 
 import (
 	"flag"
-	"heka/client"
+	"github.com/mozilla-services/heka/client"
 	"log"
 	"os"
 	"os/signal"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"heka/pipeline"
+	"github.com/mozilla-services/heka/pipeline"
 	"log"
 	"os"
 	"runtime"

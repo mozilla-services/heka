@@ -14,8 +14,8 @@
 package pipeline
 
 import (
+	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
-	. "heka/message"
 	"os"
 	"testing"
 	"time"
