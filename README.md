@@ -12,7 +12,7 @@ Rudimentary manual install process (coming soon, moar automation!):
 
 - create go workspace
 - export GOPATH to the root of your workspace
-- mkdir $GOPATH/src; cd $GOPATH/src
+- mkdir -p $GOPATH/src/github.com/mozilla-services; cd $GOPATH/src/github.com/mozilla-services
 - git clone https://github.com/mozilla-services/heka.git
 - go get github.com/bitly/go-simplejson
 - go get github.com/bitly/go-notify
