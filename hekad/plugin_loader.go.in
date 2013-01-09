@@ -29,7 +29,7 @@ import (
 )
 
 func init() {
-	pipeline.AvailablePlugins["CefOutput"] = func() pipeline.Plugin {
-		return new(mozsvc.CefOutput)
+	pipeline.AvailablePlugins["CefOutput"] = func() interface{} {
+		return pipeline.RunnerMaker(new(mozsvc.CefWriter))
 	}
 }
