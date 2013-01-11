@@ -68,7 +68,7 @@ func OutputsSpec(c gs.Context) {
 		})
 
 		c.Specify("correctly formats text output", func() {
-			err := fileWriter.Init(config)
+			_, err := fileWriter.Init(config)
 			defer stopAndDelete()
 			c.Assume(err, gs.IsNil)
 			outData := fileWriter.MakeOutData()
@@ -92,7 +92,7 @@ func OutputsSpec(c gs.Context) {
 
 		c.Specify("correctly formats JSON output", func() {
 			config.Format = "json"
-			err := fileWriter.Init(config)
+			_, err := fileWriter.Init(config)
 			defer stopAndDelete()
 			c.Assume(err, gs.IsNil)
 			outData := fileWriter.MakeOutData()
@@ -125,10 +125,12 @@ func OutputsSpec(c gs.Context) {
 			*outBytes = append(*outBytes, []byte(outStr)...)
 
 			c.Specify("with default settings", func() {
-				err := fileWriter.Init(config)
+				_, err := fileWriter.Init(config)
 				defer stopAndDelete()
 				c.Assume(err, gs.IsNil)
-				err = fileWriter.Write(outData)
+				err = fileWriter.Batch(outData)
+				c.Expect(err, gs.IsNil)
+				err = fileWriter.Commit()
 				c.Expect(err, gs.IsNil)
 
 				tmpFile, err := os.Open(tmpFilePath)
@@ -141,10 +143,12 @@ func OutputsSpec(c gs.Context) {
 
 			c.Specify("honors different Perm settings", func() {
 				config.Perm = 0600
-				err := fileWriter.Init(config)
+				_, err := fileWriter.Init(config)
 				defer stopAndDelete()
 				c.Assume(err, gs.IsNil)
-				err = fileWriter.Write(outData)
+				err = fileWriter.Batch(outData)
+				c.Expect(err, gs.IsNil)
+				err = fileWriter.Commit()
 				c.Expect(err, gs.IsNil)
 				tmpFile, err := os.Open(tmpFilePath)
 				defer tmpFile.Close()
