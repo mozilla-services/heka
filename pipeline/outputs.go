@@ -138,8 +138,7 @@ type FileWriter struct {
 	format    string
 	prefix_ts bool
 	file      *os.File
-	outBytes  *[]byte
-	ticker    *time.Ticker
+	outBatch  []*[]byte
 }
 
 type FileWriterConfig struct {
@@ -153,30 +152,25 @@ func (self *FileWriter) ConfigStruct() interface{} {
 	return &FileWriterConfig{Format: "text", Perm: 0666}
 }
 
-func (self *FileWriter) Init(config interface{}) (err error) {
-	//path string, perm os.FileMode) (*FileOutputWriter,
-	//error) {
+func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
+	err error) {
 	conf := config.(*FileWriterConfig)
 	_, ok := FILEFORMATS[conf.Format]
 	if !ok {
-		return fmt.Errorf("Unsupported FileOutput format: %s", conf.Format)
+		return nil, fmt.Errorf("Unsupported FileOutput format: %s",
+			conf.Format)
 	}
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
+	self.outBatch = make([]*[]byte, 0, 1000)
 
 	if self.file, err = os.OpenFile(conf.Path,
-		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err == nil {
-		go self.fileSyncer()
+		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err != nil {
+		return nil, err
 	}
-	return err
-}
-
-func (self *FileWriter) fileSyncer() {
-	self.ticker = time.NewTicker(time.Second)
-	for _ = range self.ticker.C {
-		self.file.Sync()
-	}
+	ticker = time.Tick(time.Second)
+	return
 }
 
 func (self *FileWriter) MakeOutData() interface{} {
@@ -189,7 +183,8 @@ func (self *FileWriter) ZeroOutData(outData interface{}) {
 	*outBytes = (*outBytes)[:0]
 }
 
-func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}, timeout *time.Duration) error {
+func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
+	timeout *time.Duration) error {
 	outBytes := outData.(*[]byte)
 	if self.prefix_ts {
 		ts := time.Now().Format(TSFORMAT)
@@ -211,20 +206,29 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{}, tim
 	return nil
 }
 
-func (self *FileWriter) Write(outData interface{}) (err error) {
-	self.outBytes = outData.(*[]byte)
-	n, err := self.file.Write(*self.outBytes)
-	if err != nil {
-		err = fmt.Errorf("FileOutput error writing to %s: %s", self.path, err)
-	} else if n != len(*self.outBytes) {
-		err = fmt.Errorf("FileOutput truncated output for %s", self.path)
-	}
+func (self *FileWriter) Batch(outData interface{}) (err error) {
+	self.outBatch = append(self.outBatch, outData.(*[]byte))
 	return
+}
+
+func (self *FileWriter) Commit() (err error) {
+	for _, outBytes := range self.outBatch {
+		n, err := self.file.Write(*outBytes)
+		if err != nil {
+			err = fmt.Errorf("FileWriter error writing to %s: %s", self.path,
+				err)
+			return err
+		} else if n != len(*outBytes) {
+			err = fmt.Errorf("FileWriter truncated output for %s", self.path)
+			return err
+		}
+	}
+	self.file.Sync()
+	return nil
 }
 
 func (self *FileWriter) Event(eventType string) {
 	if eventType == STOP {
-		self.ticker.Stop()
 		self.file.Close()
 	}
 }
