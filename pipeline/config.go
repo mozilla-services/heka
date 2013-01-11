@@ -322,3 +322,27 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 	return nil
 }
+
+func init() {
+	RegisterPlugin("UdpInput", func() interface{} {
+		return new(UdpInput)
+	})
+	RegisterPlugin("JsonDecoder", func() interface{} {
+		return new(JsonDecoder)
+	})
+	RegisterPlugin("MsgPackDecoder", func() interface{} {
+		return new(MsgPackDecoder)
+	})
+	RegisterPlugin("StatsdUdpInput", func() interface{} {
+		return RunnerMaker(new(StatsdInWriter))
+	})
+	RegisterPlugin("LogOutput", func() interface{} {
+		return new(LogOutput)
+	})
+	RegisterPlugin("CounterOutput", func() interface{} {
+		return new(CounterOutput)
+	})
+	RegisterPlugin("FileOutput", func() interface{} {
+		return RunnerMaker(new(FileWriter))
+	})
+}
