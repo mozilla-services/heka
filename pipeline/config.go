@@ -20,14 +20,10 @@ import (
 	"os"
 )
 
-var AvailablePlugins = map[string]func() interface{}{
-	"UdpInput":       func() interface{} { return new(UdpInput) },
-	"JsonDecoder":    func() interface{} { return new(JsonDecoder) },
-	"MsgPackDecoder": func() interface{} { return new(MsgPackDecoder) },
-	"StatsdUdpInput": func() interface{} { return RunnerMaker(new(StatsdInWriter)) },
-	"LogOutput":      func() interface{} { return new(LogOutput) },
-	"CounterOutput":  func() interface{} { return new(CounterOutput) },
-	"FileOutput":     func() interface{} { return RunnerMaker(new(FileWriter)) },
+var AvailablePlugins = make(map[string]func() interface{})
+
+func RegisterPlugin(name string, factory func() interface{}) {
+	AvailablePlugins[name] = factory
 }
 
 type PluginConfig map[string]interface{}
@@ -325,4 +321,28 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	}
 
 	return nil
+}
+
+func init() {
+	RegisterPlugin("UdpInput", func() interface{} {
+		return new(UdpInput)
+	})
+	RegisterPlugin("JsonDecoder", func() interface{} {
+		return new(JsonDecoder)
+	})
+	RegisterPlugin("MsgPackDecoder", func() interface{} {
+		return new(MsgPackDecoder)
+	})
+	RegisterPlugin("StatsdUdpInput", func() interface{} {
+		return RunnerMaker(new(StatsdInWriter))
+	})
+	RegisterPlugin("LogOutput", func() interface{} {
+		return new(LogOutput)
+	})
+	RegisterPlugin("CounterOutput", func() interface{} {
+		return new(CounterOutput)
+	})
+	RegisterPlugin("FileOutput", func() interface{} {
+		return RunnerMaker(new(FileWriter))
+	})
 }
