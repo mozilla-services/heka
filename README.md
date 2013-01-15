@@ -16,10 +16,10 @@ integrating external plug-in packages into the generated `hekad`.
 
 It is also possible to install Heka using Go's default `go get` mechanism.
 Unfortunately, Heka won't work with Go 1.0.3, the most recent release at the
-time of this writing. Heka will work with Go 1.1, once it is released. Heka
-is tested against Go tip, revision 477b2e70b12d; it may or may not work with
-more recent versions of Go tip. Assuming you have a version of Go that will
-in fact work with Heka, you can install Heka into your current GOPATH using
-the following command:
+time of this writing. Heka will work with Go 1.1, once it is released. Heka is
+tested against Go tip, revision 477b2e70b12d (from Dec 7, 2012); it may or may
+not work with more recent versions of Go tip. Assuming you have a version of
+Go that will in fact work with Heka, you can install Heka into your current
+GOPATH using the following command:
 
     go get github.com/mozilla-services/heka/hekad
