@@ -194,13 +194,19 @@ func (self *Runner) runner() {
 
 func (self *Runner) Deliver(pack *PipelinePack) {
 	self.outData = <-self.global.recycleChan
-	self.global.Recycler.PrepOutData(pack, self.outData, nil)
+	err := self.global.Recycler.PrepOutData(pack, self.outData, nil)
+	if err != nil {
+		log.Printf("PrepOutData error: %s", err.Error())
+	}
 	self.global.dataChan <- self.outData
 }
 
 func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 	self.outData = <-self.global.recycleChan
-	self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
+	err := self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
+	if err != nil {
+		log.Printf("PrepOutData error: %s", err.Error())
+	}
 	self.global.dataChan <- self.outData
 }
 
