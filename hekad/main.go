@@ -15,7 +15,7 @@ const (
 )
 
 func main() {
-	configFile := flag.String("config", "agent.conf", "Agent Config file")
+	configFile := flag.String("config", "/etc/hekad.json", "Config file")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
 	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
 	pprofName := flag.String("pprof", "", "Go profiler output file")
