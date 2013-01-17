@@ -212,17 +212,20 @@ func (self *FileWriter) Batch(outData interface{}) (err error) {
 }
 
 func (self *FileWriter) Commit() (err error) {
-	for _, outBytes := range self.outBatch {
+	for i, outBytes := range self.outBatch {
 		n, err := self.file.Write(*outBytes)
 		if err != nil {
+			self.outBatch = self.outBatch[i:]
 			err = fmt.Errorf("FileWriter error writing to %s: %s", self.path,
 				err)
 			return err
 		} else if n != len(*outBytes) {
+			self.outBatch = self.outBatch[i:]
 			err = fmt.Errorf("FileWriter truncated output for %s", self.path)
 			return err
 		}
 	}
+	self.outBatch = self.outBatch[0:]
 	self.file.Sync()
 	return nil
 }
