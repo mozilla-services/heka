@@ -138,7 +138,7 @@ type FileWriter struct {
 	format    string
 	prefix_ts bool
 	file      *os.File
-	outBatch  []*[]byte
+	outBatch  []byte
 }
 
 type FileWriterConfig struct {
@@ -163,7 +163,7 @@ func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
 	self.path = conf.Path
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
-	self.outBatch = make([]*[]byte, 0, 1000)
+	self.outBatch = make([]byte, 0, 10000)
 
 	if self.file, err = os.OpenFile(conf.Path,
 		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err != nil {
@@ -207,25 +207,22 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 }
 
 func (self *FileWriter) Batch(outData interface{}) (err error) {
-	self.outBatch = append(self.outBatch, outData.(*[]byte))
+	outBytes := outData.(*[]byte)
+	self.outBatch = append(self.outBatch, *outBytes...)
 	return
 }
 
 func (self *FileWriter) Commit() (err error) {
-	for i, outBytes := range self.outBatch {
-		n, err := self.file.Write(*outBytes)
-		if err != nil {
-			self.outBatch = self.outBatch[i:]
-			err = fmt.Errorf("FileWriter error writing to %s: %s", self.path,
-				err)
-			return err
-		} else if n != len(*outBytes) {
-			self.outBatch = self.outBatch[i:]
-			err = fmt.Errorf("FileWriter truncated output for %s", self.path)
-			return err
-		}
+	n, err := self.file.Write(self.outBatch)
+	if err != nil {
+		err = fmt.Errorf("FileWriter error writing to %s: %s", self.path,
+			err)
+		return err
+	} else if n != len(self.outBatch) {
+		err = fmt.Errorf("FileWriter truncated output for %s", self.path)
+		return err
 	}
-	self.outBatch = self.outBatch[0:]
+	self.outBatch = self.outBatch[:0]
 	self.file.Sync()
 	return nil
 }
