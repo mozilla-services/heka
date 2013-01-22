@@ -238,9 +238,9 @@ func (self *StatsdInWriter) Commit() (err error) {
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
 	msgHolder := MessageGenerator.Retrieve(0)
-	msgHolder.Message.Type = "statmetric"
-	msgHolder.Message.Timestamp = now
-	msgHolder.Message.Payload = buffer.String()
+	*msgHolder.Message.Type = "statmetric"
+	*msgHolder.Message.Timestamp = now.UnixNano()
+	*msgHolder.Message.Payload = buffer.String()
 	MessageGenerator.Inject(msgHolder)
 	return
 }

@@ -85,7 +85,7 @@ type MessageLookup struct {
 }
 
 func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
-	if chains, ok := self.MessageType[message.Type]; ok {
+	if chains, ok := self.MessageType[*message.Type]; ok {
 		return chains[0], true
 	}
 	return "", false
@@ -330,9 +330,9 @@ func init() {
 	RegisterPlugin("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
 	})
-	RegisterPlugin("MsgPackDecoder", func() interface{} {
-		return new(MsgPackDecoder)
-	})
+	//	RegisterPlugin("ProtocolBufferDecoder", func() interface{} {
+	//		return new(ProtocolBufferDecoder)
+	//	})
 	RegisterPlugin("StatsdUdpInput", func() interface{} {
 		return RunnerMaker(new(StatsdInWriter))
 	})

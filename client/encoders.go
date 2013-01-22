@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/ugorji/go-msgpack"
 )
 
 type Encoder interface {
@@ -32,7 +31,7 @@ func (self *JsonEncoder) EncodeMessage(msg *Message) ([]byte, error) {
 	return result, err
 }
 
-var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 
 var hex = "0123456789abcdef"
 
@@ -69,33 +68,15 @@ func (self *Message) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	timestampJson, err := json.Marshal(self.Timestamp)
+	timestampJson, err := json.Marshal(time.Unix(*self.Timestamp/1e9, *self.Timestamp%1e9))
 	if err != nil {
 		return nil, err
 	}
-	result := fmt.Sprintf(fmtString, escapeStr(self.Type),
+	uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", self.Uuid[:4], self.Uuid[4:6], self.Uuid[6:8], self.Uuid[8:10], self.Uuid[10:])
+	result := fmt.Sprintf(fmtString, uuid, escapeStr(self.Type),
 		string(timestampJson), escapeStr(self.Logger),
 		self.Severity, escapeStr(self.Payload),
 		string(fieldsJson), escapeStr(self.Env_version), self.Pid,
 		escapeStr(self.Hostname))
 	return []byte(result), nil
-}
-
-type MsgPackEncoder struct {
-	Buffer  *bytes.Buffer
-	Encoder *msgpack.Encoder
-}
-
-func NewMsgPackEncoder() *MsgPackEncoder {
-	self := new(MsgPackEncoder)
-	self.Buffer = new(bytes.Buffer)
-	self.Encoder = msgpack.NewEncoder(self.Buffer)
-	return self
-}
-
-func (self *MsgPackEncoder) EncodeMessage(msg *Message) ([]byte, error) {
-	if err := self.Encoder.Encode(msg); err != nil {
-		return nil, err
-	}
-	return self.Buffer.Bytes(), nil
 }

@@ -200,7 +200,7 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 		}
 		*outBytes = append(*outBytes, jsonMessage...)
 	case "text":
-		*outBytes = append(*outBytes, pack.Message.Payload...)
+		*outBytes = append(*outBytes, *pack.Message.Payload...)
 	}
 	*outBytes = append(*outBytes, NEWLINE)
 	return nil

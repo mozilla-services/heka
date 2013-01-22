@@ -75,7 +75,7 @@ func OutputsSpec(c gs.Context) {
 
 			c.Specify("by default", func() {
 				fileWriter.PrepOutData(pipelinePack, outData, nil)
-				c.Expect(toString(outData), gs.Equals, msg.Payload+"\n")
+				c.Expect(toString(outData), gs.Equals, *msg.Payload+"\n")
 			})
 
 			c.Specify("w/ a prepended timestamp when specified", func() {
@@ -85,7 +85,8 @@ func OutputsSpec(c gs.Context) {
 				// calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
 				strContents := toString(outData)
-				c.Expect(strContents, ts.StringContains, msg.Payload)
+				payload := *msg.Payload
+				c.Expect(strContents, ts.StringContains, payload)
 				c.Expect(strContents, ts.StringStartsWith, todayStr)
 			})
 		})

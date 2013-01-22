@@ -16,22 +16,24 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"github.com/ugorji/go-msgpack"
+	"time"
 )
 
 func DecodersSpec(c gospec.Context) {
 	msg := getTestMessage()
 
 	c.Specify("A JsonDecoder", func() {
-		var fmtString = `{"type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-		timestampJson, err := json.Marshal(msg.Timestamp)
+		var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
+		timestampJson, err := json.Marshal(time.Unix(*msg.Timestamp/1e9, *msg.Timestamp%1e9))
 		fieldsJson, err := json.Marshal(msg.Fields)
 		c.Assume(err, gs.IsNil)
-		jsonString := fmt.Sprintf(fmtString, msg.Type,
-			timestampJson, msg.Logger, msg.Severity, msg.Payload,
-			fieldsJson, msg.Env_version, msg.Pid, msg.Hostname)
+		uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", msg.Uuid[:4], msg.Uuid[4:6], msg.Uuid[6:8], msg.Uuid[8:10], msg.Uuid[10:])
+		jsonString := fmt.Sprintf(fmtString, uuid, *msg.Type,
+			timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
+			fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
 		pipelinePack := getTestPipelinePack()
 		pipelinePack.MsgBytes = []byte(jsonString)
@@ -43,9 +45,13 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(err, gs.IsNil)
 		})
 
-		c.Specify("returns `fields` as a map", func() {
+		c.Specify("returns `fields` as a array", func() {
 			jsonDecoder.Decode(pipelinePack)
-			c.Expect(pipelinePack.Message.Fields["foo"], gs.Equals, "bar")
+			f := pipelinePack.Message.FindFirstField("foo")
+			c.Expect(*f.Name, gs.Equals, "foo")
+			c.Expect(*f.ValueType, gs.Equals, message.Field_STRING)
+			c.Expect(*f.ValueFormat, gs.Equals, message.Field_RAW)
+			c.Expect(f.ValueString[0], gs.Equals, "bar")
 		})
 
 		c.Specify("returns an error for bogus JSON", func() {
@@ -53,31 +59,7 @@ func DecodersSpec(c gospec.Context) {
 			pipelinePack.MsgBytes = []byte(badJson)
 			err := jsonDecoder.Decode(pipelinePack)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(pipelinePack.Message.Timestamp.IsZero(), gs.IsTrue)
-		})
-	})
-
-	c.Specify("A MsgPackDecoder", func() {
-		msg := getTestMessage()
-		encoded, err := msgpack.Marshal(msg)
-		c.Assume(err, gs.IsNil)
-
-		decoder := new(MsgPackDecoder)
-		decoder.Init(nil)
-		pack := getTestPipelinePack()
-
-		c.Specify("decodes a msgpack message", func() {
-			pack.MsgBytes = encoded
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.IsNil)
-			c.Expect(pack.Message, gs.Equals, msg)
-		})
-
-		c.Specify("returns an error for bunk encoding", func() {
-			bunk := append([]byte{0, 0, 0}, encoded...)
-			pack.MsgBytes = bunk
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(*pipelinePack.Message.Timestamp == int64(0), gs.IsTrue)
 		})
 	})
 }

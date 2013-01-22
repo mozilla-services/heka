@@ -63,7 +63,7 @@ type PipelinePack struct {
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
-	message := Message{}
+	message := NewMessage()
 	outputnames := make(map[string]bool)
 	filters := make(map[string]Filter)
 	decoders := make(map[string]Decoder)
@@ -71,7 +71,7 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 
 	pack := &PipelinePack{
 		MsgBytes:    msgBytes,
-		Message:     &message,
+		Message:     message,
 		Config:      config,
 		Decoder:     config.DefaultDecoder,
 		Decoders:    decoders,

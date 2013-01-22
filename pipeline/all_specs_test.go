@@ -14,6 +14,7 @@
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
 	"os"
@@ -47,18 +48,22 @@ func TestAllSpecs(t *testing.T) {
 }
 
 func getTestMessage() *Message {
-	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
-	fields := make(map[string]interface{})
-	fields["foo"] = "bar"
-	msg := Message{
-		Type: "TEST", Timestamp: timestamp,
-		Logger: "GoSpec", Severity: 6,
-		Payload: "Test Payload", Env_version: "0.8",
-		Pid: os.Getpid(), Hostname: hostname,
-		Fields: fields,
-	}
-	return &msg
+	field, _ := NewField("foo", "bar", Field_RAW)
+	msg := NewMessage()
+	*msg.Type = "TEST"
+	*msg.Timestamp = time.Now().UnixNano()
+	u := uuid.NewRandom()
+	copy(msg.Uuid, u)
+	*msg.Logger = "GoSpec"
+	*msg.Severity = int32(6)
+	*msg.Payload = "Test Payload"
+	*msg.EnvVersion = "0.8"
+	*msg.Pid = int32(os.Getpid())
+	*msg.Hostname = hostname
+	msg.AddField(field)
+
+	return msg
 }
 
 func getTestPipelinePack() *PipelinePack {
