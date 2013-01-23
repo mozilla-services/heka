@@ -272,6 +272,42 @@ func (m *Message) FindFirstField(name string) *Field {
 	return nil
 }
 
+// GetFieldValue helper function to simplify extracting single value fields
+func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
+	f := m.FindFirstField(name)
+	if f == nil {
+		return
+	}
+	switch *f.ValueType {
+	case Field_STRING:
+		if len(f.ValueString) > 0 {
+			value = f.ValueString[0]
+			ok = true
+		}
+	case Field_BYTES:
+		if len(f.ValueBytes) > 0 {
+			value = f.ValueBytes[0]
+			ok = true
+		}
+	case Field_INTEGER:
+		if len(f.ValueInteger) > 0 {
+			value = f.ValueInteger[0]
+			ok = true
+		}
+	case Field_DOUBLE:
+		if len(f.ValueDouble) > 0 {
+			value = f.ValueDouble[0]
+			ok = true
+		}
+	case Field_BOOL:
+		if len(f.ValueBool) > 0 {
+			value = f.ValueBool[0]
+			ok = true
+		}
+	}
+	return
+}
+
 // FindAllFields finds and returns all the fields with the specified name
 // if not found a nil slice is returned
 func (m *Message) FindAllFields(name string) (all []*Field) {

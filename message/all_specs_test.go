@@ -57,6 +57,9 @@ func MessageFieldsSpec(c gospec.Context) {
 		c.Expect(f, gs.IsNil)
 		fa := msg.FindAllFields("test")
 		c.Expect(len(fa), gs.Equals, 0)
+		v, ok := msg.GetFieldValue("test")
+		c.Expect(ok, gs.IsFalse)
+		c.Expect(v, gs.IsNil)
 	})
 
 	c.Specify("Fields present but none match", func() {
@@ -67,6 +70,9 @@ func MessageFieldsSpec(c gospec.Context) {
 		c.Expect(ff, gs.IsNil)
 		fa := msg.FindAllFields("test")
 		c.Expect(len(fa), gs.Equals, 0)
+		v, ok := msg.GetFieldValue("test")
+		c.Expect(ok, gs.IsFalse)
+		c.Expect(v, gs.IsNil)
 	})
 
 	c.Specify("Fields match", func() {
@@ -79,6 +85,9 @@ func MessageFieldsSpec(c gospec.Context) {
 		msg.AddField(f2)
 		ff := msg.FindFirstField("foo")
 		c.Expect(ff.ValueString[0], gs.Equals, "bar")
+		v, ok := msg.GetFieldValue("foo")
+		c.Expect(ok, gs.IsTrue)
+		c.Expect(v, gs.Equals, "bar")
 		fa := msg.FindAllFields("foo")
 		c.Expect(len(fa), gs.Equals, 2)
 		fa[0].ValueString[0] = "bar"
@@ -94,6 +103,9 @@ func MessageFieldsSpec(c gospec.Context) {
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
 		c.Expect(bytes.Equal(ff.ValueBytes[0], b), gs.IsTrue)
+		v, ok := msg.GetFieldValue("foo")
+		c.Expect(ok, gs.IsTrue)
+		c.Expect(bytes.Equal(v.([]byte), b), gs.IsTrue)
 	})
 
 	c.Specify("Add Integer Field", func() {
@@ -101,15 +113,21 @@ func MessageFieldsSpec(c gospec.Context) {
 		f, _ := NewField("foo", 1, Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
-		c.Expect(ff.ValueInteger[0] == 1, gs.IsTrue)
+		c.Expect(ff.ValueInteger[0], gs.Equals, int64(1))
+		v, ok := msg.GetFieldValue("foo")
+		c.Expect(ok, gs.IsTrue)
+		c.Expect(v, gs.Equals, int64(1))
 	})
 
 	c.Specify("Add Double Field", func() {
 		msg := NewMessage()
-		f, _ := NewField("foo", 5e9, Field_RAW)
+		f, _ := NewField("foo", 1e9, Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
-		c.Expect(ff.ValueDouble[0], gs.Equals, 5e9)
+		c.Expect(ff.ValueDouble[0], gs.Equals, 1e9)
+		v, ok := msg.GetFieldValue("foo")
+		c.Expect(ok, gs.IsTrue)
+		c.Expect(v, gs.Equals, 1e9)
 	})
 
 	c.Specify("Add Bool Field", func() {
@@ -118,8 +136,10 @@ func MessageFieldsSpec(c gospec.Context) {
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
 		c.Expect(ff.ValueBool[0], gs.IsTrue)
+		v, ok := msg.GetFieldValue("foo")
+		c.Expect(ok, gs.IsTrue)
+		c.Expect(v, gs.IsTrue)
 	})
-
 }
 
 func MessageEqualsSpec(c gospec.Context) {
