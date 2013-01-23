@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	ts "github.com/mozilla-services/heka/testsupport"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"time"
@@ -60,6 +61,36 @@ func DecodersSpec(c gospec.Context) {
 			err := jsonDecoder.Decode(pipelinePack)
 			c.Expect(err, gs.Not(gs.IsNil))
 			c.Expect(*pipelinePack.Message.Timestamp == int64(0), gs.IsTrue)
+		})
+
+		c.Specify("returns an error for invalid field type", func() {
+			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"BOGUS","value_format":"RAW","value_string":["bar"]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(badJson)
+			err := jsonDecoder.Decode(pipelinePack)
+			c.Expect(err.Error(), ts.StringContains, "invalid value type")
+		})
+
+		c.Specify("returns an error for invalid field format", func() {
+			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"BOGUS", "value_string":["bar"]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(badJson)
+			err := jsonDecoder.Decode(pipelinePack)
+			fmt.Println(err)
+			c.Expect(err.Error(), ts.StringContains, "invalid value format")
+		})
+
+		c.Specify("returns an error for missing field value array", func() {
+			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"RAW"}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(badJson)
+			err := jsonDecoder.Decode(pipelinePack)
+			c.Expect(err.Error(), ts.StringContains, "invalid value array")
+		})
+
+		c.Specify("returns an error for value array type mismatch", func() {
+			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"RAW", "value_string":[1]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(badJson)
+			err := jsonDecoder.Decode(pipelinePack)
+			fmt.Println(err)
+			c.Expect(err.Error(), ts.StringContains, "The field contains: STRING; attempted to add DOUBLE")
 		})
 	})
 }

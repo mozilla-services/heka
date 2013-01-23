@@ -81,6 +81,9 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 			return errors.New("invalid value format")
 		}
 		a, err := fi.Get(valueArrayName).Array()
+		if err != nil {
+			return errors.New("invalid value array")
+		}
 		f := message.NewFieldInit(name,
 			message.Field_ValueType(value_type),
 			message.Field_ValueFormat(value_format))
