@@ -197,6 +197,9 @@ func (self *Runner) Deliver(pack *PipelinePack) {
 	err := self.global.Recycler.PrepOutData(pack, self.outData, nil)
 	if err != nil {
 		log.Printf("PrepOutData error: %s", err.Error())
+		self.global.Recycler.ZeroOutData(self.outData)
+		self.global.recycleChan <- self.outData
+		return
 	}
 	self.global.dataChan <- self.outData
 }
@@ -206,6 +209,9 @@ func (self *Runner) FilterMsg(pipelinePack *PipelinePack) {
 	err := self.global.Recycler.PrepOutData(pipelinePack, self.outData, nil)
 	if err != nil {
 		log.Printf("PrepOutData error: %s", err.Error())
+		self.global.Recycler.ZeroOutData(self.outData)
+		self.global.recycleChan <- self.outData
+		return
 	}
 	self.global.dataChan <- self.outData
 }
