@@ -242,6 +242,7 @@ sigListener:
 		select {
 		case pack = <-dataChan:
 			pipeline(pack)
+			recycleChan <- pack
 		case sig := <-sigChan:
 			switch sig {
 			case syscall.SIGHUP:
