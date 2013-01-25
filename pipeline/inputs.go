@@ -47,7 +47,7 @@ type InputRunner struct {
 	timeout *time.Duration
 }
 
-func (self *InputRunner) Start(pipeline func(*PipelinePack),
+func (self *InputRunner) Start(dataChan chan *PipelinePack,
 	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
 
 	stopChan := make(chan interface{})
@@ -70,6 +70,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 
 			err = self.input.Read(pack, self.timeout)
 			if err != nil {
+				runtime.Gosched()
 				select {
 				case <-stopChan:
 					break runnerLoop
@@ -78,7 +79,7 @@ func (self *InputRunner) Start(pipeline func(*PipelinePack),
 					continue
 				}
 			}
-			go pipeline(pack)
+			dataChan <- pack
 			needOne = true
 		}
 		log.Println("Input stopped: ", self.name)

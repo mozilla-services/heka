@@ -34,11 +34,11 @@ func InputRunnerSpec(c gs.Context) {
 		second := time.Second
 
 		poolSize := 5
-		pipelineCalls := 0
 		mockInput := NewMockInput(ctrl)
 		inputRunner := InputRunner{"mock", mockInput, &second}
 		defer notify.StopAll(STOP)
 
+		dataChan := make(chan *PipelinePack, poolSize+1)
 		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
 			recycleChan <- getTestPipelinePack()
@@ -46,32 +46,33 @@ func InputRunnerSpec(c gs.Context) {
 
 		var wg sync.WaitGroup
 		comparePack := getTestPipelinePack()
-		done := make(chan bool, 1)
-		mu := sync.Mutex{}
 
-		mockPipeline := func(pack *PipelinePack) {
-			mu.Lock()
-			pipelineCalls++
-			mu.Unlock()
-			if pipelineCalls == poolSize {
-				done <- true
+		areAllUsed := func() bool {
+			populatedPacks := 0
+			for {
+				select {
+				case <-dataChan:
+					populatedPacks++
+					if populatedPacks == poolSize {
+						return true
+					}
+				case <-time.After(second):
+					return false
+				}
 			}
+			// we should never reach this but go makes me put it here :P
+			return false
 		}
 
 		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
 			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize)
 			readCall.Return(nil)
 
-			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			inputRunner.Start(dataChan, recycleChan, &wg)
 			wg.Add(1)
 			defer notify.Post(STOP, nil)
 
-			var allUsed bool
-			select {
-			case allUsed = <-done:
-			case <-time.After(second):
-			}
-
+			allUsed := areAllUsed()
 			c.Expect(allUsed, gs.IsTrue)
 		})
 
@@ -87,16 +88,11 @@ func InputRunnerSpec(c gs.Context) {
 				i++
 			})
 
-			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			inputRunner.Start(dataChan, recycleChan, &wg)
 			wg.Add(1)
 			defer notify.Post(STOP, nil)
 
-			var allUsed bool
-			select {
-			case allUsed = <-done:
-			case <-time.After(second):
-			}
-
+			allUsed := areAllUsed()
 			c.Expect(allUsed, gs.IsTrue)
 		})
 	})
