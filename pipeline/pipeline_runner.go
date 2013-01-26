@@ -53,7 +53,7 @@ type PipelinePack struct {
 	Decoder     string
 	Decoders    map[string]Decoder
 	Filters     map[string]Filter
-	Outputs     map[string]Output
+	OutputChans map[string]chan *PipelinePack
 	Decoded     bool
 	Blocked     bool
 	FilterChain string
@@ -64,10 +64,10 @@ type PipelinePack struct {
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, 65536)
 	message := Message{}
-	outputnames := make(map[string]bool)
+	outputNames := make(map[string]bool)
 	filters := make(map[string]Filter)
 	decoders := make(map[string]Decoder)
-	outputs := make(map[string]Output)
+	outputChans := make(map[string]chan *PipelinePack)
 
 	pack := &PipelinePack{
 		MsgBytes:    msgBytes,
@@ -79,8 +79,8 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 		Blocked:     false,
 		Filters:     filters,
 		FilterChain: config.DefaultFilterChain,
-		Outputs:     outputs,
-		OutputNames: outputnames,
+		OutputChans: outputChans,
+		OutputNames: outputNames,
 	}
 	pack.InitDecoders(config)
 	pack.InitFilters(config)
@@ -101,8 +101,8 @@ func (self *PipelinePack) InitFilters(config *PipelineConfig) {
 }
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
-	for name, wrapper := range config.Outputs {
-		self.Outputs[name] = wrapper.Create().(Output)
+	for name, outRunner := range config.OutputRunners {
+		self.OutputChans[name] = outRunner.Chan
 	}
 }
 
@@ -163,11 +163,7 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 }
 
 // Main pipeline function
-func pipeline(pack *PipelinePack) {
-	// When finished, reset and recycle the allocated PipelinePack
-	defer func() {
-		pack.Zero()
-	}()
+func pipeline(pack *PipelinePack) (recycle bool) {
 
 	// Decode message if necessary
 	if !pack.Decoded {
@@ -175,11 +171,13 @@ func pipeline(pack *PipelinePack) {
 		decoder, ok := pack.Decoders[decoderName]
 		if !ok {
 			log.Printf("Decoder doesn't exist: %s\n", decoderName)
+			recycle = true
 			return
 		}
 		if err := decoder.Decode(pack); err != nil {
 			log.Printf("Error decoding message (%s): %s", decoderName,
 				err)
+			recycle = true
 			return
 		} else {
 			pack.Decoded = true
@@ -189,21 +187,28 @@ func pipeline(pack *PipelinePack) {
 	// Run message through the appropriate filters
 	filterProcessor(pack)
 	if pack.Blocked {
+		recycle = true
 		return
 	}
 
+	i := 0
 	// Deliver message to appropriate outputs
 	for outputName, use := range pack.OutputNames {
 		if !use {
 			continue
 		}
-		output, ok := pack.Outputs[outputName]
+		outChan, ok := pack.OutputChans[outputName]
 		if !ok {
 			log.Printf("Output doesn't exist: %s\n", outputName)
 			continue
 		}
-		output.Deliver(pack)
+		outChan <- pack
+		i++
 	}
+	if i == 0 {
+		recycle = true
+	}
+	return
 }
 
 func Run(config *PipelineConfig) {
@@ -213,21 +218,32 @@ func Run(config *PipelineConfig) {
 	dataChan := make(chan *PipelinePack, config.PoolSize+1)
 	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 
+	var wg sync.WaitGroup
+	var outRunner *OutputRunner
+
+	for name, wrapper := range config.Outputs {
+		output := wrapper.Create().(Output)
+		outRunner = NewOutputRunner(name, output)
+		config.OutputRunners[name] = outRunner
+		outRunner.Start(recycleChan, &wg)
+		wg.Add(1)
+		log.Printf("Output started: %s\n", name)
+	}
+
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
 		recycleChan <- NewPipelinePack(config)
 	}
 
-	var wg sync.WaitGroup
-	var runner *InputRunner
+	var inRunner *InputRunner
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
 	for name, wrapper := range config.Inputs {
 		input := wrapper.Create().(Input)
-		runner = &InputRunner{name, input, &timeout}
-		inputRunners[name] = runner
-		runner.Start(dataChan, recycleChan, &wg)
+		inRunner = &InputRunner{name, input, &timeout}
+		inputRunners[name] = inRunner
+		inRunner.Start(dataChan, recycleChan, &wg)
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
@@ -241,8 +257,11 @@ sigListener:
 	for {
 		select {
 		case pack = <-dataChan:
-			pipeline(pack)
-			recycleChan <- pack
+			recycle := pipeline(pack)
+			if recycle {
+				pack.Zero()
+				recycleChan <- pack
+			}
 		case sig := <-sigChan:
 			switch sig {
 			case syscall.SIGHUP:
