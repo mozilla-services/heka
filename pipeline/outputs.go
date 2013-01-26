@@ -16,6 +16,7 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
 	"runtime"
@@ -23,6 +24,43 @@ import (
 	"sync"
 	"time"
 )
+
+type OutputRunner struct {
+	Name   string
+	Output Output
+	Chan   chan *PipelinePack
+}
+
+func NewOutputRunner(name string, output Output) *OutputRunner {
+	outChan := make(chan *PipelinePack, PoolSize+1)
+	outRunner := &OutputRunner{name, output, outChan}
+	return outRunner
+}
+
+func (self *OutputRunner) Start(recycleChan chan<- *PipelinePack,
+	wg *sync.WaitGroup) {
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+
+	go func() {
+		var pack *PipelinePack
+	runnerLoop:
+		for {
+			runtime.Gosched()
+			select {
+			case pack = <-self.Chan:
+				self.Output.Deliver(pack)
+				// TODO: look for and call delivery completion callbacks
+				pack.Zero()
+				recycleChan <- pack
+			case <-stopChan:
+				break runnerLoop
+			}
+		}
+		log.Printf("Output stopped: ", self.Name)
+		wg.Done()
+	}()
+}
 
 type Output interface {
 	Deliver(pipelinePack *PipelinePack)
