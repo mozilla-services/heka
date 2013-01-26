@@ -341,4 +341,7 @@ func init() {
 	RegisterPlugin("FileOutput", func() interface{} {
 		return RunnerMaker(new(FileWriter))
 	})
+	RegisterPlugin("LogfileInput", func() interface{} {
+		return new(LogfileInput)
+	})
 }

@@ -83,13 +83,13 @@ type FileMonitor struct {
 	fds       map[string]*os.File
 }
 
-func (fm *FileMonitor) Watcher() {
+func (fm *FileMonitor) Watcher(initialFiles []string) {
 	var ev *fsnotify.FileEvent
-	discovery := time.NewTicker(5)
+	discovery := time.NewTicker(time.Second * 5)
 
 	// Attempt for files that should exist, to start reading them at
 	// the end
-	for fileName, _ := range fm.seek {
+	for _, fileName := range initialFiles {
 		fm.ReadLines(fileName, nil)
 	}
 
@@ -121,18 +121,21 @@ func (fm *FileMonitor) ReadLines(fileName string, event *fsnotify.FileEvent) {
 	var seek int64
 	var fd *os.File
 	var found bool
+	var err error
 	if fd, found = fm.fds[fileName]; !found {
 		// Attempt to open the file
-		fd, err := os.Open(fileName)
+		fd, err = os.Open(fileName)
 		if err != nil {
 			// No such file, put it back on discover
 			fm.discover[fileName] = true
+			fm.watcher.RemoveWatch(fileName)
+			return
 		}
 		fm.fds[fileName] = fd
 
 		// Should we seek?
 		offset := int64(0)
-		begin := os.SEEK_END
+		begin := 0
 		if seek, found = fm.seek[fileName]; found {
 			offset = seek
 			begin = 0
@@ -184,6 +187,8 @@ func (fm *FileMonitor) Init(files []string) (err error) {
 	}
 
 	// Add all the files to watch
+	initialFiles := make([]string, 0, len(files))
+
 	for _, fileName := range files {
 		err = fm.watcher.Watch(fileName)
 		if err != nil {
@@ -192,12 +197,14 @@ func (fm *FileMonitor) Init(files []string) (err error) {
 			log.Printf("Unable to find '%s' file, adding to discover list.",
 				fileName)
 		} else {
-			fm.seek[fileName] = 0
+			initialFiles = append(initialFiles, fileName)
+			log.Printf("Found %s, added to seek", fileName)
 		}
+		err = nil
 	}
 
 	// Launch the file reader
-	go fm.Watcher()
+	go fm.Watcher(initialFiles)
 
 	return
 }
