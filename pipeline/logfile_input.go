@@ -149,6 +149,15 @@ func (fm *FileMonitor) ReadLines(fileName string, event *fsnotify.FileEvent) {
 		}
 	}
 
+	// Determine if we're farther into the file than possible (truncate)
+	finfo, err := fd.Stat()
+	if err == nil {
+		if finfo.Size() < fm.seek[fileName] {
+			fd.Seek(0, 0)
+			fm.seek[fileName] = 0
+		}
+	}
+
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
