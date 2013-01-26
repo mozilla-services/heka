@@ -226,7 +226,11 @@ func Run(config *PipelineConfig) {
 	inputRunners := make(map[string]*InputRunner)
 
 	for name, wrapper := range config.Inputs {
-		input := wrapper.Create().(Input)
+		inputPlug, err := wrapper.CreateWithError()
+		if err != nil {
+			log.Fatalf("Failure to load plugin: %s", name)
+		}
+		input := inputPlug.(Input)
 		runner = &InputRunner{name, input, &timeout}
 		inputRunners[name] = runner
 		runner.Start(pipeline, recycleChan, &wg)

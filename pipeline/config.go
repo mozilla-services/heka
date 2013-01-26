@@ -181,10 +181,6 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 			}
 		}
 
-		if _, err = wrapper.CreateWithError(); err != nil {
-			return config, errors.New("Unable to plugin init: " + err.Error())
-		}
-
 		config[wrapper.name] = wrapper
 	}
 	return config, nil
