@@ -78,30 +78,19 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 }
 
 type CounterOutput struct {
-}
-
-type CounterGlobal struct {
-	count chan uint
-	once  sync.Once
-}
-
-var counterGlobal CounterGlobal
-
-func InitCountChan() {
-	counterGlobal.count = make(chan uint, 30000)
-	go counterLoop()
+	count uint
 }
 
 func (self *CounterOutput) Init(config interface{}) error {
-	counterGlobal.once.Do(InitCountChan)
+	go self.counterLoop()
 	return nil
 }
 
 func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	counterGlobal.count <- 1
+	self.count++
 }
 
-func counterLoop() {
+func (self *CounterOutput) counterLoop() {
 	tick := time.NewTicker(time.Duration(time.Second))
 	aggregate := time.NewTicker(time.Duration(10 * time.Second))
 	lastTime := time.Now()
@@ -109,17 +98,18 @@ func counterLoop() {
 	count := uint(0)
 	zeroes := int8(0)
 	var (
-		msgsSent, inc uint
-		elapsedTime   time.Duration
-		now           time.Time
-		rate          float64
-		rates         []float64
+		msgsSent    uint
+		elapsedTime time.Duration
+		now         time.Time
+		rate        float64
+		rates       []float64
 	)
 	for {
 		// Here for performance reasons
 		runtime.Gosched()
 		select {
 		case <-aggregate.C:
+			count = self.count
 			amount := len(rates)
 			if amount < 1 {
 				continue
@@ -137,6 +127,7 @@ func counterLoop() {
 				min, max, mean)
 			rates = rates[:0]
 		case <-tick.C:
+			count = self.count
 			now = time.Now()
 			msgsSent = count - lastCount
 			lastCount = count
@@ -153,8 +144,6 @@ func counterLoop() {
 			}
 			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
 			rates = append(rates, rate)
-		case inc = <-counterGlobal.count:
-			count += inc
 		}
 	}
 }
