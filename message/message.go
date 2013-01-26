@@ -17,7 +17,6 @@ package message
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"reflect"
 )
@@ -113,7 +112,7 @@ func getValueType(v reflect.Value) (t Field_ValueType, err error) {
 	case reflect.Bool:
 		t = Field_BOOL
 	default:
-		err = errors.New(fmt.Sprintf("unsupported value kind: %v type: %v", v.Kind(), v.Type()))
+		err = fmt.Errorf("unsupported value kind: %v type: %v", v.Kind(), v.Type())
 	}
 	return
 }
@@ -166,8 +165,8 @@ func (f *Field) AddValue(value interface{}) error {
 		return err
 	}
 	if t != *f.ValueType {
-		return errors.New(fmt.Sprintf("The field contains: %v; attempted to add %v",
-			Field_ValueType_name[int32(*f.ValueType)], Field_ValueType_name[int32(t)]))
+		return fmt.Errorf("The field contains: %v; attempted to add %v",
+			Field_ValueType_name[int32(*f.ValueType)], Field_ValueType_name[int32(t)])
 	}
 
 	switch *f.ValueType {

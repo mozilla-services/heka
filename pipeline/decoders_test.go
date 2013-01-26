@@ -29,7 +29,7 @@ func DecodersSpec(c gospec.Context) {
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
 		timestampJson, err := json.Marshal(time.Unix(*msg.Timestamp/1e9, *msg.Timestamp%1e9))
-		fieldsJson, err := json.Marshal(msg.Fields)
+		fieldsJson := `{"foo":"bar"}`
 		c.Assume(err, gs.IsNil)
 		uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", msg.Uuid[:4], msg.Uuid[4:6], msg.Uuid[6:8], msg.Uuid[8:10], msg.Uuid[10:])
 		jsonString := fmt.Sprintf(fmtString, uuid, *msg.Type,
@@ -63,34 +63,47 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(*pipelinePack.Message.Timestamp == int64(0), gs.IsTrue)
 		})
 
-		c.Specify("returns an error for invalid field type", func() {
-			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"BOGUS","value_format":"RAW","value_string":["bar"]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
-			pipelinePack.MsgBytes = []byte(badJson)
-			err := jsonDecoder.Decode(pipelinePack)
-			c.Expect(err.Error(), ts.StringContains, "invalid value type")
-		})
-
-		c.Specify("returns an error for invalid field format", func() {
-			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"BOGUS", "value_string":["bar"]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
-			pipelinePack.MsgBytes = []byte(badJson)
-			err := jsonDecoder.Decode(pipelinePack)
-			fmt.Println(err)
-			c.Expect(err.Error(), ts.StringContains, "invalid value format")
-		})
-
-		c.Specify("returns an error for missing field value array", func() {
-			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"RAW"}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
-			pipelinePack.MsgBytes = []byte(badJson)
-			err := jsonDecoder.Decode(pipelinePack)
-			c.Expect(err.Error(), ts.StringContains, "invalid value array")
-		})
-
 		c.Specify("returns an error for value array type mismatch", func() {
-			badJson := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":[{"name":"foo","value_type":"STRING","value_format":"RAW", "value_string":[1]}],"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
-			pipelinePack.MsgBytes = []byte(badJson)
+			Json := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":{"foo":["bar", 1]},"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(Json)
 			err := jsonDecoder.Decode(pipelinePack)
-			fmt.Println(err)
 			c.Expect(err.Error(), ts.StringContains, "The field contains: STRING; attempted to add DOUBLE")
+		})
+
+		c.Specify("returns foo as flattened map", func() {
+			Json := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":{"foo":{"bar":1,"widget": {"name":"w1","price":10.10,"in_stock":true, "locations":["sfo"]}}},"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(Json)
+			err := jsonDecoder.Decode(pipelinePack)
+			c.Expect(err, gs.IsNil)
+			v, ok := pipelinePack.Message.GetFieldValue("foo.bar")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, float64(1))
+			v, ok = pipelinePack.Message.GetFieldValue("foo.widget.name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "w1")
+			v, ok = pipelinePack.Message.GetFieldValue("foo.widget.price")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, 10.1)
+			v, ok = pipelinePack.Message.GetFieldValue("foo.widget.in_stock")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.IsTrue)
+			f := pipelinePack.Message.FindFirstField("foo.widget.locations")
+			c.Expect(f, gs.Not(gs.IsNil))
+			c.Expect(len(f.ValueString), gs.Equals, 1)
+			c.Expect(f.ValueString[0], gs.Equals, "sfo")
+		})
+
+		c.Specify("returns an array of objects", func() {
+			Json := `{"uuid":"2ae75e3a-7a70-4686-a2ea-ac7a02db9542","type":"TEST","timestamp":"2013-01-23T08:00:47.797575607-08:00","logger":"GoSpec","severity":6,"payload":"Test Payload","fields":{"objects":[{"name":"one"},{"name":"two"}]},"env_version":"0.8","metlog_pid":10569,"metlog_hostname":"trink-x230"}`
+			pipelinePack.MsgBytes = []byte(Json)
+			err := jsonDecoder.Decode(pipelinePack)
+			c.Expect(err, gs.IsNil)
+			v, ok := pipelinePack.Message.GetFieldValue("objects.0.name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "one")
+			v, ok = pipelinePack.Message.GetFieldValue("objects.1.name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "two")
 		})
 	})
 }

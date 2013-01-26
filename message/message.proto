@@ -36,7 +36,7 @@ message Field {
 }
   
 message Message {
-  required bytes 	uuid 		= 1; // type 1 uuid
+  required bytes 	uuid 		= 1;
   required int64	timestamp     	= 2; // nanoseconds since UNIX epoch
   optional string 	type 	       	= 3;
   optional string	logger 	       	= 4;

@@ -20,7 +20,6 @@ import (
 	"github.com/bitly/go-simplejson"
 	"github.com/mozilla-services/heka/message"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -31,6 +30,70 @@ type Decoder interface {
 type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
+	return nil
+}
+
+func flattenValue(v interface{}, msg *message.Message, path string) error {
+	switch v.(type) {
+	case string, float64, bool:
+		f, _ := message.NewField(path, v, message.Field_RAW)
+		msg.AddField(f)
+	case []interface{}:
+		err := flattenArray(v.([]interface{}), msg, path)
+		if err != nil {
+			return err
+		}
+	case map[string]interface{}:
+		err := flattenMap(v.(map[string]interface{}), msg, path)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("Path %s, unsupported value type: %T", path, v)
+	}
+	return nil
+}
+
+func flattenArray(a []interface{}, msg *message.Message, path string) error {
+	if len(a) > 0 {
+		switch a[0].(type) {
+		case string, float64, bool:
+			f, _ := message.NewField(path, a[0], message.Field_RAW)
+			for _, v := range a[1:] {
+				err := f.AddValue(v)
+				if err != nil {
+					return err
+				}
+			}
+			msg.AddField(f)
+
+		default:
+			var childPath string
+			for i, v := range a {
+				childPath = fmt.Sprintf("%s.%d", path, i)
+				err := flattenValue(v, msg, childPath)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func flattenMap(m map[string]interface{}, msg *message.Message, path string) error {
+	var childPath string
+	for k, v := range m {
+		if len(path) == 0 {
+			childPath = k
+		} else {
+			childPath = fmt.Sprintf("%s.%s", path, k)
+		}
+		err := flattenValue(v, msg, childPath)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -60,40 +123,10 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	i, _ := msgJson.Get("metlog_pid").Int()
 	*msg.Pid = int32(i)
 	*msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
-
-	fields := msgJson.Get("fields")
-	for i := 0; ; i++ {
-		fi := fields.GetIndex(i) // no way to check if this is valid
-		// so break on the first field index that has no name
-		name, err := fi.Get("name").String()
-		if err != nil {
-			break
-		}
-		tmp, _ := fi.Get("value_type").String()
-		value_type, ok := message.Field_ValueType_value[tmp]
-		if ok == false {
-			return errors.New("invalid value type")
-		}
-		valueArrayName := fmt.Sprintf("value_%s", strings.ToLower(tmp))
-		tmp, _ = fi.Get("value_format").String()
-		value_format, ok := message.Field_ValueFormat_value[tmp]
-		if ok == false {
-			return errors.New("invalid value format")
-		}
-		a, err := fi.Get(valueArrayName).Array()
-		if err != nil {
-			return errors.New("invalid value array")
-		}
-		f := message.NewFieldInit(name,
-			message.Field_ValueType(value_type),
-			message.Field_ValueFormat(value_format))
-		for _, v := range a {
-			err = f.AddValue(v)
-			if err != nil {
-				return err
-			}
-		}
-		msg.AddField(f)
+	fields, _ := msgJson.Get("fields").Map()
+	err = flattenMap(fields, msg, "")
+	if err != nil {
+		return err
 	}
 	return nil
 }
