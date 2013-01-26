@@ -9,11 +9,13 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
@@ -104,6 +106,31 @@ func DecodersSpec(c gospec.Context) {
 			v, ok = pipelinePack.Message.GetFieldValue("objects.1.name")
 			c.Expect(ok, gs.IsTrue)
 			c.Expect(v, gs.Equals, "two")
+		})
+	})
+
+	c.Specify("A ProtobufDecoder", func() {
+		msg := getTestMessage()
+		encoded, err := proto.Marshal(msg)
+		c.Assume(err, gs.IsNil)
+		pack := getTestPipelinePack()
+		decoder := new(ProtobufDecoder)
+
+		c.Specify("decodes a msgpack message", func() {
+			pack.MsgBytes = encoded
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pack.Message, gs.Equals, msg)
+			v, ok := pack.Message.GetFieldValue("foo")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "bar")
+		})
+
+		c.Specify("returns an error for bunk encoding", func() {
+			bunk := append([]byte{0, 0, 0}, encoded...)
+			pack.MsgBytes = bunk
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
 }

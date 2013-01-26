@@ -9,12 +9,14 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
 	"github.com/bitly/go-simplejson"
@@ -28,6 +30,8 @@ type Decoder interface {
 }
 
 type JsonDecoder struct{}
+
+type ProtobufDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
@@ -127,6 +131,14 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	err = flattenMap(fields, msg, "")
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (self *ProtobufDecoder) Decode(pipelinePack *PipelinePack) error {
+	err := proto.Unmarshal(pipelinePack.MsgBytes, pipelinePack.Message)
+	if err != nil {
+		return fmt.Errorf("unmarshaling error: ", err)
 	}
 	return nil
 }
