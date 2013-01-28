@@ -31,8 +31,6 @@ type Decoder interface {
 
 type JsonDecoder struct{}
 
-type ProtobufDecoder struct{}
-
 func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
 }
@@ -111,27 +109,33 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	msg := pipelinePack.Message
 	uuidString, _ := msgJson.Get("uuid").String()
 	u := uuid.Parse(uuidString)
-	copy(msg.Uuid, u)
-	*msg.Type = msgJson.Get("type").MustString()
+	msg.SetUuid(u)
+	msg.SetType(msgJson.Get("type").MustString())
 	timeStr := msgJson.Get("timestamp").MustString()
 	t, err := time.Parse(time.RFC3339Nano, timeStr)
 	if err != nil {
 		log.Printf("Timestamp parsing error: %s\n", err.Error())
 		return errors.New("invalid Timestamp")
 	}
-	*msg.Timestamp = t.UnixNano()
-	*msg.Logger = msgJson.Get("logger").MustString()
-	*msg.Severity = int32(msgJson.Get("severity").MustInt())
-	*msg.Payload, _ = msgJson.Get("payload").String()
-	*msg.EnvVersion = msgJson.Get("env_version").MustString()
+	msg.SetTimestamp(t.UnixNano())
+	msg.SetLogger(msgJson.Get("logger").MustString())
+	msg.SetSeverity(int32(msgJson.Get("severity").MustInt()))
+	msg.SetPayload(msgJson.Get("payload").MustString())
+	msg.SetEnvVersion(msgJson.Get("env_version").MustString())
 	i, _ := msgJson.Get("metlog_pid").Int()
-	*msg.Pid = int32(i)
-	*msg.Hostname, _ = msgJson.Get("metlog_hostname").String()
+	msg.SetPid(int32(i))
+	msg.SetHostname(msgJson.Get("metlog_hostname").MustString())
 	fields, _ := msgJson.Get("fields").Map()
 	err = flattenMap(fields, msg, "")
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+type ProtobufDecoder struct{}
+
+func (self *ProtobufDecoder) Init(config interface{}) error {
 	return nil
 }
 

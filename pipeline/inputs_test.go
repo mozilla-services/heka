@@ -15,8 +15,10 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"errors"
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -141,6 +143,46 @@ func InputsSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(string(pipelinePack.MsgBytes), gs.Equals, string(msgJson))
+		})
+	})
+
+	c.Specify("A TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{addrStr})
+		c.Assume(err, gs.IsNil)
+		mockConnection := ts.NewMockConn(ctrl)
+
+		/// @todo use the msg encoder
+		mbytes, _ := proto.Marshal(msg)
+		header := &message.Header{}
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a message from its connection", func() {
+			buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			closeCall := mockConnection.EXPECT().Close()
+			closeCall.Do(func() {})
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+			second := time.Second
+			tcpInput.handleConnection(mockConnection)
+			err = tcpInput.Read(pipelinePack, &second)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pipelinePack.Decoded, gs.IsTrue)
+			v, ok := pipelinePack.Message.GetFieldValue("foo")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "bar")
 		})
 	})
 }

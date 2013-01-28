@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
@@ -50,17 +51,16 @@ func TestAllSpecs(t *testing.T) {
 func getTestMessage() *Message {
 	hostname, _ := os.Hostname()
 	field, _ := NewField("foo", "bar", Field_RAW)
-	msg := NewMessage()
-	*msg.Type = "TEST"
-	*msg.Timestamp = time.Now().UnixNano()
-	u := uuid.NewRandom()
-	copy(msg.Uuid, u)
-	*msg.Logger = "GoSpec"
-	*msg.Severity = int32(6)
-	*msg.Payload = "Test Payload"
-	*msg.EnvVersion = "0.8"
-	*msg.Pid = int32(os.Getpid())
-	*msg.Hostname = hostname
+	msg := &Message{}
+	msg.SetType("TEST")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetLogger("GoSpec")
+	msg.SetSeverity(int32(6))
+	msg.SetPayload("Test Payload")
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(int32(os.Getpid()))
+	msg.SetHostname(hostname)
 	msg.AddField(field)
 
 	return msg

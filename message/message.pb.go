@@ -137,9 +137,8 @@ func (x *Field_ValueFormat) UnmarshalJSON(data []byte) error {
 }
 
 type Header struct {
-	Timestamp        *uint64                 `protobuf:"varint,1,req,name=timestamp" json:"timestamp,omitempty"`
-	MessageLength    *uint32                 `protobuf:"varint,2,req,name=message_length" json:"message_length,omitempty"`
-	MessageEncoding  *Header_MessageEncoding `protobuf:"varint,3,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
+	MessageLength    *uint32                 `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
+	MessageEncoding  *Header_MessageEncoding `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
 	XXX_unrecognized []byte                  `json:"-"`
 }
 
@@ -148,13 +147,6 @@ func (this *Header) String() string { return proto.CompactTextString(this) }
 func (*Header) ProtoMessage()       {}
 
 const Default_Header_MessageEncoding Header_MessageEncoding = Header_PROTOCOL_BUFFER
-
-func (this *Header) GetTimestamp() uint64 {
-	if this != nil && this.Timestamp != nil {
-		return *this.Timestamp
-	}
-	return 0
-}
 
 func (this *Header) GetMessageLength() uint32 {
 	if this != nil && this.MessageLength != nil {

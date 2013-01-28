@@ -5,9 +5,8 @@ message Header {
 	PROTOCOL_BUFFER = 0;
 	JSON		= 1;
   }
-  required uint64 	   timestamp	    = 1; // nanoseconds since UNIX epoch
-  required uint32 	   message_length   = 2; // length in bytes
-  optional MessageEncoding message_encoding = 3 [default = PROTOCOL_BUFFER];
+  required uint32 	   message_length   = 1; // length in bytes
+  optional MessageEncoding message_encoding = 2 [default = PROTOCOL_BUFFER];
 }
 
 message Field {

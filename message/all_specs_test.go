@@ -34,17 +34,16 @@ func TestAllSpecs(t *testing.T) {
 func getTestMessage() *Message {
 	hostname, _ := os.Hostname()
 	field, _ := NewField("foo", "bar", Field_RAW)
-	msg := NewMessage()
-	*msg.Type = "TEST"
-	*msg.Timestamp = time.Now().UnixNano()
-	u := uuid.NewRandom()
-	copy(msg.Uuid, u)
-	*msg.Logger = "GoSpec"
-	*msg.Severity = int32(6)
-	*msg.Payload = "Test Payload"
-	*msg.EnvVersion = "0.8"
-	*msg.Pid = int32(os.Getpid())
-	*msg.Hostname = hostname
+	msg := &Message{}
+	msg.SetType("TEST")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetLogger("GoSpec")
+	msg.SetSeverity(int32(6))
+	msg.SetPayload("Test Payload")
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(int32(os.Getpid()))
+	msg.SetHostname(hostname)
 	msg.AddField(field)
 
 	return msg
@@ -52,7 +51,7 @@ func getTestMessage() *Message {
 
 func MessageFieldsSpec(c gospec.Context) {
 	c.Specify("No Fields", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f := msg.FindFirstField("test")
 		c.Expect(f, gs.IsNil)
 		fa := msg.FindAllFields("test")
@@ -63,7 +62,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Fields present but none match", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f, _ := NewField("foo", "bar", Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("test")
@@ -76,7 +75,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Fields match", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f, _ := NewField("foo", "bar", Field_RAW)
 		f1, _ := NewField("other", "value", Field_RAW)
 		f2, _ := NewField("foo", "bar1", Field_RAW)
@@ -95,7 +94,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Add Bytes Field", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		b := make([]byte, 2)
 		b[0] = 'a'
 		b[1] = 'b'
@@ -109,7 +108,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Add Integer Field", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f, _ := NewField("foo", 1, Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
@@ -120,7 +119,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Add Double Field", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f, _ := NewField("foo", 1e9, Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
@@ -131,7 +130,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Add Bool Field", func() {
-		msg := NewMessage()
+		msg := &Message{}
 		f, _ := NewField("foo", true, Field_RAW)
 		msg.AddField(f)
 		ff := msg.FindFirstField("foo")
@@ -198,7 +197,7 @@ func MessageEqualsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Messages w/ recurring keys", func() {
-		msg0 = NewMessage()
+		msg0 = &Message{}
 		f, _ := NewField("foo", "bar", Field_RAW)
 		f1, _ := NewField("foo", "bar1", Field_RAW)
 		msg0.AddField(f)

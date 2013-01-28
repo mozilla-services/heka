@@ -9,74 +9,34 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package client
 
 import (
 	"bytes"
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
-	"fmt"
+	"github.com/mozilla-services/heka/message"
 )
 
 type Encoder interface {
-	EncodeMessage(msg *Message) ([]byte, error)
+	EncodeMessage(msg *message.Message) ([]byte, error)
 }
 
 type JsonEncoder struct {
 }
 
-func (self *JsonEncoder) EncodeMessage(msg *Message) ([]byte, error) {
+type ProtobufEncoder struct {
+}
+
+func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	result, err := json.Marshal(msg)
 	return result, err
 }
 
-var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-
-var hex = "0123456789abcdef"
-
-func escapeStr(inStr string) string {
-	result := new(bytes.Buffer)
-	for i := 0; i < len(inStr); i++ {
-		b := inStr[i]
-		if 0x20 <= b && b != '\\' && b != '"' && b != '<' && b != '>' {
-			result.WriteByte(b)
-			continue
-		}
-		switch b {
-		case '\\', '"':
-			result.WriteByte('\\')
-			result.WriteByte(b)
-		case '\n':
-			result.WriteByte('\\')
-			result.WriteByte('n')
-		case '\r':
-			result.WriteByte('\\')
-			result.WriteByte('r')
-		default:
-			result.WriteString(`\u00`)
-			result.WriteByte(hex[b>>4])
-			result.WriteByte(hex[b&0xF])
-		}
-	}
-	resultStr := result.String()
-	return resultStr
-}
-
-func (self *Message) MarshalJSON() ([]byte, error) {
-	fieldsJson, err := json.Marshal(self.Fields)
-	if err != nil {
-		return nil, err
-	}
-	timestampJson, err := json.Marshal(time.Unix(*self.Timestamp/1e9, *self.Timestamp%1e9))
-	if err != nil {
-		return nil, err
-	}
-	uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", self.Uuid[:4], self.Uuid[4:6], self.Uuid[6:8], self.Uuid[8:10], self.Uuid[10:])
-	result := fmt.Sprintf(fmtString, uuid, escapeStr(self.Type),
-		string(timestampJson), escapeStr(self.Logger),
-		self.Severity, escapeStr(self.Payload),
-		string(fieldsJson), escapeStr(self.Env_version), self.Pid,
-		escapeStr(self.Hostname))
-	return []byte(result), nil
+func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
+	result, err := proto.Marshal(msg)
+	return result, err
 }

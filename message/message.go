@@ -21,65 +21,157 @@ import (
 	"reflect"
 )
 
-// Message constructor
-func NewMessage() *Message {
-	m := &Message{}
-	m.Uuid = make([]byte, 16)
-	m.Timestamp = new(int64)
-	m.Type = new(string)
-	m.Logger = new(string)
-	m.Severity = new(int32)
-	m.Payload = new(string)
-	m.EnvVersion = new(string)
-	m.Pid = new(int32)
-	m.Hostname = new(string)
-	return m
+const UUID_SIZE = 16
+
+func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
+	if h != nil {
+		if h.MessageEncoding == nil {
+			h.MessageEncoding = new(Header_MessageEncoding)
+		}
+		*h.MessageEncoding = v
+	}
+}
+
+func (h *Header) SetMessageLength(v uint32) {
+	if h != nil {
+		if h.MessageLength == nil {
+			h.MessageLength = new(uint32)
+		}
+		*h.MessageLength = v
+	}
+}
+
+func (m *Message) SetUuid(v []byte) {
+	if m != nil {
+		if len(m.Uuid) != UUID_SIZE {
+			m.Uuid = make([]byte, UUID_SIZE)
+		}
+		copy(m.Uuid, v)
+	}
+}
+
+func (m *Message) SetTimestamp(v int64) {
+	if m != nil {
+		if m.Timestamp == nil {
+			m.Timestamp = new(int64)
+		}
+		*m.Timestamp = v
+	}
+}
+
+func (m *Message) SetType(v string) {
+	if m != nil {
+		if m.Type == nil {
+			m.Type = new(string)
+		}
+		*m.Type = v
+	}
+}
+
+func (m *Message) SetLogger(v string) {
+	if m != nil {
+		if m.Logger == nil {
+			m.Logger = new(string)
+		}
+		*m.Logger = v
+
+	}
+}
+
+func (m *Message) SetSeverity(v int32) {
+	if m != nil {
+		if m.Severity == nil {
+			m.Severity = new(int32)
+		}
+		*m.Severity = v
+	}
+}
+
+func (m *Message) SetPayload(v string) {
+	if m != nil {
+		if m.Payload == nil {
+			m.Payload = new(string)
+		}
+
+		*m.Payload = v
+	}
+}
+
+func (m *Message) SetEnvVersion(v string) {
+	if m != nil {
+		if m.EnvVersion == nil {
+			m.EnvVersion = new(string)
+		}
+		*m.EnvVersion = v
+	}
+}
+
+func (m *Message) SetPid(v int32) {
+	if m != nil {
+		if m.Pid == nil {
+			m.Pid = new(int32)
+		}
+		*m.Pid = v
+	}
+}
+
+func (m *Message) SetHostname(v string) {
+	if m != nil {
+		if m.Hostname == nil {
+			m.Hostname = new(string)
+		}
+		*m.Hostname = v
+	}
 }
 
 // Message assignment operator
 func (src *Message) Copy(dst *Message) {
-	if src == dst {
+	if src == nil || dst == nil || src == dst {
 		return
 	}
 
-	copy(dst.Uuid, src.Uuid)
+	if cap(src.Uuid) > 0 {
+		dst.SetUuid(src.Uuid)
+	} else {
+		dst.Uuid = nil
+	}
 	if src.Timestamp != nil {
-		*dst.Timestamp = *src.Timestamp
+		dst.SetTimestamp(*src.Timestamp)
 	} else {
 		dst.Timestamp = nil
 	}
 	if src.Type != nil {
-		*dst.Type = *src.Type
+		dst.SetType(*src.Type)
 	} else {
 		dst.Type = nil
 	}
 	if src.Logger != nil {
-		*dst.Logger = *src.Logger
+		dst.SetLogger(*src.Logger)
 	} else {
 		dst.Logger = nil
 	}
 	if src.Severity != nil {
-		*dst.Severity = *src.Severity
+		dst.SetSeverity(*src.Severity)
 	} else {
 		dst.Severity = nil
 	}
 	if src.Payload != nil {
-		*dst.Payload = *src.Payload
+		dst.SetPayload(*src.Payload)
 	} else {
 		dst.Payload = nil
 	}
 	if src.EnvVersion != nil {
-		*dst.EnvVersion = *src.EnvVersion
+		dst.SetEnvVersion(*src.EnvVersion)
 	} else {
 		dst.EnvVersion = nil
 	}
 	if src.Pid != nil {
-		*dst.Pid = *src.Pid
+		dst.SetPid(*src.Pid)
 	} else {
 		dst.Pid = nil
 	}
 	if src.Hostname != nil {
-		*dst.Hostname = *src.Hostname
+		dst.SetHostname(*src.Hostname)
 	} else {
 		dst.Hostname = nil
 	}
@@ -92,7 +184,10 @@ func (src *Message) Copy(dst *Message) {
 
 // Message copy constructor
 func CopyMessage(src *Message) *Message {
-	dst := NewMessage()
+	if src == nil {
+		return nil
+	}
+	dst := &Message{}
 	src.Copy(dst)
 	return dst
 }
@@ -119,6 +214,9 @@ func getValueType(v reflect.Value) (t Field_ValueType, err error) {
 
 // Adds a Field (name/value) pair to the message
 func (m *Message) AddField(f *Field) {
+	if m == nil {
+		return
+	}
 	l := len(m.Fields)
 	c := cap(m.Fields)
 	if l == c {
@@ -159,6 +257,9 @@ func NewFieldInit(name string, valueType Field_ValueType, valueFormat Field_Valu
 
 // Creates an array of values in this field, of the same type, in the order they were added
 func (f *Field) AddValue(value interface{}) error {
+	if f == nil {
+		return fmt.Errorf("Field is nil")
+	}
 	v := reflect.ValueOf(value)
 	t, err := getValueType(v)
 	if err != nil {
@@ -233,6 +334,9 @@ func (f *Field) AddValue(value interface{}) error {
 
 // Field copy constructor
 func CopyField(src *Field) *Field {
+	if src == nil {
+		return nil
+	}
 	dst := NewFieldInit(*src.Name, *src.ValueType, *src.ValueFormat)
 
 	if src.ValueString != nil {
@@ -261,6 +365,9 @@ func CopyField(src *Field) *Field {
 // FindFirstField finds and returns the first field with the specified name
 // if not found nil is returned
 func (m *Message) FindFirstField(name string) *Field {
+	if m == nil {
+		return nil
+	}
 	if m.Fields != nil {
 		for i := 0; i < len(m.Fields); i++ {
 			if m.Fields[i].Name != nil && *m.Fields[i].Name == name {
@@ -273,6 +380,9 @@ func (m *Message) FindFirstField(name string) *Field {
 
 // GetFieldValue helper function to simplify extracting single value fields
 func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
+	if m == nil {
+		return
+	}
 	f := m.FindFirstField(name)
 	if f == nil {
 		return
@@ -310,6 +420,9 @@ func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
 // FindAllFields finds and returns all the fields with the specified name
 // if not found a nil slice is returned
 func (m *Message) FindAllFields(name string) (all []*Field) {
+	if m == nil {
+		return
+	}
 	if m.Fields != nil {
 		for _, v := range m.Fields {
 			if v != nil && *v.Name == name {
@@ -330,8 +443,8 @@ func (m *Message) FindAllFields(name string) (all []*Field) {
 }
 
 // Test for message equality, for use in tests.
-func (self *Message) Equals(other interface{}) bool {
-	vSelf := reflect.ValueOf(self).Elem()
+func (m *Message) Equals(other interface{}) bool {
+	vSelf := reflect.ValueOf(m).Elem()
 	vOther := reflect.ValueOf(other).Elem()
 
 	var sField, oField reflect.Value
@@ -345,10 +458,16 @@ func (self *Message) Equals(other interface{}) bool {
 			}
 		case 1, 2, 3, 4, 5, 6, 7, 8:
 			if sField.Kind() == reflect.Ptr {
-				s := reflect.Indirect(sField)
-				o := reflect.Indirect(oField)
-				if s.Interface() != o.Interface() {
-					return false
+				if sField.IsNil() || oField.IsNil() {
+					if !(sField.IsNil() && oField.IsNil()) {
+						return false
+					}
+				} else {
+					s := reflect.Indirect(sField)
+					o := reflect.Indirect(oField)
+					if s.Interface() != o.Interface() {
+						return false
+					}
 				}
 			} else {
 				if sField.Interface() != oField.Interface() {

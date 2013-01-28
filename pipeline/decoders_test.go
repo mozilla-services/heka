@@ -62,7 +62,7 @@ func DecodersSpec(c gospec.Context) {
 			pipelinePack.MsgBytes = []byte(badJson)
 			err := jsonDecoder.Decode(pipelinePack)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(*pipelinePack.Message.Timestamp == int64(0), gs.IsTrue)
+			c.Expect(pipelinePack.Message.GetTimestamp() == int64(0), gs.IsTrue)
 		})
 
 		c.Specify("returns an error for value array type mismatch", func() {
