@@ -15,7 +15,6 @@
 package client
 
 import (
-	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"github.com/mozilla-services/heka/message"
