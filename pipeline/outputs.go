@@ -57,7 +57,7 @@ func (self *OutputRunner) Start(recycleChan chan<- *PipelinePack,
 				break runnerLoop
 			}
 		}
-		log.Printf("Output stopped: ", self.Name)
+		log.Println("Output stopped: ", self.Name)
 		wg.Done()
 	}()
 }
