@@ -17,7 +17,6 @@ import (
 	"bufio"
 	"errors"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -71,12 +70,10 @@ func (lw *LogfileInput) Event(eventType string) {
 //
 // The FileMonitor
 type FileMonitor struct {
-	events    chan string
-	NewLines  chan Logline
-	waitgroup *sync.WaitGroup
-	seek      map[string]int64
-	discover  map[string]bool
-	fds       map[string]*os.File
+	NewLines chan Logline
+	seek     map[string]int64
+	discover map[string]bool
+	fds      map[string]*os.File
 }
 
 func (fm *FileMonitor) OpenFile(fileName string) (err error) {
@@ -119,8 +116,7 @@ func (fm *FileMonitor) Watcher() {
 			// Check to see if the files exist now, start reading them
 			// if we can, and watch them
 			for fileName, _ := range fm.discover {
-				err := fm.OpenFile(fileName)
-				if err != nil {
+				if fm.OpenFile(fileName) == nil {
 					delete(fm.discover, fileName)
 				}
 			}
@@ -138,13 +134,6 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 			fd.Seek(0, 0)
 			fm.seek[fileName] = 0
 		}
-	} else {
-		// Got an error, move this to discovery, reset seek
-		fd.Close()
-		delete(fm.fds, fileName)
-		delete(fm.seek, fileName)
-		fm.discover[fileName] = true
-		return
 	}
 
 	// Attempt to read lines from where we are
@@ -157,32 +146,28 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 		readLine, err = reader.ReadString('\n')
 	}
 	fm.seek[fileName] += int64(len(readLine))
+
+	// Check that we haven't been rotated, if we have, put this back on
+	// discover
+	pinfo, err := os.Stat(fileName)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		fd.Close()
+		delete(fm.fds, fileName)
+		delete(fm.seek, fileName)
+		fm.discover[fileName] = true
+	}
 	return
 }
 
 func (fm *FileMonitor) Init(files []string) (err error) {
-	fm.waitgroup = new(sync.WaitGroup)
-	fm.events = make(chan string, 1)
 	fm.NewLines = make(chan Logline)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	if err != nil {
-		return
-	}
-
 	for _, fileName := range files {
-		err = fm.OpenFile(fileName)
-		if err != nil {
-			// No such file, keep it on discover
-			fm.discover[fileName] = true
-		}
-		err = nil
+		fm.discover[fileName] = true
 	}
-
-	// Launch the file reader
 	go fm.Watcher()
-
 	return
 }
 
@@ -191,8 +176,4 @@ func (fm *FileMonitor) Init(files []string) (err error) {
 // If its a STOP event, wait until the Watcher goroutine shuts down
 // gracefully
 func (fm *FileMonitor) Event(eventType string) {
-	fm.events <- eventType
-	if eventType == STOP {
-		fm.waitgroup.Wait()
-	}
 }
