@@ -238,7 +238,6 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 							case Header_PROTOCOL_BUFFER:
 								err := proto.Unmarshal(message, msg)
 								if err == nil {
-									//                                    log.Println("send msg")
 									self.messageChan <- msg
 								} else {
 									log.Println("invalid Protobuf message received")
@@ -298,10 +297,8 @@ func (self *TcpInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
 	select {
 	case pipelinePack.Message = <-self.messageChan:
-		//        log.Println("read message")
 		pipelinePack.Decoded = true
 	case <-time.After(*timeout):
-		//        log.Println("no messages to read")
 		err := TimeoutError("No messages to read")
 		return &err
 	}
