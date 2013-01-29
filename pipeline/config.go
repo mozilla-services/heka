@@ -97,10 +97,12 @@ func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
 // easily created and a reference can be held to the plugins global if
 // it needs one
 type PluginWrapper struct {
-	name          string
-	configCreator func() interface{}
-	pluginCreator func() interface{}
-	global        PluginGlobal
+	name                  string
+	configCreator         func() interface{}
+	pluginCreator         func() interface{}
+	global                PluginGlobal
+	firstPlugin           interface{}
+	firstPluginConfigured bool
 }
 
 // Create a new instance of the plugin and return it
@@ -113,7 +115,17 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 
 // Creates a new instance
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
-	plugin = self.pluginCreator()
+	if self.firstPlugin != nil {
+		plugin = self.firstPlugin
+		if self.firstPluginConfigured {
+			self.firstPlugin = nil
+			return
+		} else {
+			self.firstPluginConfigured = true
+		}
+	} else {
+		plugin = self.pluginCreator()
+	}
 	if self.global == nil {
 		err = plugin.(Plugin).Init(self.configCreator())
 	} else {
@@ -168,15 +180,15 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 		}
 
 		// Create an instance so we can see if we need to marshal the JSON
-		plugin := wrapper.pluginCreator()
-		configLoaded, err := LoadConfigStruct(&section, plugin)
+		wrapper.firstPlugin = wrapper.pluginCreator()
+		configLoaded, err := LoadConfigStruct(&section, wrapper.firstPlugin)
 		if err != nil {
 			return nil, err
 		}
 		wrapper.configCreator = func() interface{} { return configLoaded }
 
 		// Determine if this plug-in has a global, if it does, make it now
-		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
+		if hasPluginGlobal, ok := wrapper.firstPlugin.(PluginWithGlobal); ok {
 			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
 			if err != nil {
 				return config, errors.New("Unable to InitOnce: " + err.Error())
