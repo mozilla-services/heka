@@ -16,8 +16,6 @@ package pipeline
 import (
 	"bufio"
 	"errors"
-	"github.com/howeyc/fsnotify"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -53,9 +51,8 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 
 func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 	timeout *time.Duration) error {
-	ticker := time.NewTicker(*timeout)
 	select {
-	case <-ticker.C:
+	case <-time.After(*timeout):
 		return errors.New("Timeout waiting for log line")
 	case lw.logline = <-lw.Monitor.NewLines:
 		pipelinePack.Message.Type = "logfile"
@@ -74,7 +71,6 @@ func (lw *LogfileInput) Event(eventType string) {
 //
 // The FileMonitor
 type FileMonitor struct {
-	watcher   *fsnotify.Watcher
 	events    chan string
 	NewLines  chan Logline
 	waitgroup *sync.WaitGroup
@@ -83,71 +79,57 @@ type FileMonitor struct {
 	fds       map[string]*os.File
 }
 
-func (fm *FileMonitor) Watcher(initialFiles []string) {
-	var ev *fsnotify.FileEvent
-	discovery := time.NewTicker(time.Second * 5)
-
-	// Attempt for files that should exist, to start reading them at
-	// the end
-	for _, fileName := range initialFiles {
-		fm.ReadLines(fileName, nil)
+func (fm *FileMonitor) OpenFile(fileName string) (err error) {
+	// Attempt to open the file
+	fd, err := os.Open(fileName)
+	if err != nil {
+		return
 	}
+	fm.fds[fileName] = fd
+
+	// Should we seek?
+	offset := int64(0)
+	begin := 0
+	seek, found := fm.seek[fileName]
+	if found {
+		offset = seek
+		begin = 0
+	}
+	fm.seek[fileName] = offset
+	_, err = fd.Seek(offset, begin)
+	if err != nil {
+		// Unable to seek in, start at beginning
+		fd.Seek(0, 0)
+		fm.seek[fileName] = 0
+	}
+	return nil
+}
+
+func (fm *FileMonitor) Watcher() {
+	discovery := time.NewTicker(time.Second * 5)
+	checkStat := time.NewTicker(time.Millisecond * 500)
 
 	for {
 		select {
-		case ev = <-fm.watcher.Event:
-			fm.ReadLines(ev.Name, ev)
-		case <-fm.watcher.Error:
-			continue
+		case <-checkStat.C:
+			for fileName, _ := range fm.fds {
+				fm.ReadLines(fileName)
+			}
 		case <-discovery.C:
 			// Check to see if the files exist now, start reading them
 			// if we can, and watch them
-			for fileName, needsWatch := range fm.discover {
-				if !needsWatch {
-					continue
-				}
-				err := fm.watcher.Watch(fileName)
+			for fileName, _ := range fm.discover {
+				err := fm.OpenFile(fileName)
 				if err != nil {
 					delete(fm.discover, fileName)
-					fm.ReadLines(fileName, nil)
 				}
 			}
 		}
 	}
 }
 
-func (fm *FileMonitor) ReadLines(fileName string, event *fsnotify.FileEvent) {
-	// First see if we have an fd for this file already
-	var seek int64
-	var fd *os.File
-	var found bool
-	var err error
-	if fd, found = fm.fds[fileName]; !found {
-		// Attempt to open the file
-		fd, err = os.Open(fileName)
-		if err != nil {
-			// No such file, put it back on discover
-			fm.discover[fileName] = true
-			fm.watcher.RemoveWatch(fileName)
-			return
-		}
-		fm.fds[fileName] = fd
-
-		// Should we seek?
-		offset := int64(0)
-		begin := 0
-		if seek, found = fm.seek[fileName]; found {
-			offset = seek
-			begin = 0
-		}
-		fm.seek[fileName] = offset
-		_, err = fd.Seek(offset, begin)
-		if err != nil {
-			// Unable to seek in, start at beginning
-			fd.Seek(0, 0)
-			fm.seek[fileName] = 0
-		}
-	}
+func (fm *FileMonitor) ReadLines(fileName string) {
+	fd, _ := fm.fds[fileName]
 
 	// Determine if we're farther into the file than possible (truncate)
 	finfo, err := fd.Stat()
@@ -156,6 +138,13 @@ func (fm *FileMonitor) ReadLines(fileName string, event *fsnotify.FileEvent) {
 			fd.Seek(0, 0)
 			fm.seek[fileName] = 0
 		}
+	} else {
+		// Got an error, move this to discovery, reset seek
+		fd.Close()
+		delete(fm.fds, fileName)
+		delete(fm.seek, fileName)
+		fm.discover[fileName] = true
+		return
 	}
 
 	// Attempt to read lines from where we are
@@ -168,52 +157,31 @@ func (fm *FileMonitor) ReadLines(fileName string, event *fsnotify.FileEvent) {
 		readLine, err = reader.ReadString('\n')
 	}
 	fm.seek[fileName] += int64(len(readLine))
-
-	// Does our file still exist?
-	if event != nil {
-		if event.IsDelete() || event.IsRename() {
-			delete(fm.fds, fileName)
-			fd.Close()
-			fm.watcher.RemoveWatch(fileName)
-			fm.discover[fileName] = true
-			fm.seek[fileName] = 0
-		}
-	}
-
 	return
 }
 
 func (fm *FileMonitor) Init(files []string) (err error) {
 	fm.waitgroup = new(sync.WaitGroup)
 	fm.events = make(chan string, 1)
-	fm.NewLines = make(chan Logline, 1500)
+	fm.NewLines = make(chan Logline)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	fm.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
 		return
 	}
 
-	// Add all the files to watch
-	initialFiles := make([]string, 0, len(files))
-
 	for _, fileName := range files {
-		err = fm.watcher.Watch(fileName)
+		err = fm.OpenFile(fileName)
 		if err != nil {
-			// Error watching a file, warn and save it to discover
+			// No such file, keep it on discover
 			fm.discover[fileName] = true
-			log.Printf("Unable to find '%s' file, adding to discover list.",
-				fileName)
-		} else {
-			initialFiles = append(initialFiles, fileName)
-			log.Printf("Found %s, added to seek", fileName)
 		}
 		err = nil
 	}
 
 	// Launch the file reader
-	go fm.Watcher(initialFiles)
+	go fm.Watcher()
 
 	return
 }
