@@ -9,11 +9,15 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package client
 
 import (
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"net"
 )
 
@@ -39,5 +43,37 @@ func NewUdpSender(addrStr string) (*UdpSender, error) {
 
 func (self *UdpSender) SendMessage(msgBytes []byte) error {
 	_, err := self.connection.Write(msgBytes)
+	return err
+}
+
+type TcpSender struct {
+	connection net.Conn
+}
+
+func NewTcpSender(addrStr string) (n *TcpSender, err error) {
+	conn, err := net.Dial("tcp", addrStr)
+	if err == nil {
+		n = &(TcpSender{conn})
+	}
+	return
+}
+
+func (n *TcpSender) SendMessage(msgBytes []byte) error {
+	h := &message.Header{}
+	h.SetMessageLength(uint32(len(msgBytes)))
+	headerBytes, err := proto.Marshal(h)
+	if err != nil {
+		return err
+	}
+	headerLen := 3 + len(headerBytes)
+	headerBuf := make([]byte, headerLen)
+	headerBuf[0] = pipeline.RECORD_SEPARATOR
+	headerBuf[1] = uint8(len(headerBytes))
+	copy(headerBuf[2:], headerBytes)
+	headerBuf[headerLen-1] = pipeline.UNIT_SEPARATOR
+	_, err = n.connection.Write(headerBuf)
+	if err == nil {
+		_, err = n.connection.Write(msgBytes)
+	}
 	return err
 }

@@ -14,6 +14,8 @@
 package pipeline
 
 import (
+	"bytes"
+	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
@@ -24,6 +26,13 @@ import (
 	"strconv"
 	"sync"
 	"time"
+)
+
+const (
+	MAX_HEADER_SIZE  = 255
+	MAX_MESSAGE_SIZE = 64 * 1024
+	RECORD_SEPARATOR = uint8(0x1e)
+	UNIT_SEPARATOR   = uint8(0x1f)
 )
 
 type TimeoutError string
@@ -143,6 +152,160 @@ func (self *UdpInput) Read(pipelinePack *PipelinePack,
 		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
 	}
 	return err
+}
+
+// TCP Input
+type TcpInput struct {
+	Listener    net.Listener
+	messageChan chan *Message
+}
+
+type TcpInputConfig struct {
+	Address string
+}
+
+func (self *TcpInput) ConfigStruct() interface{} {
+	return new(TcpInputConfig)
+}
+
+func decodeHeader(buf []byte, header *Header) bool {
+	if buf[len(buf)-1] != UNIT_SEPARATOR {
+		log.Println("missing unit separator")
+		return false
+	}
+	err := proto.Unmarshal(buf[0:len(buf)-1], header)
+	if err != nil {
+		log.Println("error unmarshaling header:", err)
+		return false
+	}
+	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
+		log.Printf("message exceeds the maximum length (bytes): %d", MAX_MESSAGE_SIZE)
+		return false
+	}
+	return true
+}
+
+func findMessage(buf []byte, header *Header, message *[]byte) (pos int) {
+	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
+	if pos != -1 {
+		if len(buf) > 1 {
+			headerLength := int(buf[pos+1])
+			headerEnd := pos + headerLength + 3 // recsep+len+header+unitsep
+			if len(buf) >= headerEnd {
+				if header.MessageLength != nil || decodeHeader(buf[pos+2:headerEnd], header) {
+					messageEnd := headerEnd + int(header.GetMessageLength())
+					if len(buf) >= messageEnd {
+						*message = buf[headerEnd:messageEnd]
+						pos = messageEnd
+					} else {
+						*message = nil
+					}
+				} else {
+					pos = findMessage(buf[pos+1:], header, message)
+				}
+			}
+		}
+	} else {
+		pos = len(buf)
+	}
+	return
+}
+
+func (self *TcpInput) handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+	header := &Header{}
+	var message []byte
+	var readPos, scanPos int
+
+	for {
+		n, err := conn.Read(buf[readPos:])
+		if n > 0 {
+			readPos += n
+			for { // consume all available records
+				scanPos += findMessage(buf[scanPos:readPos], header, &message)
+				if header.MessageLength != nil {
+					if header.GetMessageLength() == 0 || (header.GetMessageLength() > 0 && message != nil) {
+						if message != nil {
+							/// @review by decoding here we are subverting the pipeline
+							/// however, this keeps the messages from each host in order and
+							/// allows parallel decoding across hosts
+							/// the pipeline pack also allocates a MsgBytes buffer and initializes
+							/// a Message struct; they are both unnecessary in this case
+							msg := &Message{}
+							switch header.GetMessageEncoding() {
+							case Header_PROTOCOL_BUFFER:
+								err := proto.Unmarshal(message, msg)
+								if err == nil {
+									//                                    log.Println("send msg")
+									self.messageChan <- msg
+								} else {
+									log.Println("invalid Protobuf message received")
+								}
+							}
+						}
+						header.Reset()
+						message = nil
+					} else {
+						break // incomplete message
+					}
+				} else {
+					break // incomplete header
+				}
+			}
+		}
+		if err != nil {
+			break
+		}
+		// make room at the end of the buffer
+		if (header.MessageLength != nil &&
+			int(header.GetMessageLength())+scanPos+MAX_HEADER_SIZE > cap(buf)) ||
+			cap(buf)-scanPos < MAX_HEADER_SIZE {
+			if scanPos == 0 { // out of buffer, dump the connection to the bad client
+				return
+			}
+			copy(buf, buf[scanPos:readPos]) // src and dst are allowed to overlap
+			readPos, scanPos = readPos-scanPos, 0
+		}
+	}
+}
+
+func (self *TcpInput) acceptConnections() {
+	for { /// @todo cleanly tear this down on exit?
+		conn, err := self.Listener.Accept()
+		if err != nil {
+			log.Println("TCP accept failed")
+			continue
+		}
+		go self.handleConnection(conn)
+	}
+}
+
+func (self *TcpInput) Init(config interface{}) error {
+	var err error
+	conf := config.(*TcpInputConfig)
+	self.Listener, err = net.Listen("tcp", conf.Address)
+	if err != nil {
+		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+	}
+	self.messageChan = make(chan *Message, 1000000)
+	go self.acceptConnections()
+	return nil
+}
+
+func (self *TcpInput) Read(pipelinePack *PipelinePack,
+	timeout *time.Duration) error {
+	select {
+	case pipelinePack.Message = <-self.messageChan:
+		//        log.Println("read message")
+		pipelinePack.Decoded = true
+	case <-time.After(*timeout):
+		//        log.Println("no messages to read")
+		err := TimeoutError("No messages to read")
+		return &err
+	}
+	return nil
 }
 
 // Global MessageGenerator

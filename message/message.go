@@ -8,63 +8,478 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+// Extensions to make Message more useable in our current code outside the scope
+// of protocol buffers.  See message.pb.go for the actually message definition.
 package message
 
 import (
+	"bytes"
+	"fmt"
 	"reflect"
-	"time"
 )
 
-type Message struct {
-	Type        string
-	Timestamp   time.Time
-	Logger      string
-	Severity    int
-	Payload     string
-	Fields      map[string]interface{}
-	Env_version string
-	Pid         int
-	Hostname    string
-}
+const UUID_SIZE = 16
 
-// Copies a message to a newly initialized Message, including a deep
-// copy of the Fields
-func (self *Message) Copy(dst *Message) {
-	*dst = *self
-	dst.Fields = make(map[string]interface{})
-	for k, v := range self.Fields {
-		dst.Fields[k] = v
+func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
+	if h != nil {
+		if h.MessageEncoding == nil {
+			h.MessageEncoding = new(Header_MessageEncoding)
+		}
+		*h.MessageEncoding = v
 	}
 }
 
+func (h *Header) SetMessageLength(v uint32) {
+	if h != nil {
+		if h.MessageLength == nil {
+			h.MessageLength = new(uint32)
+		}
+		*h.MessageLength = v
+	}
+}
+
+func (m *Message) SetUuid(v []byte) {
+	if m != nil {
+		if len(m.Uuid) != UUID_SIZE {
+			m.Uuid = make([]byte, UUID_SIZE)
+		}
+		copy(m.Uuid, v)
+	}
+}
+
+func (m *Message) SetTimestamp(v int64) {
+	if m != nil {
+		if m.Timestamp == nil {
+			m.Timestamp = new(int64)
+		}
+		*m.Timestamp = v
+	}
+}
+
+func (m *Message) SetType(v string) {
+	if m != nil {
+		if m.Type == nil {
+			m.Type = new(string)
+		}
+		*m.Type = v
+	}
+}
+
+func (m *Message) SetLogger(v string) {
+	if m != nil {
+		if m.Logger == nil {
+			m.Logger = new(string)
+		}
+		*m.Logger = v
+
+	}
+}
+
+func (m *Message) SetSeverity(v int32) {
+	if m != nil {
+		if m.Severity == nil {
+			m.Severity = new(int32)
+		}
+		*m.Severity = v
+	}
+}
+
+func (m *Message) SetPayload(v string) {
+	if m != nil {
+		if m.Payload == nil {
+			m.Payload = new(string)
+		}
+
+		*m.Payload = v
+	}
+}
+
+func (m *Message) SetEnvVersion(v string) {
+	if m != nil {
+		if m.EnvVersion == nil {
+			m.EnvVersion = new(string)
+		}
+		*m.EnvVersion = v
+	}
+}
+
+func (m *Message) SetPid(v int32) {
+	if m != nil {
+		if m.Pid == nil {
+			m.Pid = new(int32)
+		}
+		*m.Pid = v
+	}
+}
+
+func (m *Message) SetHostname(v string) {
+	if m != nil {
+		if m.Hostname == nil {
+			m.Hostname = new(string)
+		}
+		*m.Hostname = v
+	}
+}
+
+// Message assignment operator
+func (src *Message) Copy(dst *Message) {
+	if src == nil || dst == nil || src == dst {
+		return
+	}
+
+	if cap(src.Uuid) > 0 {
+		dst.SetUuid(src.Uuid)
+	} else {
+		dst.Uuid = nil
+	}
+	if src.Timestamp != nil {
+		dst.SetTimestamp(*src.Timestamp)
+	} else {
+		dst.Timestamp = nil
+	}
+	if src.Type != nil {
+		dst.SetType(*src.Type)
+	} else {
+		dst.Type = nil
+	}
+	if src.Logger != nil {
+		dst.SetLogger(*src.Logger)
+	} else {
+		dst.Logger = nil
+	}
+	if src.Severity != nil {
+		dst.SetSeverity(*src.Severity)
+	} else {
+		dst.Severity = nil
+	}
+	if src.Payload != nil {
+		dst.SetPayload(*src.Payload)
+	} else {
+		dst.Payload = nil
+	}
+	if src.EnvVersion != nil {
+		dst.SetEnvVersion(*src.EnvVersion)
+	} else {
+		dst.EnvVersion = nil
+	}
+	if src.Pid != nil {
+		dst.SetPid(*src.Pid)
+	} else {
+		dst.Pid = nil
+	}
+	if src.Hostname != nil {
+		dst.SetHostname(*src.Hostname)
+	} else {
+		dst.Hostname = nil
+	}
+	dst.Fields = make([]*Field, len(src.Fields))
+	for i, v := range src.Fields {
+		dst.Fields[i] = CopyField(v)
+	}
+	// ignore XXX_unrecognized
+}
+
+// Message copy constructor
+func CopyMessage(src *Message) *Message {
+	if src == nil {
+		return nil
+	}
+	dst := &Message{}
+	src.Copy(dst)
+	return dst
+}
+
+func getValueType(v reflect.Value) (t Field_ValueType, err error) {
+	switch v.Kind() {
+	case reflect.String:
+		t = Field_STRING
+	case reflect.Array, reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			t = Field_BYTES
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		t = Field_INTEGER
+	case reflect.Float32, reflect.Float64:
+		t = Field_DOUBLE
+	case reflect.Bool:
+		t = Field_BOOL
+	default:
+		err = fmt.Errorf("unsupported value kind: %v type: %v", v.Kind(), v.Type())
+	}
+	return
+}
+
+// Adds a Field (name/value) pair to the message
+func (m *Message) AddField(f *Field) {
+	if m == nil {
+		return
+	}
+	l := len(m.Fields)
+	c := cap(m.Fields)
+	if l == c {
+		tmp := make([]*Field, l+1, c*2+1)
+		copy(tmp, m.Fields)
+		m.Fields = tmp
+	} else {
+		m.Fields = m.Fields[0 : l+1]
+	}
+	m.Fields[l] = f
+}
+
+// Field constructor
+func NewField(name string, value interface{}, valueFormat Field_ValueFormat) (f *Field, err error) {
+	v := reflect.ValueOf(value)
+	t, err := getValueType(v)
+	if err == nil {
+		f = NewFieldInit(name, t, valueFormat)
+		f.AddValue(value)
+	}
+	return
+}
+
+// Field initializer sets up the key, value type, and format but does not actually add a value
+func NewFieldInit(name string, valueType Field_ValueType, valueFormat Field_ValueFormat) *Field {
+	f := &Field{}
+	f.Name = new(string)
+	*f.Name = name
+
+	f.ValueType = new(Field_ValueType)
+	*f.ValueType = valueType
+
+	f.ValueFormat = new(Field_ValueFormat)
+	*f.ValueFormat = valueFormat
+
+	return f
+}
+
+// Creates an array of values in this field, of the same type, in the order they were added
+func (f *Field) AddValue(value interface{}) error {
+	if f == nil {
+		return fmt.Errorf("Field is nil")
+	}
+	v := reflect.ValueOf(value)
+	t, err := getValueType(v)
+	if err != nil {
+		return err
+	}
+	if t != *f.ValueType {
+		return fmt.Errorf("The field contains: %v; attempted to add %v",
+			Field_ValueType_name[int32(*f.ValueType)], Field_ValueType_name[int32(t)])
+	}
+
+	switch *f.ValueType {
+	case Field_STRING:
+		l := len(f.ValueString)
+		c := cap(f.ValueString)
+		if l == c {
+			tmp := make([]string, l+1, c*2+1)
+			copy(tmp, f.ValueString)
+			f.ValueString = tmp
+		} else {
+			f.ValueString = f.ValueString[0 : l+1]
+		}
+		f.ValueString[l] = v.String()
+	case Field_BYTES:
+		l := len(f.ValueBytes)
+		c := cap(f.ValueBytes)
+		if l == c {
+			tmp := make([][]byte, l+1, c*2+1)
+			copy(tmp, f.ValueBytes)
+			f.ValueBytes = tmp
+		} else {
+			f.ValueBytes = f.ValueBytes[0 : l+1]
+		}
+		b := v.Bytes()
+		f.ValueBytes[l] = make([]byte, len(b))
+		copy(f.ValueBytes[l], b)
+	case Field_INTEGER:
+		l := len(f.ValueInteger)
+		c := cap(f.ValueInteger)
+		if l == c {
+			tmp := make([]int64, l+1, c*2+1)
+			copy(tmp, f.ValueInteger)
+			f.ValueInteger = tmp
+		} else {
+			f.ValueInteger = f.ValueInteger[0 : l+1]
+		}
+		f.ValueInteger[l] = v.Int()
+	case Field_DOUBLE:
+		l := len(f.ValueDouble)
+		c := cap(f.ValueDouble)
+		if l == c {
+			tmp := make([]float64, l+1, c*2+1)
+			copy(tmp, f.ValueDouble)
+			f.ValueDouble = tmp
+		} else {
+			f.ValueDouble = f.ValueDouble[0 : l+1]
+		}
+		f.ValueDouble[l] = v.Float()
+	case Field_BOOL:
+		l := len(f.ValueBool)
+		c := cap(f.ValueBool)
+		if l == c {
+			tmp := make([]bool, l+1, c*2+1)
+			copy(tmp, f.ValueBool)
+			f.ValueBool = tmp
+		} else {
+			f.ValueBool = f.ValueBool[0 : l+1]
+		}
+		f.ValueBool[l] = v.Bool()
+	}
+	return nil
+}
+
+// Field copy constructor
+func CopyField(src *Field) *Field {
+	if src == nil {
+		return nil
+	}
+	dst := NewFieldInit(*src.Name, *src.ValueType, *src.ValueFormat)
+
+	if src.ValueString != nil {
+		dst.ValueString = make([]string, len(src.ValueString))
+		copy(dst.ValueString, src.ValueString)
+	}
+	if src.ValueBytes != nil {
+		dst.ValueBytes = make([][]byte, len(src.ValueBytes))
+		copy(dst.ValueBytes, src.ValueBytes)
+	}
+	if src.ValueInteger != nil {
+		dst.ValueInteger = make([]int64, len(src.ValueInteger))
+		copy(dst.ValueInteger, src.ValueInteger)
+	}
+	if src.ValueDouble != nil {
+		dst.ValueDouble = make([]float64, len(src.ValueDouble))
+		copy(dst.ValueDouble, src.ValueDouble)
+	}
+	if src.ValueBool != nil {
+		dst.ValueBool = make([]bool, len(src.ValueBool))
+		copy(dst.ValueBool, src.ValueBool)
+	}
+	return dst
+}
+
+// FindFirstField finds and returns the first field with the specified name
+// if not found nil is returned
+func (m *Message) FindFirstField(name string) *Field {
+	if m == nil {
+		return nil
+	}
+	if m.Fields != nil {
+		for i := 0; i < len(m.Fields); i++ {
+			if m.Fields[i].Name != nil && *m.Fields[i].Name == name {
+				return m.Fields[i]
+			}
+		}
+	}
+	return nil
+}
+
+// GetFieldValue helper function to simplify extracting single value fields
+func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
+	if m == nil {
+		return
+	}
+	f := m.FindFirstField(name)
+	if f == nil {
+		return
+	}
+	switch *f.ValueType {
+	case Field_STRING:
+		if len(f.ValueString) > 0 {
+			value = f.ValueString[0]
+			ok = true
+		}
+	case Field_BYTES:
+		if len(f.ValueBytes) > 0 {
+			value = f.ValueBytes[0]
+			ok = true
+		}
+	case Field_INTEGER:
+		if len(f.ValueInteger) > 0 {
+			value = f.ValueInteger[0]
+			ok = true
+		}
+	case Field_DOUBLE:
+		if len(f.ValueDouble) > 0 {
+			value = f.ValueDouble[0]
+			ok = true
+		}
+	case Field_BOOL:
+		if len(f.ValueBool) > 0 {
+			value = f.ValueBool[0]
+			ok = true
+		}
+	}
+	return
+}
+
+// FindAllFields finds and returns all the fields with the specified name
+// if not found a nil slice is returned
+func (m *Message) FindAllFields(name string) (all []*Field) {
+	if m == nil {
+		return
+	}
+	if m.Fields != nil {
+		for _, v := range m.Fields {
+			if v != nil && *v.Name == name {
+				l := len(all)
+				c := cap(all)
+				if l == c {
+					tmp := make([]*Field, l+1, c*2+1)
+					copy(tmp, all)
+					all = tmp
+				} else {
+					all = all[0 : l+1]
+				}
+				all[l] = v
+			}
+		}
+	}
+	return
+}
+
 // Test for message equality, for use in tests.
-func (self *Message) Equals(other interface{}) bool {
-	vSelf := reflect.ValueOf(self).Elem()
+func (m *Message) Equals(other interface{}) bool {
+	vSelf := reflect.ValueOf(m).Elem()
 	vOther := reflect.ValueOf(other).Elem()
 
 	var sField, oField reflect.Value
-	var sMap, oMap map[string]interface{}
 	for i := 0; i < vSelf.NumField(); i++ {
 		sField = vSelf.Field(i)
 		oField = vOther.Field(i)
-		if sField.Kind() == reflect.Map {
-			sMap = sField.Interface().(map[string]interface{})
-			oMap = oField.Interface().(map[string]interface{})
-			if !reflect.DeepEqual(sMap, oMap) {
+		switch i {
+		case 0: // uuid
+			if !bytes.Equal(sField.Bytes(), oField.Bytes()) {
 				return false
 			}
-		} else if sTime, ok := sField.Interface().(time.Time); ok {
-			oTime := oField.Interface().(time.Time)
-			if !reflect.DeepEqual(sTime, oTime) {
+		case 1, 2, 3, 4, 5, 6, 7, 8:
+			if sField.Kind() == reflect.Ptr {
+				if sField.IsNil() || oField.IsNil() {
+					if !(sField.IsNil() && oField.IsNil()) {
+						return false
+					}
+				} else {
+					s := reflect.Indirect(sField)
+					o := reflect.Indirect(oField)
+					if s.Interface() != o.Interface() {
+						return false
+					}
+				}
+			} else {
+				if sField.Interface() != oField.Interface() {
+					return false
+				}
+			}
+		case 9: // Fields
+			if !reflect.DeepEqual(sField.Interface(), oField.Interface()) {
 				return false
 			}
-		} else {
-			if sField.Interface() != oField.Interface() {
-				return false
-			}
+		case 10: // XXX_unrecognized
+			// ignore
 		}
 	}
 	return true
