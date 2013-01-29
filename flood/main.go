@@ -59,7 +59,8 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 }
 
 func main() {
-	addrStr := flag.String("udpaddr", "127.0.0.1:5565", "UDP address string")
+	addrStr := flag.String("ipaddr", "127.0.0.1:5565", "IP address string")
+	senderName := flag.String("sender", "udp", "Message sender (udp|tcp)")
 	pprofName := flag.String("pprof", "", "pprof output file path")
 	encoderName := flag.String("encoder", "protobuf", "Message encoder (json|protobuf)")
 	numToSend := flag.Uint64("num", 0, "Number of messages to send")
@@ -75,10 +76,17 @@ func main() {
 	}
 
 	var err error
-	sender, err := client.NewUdpSender(*addrStr)
+	var sender client.Sender
+	switch *senderName {
+	case "udp":
+		sender, err = client.NewUdpSender(*addrStr)
+	case "tcp":
+		sender, err = client.NewTcpSender(*addrStr)
+	}
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
+
 	var encoder client.Encoder
 	switch *encoderName {
 	case "json":
