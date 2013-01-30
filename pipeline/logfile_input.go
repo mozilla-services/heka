@@ -54,9 +54,9 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 	case <-time.After(*timeout):
 		return errors.New("Timeout waiting for log line")
 	case lw.logline = <-lw.Monitor.NewLines:
-		pipelinePack.Message.Type = "logfile"
-		pipelinePack.Message.Payload = lw.logline.Line
-		pipelinePack.Message.Logger = lw.logline.Path
+		*pipelinePack.Message.Type = "logfile"
+		*pipelinePack.Message.Payload = lw.logline.Line
+		*pipelinePack.Message.Logger = lw.logline.Path
 		pipelinePack.Decoded = true
 	}
 	return nil
