@@ -45,7 +45,7 @@ type PipelineConfig struct {
 	Decoders           map[string]*PluginWrapper
 	Filters            map[string]*PluginWrapper
 	Outputs            map[string]*PluginWrapper
-	OutputRunners      map[string]*OutputRunner
+	OutputRunners      map[string]*outputRunner
 	FilterChains       map[string]FilterChain
 	DefaultDecoder     string
 	DefaultFilterChain string
@@ -62,7 +62,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.DefaultFilterChain = "default"
 	config.Lookup = new(MessageLookup)
 	config.Lookup.MessageType = make(map[string][]string)
-	config.OutputRunners = make(map[string]*OutputRunner)
+	config.OutputRunners = make(map[string]*outputRunner)
 	return config
 }
 

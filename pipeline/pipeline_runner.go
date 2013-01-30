@@ -46,6 +46,35 @@ type PluginWithGlobal interface {
 	InitOnce(config interface{}) (global PluginGlobal, err error)
 }
 
+// A PluginRunner wraps a Heka plugin and manages the plugin's goroutine and
+// the input and output channels for the plugin.
+type PluginRunner interface {
+	InChan() <-chan *PipelinePack
+	Name() string
+	Next(pack *PipelinePack) chan *PipelinePack
+	Plugin() interface{}
+	Start(wg *sync.WaitGroup)
+}
+
+// Base struct for the specialized PluginRunners
+type pluginRunnerBase struct {
+	inChan chan *PipelinePack
+	name   string
+	plugin interface{}
+}
+
+func (self *pluginRunnerBase) InChan() chan *PipelinePack {
+	return self.inChan
+}
+
+func (self *pluginRunnerBase) Name() string {
+	return self.name
+}
+
+func (self *pluginRunnerBase) Plugin() interface{} {
+	return self.plugin
+}
+
 type PipelinePack struct {
 	MsgBytes    []byte
 	Message     *Message
@@ -102,7 +131,7 @@ func (self *PipelinePack) InitFilters(config *PipelineConfig) {
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
 	for name, outRunner := range config.OutputRunners {
-		self.OutputChans[name] = outRunner.Chan
+		self.OutputChans[name] = outRunner.inChan
 	}
 }
 
@@ -219,13 +248,13 @@ func Run(config *PipelineConfig) {
 	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 
 	var wg sync.WaitGroup
-	var outRunner *OutputRunner
+	var outRunner *outputRunner
 
 	for name, wrapper := range config.Outputs {
 		output := wrapper.Create().(Output)
-		outRunner = NewOutputRunner(name, output)
+		outRunner = newOutputRunner(name, output, recycleChan)
 		config.OutputRunners[name] = outRunner
-		outRunner.Start(recycleChan, &wg)
+		outRunner.Start(&wg)
 		wg.Add(1)
 		log.Printf("Output started: %s\n", name)
 	}
