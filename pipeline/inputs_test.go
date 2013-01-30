@@ -15,8 +15,10 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"errors"
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -34,11 +36,11 @@ func InputRunnerSpec(c gs.Context) {
 		second := time.Second
 
 		poolSize := 5
-		pipelineCalls := 0
 		mockInput := NewMockInput(ctrl)
 		inputRunner := InputRunner{"mock", mockInput, &second}
 		defer notify.StopAll(STOP)
 
+		dataChan := make(chan *PipelinePack, poolSize+1)
 		recycleChan := make(chan *PipelinePack, poolSize+1)
 		for i := 0; i < poolSize; i++ {
 			recycleChan <- getTestPipelinePack()
@@ -46,32 +48,33 @@ func InputRunnerSpec(c gs.Context) {
 
 		var wg sync.WaitGroup
 		comparePack := getTestPipelinePack()
-		done := make(chan bool, 1)
-		mu := sync.Mutex{}
 
-		mockPipeline := func(pack *PipelinePack) {
-			mu.Lock()
-			pipelineCalls++
-			mu.Unlock()
-			if pipelineCalls == poolSize {
-				done <- true
+		areAllUsed := func() bool {
+			populatedPacks := 0
+			for {
+				select {
+				case <-dataChan:
+					populatedPacks++
+					if populatedPacks == poolSize {
+						return true
+					}
+				case <-time.After(second):
+					return false
+				}
 			}
+			// we should never reach this but go makes me put it here :P
+			return false
 		}
 
 		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
 			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize)
 			readCall.Return(nil)
 
-			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			inputRunner.Start(dataChan, recycleChan, &wg)
 			wg.Add(1)
 			defer notify.Post(STOP, nil)
 
-			var allUsed bool
-			select {
-			case allUsed = <-done:
-			case <-time.After(second):
-			}
-
+			allUsed := areAllUsed()
 			c.Expect(allUsed, gs.IsTrue)
 		})
 
@@ -87,16 +90,11 @@ func InputRunnerSpec(c gs.Context) {
 				i++
 			})
 
-			inputRunner.Start(mockPipeline, recycleChan, &wg)
+			inputRunner.Start(dataChan, recycleChan, &wg)
 			wg.Add(1)
 			defer notify.Post(STOP, nil)
 
-			var allUsed bool
-			select {
-			case allUsed = <-done:
-			case <-time.After(second):
-			}
-
+			allUsed := areAllUsed()
 			c.Expect(allUsed, gs.IsTrue)
 		})
 	})
@@ -141,6 +139,46 @@ func InputsSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 			c.Expect(pipelinePack.Decoded, gs.IsFalse)
 			c.Expect(string(pipelinePack.MsgBytes), gs.Equals, string(msgJson))
+		})
+	})
+
+	c.Specify("A TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{addrStr})
+		c.Assume(err, gs.IsNil)
+		mockConnection := ts.NewMockConn(ctrl)
+
+		/// @todo use the msg encoder
+		mbytes, _ := proto.Marshal(msg)
+		header := &message.Header{}
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a message from its connection", func() {
+			buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			closeCall := mockConnection.EXPECT().Close()
+			closeCall.Do(func() {})
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+			second := time.Second
+			tcpInput.handleConnection(mockConnection)
+			err = tcpInput.Read(pipelinePack, &second)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pipelinePack.Decoded, gs.IsTrue)
+			v, ok := pipelinePack.Message.GetFieldValue("foo")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(v, gs.Equals, "bar")
 		})
 	})
 }

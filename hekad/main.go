@@ -18,7 +18,8 @@ func main() {
 	configFile := flag.String("config", "/etc/hekad.json", "Config file")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
 	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
-	pprofName := flag.String("pprof", "", "Go profiler output file")
+	cpuProfName := flag.String("cpuprof", "", "Go CPU profiler output file")
+	memProfName := flag.String("memprof", "", "Go memory profiler output file")
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
@@ -29,13 +30,24 @@ func main() {
 
 	runtime.GOMAXPROCS(*maxprocs)
 
-	if *pprofName != "" {
-		profFile, err := os.Create(*pprofName)
+	if *cpuProfName != "" {
+		profFile, err := os.Create(*cpuProfName)
 		if err != nil {
 			log.Fatalln(err)
 		}
 		pprof.StartCPUProfile(profFile)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *memProfName != "" {
+		defer func() {
+			profFile, err := os.Create(*memProfName)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			pprof.WriteHeapProfile(profFile)
+			profFile.Close()
+		}()
 	}
 
 	// Set up and load the pipeline configuration and start the daemon.

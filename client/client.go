@@ -19,8 +19,6 @@ import (
 	"os"
 )
 
-type Message message.Message
-
 type Client struct {
 	Sender   Sender
 	Encoder  Encoder
@@ -54,7 +52,7 @@ func NewHekaClient(sender Sender, encoder Encoder, logger *string,
 	return &self
 }
 
-func (self *Client) SendMessage(msg *Message) error {
+func (self *Client) SendMessage(msg *message.Message) error {
 	var err error
 	msgBytes, err := self.Encoder.EncodeMessage(msg)
 	if err == nil {

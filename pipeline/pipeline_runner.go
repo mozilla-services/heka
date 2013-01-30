@@ -53,7 +53,7 @@ type PipelinePack struct {
 	Decoder     string
 	Decoders    map[string]Decoder
 	Filters     map[string]Filter
-	Outputs     map[string]Output
+	OutputChans map[string]chan *PipelinePack
 	Decoded     bool
 	Blocked     bool
 	FilterChain string
@@ -62,16 +62,16 @@ type PipelinePack struct {
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
-	msgBytes := make([]byte, 65536)
-	message := Message{}
-	outputnames := make(map[string]bool)
+	msgBytes := make([]byte, 3+MAX_HEADER_SIZE+MAX_MESSAGE_SIZE)
+	message := &Message{}
+	outputNames := make(map[string]bool)
 	filters := make(map[string]Filter)
 	decoders := make(map[string]Decoder)
-	outputs := make(map[string]Output)
+	outputChans := make(map[string]chan *PipelinePack)
 
 	pack := &PipelinePack{
 		MsgBytes:    msgBytes,
-		Message:     &message,
+		Message:     message,
 		Config:      config,
 		Decoder:     config.DefaultDecoder,
 		Decoders:    decoders,
@@ -79,8 +79,8 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 		Blocked:     false,
 		Filters:     filters,
 		FilterChain: config.DefaultFilterChain,
-		Outputs:     outputs,
-		OutputNames: outputnames,
+		OutputChans: outputChans,
+		OutputNames: outputNames,
 	}
 	pack.InitDecoders(config)
 	pack.InitFilters(config)
@@ -101,8 +101,8 @@ func (self *PipelinePack) InitFilters(config *PipelineConfig) {
 }
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
-	for name, wrapper := range config.Outputs {
-		self.Outputs[name] = wrapper.Create().(Output)
+	for name, outRunner := range config.OutputRunners {
+		self.OutputChans[name] = outRunner.Chan
 	}
 }
 
@@ -162,57 +162,72 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	}
 }
 
+// Main pipeline function
+func pipeline(pack *PipelinePack) (recycle bool) {
+
+	// Decode message if necessary
+	if !pack.Decoded {
+		decoderName := pack.Decoder
+		decoder, ok := pack.Decoders[decoderName]
+		if !ok {
+			log.Printf("Decoder doesn't exist: %s\n", decoderName)
+			recycle = true
+			return
+		}
+		if err := decoder.Decode(pack); err != nil {
+			log.Printf("Error decoding message (%s): %s", decoderName,
+				err)
+			recycle = true
+			return
+		} else {
+			pack.Decoded = true
+		}
+	}
+
+	// Run message through the appropriate filters
+	filterProcessor(pack)
+	if pack.Blocked {
+		recycle = true
+		return
+	}
+
+	i := 0
+	// Deliver message to appropriate outputs
+	for outputName, use := range pack.OutputNames {
+		if !use {
+			continue
+		}
+		outChan, ok := pack.OutputChans[outputName]
+		if !ok {
+			log.Printf("Output doesn't exist: %s\n", outputName)
+			continue
+		}
+		outChan <- pack
+		i++
+	}
+	if i == 0 {
+		recycle = true
+	}
+	return
+}
+
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
-	// Used for recycling PipelinePack objects
+	// Used for passing around populated and recycled PipelinePack objects
+	dataChan := make(chan *PipelinePack, config.PoolSize+1)
 	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 
-	// Main pipeline function, inputs spawn a goroutine of this for every
-	// message
-	pipeline := func(pack *PipelinePack) {
+	var wg sync.WaitGroup
+	var outRunner *OutputRunner
 
-		// When finished, reset and recycle the allocated PipelinePack
-		defer func() {
-			pack.Zero()
-			recycleChan <- pack
-		}()
-
-		// Decode message if necessary
-		if !pack.Decoded {
-			decoderName := pack.Decoder
-			decoder, ok := pack.Decoders[decoderName]
-			if !ok {
-				log.Printf("Decoder doesn't exist: %s\n", decoderName)
-				return
-			}
-			if err := decoder.Decode(pack); err != nil {
-				log.Printf("Error decoding message (%s): %s", decoderName,
-					err)
-				return
-			} else {
-				pack.Decoded = true
-			}
-		}
-
-		// Run message through the appropriate filters
-		filterProcessor(pack)
-		if pack.Blocked {
-			return
-		}
-
-		// Deliver message to appropriate outputs
-		for outputName, use := range pack.OutputNames {
-			if !use {
-				continue
-			}
-			output, ok := pack.Outputs[outputName]
-			if !ok {
-				log.Printf("Output doesn't exist: %s\n", outputName)
-				continue
-			}
-			output.Deliver(pack)
-		}
+	for name, wrapper := range config.Outputs {
+		output := wrapper.Create().(Output)
+		outRunner = NewOutputRunner(name, output)
+		config.OutputRunners[name] = outRunner
+		outRunner.Start(recycleChan, &wg)
+		wg.Add(1)
+		log.Printf("Output started: %s\n", name)
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
@@ -220,8 +235,7 @@ func Run(config *PipelineConfig) {
 		recycleChan <- NewPipelinePack(config)
 	}
 
-	var wg sync.WaitGroup
-	var runner *InputRunner
+	var inRunner *InputRunner
 	timeout := time.Duration(time.Second / 2)
 	inputRunners := make(map[string]*InputRunner)
 
@@ -231,9 +245,9 @@ func Run(config *PipelineConfig) {
 			log.Fatalf("Failure to load plugin: %s", name)
 		}
 		input := inputPlug.(Input)
-		runner = &InputRunner{name, input, &timeout}
-		inputRunners[name] = runner
-		runner.Start(pipeline, recycleChan, &wg)
+		inRunner = &InputRunner{name, input, &timeout}
+		inputRunners[name] = inRunner
+		inRunner.Start(dataChan, recycleChan, &wg)
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
@@ -241,15 +255,27 @@ func Run(config *PipelineConfig) {
 	// wait for sigint
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+	var pack *PipelinePack
+
 sigListener:
 	for {
-		sig := <-sigChan
-		switch sig {
-		case syscall.SIGHUP:
-			BroadcastEvent(config, RELOAD)
-		case syscall.SIGINT:
-			BroadcastEvent(config, STOP)
-			break sigListener
+		select {
+		case pack = <-dataChan:
+			recycle := pipeline(pack)
+			if recycle {
+				pack.Zero()
+				recycleChan <- pack
+			}
+		case sig := <-sigChan:
+			switch sig {
+			case syscall.SIGHUP:
+				log.Println("Reload initiated.")
+				BroadcastEvent(config, RELOAD)
+			case syscall.SIGINT:
+				log.Println("Shutdown initiated.")
+				BroadcastEvent(config, STOP)
+				break sigListener
+			}
 		}
 	}
 
