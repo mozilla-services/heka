@@ -27,7 +27,6 @@ type LogfileInputConfig struct {
 
 type LogfileInput struct {
 	Monitor *FileMonitor
-	logline Logline
 }
 
 type Logline struct {
@@ -53,10 +52,11 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 	select {
 	case <-time.After(*timeout):
 		return errors.New("Timeout waiting for log line")
-	case lw.logline = <-lw.Monitor.NewLines:
-		*pipelinePack.Message.Type = "logfile"
-		*pipelinePack.Message.Payload = lw.logline.Line
-		*pipelinePack.Message.Logger = lw.logline.Path
+	case logline := <-lw.Monitor.NewLines:
+		logMsg := "logfile"
+		pipelinePack.Message.Type = &logMsg
+		pipelinePack.Message.Payload = &logline.Line
+		pipelinePack.Message.Logger = &logline.Path
 		pipelinePack.Decoded = true
 	}
 	return nil
