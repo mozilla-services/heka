@@ -47,31 +47,36 @@ func (self *UdpSender) SendMessage(msgBytes []byte) error {
 }
 
 type TcpSender struct {
-	connection net.Conn
+	connection  net.Conn
+	header      []byte
+	protoBuffer *proto.Buffer
 }
 
 func NewTcpSender(addrStr string) (n *TcpSender, err error) {
 	conn, err := net.Dial("tcp", addrStr)
 	if err == nil {
-		n = &(TcpSender{conn})
+		n = &(TcpSender{connection: conn})
+		n.header = make([]byte, pipeline.MAX_HEADER_SIZE+3)
+		n.protoBuffer = proto.NewBuffer(n.header)
 	}
 	return
 }
 
 func (n *TcpSender) SendMessage(msgBytes []byte) error {
 	h := &message.Header{}
-	h.SetMessageLength(uint32(len(msgBytes)))
-	headerBytes, err := proto.Marshal(h)
+	messageSize := len(msgBytes)
+	h.SetMessageLength(uint32(messageSize))
+	headerSize := uint8(proto.Size(h))
+	n.header[0] = pipeline.RECORD_SEPARATOR
+	n.header[1] = uint8(headerSize)
+	n.protoBuffer.SetBuf(n.header[2:])
+	n.protoBuffer.Reset()
+	err := n.protoBuffer.Marshal(h)
 	if err != nil {
 		return err
 	}
-	headerLen := 3 + len(headerBytes)
-	headerBuf := make([]byte, headerLen)
-	headerBuf[0] = pipeline.RECORD_SEPARATOR
-	headerBuf[1] = uint8(len(headerBytes))
-	copy(headerBuf[2:], headerBytes)
-	headerBuf[headerLen-1] = pipeline.UNIT_SEPARATOR
-	_, err = n.connection.Write(headerBuf)
+	n.header[headerSize+2] = pipeline.UNIT_SEPARATOR
+	_, err = n.connection.Write(n.header[:3+headerSize])
 	if err == nil {
 		_, err = n.connection.Write(msgBytes)
 	}

@@ -9,11 +9,13 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
 
 import (
+	"bytes"
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
 	"fmt"
@@ -116,6 +118,23 @@ func OutputsSpec(c gs.Context) {
 				c.Assume(err, gs.IsNil)
 				c.Expect(strContents, ts.StringContains, string(msgJson)+"\n")
 				c.Expect(strContents, ts.StringStartsWith, todayStr)
+			})
+		})
+
+		c.Specify("correctly formats protocol buffer stream output", func() {
+			config.Format = "protobufstream"
+			_, err := fileWriter.Init(config)
+			defer stopAndDelete()
+			c.Assume(err, gs.IsNil)
+			outData := fileWriter.MakeOutData()
+
+			c.Specify("when specified and timestamp ignored", func() {
+				fileWriter.prefix_ts = true
+				err := fileWriter.PrepOutData(pipelinePack, outData, nil)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(*outData.(*[]byte)), gs.Equals, 100)
+				b := []byte{30, 2, 8, 95, 31, 10, 16} // sanity check the header and the start of the protocol buffer
+				c.Expect(bytes.Equal(b, (*outData.(*[]byte))[:len(b)]), gs.IsTrue)
 			})
 		})
 

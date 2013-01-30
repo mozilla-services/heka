@@ -9,13 +9,16 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
@@ -151,8 +154,9 @@ func (self *CounterOutput) counterLoop() {
 // FileWriter implementation
 var (
 	FILEFORMATS = map[string]bool{
-		"json": true,
-		"text": true,
+		"json":           true,
+		"text":           true,
+		"protobufstream": true,
 	}
 
 	TSFORMAT = "[2006/Jan/02:15:04:05 -0700] "
@@ -161,11 +165,13 @@ var (
 const NEWLINE byte = 10
 
 type FileWriter struct {
-	path      string
-	format    string
-	prefix_ts bool
-	file      *os.File
-	outBatch  []byte
+	path        string
+	format      string
+	prefix_ts   bool
+	file        *os.File
+	outBatch    []byte
+	stream      []byte
+	protoBuffer *proto.Buffer
 }
 
 type FileWriterConfig struct {
@@ -191,6 +197,11 @@ func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
 	self.outBatch = make([]byte, 0, 10000)
+	switch self.format {
+	case "protobufstream":
+		self.stream = make([]byte, MAX_MESSAGE_SIZE)
+		self.protoBuffer = proto.NewBuffer(self.stream)
+	}
 
 	if self.file, err = os.OpenFile(conf.Path,
 		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err != nil {
@@ -213,7 +224,7 @@ func (self *FileWriter) ZeroOutData(outData interface{}) {
 func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 	timeout *time.Duration) error {
 	outBytes := outData.(*[]byte)
-	if self.prefix_ts {
+	if self.prefix_ts && self.format != "protobufstream" {
 		ts := time.Now().Format(TSFORMAT)
 		*outBytes = append(*outBytes, ts...)
 	}
@@ -226,10 +237,32 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 			return err
 		}
 		*outBytes = append(*outBytes, jsonMessage...)
+		*outBytes = append(*outBytes, NEWLINE)
 	case "text":
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
+		*outBytes = append(*outBytes, NEWLINE)
+	case "protobufstream":
+		h := &message.Header{}
+		messageSize := proto.Size(pack.Message)
+		h.SetMessageLength(uint32(messageSize))
+		headerSize := proto.Size(h)
+		self.stream[0] = RECORD_SEPARATOR
+		self.stream[1] = uint8(headerSize)
+		self.protoBuffer.SetBuf(self.stream[2:])
+		self.protoBuffer.Reset()
+		err := self.protoBuffer.Marshal(h)
+		if err != nil {
+			return err
+		}
+		self.stream[headerSize+2] = UNIT_SEPARATOR
+		self.protoBuffer.SetBuf(self.stream[headerSize+3:])
+		self.protoBuffer.Reset()
+		err = self.protoBuffer.Marshal(pack.Message)
+		if err != nil {
+			return err
+		}
+		*outBytes = append(*outBytes, self.stream[:3+headerSize+messageSize]...)
 	}
-	*outBytes = append(*outBytes, NEWLINE)
 	return nil
 }
 

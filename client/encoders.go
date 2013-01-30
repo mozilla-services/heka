@@ -18,6 +18,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 type Encoder interface {
@@ -28,6 +29,7 @@ type JsonEncoder struct {
 }
 
 type ProtobufEncoder struct {
+	buffer *proto.Buffer
 }
 
 func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
@@ -36,6 +38,11 @@ func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 }
 
 func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	result, err := proto.Marshal(msg)
-	return result, err
+	if self.buffer == nil {
+		buf := make([]byte, pipeline.MAX_MESSAGE_SIZE)
+		self.buffer = proto.NewBuffer(buf)
+	}
+	self.buffer.Reset()
+	err := self.buffer.Marshal(msg)
+	return self.buffer.Bytes(), err
 }
