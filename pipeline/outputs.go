@@ -199,7 +199,7 @@ func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
 	self.outBatch = make([]byte, 0, 10000)
 	switch self.format {
 	case "protobufstream":
-		self.stream = make([]byte, MAX_MESSAGE_SIZE)
+		self.stream = make([]byte, 3+MAX_HEADER_SIZE+MAX_MESSAGE_SIZE)
 		self.protoBuffer = proto.NewBuffer(self.stream)
 	}
 
