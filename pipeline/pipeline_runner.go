@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package pipeline
@@ -62,7 +63,7 @@ type PipelinePack struct {
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
-	msgBytes := make([]byte, 3+MAX_HEADER_SIZE+MAX_MESSAGE_SIZE)
+	msgBytes := make([]byte, MAX_MESSAGE_SIZE)
 	message := &Message{}
 	outputNames := make(map[string]bool)
 	filters := make(map[string]Filter)

@@ -21,6 +21,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
+	"net"
 	"os"
 	"runtime"
 	"sort"
@@ -165,13 +166,11 @@ var (
 const NEWLINE byte = 10
 
 type FileWriter struct {
-	path        string
-	format      string
-	prefix_ts   bool
-	file        *os.File
-	outBatch    []byte
-	stream      []byte
-	protoBuffer *proto.Buffer
+	path      string
+	format    string
+	prefix_ts bool
+	file      *os.File
+	outBatch  []byte
 }
 
 type FileWriterConfig struct {
@@ -197,12 +196,6 @@ func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
 	self.format = conf.Format
 	self.prefix_ts = conf.Prefix_ts
 	self.outBatch = make([]byte, 0, 10000)
-	switch self.format {
-	case "protobufstream":
-		self.stream = make([]byte, 3+MAX_HEADER_SIZE+MAX_MESSAGE_SIZE)
-		self.protoBuffer = proto.NewBuffer(self.stream)
-	}
-
 	if self.file, err = os.OpenFile(conf.Path,
 		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err != nil {
 		return nil, err
@@ -242,26 +235,35 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
-		h := &message.Header{}
-		messageSize := proto.Size(pack.Message)
-		h.SetMessageLength(uint32(messageSize))
-		headerSize := proto.Size(h)
-		self.stream[0] = RECORD_SEPARATOR
-		self.stream[1] = uint8(headerSize)
-		self.protoBuffer.SetBuf(self.stream[2:])
-		self.protoBuffer.Reset()
-		err := self.protoBuffer.Marshal(h)
-		if err != nil {
-			return err
-		}
-		self.stream[headerSize+2] = UNIT_SEPARATOR
-		self.protoBuffer.SetBuf(self.stream[headerSize+3:])
-		self.protoBuffer.Reset()
-		err = self.protoBuffer.Marshal(pack.Message)
-		if err != nil {
-			return err
-		}
-		*outBytes = append(*outBytes, self.stream[:3+headerSize+messageSize]...)
+		return createProtobufStream(pack, outData)
+	}
+	return nil
+}
+
+func createProtobufStream(pack *PipelinePack, outData interface{}) error {
+	outBytes := outData.(*[]byte)
+	h := &message.Header{}
+	messageSize := proto.Size(pack.Message)
+	h.SetMessageLength(uint32(messageSize))
+	headerSize := proto.Size(h)
+	requiredSize := 3 + headerSize + messageSize
+	if cap(*outBytes) < requiredSize {
+		*outBytes = make([]byte, requiredSize)
+	} else {
+		*outBytes = (*outBytes)[:requiredSize]
+	}
+	(*outBytes)[0] = message.RECORD_SEPARATOR
+	(*outBytes)[1] = uint8(headerSize)
+	pbuf := proto.NewBuffer((*outBytes)[2:2])
+	err := pbuf.Marshal(h)
+	if err != nil {
+		return err
+	}
+	(*outBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	pbuf.SetBuf((*outBytes)[headerSize+3 : headerSize+3])
+	err = pbuf.Marshal(pack.Message)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -290,5 +292,61 @@ func (self *FileWriter) Commit() (err error) {
 func (self *FileWriter) Event(eventType string) {
 	if eventType == STOP {
 		self.file.Close()
+	}
+}
+
+// TcpWriter implementation
+type TcpWriter struct {
+	address    string
+	connection net.Conn
+}
+
+type TcpWriterConfig struct {
+	Address string
+}
+
+func (t *TcpWriter) ConfigStruct() interface{} {
+	return &TcpWriterConfig{Address: "localhost:9125"}
+}
+
+func (t *TcpWriter) Init(config interface{}) (err error) {
+	conf := config.(*TcpWriterConfig)
+	t.address = conf.Address
+	t.connection, err = net.Dial("tcp", t.address)
+	return
+}
+
+func (t *TcpWriter) MakeOutData() interface{} {
+	b := make([]byte, 0, 2000)
+	return &b
+}
+
+func (t *TcpWriter) ZeroOutData(outData interface{}) {
+	outBytes := outData.(*[]byte)
+	*outBytes = (*outBytes)[:0]
+}
+
+func (t *TcpWriter) PrepOutData(pack *PipelinePack, outData interface{},
+	timeout *time.Duration) error {
+	err := createProtobufStream(pack, outData)
+	return err
+}
+
+func (t *TcpWriter) Write(outData interface{}) (err error) {
+	outBytes := outData.(*[]byte)
+	n, err := t.connection.Write(*outBytes)
+	if err != nil {
+		err = fmt.Errorf("TcpWriter error writing to %s: %s", t.address, err)
+		return err
+	} else if n != len(*outBytes) {
+		err = fmt.Errorf("TcpWriter truncated output for %s", t.address)
+		return err
+	}
+	return nil
+}
+
+func (t *TcpWriter) Event(eventType string) {
+	if eventType == STOP {
+		t.connection.Close()
 	}
 }

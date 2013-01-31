@@ -21,7 +21,13 @@ import (
 	"reflect"
 )
 
-const UUID_SIZE = 16
+const (
+	MAX_HEADER_SIZE  = 255
+	MAX_MESSAGE_SIZE = 64 * 1024
+	RECORD_SEPARATOR = uint8(0x1e)
+	UNIT_SEPARATOR   = uint8(0x1f)
+	UUID_SIZE        = 16
+)
 
 func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
 	if h != nil {

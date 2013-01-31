@@ -155,16 +155,16 @@ func InputsSpec(c gs.Context) {
 		hbytes, _ := proto.Marshal(header)
 		buflen := 3 + len(hbytes) + len(mbytes)
 		putPayloadInBytes := func(msgBytes []byte) {
-			msgBytes[0] = RECORD_SEPARATOR
+			msgBytes[0] = message.RECORD_SEPARATOR
 			msgBytes[1] = uint8(len(hbytes))
 			copy(msgBytes[2:], hbytes)
 			pos := 2 + len(hbytes)
-			msgBytes[pos] = UNIT_SEPARATOR
+			msgBytes[pos] = message.UNIT_SEPARATOR
 			copy(msgBytes[pos+1:], mbytes)
 		}
 
 		c.Specify("reads a message from its connection", func() {
-			buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
 			err = errors.New("connection closed")
 			closeCall := mockConnection.EXPECT().Close()
 			closeCall.Do(func() {})
