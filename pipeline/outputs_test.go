@@ -136,8 +136,6 @@ func OutputsSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				b := []byte{30, 2, 8, uint8(proto.Size(pipelinePack.Message)), 31, 10, 16} // sanity check the header and the start of the protocol buffer
 				c.Expect(bytes.Equal(b, (*outData.(*[]byte))[:len(b)]), gs.IsTrue)
-				fmt.Println(outData)
-				panic("test")
 			})
 		})
 
