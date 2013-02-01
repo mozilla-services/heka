@@ -16,17 +16,19 @@ package pipeline
 import (
 	"bufio"
 	"errors"
+	"log"
 	"os"
 	"time"
 )
 
 type LogfileInputConfig struct {
 	SincedbFlush int
-	LogFiles     []string
+	LogFiles     [][]string
 }
 
 type LogfileInput struct {
-	Monitor *FileMonitor
+	Monitor    *FileMonitor
+	DecoderMap map[string]string
 }
 
 type Logline struct {
@@ -44,6 +46,11 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
 		return err
 	}
+	for _, logconf := range conf.LogFiles {
+		if len(logconf) > 1 {
+			lw.DecoderMap[logconf[0]] = logconf[1]
+		}
+	}
 	return nil
 }
 
@@ -53,10 +60,18 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 	case <-time.After(*timeout):
 		return errors.New("Timeout waiting for log line")
 	case logline := <-lw.Monitor.NewLines:
-		logMsg := "logfile"
-		pipelinePack.Message.Type = &logMsg
-		pipelinePack.Message.Payload = &logline.Line
-		pipelinePack.Message.Logger = &logline.Path
+		pipelinePack.Message.SetType("logfile")
+		pipelinePack.Message.SetPayload(logline.Line)
+		pipelinePack.Message.SetLogger(logline.Path)
+		if decoderName, found := lw.DecoderMap[logline.Path]; found {
+			if decoder, found := pipelinePack.Decoders[decoderName]; found {
+				decoder.Decode(pipelinePack)
+			} else {
+				log.Printf("Unable to find decoder instance for message "+
+					" using name: %s", decoderName)
+				pipelinePack.Blocked = true
+			}
+		}
 		pipelinePack.Decoded = true
 	}
 	return nil
@@ -159,12 +174,13 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 	return
 }
 
-func (fm *FileMonitor) Init(files []string) (err error) {
+func (fm *FileMonitor) Init(files [][]string) (err error) {
 	fm.NewLines = make(chan Logline)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	for _, fileName := range files {
+	for _, fileData := range files {
+		fileName := fileData[0]
 		fm.discover[fileName] = true
 	}
 	go fm.Watcher()
