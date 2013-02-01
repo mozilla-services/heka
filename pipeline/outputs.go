@@ -26,17 +26,16 @@ import (
 )
 
 type outputRunner struct {
-	pluginRunnerBase
+	PluginRunnerBase
 	Output      Output
 	recycleChan chan<- *PipelinePack
 }
 
 func newOutputRunner(name string, output Output, recycleChan chan *PipelinePack) *outputRunner {
 	outRunner := &outputRunner{}
-	outRunner.name = name
-	outRunner.plugin = output
+	outRunner.Name = name
 	outRunner.Output = output
-	outRunner.inChan = make(chan *PipelinePack)
+	outRunner.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	outRunner.recycleChan = recycleChan
 	return outRunner
 }
@@ -51,7 +50,7 @@ func (self *outputRunner) Start(wg *sync.WaitGroup) {
 		for {
 			runtime.Gosched()
 			select {
-			case pack = <-self.inChan:
+			case pack = <-self.InChan:
 				self.Output.Deliver(pack)
 				pack.Zero()
 				self.recycleChan <- pack
@@ -59,13 +58,9 @@ func (self *outputRunner) Start(wg *sync.WaitGroup) {
 				break runnerLoop
 			}
 		}
-		log.Println("Output stopped: ", self.name)
+		log.Println("Output stopped: ", self.Name)
 		wg.Done()
 	}()
-}
-
-func (self *outputRunner) Next(pack *PipelinePack) chan<- *PipelinePack {
-	return self.recycleChan
 }
 
 type Output interface {

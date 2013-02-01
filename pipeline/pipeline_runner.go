@@ -21,13 +21,15 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 )
 
-// Control channel event types used by go-notify
 const (
+	// Control channel event types used by go-notify
 	RELOAD = "reload"
 	STOP   = "stop"
+
+	// buffer size for plugin channels
+	PIPECHAN_BUFSIZE = 500
 )
 
 var PoolSize int
@@ -46,33 +48,10 @@ type PluginWithGlobal interface {
 	InitOnce(config interface{}) (global PluginGlobal, err error)
 }
 
-// A PluginRunner wraps a Heka plugin and manages the plugin's goroutine and
-// the input and output channels for the plugin.
-type PluginRunner interface {
-	InChan() <-chan *PipelinePack
-	Name() string
-	Next(pack *PipelinePack) chan *PipelinePack
-	Plugin() interface{}
-	Start(wg *sync.WaitGroup)
-}
-
 // Base struct for the specialized PluginRunners
-type pluginRunnerBase struct {
-	inChan chan *PipelinePack
-	name   string
-	plugin interface{}
-}
-
-func (self *pluginRunnerBase) InChan() chan *PipelinePack {
-	return self.inChan
-}
-
-func (self *pluginRunnerBase) Name() string {
-	return self.name
-}
-
-func (self *pluginRunnerBase) Plugin() interface{} {
-	return self.plugin
+type PluginRunnerBase struct {
+	InChan chan *PipelinePack
+	Name   string
 }
 
 type PipelinePack struct {
@@ -131,7 +110,7 @@ func (self *PipelinePack) InitFilters(config *PipelineConfig) {
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
 	for name, outRunner := range config.OutputRunners {
-		self.OutputChans[name] = outRunner.inChan
+		self.OutputChans[name] = outRunner.InChan
 	}
 }
 
@@ -146,30 +125,9 @@ func (self *PipelinePack) Zero() {
 	}
 }
 
-func filterProcessor(pipelinePack *PipelinePack) {
-	pipelinePack.OutputNames = map[string]bool{}
-	config := pipelinePack.Config
-	filterChainName, ok := config.Lookup.LocateChain(pipelinePack.Message)
-	if ok {
-		pipelinePack.FilterChain = filterChainName
-	} else {
-		filterChainName = pipelinePack.FilterChain
-	}
-	filterChain, ok := config.FilterChains[filterChainName]
-	if !ok {
-		log.Printf("Filter chain doesn't exist: %s", filterChainName)
-		return
-	}
-	for _, outputName := range filterChain.Outputs {
-		pipelinePack.OutputNames[outputName] = true
-	}
-	for _, filterName := range filterChain.Filters {
-		filter := pipelinePack.Filters[filterName]
-		filter.FilterMsg(pipelinePack)
-		if pipelinePack.Blocked {
-			return
-		}
-	}
+func (self *PipelinePack) Recycle() {
+	self.Zero()
+	self.Config.RecycleChan <- self
 }
 
 func BroadcastEvent(config *PipelineConfig, eventType string) {
@@ -191,68 +149,15 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	}
 }
 
-// Main pipeline function
-func pipeline(pack *PipelinePack) (recycle bool) {
-
-	// Decode message if necessary
-	if !pack.Decoded {
-		decoderName := pack.Decoder
-		decoder, ok := pack.Decoders[decoderName]
-		if !ok {
-			log.Printf("Decoder doesn't exist: %s\n", decoderName)
-			recycle = true
-			return
-		}
-		if err := decoder.Decode(pack); err != nil {
-			log.Printf("Error decoding message (%s): %s", decoderName,
-				err)
-			recycle = true
-			return
-		} else {
-			pack.Decoded = true
-		}
-	}
-
-	// Run message through the appropriate filters
-	filterProcessor(pack)
-	if pack.Blocked {
-		recycle = true
-		return
-	}
-
-	i := 0
-	// Deliver message to appropriate outputs
-	for outputName, use := range pack.OutputNames {
-		if !use {
-			continue
-		}
-		outChan, ok := pack.OutputChans[outputName]
-		if !ok {
-			log.Printf("Output doesn't exist: %s\n", outputName)
-			continue
-		}
-		outChan <- pack
-		i++
-	}
-	if i == 0 {
-		recycle = true
-	}
-	return
-}
-
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
-
-	// Used for passing around populated and recycled PipelinePack objects
-	dataChan := make(chan *PipelinePack, config.PoolSize+1)
-	recycleChan := make(chan *PipelinePack, config.PoolSize+1)
 
 	var wg sync.WaitGroup
 	var outRunner *outputRunner
 
 	for name, wrapper := range config.Outputs {
 		output := wrapper.Create().(Output)
-		outRunner = newOutputRunner(name, output, recycleChan)
+		outRunner = newOutputRunner(name, output, config.RecycleChan)
 		config.OutputRunners[name] = outRunner
 		outRunner.Start(&wg)
 		wg.Add(1)
@@ -261,18 +166,17 @@ func Run(config *PipelineConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
-		recycleChan <- NewPipelinePack(config)
+		config.RecycleChan <- NewPipelinePack(config)
 	}
-
-	var inRunner *InputRunner
-	timeout := time.Duration(time.Second / 2)
-	inputRunners := make(map[string]*InputRunner)
 
 	for name, wrapper := range config.Inputs {
 		input := wrapper.Create().(Input)
-		inRunner = &InputRunner{name, input, &timeout}
-		inputRunners[name] = inRunner
-		inRunner.Start(dataChan, recycleChan, &wg)
+		input.SetName(name)
+		err := input.Start(config.RecycleChan, config, &wg)
+		if err != nil {
+			log.Printf("'%s' input failed to start: %s", name, err)
+			continue
+		}
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
@@ -280,17 +184,10 @@ func Run(config *PipelineConfig) {
 	// wait for sigint
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
-	var pack *PipelinePack
 
 sigListener:
 	for {
 		select {
-		case pack = <-dataChan:
-			recycle := pipeline(pack)
-			if recycle {
-				pack.Zero()
-				recycleChan <- pack
-			}
 		case sig := <-sigChan:
 			switch sig {
 			case syscall.SIGHUP:

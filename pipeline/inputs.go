@@ -22,10 +22,9 @@ import (
 	"log"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 	"sync"
-	"time"
+	//"time"
 )
 
 const (
@@ -35,78 +34,22 @@ const (
 	UNIT_SEPARATOR   = uint8(0x1f)
 )
 
-type TimeoutError string
-
-func (self *TimeoutError) Error() string {
-	return fmt.Sprint("Error: Read timed out")
-}
-
 type Input interface {
-	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
-}
-
-// InputRunner
-
-// An InputRunner wraps each Input plugin and starts a goroutine for waiting
-// for message data to come in via that input. It also listens for STOP events
-// to cleanly exit the goroutine.
-type InputRunner struct {
-	name    string
-	input   Input
-	timeout *time.Duration
-}
-
-func (self *InputRunner) Start(dataChan chan *PipelinePack,
-	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
-
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-
-	go func() {
-		var err error
-		var pack *PipelinePack
-		needOne := true
-	runnerLoop:
-		for {
-			if needOne {
-				runtime.Gosched()
-				select {
-				case pack = <-recycleChan:
-				case <-stopChan:
-					break runnerLoop
-				}
-			}
-
-			err = self.input.Read(pack, self.timeout)
-			if err != nil {
-				runtime.Gosched()
-				select {
-				case <-stopChan:
-					break runnerLoop
-				default:
-					needOne = false
-					continue
-				}
-			}
-			dataChan <- pack
-			needOne = true
-		}
-		log.Println("Input stopped: ", self.name)
-		wg.Done()
-	}()
+	Start(inChan chan *PipelinePack, config *PipelineConfig, wg *sync.WaitGroup) error
+	Name() string
+	SetName(name string)
 }
 
 // UdpInput
-
-// Deadline is stored on the struct so we don't have to allocate / GC
-// a new time.Time object for each message received.
 type UdpInput struct {
-	Listener net.Conn
-	Deadline time.Time
+	listener net.Conn
+	decoder  string
+	name     string
 }
 
 type UdpInputConfig struct {
 	Address string
+	Decoder string
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {
@@ -115,6 +58,10 @@ func (self *UdpInput) ConfigStruct() interface{} {
 
 func (self *UdpInput) Init(config interface{}) error {
 	conf := config.(*UdpInputConfig)
+	if conf.Decoder == "" {
+		return fmt.Errorf("UdpInput: No decoder specified")
+	}
+	self.decoder = conf.Decoder
 	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := conf.Address[3:]
@@ -125,7 +72,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
-		self.Listener, err = net.FileConn(udpFile)
+		self.listener, err = net.FileConn(udpFile)
 		if err != nil {
 			return fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
 		}
@@ -135,7 +82,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
-		self.Listener, err = net.ListenUDP("udp", udpAddr)
+		self.listener, err = net.ListenUDP("udp", udpAddr)
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
@@ -143,29 +90,89 @@ func (self *UdpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *UdpInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) error {
-	self.Deadline = time.Now().Add(*timeout)
-	self.Listener.SetReadDeadline(self.Deadline)
-	n, err := self.Listener.Read(pipelinePack.MsgBytes)
-	if err == nil {
-		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
+func (self *UdpInput) SetName(name string) {
+	self.name = name
+}
+
+func (self *UdpInput) Name() string {
+	return self.name
+}
+
+func (self *UdpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
+	wg *sync.WaitGroup) error {
+
+	decoderMaker, ok := config.DecoderMaker(self.decoder)
+	if !ok {
+		return fmt.Errorf("UdpInput '%s': no '%s' decoder", self.name, self.decoder)
 	}
-	return err
+	decoder := decoderMaker()
+	decoder.Start()
+
+	var stopped bool
+	go func() {
+		var pack *PipelinePack
+		var err error
+		var n int
+		needOne := true
+		for {
+			if needOne {
+				pack = <-inChan
+			}
+			n, err = self.listener.Read(pack.MsgBytes)
+			if err != nil {
+				if stopped {
+					break
+				}
+				log.Println("UdpInput read error: ", err)
+				needOne = false
+				continue
+			}
+			pack.MsgBytes = pack.MsgBytes[:n]
+			decoder.InChan <- pack
+		}
+	}()
+
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+	go func() {
+		_ = <-stopChan
+		stopped = true
+		self.listener.Close()
+		log.Println("UdpInput stopped: ", self.name)
+		wg.Done()
+	}()
+
+	return nil
 }
 
 // TCP Input
+
 type TcpInput struct {
-	Listener    net.Listener
-	messageChan chan *Message
+	listener      net.Listener
+	decoderNames  map[string]string
+	decoderMakers map[string]func() *DecoderRunner
+	name          string
 }
 
 type TcpInputConfig struct {
-	Address string
+	Address  string
+	Decoders map[string]string
 }
 
 func (self *TcpInput) ConfigStruct() interface{} {
-	return new(TcpInputConfig)
+	var defaultDecoders = map[string]string{
+		"json":     "JsonDecoder",
+		"protobuf": "ProtobufDecoder",
+	}
+	return &TcpInputConfig{Decoders: defaultDecoders}
+}
+
+func (self *TcpInput) Name() string {
+	return self.name
+}
+
+func (self *TcpInput) SetName(name string) {
+	self.name = name
 }
 
 func decodeHeader(buf []byte, header *Header) bool {
@@ -185,7 +192,8 @@ func decodeHeader(buf []byte, header *Header) bool {
 	return true
 }
 
-func findMessage(buf []byte, header *Header, message *[]byte) (pos int) {
+func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
+	ok = true
 	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
 	if pos != -1 {
 		if len(buf) > 1 {
@@ -198,10 +206,11 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int) {
 						*message = buf[headerEnd:messageEnd]
 						pos = messageEnd
 					} else {
-						*message = nil
+						ok = false
+						*message = (*message)[:0]
 					}
 				} else {
-					pos = findMessage(buf[pos+1:], header, message)
+					pos, ok = findMessage(buf[pos+1:], header, message)
 				}
 			}
 		}
@@ -211,47 +220,50 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int) {
 	return
 }
 
-func (self *TcpInput) handleConnection(conn net.Conn) {
+func (self *TcpInput) handleConnection(inChan chan *PipelinePack, conn net.Conn) {
 	defer conn.Close()
 
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
 	header := &Header{}
-	var message []byte
-	var readPos, scanPos int
+	var readPos, scanPos, posDelta int
+	var pack *PipelinePack
+	var msgOk bool
+
+	var decoders [2]*DecoderRunner
+	decoders[Header_JSON] = self.decoderMakers["json"]()
+	decoders[Header_PROTOCOL_BUFFER] = self.decoderMakers["protobuf"]()
+	decoders[Header_JSON].Start()
+	decoders[Header_PROTOCOL_BUFFER].Start()
+
+	var encoding Header_MessageEncoding
 
 	for {
 		n, err := conn.Read(buf[readPos:])
 		if n > 0 {
 			readPos += n
 			for { // consume all available records
-				scanPos += findMessage(buf[scanPos:readPos], header, &message)
-				if header.MessageLength != nil {
-					if header.GetMessageLength() == 0 || (header.GetMessageLength() > 0 && message != nil) {
-						if message != nil {
-							/// @review by decoding here we are subverting the pipeline
-							/// however, this keeps the messages from each host in order and
-							/// allows parallel decoding across hosts
-							/// the pipeline pack also allocates a MsgBytes buffer and initializes
-							/// a Message struct; they are both unnecessary in this case
-							msg := &Message{}
-							switch header.GetMessageEncoding() {
-							case Header_PROTOCOL_BUFFER:
-								err := proto.Unmarshal(message, msg)
-								if err == nil {
-									self.messageChan <- msg
-								} else {
-									log.Println("invalid Protobuf message received")
-								}
-							}
-						}
-						header.Reset()
-						message = nil
-					} else {
-						break // incomplete message
-					}
-				} else {
-					break // incomplete header
+				pack = <-inChan
+				posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
+				scanPos += posDelta
+
+				if header.MessageLength == nil {
+					// incomplete header, recycle the pack and bail
+					pack.Recycle()
+					break
 				}
+
+				if header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
+					// incomplete message, recycle the pack and bail
+					pack.Recycle()
+					break
+				}
+
+				if msgOk {
+					encoding = header.GetMessageEncoding()
+					decoders[encoding].InChan <- pack
+				}
+
+				header.Reset()
 			}
 		}
 		if err != nil {
@@ -270,109 +282,132 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	}
 }
 
-func (self *TcpInput) acceptConnections() {
-	for { /// @todo cleanly tear this down on exit?
-		conn, err := self.Listener.Accept()
-		if err != nil {
-			log.Println("TCP accept failed")
-			continue
-		}
-		go self.handleConnection(conn)
-	}
-}
-
 func (self *TcpInput) Init(config interface{}) error {
 	var err error
 	conf := config.(*TcpInputConfig)
-	self.Listener, err = net.Listen("tcp", conf.Address)
+	var ok bool
+	for encoding, _ := range DecoderIds {
+		if _, ok = conf.Decoders[encoding]; !ok {
+			return fmt.Errorf("TcpInput missing decoder for '%s'", encoding)
+		}
+	}
+	self.decoderNames = conf.Decoders
+	self.decoderMakers = make(map[string]func() *DecoderRunner)
+	self.listener, err = net.Listen("tcp", conf.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
-	self.messageChan = make(chan *Message, 1000000)
-	go self.acceptConnections()
 	return nil
 }
 
-func (self *TcpInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) error {
-	select {
-	case pipelinePack.Message = <-self.messageChan:
-		pipelinePack.Decoded = true
-	case <-time.After(*timeout):
-		err := TimeoutError("No messages to read")
-		return &err
+func (self *TcpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
+	wg *sync.WaitGroup) error {
+
+	var ok bool
+	var decoderMaker func() *DecoderRunner
+	for encoding, decoder := range self.decoderNames {
+		decoderMaker, ok = config.DecoderMaker(decoder)
+		if !ok {
+			return fmt.Errorf("TcpInput '%s': no '%s' decoder", self.name, decoder)
+		}
+		self.decoderMakers[encoding] = decoderMaker
 	}
+
+	var stopped bool
+	go func() {
+		for {
+			conn, err := self.listener.Accept()
+			if err != nil {
+				if stopped {
+					break
+				}
+				log.Println("TCP accept failed")
+				continue
+			}
+			go self.handleConnection(inChan, conn)
+		}
+	}()
+
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+	go func() {
+		_ = <-stopChan
+		stopped = true
+		self.listener.Close()
+		log.Println("TcpInput stopped: ", self.name)
+		wg.Done()
+	}()
+
 	return nil
 }
 
-// Global MessageGenerator
-var MessageGenerator *msgGenerator = new(msgGenerator)
+// // Global MessageGenerator
+// var MessageGenerator *msgGenerator = new(msgGenerator)
 
-type msgGenerator struct {
-	MessageChan chan *messageHolder
-	RecycleChan chan *messageHolder
-}
+// type msgGenerator struct {
+// 	MessageChan chan *messageHolder
+// 	RecycleChan chan *messageHolder
+// }
 
-func (self *msgGenerator) Init() {
-	self.MessageChan = make(chan *messageHolder, PoolSize/2)
-	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
-	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 0}
-		self.RecycleChan <- &msg
-	}
-}
+// func (self *msgGenerator) Init() {
+// 	self.MessageChan = make(chan *messageHolder, PoolSize/2)
+// 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
+// 	for i := 0; i < PoolSize/2; i++ {
+// 		msg := messageHolder{new(Message), 0}
+// 		self.RecycleChan <- &msg
+// 	}
+// }
 
-// Retrieve a message for use by the MessageGenerator.
-// Must be passed the current pipeline.ChainCount.
-//
-// This is actually a messageHolder object that has a message and
-// chainCount. The chainCount should remain untouched, and all the
-// fields of the returned msg.Message should be overwritten as needed
-// The msg.Message
-func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
-	msg = <-self.RecycleChan
-	msg.ChainCount = chainCount
-	return msg
-}
+// // Retrieve a message for use by the MessageGenerator.
+// // Must be passed the current pipeline.ChainCount.
+// //
+// // This is actually a messageHolder object that has a message and
+// // chainCount. The chainCount should remain untouched, and all the
+// // fields of the returned msg.Message should be overwritten as needed
+// // The msg.Message
+// func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+// 	msg = <-self.RecycleChan
+// 	msg.ChainCount = chainCount
+// 	return msg
+// }
 
-// Injects a message using the MessageGenerator
-func (self *msgGenerator) Inject(msg *messageHolder) {
-	msg.ChainCount++
-	self.MessageChan <- msg
-}
+// // Injects a message using the MessageGenerator
+// func (self *msgGenerator) Inject(msg *messageHolder) {
+// 	msg.ChainCount++
+// 	self.MessageChan <- msg
+// }
 
-// MessageGeneratorInput
-type MessageGeneratorInput struct {
-	messageChan chan *messageHolder
-	recycleChan chan *messageHolder
-	msg         *messageHolder
-}
+// // MessageGeneratorInput
+// type MessageGeneratorInput struct {
+// 	messageChan chan *messageHolder
+// 	recycleChan chan *messageHolder
+// 	msg         *messageHolder
+// }
 
-type messageHolder struct {
-	Message    *Message
-	ChainCount int
-}
+// type messageHolder struct {
+// 	Message    *Message
+// 	ChainCount int
+// }
 
-func (self *MessageGeneratorInput) Init(config interface{}) error {
-	MessageGenerator.Init()
-	self.messageChan = MessageGenerator.MessageChan
-	self.recycleChan = MessageGenerator.RecycleChan
-	return nil
-}
+// func (self *MessageGeneratorInput) Init(config interface{}) error {
+// 	MessageGenerator.Init()
+// 	self.messageChan = MessageGenerator.MessageChan
+// 	self.recycleChan = MessageGenerator.RecycleChan
+// 	return nil
+// }
 
-func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
-	timeout *time.Duration) error {
-	select {
-	case msgHolder := <-self.messageChan:
-		msgHolder.Message.Copy(pipeline.Message)
-		pipeline.Decoded = true
-		pipeline.ChainCount = msgHolder.ChainCount
-		self.recycleChan <- msgHolder
-		return nil
-	case <-time.After(*timeout):
-		err := TimeoutError("No messages to read")
-		return &err
-	}
-	// shouldn't get here, compiler makes us have a return
-	return nil
-}
+// func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
+// 	timeout *time.Duration) error {
+// 	select {
+// 	case msgHolder := <-self.messageChan:
+// 		msgHolder.Message.Copy(pipeline.Message)
+// 		pipeline.Decoded = true
+// 		pipeline.ChainCount = msgHolder.ChainCount
+// 		self.recycleChan <- msgHolder
+// 		return nil
+// 	case <-time.After(*timeout):
+// 		return fmt.Errorf("No messages to read")
+// 	}
+// 	// shouldn't get here, compiler makes us have a return
+// 	return nil
+// }

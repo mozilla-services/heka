@@ -25,6 +25,50 @@ import (
 	"time"
 )
 
+var DecoderIds = map[string]message.Header_MessageEncoding{
+	"json":     message.Header_JSON,
+	"protobuf": message.Header_PROTOCOL_BUFFER,
+}
+
+type DecoderRunner struct {
+	PluginRunnerBase
+	decoder Decoder
+	router  *ChainRouter
+}
+
+func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) *DecoderRunner {
+	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	return &DecoderRunner{
+		PluginRunnerBase{
+			Name:   name,
+			InChan: inChan,
+		},
+		decoder,
+		router,
+	}
+}
+
+func (self *DecoderRunner) Start() {
+	var pack *PipelinePack
+	var err error
+
+	self.router.Start()
+
+	go func() {
+		for {
+			pack = <-self.InChan
+			err = self.decoder.Decode(pack)
+			if err != nil {
+				log.Printf("Decoder '%s' error: '%s", self.Name, err)
+				pack.Recycle()
+				continue
+			}
+			pack.Decoded = true
+			self.router.InChan <- pack
+		}
+	}()
+}
+
 type Decoder interface {
 	Decode(pipelinePack *PipelinePack) error
 }

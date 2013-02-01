@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	. "github.com/mozilla-services/heka/message"
+	"log"
 	"os"
 )
 
@@ -47,10 +48,11 @@ type PipelineConfig struct {
 	Outputs            map[string]*PluginWrapper
 	OutputRunners      map[string]*outputRunner
 	FilterChains       map[string]FilterChain
+	ChainMap           map[string][]string
 	DefaultDecoder     string
 	DefaultFilterChain string
 	PoolSize           int
-	Lookup             *MessageLookup
+	RecycleChan        chan *PipelinePack
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -60,10 +62,30 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.PoolSize = poolSize
 	config.FilterChains = make(map[string]FilterChain)
 	config.DefaultFilterChain = "default"
-	config.Lookup = new(MessageLookup)
-	config.Lookup.MessageType = make(map[string][]string)
+	config.ChainMap = make(map[string][]string)
 	config.OutputRunners = make(map[string]*outputRunner)
+	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	return config
+}
+
+func (self *PipelineConfig) DecoderMaker(name string) (maker func() *DecoderRunner, ok bool) {
+	wrapper, ok := self.Decoders[name]
+	if !ok {
+		return
+	}
+	maker = func() *DecoderRunner {
+		router := self.ChainRouter()
+		decoder := wrapper.Create().(Decoder)
+		return NewDecoderRunner(name, decoder, router)
+	}
+	return
+}
+
+func (self *PipelineConfig) ChainRouter() *ChainRouter {
+	router := new(ChainRouter)
+	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	router.ChainMap = self.ChainMap
+	return router
 }
 
 // The JSON config file spec
@@ -77,17 +99,69 @@ type ConfigFile struct {
 
 // Represents message lookup hashes
 //
-// MessageType is populated such that a message type should exactly
+// ChainMap is populated such that a message type should exactly
 // match and return a list representing keys in FilterChains. At the
 // moment the list will always be a single element, but in the future
 // with more ways to restrict the filter chain to other components of
 // the message narrowing down the set for several will be needed.
-type MessageLookup struct {
-	MessageType map[string][]string
+type ChainRouter struct {
+	InChan   chan *PipelinePack
+	ChainMap map[string][]string
 }
 
-func (self *MessageLookup) LocateChain(message *Message) (string, bool) {
-	if chains, ok := self.MessageType[*message.Type]; ok {
+func (self *ChainRouter) Start() {
+	var pack *PipelinePack
+	var i int
+	go func() {
+		for {
+			pack = <-self.InChan
+			pack.OutputNames = map[string]bool{}
+			chainName, ok := self.LocateChain(pack.Message)
+			if ok {
+				pack.FilterChain = chainName
+			} else {
+				chainName = pack.FilterChain
+			}
+			chain, ok := pack.Config.FilterChains[chainName]
+			if !ok {
+				log.Printf("Filter chain doesn't exist: %s", chainName)
+				pack.Recycle()
+				continue
+			}
+			for _, outputName := range chain.Outputs {
+				pack.OutputNames[outputName] = true
+			}
+			for _, filterName := range chain.Filters {
+				filter := pack.Filters[filterName]
+				filter.FilterMsg(pack)
+				if pack.Blocked {
+					pack.Recycle()
+					continue
+				}
+			}
+
+			i = 0
+			for outputName, use := range pack.OutputNames {
+				if !use {
+					continue
+				}
+				outChan, ok := pack.OutputChans[outputName]
+				if !ok {
+					log.Printf("Output doesn't exist: %s\n", outputName)
+					continue
+				}
+				outChan <- pack
+				i++
+			}
+			if i == 0 {
+				pack.Recycle()
+			}
+		}
+	}()
+}
+
+func (self *ChainRouter) LocateChain(message *Message) (string, bool) {
+	if chains, ok := self.ChainMap[*message.Type]; ok {
 		return chains[0], true
 	}
 	return "", false
@@ -237,12 +311,12 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return err
 	} else {
 		// Setup our message generator input
-		MessageGenerator.Init()
-		mgiWrapper := new(PluginWrapper)
-		mgiWrapper.name = "MessageGeneratorInput"
-		mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
-		mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
-		self.Inputs["MessageGeneratorInput"] = mgiWrapper
+		// MessageGenerator.Init()
+		// mgiWrapper := new(PluginWrapper)
+		// mgiWrapper.name = "MessageGeneratorInput"
+		// mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
+		// mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
+		// self.Inputs["MessageGeneratorInput"] = mgiWrapper
 	}
 
 	self.Decoders, err = loadSection(configFile.Decoders)
@@ -303,7 +377,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		// Add the message type to the lookup table if present
 		if _, ok := section["message_type"]; ok {
 			messageTypeList := section["message_type"].([]interface{})
-			msgLookup := self.Lookup
 			var msgType string
 			for _, rawType := range messageTypeList {
 				// Create the string slice for this msgType if it
@@ -314,10 +387,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 				// message type which is why we store a slice of
 				// strings here at the moment
 				msgType = rawType.(string)
-				if _, ok := msgLookup.MessageType[msgType]; !ok {
-					msgLookup.MessageType[msgType] = make([]string, 0, 10)
+				if _, ok := self.ChainMap[msgType]; !ok {
+					self.ChainMap[msgType] = make([]string, 0, 10)
 				}
-				msgLookup.MessageType[msgType] = append(msgLookup.MessageType[msgType], name)
+				self.ChainMap[msgType] = append(self.ChainMap[msgType], name)
 			}
 		}
 		self.FilterChains[name] = chain
