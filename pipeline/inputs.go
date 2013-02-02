@@ -203,7 +203,8 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 				if header.MessageLength != nil || decodeHeader(buf[pos+2:headerEnd], header) {
 					messageEnd := headerEnd + int(header.GetMessageLength())
 					if len(buf) >= messageEnd {
-						*message = buf[headerEnd:messageEnd]
+						*message = (*message)[:messageEnd-headerEnd]
+						copy(*message, buf[headerEnd:messageEnd])
 						pos = messageEnd
 					} else {
 						ok = false
