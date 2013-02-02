@@ -16,13 +16,35 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	. "github.com/mozilla-services/heka/message"
+	"log"
 	"os"
 )
 
+// Cap size of our decoder set arrays
+const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
+
 var AvailablePlugins = make(map[string]func() interface{})
+var DecodersByEncoding = make(map[Header_MessageEncoding]string)
+var Top_Header_MessageEncoding Header_MessageEncoding
 
 func RegisterPlugin(name string, factory func() interface{}) {
 	AvailablePlugins[name] = factory
+}
+
+func RegisterDecoder(name string, factory func() interface{},
+	encoding Header_MessageEncoding) {
+
+	if encoding > MAX_HEADER_MESSAGEENCODING {
+		log.Printf("Can't register '%s' decoder, encoding header value > %d",
+			name, MAX_HEADER_MESSAGEENCODING)
+		return
+	}
+	if encoding > Top_Header_MessageEncoding {
+		Top_Header_MessageEncoding = encoding
+	}
+	DecodersByEncoding[encoding] = name
+	RegisterPlugin(name, factory)
 }
 
 type PluginConfig map[string]interface{}
@@ -66,16 +88,34 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	return config
 }
 
-func (self *PipelineConfig) DecoderMaker(name string) (maker func() *DecoderRunner, ok bool) {
-	wrapper, ok := self.Decoders[name]
-	if !ok {
+// Returns a slice of *DecoderRunners indexed by the Header_MessageEncoding
+// value that each decoder works for.
+func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
+	log.Println("Top: ", Top_Header_MessageEncoding)
+	decoders := make([]*DecoderRunner, Top_Header_MessageEncoding+1)
+	for encoding, name := range DecodersByEncoding {
+		log.Println("encoding: ", encoding)
+		decoder, ok := self.NewDecoder(name)
+		if !ok {
+			log.Printf("ERROR: No '%s' decoder", name)
+			continue
+		}
+		decoders[encoding] = decoder
+	}
+	return decoders
+}
+
+func (self *PipelineConfig) NewDecoder(name string) (
+	runner *DecoderRunner, ok bool) {
+
+	var wrapper *PluginWrapper
+	if wrapper, ok = self.Decoders[name]; !ok {
 		return
 	}
-	maker = func() *DecoderRunner {
-		router := self.ChainRouter()
-		decoder := wrapper.Create().(Decoder)
-		return NewDecoderRunner(name, decoder, router)
-	}
+	router := self.ChainRouter()
+	decoder := wrapper.Create().(Decoder)
+	runner = NewDecoderRunner(name, decoder, router)
+	runner.Start()
 	return
 }
 
@@ -263,19 +303,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return errors.New("Error reading outputs: " + err.Error())
 	}
 
-	// Locate and set the default decoder
-	for _, section := range configFile.Decoders {
-		if _, ok := section["default"]; !ok {
-			continue
-		}
-		// Determine if its keyed by type or name
-		if name, ok := section["name"]; ok {
-			self.DefaultDecoder = name.(string)
-		} else {
-			self.DefaultDecoder = section["type"].(string)
-		}
-	}
-
 	for name, section := range configFile.Chains {
 		chain := FilterChain{}
 		if outputs, ok := section["outputs"]; ok {
@@ -326,11 +353,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 	}
 
-	// Ensure there's a default decoder available
-	if self.DefaultDecoder == "" {
-		return errors.New("No default decoder defined.")
-	}
-
 	return nil
 }
 
@@ -341,15 +363,12 @@ func init() {
 	RegisterPlugin("TcpInput", func() interface{} {
 		return new(TcpInput)
 	})
-	RegisterPlugin("JsonDecoder", func() interface{} {
+	RegisterDecoder("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
-	})
-	RegisterPlugin("ProtobufDecoder", func() interface{} {
+	}, Header_JSON)
+	RegisterDecoder("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)
-	})
-	//  RegisterPlugin("ProtocolBufferDecoder", func() interface{} {
-	//      return new(ProtocolBufferDecoder)
-	//  })
+	}, Header_PROTOCOL_BUFFER)
 	RegisterPlugin("StatsdUdpInput", func() interface{} {
 		return RunnerMaker(new(StatsdInWriter))
 	})

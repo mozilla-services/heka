@@ -25,11 +25,6 @@ import (
 	"time"
 )
 
-var DecoderIds = map[string]message.Header_MessageEncoding{
-	"json":     message.Header_JSON,
-	"protobuf": message.Header_PROTOCOL_BUFFER,
-}
-
 type DecoderRunner struct {
 	PluginRunnerBase
 	decoder Decoder

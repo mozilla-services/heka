@@ -43,13 +43,11 @@ type Input interface {
 // UdpInput
 type UdpInput struct {
 	listener net.Conn
-	decoder  string
 	name     string
 }
 
 type UdpInputConfig struct {
 	Address string
-	Decoder string
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {
@@ -58,10 +56,6 @@ func (self *UdpInput) ConfigStruct() interface{} {
 
 func (self *UdpInput) Init(config interface{}) error {
 	conf := config.(*UdpInputConfig)
-	if conf.Decoder == "" {
-		return fmt.Errorf("UdpInput: No decoder specified")
-	}
-	self.decoder = conf.Decoder
 	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := conf.Address[3:]
@@ -100,12 +94,8 @@ func (self *UdpInput) Name() string {
 
 func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 
-	decoderMaker, ok := config.DecoderMaker(self.decoder)
-	if !ok {
-		return fmt.Errorf("UdpInput '%s': no '%s' decoder", self.name, self.decoder)
-	}
-	decoder := decoderMaker()
-	decoder.Start()
+	decoders := config.NewDecoderSet()
+	decoder := decoders[Header_JSON] // TODO: Support for headers on UDP
 
 	var stopped bool
 	go func() {
@@ -147,23 +137,16 @@ func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 // TCP Input
 
 type TcpInput struct {
-	listener      net.Listener
-	decoderNames  map[string]string
-	decoderMakers map[string]func() *DecoderRunner
-	name          string
+	listener net.Listener
+	name     string
 }
 
 type TcpInputConfig struct {
-	Address  string
-	Decoders map[string]string
+	Address string
 }
 
 func (self *TcpInput) ConfigStruct() interface{} {
-	var defaultDecoders = map[string]string{
-		"json":     "JsonDecoder",
-		"protobuf": "ProtobufDecoder",
-	}
-	return &TcpInputConfig{Decoders: defaultDecoders}
+	return new(TcpInputConfig)
 }
 
 func (self *TcpInput) Name() string {
@@ -220,7 +203,7 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
-func (self *TcpInput) handleConnection(inChan chan *PipelinePack, conn net.Conn) {
+func (self *TcpInput) handleConnection(config *PipelineConfig, conn net.Conn) {
 	defer conn.Close()
 
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
@@ -229,12 +212,7 @@ func (self *TcpInput) handleConnection(inChan chan *PipelinePack, conn net.Conn)
 	var pack *PipelinePack
 	var msgOk bool
 
-	var decoders [2]*DecoderRunner
-	decoders[Header_JSON] = self.decoderMakers["json"]()
-	decoders[Header_PROTOCOL_BUFFER] = self.decoderMakers["protobuf"]()
-	decoders[Header_JSON].Start()
-	decoders[Header_PROTOCOL_BUFFER].Start()
-
+	decoders := config.NewDecoderSet()
 	var encoding Header_MessageEncoding
 
 	for {
@@ -242,7 +220,7 @@ func (self *TcpInput) handleConnection(inChan chan *PipelinePack, conn net.Conn)
 		if n > 0 {
 			readPos += n
 			for { // consume all available records
-				pack = <-inChan
+				pack = <-config.RecycleChan
 				posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
 				scanPos += posDelta
 
@@ -285,14 +263,6 @@ func (self *TcpInput) handleConnection(inChan chan *PipelinePack, conn net.Conn)
 func (self *TcpInput) Init(config interface{}) error {
 	var err error
 	conf := config.(*TcpInputConfig)
-	var ok bool
-	for encoding, _ := range DecoderIds {
-		if _, ok = conf.Decoders[encoding]; !ok {
-			return fmt.Errorf("TcpInput missing decoder for '%s'", encoding)
-		}
-	}
-	self.decoderNames = conf.Decoders
-	self.decoderMakers = make(map[string]func() *DecoderRunner)
 	self.listener, err = net.Listen("tcp", conf.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
@@ -301,16 +271,6 @@ func (self *TcpInput) Init(config interface{}) error {
 }
 
 func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
-
-	var ok bool
-	var decoderMaker func() *DecoderRunner
-	for encoding, decoder := range self.decoderNames {
-		decoderMaker, ok = config.DecoderMaker(decoder)
-		if !ok {
-			return fmt.Errorf("TcpInput '%s': no '%s' decoder", self.name, decoder)
-		}
-		self.decoderMakers[encoding] = decoderMaker
-	}
 
 	var stopped bool
 	go func() {
@@ -323,7 +283,7 @@ func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 				log.Println("TCP accept failed")
 				continue
 			}
-			go self.handleConnection(config.RecycleChan, conn)
+			go self.handleConnection(config, conn)
 		}
 	}()
 
