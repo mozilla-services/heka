@@ -68,6 +68,9 @@ func (t *TextParserDecoder) Init(config interface{}) (err error) {
 			return match
 		})
 	t.PayloadMatch, err = regexp.Compile(newPayload)
+	if err != nil {
+		return
+	}
 	t.TimestampLayout = conf.TimestampLayout
 	varMatcher, _ = regexp.Compile("@[A-Za-z]+")
 	return
