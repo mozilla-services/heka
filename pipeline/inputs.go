@@ -35,7 +35,7 @@ const (
 )
 
 type Input interface {
-	Start(inChan chan *PipelinePack, config *PipelineConfig, wg *sync.WaitGroup) error
+	Start(config *PipelineConfig, wg *sync.WaitGroup) error
 	Name() string
 	SetName(name string)
 }
@@ -98,8 +98,7 @@ func (self *UdpInput) Name() string {
 	return self.name
 }
 
-func (self *UdpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
-	wg *sync.WaitGroup) error {
+func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 
 	decoderMaker, ok := config.DecoderMaker(self.decoder)
 	if !ok {
@@ -116,7 +115,7 @@ func (self *UdpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
 		needOne := true
 		for {
 			if needOne {
-				pack = <-inChan
+				pack = <-config.RecycleChan
 			}
 			n, err = self.listener.Read(pack.MsgBytes)
 			if err != nil {
@@ -301,8 +300,7 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *TcpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
-	wg *sync.WaitGroup) error {
+func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 
 	var ok bool
 	var decoderMaker func() *DecoderRunner
@@ -325,7 +323,7 @@ func (self *TcpInput) Start(inChan chan *PipelinePack, config *PipelineConfig,
 				log.Println("TCP accept failed")
 				continue
 			}
-			go self.handleConnection(inChan, conn)
+			go self.handleConnection(config.RecycleChan, conn)
 		}
 	}()
 

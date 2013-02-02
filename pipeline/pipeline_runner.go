@@ -172,7 +172,7 @@ func Run(config *PipelineConfig) {
 	for name, wrapper := range config.Inputs {
 		input := wrapper.Create().(Input)
 		input.SetName(name)
-		err := input.Start(config.RecycleChan, config, &wg)
+		err := input.Start(config, &wg)
 		if err != nil {
 			log.Printf("'%s' input failed to start: %s", name, err)
 			continue
