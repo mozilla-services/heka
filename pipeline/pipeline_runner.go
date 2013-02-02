@@ -112,6 +112,7 @@ func (self *PipelinePack) Zero() {
 	self.Decoded = false
 	self.Blocked = false
 	self.FilterChain = self.Config.DefaultFilterChain
+	self.Message = new(Message)
 	for outputName, _ := range self.OutputNames {
 		delete(self.OutputNames, outputName)
 	}
