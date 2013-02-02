@@ -43,6 +43,7 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
+	lw.DecoderMap = make(map[string]string)
 	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
 		return err
 	}
@@ -65,7 +66,11 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 		pipelinePack.Message.SetLogger(logline.Path)
 		if decoderName, found := lw.DecoderMap[logline.Path]; found {
 			if decoder, found := pipelinePack.Decoders[decoderName]; found {
-				decoder.Decode(pipelinePack)
+				err := decoder.Decode(pipelinePack)
+				if err != nil {
+					log.Printf("Unable to properly parse message. Dropped.")
+					pipelinePack.Blocked = true
+				}
 			} else {
 				log.Printf("Unable to find decoder instance for message "+
 					" using name: %s", decoderName)

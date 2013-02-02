@@ -19,21 +19,22 @@ import (
 	"log"
 	"regexp"
 	"strconv"
-	"time"
 )
+
+var varMatcher *regexp.Regexp
 
 type mapOfStrings map[string]string
 
 type TextParserDecoderConfig struct {
 	SeverityMap     map[string]int32
-	MessageFields   map[string]string
+	MessageFields   mapOfStrings
 	TimestampLayout string
 	PayloadMatch    string
 }
 
 type TextParserDecoder struct {
 	SeverityMap     map[string]int32
-	MessageFields   map[string]string
+	MessageFields   mapOfStrings
 	TimestampLayout string
 	PayloadMatch    *regexp.Regexp
 }
@@ -42,10 +43,8 @@ func (t *TextParserDecoder) ConfigStruct() interface{} {
 	return new(TextParserDecoderConfig)
 }
 
-var varMatcher *regexp.Regexp
-
 func (t *TextParserDecoder) Init(config interface{}) (err error) {
-	conf := config.(TextParserDecoderConfig)
+	conf := config.(*TextParserDecoderConfig)
 	t.SeverityMap = make(map[string]int32)
 	t.MessageFields = make(mapOfStrings)
 	if conf.SeverityMap != nil {
@@ -58,13 +57,31 @@ func (t *TextParserDecoder) Init(config interface{}) (err error) {
 			t.MessageFields[field] = action
 		}
 	}
-	t.PayloadMatch, err = regexp.Compile(conf.PayloadMatch)
+
+	// Replace helper words with complex regex
+	wordMatcher, _ := regexp.Compile("TIMESTAMP")
+	newPayload := wordMatcher.ReplaceAllStringFunc(conf.PayloadMatch,
+		func(match string) string {
+			if match == "TIMESTAMP" {
+				return HelperRegexSubs["TIMESTAMP"]
+			}
+			return match
+		})
+	t.PayloadMatch, err = regexp.Compile(newPayload)
+	t.TimestampLayout = conf.TimestampLayout
 	varMatcher, _ = regexp.Compile("@[A-Za-z]+")
 	return
 }
 
 func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 	matchParts := make(mapOfStrings)
+	changeFields := make(mapOfStrings)
+
+	// Copy our message fields to change
+	for field, val := range t.MessageFields {
+		changeFields[field] = val
+	}
+
 	if t.PayloadMatch.String() != "" {
 		err := t.ParsePayload(pipelinePack.Message.Payload, matchParts,
 			pipelinePack)
@@ -72,6 +89,7 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 			return logError(err, pipelinePack)
 		}
 	}
+
 	if severityString, found := matchParts["Severity"]; found {
 		// First see if we have a mapping for this severity
 		if sevInt, found := t.SeverityMap[severityString]; found {
@@ -85,38 +103,58 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 			pipelinePack.Message.Severity = &sevInt32
 		}
 	}
-	for field, formatRegexp := range t.MessageFields {
+
+	// Copy fields that don't exist in changeFields from our matchParts
+	// This allows us to directly set a Timestamp for example, if one was
+	// matched, without having to say it again in the config
+	for matchField, value := range matchParts {
+		if _, present := t.MessageFields[matchField]; !present {
+			changeFields[matchField] = value
+		}
+	}
+
+	err := t.updateMessage(pipelinePack.Message, changeFields, matchParts)
+	if err != nil {
+		return logError(err, pipelinePack)
+	}
+	return nil
+}
+
+// Update a message based on the populated fields to use for altering it
+func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
+	matchParts mapOfStrings) error {
+	for field, formatRegexp := range changeFields {
 		if field == "Timestamp" {
-			val, err := time.Parse(t.TimestampLayout, formatRegexp)
+			val, err := ForgivingTimeParse(t.TimestampLayout, formatRegexp)
 			if err != nil {
-				return logError(err, pipelinePack)
+				return err
 			}
-			pipelinePack.Message.SetTimestamp(val.UnixNano())
+			message.SetTimestamp(val.UnixNano())
 			continue
 		}
-		newString := interpolateString(formatRegexp, matchParts)
+		newString := interpolateString(formatRegexp, matchParts) // prob here too
 		if field == "Logger" {
-			pipelinePack.Message.SetLogger(newString)
+			message.SetLogger(newString)
 		} else if field == "Type" {
-			pipelinePack.Message.SetType(newString)
+			message.SetType(newString)
 		} else if field == "Payload" {
-			pipelinePack.Message.SetPayload(newString)
+			message.SetPayload(newString)
 		} else if field == "Hostname" {
-			pipelinePack.Message.SetHostname(newString)
+			message.SetHostname(newString)
 		} else if field == "Pid" {
 			pid, err := strconv.ParseInt(newString, 10, 32)
 			if err != nil {
-				return logError(err, pipelinePack)
+				return err
 			}
-			pipelinePack.Message.SetPid(int32(pid))
+			message.SetPid(int32(pid))
 		} else if field == "Uuid" {
-			pipelinePack.Message.SetUuid([]byte(newString))
+			message.SetUuid([]byte(newString))
 		} else {
 			field, err := NewField(field, newString, Field_RAW)
+			message.AddField(field)
 			if err != nil {
-				return logError(err, pipelinePack)
+				return err
 			}
-			pipelinePack.Message.AddField(field)
 		}
 	}
 	return nil
@@ -166,7 +204,7 @@ func interpolateString(formatRegexp string, matchParts mapOfStrings) (newString 
 
 // Log an error in the pipeline pack during decoder processing
 func logError(err error, pipelinePack *PipelinePack) error {
-	log.Printf("Unable to properly parse message UUID: %s. Error: %s",
+	log.Printf("Unable to properly parse message UUID: %s ERROR: %s",
 		pipelinePack.Message.GetUuid(), err)
 	return err
 }
