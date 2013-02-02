@@ -52,9 +52,9 @@ var (
 		// Monday, 02-Jan-06 15:04:05 MST
 		"DAY \\d{2}-SMONTH-\\d{2} \\d{2}:\\d{2}:\\d{2} \\w{3}",
 		// Mon, 02 Jan 2006 15:04:05 MST
-		"SDAY \\d{2} SMONTH \\d{4} \\d{2}:\\d{2}\\d{2} \\w{3}",
+		"SDAY \\d{2} SMONTH \\d{4} \\d{2}:\\d{2}:\\d{2} \\w{3}",
 		// Mon, 02 Jan 2006 15:04:05 -0700
-		"SDAY \\d{2} SMONTH \\d{4} \\d{2}:\\d{2}\\d{2} \\w{3} -\\d{4}",
+		"SDAY \\d{2} SMONTH \\d{4} \\d{2}:\\d{2}:\\d{2} \\w{3} -\\d{4}",
 		// 2006-01-02T15:04:05Z07:00
 		"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z\\d{2}:\\d{2}",
 		// 2006-01-02T15:04:05.999999999Z07:00
@@ -62,13 +62,13 @@ var (
 		// 3:04PM - Kitchen format.... really? Kitchen? sigh.
 		"\\d{1,2}:\\d{2}[AP]M",
 		// Jan _2 15:04:05
-		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}\\d{2}",
+		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}",
 		// Jan _2 15:04:05.000
-		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}\\d{2}\\.\\d{3}",
+		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}",
 		// Jan _2 15:04:05.000000
-		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}\\d{2}\\.\\d{6}",
+		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}",
 		// Jan _2 15:04:05.000000000
-		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}\\d{2}\\.\\d{9}",
+		"SMONTH\\s{1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\.\\d{9}",
 	}
 
 	// We have to duplicate this, cause time doesn't export them. Blech.
@@ -134,12 +134,12 @@ func ForgivingTimeParse(timeLayout, inputTime string) (parsedTime time.Time, err
 func init() {
 	HelperRegexSubs = make(map[string]string)
 
-	smonths := "(" + strings.Join(shortMonthNames, "|") + ")"
-	sdays := "(" + strings.Join(shortDayNames, "|") + ")"
-	days := "(" + strings.Join(longDayNames, "|") + ")"
+	smonths := "(?:" + strings.Join(shortMonthNames, "|") + ")"
+	sdays := "(?:" + strings.Join(shortDayNames, "|") + ")"
+	days := "(?:" + strings.Join(longDayNames, "|") + ")"
 
-	newMatchStrings := make([]string, 15)
-	replaceShorts, _ := regexp.Compile("(SDAYS|DAYS|SMONTH)")
+	newMatchStrings := make([]string, 0, 15)
+	replaceShorts, _ := regexp.Compile("(SDAY|DAY|SMONTH)")
 	for _, dateStr := range dateMatchStrings {
 		newStr := replaceShorts.ReplaceAllStringFunc(dateStr,
 			func(match string) string {
@@ -152,8 +152,8 @@ func init() {
 				}
 				return match
 			})
-		newMatchStrings = append(newMatchStrings, newStr)
+		newMatchStrings = append(newMatchStrings, "(?:"+newStr+")")
 	}
-	tsRegexString := "(?P<Timestamp>(" + strings.Join(newMatchStrings, "|") + "))"
+	tsRegexString := "(?P<Timestamp>" + strings.Join(newMatchStrings, "|") + ")"
 	HelperRegexSubs["TIMESTAMP"] = tsRegexString
 }
