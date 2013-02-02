@@ -91,13 +91,10 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 // Returns a slice of *DecoderRunners indexed by the Header_MessageEncoding
 // value that each decoder works for.
 func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
-	log.Println("Top: ", Top_Header_MessageEncoding)
 	decoders := make([]*DecoderRunner, Top_Header_MessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
-		log.Println("encoding: ", encoding)
 		decoder, ok := self.NewDecoder(name)
 		if !ok {
-			log.Printf("ERROR: No '%s' decoder", name)
 			continue
 		}
 		decoders[encoding] = decoder
