@@ -75,8 +75,9 @@ func (self *LogOutput) Init(config interface{}) error {
 
 func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 	msg := *(pipelinePack.Message)
-	log.Printf("<\n\tTimestamp: %d\n\tType: %s\n\tHostname: %s\n\tPid: %d\n\tUUID: %s"+
-		"\n\tLogger: %s\n\tPayload: %s\n\tFields: %+v\n>\n", msg.GetTimestamp(),
+	log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d\n\tUUID: %s"+
+		"\n\tLogger: %s\n\tPayload: %s\n\tFields: %+v\n>\n",
+		time.Unix(0, msg.GetTimestamp()),
 		msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuid(),
 		msg.GetLogger(), msg.GetPayload(), msg.Fields)
 }
