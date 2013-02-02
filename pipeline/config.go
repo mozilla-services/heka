@@ -363,4 +363,7 @@ func init() {
 	RegisterPlugin("LogfileInput", func() interface{} {
 		return new(LogfileInput)
 	})
+	RegisterPlugin("TextParserDecoder", func() interface{} {
+		return new(TextParserDecoder)
+	})
 }
