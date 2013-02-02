@@ -19,6 +19,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 var varMatcher *regexp.Regexp
@@ -131,6 +132,10 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 			val, err := ForgivingTimeParse(t.TimestampLayout, formatRegexp)
 			if err != nil {
 				return err
+			}
+			// Did we get a year?
+			if val.Year() == 0 {
+				val = val.AddDate(time.Now().Year(), 0, 0)
 			}
 			message.SetTimestamp(val.UnixNano())
 			continue
