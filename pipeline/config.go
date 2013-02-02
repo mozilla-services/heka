@@ -83,6 +83,7 @@ func (self *PipelineConfig) ChainRouter() *ChainRouter {
 	router := new(ChainRouter)
 	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	router.ChainMap = self.ChainMap
+	router.Start()
 	return router
 }
 

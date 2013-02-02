@@ -52,8 +52,6 @@ func (self *DecoderRunner) Start() {
 	var pack *PipelinePack
 	var err error
 
-	self.router.Start()
-
 	go func() {
 		for {
 			pack = <-self.InChan
