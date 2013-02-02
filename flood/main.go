@@ -16,6 +16,7 @@ package main
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"flag"
+	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
@@ -103,6 +104,7 @@ func main() {
 	message.SetEnvVersion("0.8")
 	message.SetPid(int32(os.Getpid()))
 	message.SetHostname(hostname)
+	message.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
 	msgBytes, err := encoder.EncodeMessage(message)
 
 	// wait for sigint
@@ -134,5 +136,5 @@ func main() {
 			}
 		}
 	}
-	log.Println("Clean shutdown")
+	log.Println("Clean shutdown: ", msgsSent, " messages sent")
 }
