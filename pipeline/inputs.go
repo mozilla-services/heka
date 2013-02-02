@@ -300,73 +300,88 @@ func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 	return nil
 }
 
-// // Global MessageGenerator
-// var MessageGenerator *msgGenerator = new(msgGenerator)
+// Global MessageGenerator
+var MessageGenerator *msgGenerator = new(msgGenerator)
 
-// type msgGenerator struct {
-// 	MessageChan chan *messageHolder
-// 	RecycleChan chan *messageHolder
-// }
+type msgGenerator struct {
+	MessageChan chan *messageHolder
+	RecycleChan chan *messageHolder
+}
 
-// func (self *msgGenerator) Init() {
-// 	self.MessageChan = make(chan *messageHolder, PoolSize/2)
-// 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
-// 	for i := 0; i < PoolSize/2; i++ {
-// 		msg := messageHolder{new(Message), 0}
-// 		self.RecycleChan <- &msg
-// 	}
-// }
+func (self *msgGenerator) Init() {
+	self.MessageChan = make(chan *messageHolder, PoolSize/2)
+	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
+	for i := 0; i < PoolSize/2; i++ {
+		msg := messageHolder{new(Message), 0}
+		self.RecycleChan <- &msg
+	}
+}
 
-// // Retrieve a message for use by the MessageGenerator.
-// // Must be passed the current pipeline.ChainCount.
-// //
-// // This is actually a messageHolder object that has a message and
-// // chainCount. The chainCount should remain untouched, and all the
-// // fields of the returned msg.Message should be overwritten as needed
-// // The msg.Message
-// func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
-// 	msg = <-self.RecycleChan
-// 	msg.ChainCount = chainCount
-// 	return msg
-// }
+// Retrieve a message for use by the MessageGenerator.
+// Must be passed the current pipeline.ChainCount.
+//
+// This is actually a messageHolder object that has a message and
+// chainCount. The chainCount should remain untouched, and all the
+// fields of the returned msg.Message should be overwritten as needed
+// The msg.Message
+func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+	msg = <-self.RecycleChan
+	msg.ChainCount = chainCount
+	return msg
+}
 
-// // Injects a message using the MessageGenerator
-// func (self *msgGenerator) Inject(msg *messageHolder) {
-// 	msg.ChainCount++
-// 	self.MessageChan <- msg
-// }
+// Injects a message using the MessageGenerator
+func (self *msgGenerator) Inject(msg *messageHolder) {
+	msg.ChainCount++
+	self.MessageChan <- msg
+}
 
-// // MessageGeneratorInput
-// type MessageGeneratorInput struct {
-// 	messageChan chan *messageHolder
-// 	recycleChan chan *messageHolder
-// 	msg         *messageHolder
-// }
+// MessageGeneratorInput
+type MessageGeneratorInput struct {
+	messageChan chan *messageHolder
+	recycleChan chan *messageHolder
+}
 
-// type messageHolder struct {
-// 	Message    *Message
-// 	ChainCount int
-// }
+type messageHolder struct {
+	Message    *Message
+	ChainCount int
+}
 
-// func (self *MessageGeneratorInput) Init(config interface{}) error {
-// 	MessageGenerator.Init()
-// 	self.messageChan = MessageGenerator.MessageChan
-// 	self.recycleChan = MessageGenerator.RecycleChan
-// 	return nil
-// }
+func (self *MessageGeneratorInput) Init(config interface{}) error {
+	MessageGenerator.Init()
+	self.messageChan = MessageGenerator.MessageChan
+	self.recycleChan = MessageGenerator.RecycleChan
+	return nil
+}
 
-// func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
-// 	timeout *time.Duration) error {
-// 	select {
-// 	case msgHolder := <-self.messageChan:
-// 		msgHolder.Message.Copy(pipeline.Message)
-// 		pipeline.Decoded = true
-// 		pipeline.ChainCount = msgHolder.ChainCount
-// 		self.recycleChan <- msgHolder
-// 		return nil
-// 	case <-time.After(*timeout):
-// 		return fmt.Errorf("No messages to read")
-// 	}
-// 	// shouldn't get here, compiler makes us have a return
-// 	return nil
-// }
+func (self *MessageGeneratorInput) Start(config *PipelineConfig,
+	wg *sync.WaitGroup) error {
+
+	var pack *PipelinePack
+	chainRouter := config.ChainRouter()
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+
+	go func() {
+	runnerLoop:
+		for {
+			select {
+			case msgHolder := <-self.messageChan:
+				select {
+				case pack = <-config.RecycleChan:
+					msgHolder.Message.Copy(pack.Message)
+					pack.Decoded = true
+					pack.ChainCount = msgHolder.ChainCount
+					chainRouter.InChan <- pack
+					self.recycleChan <- msgHolder
+				case <-stopChan:
+					break runnerLoop
+				}
+			case <-stopChan:
+				break runnerLoop
+			}
+		}
+	}()
+	wg.Done()
+	return nil
+}
