@@ -114,10 +114,12 @@ func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 				}
 				log.Println("UdpInput read error: ", err)
 				needOne = false
+				pack.Zero()
 				continue
 			}
 			pack.MsgBytes = pack.MsgBytes[:n]
 			decoder.InChan <- pack
+			needOne = true
 		}
 	}()
 
