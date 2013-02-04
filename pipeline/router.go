@@ -82,7 +82,7 @@ func (self *ChainRouter) Start() {
 }
 
 func (self *ChainRouter) LocateChain(message *Message) (string, bool) {
-	if chains, ok := self.ChainMap[*message.GetType()]; ok {
+	if chains, ok := self.ChainMap[message.GetType()]; ok {
 		return chains[0], true
 	}
 	return "", false
