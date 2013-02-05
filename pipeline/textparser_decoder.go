@@ -94,9 +94,9 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 		}
 	}
 
-	if severityString, found := matchParts["Severity"]; found {
+	if severityString, ok := matchParts["Severity"]; ok {
 		// First see if we have a mapping for this severity
-		if sevInt, found := t.SeverityMap[severityString]; found {
+		if sevInt, ok := t.SeverityMap[severityString]; ok {
 			pipelinePack.Message.Severity = &sevInt
 		} else {
 			sevInt, err := strconv.ParseInt(severityString, 10, 32)
@@ -205,7 +205,7 @@ func interpolateString(formatRegexp string, matchParts mapOfStrings) (newString 
 		func(matchWord string) string {
 			// Remove the preceeding @
 			m := matchWord[1:]
-			if repl, found := matchParts[m]; found {
+			if repl, ok := matchParts[m]; ok {
 				return repl
 			}
 			return ""

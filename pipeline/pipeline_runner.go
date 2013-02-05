@@ -112,7 +112,11 @@ func (self *PipelinePack) Zero() {
 	self.Decoded = false
 	self.Blocked = false
 	self.FilterChain = self.Config.DefaultFilterChain
+
+	// TODO: Possibly zero the message instead depending on benchmark
+	// results of re-allocating a new message
 	self.Message = new(Message)
+
 	for outputName, _ := range self.OutputNames {
 		delete(self.OutputNames, outputName)
 	}

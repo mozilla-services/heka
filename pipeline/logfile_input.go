@@ -66,13 +66,13 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 		pipelinePack.Message.SetLogger(logline.Path)
 		pipelinePack.Decoded = true
 
-		decoderNames, found := lw.DecoderMap[logline.Path]
-		if !found {
+		decoderNames, ok := lw.DecoderMap[logline.Path]
+		if !ok {
 			return nil
 		}
 		for _, decoderName := range decoderNames {
-			decoder, found := pipelinePack.Decoders[decoderName]
-			if !found {
+			decoder, ok := pipelinePack.Decoders[decoderName]
+			if !ok {
 				return fmt.Errorf("Unable to find configured decoder for log line %s",
 					logline.Path)
 			}
@@ -110,8 +110,8 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	// Should we seek?
 	offset := int64(0)
 	begin := 0
-	seek, found := fm.seek[fileName]
-	if found {
+	seek, ok := fm.seek[fileName]
+	if ok {
 		offset = seek
 	} else {
 		fm.seek[fileName] = offset
