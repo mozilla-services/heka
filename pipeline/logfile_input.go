@@ -113,13 +113,15 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	seek, found := fm.seek[fileName]
 	if found {
 		offset = seek
-		begin = 0
+	} else {
+		fm.seek[fileName] = offset
 	}
-	fm.seek[fileName] = offset
 	_, err = fd.Seek(offset, begin)
 	if err != nil {
 		// Unable to seek in, start at beginning
-		fd.Seek(0, 0)
+		if _, err = fd.Seek(0, 0); err != nil {
+			return
+		}
 		fm.seek[fileName] = 0
 	}
 	return nil
