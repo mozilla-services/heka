@@ -16,8 +16,8 @@ package pipeline
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"log"
 	"os"
 )
 
@@ -26,25 +26,10 @@ const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
 
 var AvailablePlugins = make(map[string]func() interface{})
 var DecodersByEncoding = make(map[Header_MessageEncoding]string)
-var Top_Header_MessageEncoding Header_MessageEncoding
+var topHeaderMessageEncoding Header_MessageEncoding
 
 func RegisterPlugin(name string, factory func() interface{}) {
 	AvailablePlugins[name] = factory
-}
-
-func RegisterDecoder(name string, factory func() interface{},
-	encoding Header_MessageEncoding) {
-
-	if encoding > MAX_HEADER_MESSAGEENCODING {
-		log.Printf("Can't register '%s' decoder, encoding header value > %d",
-			name, MAX_HEADER_MESSAGEENCODING)
-		return
-	}
-	if encoding > Top_Header_MessageEncoding {
-		Top_Header_MessageEncoding = encoding
-	}
-	DecodersByEncoding[encoding] = name
-	RegisterPlugin(name, factory)
 }
 
 type PluginConfig map[string]interface{}
@@ -91,7 +76,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 // Returns a slice of *DecoderRunners indexed by the Header_MessageEncoding
 // value that each decoder works for.
 func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
-	decoders := make([]*DecoderRunner, Top_Header_MessageEncoding+1)
+	decoders := make([]*DecoderRunner, topHeaderMessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
 		decoder, ok := self.NewDecoder(name)
 		if !ok {
@@ -191,22 +176,63 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 	return configStruct, nil
 }
 
+// Registers a particular decoder (specified by `decoderName`) to be used for
+// decoding messages sent received a particular message encoding header value
+// (specified by `encodingName`).
+func regDecoderForHeader(decoderName string, encodingName string) (err error) {
+	var encoding Header_MessageEncoding
+	var ok bool
+	if encodingInt32, ok := Header_MessageEncoding_value[encodingName]; !ok {
+		err = fmt.Errorf("No Header_MessageEncoding named '%s'", encodingName)
+		return
+	} else {
+		encoding = Header_MessageEncoding(encodingInt32)
+	}
+	if encoding > MAX_HEADER_MESSAGEENCODING {
+		err = fmt.Errorf("Header_MessageEncoding '%s' value '%d' higher than max '%d'",
+			encodingName, encoding, MAX_HEADER_MESSAGEENCODING)
+		return
+	}
+	// Be nice to be able to verify that this is actually a decoder.
+	if _, ok = AvailablePlugins[decoderName]; !ok {
+		err = fmt.Errorf("No decoder named '%s' registered as a plugin", decoderName)
+		return
+	}
+	if encoding > topHeaderMessageEncoding {
+		topHeaderMessageEncoding = encoding
+	}
+	DecodersByEncoding[encoding] = decoderName
+	return
+}
+
 // loadSection can be passed a configSection, the appropriate mapping
 // of available plug-ins for that section, and will then create
 // PluginWrappers for each plug-in instance defined
-func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper, err error) {
+func loadSection(sectionName string, configSection []PluginConfig) (
+	config map[string]*PluginWrapper, err error) {
+
 	var ok bool
 	config = make(map[string]*PluginWrapper)
-	for _, section := range configSection {
+	for _, pluginConf := range configSection {
 		wrapper := new(PluginWrapper)
-		pluginType := section["type"].(string)
+		pluginType := pluginConf["type"].(string)
 
-		// Use the section naming if applicable, or default to the type
-		// name
-		if _, ok := section["name"]; ok {
-			wrapper.name = section["name"].(string)
+		// Use the specified plugin name or default to the type name
+		if _, ok := pluginConf["name"]; ok {
+			wrapper.name = pluginConf["name"].(string)
 		} else {
 			wrapper.name = pluginType
+		}
+
+		// For decoders check to see if we need to register against a protocol
+		// header
+		if sectionName == "decoders" {
+			if encodingName, ok := pluginConf["encoding_name"]; ok {
+				err = regDecoderForHeader(wrapper.name, encodingName.(string))
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 
 		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
@@ -216,7 +242,7 @@ func loadSection(configSection []PluginConfig) (config map[string]*PluginWrapper
 
 		// Create an instance so we can see if we need to marshal the JSON
 		plugin := wrapper.pluginCreator()
-		configLoaded, err := LoadConfigStruct(&section, plugin)
+		configLoaded, err := LoadConfigStruct(&pluginConf, plugin)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +299,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return err
 	}
 
-	if self.Inputs, err = loadSection(configFile.Inputs); err != nil {
+	if self.Inputs, err = loadSection("inputs", configFile.Inputs); err != nil {
 		return err
 	} else {
 		// Setup our message generator input
@@ -285,17 +311,17 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		self.Inputs["MessageGeneratorInput"] = mgiWrapper
 	}
 
-	self.Decoders, err = loadSection(configFile.Decoders)
+	self.Decoders, err = loadSection("decoders", configFile.Decoders)
 	if err != nil {
 		return errors.New("Error reading decoders: " + err.Error())
 	}
 
-	self.Filters, err = loadSection(configFile.Filters)
+	self.Filters, err = loadSection("filters", configFile.Filters)
 	if err != nil {
 		return errors.New("Error reading filters: " + err.Error())
 	}
 
-	self.Outputs, err = loadSection(configFile.Outputs)
+	self.Outputs, err = loadSection("outputs", configFile.Outputs)
 	if err != nil {
 		return errors.New("Error reading outputs: " + err.Error())
 	}
@@ -360,12 +386,12 @@ func init() {
 	RegisterPlugin("TcpInput", func() interface{} {
 		return new(TcpInput)
 	})
-	RegisterDecoder("JsonDecoder", func() interface{} {
+	RegisterPlugin("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
-	}, Header_JSON)
-	RegisterDecoder("ProtobufDecoder", func() interface{} {
+	})
+	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)
-	}, Header_PROTOCOL_BUFFER)
+	})
 	RegisterPlugin("StatsdUdpInput", func() interface{} {
 		return RunnerMaker(new(StatsdInWriter))
 	})
