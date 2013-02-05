@@ -121,6 +121,7 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 	if err != nil {
 		return logError(err, pipelinePack)
 	}
+	pipelinePack.Decoded = true
 	return nil
 }
 

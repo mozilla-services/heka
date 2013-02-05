@@ -16,7 +16,7 @@ package pipeline
 import (
 	"bufio"
 	"errors"
-	"log"
+	"fmt"
 	"os"
 	"time"
 )
@@ -28,7 +28,7 @@ type LogfileInputConfig struct {
 
 type LogfileInput struct {
 	Monitor    *FileMonitor
-	DecoderMap map[string]string
+	DecoderMap map[string][]string
 }
 
 type Logline struct {
@@ -43,20 +43,20 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
-	lw.DecoderMap = make(map[string]string)
+	lw.DecoderMap = make(map[string][]string)
 	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
 		return err
 	}
 	for _, logconf := range conf.LogFiles {
 		if len(logconf) > 1 {
-			lw.DecoderMap[logconf[0]] = logconf[1]
+			copy(lw.DecoderMap[logconf[0]], logconf[1:])
 		}
 	}
 	return nil
 }
 
 func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) error {
+	timeout *time.Duration) (err error) {
 	select {
 	case <-time.After(*timeout):
 		return errors.New("Timeout waiting for log line")
@@ -64,22 +64,25 @@ func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
 		pipelinePack.Message.SetType("logfile")
 		pipelinePack.Message.SetPayload(logline.Line)
 		pipelinePack.Message.SetLogger(logline.Path)
-		if decoderName, found := lw.DecoderMap[logline.Path]; found {
-			if decoder, found := pipelinePack.Decoders[decoderName]; found {
-				err := decoder.Decode(pipelinePack)
-				if err != nil {
-					log.Printf("Unable to properly parse message. Dropped.")
-					pipelinePack.Blocked = true
-				}
-			} else {
-				log.Printf("Unable to find decoder instance for message "+
-					" using name: %s", decoderName)
-				pipelinePack.Blocked = true
+		pipelinePack.Decoded = true
+
+		decoderNames, found := lw.DecoderMap[logline.Path]
+		if !found {
+			return nil
+		}
+		for _, decoderName := range decoderNames {
+			decoder, found := pipelinePack.Decoders[decoderName]
+			if !found {
+				return fmt.Errorf("Unable to find configured decoder for log line %s",
+					logline.Path)
+			}
+			err = decoder.Decode(pipelinePack)
+			if err == nil {
+				return
 			}
 		}
-		pipelinePack.Decoded = true
 	}
-	return nil
+	return
 }
 
 func (lw *LogfileInput) Event(eventType string) {
