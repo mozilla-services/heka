@@ -143,11 +143,12 @@ func init() {
 	for _, dateStr := range dateMatchStrings {
 		newStr := replaceShorts.ReplaceAllStringFunc(dateStr,
 			func(match string) string {
-				if match == "SDAY" {
+				switch match {
+				case "SDAY":
 					return sdays
-				} else if match == "DAY" {
+				case "DAY":
 					return days
-				} else if match == "SMONTH" {
+				case "SMONTH":
 					return smonths
 				}
 				return match

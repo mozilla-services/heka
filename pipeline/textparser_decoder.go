@@ -141,24 +141,25 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 			message.SetTimestamp(val.UnixNano())
 			continue
 		}
-		newString := interpolateString(formatRegexp, matchParts) // prob here too
-		if field == "Logger" {
+		newString := interpolateString(formatRegexp, matchParts)
+		switch field {
+		case "Logger":
 			message.SetLogger(newString)
-		} else if field == "Type" {
+		case "Type":
 			message.SetType(newString)
-		} else if field == "Payload" {
+		case "Payload":
 			message.SetPayload(newString)
-		} else if field == "Hostname" {
+		case "Hostname":
 			message.SetHostname(newString)
-		} else if field == "Pid" {
+		case "Pid":
 			pid, err := strconv.ParseInt(newString, 10, 32)
 			if err != nil {
 				return err
 			}
 			message.SetPid(int32(pid))
-		} else if field == "Uuid" {
+		case "Uuid":
 			message.SetUuid([]byte(newString))
-		} else {
+		default:
 			field, err := NewField(field, newString, Field_RAW)
 			message.AddField(field)
 			if err != nil {
