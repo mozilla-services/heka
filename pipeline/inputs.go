@@ -24,7 +24,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	//"time"
 )
 
 const (
@@ -342,6 +341,7 @@ func (self *msgGenerator) Inject(msg *messageHolder) {
 type MessageGeneratorInput struct {
 	messageChan chan *messageHolder
 	recycleChan chan *messageHolder
+	name        string
 }
 
 type messageHolder struct {
@@ -354,6 +354,14 @@ func (self *MessageGeneratorInput) Init(config interface{}) error {
 	self.messageChan = MessageGenerator.MessageChan
 	self.recycleChan = MessageGenerator.RecycleChan
 	return nil
+}
+
+func (self *MessageGeneratorInput) Name() string {
+	return self.name
+}
+
+func (self *MessageGeneratorInput) SetName(name string) {
+	self.name = name
 }
 
 func (self *MessageGeneratorInput) Start(config *PipelineConfig,

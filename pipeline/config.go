@@ -277,12 +277,12 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return err
 	} else {
 		// Setup our message generator input
-		// MessageGenerator.Init()
-		// mgiWrapper := new(PluginWrapper)
-		// mgiWrapper.name = "MessageGeneratorInput"
-		// mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
-		// mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
-		// self.Inputs["MessageGeneratorInput"] = mgiWrapper
+		MessageGenerator.Init()
+		mgiWrapper := new(PluginWrapper)
+		mgiWrapper.name = "MessageGeneratorInput"
+		mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
+		mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
+		self.Inputs["MessageGeneratorInput"] = mgiWrapper
 	}
 
 	self.Decoders, err = loadSection(configFile.Decoders)
