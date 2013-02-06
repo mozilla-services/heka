@@ -177,7 +177,7 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 }
 
 // Registers a particular decoder (specified by `decoderName`) to be used for
-// decoding messages sent received a particular message encoding header value
+// decoding messages with a particular message encoding header value
 // (specified by `encodingName`).
 func regDecoderForHeader(decoderName string, encodingName string) (err error) {
 	var encoding Header_MessageEncoding
