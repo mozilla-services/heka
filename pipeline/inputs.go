@@ -34,7 +34,7 @@ const (
 )
 
 type Input interface {
-	Start(config *PipelineConfig, wg *sync.WaitGroup) error
+	Start(helper PluginHelper, wg *sync.WaitGroup) error
 	Name() string
 	SetName(name string)
 }
@@ -91,10 +91,13 @@ func (self *UdpInput) Name() string {
 	return self.name
 }
 
-func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
+func (self *UdpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 
-	decoders := config.NewDecoderSet()
-	decoder := decoders[Header_JSON] // TODO: Support for headers on UDP
+	decoders := helper.NewDecoderSet()
+	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
+	if decoder == nil {
+		return fmt.Errorf("UdpInput error: No JSON decoder found.")
+	}
 
 	var stopped bool
 	go func() {
@@ -104,7 +107,7 @@ func (self *UdpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 		needOne := true
 		for {
 			if needOne {
-				pack = <-config.RecycleChan
+				pack = <-helper.PackSupply()
 			}
 			n, err = self.listener.Read(pack.MsgBytes)
 			if err != nil {
@@ -204,7 +207,7 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
-func (self *TcpInput) handleConnection(config *PipelineConfig, conn net.Conn) {
+func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 	defer conn.Close()
 
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
@@ -213,7 +216,7 @@ func (self *TcpInput) handleConnection(config *PipelineConfig, conn net.Conn) {
 	var pack *PipelinePack
 	var msgOk bool
 
-	decoders := config.NewDecoderSet()
+	decoders := helper.NewDecoderSet()
 	var encoding Header_MessageEncoding
 
 	for {
@@ -221,7 +224,7 @@ func (self *TcpInput) handleConnection(config *PipelineConfig, conn net.Conn) {
 		if n > 0 {
 			readPos += n
 			for { // consume all available records
-				pack = <-config.RecycleChan
+				pack = <-helper.PackSupply()
 				posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
 				scanPos += posDelta
 
@@ -271,7 +274,7 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
+func (self *TcpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 
 	var stopped bool
 	go func() {
@@ -284,7 +287,7 @@ func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 				log.Println("TCP accept failed")
 				continue
 			}
-			go self.handleConnection(config, conn)
+			go self.handleConnection(helper, conn)
 		}
 	}()
 
@@ -364,11 +367,11 @@ func (self *MessageGeneratorInput) SetName(name string) {
 	self.name = name
 }
 
-func (self *MessageGeneratorInput) Start(config *PipelineConfig,
+func (self *MessageGeneratorInput) Start(helper PluginHelper,
 	wg *sync.WaitGroup) error {
 
 	var pack *PipelinePack
-	chainRouter := config.ChainRouter()
+	chainRouter := helper.ChainRouter()
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 
@@ -378,7 +381,7 @@ func (self *MessageGeneratorInput) Start(config *PipelineConfig,
 			select {
 			case msgHolder := <-self.messageChan:
 				select {
-				case pack = <-config.RecycleChan:
+				case pack = <-helper.PackSupply():
 					msgHolder.Message.Copy(pack.Message)
 					pack.Decoded = true
 					pack.ChainCount = msgHolder.ChainCount

@@ -34,6 +34,13 @@ func RegisterPlugin(name string, factory func() interface{}) {
 
 type PluginConfig map[string]interface{}
 
+type PluginHelper interface {
+	PackSupply() chan *PipelinePack
+	NewDecoder(name string) (runner *DecoderRunner, ok bool)
+	NewDecoderSet() (decoders []*DecoderRunner)
+	ChainRouter() *ChainRouter
+}
+
 // Indicates a plug-in has a specific-to-itself config struct that should be
 // passed in to its Init method.
 type HasConfigStruct interface {
@@ -85,6 +92,10 @@ func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
 		decoders[encoding] = decoder
 	}
 	return decoders
+}
+
+func (self *PipelineConfig) PackSupply() chan *PipelinePack {
+	return self.RecycleChan
 }
 
 func (self *PipelineConfig) NewDecoder(name string) (
