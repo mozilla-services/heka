@@ -15,9 +15,10 @@ package pipeline
 
 import (
 	"bufio"
-	"errors"
-	"fmt"
+	"github.com/rafrombrc/go-notify"
+	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,7 @@ type LogfileInputConfig struct {
 type LogfileInput struct {
 	Monitor    *FileMonitor
 	DecoderMap map[string][]string
+	name       string
 }
 
 type Logline struct {
@@ -49,40 +51,67 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	for _, logconf := range conf.LogFiles {
 		if len(logconf) > 1 {
-			copy(lw.DecoderMap[logconf[0]], logconf[1:])
+			lw.DecoderMap[logconf[0]] = logconf[1:]
 		}
 	}
 	return nil
 }
 
-func (lw *LogfileInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) (err error) {
-	select {
-	case <-time.After(*timeout):
-		return errors.New("Timeout waiting for log line")
-	case logline := <-lw.Monitor.NewLines:
-		pipelinePack.Message.SetType("logfile")
-		pipelinePack.Message.SetPayload(logline.Line)
-		pipelinePack.Message.SetLogger(logline.Path)
-		pipelinePack.Decoded = true
+func (lw *LogfileInput) Name() string {
+	return lw.name
+}
 
-		decoderNames, ok := lw.DecoderMap[logline.Path]
-		if !ok {
-			return nil
-		}
-		for _, decoderName := range decoderNames {
-			decoder, ok := pipelinePack.Decoders[decoderName]
-			if !ok {
-				return fmt.Errorf("Unable to find configured decoder for log line %s",
-					logline.Path)
-			}
-			err = decoder.Decode(pipelinePack)
-			if err == nil {
-				return
+func (lw *LogfileInput) SetName(name string) {
+	lw.name = name
+}
+
+func (lw *LogfileInput) LineReader(config *PipelineConfig, stopChan chan interface{},
+	wg *sync.WaitGroup) {
+	var pack *PipelinePack
+	var decoder Decoder
+	var decoderName string
+	var ok bool
+	var err error
+	chainRouter := config.ChainRouter()
+runnerLoop:
+	for {
+		select {
+		case <-stopChan:
+			break runnerLoop
+		case logline := <-lw.Monitor.NewLines:
+			select {
+			case <-stopChan:
+				break runnerLoop
+			case pack = <-config.RecycleChan:
+				pack.Message.SetType("logfile")
+				pack.Message.SetPayload(logline.Line)
+				pack.Message.SetLogger(logline.Path)
+				pack.Decoded = true
+				for _, decoderName = range lw.DecoderMap[logline.Path] {
+					decoder, ok = pack.Decoders[decoderName]
+					if !ok {
+						log.Printf("Unable to find configured decoder for log line %s",
+							logline.Path)
+					}
+					err = decoder.Decode(pack)
+					if err == nil {
+						break
+					}
+				}
+				chainRouter.InChan <- pack
 			}
 		}
 	}
-	return
+	wg.Done()
+}
+
+func (lw *LogfileInput) Start(config *PipelineConfig,
+	wg *sync.WaitGroup) error {
+
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+	go lw.LineReader(config, stopChan, wg)
+	return nil
 }
 
 func (lw *LogfileInput) Event(eventType string) {
