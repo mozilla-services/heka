@@ -42,7 +42,6 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
-	r.AddSpec(InputRunnerSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
 	gospec.MainGoTest(r, t)
