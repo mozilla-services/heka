@@ -180,9 +180,11 @@ func Run(config *PipelineConfig) {
 			log.Fatalf("Failure to load plugin: %s", name)
 		}
 		input := inputPlug.(Input)
-		inRunner = &InputRunner{name, input, &timeout}
-		inputRunners[name] = inRunner
-		inRunner.Start(dataChan, recycleChan, &wg)
+		input.SetName(name)
+		if input.Start(config, &wg) != nil {
+			log.Printf("'%s' input failed to start: %s", name, err)
+			continue
+		}
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
