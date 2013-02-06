@@ -120,6 +120,11 @@ func (self *PipelinePack) Zero() {
 	self.Decoded = false
 	self.Blocked = false
 	self.FilterChain = self.Config.DefaultFilterChain
+
+	// TODO: Possibly zero the message instead depending on benchmark
+	// results of re-allocating a new message
+	self.Message = new(Message)
+
 	for outputName, _ := range self.OutputNames {
 		delete(self.OutputNames, outputName)
 	}
@@ -170,13 +175,14 @@ func Run(config *PipelineConfig) {
 	}
 
 	for name, wrapper := range config.Inputs {
-		input := wrapper.Create().(Input)
-		input.SetName(name)
-		err := input.Start(config, &wg)
+		inputPlug, err := wrapper.CreateWithError()
 		if err != nil {
-			log.Printf("'%s' input failed to start: %s", name, err)
-			continue
+			log.Fatalf("Failure to load plugin: %s", name)
 		}
+		input := inputPlug.(Input)
+		inRunner = &InputRunner{name, input, &timeout}
+		inputRunners[name] = inRunner
+		inRunner.Start(dataChan, recycleChan, &wg)
 		wg.Add(1)
 		log.Printf("Input started: %s\n", name)
 	}
