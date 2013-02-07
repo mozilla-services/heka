@@ -60,12 +60,12 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
 
 			// and the message lookup is set properly
-			filterName, ok := pipeConfig.Lookup.MessageType["counter"]
+			filterName, ok := config.ChainMap["counter"]
 			c.Expect(ok, gs.Equals, true)
 			c.Expect(filterName[0], gs.Equals, "sample")
 
 			// and the second message lookup is set properly
-			filterName, ok = pipeConfig.Lookup.MessageType["gauge"]
+			filterName, ok = config.ChainMap["gauge"]
 			c.Expect(ok, gs.Equals, true)
 			c.Expect(filterName[0], gs.Equals, "sample")
 		})

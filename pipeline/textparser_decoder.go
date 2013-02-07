@@ -38,6 +38,7 @@ type TextParserDecoder struct {
 	MessageFields   mapOfStrings
 	TimestampLayout string
 	PayloadMatch    *regexp.Regexp
+	basicFields     []string
 }
 
 func (t *TextParserDecoder) ConfigStruct() interface{} {
@@ -48,6 +49,8 @@ func (t *TextParserDecoder) Init(config interface{}) (err error) {
 	conf := config.(*TextParserDecoderConfig)
 	t.SeverityMap = make(map[string]int32)
 	t.MessageFields = make(mapOfStrings)
+	t.basicFields = []string{"Timestamp", "Logger", "Type", "Hostname",
+		"Payload", "Pid", "Uuid"}
 	if conf.SeverityMap != nil {
 		for codeString, codeInt := range conf.SeverityMap {
 			t.SeverityMap[codeString] = codeInt
@@ -108,10 +111,13 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 		}
 	}
 
-	// Copy fields that don't exist in changeFields from our matchParts
-	// This allows us to directly set a Timestamp for example, if one was
-	// matched, without having to say it again in the config
-	for matchField, value := range matchParts {
+	// Only copy basic fields into the changeFields
+	for _, matchField := range t.basicFields {
+		// Does it exist in our matchParts?
+		value := matchParts[matchField]
+		if value == "" {
+			continue
+		}
 		if _, present := t.MessageFields[matchField]; !present {
 			changeFields[matchField] = value
 		}
@@ -141,6 +147,7 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 			message.SetTimestamp(val.UnixNano())
 			continue
 		}
+
 		newString := interpolateString(formatRegexp, matchParts)
 		switch field {
 		case "Logger":
