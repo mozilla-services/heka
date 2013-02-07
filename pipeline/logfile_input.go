@@ -102,6 +102,7 @@ runnerLoop:
 			}
 		}
 	}
+	log.Println("Input stopped: LogfileInput")
 	wg.Done()
 }
 
@@ -136,22 +137,16 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	}
 	fm.fds[fileName] = fd
 
-	// Should we seek?
-	offset := int64(0)
+	// Seek as needed
 	begin := 0
-	seek, ok := fm.seek[fileName]
-	if ok {
-		offset = seek
-	} else {
-		fm.seek[fileName] = offset
-	}
+	offset := fm.seek[fileName]
 	_, err = fd.Seek(offset, begin)
 	if err != nil {
 		// Unable to seek in, start at beginning
+		fm.seek[fileName] = 0
 		if _, err = fd.Seek(0, 0); err != nil {
 			return
 		}
-		fm.seek[fileName] = 0
 	}
 	return nil
 }
