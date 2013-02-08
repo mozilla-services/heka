@@ -19,6 +19,7 @@ var variables = map[string]int{
 	"Timestamp":  VAR_TIMESTAMP,
 	"Severity":   VAR_SEVERITY,
 	"Pid":        VAR_PID,
+	"Fields":     VAR_FIELDS,
 	"TRUE":       TRUE,
 	"FALSE":      FALSE}
 
@@ -63,15 +64,18 @@ var nodes []*tree
 %}
 
 %union {
-   tokenId  int
-   token    string
-   double   float64
+   tokenId     int
+   token       string
+   double      float64
+   fieldIndex  int
+   arrayIndex  int
 }
 
 %token OP_EQ OP_NE OP_GT OP_GTE OP_LT OP_LTE
 %token OP_OR OP_AND
 %token VAR_UUID VAR_TYPE VAR_LOGGER VAR_PAYLOAD VAR_ENVVERSION VAR_HOSTNAME
 %token VAR_TIMESTAMP VAR_SEVERITY VAR_PID
+%token VAR_FIELDS
 %token STRING_VALUE NUMERIC_VALUE
 %token TRUE FALSE
 
@@ -114,6 +118,22 @@ numeric_test : numeric_vars relational NUMERIC_VALUE
    nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
    }
 ;
+field_test : VAR_FIELDS relational NUMERIC_VALUE
+      {
+      //fmt.Println("field_test numeric", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+      }
+   | VAR_FIELDS relational STRING_VALUE
+      {
+      //fmt.Println("field_test string", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+      }
+   | VAR_FIELDS OP_EQ boolean
+      {
+      //fmt.Println("field_test boolean", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+      }
+;
 boolean : TRUE | FALSE
 expr : '(' expr ')'
       {
@@ -131,6 +151,7 @@ expr : '(' expr ')'
       }
    | string_test
    | numeric_test
+   | field_test
    | boolean
       {
          //fmt.Println("boolean", $1)
@@ -263,9 +284,62 @@ variable:
 			break
 		}
 	}
-	f.peekrune = c
-	yylval.token = f.sym
 	yylval.tokenId = variables[f.sym]
+   if yylval.tokenId == VAR_FIELDS {
+      if c != '[' {
+         return 0
+      }
+      var bracketCount int
+      var idx [3]string
+      for {
+      	c = f.getrune()
+      	if c == 0 {
+      		return 0
+      	}
+      	if c == ']' { // a closing bracket in the variable name will fail validation
+            if len(idx[bracketCount]) == 0 {
+               return 0
+            }
+            bracketCount++
+			   f.peekrune = f.getrune()
+   			if f.peekrune == '[' && bracketCount < cap(idx) {
+   			   f.peekrune = ' '
+   			} else {
+               break
+            }
+      	} else {
+            switch bracketCount {
+               case 0:
+                  idx[bracketCount] += string(c)
+               case 1,2:
+                  if ddigit(c) {
+                     idx[bracketCount] += string(c)
+                  } else {
+                     return 0
+                  }
+            }
+         }
+   	}
+      if len(idx[1]) == 0 {
+         idx[1] = "0"
+      }
+      if len(idx[2]) == 0 {
+         idx[2] = "0"
+      }
+      var err error
+   	yylval.token = idx[0]
+      yylval.fieldIndex, err = strconv.Atoi(idx[1])
+      if err != nil {
+         return 0
+      }
+      yylval.arrayIndex, err = strconv.Atoi(idx[2])
+      if err != nil {
+         return 0
+      }
+   } else {
+	   yylval.token = f.sym
+	   f.peekrune = c
+   }
 	return yylval.tokenId
 
 number:
@@ -326,6 +400,14 @@ func rdigit(c rune) bool {
 	switch c {
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 		'.', 'e', '+', '-':
+		return true
+	}
+	return false
+}
+
+func ddigit(c rune) bool {
+	switch c {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return true
 	}
 	return false

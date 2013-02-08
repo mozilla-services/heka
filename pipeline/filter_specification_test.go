@@ -15,6 +15,7 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
@@ -23,6 +24,18 @@ func FilterSpecificationSpec(c gospec.Context) {
 	pack := getTestPipelinePack()
 	pack.Message = getTestMessage()
 	uuidStr := pack.Message.GetUuidString()
+	data := []byte("data")
+	field1, _ := message.NewField("bytes", data, message.Field_RAW)
+	field2, _ := message.NewField("int", int64(999), message.Field_RAW)
+	field2.AddValue(int64(1024))
+	field3, _ := message.NewField("double", float64(99.9), message.Field_RAW)
+	field4, _ := message.NewField("bool", true, message.Field_RAW)
+	field5, _ := message.NewField("foo", "alternate", message.Field_RAW)
+	pack.Message.AddField(field1)
+	pack.Message.AddField(field2)
+	pack.Message.AddField(field3)
+	pack.Message.AddField(field4)
+	pack.Message.AddField(field5)
 
 	c.Specify("A FilterSpecification", func() {
 		malformed := []string{"",
@@ -31,6 +44,13 @@ func FilterSpecificationSpec(c gospec.Context) {
 			"Pid == \"test=\"",                                                // Pid is not a string
 			"Type == \"test\" && (Severity==7 || Payload == \"Test Payload\"", // missing paren
 			"Invalid == \"bogus\"",                                            // unknown variable name
+			"Fields[]",                                                        // empty name key
+			"Fields[test][]",                                                  // empty field index
+			"Fields[test][a]",                                                 // non numeric field index
+			"Fields[test][0][]",                                               // empty array index
+			"Fields[test][0][a]",                                              // non numeric array index
+			"Fields[test][0][0][]",                                            // extra index dimension
+			"Fields[test][xxxx",                                               // unmatched bracket
 		}
 
 		negative := []string{"FALSE",
@@ -47,6 +67,10 @@ func FilterSpecificationSpec(c gospec.Context) {
 			"Severity <= 5",
 			"Severity > 6",
 			"Severity >= 7",
+			"Fields[foo] == \"ba\"",
+			"Fields[foo][1] == \"bar\"",
+			"Fields[foo][0][1] == \"bar\"",
+			"Fields[bool] == FALSE",
 		}
 
 		positive := []string{"TRUE",
@@ -73,6 +97,17 @@ func FilterSpecificationSpec(c gospec.Context) {
 			"Type == \"TEST\"",
 			"Type == \"foo\" || Type == \"bar\" || Type == \"TEST\"",
 			fmt.Sprintf("Uuid == \"%s\"", uuidStr),
+			"Fields[foo] == \"bar\"",
+			"Fields[foo][0] == \"bar\"",
+			"Fields[foo][0][0] == \"bar\"",
+			"Fields[foo][1] == \"alternate\"",
+			"Fields[foo][1][0] == \"alternate\"",
+			"Fields[foo] == \"bar\"",
+			"Fields[bytes] == \"data\"",
+			"Fields[int] == 999",
+			"Fields[int][0][1] == 1024",
+			"Fields[double] == 99.9",
+			"Fields[bool] == TRUE",
 		}
 
 		c.Specify("malformed filter tests", func() {
@@ -93,7 +128,6 @@ func FilterSpecificationSpec(c gospec.Context) {
 
 		c.Specify("positive filter tests", func() {
 			for _, v := range positive {
-				fmt.Println("filter", v)
 				fs, err := CreateFilterSpecification(v)
 				c.Expect(err, gs.IsNil)
 				fs.FilterMsg(pack)

@@ -22,6 +22,7 @@ var variables = map[string]int{
 	"Timestamp":  VAR_TIMESTAMP,
 	"Severity":   VAR_SEVERITY,
 	"Pid":        VAR_PID,
+	"Fields":     VAR_FIELDS,
 	"TRUE":       TRUE,
 	"FALSE":      FALSE}
 
@@ -63,12 +64,14 @@ func (s *stack) pop() (node *tree) {
 
 var nodes []*tree
 
-//line filter_specification_parser.y:65
+//line filter_specification_parser.y:66
 type yySymType struct {
-	yys     int
-	tokenId int
-	token   string
-	double  float64
+	yys        int
+	tokenId    int
+	token      string
+	double     float64
+	fieldIndex int
+	arrayIndex int
 }
 
 const OP_EQ = 57346
@@ -88,10 +91,11 @@ const VAR_HOSTNAME = 57359
 const VAR_TIMESTAMP = 57360
 const VAR_SEVERITY = 57361
 const VAR_PID = 57362
-const STRING_VALUE = 57363
-const NUMERIC_VALUE = 57364
-const TRUE = 57365
-const FALSE = 57366
+const VAR_FIELDS = 57363
+const STRING_VALUE = 57364
+const NUMERIC_VALUE = 57365
+const TRUE = 57366
+const FALSE = 57367
 
 var yyToknames = []string{
 	"OP_EQ",
@@ -111,6 +115,7 @@ var yyToknames = []string{
 	"VAR_TIMESTAMP",
 	"VAR_SEVERITY",
 	"VAR_PID",
+	"VAR_FIELDS",
 	"STRING_VALUE",
 	"NUMERIC_VALUE",
 	"TRUE",
@@ -122,7 +127,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line filter_specification_parser.y:141
+//line filter_specification_parser.y:162
 type FilterSpecificationParser struct {
 	filter   string
 	sym      string
@@ -246,9 +251,62 @@ variable:
 			break
 		}
 	}
-	f.peekrune = c
-	yylval.token = f.sym
 	yylval.tokenId = variables[f.sym]
+	if yylval.tokenId == VAR_FIELDS {
+		if c != '[' {
+			return 0
+		}
+		var bracketCount int
+		var idx [3]string
+		for {
+			c = f.getrune()
+			if c == 0 {
+				return 0
+			}
+			if c == ']' { // a closing bracket in the varible name will fail validation
+				if len(idx[bracketCount]) == 0 {
+					return 0
+				}
+				bracketCount++
+				f.peekrune = f.getrune()
+				if f.peekrune == '[' && bracketCount < cap(idx) {
+					f.peekrune = ' '
+				} else {
+					break
+				}
+			} else {
+				switch bracketCount {
+				case 0:
+					idx[bracketCount] += string(c)
+				case 1, 2:
+					if ddigit(c) {
+						idx[bracketCount] += string(c)
+					} else {
+						return 0
+					}
+				}
+			}
+		}
+		if len(idx[1]) == 0 {
+			idx[1] = "0"
+		}
+		if len(idx[2]) == 0 {
+			idx[2] = "0"
+		}
+		var err error
+		yylval.token = idx[0]
+		yylval.fieldIndex, err = strconv.Atoi(idx[1])
+		if err != nil {
+			return 0
+		}
+		yylval.arrayIndex, err = strconv.Atoi(idx[2])
+		if err != nil {
+			return 0
+		}
+	} else {
+		yylval.token = f.sym
+		f.peekrune = c
+	}
 	return yylval.tokenId
 
 number:
@@ -314,6 +372,14 @@ func rdigit(c rune) bool {
 	return false
 }
 
+func ddigit(c rune) bool {
+	switch c {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return true
+	}
+	return false
+}
+
 func (f *FilterSpecificationParser) getrune() rune {
 	var c rune
 	var n int
@@ -336,57 +402,64 @@ var yyExca = []int{
 	-2, 0,
 }
 
-const yyNprod = 28
+const yyNprod = 32
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 39
+const yyLast = 53
 
 var yyAct = []int{
 
-	11, 12, 13, 14, 15, 16, 17, 18, 19, 22,
-	21, 9, 10, 3, 2, 36, 20, 35, 23, 25,
-	26, 27, 28, 29, 30, 34, 22, 21, 21, 24,
-	6, 5, 4, 8, 7, 1, 32, 33, 31,
+	13, 14, 15, 16, 17, 18, 19, 20, 21, 10,
+	7, 39, 11, 12, 3, 24, 23, 2, 40, 22,
+	23, 25, 11, 12, 42, 41, 35, 28, 29, 30,
+	31, 32, 38, 27, 28, 29, 30, 31, 32, 26,
+	6, 36, 37, 24, 23, 5, 43, 4, 9, 33,
+	34, 8, 1,
 }
 var yyPact = []int{
 
-	-12, -12, 16, -12, -1000, -1000, -1000, 15, 15, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	16, -12, -12, -1, -4, -1000, -1000, -1000, -1000, -1000,
-	-1000, -7, -1000, 17, -1000, -1000, -1000,
+	-12, -12, 33, -12, -1000, -1000, -1000, -1000, 29, 29,
+	22, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, 33, -12, -12, 5, -11, -1000, -1000, -1000,
+	-1000, -1000, -1000, -5, 2, -2, -1000, 9, -1000, -1000,
+	-1000, -1000, -1000, -1000,
 }
 var yyPgo = []int{
 
-	0, 35, 14, 29, 34, 33, 32, 31, 30,
+	0, 52, 17, 39, 51, 48, 47, 45, 40, 10,
 }
 var yyR1 = []int{
 
 	0, 1, 1, 3, 3, 3, 3, 3, 3, 4,
 	4, 4, 4, 4, 4, 5, 5, 5, 6, 7,
-	8, 8, 2, 2, 2, 2, 2, 2,
+	8, 8, 8, 9, 9, 2, 2, 2, 2, 2,
+	2, 2,
 }
 var yyR2 = []int{
 
 	0, 1, 2, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 3, 3,
-	1, 1, 3, 3, 3, 1, 1, 1,
+	3, 3, 3, 1, 1, 3, 3, 3, 1, 1,
+	1, 1,
 }
 var yyChk = []int{
 
-	-1000, -1, -2, 25, -6, -7, -8, -4, -5, 23,
-	24, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-	-2, 11, 10, -2, -3, 4, 5, 6, 7, 8,
-	9, -3, -2, -2, 26, 21, 22,
+	-1000, -1, -2, 26, -6, -7, -8, -9, -4, -5,
+	21, 24, 25, 12, 13, 14, 15, 16, 17, 18,
+	19, 20, -2, 11, 10, -2, -3, 4, 5, 6,
+	7, 8, 9, -3, -3, 4, -2, -2, 27, 22,
+	23, 23, 22, -9,
 }
 var yyDef = []int{
 
-	0, -2, 1, 0, 25, 26, 27, 0, 0, 20,
-	21, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-	2, 0, 0, 0, 0, 3, 4, 5, 6, 7,
-	8, 0, 23, 24, 22, 18, 19,
+	0, -2, 1, 0, 28, 29, 30, 31, 0, 0,
+	0, 23, 24, 9, 10, 11, 12, 13, 14, 15,
+	16, 17, 2, 0, 0, 0, 0, 3, 4, 5,
+	6, 7, 8, 0, 0, 3, 26, 27, 25, 18,
+	19, 20, 21, 22,
 }
 var yyTok1 = []int{
 
@@ -394,13 +467,13 @@ var yyTok1 = []int{
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	25, 26,
+	26, 27,
 }
 var yyTok2 = []int{
 
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 	12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-	22, 23, 24,
+	22, 23, 24, 25,
 }
 var yyTok3 = []int{
 	0,
@@ -631,36 +704,54 @@ yydefault:
 	switch yynt {
 
 	case 18:
-		//line filter_specification_parser.y:106
+		//line filter_specification_parser.y:110
 		{
 			//fmt.Println("string_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 19:
-		//line filter_specification_parser.y:112
+		//line filter_specification_parser.y:116
 		{
 			//fmt.Println("numeric_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
+	case 20:
+		//line filter_specification_parser.y:122
+		{
+			//fmt.Println("field_test numeric", $1, $2, $3)
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+		}
+	case 21:
+		//line filter_specification_parser.y:127
+		{
+			//fmt.Println("field_test string", $1, $2, $3)
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+		}
 	case 22:
-		//line filter_specification_parser.y:119
+		//line filter_specification_parser.y:132
+		{
+			//fmt.Println("field_test string", $1, $2, $3)
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+		}
+	case 25:
+		//line filter_specification_parser.y:139
 		{
 			yyVAL = yyS[yypt-1]
 		}
-	case 23:
-		//line filter_specification_parser.y:123
+	case 26:
+		//line filter_specification_parser.y:143
 		{
 			//fmt.Println("and", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
-	case 24:
-		//line filter_specification_parser.y:128
+	case 27:
+		//line filter_specification_parser.y:148
 		{
 			//fmt.Println("or", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
-	case 27:
-		//line filter_specification_parser.y:135
+	case 31:
+		//line filter_specification_parser.y:156
 		{
 			//fmt.Println("boolean", $1)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-0]}})
