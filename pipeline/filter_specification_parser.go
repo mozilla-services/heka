@@ -31,11 +31,39 @@ type Statement struct {
 	field, op, value yySymType
 }
 
-// @todo this will have to be changed to an AST if we want to short circuit
-// for now the entire expression is always evaluated
-var statements []*Statement
+type tree struct {
+	left  *tree
+	stmt  *Statement
+	right *tree
+}
 
-//line filter_specification_parser.y:36
+type stack struct {
+	top  *item
+	size int
+}
+
+type item struct {
+	node *tree
+	next *item
+}
+
+func (s *stack) push(node *tree) {
+	s.top = &item{node, s.top}
+	s.size++
+}
+
+func (s *stack) pop() (node *tree) {
+	if s.size > 0 {
+		node, s.top = s.top.node, s.top.next
+		s.size--
+		return
+	}
+	return nil
+}
+
+var nodes []*tree
+
+//line filter_specification_parser.y:65
 type yySymType struct {
 	yys     int
 	tokenId int
@@ -94,7 +122,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line filter_specification_parser.y:112
+//line filter_specification_parser.y:141
 type FilterSpecificationParser struct {
 	filter   string
 	sym      string
@@ -105,13 +133,22 @@ type FilterSpecificationParser struct {
 func parseFilterSpecification(fs *FilterSpecification) error {
 	parseLock.Lock()
 	defer parseLock.Unlock()
-	statements = statements[:0] // reset the global
+	nodes = nodes[:0] // reset the global
 	var fsp FilterSpecificationParser
 	fsp.filter = fs.filter
 	fsp.peekrune = ' '
 	if yyParse(&fsp) == 0 {
-		fs.vm = make([]*Statement, len(statements))
-		copy(fs.vm, statements)
+		s := new(stack)
+		for _, node := range nodes {
+			if node.stmt.op.tokenId != OP_OR && node.stmt.op.tokenId != OP_AND {
+				s.push(node)
+			} else {
+				node.right = s.pop()
+				node.left = s.pop()
+				s.push(node)
+			}
+		}
+		fs.vm = s.pop()
 		return nil
 	}
 	return fmt.Errorf("syntax error: last token: %s pos: %d", fsp.sym, fsp.lexPos)
@@ -594,39 +631,39 @@ yydefault:
 	switch yynt {
 
 	case 18:
-		//line filter_specification_parser.y:77
+		//line filter_specification_parser.y:106
 		{
 			//fmt.Println("string_test", $1, $2, $3)
-			statements = append(statements, &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]})
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 19:
-		//line filter_specification_parser.y:83
+		//line filter_specification_parser.y:112
 		{
 			//fmt.Println("numeric_test", $1, $2, $3)
-			statements = append(statements, &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]})
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 22:
-		//line filter_specification_parser.y:90
+		//line filter_specification_parser.y:119
 		{
 			yyVAL = yyS[yypt-1]
 		}
 	case 23:
-		//line filter_specification_parser.y:94
+		//line filter_specification_parser.y:123
 		{
 			//fmt.Println("and", $1, $2, $3)
-			statements = append(statements, &Statement{op: yyS[yypt-1]})
+			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
 	case 24:
-		//line filter_specification_parser.y:99
+		//line filter_specification_parser.y:128
 		{
 			//fmt.Println("or", $1, $2, $3)
-			statements = append(statements, &Statement{op: yyS[yypt-1]})
+			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
 	case 27:
-		//line filter_specification_parser.y:106
+		//line filter_specification_parser.y:135
 		{
 			//fmt.Println("boolean", $1)
-			statements = append(statements, &Statement{op: yyS[yypt-0]})
+			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-0]}})
 		}
 	}
 	goto yystack /* stack new state and value */

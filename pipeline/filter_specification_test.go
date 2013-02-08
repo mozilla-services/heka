@@ -30,15 +30,33 @@ func FilterSpecificationSpec(c gospec.Context) {
 			"Type = \"test\"",                                                 // invalid operator
 			"Pid == \"test=\"",                                                // Pid is not a string
 			"Type == \"test\" && (Severity==7 || Payload == \"Test Payload\"", // missing paren
+			"Invalid == \"bogus\"",                                            // unknown variable name
 		}
 
 		negative := []string{"FALSE",
 			"Type == \"test\"&&(Severity==7||Payload==\"Test Payload\")",
+			"EnvVersion == \"0.9\"",
+			"EnvVersion != \"0.8\"",
+			"EnvVersion > \"0.9\"",
+			"EnvVersion >= \"0.9\"",
+			"EnvVersion < \"0.8\"",
+			"EnvVersion <= \"0.7\"",
+			"Severity == 5",
+			"Severity != 6",
+			"Severity < 6",
+			"Severity <= 5",
+			"Severity > 6",
+			"Severity >= 7",
 		}
 
 		positive := []string{"TRUE",
 			"(Severity == 7 || Payload == \"Test Payload\") && Type == \"TEST\"",
 			"EnvVersion == \"0.8\"",
+			"EnvVersion != \"0.9\"",
+			"EnvVersion > \"0.7\"",
+			"EnvVersion >= \"0.8\"",
+			"EnvVersion < \"0.9\"",
+			"EnvVersion <= \"0.8\"",
 			"Hostname != \"\"",
 			"Logger == \"GoSpec\"",
 			"Pid != 0",
@@ -75,6 +93,7 @@ func FilterSpecificationSpec(c gospec.Context) {
 
 		c.Specify("positive filter tests", func() {
 			for _, v := range positive {
+				fmt.Println("filter", v)
 				fs, err := CreateFilterSpecification(v)
 				c.Expect(err, gs.IsNil)
 				fs.FilterMsg(pack)

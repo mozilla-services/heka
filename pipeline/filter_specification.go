@@ -19,7 +19,7 @@ import (
 
 // FilterSpecification used by the message router to distribute messages
 type FilterSpecification struct {
-	vm     []*Statement
+	vm     *tree
 	filter string
 }
 
@@ -35,35 +35,32 @@ func CreateFilterSpecification(f string) (*FilterSpecification, error) {
 	return fs, nil
 }
 
+func evalFilterSpecification(t *tree, msg *message.Message) (b bool) {
+	if t == nil {
+		return false
+	}
+
+	if t.left != nil {
+		b = evalFilterSpecification(t.left, msg)
+	} else {
+		return testExpr(msg, t.stmt)
+	}
+	if b == true && t.stmt.op.tokenId == OP_OR {
+		return // short circuit
+	}
+	if b == false && t.stmt.op.tokenId == OP_AND {
+		return // short circuit
+	}
+
+	if t.right != nil {
+		b = evalFilterSpecification(t.right, msg)
+	}
+	return
+}
+
 // FilterMsg implements the filter interface needed by the router
 func (f *FilterSpecification) FilterMsg(pipelinePack *PipelinePack) {
-	stack := new(Stack)
-	trueSym := yySymType{tokenId: TRUE}
-	falseSym := yySymType{tokenId: FALSE}
-	msg := pipelinePack.Message
-	for _, stmt := range f.vm {
-		if stmt.op.tokenId != OP_OR && stmt.op.tokenId != OP_AND {
-			stack.Push(stmt)
-		} else {
-			v2 := stack.Pop()
-			v1 := stack.Pop()
-			switch stmt.op.tokenId {
-			case OP_OR:
-				if testExpr(msg, v1) || testExpr(msg, v2) {
-					stack.Push(&Statement{op: trueSym})
-				} else {
-					stack.Push(&Statement{op: falseSym})
-				}
-			case OP_AND:
-				if testExpr(msg, v1) && testExpr(msg, v2) {
-					stack.Push(&Statement{op: trueSym})
-				} else {
-					stack.Push(&Statement{op: falseSym})
-				}
-			}
-		}
-	}
-	rslt := testExpr(msg, stack.Pop())
+	rslt := evalFilterSpecification(f.vm, pipelinePack.Message)
 	if rslt {
 		pipelinePack.Blocked = false
 	} else {
@@ -155,34 +152,4 @@ func testExpr(msg *message.Message, n *Statement) bool {
 		}
 	}
 	return false
-}
-
-/// @todo replace with an AST so we can perform a short circuit eval instead
-/// of a full eval
-type Stack struct {
-	top  *Item
-	size int
-}
-
-type Item struct {
-	stmt *Statement
-	next *Item
-}
-
-func (s *Stack) Size() int {
-	return s.size
-}
-
-func (s *Stack) Push(stmt *Statement) {
-	s.top = &Item{stmt, s.top}
-	s.size++
-}
-
-func (s *Stack) Pop() (stmt *Statement) {
-	if s.size > 0 {
-		stmt, s.top = s.top.stmt, s.top.next
-		s.size--
-		return
-	}
-	return nil
 }
