@@ -113,10 +113,10 @@ func newMatcher(field string) (Matcher, error) {
 // In the event a message does match, the MatchSet contains all the
 // portions that were captured
 func (m MessageMatcher) Match(message *Message) (MatchSet, bool) {
-	var matched bool
 	var fieldName string
 	var matcher Matcher
 	set := make(map[string]string)
+	matched := true
 	for fieldName, matcher = range m {
 		switch fieldName {
 		case "Logger":
