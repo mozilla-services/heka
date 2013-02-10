@@ -1,0 +1,59 @@
+/***** BEGIN LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2012
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Bangert (bbangert@mozilla.com)
+#
+# ***** END LICENSE BLOCK *****/
+package pipeline
+
+type metric struct {
+	Type_ string `json:"type"`
+	Name  string
+	Value string
+}
+
+type StatFilterConfig struct {
+	Match  MatchCriteriaLayout
+	Metric []metric
+}
+
+type StatFilter struct {
+	msgMatcher MessageMatcher
+	metrics    []metric
+}
+
+func (s *StatFilter) ConfigStruct() interface{} {
+	return new(StatFilterConfig)
+}
+
+func (s *StatFilter) Init(config interface{}) (err error) {
+	conf := config.(*StatFilterConfig)
+	if s.msgMatcher, err = NewMessageMatcher(&conf.Match); err != nil {
+		return
+	}
+	s.metrics = conf.Metric
+	return
+}
+
+func (s *StatFilter) FilterMsg(pack *PipelinePack) {
+	set, matched := s.msgMatcher.Match(pack.Message)
+	if !matched {
+		return
+	}
+	// We matched, generate appropriate metrics
+	for _, m := range s.metrics {
+		msg := MessageGenerator.Retrieve(0)
+		msg.Message.SetType(m.Type_)
+		msg.Message.SetLogger(InterpolateString(m.Name, set))
+		msg.Message.SetPayload(InterpolateString(m.Value, set))
+		MessageGenerator.Inject(msg)
+	}
+	return
+}
