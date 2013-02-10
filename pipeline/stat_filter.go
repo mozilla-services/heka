@@ -47,6 +47,13 @@ func (s *StatFilter) FilterMsg(pack *PipelinePack) {
 	if !matched {
 		return
 	}
+
+	// Load existing fields into the set for replacement
+	set["Logger"] = pack.Message.GetLogger()
+	set["Hostname"] = pack.Message.GetHostname()
+	set["Type"] = pack.Message.GetType()
+	set["Payload"] = pack.Message.GetPayload()
+
 	// We matched, generate appropriate metrics
 	for _, m := range s.metrics {
 		msg := MessageGenerator.Retrieve(0)
