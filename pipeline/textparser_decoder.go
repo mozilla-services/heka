@@ -24,18 +24,16 @@ import (
 
 var varMatcher *regexp.Regexp
 
-type mapOfStrings map[string]string
-
 type TextParserDecoderConfig struct {
 	SeverityMap     map[string]int32
-	MessageFields   mapOfStrings
+	MessageFields   MatchSet
 	TimestampLayout string
 	PayloadMatch    string
 }
 
 type TextParserDecoder struct {
 	SeverityMap     map[string]int32
-	MessageFields   mapOfStrings
+	MessageFields   MatchSet
 	TimestampLayout string
 	PayloadMatch    *regexp.Regexp
 	basicFields     []string
@@ -48,7 +46,7 @@ func (t *TextParserDecoder) ConfigStruct() interface{} {
 func (t *TextParserDecoder) Init(config interface{}) (err error) {
 	conf := config.(*TextParserDecoderConfig)
 	t.SeverityMap = make(map[string]int32)
-	t.MessageFields = make(mapOfStrings)
+	t.MessageFields = make(MatchSet)
 	t.basicFields = []string{"Timestamp", "Logger", "Type", "Hostname",
 		"Payload", "Pid", "Uuid"}
 	if conf.SeverityMap != nil {
@@ -81,8 +79,8 @@ func (t *TextParserDecoder) Init(config interface{}) (err error) {
 }
 
 func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
-	matchParts := make(mapOfStrings)
-	changeFields := make(mapOfStrings)
+	matchParts := make(MatchSet)
+	changeFields := make(MatchSet)
 
 	// Copy our message fields to change
 	for field, val := range t.MessageFields {
@@ -133,7 +131,7 @@ func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
 
 // Update a message based on the populated fields to use for altering it
 func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
-	matchParts mapOfStrings) error {
+	matchParts MatchSet) error {
 	for field, formatRegexp := range changeFields {
 		if field == "Timestamp" {
 			val, err := ForgivingTimeParse(t.TimestampLayout, formatRegexp)
@@ -148,7 +146,7 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 			continue
 		}
 
-		newString := interpolateString(formatRegexp, matchParts)
+		newString := InterpolateString(formatRegexp, matchParts)
 		switch field {
 		case "Logger":
 			message.SetLogger(newString)
@@ -180,7 +178,7 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 // Parse a payload and put the matched regular subexpressions into matchParts
 //
 // This will return an error if there are no subexpressions present
-func (t *TextParserDecoder) ParsePayload(payload *string, matchParts mapOfStrings,
+func (t *TextParserDecoder) ParsePayload(payload *string, matchParts MatchSet,
 	pipelinePack *PipelinePack) error {
 	findResults := t.PayloadMatch.FindStringSubmatch(*payload)
 	if findResults == nil || len(findResults) < 2 {
@@ -207,7 +205,7 @@ func (t *TextParserDecoder) ParsePayload(payload *string, matchParts mapOfString
 // Example input to a formatRegexp: Reported at @Hostname by @Reporter
 // Assuming there are entires in matchParts for 'Hostname' and 'Reporter', the
 // returned string will then be: Reported at Somehost by Jonathon
-func interpolateString(formatRegexp string, matchParts mapOfStrings) (newString string) {
+func InterpolateString(formatRegexp string, matchParts MatchSet) (newString string) {
 	return varMatcher.ReplaceAllStringFunc(formatRegexp,
 		func(matchWord string) string {
 			// Remove the preceeding @

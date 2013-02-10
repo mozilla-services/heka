@@ -410,4 +410,7 @@ func init() {
 	RegisterPlugin("TextParserDecoder", func() interface{} {
 		return new(TextParserDecoder)
 	})
+	RegisterPlugin("StatFilter", func() interface{} {
+		return new(StatFilter)
+	})
 }
