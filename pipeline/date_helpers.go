@@ -11,6 +11,7 @@
 #   Ben Bangert (bbangert@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (

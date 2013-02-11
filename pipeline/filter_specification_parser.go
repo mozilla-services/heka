@@ -1,4 +1,5 @@
-//line filter_specification_parser.y:2
+// line filter_specification_parser.y:2
+
 package pipeline
 
 import __yyfmt__ "fmt"

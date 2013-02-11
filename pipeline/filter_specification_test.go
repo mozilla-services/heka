@@ -11,6 +11,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
