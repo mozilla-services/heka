@@ -484,3 +484,13 @@ func (m *Message) Equals(other interface{}) bool {
 	}
 	return true
 }
+
+func (this *Message) GetUuidString() string {
+	if this != nil {
+		if len(this.Uuid) == UUID_SIZE {
+			return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", this.Uuid[:4],
+				this.Uuid[4:6], this.Uuid[6:8], this.Uuid[8:10], this.Uuid[10:])
+		}
+	}
+	return ""
+}
