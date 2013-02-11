@@ -21,6 +21,8 @@ import (
 	"time"
 )
 
+const RFC3339NanoNoZ = "2006-01-02T15:04:05.999999999"
+
 type Decoder interface {
 	Decode(pipelinePack *PipelinePack) error
 }
@@ -43,7 +45,10 @@ func (self *JsonDecoder) Decode(pipelinePack *PipelinePack) error {
 	timeStr := msgJson.Get("timestamp").MustString()
 	msg.Timestamp, err = time.Parse(time.RFC3339Nano, timeStr)
 	if err != nil {
-		log.Printf("Timestamp parsing error: %s\n", err.Error())
+		msg.Timestamp, err = time.Parse(RFC3339NanoNoZ, timeStr)
+		if err != nil {
+			log.Printf("Timestamp parsing error: %s\n", err.Error())
+		}
 	}
 	msg.Logger = msgJson.Get("logger").MustString()
 	msg.Severity = msgJson.Get("severity").MustInt()
