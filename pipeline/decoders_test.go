@@ -33,7 +33,7 @@ func DecodersSpec(c gospec.Context) {
 		timestampJson, err := json.Marshal(time.Unix(*msg.Timestamp/1e9, *msg.Timestamp%1e9))
 		fieldsJson := `{"foo":"bar"}`
 		c.Assume(err, gs.IsNil)
-		uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", msg.Uuid[:4], msg.Uuid[4:6], msg.Uuid[6:8], msg.Uuid[8:10], msg.Uuid[10:])
+		uuid := msg.GetUuidString()
 		jsonString := fmt.Sprintf(fmtString, uuid, *msg.Type,
 			timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 			fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
