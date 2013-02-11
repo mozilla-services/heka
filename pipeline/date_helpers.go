@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	basicTimeLayouts = mapOfStrings{
+	basicTimeLayouts = MatchSet{
 		"ANSIC":       time.ANSIC,
 		"UnixDate":    time.UnixDate,
 		"RubyDate":    time.RubyDate,
