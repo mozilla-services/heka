@@ -42,8 +42,7 @@ type FilterChain struct {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs map[string]*PluginWrap
-	per
+	Inputs             map[string]*PluginWrapper
 	Decoders           map[string]*PluginWrapper
 	Filters            map[string]*PluginWrapper
 	Outputs            map[string]*PluginWrapper
