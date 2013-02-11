@@ -11,6 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -41,7 +42,8 @@ type FilterChain struct {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs             map[string]*PluginWrapper
+	Inputs map[string]*PluginWrap
+	per
 	Decoders           map[string]*PluginWrapper
 	Filters            map[string]*PluginWrapper
 	Outputs            map[string]*PluginWrapper
