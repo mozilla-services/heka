@@ -109,9 +109,13 @@ var (
 		"Dec",
 	}
 
-	// These are used for replacing parts in a user supplied regex with
-	// a much more complex regex that can match more things to keep user
-	// regexes more tidy
+	// A mapping that returns a complex regular expression string for
+	// a commonly matched portion rather than having to construct one.
+	//
+	// Currently HelperRegexSubs has the following keys upon startup that
+	// may be used:
+	//     TIMESTAMP  -  A complex regular expression string that matches
+	//                   any of the Go time const layouts.
 	HelperRegexSubs map[string]string
 )
 
