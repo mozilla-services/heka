@@ -28,13 +28,6 @@ import (
 	"time"
 )
 
-const (
-	MAX_HEADER_SIZE  = 255
-	MAX_MESSAGE_SIZE = 64 * 1024
-	RECORD_SEPARATOR = uint8(0x1e)
-	UNIT_SEPARATOR   = uint8(0x1f)
-)
-
 type TimeoutError string
 
 func (self *TimeoutError) Error() string {

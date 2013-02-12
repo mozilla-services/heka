@@ -21,7 +21,13 @@ import (
 	"reflect"
 )
 
-const UUID_SIZE = 16
+const (
+	MAX_HEADER_SIZE  = 255
+	MAX_MESSAGE_SIZE = 64 * 1024
+	RECORD_SEPARATOR = uint8(0x1e)
+	UNIT_SEPARATOR   = uint8(0x1f)
+	UUID_SIZE        = 16
+)
 
 func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
 	if h != nil {
@@ -61,20 +67,13 @@ func (m *Message) SetTimestamp(v int64) {
 
 func (m *Message) SetType(v string) {
 	if m != nil {
-		if m.Type == nil {
-			m.Type = new(string)
-		}
-		*m.Type = v
+		m.Type = &v
 	}
 }
 
 func (m *Message) SetLogger(v string) {
 	if m != nil {
-		if m.Logger == nil {
-			m.Logger = new(string)
-		}
-		*m.Logger = v
-
+		m.Logger = &v
 	}
 }
 
@@ -89,20 +88,13 @@ func (m *Message) SetSeverity(v int32) {
 
 func (m *Message) SetPayload(v string) {
 	if m != nil {
-		if m.Payload == nil {
-			m.Payload = new(string)
-		}
-
-		*m.Payload = v
+		m.Payload = &v
 	}
 }
 
 func (m *Message) SetEnvVersion(v string) {
 	if m != nil {
-		if m.EnvVersion == nil {
-			m.EnvVersion = new(string)
-		}
-		*m.EnvVersion = v
+		m.EnvVersion = &v
 	}
 }
 
@@ -117,10 +109,7 @@ func (m *Message) SetPid(v int32) {
 
 func (m *Message) SetHostname(v string) {
 	if m != nil {
-		if m.Hostname == nil {
-			m.Hostname = new(string)
-		}
-		*m.Hostname = v
+		m.Hostname = &v
 	}
 }
 

@@ -17,7 +17,6 @@ package client
 import (
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
 	"net"
 )
 
@@ -47,33 +46,33 @@ func (self *UdpSender) SendMessage(msgBytes []byte) error {
 }
 
 type TcpSender struct {
-	connection net.Conn
+	connection  net.Conn
+	header      []byte
+	protoBuffer *proto.Buffer
 }
 
 func NewTcpSender(addrStr string) (n *TcpSender, err error) {
 	conn, err := net.Dial("tcp", addrStr)
 	if err == nil {
-		n = &(TcpSender{conn})
+		n = &(TcpSender{connection: conn})
+		n.header = make([]byte, message.MAX_HEADER_SIZE+3)
+		n.protoBuffer = proto.NewBuffer(n.header)
 	}
 	return
 }
 
-func (n *TcpSender) SendMessage(msgBytes []byte) error {
-	h := &message.Header{}
-	h.SetMessageLength(uint32(len(msgBytes)))
-	headerBytes, err := proto.Marshal(h)
+func (t *TcpSender) SendMessage(msgBytes []byte) error {
+	err := EncodeStreamHeader(len(msgBytes), message.Header_PROTOCOL_BUFFER, &t.header)
 	if err != nil {
 		return err
 	}
-	headerLen := 3 + len(headerBytes)
-	headerBuf := make([]byte, headerLen)
-	headerBuf[0] = pipeline.RECORD_SEPARATOR
-	headerBuf[1] = uint8(len(headerBytes))
-	copy(headerBuf[2:], headerBytes)
-	headerBuf[headerLen-1] = pipeline.UNIT_SEPARATOR
-	_, err = n.connection.Write(headerBuf)
+	_, err = t.connection.Write(t.header)
 	if err == nil {
-		_, err = n.connection.Write(msgBytes)
+		_, err = t.connection.Write(msgBytes)
 	}
 	return err
+}
+
+func (t *TcpSender) Close() {
+	t.connection.Close()
 }

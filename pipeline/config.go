@@ -345,9 +345,6 @@ func init() {
 	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)
 	})
-	//  RegisterPlugin("ProtocolBufferDecoder", func() interface{} {
-	//      return new(ProtocolBufferDecoder)
-	//  })
 	RegisterPlugin("StatsdUdpInput", func() interface{} {
 		return RunnerMaker(new(StatsdInWriter))
 	})
@@ -365,5 +362,8 @@ func init() {
 	})
 	RegisterPlugin("TextParserDecoder", func() interface{} {
 		return new(TextParserDecoder)
+	})
+	RegisterPlugin("TcpOutput", func() interface{} {
+		return RunnerMaker(new(TcpWriter))
 	})
 }
