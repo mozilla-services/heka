@@ -62,20 +62,11 @@ func NewTcpSender(addrStr string) (n *TcpSender, err error) {
 }
 
 func (t *TcpSender) SendMessage(msgBytes []byte) error {
-	h := &message.Header{}
-	messageSize := len(msgBytes)
-	h.SetMessageLength(uint32(messageSize))
-	headerSize := uint8(proto.Size(h))
-	t.header[0] = message.RECORD_SEPARATOR
-	t.header[1] = uint8(headerSize)
-	t.protoBuffer.SetBuf(t.header[2:])
-	t.protoBuffer.Reset()
-	err := t.protoBuffer.Marshal(h)
+	err := EncodeStreamHeader(len(msgBytes), message.Header_PROTOCOL_BUFFER, &t.header)
 	if err != nil {
 		return err
 	}
-	t.header[headerSize+2] = message.UNIT_SEPARATOR
-	_, err = t.connection.Write(t.header[:3+headerSize])
+	_, err = t.connection.Write(t.header)
 	if err == nil {
 		_, err = t.connection.Write(msgBytes)
 	}

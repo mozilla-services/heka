@@ -18,6 +18,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
@@ -235,36 +236,24 @@ func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
-		return createProtobufStream(pack, outData)
+		return createProtobufStream(pack, outBytes)
 	}
 	return nil
 }
 
-func createProtobufStream(pack *PipelinePack, outData interface{}) error {
-	outBytes := outData.(*[]byte)
-	h := &message.Header{}
+func createProtobufStream(pack *PipelinePack, outBytes *[]byte) error {
 	messageSize := proto.Size(pack.Message)
-	h.SetMessageLength(uint32(messageSize))
-	headerSize := proto.Size(h)
-	requiredSize := 3 + headerSize + messageSize
-	if cap(*outBytes) < requiredSize {
-		*outBytes = make([]byte, requiredSize)
-	} else {
-		*outBytes = (*outBytes)[:requiredSize]
-	}
-	(*outBytes)[0] = message.RECORD_SEPARATOR
-	(*outBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*outBytes)[2:2])
-	err := pbuf.Marshal(h)
+	err := client.EncodeStreamHeader(messageSize, message.Header_PROTOCOL_BUFFER, outBytes)
 	if err != nil {
 		return err
 	}
-	(*outBytes)[headerSize+2] = message.UNIT_SEPARATOR
-	pbuf.SetBuf((*outBytes)[headerSize+3 : headerSize+3])
+	headerSize := len(*outBytes)
+	pbuf := proto.NewBuffer((*outBytes)[headerSize:])
 	err = pbuf.Marshal(pack.Message)
 	if err != nil {
 		return err
 	}
+	*outBytes = (*outBytes)[:headerSize+messageSize]
 	return nil
 }
 
@@ -328,8 +317,9 @@ func (t *TcpWriter) ZeroOutData(outData interface{}) {
 
 func (t *TcpWriter) PrepOutData(pack *PipelinePack, outData interface{},
 	timeout *time.Duration) error {
-	err := createProtobufStream(pack, outData)
+	err := createProtobufStream(pack, outData.(*[]byte))
 	return err
+
 }
 
 func (t *TcpWriter) Write(outData interface{}) (err error) {
