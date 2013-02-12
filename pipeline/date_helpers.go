@@ -11,6 +11,7 @@
 #   Ben Bangert (bbangert@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -20,7 +21,7 @@ import (
 )
 
 var (
-	basicTimeLayouts = mapOfStrings{
+	basicTimeLayouts = MatchSet{
 		"ANSIC":       time.ANSIC,
 		"UnixDate":    time.UnixDate,
 		"RubyDate":    time.RubyDate,

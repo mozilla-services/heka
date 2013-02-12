@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -30,20 +31,22 @@ import (
 	"time"
 )
 
-type OutputRunner struct {
-	Name   string
-	Output Output
-	Chan   chan *PipelinePack
+type outputRunner struct {
+	PluginRunnerBase
+	Output      Output
+	recycleChan chan<- *PipelinePack
 }
 
-func NewOutputRunner(name string, output Output) *OutputRunner {
-	outChan := make(chan *PipelinePack, PoolSize+1)
-	outRunner := &OutputRunner{name, output, outChan}
+func newOutputRunner(name string, output Output, recycleChan chan *PipelinePack) *outputRunner {
+	outRunner := &outputRunner{}
+	outRunner.Name = name
+	outRunner.Output = output
+	outRunner.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	outRunner.recycleChan = recycleChan
 	return outRunner
 }
 
-func (self *OutputRunner) Start(recycleChan chan<- *PipelinePack,
-	wg *sync.WaitGroup) {
+func (self *outputRunner) Start(wg *sync.WaitGroup) {
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
 
@@ -53,11 +56,10 @@ func (self *OutputRunner) Start(recycleChan chan<- *PipelinePack,
 		for {
 			runtime.Gosched()
 			select {
-			case pack = <-self.Chan:
+			case pack = <-self.InChan:
 				self.Output.Deliver(pack)
-				// TODO: look for and call delivery completion callbacks
 				pack.Zero()
-				recycleChan <- pack
+				self.recycleChan <- pack
 			case <-stopChan:
 				break runnerLoop
 			}

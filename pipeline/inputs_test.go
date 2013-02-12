@@ -20,85 +20,11 @@ import (
 	"errors"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
-	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"sync"
 	"time"
 )
-
-func InputRunnerSpec(c gs.Context) {
-	t := &ts.SimpleT{}
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	c.Specify("An InputRunner", func() {
-		second := time.Second
-
-		poolSize := 5
-		mockInput := NewMockInput(ctrl)
-		inputRunner := InputRunner{"mock", mockInput, &second}
-		defer notify.StopAll(STOP)
-
-		dataChan := make(chan *PipelinePack, poolSize+1)
-		recycleChan := make(chan *PipelinePack, poolSize+1)
-		for i := 0; i < poolSize; i++ {
-			recycleChan <- getTestPipelinePack()
-		}
-
-		var wg sync.WaitGroup
-		comparePack := getTestPipelinePack()
-
-		areAllUsed := func() bool {
-			populatedPacks := 0
-			for {
-				select {
-				case <-dataChan:
-					populatedPacks++
-					if populatedPacks == poolSize {
-						return true
-					}
-				case <-time.After(second):
-					return false
-				}
-			}
-			// we should never reach this but go makes me put it here :P
-			return false
-		}
-
-		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
-			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize)
-			readCall.Return(nil)
-
-			inputRunner.Start(dataChan, recycleChan, &wg)
-			wg.Add(1)
-			defer notify.Post(STOP, nil)
-
-			allUsed := areAllUsed()
-			c.Expect(allUsed, gs.IsTrue)
-		})
-
-		c.Specify("even if there are read errors", func() {
-			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize * 2)
-			i := 0
-			readCall.Do(func(pipelinePack *PipelinePack, timeout *time.Duration) {
-				if i < poolSize {
-					readCall.Return(errors.New("Test Error"))
-				} else {
-					readCall.Return(nil)
-				}
-				i++
-			})
-
-			inputRunner.Start(dataChan, recycleChan, &wg)
-			wg.Add(1)
-			defer notify.Post(STOP, nil)
-
-			allUsed := areAllUsed()
-			c.Expect(allUsed, gs.IsTrue)
-		})
-	})
-}
 
 func InputsSpec(c gs.Context) {
 	t := &ts.SimpleT{}
@@ -114,15 +40,18 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{addrStr})
+		err := udpInput.Init(&UdpInputConfig{addrStr, "JsonDecoder"})
 		c.Assume(err, gs.IsNil)
-		realListener := (udpInput.Listener).(*net.UDPConn)
+		realListener := (udpInput.listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
 		realListener.Close()
 
 		// Replace the listener object w/ a mock listener
 		mockListener := ts.NewMockConn(ctrl)
-		udpInput.Listener = mockListener
+		udpInput.listener = mockListener
+		config = NewPipelineConfig(0)
+		var wg sync.WaitGroup
+		udpInput.Start(config, wg)
 
 		msgJson, _ := json.Marshal(msg)
 		putMsgJsonInBytes := func(msgBytes []byte) {

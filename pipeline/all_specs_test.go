@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -42,9 +43,9 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
-	r.AddSpec(InputRunnerSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
+	r.AddSpec(FilterSpecificationSpec)
 	gospec.MainGoTest(r, t)
 }
 
