@@ -52,8 +52,13 @@ func (self *OutputRunner) Start(recycleChan chan<- *PipelinePack,
 			case pack = <-self.Chan:
 				self.Output.Deliver(pack)
 				// TODO: look for and call delivery completion callbacks
-				pack.Zero()
-				recycleChan <- pack
+				pack.OutputRefLock.Lock()
+				pack.OutputRefCount--
+				if pack.OutputRefCount == 0 {
+					pack.Zero()
+					recycleChan <- pack
+				}
+				pack.OutputRefLock.Unlock()
 			case <-stopChan:
 				break runnerLoop
 			}

@@ -48,18 +48,20 @@ type PluginWithGlobal interface {
 }
 
 type PipelinePack struct {
-	MsgBytes    []byte
-	Message     *Message
-	Config      *PipelineConfig
-	Decoder     string
-	Decoders    map[string]Decoder
-	Filters     map[string]Filter
-	OutputChans map[string]chan *PipelinePack
-	Decoded     bool
-	Blocked     bool
-	FilterChain string
-	ChainCount  int
-	OutputNames map[string]bool
+	MsgBytes       []byte
+	Message        *Message
+	Config         *PipelineConfig
+	Decoder        string
+	Decoders       map[string]Decoder
+	Filters        map[string]Filter
+	OutputChans    map[string]chan *PipelinePack
+	Decoded        bool
+	Blocked        bool
+	FilterChain    string
+	ChainCount     int
+	OutputNames    map[string]bool
+	OutputRefCount uint32
+	OutputRefLock  sync.Locker
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
@@ -71,17 +73,18 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	outputChans := make(map[string]chan *PipelinePack)
 
 	pack := &PipelinePack{
-		MsgBytes:    msgBytes,
-		Message:     &message,
-		Config:      config,
-		Decoder:     config.DefaultDecoder,
-		Decoders:    decoders,
-		Decoded:     false,
-		Blocked:     false,
-		Filters:     filters,
-		FilterChain: config.DefaultFilterChain,
-		OutputChans: outputChans,
-		OutputNames: outputNames,
+		MsgBytes:      msgBytes,
+		Message:       &message,
+		Config:        config,
+		Decoder:       config.DefaultDecoder,
+		Decoders:      decoders,
+		Decoded:       false,
+		Blocked:       false,
+		Filters:       filters,
+		FilterChain:   config.DefaultFilterChain,
+		OutputChans:   outputChans,
+		OutputNames:   outputNames,
+		OutputRefLock: new(sync.Mutex),
 	}
 	pack.InitDecoders(config)
 	pack.InitFilters(config)
@@ -192,8 +195,8 @@ func pipeline(pack *PipelinePack) (recycle bool) {
 		return
 	}
 
-	i := 0
 	// Deliver message to appropriate outputs
+	pack.OutputRefCount = 0 // should already be true, but just in case...
 	for outputName, use := range pack.OutputNames {
 		if !use {
 			continue
@@ -204,9 +207,9 @@ func pipeline(pack *PipelinePack) (recycle bool) {
 			continue
 		}
 		outChan <- pack
-		i++
+		pack.OutputRefCount++
 	}
-	if i == 0 {
+	if pack.OutputRefCount == 0 {
 		recycle = true
 	}
 	return
