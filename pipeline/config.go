@@ -393,8 +393,8 @@ func init() {
 	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)
 	})
-	RegisterPlugin("StatsdUdpInput", func() interface{} {
-		return RunnerMaker(new(StatsdInWriter))
+	RegisterPlugin("StatsdInput", func() interface{} {
+		return new(StatsdInput)
 	})
 	RegisterPlugin("LogOutput", func() interface{} {
 		return new(LogOutput)
