@@ -50,10 +50,23 @@ type PluginWithGlobal interface {
 	InitOnce(config interface{}) (global PluginGlobal, err error)
 }
 
+type PluginRunnerBase interface {
+	InChan() chan *PipelinePack
+	Name() string
+}
+
 // Base struct for the specialized PluginRunners
-type PluginRunnerBase struct {
-	InChan chan *PipelinePack
-	Name   string
+type pluginRunnerBase struct {
+	inChan chan *PipelinePack
+	name   string
+}
+
+func (self *pluginRunnerBase) InChan() chan *PipelinePack {
+	return self.inChan
+}
+
+func (self *pluginRunnerBase) Name() string {
+	return self.name
 }
 
 type PipelinePack struct {
@@ -112,7 +125,7 @@ func (self *PipelinePack) InitFilters(config *PipelineConfig) {
 
 func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
 	for name, outRunner := range config.OutputRunners {
-		self.OutputChans[name] = outRunner.InChan
+		self.OutputChans[name] = outRunner.InChan()
 	}
 }
 
@@ -164,7 +177,7 @@ func Run(config *PipelineConfig) {
 
 	for name, wrapper := range config.Outputs {
 		output := wrapper.Create().(Output)
-		outRunner = newOutputRunner(name, output, config.RecycleChan)
+		outRunner = newOutputRunner(name, output)
 		config.OutputRunners[name] = outRunner
 		outRunner.Start(&wg)
 		wg.Add(1)

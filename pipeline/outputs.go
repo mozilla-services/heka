@@ -31,18 +31,20 @@ import (
 	"time"
 )
 
-type outputRunner struct {
+type OutputRunner interface {
 	PluginRunnerBase
-	Output      Output
-	recycleChan chan<- *PipelinePack
 }
 
-func newOutputRunner(name string, output Output, recycleChan chan *PipelinePack) *outputRunner {
+type outputRunner struct {
+	pluginRunnerBase
+	output Output
+}
+
+func newOutputRunner(name string, output Output) *outputRunner {
 	outRunner := &outputRunner{}
-	outRunner.Name = name
-	outRunner.Output = output
-	outRunner.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	outRunner.recycleChan = recycleChan
+	outRunner.name = name
+	outRunner.output = output
+	outRunner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return outRunner
 }
 
@@ -56,15 +58,14 @@ func (self *outputRunner) Start(wg *sync.WaitGroup) {
 		for {
 			runtime.Gosched()
 			select {
-			case pack = <-self.InChan:
-				self.Output.Deliver(pack)
-				pack.Zero()
-				self.recycleChan <- pack
+			case pack = <-self.InChan():
+				self.output.Deliver(pack)
+				pack.Recycle()
 			case <-stopChan:
 				break runnerLoop
 			}
 		}
-		log.Println("Output stopped: ", self.Name)
+		log.Println("Output stopped: ", self.Name())
 		wg.Done()
 	}()
 }

@@ -26,34 +26,39 @@ import (
 	"time"
 )
 
-type DecoderRunner struct {
+type DecoderRunner interface {
 	PluginRunnerBase
+	Start()
+}
+
+type decoderRunner struct {
+	pluginRunnerBase
 	decoder Decoder
 	router  *ChainRouter
 }
 
-func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) *DecoderRunner {
+func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	return &DecoderRunner{
-		PluginRunnerBase{
-			Name:   name,
-			InChan: inChan,
+	return &decoderRunner{
+		pluginRunnerBase{
+			name:   name,
+			inChan: inChan,
 		},
 		decoder,
 		router,
 	}
 }
 
-func (self *DecoderRunner) Start() {
+func (self *decoderRunner) Start() {
 	var pack *PipelinePack
 	var err error
 
 	go func() {
 		for {
-			pack = <-self.InChan
+			pack = <-self.inChan
 			err = self.decoder.Decode(pack)
 			if err != nil {
-				log.Printf("Decoder '%s' error: '%s", self.Name, err)
+				log.Printf("Decoder '%s' error: '%s", self.Name(), err)
 				pack.Recycle()
 				continue
 			}

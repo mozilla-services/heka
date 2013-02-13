@@ -35,6 +35,13 @@ func RegisterPlugin(name string, factory func() interface{}) {
 
 type PluginConfig map[string]interface{}
 
+type PluginHelper interface {
+	PackSupply() chan *PipelinePack
+	NewDecoder(name string) (runner DecoderRunner, ok bool)
+	NewDecoderSet() (decoders []DecoderRunner)
+	ChainRouter() *ChainRouter
+}
+
 // Indicates a plug-in has a specific-to-itself config struct that should be
 // passed in to its Init method.
 type HasConfigStruct interface {
@@ -74,10 +81,10 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	return config
 }
 
-// Returns a slice of *DecoderRunners indexed by the Header_MessageEncoding
+// Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
 // value that each decoder works for.
-func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
-	decoders := make([]*DecoderRunner, topHeaderMessageEncoding+1)
+func (self *PipelineConfig) NewDecoderSet() []DecoderRunner {
+	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
 		decoder, ok := self.NewDecoder(name)
 		if !ok {
@@ -89,7 +96,7 @@ func (self *PipelineConfig) NewDecoderSet() []*DecoderRunner {
 }
 
 func (self *PipelineConfig) NewDecoder(name string) (
-	runner *DecoderRunner, ok bool) {
+	runner DecoderRunner, ok bool) {
 
 	var wrapper *PluginWrapper
 	if wrapper, ok = self.Decoders[name]; !ok {
@@ -108,6 +115,10 @@ func (self *PipelineConfig) ChainRouter() *ChainRouter {
 	router.ChainMap = self.ChainMap
 	router.Start()
 	return router
+}
+
+func (self *PipelineConfig) PackSupply() chan *PipelinePack {
+	return self.RecycleChan
 }
 
 // The JSON config file spec
@@ -413,7 +424,7 @@ func init() {
 	})
 	RegisterPlugin("TcpOutput", func() interface{} {
 		return RunnerMaker(new(TcpWriter))
-   })
+	})
 	RegisterPlugin("StatFilter", func() interface{} {
 		return new(StatFilter)
 	})
