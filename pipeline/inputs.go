@@ -302,7 +302,7 @@ func (self *TcpInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 }
 
 // Global MessageGenerator
-var MessageGenerator *msgGenerator = new(msgGenerator)
+var MessageGenerator = new(msgGenerator)
 
 type msgGenerator struct {
 	MessageChan chan *messageHolder
