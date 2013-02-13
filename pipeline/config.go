@@ -62,7 +62,6 @@ type PipelineConfig struct {
 	OutputRunners      map[string]*outputRunner
 	FilterChains       map[string]FilterChain
 	ChainMap           map[string][]string
-	DefaultDecoder     string
 	DefaultFilterChain string
 	PoolSize           int
 	RecycleChan        chan *PipelinePack

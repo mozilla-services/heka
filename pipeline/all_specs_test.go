@@ -36,7 +36,7 @@ func mockOutputCreator() map[string]Output {
 	return make(map[string]Output)
 }
 
-var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+var config = PipelineConfig{DefaultFilterChain: "TEST"}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()

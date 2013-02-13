@@ -96,7 +96,6 @@ func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 		MsgBytes:    msgBytes,
 		Message:     message,
 		Config:      config,
-		Decoder:     config.DefaultDecoder,
 		Decoders:    decoders,
 		Decoded:     false,
 		Blocked:     false,
@@ -131,7 +130,6 @@ func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
 
 func (self *PipelinePack) Zero() {
 	self.MsgBytes = self.MsgBytes[:cap(self.MsgBytes)]
-	self.Decoder = self.Config.DefaultDecoder
 	self.Decoded = false
 	self.Blocked = false
 	self.FilterChain = self.Config.DefaultFilterChain
