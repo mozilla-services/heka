@@ -58,6 +58,7 @@ type StatsdInput struct {
 	listener         *net.UDPConn
 	percentThreshold int
 	flushInterval    int64
+	stopped          bool
 }
 
 // A StatPacket appropriate for a plugin to feed directly into the
@@ -99,24 +100,32 @@ func (s *StatsdInput) Name() string {
 
 func (s *StatsdInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
 	packets := make(chan StatPacket, 5000)
+	s.Packet = packets
 	sm := new(statMonitor)
 	go sm.Monitor(s, packets, wg)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
+		wg.Add(1)
 		go func() {
 			var n int
 			var err error
 			defer s.listener.Close()
+			timeout := time.Duration(time.Millisecond * 100)
 			for {
-				message := make([]byte, 0, 512)
-				n, _, err = s.listener.ReadFrom(message)
-				log.Printf("Got %s bytes\n", n)
+				if s.stopped {
+					break
+				}
+				message := make([]byte, 512)
+				s.listener.SetReadDeadline(time.Now().Add(timeout))
+				n, _, err = s.listener.ReadFromUDP(message)
 				if err != nil || n == 0 {
 					continue
 				}
 				go s.handleMessage(message[:n])
 			}
+			log.Println("StatsdUdpInput for input stopped: ", s.Name())
+			wg.Done()
 		}()
 	}
 	return nil
@@ -144,7 +153,6 @@ func (s *StatsdInput) handleMessage(message []byte) {
 		packet.Value = value
 		packet.Modifier = item[3]
 		packet.Sampling = float32(sampleRate)
-
 		s.Packet <- packet
 	}
 }
@@ -173,8 +181,12 @@ func (sm *statMonitor) Monitor(input *StatsdInput, packets <-chan StatPacket,
 	notify.Start(STOP, stopChan)
 
 	t := time.NewTicker(time.Duration(input.flushInterval) * time.Second)
+statLoop:
 	for {
 		select {
+		case <-stopChan:
+			sm.Flush()
+			break statLoop
 		case <-t.C:
 			sm.Flush()
 		case s = <-packets:
@@ -189,12 +201,10 @@ func (sm *statMonitor) Monitor(input *StatsdInput, packets <-chan StatPacket,
 				floatValue, _ = strconv.ParseFloat(s.Value, 32)
 				sm.counters[s.Bucket] += int(float32(floatValue) * (1 / s.Sampling))
 			}
-		case <-stopChan:
-			sm.Flush()
-			break
 		}
 	}
 	log.Println("StatsdMonitor for input stopped: ", input.Name())
+	input.stopped = true
 	wg.Done()
 }
 
@@ -246,6 +256,14 @@ func (sm *statMonitor) Flush() {
 				sm.percentThreshold, maxAtThreshold, now)
 			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, min, now)
 			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, now)
+		} else {
+			// Need to still submit timers as zero
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, 0, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, 0, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
+				sm.percentThreshold, 0, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, 0, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, now)
 		}
 		numStats++
 	}
