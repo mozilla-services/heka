@@ -365,8 +365,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		}
 
 		// Add the message type to the lookup table if present
-		if _, ok := section["message_type"]; ok {
-			messageTypeList := section["message_type"].([]interface{})
+		if msgTypes, ok := section["message_type"]; ok {
+			messageTypeList := msgTypes.([]interface{})
 			var msgType string
 			for _, rawType := range messageTypeList {
 				// Create the string slice for this msgType if it
