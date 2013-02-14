@@ -15,8 +15,6 @@
 package pipeline
 
 import (
-	"regexp"
-	"strings"
 	"time"
 )
 
@@ -133,33 +131,4 @@ func ForgivingTimeParse(timeLayout, inputTime string) (parsedTime time.Time, err
 		}
 	}
 	return
-}
-
-// Setup all the regexes
-func init() {
-	HelperRegexSubs = make(map[string]string)
-
-	smonths := "(?:" + strings.Join(shortMonthNames, "|") + ")"
-	sdays := "(?:" + strings.Join(shortDayNames, "|") + ")"
-	days := "(?:" + strings.Join(longDayNames, "|") + ")"
-
-	newMatchStrings := make([]string, 0, 15)
-	replaceShorts, _ := regexp.Compile("(SDAY|DAY|SMONTH)")
-	for _, dateStr := range dateMatchStrings {
-		newStr := replaceShorts.ReplaceAllStringFunc(dateStr,
-			func(match string) string {
-				switch match {
-				case "SDAY":
-					return sdays
-				case "DAY":
-					return days
-				case "SMONTH":
-					return smonths
-				}
-				return match
-			})
-		newMatchStrings = append(newMatchStrings, "(?:"+newStr+")")
-	}
-	tsRegexString := "(?P<Timestamp>" + strings.Join(newMatchStrings, "|") + ")"
-	HelperRegexSubs["TIMESTAMP"] = tsRegexString
 }
