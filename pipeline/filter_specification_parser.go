@@ -2,7 +2,6 @@ package pipeline
 
 import __yyfmt__ "fmt"
 
-//line filter_specification_parser.y:2
 import (
 	"fmt"
 	"log"
@@ -392,7 +391,6 @@ func (f *FilterSpecificationParser) getrune() rune {
 	return c
 }
 
-//line yacctab:1
 var yyExca = []int{
 	-1, 1,
 	1, -1,
@@ -475,8 +473,6 @@ var yyTok2 = []int{
 var yyTok3 = []int{
 	0,
 }
-
-//line yaccpar:1
 
 /*	parser for yacc output	*/
 

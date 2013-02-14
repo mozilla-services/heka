@@ -67,7 +67,6 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// and the message filter is set properly
 			c.Expect(sampleSection.MessageFilter.String(), gs.Equals, "Type == \"counter\" || Type == \"gauge\"")
-
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
