@@ -98,7 +98,7 @@ func (s *StatsdInput) Name() string {
 	return s.name
 }
 
-func (s *StatsdInput) Start(config *PipelineConfig, wg *sync.WaitGroup) error {
+func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
 	sm := new(statMonitor)
