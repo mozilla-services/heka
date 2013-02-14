@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -70,44 +71,30 @@ func (self *pluginRunnerBase) Name() string {
 }
 
 type PipelinePack struct {
-	MsgBytes    []byte
-	Message     *Message
-	Config      *PipelineConfig
-	Decoder     string
-	Decoders    map[string]Decoder
-	Filters     map[string]Filter
-	OutputChans map[string]chan *PipelinePack
-	Decoded     bool
-	Blocked     bool
-	FilterChain string
-	ChainCount  int
-	OutputNames map[string]bool
+	MsgBytes   []byte
+	Message    *Message
+	Config     *PipelineConfig
+	Decoder    string
+	Decoders   map[string]Decoder
+	Decoded    bool
+	ChainCount int
+	RefCount   int32
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
 	msgBytes := make([]byte, MAX_MESSAGE_SIZE)
 	message := &Message{}
-	outputNames := make(map[string]bool)
-	filters := make(map[string]Filter)
 	decoders := make(map[string]Decoder)
-	outputChans := make(map[string]chan *PipelinePack)
 
 	pack := &PipelinePack{
-		MsgBytes:    msgBytes,
-		Message:     message,
-		Config:      config,
-		Decoder:     config.DefaultDecoder,
-		Decoders:    decoders,
-		Decoded:     false,
-		Blocked:     false,
-		Filters:     filters,
-		FilterChain: config.DefaultFilterChain,
-		OutputChans: outputChans,
-		OutputNames: outputNames,
+		MsgBytes: msgBytes,
+		Message:  message,
+		Config:   config,
+		Decoders: decoders,
+		Decoded:  false,
+		RefCount: int32(1),
 	}
 	pack.InitDecoders(config)
-	pack.InitFilters(config)
-	pack.InitOutputs(config)
 	return pack
 }
 
@@ -117,37 +104,22 @@ func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
 	}
 }
 
-func (self *PipelinePack) InitFilters(config *PipelineConfig) {
-	for name, wrapper := range config.Filters {
-		self.Filters[name] = wrapper.Create().(Filter)
-	}
-}
-
-func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
-	for name, outRunner := range config.OutputRunners {
-		self.OutputChans[name] = outRunner.InChan()
-	}
-}
-
 func (self *PipelinePack) Zero() {
 	self.MsgBytes = self.MsgBytes[:cap(self.MsgBytes)]
-	self.Decoder = self.Config.DefaultDecoder
 	self.Decoded = false
-	self.Blocked = false
-	self.FilterChain = self.Config.DefaultFilterChain
+	self.RefCount = 1
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	self.Message = new(Message)
-
-	for outputName, _ := range self.OutputNames {
-		delete(self.OutputNames, outputName)
-	}
 }
 
 func (self *PipelinePack) Recycle() {
-	self.Zero()
-	self.Config.RecycleChan <- self
+	cnt := atomic.AddInt32(&self.RefCount, -1)
+	if cnt == 0 {
+		self.Zero()
+		self.Config.RecycleChan <- self
+	}
 }
 
 func BroadcastEvent(config *PipelineConfig, eventType string) {

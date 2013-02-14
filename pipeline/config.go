@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -49,23 +50,21 @@ type HasConfigStruct interface {
 }
 
 type FilterChain struct {
-	Outputs []string
-	Filters []string
+	Outputs       []string
+	Filters       []string
+	MessageFilter *FilterSpecification
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs             map[string]*PluginWrapper
-	Decoders           map[string]*PluginWrapper
-	Filters            map[string]*PluginWrapper
-	Outputs            map[string]*PluginWrapper
-	OutputRunners      map[string]*outputRunner
-	FilterChains       map[string]FilterChain
-	ChainMap           map[string][]string
-	DefaultDecoder     string
-	DefaultFilterChain string
-	PoolSize           int
-	RecycleChan        chan *PipelinePack
+	Inputs        map[string]*PluginWrapper
+	Decoders      map[string]*PluginWrapper
+	Filters       map[string]*PluginWrapper
+	Outputs       map[string]*PluginWrapper
+	OutputRunners map[string]*outputRunner
+	FilterChains  map[string]*FilterChain
+	PoolSize      int
+	RecycleChan   chan *PipelinePack
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -73,9 +72,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	PoolSize = poolSize
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
-	config.FilterChains = make(map[string]FilterChain)
-	config.DefaultFilterChain = "default"
-	config.ChainMap = make(map[string][]string)
+	config.FilterChains = make(map[string]*FilterChain)
 	config.OutputRunners = make(map[string]*outputRunner)
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	return config
@@ -112,7 +109,6 @@ func (self *PipelineConfig) NewDecoder(name string) (
 func (self *PipelineConfig) ChainRouter() *ChainRouter {
 	router := new(ChainRouter)
 	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	router.ChainMap = self.ChainMap
 	router.Start()
 	return router
 }
@@ -339,7 +335,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	}
 
 	for name, section := range configFile.Chains {
-		chain := FilterChain{}
+		chain := &FilterChain{}
 		if outputs, ok := section["outputs"]; ok {
 			outputList := outputs.([]interface{})
 			chain.Outputs = make([]string, len(outputList))
@@ -364,28 +360,16 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 				chain.Filters[i] = strFilter
 			}
 		}
-
-		// Add the message type to the lookup table if present
-		if _, ok := section["message_type"]; ok {
-			messageTypeList := section["message_type"].([]interface{})
-			var msgType string
-			for _, rawType := range messageTypeList {
-				// Create the string slice for this msgType if it
-				// doesn't exist already.
-
-				// TODO: Later on we'll support additional ways to
-				// restrict the chain used based on more than just the
-				// message type which is why we store a slice of
-				// strings here at the moment
-				msgType = rawType.(string)
-				if _, ok := self.ChainMap[msgType]; !ok {
-					self.ChainMap[msgType] = make([]string, 0, 10)
-				}
-				self.ChainMap[msgType] = append(self.ChainMap[msgType], name)
+		// Add the message filter if present
+		if _, ok := section["message_filter"]; ok {
+			msgFilter := section["message_filter"].(string)
+			fs, err := CreateFilterSpecification(msgFilter)
+			if err != nil {
+				return err
 			}
+			chain.MessageFilter = fs
 		}
 		self.FilterChains[name] = chain
-
 	}
 
 	return nil

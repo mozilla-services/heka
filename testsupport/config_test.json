@@ -7,7 +7,8 @@
         }
     ],
     "decoders": [
-        {"type": "JsonDecoder", "default": true}
+        {"type": "JsonDecoder", "encoding_name": "JSON"},
+        {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
     "outputs": [
         {"type": "CounterOutput"}
@@ -17,7 +18,7 @@
             "outputs": ["CounterOutput"]
         },
         "sample": {
-            "message_type": ["counter", "gauge"],
+            "message_filter": "Type == \"counter\" || Type == \"gauge\"",
             "outputs": ["CounterOutput"]
         }
     }
