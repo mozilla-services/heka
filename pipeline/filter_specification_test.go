@@ -122,8 +122,7 @@ func FilterSpecificationSpec(c gospec.Context) {
 			for _, v := range negative {
 				fs, err := CreateFilterSpecification(v)
 				c.Expect(err, gs.IsNil)
-				fs.FilterMsg(pack)
-				c.Expect(pack.Blocked, gs.IsTrue)
+				c.Expect(fs.IsMatch(pack.Message), gs.IsFalse)
 			}
 		})
 
@@ -131,8 +130,7 @@ func FilterSpecificationSpec(c gospec.Context) {
 			for _, v := range positive {
 				fs, err := CreateFilterSpecification(v)
 				c.Expect(err, gs.IsNil)
-				fs.FilterMsg(pack)
-				c.Expect(pack.Blocked, gs.IsFalse)
+				c.Expect(fs.IsMatch(pack.Message), gs.IsTrue)
 			}
 		})
 
