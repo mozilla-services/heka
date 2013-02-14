@@ -12,11 +12,15 @@
         {
             "type": "UdpStatInput",
             "bind": "127.0.0.1:2423"
+        },         
+        {   "type": "TcpInput",
+            "address": "127.0.0.1:9125"
         }
+
     ],
     "decoders": [
-        {"type": "JsonDecoder", "default": true},
-        {"type": "GobDecoder"}
+        {"type": "JsonDecoder", "encoding_name": "JSON"},
+        {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
     "filters": [
         {"type": "StatRollupFilter"},
@@ -30,7 +34,11 @@
         {
             "type": "GraphiteOutput",
             "host": "192.149.324.132:4233"
-        },
+        }, 
+        {
+            "type": "CounterOutput",
+            "name": "counter"
+        }
     ],
     "chains": {
         "stats": {
@@ -40,6 +48,11 @@
         "stat_dump": {
             "type": "StatMetric",
             "outputs": ["GraphiteOutput"]
+        },
+        "hekabench": {
+            "type": "Counter",
+            "message_filter": "Type == \"hekabench\" && EnvVersion == \"0.8\"",
+            "outputs": ["counter"]
         },
         "default": {
             "outputs": ["LogFileOutput"]

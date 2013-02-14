@@ -36,6 +36,16 @@ func CreateFilterSpecification(filter string) (*FilterSpecification, error) {
 	return fs, nil
 }
 
+// IsMatch compares the message in the pack against the filter specification
+func (f *FilterSpecification) IsMatch(message *message.Message) bool {
+	return evalFilterSpecification(f.vm, message)
+}
+
+// String outputs the filter as text
+func (f *FilterSpecification) String() string {
+	return f.filter
+}
+
 func evalFilterSpecification(t *tree, msg *message.Message) (b bool) {
 	if t == nil {
 		return false
@@ -57,16 +67,6 @@ func evalFilterSpecification(t *tree, msg *message.Message) (b bool) {
 		b = evalFilterSpecification(t.right, msg)
 	}
 	return
-}
-
-// FilterMsg implements the filter interface needed by the router
-func (f *FilterSpecification) FilterMsg(pipelinePack *PipelinePack) {
-	rslt := evalFilterSpecification(f.vm, pipelinePack.Message)
-	if rslt {
-		pipelinePack.Blocked = false
-	} else {
-		pipelinePack.Blocked = true
-	}
 }
 
 func getStringValue(msg *message.Message, stmt *Statement) string {

@@ -65,15 +65,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(sampleSection, gs.Not(gs.IsNil))
 			c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
 
-			// and the message lookup is set properly
-			filterName, ok := pipeConfig.ChainMap["counter"]
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(filterName[0], gs.Equals, "sample")
-
-			// and the second message lookup is set properly
-			filterName, ok = pipeConfig.ChainMap["gauge"]
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(filterName[0], gs.Equals, "sample")
+			// and the message filter is set properly
+			c.Expect(sampleSection.MessageFilter.String(), gs.Equals, "Type == \"counter\" || Type == \"gauge\"")
 		})
 
 		c.Specify("explodes w/ bad config file", func() {

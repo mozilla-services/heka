@@ -1,5 +1,3 @@
-// line filter_specification_parser.y:2
-
 package pipeline
 
 import __yyfmt__ "fmt"
@@ -261,7 +259,7 @@ variable:
 			if c == 0 {
 				return 0
 			}
-			if c == ']' { // a closing bracket in the varible name will fail validation
+			if c == ']' { // a closing bracket in the variable name will fail validation
 				if len(idx[bracketCount]) == 0 {
 					return 0
 				}
@@ -720,7 +718,7 @@ yydefault:
 		}
 	case 22:
 		{
-			//fmt.Println("field_test string", $1, $2, $3)
+			//fmt.Println("field_test boolean", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 25:

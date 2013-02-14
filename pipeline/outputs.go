@@ -84,10 +84,12 @@ func (self *LogOutput) Init(config interface{}) error {
 func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 	msg := *(pipelinePack.Message)
 	log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d\n\tUUID: %s"+
-		"\n\tLogger: %s\n\tPayload: %s\n\tFields: %+v\n>\n",
+		"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
+		"\tFields: %+v\n>\n",
 		time.Unix(0, msg.GetTimestamp()),
-		msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuid(),
-		msg.GetLogger(), msg.GetPayload(), msg.Fields)
+		msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+		msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+		msg.GetSeverity(), msg.Fields)
 }
 
 type CounterOutput struct {
