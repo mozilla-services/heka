@@ -4,7 +4,6 @@ package pipeline
 
 import __yyfmt__ "fmt"
 
-//line filter_specification_parser.y:2
 import (
 	"fmt"
 	"log"
@@ -65,7 +64,6 @@ func (s *stack) pop() (node *tree) {
 
 var nodes []*tree
 
-//line filter_specification_parser.y:66
 type yySymType struct {
 	yys        int
 	tokenId    int
@@ -128,7 +126,6 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line filter_specification_parser.y:162
 type FilterSpecificationParser struct {
 	filter   string
 	sym      string
@@ -396,7 +393,6 @@ func (f *FilterSpecificationParser) getrune() rune {
 	return c
 }
 
-//line yacctab:1
 var yyExca = []int{
 	-1, 1,
 	1, -1,
@@ -479,8 +475,6 @@ var yyTok2 = []int{
 var yyTok3 = []int{
 	0,
 }
-
-//line yaccpar:1
 
 /*	parser for yacc output	*/
 
@@ -705,54 +699,45 @@ yydefault:
 	switch yynt {
 
 	case 18:
-		//line filter_specification_parser.y:110
 		{
 			//fmt.Println("string_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 19:
-		//line filter_specification_parser.y:116
 		{
 			//fmt.Println("numeric_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 20:
-		//line filter_specification_parser.y:122
 		{
 			//fmt.Println("field_test numeric", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 21:
-		//line filter_specification_parser.y:127
 		{
 			//fmt.Println("field_test string", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 22:
-		//line filter_specification_parser.y:132
 		{
 			//fmt.Println("field_test string", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
 	case 25:
-		//line filter_specification_parser.y:139
 		{
 			yyVAL = yyS[yypt-1]
 		}
 	case 26:
-		//line filter_specification_parser.y:143
 		{
 			//fmt.Println("and", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
 	case 27:
-		//line filter_specification_parser.y:148
 		{
 			//fmt.Println("or", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
 	case 31:
-		//line filter_specification_parser.y:156
 		{
 			//fmt.Println("boolean", $1)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-0]}})
