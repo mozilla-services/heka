@@ -19,7 +19,6 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"net"
 	"os"
@@ -123,8 +122,7 @@ func (self *UdpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		}
 	}()
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	stopChan := helper.StopChan()
 	go func() {
 		_ = <-stopChan
 		stopped = true
@@ -294,8 +292,7 @@ func (self *TcpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		}
 	}()
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	stopChan := helper.StopChan()
 	go func() {
 		_ = <-stopChan
 		stopped = true
@@ -376,8 +373,7 @@ func (self *MessageGeneratorInput) Start(helper PluginHelper,
 	var pack *PipelinePack
 	chainRouter := helper.ChainRouter()
 	packSupply := helper.PackSupply()
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	stopChan := helper.StopChan()
 
 	go func() {
 	runnerLoop:

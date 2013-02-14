@@ -68,3 +68,13 @@ func (_m *MockPluginHelper) PackSupply() chan *PipelinePack {
 func (_mr *_MockPluginHelperRecorder) PackSupply() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PackSupply")
 }
+
+func (_m *MockPluginHelper) StopChan() chan interface{} {
+	ret := _m.ctrl.Call(_m, "StopChan")
+	ret0, _ := ret[0].(chan interface{})
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) StopChan() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StopChan")
+}

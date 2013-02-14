@@ -78,6 +78,7 @@ func InputsSpec(c gs.Context) {
 			newDecoderSet := ith.MockHelper.EXPECT().NewDecoderSet()
 			newDecoderSet.Return(ith.Decoders)
 			ith.MockHelper.EXPECT().PackSupply().Return(ith.PackSupply)
+			ith.MockHelper.EXPECT().StopChan()
 
 			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
 			readCall.Return(len(msgJson), nil)

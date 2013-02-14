@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
+	"github.com/rafrombrc/go-notify"
 	"os"
 )
 
@@ -40,6 +41,7 @@ type PluginHelper interface {
 	NewDecoder(name string) (runner DecoderRunner, ok bool)
 	NewDecoderSet() (decoders []DecoderRunner)
 	ChainRouter() *ChainRouter
+	StopChan() (stopChan chan interface{})
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -118,6 +120,12 @@ func (self *PipelineConfig) ChainRouter() *ChainRouter {
 
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
 	return self.RecycleChan
+}
+
+func (self *PipelineConfig) StopChan() (stopChan chan interface{}) {
+	stopChan = make(chan interface{})
+	notify.Start(STOP, stopChan)
+	return
 }
 
 // The JSON config file spec
