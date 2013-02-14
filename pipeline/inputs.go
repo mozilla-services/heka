@@ -273,20 +273,24 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
+func (self *TcpInput) listenForConnection(helper PluginHelper) {
+	conn, err := self.listener.Accept()
+	if err != nil {
+		log.Println("TCP accept failed")
+		return
+	}
+	go self.handleConnection(helper, conn)
+}
+
 func (self *TcpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 
 	var stopped bool
 	go func() {
 		for {
-			conn, err := self.listener.Accept()
-			if err != nil {
-				if stopped {
-					break
-				}
-				log.Println("TCP accept failed")
-				continue
+			self.listenForConnection(helper)
+			if stopped {
+				break
 			}
-			go self.handleConnection(helper, conn)
 		}
 	}()
 
