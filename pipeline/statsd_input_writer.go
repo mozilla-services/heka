@@ -101,12 +101,11 @@ func (s *StatsdInput) Name() string {
 func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := new(statMonitor)
-	go sm.Monitor(s, packets, wg)
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg)
+	go sm.Monitor(packets)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
-		wg.Add(1)
 		go func() {
 			var n int
 			var err error
@@ -127,6 +126,10 @@ func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 			log.Println("StatsdUdpInput for input stopped: ", s.Name())
 			wg.Done()
 		}()
+	} else {
+		// In this case, the monitor already incremented for itself, so
+		// we decrement here since we didn't need it
+		wg.Done()
 	}
 	return nil
 }
@@ -163,22 +166,29 @@ type statMonitor struct {
 	gauges           map[string]int
 	percentThreshold int
 	flushInterval    int64
+	wg               *sync.WaitGroup
 }
 
-func (sm *statMonitor) Monitor(input *StatsdInput, packets <-chan StatPacket,
-	wg *sync.WaitGroup) {
+func NewStatMonitor(percentThreshold int, flushInterval int64,
+	wg *sync.WaitGroup) *statMonitor {
+	return &statMonitor{
+		counters:         make(map[string]int),
+		timers:           make(map[string][]float64),
+		gauges:           make(map[string]int),
+		percentThreshold: percentThreshold,
+		flushInterval:    flushInterval,
+		wg:               wg,
+	}
+}
+
+func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
 	var s StatPacket
 	var floatValue float64
 	var intValue int
 
-	sm.counters = make(map[string]int)
-	sm.timers = make(map[string][]float64)
-	sm.gauges = make(map[string]int)
-	sm.percentThreshold = input.percentThreshold
-	sm.flushInterval = input.flushInterval
-
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
+	wg.Add(1)
 
 	t := time.NewTicker(time.Duration(input.flushInterval) * time.Second)
 statLoop:
@@ -204,7 +214,6 @@ statLoop:
 		}
 	}
 	log.Println("StatsdMonitor for input stopped: ", input.Name())
-	input.stopped = true
 	wg.Done()
 }
 
