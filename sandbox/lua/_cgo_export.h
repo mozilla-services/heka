@@ -1,6 +1,7 @@
 /* Created by cgo - DO NOT EDIT. */
 
-#line 30 "lua_sandbox.go"
+#line 16 "lua_sandbox.go"
+#include <stdlib.h>
 #include "lua_sandbox.h"
 
 
@@ -21,13 +22,22 @@ typedef double GoFloat64;
 typedef __complex float GoComplex64;
 typedef __complex double GoComplex128;
 
-typedef struct { const char *p; int n; } GoString;
+typedef struct { char *p; int n; } GoString;
 typedef void *GoMap;
 typedef void *GoChan;
 typedef struct { void *t; void *v; } GoInterface;
 typedef struct { void *data; int len; int cap; } GoSlice;
 
 
-extern void lua_sandbox_print(void* p0, GoString p1);
+/* Return type for go_read_message */
+struct go_read_message_return {
+	GoInt r0;
+	void* r1;
+	GoInt r2;
+};
 
-extern void lua_sandbox_send_message(void* p0, GoString p1);
+extern struct go_read_message_return go_read_message(void* p0, char* p1);
+
+extern void go_print(void* p0, char* p1);
+
+extern void go_send_message(void* p0, char* p1);

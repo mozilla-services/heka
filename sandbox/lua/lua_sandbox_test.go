@@ -13,7 +13,11 @@
 # ***** END LICENSE BLOCK *****/
 package lua_test
 
+import "os"
+import "time"
 import "testing"
+import "code.google.com/p/go-uuid/uuid"
+import "github.com/mozilla-services/heka/message"
 import "github.com/mozilla-services/heka/sandbox"
 import "github.com/mozilla-services/heka/sandbox/lua"
 
@@ -133,6 +137,7 @@ func TestFailedInit(t *testing.T) {
 }
 
 func TestMissingProcessMessage(t *testing.T) {
+	msg := getTestMessage()
 	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000)
 	if err != nil {
 		t.Errorf("%s", err)
@@ -141,7 +146,7 @@ func TestMissingProcessMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	r := sb.ProcessMessage("message")
+	r := sb.ProcessMessage(msg)
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -153,7 +158,7 @@ func TestMissingProcessMessage(t *testing.T) {
 		t.Errorf("status should be %d, received %d",
 			sandbox.STATUS_TERMINATED, sb.Status())
 	}
-	r = sb.ProcessMessage("message") // try to use the terminated plugin
+	r = sb.ProcessMessage(msg) // try to use the terminated plugin
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -179,12 +184,42 @@ func TestMissingTimeEvent(t *testing.T) {
 	}
 	r = sb.TimerEvent() // try to use the terminated plugin
 	if r == 0 {
-		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
+		t.Errorf("TimerEvent() expected: 1, received: %d", r)
 	}
 	sb.Destroy()
 }
 
+func getTestMessage() *message.Message {
+	hostname, _ := os.Hostname()
+	field, _ := message.NewField("foo", "bar", message.Field_RAW)
+	msg := &message.Message{}
+	msg.SetType("TEST")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetLogger("GoSpec")
+	msg.SetSeverity(int32(6))
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(int32(os.Getpid()))
+	msg.SetHostname(hostname)
+	msg.AddField(field)
+
+	data := []byte("data")
+	field1, _ := message.NewField("bytes", data, message.Field_RAW)
+	field2, _ := message.NewField("int", int64(999), message.Field_RAW)
+	field2.AddValue(int64(1024))
+	field3, _ := message.NewField("double", float64(99.9), message.Field_RAW)
+	field4, _ := message.NewField("bool", true, message.Field_RAW)
+	field5, _ := message.NewField("foo", "alternate", message.Field_RAW)
+	msg.AddField(field1)
+	msg.AddField(field2)
+	msg.AddField(field3)
+	msg.AddField(field4)
+	msg.AddField(field5)
+	return msg
+}
+
 func TestAPIErrors(t *testing.T) {
+	msg := getTestMessage()
 	tests := []string{"send_message() no arg",
 		"send_message() incorrect arg type",
 		"send_message() incorrect number of args",
@@ -201,7 +236,7 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() -> print() must have at least one argument",
 		"process_message() -> not enough memory",
 		"process_message() -> instruction_limit exceeded",
-		"process_message() -> ./testsupport/errors.lua:20: attempt to perform arithmetic on global 'x' (a nil value)",
+		"process_message() -> ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
 		"process_message() must return a single numeric value"}
 
@@ -214,7 +249,8 @@ func TestAPIErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		r := sb.ProcessMessage(v)
+		msg.SetPayload(v)
+		r := sb.ProcessMessage(msg)
 		if r != 1 || sandbox.STATUS_TERMINATED != sb.Status() {
 			t.Errorf("test: %s status should be %d, received %d",
 				v, sandbox.STATUS_TERMINATED, sb.Status())
@@ -245,6 +281,27 @@ func TestTimerEvent(t *testing.T) {
 	s := sb.LastError()
 	if s != "" {
 		t.Errorf("there should be no error; received \"%s\"", s)
+	}
+	sb.Destroy()
+}
+
+func TestReadMessage(t *testing.T) {
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox("./testsupport/read_message.lua", 32767, 1000)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init()
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	r := sb.ProcessMessage(msg)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d", r)
+	}
+	r = sb.TimerEvent()
+	if r != 0 {
+		t.Errorf("read_message should return nil in timer_event")
 	}
 	sb.Destroy()
 }

@@ -88,12 +88,10 @@ SANDBOX_EXPORT const char* lua_sandbox_last_error(lua_sandbox* lsb);
  * Passes a Heka message down to the sandbox for processing
  * 
  * @param lsb pointer to the sandbox
- * @param msg protocol buffer encoded message
  * 
  * @return 0 on success
  */
-SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb,
-                                               const char* msg);
+SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb);
 
 /**
  * Called when the plugin timer expires (the garbage collector is run after 

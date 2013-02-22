@@ -13,37 +13,38 @@
 # ***** END LICENSE BLOCK *****/
 
 package sandbox
+
 /*
 #include "sandbox.h"
 */
 import "C"
 
 const (
-  STATUS_UNKNOWN = C.STATUS_UNKNOWN
-  STATUS_RUNNING = C.STATUS_RUNNING
-  STATUS_TERMINATED = C.STATUS_TERMINATED
+	STATUS_UNKNOWN    = C.STATUS_UNKNOWN
+	STATUS_RUNNING    = C.STATUS_RUNNING
+	STATUS_TERMINATED = C.STATUS_TERMINATED
 
-  USAGE_LIMIT = C.USAGE_LIMIT
-  USAGE_CURRENT = C.USAGE_CURRENT
-  USAGE_MAXIMUM = C.USAGE_MAXIMUM
+	USAGE_LIMIT   = C.USAGE_LIMIT
+	USAGE_CURRENT = C.USAGE_CURRENT
+	USAGE_MAXIMUM = C.USAGE_MAXIMUM
 )
 
 type Sandbox interface {
 	// Sandbox control
-   Init() error
+	Init() error
 	Destroy()
 
 	// Sandbox state
-   Status() int
-   LastError() string
+	Status() int
+	LastError() string
 	Memory(usage int) int
 	Instructions(usage int) int
 
-   // Plugin functions
-   ProcessMessage(msg string) int
-   TimerEvent() int
+	// Plugin functions
+	ProcessMessage(msg string) int
+	TimerEvent() int
 
-   // Go callbacks
-   Print(s string)
-   SendMessage(msg string)
+	// Go callbacks
+	Print(s string)
+	SendMessage(msg string)
 }

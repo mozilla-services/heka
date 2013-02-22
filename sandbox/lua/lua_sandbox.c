@@ -91,6 +91,63 @@ void sandbox_terminate(lua_sandbox* lsb)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int sandbox_read_message(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        lua_pushstring(lua, "read_message() invalid lightuserdata");
+        lua_error(lua);
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    int n = lua_gettop(lua);
+    if (1 == n) {
+        if (lua_isstring(lua, 1)) {
+            size_t len = 0;
+            const char* field = lua_tolstring(lua, 1, &len);
+            struct go_read_message_return gr;
+            // cast away constness, the value is not modified and will save a
+            // copy
+            gr = go_read_message(lsb->m_go, (char*)field);
+            if (gr.r1 == NULL) {
+                lua_pushnil(lua);
+            } else {
+                switch (gr.r0) {
+                case 0:
+                    lua_pushlstring(lua, gr.r1, gr.r2);
+                    free(gr.r1);
+                    break;
+                case 1:
+                    lua_pushlstring(lua, gr.r1, gr.r2);
+                    break;
+                case 2:
+                    if (strncmp("Pid", field, 3) == 0
+                        || strncmp("Severity", field, 8) == 0) {
+                        lua_pushinteger(lua, *((GoInt32*)gr.r1));
+                    } else {
+                        lua_pushinteger(lua, *((GoInt*)gr.r1));
+                    }
+                    break;
+                case 3:
+                    lua_pushnumber(lua, *((GoFloat64*)gr.r1));
+                    break;
+                case 4:
+                    lua_pushboolean(lua, *((GoInt8*)gr.r1));
+                    break;
+                }
+            }
+        }  else {
+            lua_pushstring(lua, "read_message() argument must be a string");
+            lua_error(lua);
+        }
+    } else {
+        lua_pushstring(lua, "read_message() incorrect number of arguments");
+        lua_error(lua);
+    }
+    return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int sandbox_print(lua_State* lua)
 {
     char buf[PRINT_SIZE]; ///@todo make this buffer dynamic, or print directly to a file
@@ -124,10 +181,7 @@ int sandbox_print(lua_State* lua)
             }
         }
     }
-    GoString gs;
-    gs.p = buf;
-    gs.n = total;
-    lua_sandbox_print(lsb->m_go, gs);
+    go_print(lsb->m_go, buf);
     return 0;
 }
 
@@ -146,10 +200,9 @@ int sandbox_send_message(lua_State* lua)
         if (lua_isstring(lua, 1)) {
             size_t len = 0;
             const char* msg = lua_tolstring(lua, 1, &len);
-            GoString gs;
-            gs.p = msg;
-            gs.n = len;
-            lua_sandbox_send_message(lsb->m_go, gs);
+            // cast away constness, the value is not modified and will save a
+            // copy
+            go_send_message(lsb->m_go, (char*)msg);
         }  else {
             lua_pushstring(lua, "send_message() argument must be a string");
             lua_error(lua);
@@ -330,7 +383,7 @@ sandbox_status lua_sandbox_status(lua_sandbox* lsb)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int lua_sandbox_process_message(lua_sandbox* lsb, const char* msg)
+int lua_sandbox_process_message(lua_sandbox* lsb)
 {
     if (lsb == NULL || lsb->m_lua == NULL) {
         return 1;
@@ -346,8 +399,7 @@ int lua_sandbox_process_message(lua_sandbox* lsb, const char* msg)
         return 1;
     }
 
-    lua_pushstring(lsb->m_lua, msg);
-    if (lua_pcall(lsb->m_lua, 1, 1, 0) != 0) {
+    if (lua_pcall(lsb->m_lua, 0, 1, 0) != 0) {
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "process_message() -> %s", lua_tostring(lsb->m_lua, -1));
         sandbox_terminate(lsb);
@@ -417,6 +469,10 @@ int lua_sandbox_init(lua_sandbox* lsb)
     lsb->m_lua = lua_newstate(sandbox_memory_manager, lsb);
     if (lsb->m_lua != NULL) {
         load_lua_libraries(lsb);
+
+        lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
+        lua_pushcclosure(lsb->m_lua, &sandbox_read_message, 1);
+        lua_setglobal(lsb->m_lua, "read_message");
 
         lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
         lua_pushcclosure(lsb->m_lua, &sandbox_print, 1);

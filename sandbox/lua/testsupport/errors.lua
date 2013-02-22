@@ -1,6 +1,8 @@
 data = ""
 
-function process_message (msg)
+function process_message ()
+    local msg = read_message("Payload")
+
     if msg == "send_message() no arg" then
         send_message()
     elseif msg == "send_message() incorrect arg type" then
