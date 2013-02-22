@@ -19,6 +19,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"reflect"
 	"regexp"
+	"strconv"
 )
 
 // A set of extracted matches from a regular expression
@@ -109,6 +110,29 @@ func newMatcher(field string) (Matcher, error) {
 	return fn, nil
 }
 
+func stringIt(value interface{}) (s string, ok bool) {
+	ok = true
+
+	// Now attempt the common conversions
+	switch i := value.(type) {
+	case nil:
+		s = ""
+	case int64:
+		s = strconv.FormatInt(i, 10)
+	case bool:
+		s = strconv.FormatBool(i)
+	case []byte:
+		s = string(i)
+	case float64:
+		s = strconv.FormatFloat(i, 'g', -1, 64)
+	case string:
+		s = i
+	default:
+		ok = false
+	}
+	return
+}
+
 // Determines if a message matches the configured criteria
 //
 // In the event a message does match, the MatchSet contains all the
@@ -116,7 +140,16 @@ func newMatcher(field string) (Matcher, error) {
 func (m MessageMatcher) Match(message *Message) (MatchSet, bool) {
 	var fieldName string
 	var matcher Matcher
-	set := make(map[string]string)
+	set := map[string]string{
+		"Logger":   message.GetLogger(),
+		"Payload":  message.GetPayload(),
+		"Type":     message.GetType(),
+		"Hostname": message.GetHostname(),
+		"Pid":      string(message.GetPid()),
+		"Uuid":     message.GetUuidString(),
+		"Severity": string(message.GetSeverity()),
+	}
+
 	matched := true
 	for fieldName, matcher = range m {
 		switch fieldName {
@@ -128,8 +161,19 @@ func (m MessageMatcher) Match(message *Message) (MatchSet, bool) {
 			matched = matcher(message.GetType(), set)
 		case "Hostname":
 			matched = matcher(message.GetHostname(), set)
+		case "Severity":
+			matched = matcher(string(message.GetSeverity()), set)
 		default:
-			matched = false
+			// Search fields
+			if val, ok := message.GetFieldValue(fieldName); ok {
+				if result, ok := stringIt(val); ok {
+					matched = matcher(result, set)
+				} else {
+					matched = false
+				}
+			} else {
+				matched = false
+			}
 		}
 		if !matched {
 			return nil, false
