@@ -198,8 +198,7 @@ func (self *FileWriter) ConfigStruct() interface{} {
 func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
 	err error) {
 	conf := config.(*FileWriterConfig)
-	_, ok := FILEFORMATS[conf.Format]
-	if !ok {
+	if _, ok := FILEFORMATS[conf.Format]; !ok {
 		return nil, fmt.Errorf("Unsupported FileOutput format: %s",
 			conf.Format)
 	}
