@@ -111,10 +111,10 @@ func go_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
 				unsafe.Pointer(lsb.msg.Timestamp), 0
 		case "Severity":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(&lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.msg.Severity), 0
 		case "Pid":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(&lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.msg.Severity), 0
 		default:
 			sm := lsb.fieldRe.FindStringSubmatch(fieldName)
 			var ai int = 0
