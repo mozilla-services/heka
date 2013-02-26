@@ -33,7 +33,7 @@ type WhisperRunner struct {
 	InChan           chan *whisper.Point
 }
 
-func NewWhisperRunner(path string, aggMethod *whisper.AggregationMethod) (wr *WhisperRunner,
+func NewWhisperRunner(path string, aggMethod whisper.AggregationMethod) (wr *WhisperRunner,
 	err error) {
 	var db *whisper.Whisper
 	if db, err = whisper.Open(path); err != nil {
@@ -47,7 +47,7 @@ func NewWhisperRunner(path string, aggMethod *whisper.AggregationMethod) (wr *Wh
 		}
 	}
 	inChan := make(chan *whisper.Point, 10)
-	wr = &WhisperRunner{path, db, inChan}
+	wr = &WhisperRunner{path, db, aggMethod, inChan}
 	wr.start()
 	return
 }
@@ -56,7 +56,7 @@ func (wr *WhisperRunner) start() {
 	go func() {
 		var err error
 		for point := range wr.InChan {
-			if err = wr.db.Update(point); err != nil {
+			if err = wr.db.Update(*point); err != nil {
 				log.Printf("Error updating whisper db '%s': %s", wr.path, err)
 			}
 		}
@@ -95,7 +95,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 }
 
 func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
-	statPath = strings.Replace(statName, ".", os.PathSeparator, -1)
+	statPath = strings.Replace(statName, ".", string(os.PathSeparator), -1)
 	statPath = strings.Join([]string{statPath, "wsp"}, ".")
 	statPath = path.Join(o.basePath, statPath)
 	return
@@ -105,13 +105,13 @@ func (o *WhisperOutput) Deliver(pack *PipelinePack) {
 	payload := pack.Message.GetPayload()
 	var fields []string
 	var wr *WhisperRunner
-	var timeUInt uint
+	var unixTime uint64
 	var value float64
 	var err error
-	for line := range strings.Split(payload, "\n") {
-		// `fields` is name, value, timestamp
+	for _, line := range strings.Split(payload, "\n") {
+		// `fields` should be "<name> <value> <timestamp>"
 		fields = strings.Fields(line)
-		if !strings.HasPrefix(fields[0], "stats") {
+		if len(fields) != 3 || !strings.HasPrefix(fields[0], "stats") {
 			log.Println("WhisperOutput malformed statmetric line: ", line)
 			continue
 		}
@@ -123,7 +123,7 @@ func (o *WhisperOutput) Deliver(pack *PipelinePack) {
 			}
 			o.dbs[fields[0]] = wr
 		}
-		if timeUInt, err = strconv.ParseUint(fields[2], 0, 32); err != nil {
+		if unixTime, err = strconv.ParseUint(fields[2], 0, 32); err != nil {
 			log.Println("WhisperOutput error parsing time: ", err)
 			continue
 		}
@@ -131,7 +131,7 @@ func (o *WhisperOutput) Deliver(pack *PipelinePack) {
 			log.Println("WhisperOutput error parsing value: ", err)
 		}
 		pt := &whisper.Point{
-			Timestamp: uint32(timeUInt),
+			Timestamp: uint32(unixTime),
 			Value:     value,
 		}
 		wr.InChan <- pt
