@@ -17,47 +17,123 @@ package pipeline
 import (
 	"fmt"
 	"github.com/kisielk/whisper-go/whisper"
+	"log"
 	"os"
+	"path"
+	"strconv"
+	"strings"
 )
 
+// WhisperRunners listen for *whisper.Point data values to come in on an input
+// channel and write the values out to the whisper db as they do.
+type WhisperRunner struct {
+	path             string
+	db               *whisper.Whisper
+	defaultAggMethod whisper.AggregationMethod
+	InChan           chan *whisper.Point
+}
+
+func NewWhisperRunner(path string, aggMethod *whisper.AggregationMethod) (wr *WhisperRunner,
+	err error) {
+	var db *whisper.Whisper
+	if db, err = whisper.Open(path); err != nil {
+		if !os.IsNotExist(err) {
+			// A real error.
+			err = fmt.Errorf("Error opening whisper db: %s", err)
+			return
+		} else if db, err = whisper.Create(path, nil, 0.1, aggMethod, false); err != nil {
+			err = fmt.Errorf("Error creating whisper db: %s", err)
+			return
+		}
+	}
+	inChan := make(chan *whisper.Point, 10)
+	wr = &WhisperRunner{path, db, inChan}
+	wr.start()
+	return
+}
+
+func (wr *WhisperRunner) start() {
+	go func() {
+		var err error
+		for point := range wr.InChan {
+			if err = wr.db.Update(point); err != nil {
+				log.Printf("Error updating whisper db '%s': %s", wr.path, err)
+			}
+		}
+	}()
+}
+
+// A WhisperOutput plugin will parse the stats data in the payload of a
+// `statmetric` message and write the data out to a graphite-compatible
+// whisper database file tree structure.
 type WhisperOutput struct {
-	db *whisper.Whisper
+	basePath         string
+	defaultAggMethod whisper.AggregationMethod
+	dbs              map[string]*WhisperRunner
 }
 
 type WhisperOutputConfig struct {
-	// Full file path to Whisper database file.
-	Path              string
-	AggregationMethod whisper.AggregationMethod
+	// Full file path to where the Whisper db files are stored.
+	BasePath         string
+	DefaultAggMethod whisper.AggregationMethod
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	return new(WhisperOutputConfig)
+	basePath := path.Join("var", "run", "hekad", "whisper")
+	return &WhisperOutputConfig{
+		BasePath:         basePath,
+		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
+	}
 }
 
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
-	if o.db, err = whisper.Open(conf.Path); err != nil {
-		if !os.IsNotExist(err) {
-			// A real error, bail out.
-			err = fmt.Errorf("Error opening whisper db: %s", err)
-			return
-		}
-		// No db file, create it.
-		if o.db, err = whisper.Create(conf.Path, nil, 0.1, conf.AggregationMethod,
-			false); err != nil {
-			err = fmt.Errorf("Error creating whisper db: %s", err)
-			return
-		}
-	} else {
-		if o.db.Header.Metadata.AggregationMethod != conf.AggregationMethod {
-			if err = o.db.SetAggregationMethod(conf.AggregationMethod); err != nil {
-				err = fmt.Errorf("Error setting whisper db agg method: %s", err)
-				return
-			}
-		}
-	}
+	o.basePath = conf.BasePath
+	o.defaultAggMethod = conf.DefaultAggMethod
+	o.dbs = make(map[string]*WhisperRunner)
+	return
+}
+
+func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
+	statPath = strings.Replace(statName, ".", os.PathSeparator, -1)
+	statPath = strings.Join([]string{statPath, "wsp"}, ".")
+	statPath = path.Join(o.basePath, statPath)
+	return
 }
 
 func (o *WhisperOutput) Deliver(pack *PipelinePack) {
-
+	payload := pack.Message.GetPayload()
+	var fields []string
+	var wr *WhisperRunner
+	var timeUInt uint
+	var value float64
+	var err error
+	for line := range strings.Split(payload, "\n") {
+		// `fields` is name, value, timestamp
+		fields = strings.Fields(line)
+		if !strings.HasPrefix(fields[0], "stats") {
+			log.Println("WhisperOutput malformed statmetric line: ", line)
+			continue
+		}
+		if wr = o.dbs[fields[0]]; wr == nil {
+			wr, err = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultAggMethod)
+			if err != nil {
+				log.Println("WhisperOutput can't create WhisperRunner: ", err)
+				continue
+			}
+			o.dbs[fields[0]] = wr
+		}
+		if timeUInt, err = strconv.ParseUint(fields[2], 0, 32); err != nil {
+			log.Println("WhisperOutput error parsing time: ", err)
+			continue
+		}
+		if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
+			log.Println("WhisperOutput error parsing value: ", err)
+		}
+		pt := &whisper.Point{
+			Timestamp: uint32(timeUInt),
+			Value:     value,
+		}
+		wr.InChan <- pt
+	}
 }
