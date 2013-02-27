@@ -238,7 +238,7 @@ func (sm *statMonitor) Flush() {
 	buffer := bytes.NewBufferString("")
 	for s, c := range sm.counters {
 		value = float64(c) / ((float64(sm.flushInterval) * float64(time.Second)) / float64(1e3))
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", s, value, nowUnix)
+		fmt.Fprintf(buffer, "stats.%s %f %d\n", s, value, nowUnix)
 		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, nowUnix)
 		sm.counters[s] = 0
 		numStats++
@@ -272,11 +272,11 @@ func (sm *statMonitor) Flush() {
 			}
 			sm.timers[u] = t[:0]
 
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, mean, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, max, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
 				sm.percentThreshold, maxAtThreshold, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, min, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
 			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
 		} else {
 			// Need to still submit timers as zero
