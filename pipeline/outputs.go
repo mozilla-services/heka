@@ -326,10 +326,9 @@ func (t *TcpWriter) ZeroOutData(outData interface{}) {
 }
 
 func (t *TcpWriter) PrepOutData(pack *PipelinePack, outData interface{},
-	timeout *time.Duration) error {
-	err := createProtobufStream(pack, outData.(*[]byte))
-	return err
-
+	timeout *time.Duration) (err error) {
+	err = createProtobufStream(pack, outData.(*[]byte))
+	return
 }
 
 func (t *TcpWriter) Write(outData interface{}) (err error) {
