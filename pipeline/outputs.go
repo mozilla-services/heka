@@ -201,8 +201,8 @@ type FileOutput struct {
 	flushInterval uint32
 	file          *os.File
 	inChan        chan *PipelinePack
-	batchChan     chan *[]byte
-	backChan      chan *[]byte
+	batchChan     chan []byte
+	backChan      chan []byte
 }
 
 type FileOutputConfig struct {
@@ -241,8 +241,8 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	}
 	o.flushInterval = conf.FlushInterval
 	o.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	o.batchChan = make(chan *[]byte)
-	o.backChan = make(chan *[]byte, 1) // Don't block on the hand-back
+	o.batchChan = make(chan []byte)
+	o.backChan = make(chan []byte, 1) // Don't block on the hand-back
 	return
 }
 
@@ -265,8 +265,7 @@ func (o *FileOutput) receiver() {
 	var err error
 	var ok bool
 	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
-	myBatch := make([]byte, 0, 10000)
-	outBatch := &myBatch
+	outBatch := make([]byte, 0, 10000)
 	outBytes := make([]byte, 0, 1000)
 
 	stopChan := make(chan interface{})
@@ -281,16 +280,15 @@ func (o *FileOutput) receiver() {
 				close(o.batchChan)
 				return
 			}
-			fmt.Println(string(*outBatch))
 			if err = o.handleMessage(pack, &outBytes); err != nil {
 				log.Println(err)
 			} else {
-				*outBatch = append(*outBatch, outBytes...)
+				outBatch = append(outBatch, outBytes...)
 			}
 			outBytes = outBytes[:0]
 			pack.Recycle()
 		case <-ticker:
-			if len(*outBatch) > 0 {
+			if len(outBatch) > 0 {
 				// This will block until the other side is ready to accept
 				// this batch, freeing us to start on the next one.
 				o.batchChan <- outBatch
@@ -330,8 +328,8 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 
 func (o *FileOutput) committer() {
 	initBatch := make([]byte, 0, 10000)
-	o.backChan <- &initBatch
-	var outBatch *[]byte
+	o.backChan <- initBatch
+	var outBatch []byte
 	var err error
 	var ok bool
 
@@ -347,15 +345,15 @@ func (o *FileOutput) committer() {
 				return
 				// TODO: wire up to shutdown waitgroup
 			}
-			n, err := o.file.Write(*outBatch)
+			n, err := o.file.Write(outBatch)
 			if err != nil {
 				log.Printf("FileOutput error writing to %s: %s", o.path, err)
-			} else if n != len(*outBatch) {
+			} else if n != len(outBatch) {
 				log.Printf("FileOutput truncated output for %s", o.path)
 			} else {
 				o.file.Sync()
 			}
-			*outBatch = (*outBatch)[:0]
+			outBatch = outBatch[:0]
 			o.backChan <- outBatch
 		case <-hupChan:
 			o.file.Close()

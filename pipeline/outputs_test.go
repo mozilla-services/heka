@@ -133,7 +133,7 @@ func OutputsSpec(c gs.Context) {
 			close(fileOutput.inChan)
 
 			outBatch := <-fileOutput.batchChan
-			c.Expect(string(*outBatch), gs.Equals, payload)
+			c.Expect(string(outBatch), gs.Equals, payload)
 		})
 
 		c.Specify("commits to a file", func() {
@@ -150,7 +150,7 @@ func OutputsSpec(c gs.Context) {
 
 				// Feed and close the batchChan
 				go func() {
-					fileOutput.batchChan <- &outBytes
+					fileOutput.batchChan <- outBytes
 					_ = <-fileOutput.backChan // clear backChan to prevent blocking
 					close(fileOutput.batchChan)
 				}()
@@ -175,7 +175,7 @@ func OutputsSpec(c gs.Context) {
 
 				go fileOutput.committer()
 				go func() {
-					fileOutput.batchChan <- &outBytes
+					fileOutput.batchChan <- outBytes
 					_ = <-fileOutput.backChan
 					close(fileOutput.batchChan)
 				}()
