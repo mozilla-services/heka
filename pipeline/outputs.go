@@ -203,6 +203,7 @@ type FileOutput struct {
 	inChan        chan *PipelinePack
 	batchChan     chan []byte
 	backChan      chan []byte
+	wg            *sync.WaitGroup
 }
 
 type FileOutputConfig struct {
@@ -255,7 +256,9 @@ func (o *FileOutput) Deliver(pack *PipelinePack) {
 	o.inChan <- pack
 }
 
-func (o *FileOutput) Start() {
+func (o *FileOutput) Start(wg *sync.WaitGroup) {
+	o.wg = wg
+	wg.Add(1)
 	go o.receiver()
 	go o.committer()
 }
@@ -276,7 +279,9 @@ func (o *FileOutput) receiver() {
 		case pack, ok = <-o.inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
-				o.batchChan <- outBatch
+				if len(outBatch) > 0 {
+					o.batchChan <- outBatch
+				}
 				close(o.batchChan)
 				return
 			}
@@ -342,8 +347,8 @@ func (o *FileOutput) committer() {
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
 				o.file.Close()
+				o.wg.Done()
 				return
-				// TODO: wire up to shutdown waitgroup
 			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {

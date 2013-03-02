@@ -56,6 +56,10 @@ type PluginRunnerBase interface {
 	Name() string
 }
 
+type Startable interface {
+	Start(wg *sync.WaitGroup)
+}
+
 // Base struct for the specialized PluginRunners
 type pluginRunnerBase struct {
 	inChan chan *PipelinePack
@@ -149,6 +153,13 @@ func Run(config *PipelineConfig) {
 
 	for name, wrapper := range config.Outputs {
 		output := wrapper.Create().(Output)
+		// Band-aid to check if output needs to be started. This will go away
+		// when we finish the pipeline redesign.
+		var oi interface{} = output
+		if s, ok := oi.(Startable); ok {
+			s.Start(&wg)
+		}
+
 		outRunner = newOutputRunner(name, output)
 		config.OutputRunners[name] = outRunner
 		outRunner.Start(&wg)

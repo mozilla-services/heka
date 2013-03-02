@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -139,6 +140,8 @@ func OutputsSpec(c gs.Context) {
 		c.Specify("commits to a file", func() {
 			outStr := "Write me out to the log file"
 			outBytes := []byte(outStr)
+			fileOutput.wg = new(sync.WaitGroup)
+			fileOutput.wg.Add(1)
 
 			c.Specify("with default settings", func() {
 				err := fileOutput.Init(config)
