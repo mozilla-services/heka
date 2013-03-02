@@ -280,11 +280,11 @@ func (sm *statMonitor) Flush() {
 			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
 		} else {
 			// Need to still submit timers as zero
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
 				sm.percentThreshold, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
 			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
 		}
 		numStats++
