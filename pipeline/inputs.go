@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"bytes"
+	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
@@ -24,6 +25,8 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type TimeoutError string
@@ -127,6 +130,9 @@ func (self *UdpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		_ = <-stopChan
 		stopped = true
 		self.listener.Close()
+		for _, v := range decoders {
+			close(v.InChan())
+		}
 		log.Println("UdpInput stopped: ", self.name)
 		wg.Done()
 	}()
@@ -259,6 +265,9 @@ func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 			readPos, scanPos = readPos-scanPos, 0
 		}
 	}
+	for _, v := range decoders {
+		close(v.InChan())
+	}
 }
 
 func (self *TcpInput) Init(config interface{}) error {
@@ -310,33 +319,34 @@ var MessageGenerator = new(msgGenerator)
 type msgGenerator struct {
 	MessageChan chan *messageHolder
 	RecycleChan chan *messageHolder
+	hostname    string
+	pid         int32
 }
 
 func (self *msgGenerator) Init() {
 	self.MessageChan = make(chan *messageHolder, PoolSize/2)
 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
 	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 0}
+		msg := messageHolder{new(Message), 1}
 		self.RecycleChan <- &msg
 	}
+	self.hostname, _ = os.Hostname()
+	self.pid = int32(os.Getpid())
 }
 
 // Retrieve a message for use by the MessageGenerator.
-// Must be passed the current pipeline.ChainCount.
-//
-// This is actually a messageHolder object that has a message and
-// chainCount. The chainCount should remain untouched, and all the
-// fields of the returned msg.Message should be overwritten as needed
-// The msg.Message
-func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+func (self *msgGenerator) Retrieve() (msg *messageHolder) {
 	msg = <-self.RecycleChan
-	msg.ChainCount = chainCount
+	msg.Message.SetTimestamp(time.Now().UnixNano())
+	msg.Message.SetUuid(uuid.NewRandom())
+	msg.Message.SetHostname(self.hostname)
+	msg.Message.SetPid(self.pid)
+   msg.RefCount = 1
 	return msg
 }
 
 // Injects a message using the MessageGenerator
 func (self *msgGenerator) Inject(msg *messageHolder) {
-	msg.ChainCount++
 	self.MessageChan <- msg
 }
 
@@ -348,8 +358,8 @@ type MessageGeneratorInput struct {
 }
 
 type messageHolder struct {
-	Message    *Message
-	ChainCount int
+	Message *Message
+	RefCount int32
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
@@ -371,7 +381,6 @@ func (self *MessageGeneratorInput) Start(helper PluginHelper,
 	wg *sync.WaitGroup) error {
 
 	var pack *PipelinePack
-	chainRouter := helper.ChainRouter()
 	packSupply := helper.PackSupply()
 	stopChan := helper.StopChan()
 
@@ -384,9 +393,11 @@ func (self *MessageGeneratorInput) Start(helper PluginHelper,
 				case pack = <-packSupply:
 					msgHolder.Message.Copy(pack.Message)
 					pack.Decoded = true
-					pack.ChainCount = msgHolder.ChainCount
-					chainRouter.InChan <- pack
-					self.recycleChan <- msgHolder
+					pack.Config.Router.InChan <- pack
+					cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
+					if cnt == 0 {
+						self.recycleChan <- msgHolder
+					}
 				case <-stopChan:
 					break runnerLoop
 				}

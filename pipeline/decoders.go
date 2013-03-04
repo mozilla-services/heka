@@ -34,10 +34,9 @@ type DecoderRunner interface {
 type decoderRunner struct {
 	pluginRunnerBase
 	decoder Decoder
-	router  *ChainRouter
 }
 
-func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) DecoderRunner {
+func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &decoderRunner{
 		pluginRunnerBase{
@@ -45,17 +44,18 @@ func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) Decoder
 			inChan: inChan,
 		},
 		decoder,
-		router,
 	}
 }
 
 func (self *decoderRunner) Start() {
-	var pack *PipelinePack
 	var err error
 
 	go func() {
 		for {
-			pack = <-self.inChan
+			pack, ok := <-self.inChan
+			if !ok {
+				break
+			}
 			err = self.decoder.Decode(pack)
 			if err != nil {
 				log.Printf("Decoder '%s' error: '%s", self.Name(), err)
@@ -63,7 +63,7 @@ func (self *decoderRunner) Start() {
 				continue
 			}
 			pack.Decoded = true
-			self.router.InChan <- pack
+			pack.Config.Router.InChan <- pack
 		}
 	}()
 }

@@ -22,14 +22,6 @@
         {"type": "JsonDecoder", "encoding_name": "JSON"},
         {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
-    "filters": [
-        {"type": "StatRollupFilter"},
-        {
-            "type": "NamedOutputFilter",
-            "name": "graphite_filter",
-            "outputs": ["GraphiteOutput"]
-        }
-    ],
     "outputs": [
         {
             "type": "GraphiteOutput",
@@ -40,22 +32,33 @@
             "name": "counter"
         }
     ],
-    "chains": {
+    "filters": {
         "stats": {
-            "type": "Counter",
-            "filters": ["StatRollupFilter"]
+            "type": "StatRollupFilter",
+            "message_filter": "TRUE",
+            "outputs": ["LogFileOutput"]
         },
         "stat_dump": {
-            "type": "StatMetric",
+            "type": "PassThruFilter",
+            "message_filter": "TRUE",
             "outputs": ["GraphiteOutput"]
         },
         "hekabench": {
-            "type": "Counter",
+            "type": "PassThruFilter",
             "message_filter": "Type == \"hekabench\" && EnvVersion == \"0.8\"",
             "outputs": ["counter"]
         },
-        "default": {
-            "outputs": ["LogFileOutput"]
+        "lua_sandbox": {
+            "type": "SandboxFilter",
+            "message_filter": "Type == \"hekabench\" && EnvVersion == \"0.8\"",
+            "outputs": ["LogFileOutput"],
+            "timer_setting" : 60,
+            "sandbox": {
+                "type" : "lua",
+                "filename" : "sandbox.lua",
+                "memory_limit" : 32767,
+                "instruction_limit" : 1000
+            }
         }
     }
 }

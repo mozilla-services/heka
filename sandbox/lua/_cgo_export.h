@@ -38,6 +38,6 @@ struct go_read_message_return {
 
 extern struct go_read_message_return go_read_message(void* p0, char* p1);
 
-extern void go_print(void* p0, char* p1);
+extern void go_output(void* p0, char* p1);
 
-extern void go_send_message(void* p0, char* p1);
+extern void go_inject_message(void* p0, char* p1);

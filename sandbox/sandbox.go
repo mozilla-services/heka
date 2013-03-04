@@ -19,6 +19,8 @@ package sandbox
 */
 import "C"
 
+import "github.com/mozilla-services/heka/message"
+
 const (
 	STATUS_UNKNOWN    = C.STATUS_UNKNOWN
 	STATUS_RUNNING    = C.STATUS_RUNNING
@@ -37,14 +39,21 @@ type Sandbox interface {
 	// Sandbox state
 	Status() int
 	LastError() string
-	Memory(usage int) int
-	Instructions(usage int) int
+	Memory(usage int) uint
+	Instructions(usage int) uint
 
 	// Plugin functions
-	ProcessMessage(msg string) int
+	ProcessMessage(msg *message.Message) int
 	TimerEvent() int
 
 	// Go callbacks
-	Print(s string)
-	SendMessage(msg string)
+	Output(f func(s string))
+	InjectMessage(f func(s string))
+}
+
+type SandboxConfig struct {
+	ScriptType       string `json:"type"`
+	ScriptFilename   string `json:"filename"`
+	MemoryLimit      uint   `json:"memory_limit"`
+	InstructionLimit uint   `json:"instruction_limit"`
 }

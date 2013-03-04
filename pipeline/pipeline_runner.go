@@ -71,14 +71,13 @@ func (self *pluginRunnerBase) Name() string {
 }
 
 type PipelinePack struct {
-	MsgBytes   []byte
-	Message    *Message
-	Config     *PipelineConfig
-	Decoder    string
-	Decoders   map[string]Decoder
-	Decoded    bool
-	ChainCount int
-	RefCount   int32
+	MsgBytes []byte
+	Message  *Message
+	Config   *PipelineConfig
+	Decoder  string
+	Decoders map[string]Decoder
+	Decoded  bool
+	RefCount int32
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
@@ -127,33 +126,20 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	if err != nil {
 		log.Printf("Error sending %s event:", err.Error())
 	}
-
-	var wrapper *PluginWrapper
-	for _, wrapper = range config.Filters {
-		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
-		}
-	}
-	for _, wrapper = range config.Outputs {
-		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
-		}
-	}
 }
 
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	var wg sync.WaitGroup
-	var outRunner *outputRunner
 
-	for name, wrapper := range config.Outputs {
-		output := wrapper.Create().(Output)
-		outRunner = newOutputRunner(name, output)
-		config.OutputRunners[name] = outRunner
-		outRunner.Start(&wg)
+	for _, output := range config.OutputRunners {
 		wg.Add(1)
-		log.Printf("Output started: %s\n", name)
+		output.Start(&wg)
+	}
+	for _, filter := range config.FilterRunners {
+		wg.Add(1)
+		filter.Start(config, &wg)
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
@@ -161,15 +147,12 @@ func Run(config *PipelineConfig) {
 		config.RecycleChan <- NewPipelinePack(config)
 	}
 
-	for name, wrapper := range config.Inputs {
-		inputPlug, err := wrapper.CreateWithError()
-		if err != nil {
-			log.Fatalf("Failure to load plugin: %s", name)
-		}
-		input := inputPlug.(Input)
+	config.Router.Start()
+
+	for name, input := range config.Inputs {
 		input.SetName(name)
 		if input.Start(config, &wg) != nil {
-			log.Printf("'%s' input failed to start: %s", name, err)
+			log.Printf("'%s' input failed to start: %s", name)
 			continue
 		}
 		wg.Add(1)
@@ -194,6 +177,12 @@ sigListener:
 				break sigListener
 			}
 		}
+	}
+	for _, filter := range config.FilterRunners {
+		filter.Stop()
+	}
+	for _, output := range config.OutputRunners {
+		output.Stop()
 	}
 
 	wg.Wait()

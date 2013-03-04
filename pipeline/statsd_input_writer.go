@@ -268,7 +268,7 @@ func (sm *statMonitor) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
-	newMsg := MessageGenerator.Retrieve(0)
+	newMsg := MessageGenerator.Retrieve()
 	newMsg.Message.SetType("statmetric")
 	newMsg.Message.SetTimestamp(now.UnixNano())
 	newMsg.Message.SetPayload(buffer.String())

@@ -14,6 +14,8 @@
 
 package pipeline
 
+import "github.com/mozilla-services/heka/message"
+
 type metric struct {
 	Type_ string `json:"type"`
 	Name  string
@@ -43,25 +45,61 @@ func (s *StatFilter) Init(config interface{}) (err error) {
 	return
 }
 
-func (s *StatFilter) FilterMsg(pack *PipelinePack) {
-	set, matched := s.msgMatcher.Match(pack.Message)
+//func (s *StatFilter) FilterMsg(pack *PipelinePack) {
+//	set, matched := s.msgMatcher.Match(pack.Message)
+//	if !matched {
+//		return
+//	}
+//
+//	// Load existing fields into the set for replacement
+//	set["Logger"] = pack.Message.GetLogger()
+//	set["Hostname"] = pack.Message.GetHostname()
+//	set["Type"] = pack.Message.GetType()
+//	set["Payload"] = pack.Message.GetPayload()
+//
+//	// We matched, generate appropriate metrics
+//	for _, m := range s.metrics {
+//		msg := MessageGenerator.Retrieve()
+//		msg.Message.SetType(m.Type_)
+//		msg.Message.SetLogger(InterpolateString(m.Name, set))
+//		msg.Message.SetPayload(InterpolateString(m.Value, set))
+//		MessageGenerator.Inject(msg)
+//	}
+//	return
+//}
+
+func (s *StatFilter) ProcessMessage(m *message.Message) int {
+	set, matched := s.msgMatcher.Match(m)
 	if !matched {
-		return
+		return 0
 	}
 
 	// Load existing fields into the set for replacement
-	set["Logger"] = pack.Message.GetLogger()
-	set["Hostname"] = pack.Message.GetHostname()
-	set["Type"] = pack.Message.GetType()
-	set["Payload"] = pack.Message.GetPayload()
+	set["Logger"] = m.GetLogger()
+	set["Hostname"] = m.GetHostname()
+	set["Type"] = m.GetType()
+	set["Payload"] = m.GetPayload()
 
 	// We matched, generate appropriate metrics
 	for _, m := range s.metrics {
-		msg := MessageGenerator.Retrieve(0)
+		msg := MessageGenerator.Retrieve()
 		msg.Message.SetType(m.Type_)
 		msg.Message.SetLogger(InterpolateString(m.Name, set))
 		msg.Message.SetPayload(InterpolateString(m.Value, set))
 		MessageGenerator.Inject(msg)
 	}
-	return
+	return 0
+}
+
+func (s *StatFilter) SetOutput(f func(s string)) {
+}
+
+func (s *StatFilter) SetInjectMessage(f func(s string)) {
+}
+
+func (s *StatFilter) TimerEvent() int {
+	return 0
+}
+
+func (s *StatFilter) Destroy() {
 }

@@ -19,7 +19,7 @@
 // private interface
 ////////////////////////////////////////////////////////////////////////////////
 #define ERROR_SIZE 255
-#define PRINT_SIZE 1024
+#define OUTPUT_SIZE 1024
 
 struct lua_sandbox
 {
@@ -148,14 +148,14 @@ int sandbox_read_message(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int sandbox_print(lua_State* lua)
+int sandbox_output(lua_State* lua)
 {
-    char buf[PRINT_SIZE]; ///@todo make this buffer dynamic, or print directly to a file
+    char buf[OUTPUT_SIZE]; ///@todo make this buffer dynamic
     buf[0] = 0;
 
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        lua_pushstring(lua, "print() invalid lightuserdata");
+        lua_pushstring(lua, "output() invalid lightuserdata");
         lua_error(lua);
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
@@ -163,34 +163,34 @@ int sandbox_print(lua_State* lua)
     size_t len = 0, total = 0;
     int n = lua_gettop(lua);
     if (n == 0) {
-        lua_pushstring(lua, "print() must have at least one argument");
+        lua_pushstring(lua, "output() must have at least one argument");
         lua_error(lua);
     }
     for (int i = 1; i <= n; ++i) {
         if (lua_isstring(lua, i)) { // this works for both strings and numbers
             const char* c = lua_tolstring(lua, i, &len);
-            snprintf(buf, PRINT_SIZE - total, "%s", c);
+            snprintf(buf + total, OUTPUT_SIZE - total, "%s", c);
             total += len;
         } else if (lua_isboolean(lua, i)) {
             if (lua_toboolean(lua, i)) {
-                snprintf(buf, PRINT_SIZE - total, "true");
+                snprintf(buf + total, OUTPUT_SIZE - total, "true");
                 total += 4;
             } else {
-                snprintf(buf, PRINT_SIZE - total, "false");
+                snprintf(buf + total, OUTPUT_SIZE - total, "false");
                 total += 5;
             }
         }
     }
-    go_print(lsb->m_go, buf);
+    go_output(lsb->m_go, buf);
     return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int sandbox_send_message(lua_State* lua)
+int sandbox_inject_message(lua_State* lua)
 {
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        lua_pushstring(lua, "send_message() invalid lightuserdata");
+        lua_pushstring(lua, "inject_message() invalid lightuserdata");
         lua_error(lua);
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
@@ -202,13 +202,13 @@ int sandbox_send_message(lua_State* lua)
             const char* msg = lua_tolstring(lua, 1, &len);
             // cast away constness, the value is not modified and will save a
             // copy
-            go_send_message(lsb->m_go, (char*)msg);
+            go_inject_message(lsb->m_go, (char*)msg);
         }  else {
-            lua_pushstring(lua, "send_message() argument must be a string");
+            lua_pushstring(lua, "inject_message() argument must be a string");
             lua_error(lua);
         }
     } else {
-        lua_pushstring(lua, "send_message() incorrect number of arguments");
+        lua_pushstring(lua, "inject_message() incorrect number of arguments");
         lua_error(lua);
     }
     return 0;
@@ -395,7 +395,7 @@ int lua_sandbox_process_message(lua_sandbox* lsb)
     if (!lua_isfunction(lsb->m_lua, -1)) {
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "process_message() function was not found");
-        sandbox_terminate(lsb);
+        sandbox_terminate(lsb);       
         return 1;
     }
 
@@ -475,12 +475,12 @@ int lua_sandbox_init(lua_sandbox* lsb)
         lua_setglobal(lsb->m_lua, "read_message");
 
         lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
-        lua_pushcclosure(lsb->m_lua, &sandbox_print, 1);
-        lua_setglobal(lsb->m_lua, "print");
+        lua_pushcclosure(lsb->m_lua, &sandbox_output, 1);
+        lua_setglobal(lsb->m_lua, "output");
 
         lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
-        lua_pushcclosure(lsb->m_lua, &sandbox_send_message, 1);
-        lua_setglobal(lsb->m_lua, "send_message");
+        lua_pushcclosure(lsb->m_lua, &sandbox_inject_message, 1);
+        lua_setglobal(lsb->m_lua, "inject_message");
         lua_sethook(lsb->m_lua, sandbox_instruction_manager, LUA_MASKCOUNT,
                     lsb->m_instruction_limit);
 

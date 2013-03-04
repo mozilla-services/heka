@@ -22,7 +22,11 @@ import "github.com/mozilla-services/heka/sandbox"
 import "github.com/mozilla-services/heka/sandbox/lua"
 
 func TestCreation(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -35,8 +39,8 @@ func TestCreation(t *testing.T) {
 		t.Errorf("maximum memory should be 0, using %d", b)
 	}
 	b = sb.Memory(sandbox.USAGE_LIMIT)
-	if b != 32767 {
-		t.Errorf("memory limit should be 32767, using %d", b)
+	if b != sbc.MemoryLimit {
+		t.Errorf("memory limit should be %d, using %d", sbc.MemoryLimit, b)
 	}
 	b = sb.Instructions(sandbox.USAGE_CURRENT)
 	if b != 0 {
@@ -47,8 +51,8 @@ func TestCreation(t *testing.T) {
 		t.Errorf("maximum instructions should be 0, using %d", b)
 	}
 	b = sb.Instructions(sandbox.USAGE_LIMIT)
-	if b != 1000 {
-		t.Errorf("instruction limit should be 1000, using %d", b)
+	if b != sbc.InstructionLimit {
+		t.Errorf("instruction limit should be %d, using %d", sbc.InstructionLimit, b)
 	}
 	if sb.LastError() != "" {
 		t.Errorf("LastError() should be empty, received: %s", sb.LastError())
@@ -57,23 +61,35 @@ func TestCreation(t *testing.T) {
 }
 
 func TestCreationTooMuchMemory(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 9000000, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 9000000
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err == nil {
-		t.Errorf("Sandbox creation should have failed on maxMem")
+		t.Errorf("Sandbox creation should have failed on MemoryLimit")
 		sb.Destroy()
 	}
 }
 
 func TestCreationTooManyInstructions(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000001)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000001
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err == nil {
-		t.Errorf("Sandbox creation should have failed on maxInst")
+		t.Errorf("Sandbox creation should have failed on InstructionLimit")
 		sb.Destroy()
 	}
 }
 
 func TestInit(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -94,8 +110,8 @@ func TestInit(t *testing.T) {
 		t.Errorf("maximum memory should be >0, using %d", b)
 	}
 	b = sb.Memory(sandbox.USAGE_LIMIT)
-	if b != 32767 {
-		t.Errorf("memory limit should be 32767, using %d", b)
+	if b != sbc.MemoryLimit {
+		t.Errorf("memory limit should be %d, using %d", sbc.MemoryLimit, b)
 	}
 	b = sb.Instructions(sandbox.USAGE_CURRENT)
 	if b != 4 {
@@ -106,8 +122,8 @@ func TestInit(t *testing.T) {
 		t.Errorf("maximum instructions should be 4, using %d", b)
 	}
 	b = sb.Instructions(sandbox.USAGE_LIMIT)
-	if b != 1000 {
-		t.Errorf("instruction limit should be 1000, using %d", b)
+	if b != sbc.InstructionLimit {
+		t.Errorf("instruction limit should be %d, using %d", sbc.InstructionLimit, b)
 	}
 	if sandbox.STATUS_RUNNING != sb.Status() {
 		t.Errorf("status should be %d, received %d",
@@ -117,7 +133,11 @@ func TestInit(t *testing.T) {
 }
 
 func TestFailedInit(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/missing.lua", 32767, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/missing.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -137,8 +157,12 @@ func TestFailedInit(t *testing.T) {
 }
 
 func TestMissingProcessMessage(t *testing.T) {
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
 	msg := getTestMessage()
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000)
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -166,7 +190,11 @@ func TestMissingProcessMessage(t *testing.T) {
 }
 
 func TestMissingTimeEvent(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/hello_world.lua", 32767, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/hello_world.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -220,28 +248,32 @@ func getTestMessage() *message.Message {
 
 func TestAPIErrors(t *testing.T) {
 	msg := getTestMessage()
-	tests := []string{"send_message() no arg",
-		"send_message() incorrect arg type",
-		"send_message() incorrect number of args",
-		"print() no arg",
+	tests := []string{"inject_message() no arg",
+		"inject_message() incorrect arg type",
+		"inject_message() incorrect number of args",
+		"output() no arg",
 		"out of memory",
 		"out of instructions",
 		"operation on a nil",
 		"invalid return",
 		"no return"}
 
-	msgs := []string{"process_message() -> send_message() incorrect number of arguments",
-		"process_message() -> send_message() argument must be a string",
-		"process_message() -> send_message() incorrect number of arguments",
-		"process_message() -> print() must have at least one argument",
+	msgs := []string{"process_message() -> inject_message() incorrect number of arguments",
+		"process_message() -> inject_message() argument must be a string",
+		"process_message() -> inject_message() incorrect number of arguments",
+		"process_message() -> output() must have at least one argument",
 		"process_message() -> not enough memory",
 		"process_message() -> instruction_limit exceeded",
 		"process_message() -> ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
 		"process_message() must return a single numeric value"}
 
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/errors.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
 	for i, v := range tests {
-		sb, err := lua.CreateLuaSandbox("./testsupport/errors.lua", 32767, 1000)
+		sb, err := lua.CreateLuaSandbox(&sbc)
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -265,7 +297,11 @@ func TestAPIErrors(t *testing.T) {
 }
 
 func TestTimerEvent(t *testing.T) {
-	sb, err := lua.CreateLuaSandbox("./testsupport/errors.lua", 32767, 1000)
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/errors.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -286,8 +322,12 @@ func TestTimerEvent(t *testing.T) {
 }
 
 func TestReadMessage(t *testing.T) {
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/read_message.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
 	msg := getTestMessage()
-	sb, err := lua.CreateLuaSandbox("./testsupport/read_message.lua", 32767, 1000)
+	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}

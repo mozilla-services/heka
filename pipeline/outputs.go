@@ -21,18 +21,18 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"net"
 	"os"
 	"runtime"
-	"sort"
 	"sync"
 	"time"
 )
 
 type OutputRunner interface {
 	PluginRunnerBase
+	Start(wg *sync.WaitGroup)
+	Stop()
 }
 
 type outputRunner struct {
@@ -40,34 +40,40 @@ type outputRunner struct {
 	output Output
 }
 
-func newOutputRunner(name string, output Output) *outputRunner {
-	outRunner := &outputRunner{}
-	outRunner.name = name
-	outRunner.output = output
-	outRunner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	return outRunner
+func NewOutputRunner(name string, output Output) OutputRunner {
+	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	return &outputRunner{
+		pluginRunnerBase{
+			name:   name,
+			inChan: inChan,
+		},
+		output,
+	}
 }
 
 func (self *outputRunner) Start(wg *sync.WaitGroup) {
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-
 	go func() {
 		var pack *PipelinePack
-	runnerLoop:
-		for {
+		var ok bool = true
+		log.Printf("Output started: %s\n", self.Name())
+		for ok {
 			runtime.Gosched()
 			select {
-			case pack = <-self.InChan():
+			case pack, ok = <-self.InChan():
+				if !ok {
+					break
+				}
 				self.output.Deliver(pack)
 				pack.Recycle()
-			case <-stopChan:
-				break runnerLoop
 			}
 		}
-		log.Println("Output stopped: ", self.Name())
+		log.Printf("Output stopped: %s\n", self.Name())
 		wg.Done()
 	}()
+}
+
+func (self *outputRunner) Stop() {
+	close(self.InChan())
 }
 
 type Output interface {
@@ -90,77 +96,6 @@ func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
 		msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
 		msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
 		msg.GetSeverity(), msg.Fields)
-}
-
-type CounterOutput struct {
-	count uint
-}
-
-func (self *CounterOutput) Init(config interface{}) error {
-	go self.counterLoop()
-	return nil
-}
-
-func (self *CounterOutput) Deliver(pipelinePack *PipelinePack) {
-	self.count++
-}
-
-func (self *CounterOutput) counterLoop() {
-	tick := time.NewTicker(time.Duration(time.Second))
-	aggregate := time.NewTicker(time.Duration(10 * time.Second))
-	lastTime := time.Now()
-	lastCount := uint(0)
-	count := uint(0)
-	zeroes := int8(0)
-	var (
-		msgsSent    uint
-		elapsedTime time.Duration
-		now         time.Time
-		rate        float64
-		rates       []float64
-	)
-	for {
-		// Here for performance reasons
-		runtime.Gosched()
-		select {
-		case <-aggregate.C:
-			count = self.count
-			amount := len(rates)
-			if amount < 1 {
-				continue
-			}
-			sort.Float64s(rates)
-			min := rates[0]
-			max := rates[amount-1]
-			mean := min
-			sum := float64(0)
-			for _, val := range rates {
-				sum += val
-			}
-			mean = sum / float64(amount)
-			log.Printf("AGG Sum. Min: %0.2f   Max: %0.2f     Mean: %0.2f",
-				min, max, mean)
-			rates = rates[:0]
-		case <-tick.C:
-			count = self.count
-			now = time.Now()
-			msgsSent = count - lastCount
-			lastCount = count
-			elapsedTime = now.Sub(lastTime)
-			lastTime = now
-			rate = float64(msgsSent) / elapsedTime.Seconds()
-			if msgsSent == 0 {
-				if msgsSent == 0 || zeroes == 3 {
-					continue
-				}
-				zeroes++
-			} else {
-				zeroes = 0
-			}
-			log.Printf("Got %d messages. %0.2f msg/sec\n", count, rate)
-			rates = append(rates, rate)
-		}
-	}
 }
 
 // FileWriter implementation

@@ -28,14 +28,14 @@ func (_m *MockPluginHelper) EXPECT() *_MockPluginHelperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPluginHelper) ChainRouter() *ChainRouter {
-	ret := _m.ctrl.Call(_m, "ChainRouter")
-	ret0, _ := ret[0].(*ChainRouter)
+func (_m *MockPluginHelper) MessageRouter() *MessageRouter {
+	ret := _m.ctrl.Call(_m, "MessageRouter")
+	ret0, _ := ret[0].(*MessageRouter)
 	return ret0
 }
 
-func (_mr *_MockPluginHelperRecorder) ChainRouter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ChainRouter")
+func (_mr *_MockPluginHelperRecorder) MessageRouter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MessageRouter")
 }
 
 func (_m *MockPluginHelper) NewDecoder(_param0 string) (DecoderRunner, bool) {

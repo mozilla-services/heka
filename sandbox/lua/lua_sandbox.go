@@ -14,18 +14,22 @@
 package lua
 
 /*
-#cgo CFLAGS: -std=gnu99
-#cgo LDFLAGS: -L ./ -llua_sandbox -lm
+#cgo CFLAGS:-std=gnu99
+#cgo LDFLAGS: -L /work/git/heka-build/release/external/lib -lsandbox -lm
 #include <stdlib.h>
 #include "lua_sandbox.h"
 */
 import "C"
 
-import "fmt"
-import "unsafe"
-import "github.com/mozilla-services/heka/message"
-import "regexp"
-import "strconv"
+import (
+	"fmt"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/sandbox"
+	"log"
+	"regexp"
+	"strconv"
+	"unsafe"
+)
 
 func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
 	unsafe.Pointer, int) {
@@ -136,37 +140,43 @@ func go_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
 	return 0, unsafe.Pointer(nil), 0
 }
 
-//export go_print
-func go_print(ptr unsafe.Pointer, c *C.char) {
+//export go_output
+func go_output(ptr unsafe.Pointer, c *C.char) {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	lsb.Print(C.GoString(c))
+	lsb.output(C.GoString(c))
 }
 
-//export go_send_message
-func go_send_message(ptr unsafe.Pointer, c *C.char) {
+//export go_inject_message
+func go_inject_message(ptr unsafe.Pointer, c *C.char) {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	lsb.SendMessage(C.GoString(c))
+	lsb.injectMessage(C.GoString(c))
 }
 
 type LuaSandbox struct {
-	lsb     *C.lua_sandbox
-	msg     *message.Message
-	fieldRe *regexp.Regexp
+	lsb           *C.lua_sandbox
+	msg           *message.Message
+	fieldRe       *regexp.Regexp
+	output        func(s string)
+	injectMessage func(s string)
 }
 
-func CreateLuaSandbox(code string, maxMem, maxInst int) (*LuaSandbox, error) {
+func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
+	error) {
 	lsb := new(LuaSandbox)
-	cs := C.CString(code)
+	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
 	lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
 		cs,
-		C.uint(maxMem),
-		C.uint(maxInst))
+		C.uint(conf.MemoryLimit),
+		C.uint(conf.InstructionLimit))
 	if lsb.lsb == nil {
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
+	// @todo if serialization exists attempt to restore the state
 	lsb.fieldRe, _ = regexp.Compile(
 		"Fields\\[([^\\]]*)\\](?:\\[([\\d]*)\\])?(?:\\[([\\d]*)\\])?")
+	lsb.output = func(s string) { log.Println(s) }
+	lsb.injectMessage = func(s string) { log.Println(s) }
 	return lsb, nil
 }
 
@@ -179,6 +189,7 @@ func (this *LuaSandbox) Init() error {
 }
 
 func (this *LuaSandbox) Destroy() {
+	// @todo serialize the state
 	C.lua_sandbox_destroy(this.lsb)
 }
 
@@ -190,12 +201,12 @@ func (this *LuaSandbox) LastError() string {
 	return C.GoString(C.lua_sandbox_last_error(this.lsb))
 }
 
-func (this *LuaSandbox) Memory(usage int) int {
-	return int(C.lua_sandbox_memory(this.lsb, C.sandbox_usage(usage)))
+func (this *LuaSandbox) Memory(usage int) uint {
+	return uint(C.lua_sandbox_memory(this.lsb, C.sandbox_usage(usage)))
 }
 
-func (this *LuaSandbox) Instructions(usage int) int {
-	return int(C.lua_sandbox_instructions(this.lsb, C.sandbox_usage(usage)))
+func (this *LuaSandbox) Instructions(usage int) uint {
+	return uint(C.lua_sandbox_instructions(this.lsb, C.sandbox_usage(usage)))
 }
 
 func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
@@ -209,11 +220,10 @@ func (this *LuaSandbox) TimerEvent() int {
 	return int(C.lua_sandbox_timer_event(this.lsb))
 }
 
-func (this *LuaSandbox) Print(s string) {
-	// @todo print somewhere else
-	fmt.Println(s)
+func (this *LuaSandbox) Output(f func(s string)) {
+	this.output = f
 }
 
-func (this *LuaSandbox) SendMessage(msg string) {
-	// @todo unmarshal message and put it in a stream
+func (this *LuaSandbox) InjectMessage(f func(s string)) {
+	this.injectMessage = f
 }
