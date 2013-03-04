@@ -214,7 +214,7 @@ func InterpolateString(formatRegexp string, matchParts MatchSet) (newString stri
 			if repl, ok := matchParts[m]; ok {
 				return repl
 			}
-			return ""
+			return fmt.Sprintf("<%s>", m)
 		})
 }
 

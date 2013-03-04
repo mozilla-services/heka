@@ -58,7 +58,6 @@ type StatsdInput struct {
 	listener         *net.UDPConn
 	percentThreshold int
 	flushInterval    int64
-	stopped          bool
 }
 
 // A StatPacket appropriate for a plugin to feed directly into the
@@ -101,19 +100,29 @@ func (s *StatsdInput) Name() string {
 func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := new(statMonitor)
-	go sm.Monitor(s, packets, wg)
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, s.Name())
+	go sm.Monitor(packets)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
-		wg.Add(1)
 		go func() {
 			var n int
 			var err error
+			stopped := false
 			defer s.listener.Close()
+
+			stopChan := make(chan interface{})
+			notify.Start(STOP, stopChan)
+			go func() {
+				select {
+				case <-stopChan:
+					stopped = true
+				}
+			}()
+
 			timeout := time.Duration(time.Millisecond * 100)
 			for {
-				if s.stopped {
+				if stopped {
 					break
 				}
 				message := make([]byte, 512)
@@ -127,6 +136,10 @@ func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 			log.Println("StatsdUdpInput for input stopped: ", s.Name())
 			wg.Done()
 		}()
+	} else {
+		// In this case, the monitor already incremented for itself, so
+		// we decrement here since we didn't need it
+		wg.Done()
 	}
 	return nil
 }
@@ -163,24 +176,33 @@ type statMonitor struct {
 	gauges           map[string]int
 	percentThreshold int
 	flushInterval    int64
+	inputName        string
+	wg               *sync.WaitGroup
 }
 
-func (sm *statMonitor) Monitor(input *StatsdInput, packets <-chan StatPacket,
-	wg *sync.WaitGroup) {
+func NewStatMonitor(percentThreshold int, flushInterval int64,
+	wg *sync.WaitGroup, inputName string) *statMonitor {
+	return &statMonitor{
+		counters:         make(map[string]int),
+		timers:           make(map[string][]float64),
+		gauges:           make(map[string]int),
+		percentThreshold: percentThreshold,
+		flushInterval:    flushInterval,
+		inputName:        inputName,
+		wg:               wg,
+	}
+}
+
+func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
 	var s StatPacket
 	var floatValue float64
 	var intValue int
 
-	sm.counters = make(map[string]int)
-	sm.timers = make(map[string][]float64)
-	sm.gauges = make(map[string]int)
-	sm.percentThreshold = input.percentThreshold
-	sm.flushInterval = input.flushInterval
-
 	stopChan := make(chan interface{})
 	notify.Start(STOP, stopChan)
+	sm.wg.Add(1)
 
-	t := time.NewTicker(time.Duration(input.flushInterval) * time.Second)
+	t := time.NewTicker(time.Duration(sm.flushInterval) * time.Second)
 statLoop:
 	for {
 		select {
@@ -203,9 +225,8 @@ statLoop:
 			}
 		}
 	}
-	log.Println("StatsdMonitor for input stopped: ", input.Name())
-	input.stopped = true
-	wg.Done()
+	log.Println("StatsdMonitor for input stopped: ", sm.inputName)
+	sm.wg.Done()
 }
 
 func (sm *statMonitor) Flush() {
