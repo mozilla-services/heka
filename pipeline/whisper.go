@@ -16,12 +16,14 @@ package pipeline
 
 import (
 	"fmt"
-	"github.com/kisielk/whisper-go/whisper"
+	"github.com/rafrombrc/go-notify"
+	"github.com/rafrombrc/whisper-go/whisper"
 	"log"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
@@ -133,6 +135,20 @@ func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
 	statPath = strings.Join([]string{statPath, "wsp"}, ".")
 	statPath = path.Join(o.basePath, statPath)
 	return
+}
+
+// Listen for stop event so we can close all our files.
+func (o *WhisperOutput) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		stopChan := make(chan interface{})
+		notify.Start(STOP, stopChan)
+		_ = <-stopChan
+		for _, wr := range o.dbs {
+			close(wr.InChan)
+		}
+		wg.Done()
+	}()
 }
 
 func (o *WhisperOutput) Deliver(pack *PipelinePack) {
