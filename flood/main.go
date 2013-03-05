@@ -11,6 +11,16 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
+/*
+
+Flood client.
+
+Flooding client used to test heka message through-put and tolerances.
+Can be run with several options on the command line to indicate how
+the messages should be sent and encoded.
+
+*/
 package main
 
 import (
