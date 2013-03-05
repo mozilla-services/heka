@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -253,6 +254,7 @@ func (o *FileOutput) openFile() (err error) {
 }
 
 func (o *FileOutput) Deliver(pack *PipelinePack) {
+	atomic.AddInt32(&pack.RefCount, 1)
 	o.inChan <- pack
 }
 
