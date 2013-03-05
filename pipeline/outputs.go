@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -163,6 +164,23 @@ func (self *CounterOutput) counterLoop() {
 	}
 }
 
+// Create a protocol buffers stream for the given message, put it in the given
+// byte slice.
+func createProtobufStream(pack *PipelinePack, outBytes *[]byte) (err error) {
+	messageSize := proto.Size(pack.Message)
+	if err = client.EncodeStreamHeader(messageSize, message.Header_PROTOCOL_BUFFER,
+		outBytes); err != nil {
+		return
+	}
+	headerSize := len(*outBytes)
+	pbuf := proto.NewBuffer((*outBytes)[headerSize:])
+	if err = pbuf.Marshal(pack.Message); err != nil {
+		return
+	}
+	*outBytes = (*outBytes)[:headerSize+messageSize]
+	return
+}
+
 // FileWriter implementation
 var (
 	FILEFORMATS = map[string]bool{
@@ -176,121 +194,183 @@ var (
 
 const NEWLINE byte = 10
 
-type FileWriter struct {
-	path      string
-	format    string
-	prefix_ts bool
-	file      *os.File
-	outBatch  []byte
+type FileOutput struct {
+	path          string
+	format        string
+	prefix_ts     bool
+	perm          os.FileMode
+	flushInterval uint32
+	file          *os.File
+	inChan        chan *PipelinePack
+	batchChan     chan []byte
+	backChan      chan []byte
+	wg            *sync.WaitGroup
 }
 
-type FileWriterConfig struct {
-	Path      string
-	Format    string
+type FileOutputConfig struct {
+	// Full output file path.
+	Path string
+	// Format for message serialization, from text (payload only), json, or
+	// protobufstream.
+	Format string
+	// Add timestamp prefix to each output line?
 	Prefix_ts bool
-	Perm      os.FileMode
+	// Output file permissions (default 0644).
+	Perm os.FileMode
+	// Interval at which accumulated file data should be written to disk, in
+	// milliseconds (default 1000, i.e. 1 second).
+	FlushInterval uint32
 }
 
-func (self *FileWriter) ConfigStruct() interface{} {
-	return &FileWriterConfig{Format: "text", Perm: 0666}
+func (o *FileOutput) ConfigStruct() interface{} {
+	return &FileOutputConfig{Format: "text", Perm: 0644, FlushInterval: 1000}
 }
 
-func (self *FileWriter) Init(config interface{}) (ticker <-chan time.Time,
-	err error) {
-	conf := config.(*FileWriterConfig)
-	_, ok := FILEFORMATS[conf.Format]
-	if !ok {
-		return nil, fmt.Errorf("Unsupported FileOutput format: %s",
+func (o *FileOutput) Init(config interface{}) (err error) {
+	conf := config.(*FileOutputConfig)
+	if _, ok := FILEFORMATS[conf.Format]; !ok {
+		err = fmt.Errorf("FileOutput '%s' unsupported format: %s", conf.Path,
 			conf.Format)
+		return
 	}
-	self.path = conf.Path
-	self.format = conf.Format
-	self.prefix_ts = conf.Prefix_ts
-	self.outBatch = make([]byte, 0, 10000)
-	if self.file, err = os.OpenFile(conf.Path,
-		os.O_WRONLY|os.O_APPEND|os.O_CREATE, conf.Perm); err != nil {
-		return nil, err
+	o.path = conf.Path
+	o.format = conf.Format
+	o.prefix_ts = conf.Prefix_ts
+	o.perm = conf.Perm
+	if err = o.openFile(); err != nil {
+		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
+		return
 	}
-	ticker = time.Tick(time.Second)
+	o.flushInterval = conf.FlushInterval
+	o.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	o.batchChan = make(chan []byte)
+	o.backChan = make(chan []byte, 1) // Don't block on the hand-back
 	return
 }
 
-func (self *FileWriter) MakeOutData() interface{} {
-	b := make([]byte, 0, 2000)
-	return &b
+func (o *FileOutput) openFile() (err error) {
+	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
+	return
 }
 
-func (self *FileWriter) ZeroOutData(outData interface{}) {
-	outBytes := outData.(*[]byte)
-	*outBytes = (*outBytes)[:0]
+func (o *FileOutput) Deliver(pack *PipelinePack) {
+	atomic.AddInt32(&pack.RefCount, 1)
+	o.inChan <- pack
 }
 
-func (self *FileWriter) PrepOutData(pack *PipelinePack, outData interface{},
-	timeout *time.Duration) error {
-	outBytes := outData.(*[]byte)
-	if self.prefix_ts && self.format != "protobufstream" {
+func (o *FileOutput) Start(wg *sync.WaitGroup) {
+	o.wg = wg
+	wg.Add(1)
+	go o.receiver()
+	go o.committer()
+}
+
+func (o *FileOutput) receiver() {
+	var pack *PipelinePack
+	var err error
+	var ok bool
+	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
+	outBatch := make([]byte, 0, 10000)
+	outBytes := make([]byte, 0, 1000)
+
+	stopChan := make(chan interface{})
+	notify.Start(STOP, stopChan)
+
+	for {
+		select {
+		case pack, ok = <-o.inChan:
+			if !ok {
+				// Closed inChan => we're shutting down, flush data
+				if len(outBatch) > 0 {
+					o.batchChan <- outBatch
+				}
+				close(o.batchChan)
+				return
+			}
+			if err = o.handleMessage(pack, &outBytes); err != nil {
+				log.Println(err)
+			} else {
+				outBatch = append(outBatch, outBytes...)
+			}
+			outBytes = outBytes[:0]
+			pack.Recycle()
+		case <-ticker:
+			if len(outBatch) > 0 {
+				// This will block until the other side is ready to accept
+				// this batch, freeing us to start on the next one.
+				o.batchChan <- outBatch
+				outBatch = <-o.backChan
+			}
+		case <-stopChan:
+			close(o.inChan)
+		}
+	}
+}
+
+func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
+	if o.prefix_ts && o.format != "protobufstream" {
 		ts := time.Now().Format(TSFORMAT)
 		*outBytes = append(*outBytes, ts...)
 	}
-
-	switch self.format {
+	switch o.format {
 	case "json":
-		jsonMessage, err := json.Marshal(pack.Message)
-		if err != nil {
-			log.Printf("Error converting message to JSON for %s", self.path)
-			return err
+		if jsonMessage, err := json.Marshal(pack.Message); err == nil {
+			*outBytes = append(*outBytes, jsonMessage...)
+			*outBytes = append(*outBytes, NEWLINE)
+		} else {
+			err = fmt.Errorf("FileOutput '%s' error encoding to JSON: %s", o.path, err)
 		}
-		*outBytes = append(*outBytes, jsonMessage...)
-		*outBytes = append(*outBytes, NEWLINE)
 	case "text":
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
-		return createProtobufStream(pack, outBytes)
+		if err = createProtobufStream(pack, &*outBytes); err != nil {
+			err = fmt.Errorf("FileOutput '%s' error encoding to ProtoBuf: %s", o.path, err)
+		}
+	default:
+		err = fmt.Errorf("FileOutput '%s' error: Invalid format %s", o.path, o.format)
 	}
-	return nil
-}
-
-func createProtobufStream(pack *PipelinePack, outBytes *[]byte) error {
-	messageSize := proto.Size(pack.Message)
-	err := client.EncodeStreamHeader(messageSize, message.Header_PROTOCOL_BUFFER, outBytes)
-	if err != nil {
-		return err
-	}
-	headerSize := len(*outBytes)
-	pbuf := proto.NewBuffer((*outBytes)[headerSize:])
-	err = pbuf.Marshal(pack.Message)
-	if err != nil {
-		return err
-	}
-	*outBytes = (*outBytes)[:headerSize+messageSize]
-	return nil
-}
-
-func (self *FileWriter) Batch(outData interface{}) (err error) {
-	outBytes := outData.(*[]byte)
-	self.outBatch = append(self.outBatch, *outBytes...)
 	return
 }
 
-func (self *FileWriter) Commit() (err error) {
-	n, err := self.file.Write(self.outBatch)
-	if err != nil {
-		err = fmt.Errorf("FileWriter error writing to %s: %s", self.path,
-			err)
-		return err
-	} else if n != len(self.outBatch) {
-		err = fmt.Errorf("FileWriter truncated output for %s", self.path)
-		return err
-	}
-	self.outBatch = self.outBatch[:0]
-	self.file.Sync()
-	return nil
-}
+func (o *FileOutput) committer() {
+	initBatch := make([]byte, 0, 10000)
+	o.backChan <- initBatch
+	var outBatch []byte
+	var err error
+	var ok bool
 
-func (self *FileWriter) Event(eventType string) {
-	if eventType == STOP {
-		self.file.Close()
+	hupChan := make(chan interface{})
+	notify.Start(RELOAD, hupChan)
+
+	for {
+		select {
+		case outBatch, ok = <-o.batchChan:
+			if !ok {
+				// Channel is closed => we're shutting down, exit cleanly.
+				o.file.Close()
+				o.wg.Done()
+				return
+			}
+			n, err := o.file.Write(outBatch)
+			if err != nil {
+				log.Printf("FileOutput error writing to %s: %s", o.path, err)
+			} else if n != len(outBatch) {
+				log.Printf("FileOutput truncated output for %s", o.path)
+			} else {
+				o.file.Sync()
+			}
+			outBatch = outBatch[:0]
+			o.backChan <- outBatch
+		case <-hupChan:
+			o.file.Close()
+			if err = o.openFile(); err != nil {
+				// TODO: Need a way to handle this gracefully, see
+				// https://github.com/mozilla-services/heka/issues/38
+				panic(fmt.Sprintf("FileOutput unable to reopen file '%s': %s",
+					o.path, err))
+			}
+		}
 	}
 }
 
@@ -326,10 +406,9 @@ func (t *TcpWriter) ZeroOutData(outData interface{}) {
 }
 
 func (t *TcpWriter) PrepOutData(pack *PipelinePack, outData interface{},
-	timeout *time.Duration) error {
-	err := createProtobufStream(pack, outData.(*[]byte))
-	return err
-
+	timeout *time.Duration) (err error) {
+	err = createProtobufStream(pack, outData.(*[]byte))
+	return
 }
 
 func (t *TcpWriter) Write(outData interface{}) (err error) {

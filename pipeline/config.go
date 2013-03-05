@@ -408,7 +408,7 @@ func init() {
 		return new(CounterOutput)
 	})
 	RegisterPlugin("FileOutput", func() interface{} {
-		return RunnerMaker(new(FileWriter))
+		return new(FileOutput)
 	})
 	RegisterPlugin("LogfileInput", func() interface{} {
 		return new(LogfileInput)
