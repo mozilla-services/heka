@@ -17,53 +17,26 @@ package pipeline
 
 import (
 	"log"
+   "runtime"
 	"sync/atomic"
 )
 
-// Represents message lookup hashes
-type ChainRouter struct {
+// Pushes the message onto the filters input channel if it is a match
+type MessageRouter struct {
 	InChan chan *PipelinePack
 }
 
-func (self *ChainRouter) Start() {
+func (self *MessageRouter) Start() {
 	go func() {
+		log.Println("MessageRouter started")
 		for {
+			runtime.Gosched()
 			pack := <-self.InChan
-			for _, chain := range pack.Config.FilterChains {
+			for _, runner := range pack.Config.FilterRunners {
 				atomic.AddInt32(&pack.RefCount, 1)
-				go processChain(chain, pack)
+				runner.InChan() <- pack
 			}
 			pack.Recycle()
 		}
 	}()
-}
-
-func processChain(chain *FilterChain, pack *PipelinePack) {
-
-	defer pack.Recycle()
-	if chain.MessageFilter != nil {
-		if !chain.MessageFilter.IsMatch(pack.Message) {
-			return
-		}
-	}
-
-	for _, filterName := range chain.Filters {
-		wrapper, ok := pack.Config.Filters[filterName]
-		if !ok {
-			log.Printf("Filter doesn't exist: %s\n", filterName)
-			continue
-		}
-		filter := wrapper.Create().(Filter)
-		filter.FilterMsg(pack)
-	}
-
-	for _, outputName := range chain.Outputs {
-		outRunner, ok := pack.Config.OutputRunners[outputName]
-		if !ok {
-			log.Printf("Output doesn't exist: %s\n", outputName)
-			continue
-		}
-		atomic.AddInt32(&pack.RefCount, 1)
-		outRunner.InChan() <- pack
-	}
 }

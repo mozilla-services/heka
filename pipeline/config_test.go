@@ -54,19 +54,12 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 
 			// and the outputs section loads
-			_, ok = pipeConfig.Outputs["CounterOutput"]
+			_, ok = pipeConfig.OutputRunners["LogOutput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the non-default chain loaded
-			sampleSection, ok := pipeConfig.FilterChains["sample"]
+			_, ok = pipeConfig.FilterRunners["sample"]
 			c.Expect(ok, gs.Equals, true)
-
-			// and the non-default section has the right filter/outputs
-			c.Assume(sampleSection, gs.Not(gs.IsNil))
-			c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
-
-			// and the message filter is set properly
-			c.Expect(sampleSection.MessageFilter.String(), gs.Equals, "Type == \"counter\" || Type == \"gauge\"")
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
