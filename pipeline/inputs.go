@@ -11,27 +11,29 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
 	"bytes"
+	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
-const (
-	MAX_HEADER_SIZE  = 255
-	MAX_MESSAGE_SIZE = 64 * 1024
-	RECORD_SEPARATOR = uint8(0x1e)
-	UNIT_SEPARATOR   = uint8(0x1f)
-)
+type TimeoutError string
+
+func (self *TimeoutError) Error() string {
+	return fmt.Sprint("Error: Read timed out")
+}
 
 type Input interface {
 	Start(helper PluginHelper, wg *sync.WaitGroup) error
@@ -105,9 +107,10 @@ func (self *UdpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		var err error
 		var n int
 		needOne := true
+		packSupply := helper.PackSupply()
 		for {
 			if needOne {
-				pack = <-helper.PackSupply()
+				pack = <-packSupply
 			}
 			n, err = self.listener.Read(pack.MsgBytes)
 			if err != nil {
@@ -120,17 +123,19 @@ func (self *UdpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 				continue
 			}
 			pack.MsgBytes = pack.MsgBytes[:n]
-			decoder.InChan <- pack
+			decoder.InChan() <- pack
 			needOne = true
 		}
 	}()
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	stopChan := helper.StopChan()
 	go func() {
 		_ = <-stopChan
 		stopped = true
 		self.listener.Close()
+		for _, v := range decoders {
+			close(v.InChan())
+		}
 		log.Println("UdpInput stopped: ", self.name)
 		wg.Done()
 	}()
@@ -216,6 +221,7 @@ func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 	var pack *PipelinePack
 	var msgOk bool
 
+	packSupply := helper.PackSupply()
 	decoders := helper.NewDecoderSet()
 	var encoding Header_MessageEncoding
 
@@ -224,7 +230,7 @@ func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 		if n > 0 {
 			readPos += n
 			for { // consume all available records
-				pack = <-helper.PackSupply()
+				pack = <-packSupply
 				posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
 				scanPos += posDelta
 
@@ -242,7 +248,7 @@ func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 
 				if msgOk {
 					encoding = header.GetMessageEncoding()
-					decoders[encoding].InChan <- pack
+					decoders[encoding].InChan() <- pack
 				}
 
 				header.Reset()
@@ -262,6 +268,9 @@ func (self *TcpInput) handleConnection(helper PluginHelper, conn net.Conn) {
 			readPos, scanPos = readPos-scanPos, 0
 		}
 	}
+	for _, v := range decoders {
+		close(v.InChan())
+	}
 }
 
 func (self *TcpInput) Init(config interface{}) error {
@@ -274,25 +283,28 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
+func (self *TcpInput) listenForConnection(helper PluginHelper) {
+	conn, err := self.listener.Accept()
+	if err != nil {
+		log.Println("TCP accept failed")
+		return
+	}
+	go self.handleConnection(helper, conn)
+}
+
 func (self *TcpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 
 	var stopped bool
 	go func() {
 		for {
-			conn, err := self.listener.Accept()
-			if err != nil {
-				if stopped {
-					break
-				}
-				log.Println("TCP accept failed")
-				continue
+			self.listenForConnection(helper)
+			if stopped {
+				break
 			}
-			go self.handleConnection(helper, conn)
 		}
 	}()
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	stopChan := helper.StopChan()
 	go func() {
 		_ = <-stopChan
 		stopped = true
@@ -305,38 +317,39 @@ func (self *TcpInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 }
 
 // Global MessageGenerator
-var MessageGenerator *msgGenerator = new(msgGenerator)
+var MessageGenerator = new(msgGenerator)
 
 type msgGenerator struct {
 	MessageChan chan *messageHolder
 	RecycleChan chan *messageHolder
+	hostname    string
+	pid         int32
 }
 
 func (self *msgGenerator) Init() {
 	self.MessageChan = make(chan *messageHolder, PoolSize/2)
 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
 	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 0}
+		msg := messageHolder{new(Message), 1}
 		self.RecycleChan <- &msg
 	}
+	self.hostname, _ = os.Hostname()
+	self.pid = int32(os.Getpid())
 }
 
 // Retrieve a message for use by the MessageGenerator.
-// Must be passed the current pipeline.ChainCount.
-//
-// This is actually a messageHolder object that has a message and
-// chainCount. The chainCount should remain untouched, and all the
-// fields of the returned msg.Message should be overwritten as needed
-// The msg.Message
-func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+func (self *msgGenerator) Retrieve() (msg *messageHolder) {
 	msg = <-self.RecycleChan
-	msg.ChainCount = chainCount
+	msg.Message.SetTimestamp(time.Now().UnixNano())
+	msg.Message.SetUuid(uuid.NewRandom())
+	msg.Message.SetHostname(self.hostname)
+	msg.Message.SetPid(self.pid)
+   msg.RefCount = 1
 	return msg
 }
 
 // Injects a message using the MessageGenerator
 func (self *msgGenerator) Inject(msg *messageHolder) {
-	msg.ChainCount++
 	self.MessageChan <- msg
 }
 
@@ -348,8 +361,8 @@ type MessageGeneratorInput struct {
 }
 
 type messageHolder struct {
-	Message    *Message
-	ChainCount int
+	Message *Message
+	RefCount int32
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
@@ -371,9 +384,8 @@ func (self *MessageGeneratorInput) Start(helper PluginHelper,
 	wg *sync.WaitGroup) error {
 
 	var pack *PipelinePack
-	chainRouter := helper.ChainRouter()
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
+	packSupply := helper.PackSupply()
+	stopChan := helper.StopChan()
 
 	go func() {
 	runnerLoop:
@@ -381,12 +393,14 @@ func (self *MessageGeneratorInput) Start(helper PluginHelper,
 			select {
 			case msgHolder := <-self.messageChan:
 				select {
-				case pack = <-helper.PackSupply():
+				case pack = <-packSupply:
 					msgHolder.Message.Copy(pack.Message)
 					pack.Decoded = true
-					pack.ChainCount = msgHolder.ChainCount
-					chainRouter.InChan <- pack
-					self.recycleChan <- msgHolder
+					pack.Config.Router.InChan <- pack
+					cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
+					if cnt == 0 {
+						self.recycleChan <- msgHolder
+					}
 				case <-stopChan:
 					break runnerLoop
 				}

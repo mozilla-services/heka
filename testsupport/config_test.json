@@ -7,18 +7,21 @@
         }
     ],
     "decoders": [
-        {"type": "JsonDecoder", "default": true}
+        {"type": "JsonDecoder", "encoding_name": "JSON"},
+        {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
     "outputs": [
-        {"type": "CounterOutput"}
+        {"type": "LogOutput"}
     ],
-    "chains": {
+    "filters": {
         "default": {
-            "outputs": ["CounterOutput"]
+            "type" : "StatFilter",
+            "outputs": ["LogOutput"]
         },
         "sample": {
-            "message_type": ["counter", "gauge"],
-            "outputs": ["CounterOutput"]
+            "type": "StatFilter",
+            "message_filter": "Type == \"counter\" || Type == \"gauge\"",
+            "outputs": ["LogOutput"]
         }
     }
 }

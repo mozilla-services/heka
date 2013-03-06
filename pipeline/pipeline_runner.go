@@ -9,8 +9,10 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -20,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -48,51 +51,53 @@ type PluginWithGlobal interface {
 	InitOnce(config interface{}) (global PluginGlobal, err error)
 }
 
+type PluginRunnerBase interface {
+	InChan() chan *PipelinePack
+	Name() string
+}
+
+type Startable interface {
+	Start(wg *sync.WaitGroup)
+}
+
 // Base struct for the specialized PluginRunners
-type PluginRunnerBase struct {
-	InChan chan *PipelinePack
-	Name   string
+type pluginRunnerBase struct {
+	inChan chan *PipelinePack
+	name   string
+}
+
+func (self *pluginRunnerBase) InChan() chan *PipelinePack {
+	return self.inChan
+}
+
+func (self *pluginRunnerBase) Name() string {
+	return self.name
 }
 
 type PipelinePack struct {
-	MsgBytes    []byte
-	Message     *Message
-	Config      *PipelineConfig
-	Decoder     string
-	Decoders    map[string]Decoder
-	Filters     map[string]Filter
-	OutputChans map[string]chan *PipelinePack
-	Decoded     bool
-	Blocked     bool
-	FilterChain string
-	ChainCount  int
-	OutputNames map[string]bool
+	MsgBytes []byte
+	Message  *Message
+	Config   *PipelineConfig
+	Decoder  string
+	Decoders map[string]Decoder
+	Decoded  bool
+	RefCount int32
 }
 
 func NewPipelinePack(config *PipelineConfig) *PipelinePack {
-	msgBytes := make([]byte, 3+MAX_HEADER_SIZE+MAX_MESSAGE_SIZE)
+	msgBytes := make([]byte, MAX_MESSAGE_SIZE)
 	message := &Message{}
-	outputNames := make(map[string]bool)
-	filters := make(map[string]Filter)
 	decoders := make(map[string]Decoder)
-	outputChans := make(map[string]chan *PipelinePack)
 
 	pack := &PipelinePack{
-		MsgBytes:    msgBytes,
-		Message:     message,
-		Config:      config,
-		Decoder:     config.DefaultDecoder,
-		Decoders:    decoders,
-		Decoded:     false,
-		Blocked:     false,
-		Filters:     filters,
-		FilterChain: config.DefaultFilterChain,
-		OutputChans: outputChans,
-		OutputNames: outputNames,
+		MsgBytes: msgBytes,
+		Message:  message,
+		Config:   config,
+		Decoders: decoders,
+		Decoded:  false,
+		RefCount: int32(1),
 	}
 	pack.InitDecoders(config)
-	pack.InitFilters(config)
-	pack.InitOutputs(config)
 	return pack
 }
 
@@ -102,32 +107,22 @@ func (self *PipelinePack) InitDecoders(config *PipelineConfig) {
 	}
 }
 
-func (self *PipelinePack) InitFilters(config *PipelineConfig) {
-	for name, wrapper := range config.Filters {
-		self.Filters[name] = wrapper.Create().(Filter)
-	}
-}
-
-func (self *PipelinePack) InitOutputs(config *PipelineConfig) {
-	for name, outRunner := range config.OutputRunners {
-		self.OutputChans[name] = outRunner.InChan
-	}
-}
-
 func (self *PipelinePack) Zero() {
 	self.MsgBytes = self.MsgBytes[:cap(self.MsgBytes)]
-	self.Decoder = self.Config.DefaultDecoder
 	self.Decoded = false
-	self.Blocked = false
-	self.FilterChain = self.Config.DefaultFilterChain
-	for outputName, _ := range self.OutputNames {
-		delete(self.OutputNames, outputName)
-	}
+	self.RefCount = 1
+
+	// TODO: Possibly zero the message instead depending on benchmark
+	// results of re-allocating a new message
+	self.Message = new(Message)
 }
 
 func (self *PipelinePack) Recycle() {
-	self.Zero()
-	self.Config.RecycleChan <- self
+	cnt := atomic.AddInt32(&self.RefCount, -1)
+	if cnt == 0 {
+		self.Zero()
+		self.Config.RecycleChan <- self
+	}
 }
 
 func BroadcastEvent(config *PipelineConfig, eventType string) {
@@ -135,33 +130,26 @@ func BroadcastEvent(config *PipelineConfig, eventType string) {
 	if err != nil {
 		log.Printf("Error sending %s event:", err.Error())
 	}
-
-	var wrapper *PluginWrapper
-	for _, wrapper = range config.Filters {
-		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
-		}
-	}
-	for _, wrapper = range config.Outputs {
-		if wrapper.global != nil {
-			wrapper.global.Event(eventType)
-		}
-	}
 }
 
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	var wg sync.WaitGroup
-	var outRunner *outputRunner
 
-	for name, wrapper := range config.Outputs {
-		output := wrapper.Create().(Output)
-		outRunner = newOutputRunner(name, output, config.RecycleChan)
-		config.OutputRunners[name] = outRunner
-		outRunner.Start(&wg)
+	for _, output := range config.OutputRunners {
+		// Band-aid to check if the output itself needs to be started. This
+		// will go away when we finish the pipeline redesign.
+		var oi interface{} = output.Output()
+		if s, ok := oi.(Startable); ok {
+			s.Start(&wg)
+		}
 		wg.Add(1)
-		log.Printf("Output started: %s\n", name)
+		output.Start(&wg)
+	}
+	for _, filter := range config.FilterRunners {
+		wg.Add(1)
+		filter.Start(config, &wg)
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
@@ -169,12 +157,12 @@ func Run(config *PipelineConfig) {
 		config.RecycleChan <- NewPipelinePack(config)
 	}
 
-	for name, wrapper := range config.Inputs {
-		input := wrapper.Create().(Input)
+	config.Router.Start()
+
+	for name, input := range config.Inputs {
 		input.SetName(name)
-		err := input.Start(config, &wg)
-		if err != nil {
-			log.Printf("'%s' input failed to start: %s", name, err)
+		if input.Start(config, &wg) != nil {
+			log.Printf("'%s' input failed to start: %s", name)
 			continue
 		}
 		wg.Add(1)
@@ -199,6 +187,12 @@ sigListener:
 				break sigListener
 			}
 		}
+	}
+	for _, filter := range config.FilterRunners {
+		filter.Stop()
+	}
+	for _, output := range config.OutputRunners {
+		output.Stop()
 	}
 
 	wg.Wait()

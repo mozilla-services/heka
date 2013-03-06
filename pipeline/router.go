@@ -9,81 +9,34 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
-	. "github.com/mozilla-services/heka/message"
 	"log"
+   "runtime"
+	"sync/atomic"
 )
 
-// Represents message lookup hashes
-//
-// ChainMap is populated such that a message type should exactly
-// match and return a list representing keys in FilterChains. At the
-// moment the list will always be a single element, but in the future
-// with more ways to restrict the filter chain to other components of
-// the message narrowing down the set for several will be needed.
-type ChainRouter struct {
-	InChan   chan *PipelinePack
-	ChainMap map[string][]string
+// Pushes the message onto the filters input channel if it is a match
+type MessageRouter struct {
+	InChan chan *PipelinePack
 }
 
-func (self *ChainRouter) Start() {
-	var pack *PipelinePack
-	var i int
+func (self *MessageRouter) Start() {
 	go func() {
+		log.Println("MessageRouter started")
 		for {
-			pack = <-self.InChan
-			pack.OutputNames = map[string]bool{}
-			chainName, ok := self.LocateChain(pack.Message)
-			if ok {
-				pack.FilterChain = chainName
-			} else {
-				chainName = pack.FilterChain
+			runtime.Gosched()
+			pack := <-self.InChan
+			for _, runner := range pack.Config.FilterRunners {
+				atomic.AddInt32(&pack.RefCount, 1)
+				runner.InChan() <- pack
 			}
-			chain, ok := pack.Config.FilterChains[chainName]
-			if !ok {
-				log.Printf("Filter chain doesn't exist: %s", chainName)
-				pack.Recycle()
-				continue
-			}
-			for _, outputName := range chain.Outputs {
-				pack.OutputNames[outputName] = true
-			}
-			for _, filterName := range chain.Filters {
-				filter := pack.Filters[filterName]
-				filter.FilterMsg(pack)
-				if pack.Blocked {
-					pack.Recycle()
-					continue
-				}
-			}
-
-			i = 0
-			for outputName, use := range pack.OutputNames {
-				if !use {
-					continue
-				}
-				outChan, ok := pack.OutputChans[outputName]
-				if !ok {
-					log.Printf("Output doesn't exist: %s\n", outputName)
-					continue
-				}
-				outChan <- pack
-				i++
-			}
-			if i == 0 {
-				pack.Recycle()
-			}
+			pack.Recycle()
 		}
 	}()
-}
-
-func (self *ChainRouter) LocateChain(message *Message) (string, bool) {
-	if chains, ok := self.ChainMap[message.GetType()]; ok {
-		return chains[0], true
-	}
-	return "", false
 }

@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -25,39 +26,44 @@ import (
 	"time"
 )
 
-type DecoderRunner struct {
+type DecoderRunner interface {
 	PluginRunnerBase
-	decoder Decoder
-	router  *ChainRouter
+	Start()
 }
 
-func NewDecoderRunner(name string, decoder Decoder, router *ChainRouter) *DecoderRunner {
+type decoderRunner struct {
+	pluginRunnerBase
+	decoder Decoder
+}
+
+func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	return &DecoderRunner{
-		PluginRunnerBase{
-			Name:   name,
-			InChan: inChan,
+	return &decoderRunner{
+		pluginRunnerBase{
+			name:   name,
+			inChan: inChan,
 		},
 		decoder,
-		router,
 	}
 }
 
-func (self *DecoderRunner) Start() {
-	var pack *PipelinePack
+func (self *decoderRunner) Start() {
 	var err error
 
 	go func() {
 		for {
-			pack = <-self.InChan
+			pack, ok := <-self.inChan
+			if !ok {
+				break
+			}
 			err = self.decoder.Decode(pack)
 			if err != nil {
-				log.Printf("Decoder '%s' error: '%s", self.Name, err)
+				log.Printf("Decoder '%s' error: '%s", self.Name(), err)
 				pack.Recycle()
 				continue
 			}
 			pack.Decoded = true
-			self.router.InChan <- pack
+			pack.Config.Router.InChan <- pack
 		}
 	}()
 }

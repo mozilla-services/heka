@@ -11,6 +11,12 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
+/*
+
+Client package to talk to heka from Go.
+
+*/
 package client
 
 import (

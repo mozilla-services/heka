@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -35,7 +36,7 @@ func mockOutputCreator() map[string]Output {
 	return make(map[string]Output)
 }
 
-var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+var config = PipelineConfig{}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
@@ -44,6 +45,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(InputsSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
+	r.AddSpec(FilterSpecificationSpec)
 	gospec.MainGoTest(r, t)
 }
 

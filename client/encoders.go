@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package client
 
 import (
@@ -38,4 +39,29 @@ func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	result, err := proto.Marshal(msg)
 	return result, err
+}
+
+func EncodeStreamHeader(messageSize int, encoding message.Header_MessageEncoding,
+	headerBytes *[]byte) error {
+	h := &message.Header{}
+	h.SetMessageLength(uint32(messageSize))
+	if encoding != message.Default_Header_MessageEncoding {
+		h.SetMessageEncoding(encoding)
+	}
+	headerSize := uint8(proto.Size(h))
+	requiredSize := int(3 + headerSize)
+	if cap(*headerBytes) < requiredSize {
+		*headerBytes = make([]byte, requiredSize)
+	} else {
+		*headerBytes = (*headerBytes)[:requiredSize]
+	}
+	(*headerBytes)[0] = message.RECORD_SEPARATOR
+	(*headerBytes)[1] = uint8(headerSize)
+	pbuf := proto.NewBuffer((*headerBytes)[2:2])
+	err := pbuf.Marshal(h)
+	if err != nil {
+		return err
+	}
+	(*headerBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	return nil
 }

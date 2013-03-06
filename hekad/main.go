@@ -1,3 +1,11 @@
+/*
+
+Hekad daemon.
+
+This daemon runs the heka/pipeline Plugin's and runners for a complete
+message processing platform.
+
+*/
 package main
 
 import (
@@ -11,7 +19,7 @@ import (
 )
 
 const (
-	VERSION = "0.1"
+	VERSION = "0.2.0"
 )
 
 func main() {
