@@ -233,18 +233,19 @@ func (sm *statMonitor) Flush() {
 	var value float64
 	var intval int64
 	numStats := 0
-	now := time.Now()
+	now := time.Now().UTC()
+	nowUnix := now.Unix()
 	buffer := bytes.NewBufferString("")
 	for s, c := range sm.counters {
 		value = float64(c) / ((float64(sm.flushInterval) * float64(time.Second)) / float64(1e3))
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", s, value, now)
-		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, now)
+		fmt.Fprintf(buffer, "stats.%s %f %d\n", s, value, nowUnix)
+		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, nowUnix)
 		sm.counters[s] = 0
 		numStats++
 	}
 	for i, g := range sm.gauges {
 		intval = int64(g)
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, intval, now)
+		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, intval, nowUnix)
 		numStats++
 	}
 	var min, max, mean, maxAtThreshold, sum float64
@@ -271,24 +272,24 @@ func (sm *statMonitor) Flush() {
 			}
 			sm.timers[u] = t[:0]
 
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, mean, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, max, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
-				sm.percentThreshold, maxAtThreshold, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, min, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
+				sm.percentThreshold, maxAtThreshold, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
 		} else {
 			// Need to still submit timers as zero
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, 0, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, 0, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
-				sm.percentThreshold, 0, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, 0, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
+				sm.percentThreshold, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
 		}
 		numStats++
 	}
-	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
+	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
 	newMsg := MessageGenerator.Retrieve()
 	newMsg.Message.SetType("statmetric")
 	newMsg.Message.SetTimestamp(now.UnixNano())
