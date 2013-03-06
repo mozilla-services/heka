@@ -27,12 +27,12 @@ import (
 )
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
-// channel and write the values out to the whisper db as they do.
+// channel and write the values out to a single whisper db file as they do.
 type WhisperRunner interface {
 	InChan() chan *whisper.Point
 }
 
-type whisperRunner struct {
+type wRunner struct {
 	path   string
 	db     *whisper.Whisper
 	inChan chan *whisper.Point
@@ -65,13 +65,13 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		}
 	}
 	inChan := make(chan *whisper.Point, 10)
-	realWr := &whisperRunner{path_, db, inChan}
+	realWr := &wRunner{path_, db, inChan}
 	realWr.start()
 	wr = realWr
 	return
 }
 
-func (wr *whisperRunner) start() {
+func (wr *wRunner) start() {
 	go func() {
 		var err error
 		for point := range wr.InChan() {
@@ -82,7 +82,7 @@ func (wr *whisperRunner) start() {
 	}()
 }
 
-func (wr *whisperRunner) InChan() chan *whisper.Point {
+func (wr *wRunner) InChan() chan *whisper.Point {
 	return wr.inChan
 }
 
@@ -152,7 +152,7 @@ func (o *WhisperOutput) Start(wg *sync.WaitGroup) {
 	go func() {
 		stopChan := make(chan interface{})
 		notify.Start(STOP, stopChan)
-		_ = <-stopChan
+		<-stopChan
 		for _, wr := range o.dbs {
 			close(wr.InChan())
 		}
