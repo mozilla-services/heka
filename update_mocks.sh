@@ -20,6 +20,12 @@ $GOPATH/bin/mockgen -package=pipeline \
                     github.com/mozilla-services/heka/pipeline Input
 
 
+# pipeline.WhisperRunner
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_whisperrunner_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline WhisperRunner
+
 # ...and a second spelling for mocks of interfaces that are from external packages.
 
 # net.Conn
