@@ -14,8 +14,8 @@
 package lua
 
 /*
-#cgo CFLAGS:-std=gnu99
-#cgo LDFLAGS: -L /work/git/heka-build/release/external/lib -lsandbox -lm
+#cgo CFLAGS: -std=gnu99 -I ../../../../../../release/external/include
+#cgo LDFLAGS: -L../../../../../../bin -lsandbox -lm
 #include <stdlib.h>
 #include "lua_sandbox.h"
 */
@@ -73,8 +73,8 @@ func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
 	return 0, unsafe.Pointer(nil), 0
 }
 
-//export go_read_message
-func go_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
+//export go_lua_read_message
+func go_lua_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
 	int) {
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
@@ -140,14 +140,14 @@ func go_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
 	return 0, unsafe.Pointer(nil), 0
 }
 
-//export go_output
-func go_output(ptr unsafe.Pointer, c *C.char) {
+//export go_lua_output
+func go_lua_output(ptr unsafe.Pointer, c *C.char) {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	lsb.output(C.GoString(c))
 }
 
-//export go_inject_message
-func go_inject_message(ptr unsafe.Pointer, c *C.char) {
+//export go_lua_inject_message
+func go_lua_inject_message(ptr unsafe.Pointer, c *C.char) {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	lsb.injectMessage(C.GoString(c))
 }

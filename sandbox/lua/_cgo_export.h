@@ -29,15 +29,15 @@ typedef struct { void *t; void *v; } GoInterface;
 typedef struct { void *data; int len; int cap; } GoSlice;
 
 
-/* Return type for go_read_message */
-struct go_read_message_return {
+/* Return type for go_lua_read_message */
+struct go_lua_read_message_return {
 	GoInt r0;
 	void* r1;
 	GoInt r2;
 };
 
-extern struct go_read_message_return go_read_message(void* p0, char* p1);
+extern struct go_lua_read_message_return go_lua_read_message(void* p0, char* p1);
 
-extern void go_output(void* p0, char* p1);
+extern void go_lua_output(void* p0, char* p1);
 
-extern void go_inject_message(void* p0, char* p1);
+extern void go_lua_inject_message(void* p0, char* p1);

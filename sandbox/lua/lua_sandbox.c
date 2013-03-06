@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /// @brief Sandboxed Lua execution @file
-// gcc $(go env GOGCCFLAGS) -shared -std=gnu99 lua_sandbox.c -llua -o liblua_sandbox.so
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -105,10 +104,10 @@ int sandbox_read_message(lua_State* lua)
         if (lua_isstring(lua, 1)) {
             size_t len = 0;
             const char* field = lua_tolstring(lua, 1, &len);
-            struct go_read_message_return gr;
+            struct go_lua_read_message_return gr;
             // cast away constness, the value is not modified and will save a
             // copy
-            gr = go_read_message(lsb->m_go, (char*)field);
+            gr = go_lua_read_message(lsb->m_go, (char*)field);
             if (gr.r1 == NULL) {
                 lua_pushnil(lua);
             } else {
@@ -181,7 +180,7 @@ int sandbox_output(lua_State* lua)
             }
         }
     }
-    go_output(lsb->m_go, buf);
+    go_lua_output(lsb->m_go, buf);
     return 0;
 }
 
@@ -202,7 +201,7 @@ int sandbox_inject_message(lua_State* lua)
             const char* msg = lua_tolstring(lua, 1, &len);
             // cast away constness, the value is not modified and will save a
             // copy
-            go_inject_message(lsb->m_go, (char*)msg);
+            go_lua_inject_message(lsb->m_go, (char*)msg);
         }  else {
             lua_pushstring(lua, "inject_message() argument must be a string");
             lua_error(lua);
