@@ -47,6 +47,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(LoadFromConfigSpec)
 	r.AddSpec(FilterSpecificationSpec)
 	r.AddSpec(WhisperRunnerSpec)
+	r.AddSpec(WhisperOutputSpec)
 	gospec.MainGoTest(r, t)
 }
 

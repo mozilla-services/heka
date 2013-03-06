@@ -15,12 +15,15 @@
 package pipeline
 
 import (
+	"code.google.com/p/gomock/gomock"
 	"fmt"
+	ts "github.com/mozilla-services/heka/testsupport"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/whisper-go/whisper"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -46,7 +49,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 			fi, err := os.Stat(tmpFileName)
 			c.Expect(err, gs.IsNil)
 			c.Expect(fi.Size(), gs.Equals, int64(856))
-			close(wr.InChan)
+			close(wr.InChan())
 		})
 
 		c.Specify("writes a data point to the whisper file", func() {
@@ -54,8 +57,8 @@ func WhisperRunnerSpec(c gospec.Context) {
 			when := time.Now().UTC()
 			val := float64(6)
 			pt := whisper.NewPoint(when, val)
-			wr.InChan <- &pt
-			close(wr.InChan)
+			wr.InChan() <- &pt
+			close(wr.InChan())
 
 			// Open db file and fetch interval including our data point.
 			from := when.Add(-1 * time.Second).Unix()
@@ -72,6 +75,49 @@ func WhisperRunnerSpec(c gospec.Context) {
 			c.Expect(diff.Seconds() < float64(interval), gs.IsTrue)
 			c.Expect(fpt.Value, gs.Equals, val)
 		})
+	})
+}
 
+func WhisperOutputSpec(c gospec.Context) {
+	t := &ts.SimpleT{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	c.Specify("A WhisperOutput", func() {
+		o := new(WhisperOutput)
+		config := o.ConfigStruct()
+		o.Init(config)
+
+		const count = 5
+		lines := make([]string, count)
+		baseTime := time.Now().UTC().Add(-10 * time.Second)
+		nameTmpl := "stats.name.%d"
+
+		inChan := make(chan *whisper.Point, count)
+		mockWr := NewMockWhisperRunner(ctrl)
+
+		for i := 0; i < count; i++ {
+			statName := fmt.Sprintf(nameTmpl, i)
+			statTime := baseTime.Add(time.Duration(i) * time.Second)
+			lines[i] = fmt.Sprintf("%s %d %d", statName, i*2, statTime.Unix())
+			o.dbs[statName] = mockWr
+		}
+
+		pack := getTestPipelinePack()
+		pack.Message.SetPayload(strings.Join(lines, "\n"))
+
+		c.Specify("turns statmetric lines into points", func() {
+			inChanCall := mockWr.EXPECT().InChan().Times(count)
+			inChanCall.Return(inChan)
+			o.Deliver(pack)
+			close(inChan)
+			i := 0
+			for pt := range inChan {
+				statTime := baseTime.Add(time.Duration(i) * time.Second)
+				c.Expect(pt.Value, gs.Equals, float64(i*2))
+				c.Expect(pt.Time().UTC().Unix(), gs.Equals, statTime.Unix())
+				i++
+			}
+		})
 	})
 }

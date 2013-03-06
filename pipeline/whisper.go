@@ -28,14 +28,18 @@ import (
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
 // channel and write the values out to the whisper db as they do.
-type WhisperRunner struct {
+type WhisperRunner interface {
+	InChan() chan *whisper.Point
+}
+
+type whisperRunner struct {
 	path   string
 	db     *whisper.Whisper
-	InChan chan *whisper.Point
+	inChan chan *whisper.Point
 }
 
 func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
-	aggMethod whisper.AggregationMethod) (wr *WhisperRunner, err error) {
+	aggMethod whisper.AggregationMethod) (wr WhisperRunner, err error) {
 
 	var db *whisper.Whisper
 	if db, err = whisper.Open(path_); err != nil {
@@ -61,20 +65,25 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		}
 	}
 	inChan := make(chan *whisper.Point, 10)
-	wr = &WhisperRunner{path_, db, inChan}
-	wr.start()
+	realWr := &whisperRunner{path_, db, inChan}
+	realWr.start()
+	wr = realWr
 	return
 }
 
-func (wr *WhisperRunner) start() {
+func (wr *whisperRunner) start() {
 	go func() {
 		var err error
-		for point := range wr.InChan {
+		for point := range wr.InChan() {
 			if err = wr.db.Update(*point); err != nil {
 				log.Printf("Error updating whisper db '%s': %s", wr.path, err)
 			}
 		}
 	}()
+}
+
+func (wr *whisperRunner) InChan() chan *whisper.Point {
+	return wr.inChan
 }
 
 // A WhisperOutput plugin will parse the stats data in the payload of a
@@ -84,7 +93,7 @@ type WhisperOutput struct {
 	basePath           string
 	defaultAggMethod   whisper.AggregationMethod
 	defaultArchiveInfo []whisper.ArchiveInfo
-	dbs                map[string]*WhisperRunner
+	dbs                map[string]WhisperRunner
 }
 
 type WhisperOutputConfig struct {
@@ -126,7 +135,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	for i, aiSpec := range conf.DefaultArchiveInfo {
 		o.defaultArchiveInfo[i] = whisper.ArchiveInfo{aiSpec[0], aiSpec[1], aiSpec[2]}
 	}
-	o.dbs = make(map[string]*WhisperRunner)
+	o.dbs = make(map[string]WhisperRunner)
 	return
 }
 
@@ -145,7 +154,7 @@ func (o *WhisperOutput) Start(wg *sync.WaitGroup) {
 		notify.Start(STOP, stopChan)
 		_ = <-stopChan
 		for _, wr := range o.dbs {
-			close(wr.InChan)
+			close(wr.InChan())
 		}
 		wg.Done()
 	}()
@@ -154,7 +163,7 @@ func (o *WhisperOutput) Start(wg *sync.WaitGroup) {
 func (o *WhisperOutput) Deliver(pack *PipelinePack) {
 	payload := pack.Message.GetPayload()
 	var fields []string
-	var wr *WhisperRunner
+	var wr WhisperRunner
 	var unixTime uint64
 	var value float64
 	var err error
@@ -186,6 +195,6 @@ func (o *WhisperOutput) Deliver(pack *PipelinePack) {
 			Timestamp: uint32(unixTime),
 			Value:     value,
 		}
-		wr.InChan <- pt
+		wr.InChan() <- pt
 	}
 }
