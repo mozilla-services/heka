@@ -73,7 +73,6 @@ func (lw *LogfileInput) LineReader(config *PipelineConfig, stopChan chan interfa
 	var decoderName string
 	var ok bool
 	var err error
-	chainRouter := config.ChainRouter()
 runnerLoop:
 	for {
 		select {
@@ -99,7 +98,7 @@ runnerLoop:
 						break
 					}
 				}
-				chainRouter.InChan <- pack
+				pack.Config.Router.InChan <- pack
 			}
 		}
 	}

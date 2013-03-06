@@ -43,7 +43,6 @@ type PluginHelper interface {
 	PackSupply() chan *PipelinePack
 	NewDecoder(name string) (runner DecoderRunner, ok bool)
 	NewDecoderSet() (decoders []DecoderRunner)
-	ChainRouter() *ChainRouter
 	StopChan() (stopChan chan interface{})
 }
 
@@ -53,21 +52,14 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
-type FilterChain struct {
-	Outputs       []string
-	Filters       []string
-	MessageFilter *FilterSpecification
-}
-
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs        map[string]*PluginWrapper
-	Decoders      map[string]*PluginWrapper
-	Filters       map[string]*PluginWrapper
-	Outputs       map[string]*PluginWrapper
-	OutputRunners map[string]*outputRunner
-	FilterChains  map[string]*FilterChain
+	Inputs        map[string]Input
+	Decoders      map[string]*PluginWrapper // multiple instances are allowed
+	FilterRunners map[string]FilterRunner
+	OutputRunners map[string]OutputRunner
 	PoolSize      int
+	Router        *MessageRouter
 	RecycleChan   chan *PipelinePack
 }
 
@@ -76,8 +68,12 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	PoolSize = poolSize
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
-	config.FilterChains = make(map[string]*FilterChain)
-	config.OutputRunners = make(map[string]*outputRunner)
+	config.Inputs = make(map[string]Input)
+	config.Decoders = make(map[string]*PluginWrapper)
+	config.FilterRunners = make(map[string]FilterRunner)
+	config.OutputRunners = make(map[string]OutputRunner)
+	config.Router = new(MessageRouter)
+	config.Router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	return config
 }
@@ -103,18 +99,10 @@ func (self *PipelineConfig) NewDecoder(name string) (
 	if wrapper, ok = self.Decoders[name]; !ok {
 		return
 	}
-	router := self.ChainRouter()
 	decoder := wrapper.Create().(Decoder)
-	runner = NewDecoderRunner(name, decoder, router)
+	runner = NewDecoderRunner(name, decoder)
 	runner.Start()
 	return
-}
-
-func (self *PipelineConfig) ChainRouter() *ChainRouter {
-	router := new(ChainRouter)
-	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	router.Start()
-	return router
 }
 
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
@@ -131,20 +119,15 @@ func (self *PipelineConfig) StopChan() (stopChan chan interface{}) {
 type ConfigFile struct {
 	Inputs   []PluginConfig
 	Decoders []PluginConfig
-	Filters  []PluginConfig
 	Outputs  []PluginConfig
-	Chains   map[string]PluginConfig
+	Filters  map[string]PluginConfig
 }
 
-// A plugin wrapper wraps a plugin so that more instances of it can be
-// easily created and a reference can be held to the plugins global if
-// it needs one
+// A helper function to simplify plugin creation
 type PluginWrapper struct {
 	name          string
 	configCreator func() interface{}
 	pluginCreator func() interface{}
-	global        PluginGlobal
-	firstPlugin   interface{}
 }
 
 // Create a new instance of the plugin and return it
@@ -157,19 +140,8 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 
 // Creates a new instance
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
-	if self.firstPlugin != nil {
-		plugin = self.firstPlugin
-		self.firstPlugin = nil
-		return
-	}
-
 	plugin = self.pluginCreator()
-	if self.global == nil {
-		err = plugin.(Plugin).Init(self.configCreator())
-	} else {
-		// pluginCreator only returns a Plugin int, so we type assert
-		err = plugin.(PluginWithGlobal).Init(self.global, self.configCreator())
-	}
+	err = plugin.(Plugin).Init(self.configCreator())
 	return
 }
 
@@ -265,19 +237,6 @@ func loadSection(sectionName string, configSection []PluginConfig) (
 			return nil, err
 		}
 		wrapper.configCreator = func() interface{} { return configLoaded }
-
-		// Determine if this plug-in has a global, if it does, make it now
-		if hasPluginGlobal, ok := plugin.(PluginWithGlobal); ok {
-			wrapper.global, err = hasPluginGlobal.InitOnce(wrapper.configCreator())
-			if err != nil {
-				return config, errors.New("Unable to InitOnce: " + err.Error())
-			}
-		}
-
-		if plugin, err = wrapper.CreateWithError(); err != nil {
-			return config, errors.New("Unable to plugin init: " + err.Error())
-		}
-		wrapper.firstPlugin = plugin
 		config[wrapper.name] = wrapper
 	}
 	return config, nil
@@ -317,16 +276,24 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return err
 	}
 
-	if self.Inputs, err = loadSection("inputs", configFile.Inputs); err != nil {
+	inputs, err := loadSection("inputs", configFile.Inputs)
+	if err != nil {
 		return err
-	} else {
-		// Setup our message generator input
-		MessageGenerator.Init()
-		mgiWrapper := new(PluginWrapper)
-		mgiWrapper.name = "MessageGeneratorInput"
-		mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
-		mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
-		self.Inputs["MessageGeneratorInput"] = mgiWrapper
+	}
+
+	// Setup our message generator input
+	MessageGenerator.Init()
+	mgiWrapper := new(PluginWrapper)
+	mgiWrapper.name = "MessageGeneratorInput"
+	mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
+	mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
+	inputs[mgiWrapper.name] = mgiWrapper
+	for k, v := range inputs {
+		tmp, err := v.CreateWithError()
+		if err != nil {
+			return errors.New("Unable to plugin init: " + err.Error())
+		}
+		self.Inputs[k] = tmp.(Input)
 	}
 
 	self.Decoders, err = loadSection("decoders", configFile.Decoders)
@@ -334,52 +301,74 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return errors.New("Error reading decoders: " + err.Error())
 	}
 
-	self.Filters, err = loadSection("filters", configFile.Filters)
-	if err != nil {
-		return errors.New("Error reading filters: " + err.Error())
-	}
-
-	self.Outputs, err = loadSection("outputs", configFile.Outputs)
+	outputs, err := loadSection("outputs", configFile.Outputs)
 	if err != nil {
 		return errors.New("Error reading outputs: " + err.Error())
 	}
+	for k, v := range outputs {
+		tmp, err := v.CreateWithError()
+		if err != nil {
+			return errors.New("Unable to plugin init: " + err.Error())
+		}
+		self.OutputRunners[k] = NewOutputRunner(k, tmp.(Output))
+	}
 
-	for name, section := range configFile.Chains {
-		chain := &FilterChain{}
-		if outputs, ok := section["outputs"]; ok {
-			outputList := outputs.([]interface{})
-			chain.Outputs = make([]string, len(outputList))
-			for i, output := range outputList {
-				strOutput := output.(string)
-				if _, ok := self.Outputs[strOutput]; !ok {
-					return errors.New("Error during chain loading. Output by name " +
-						strOutput + " was not defined.")
-				}
-				chain.Outputs[i] = strOutput
-			}
-		}
-		if filters, ok := section["filters"]; ok {
-			filterList := filters.([]interface{})
-			chain.Filters = make([]string, len(filterList))
-			for i, filter := range filterList {
-				strFilter := filter.(string)
-				if _, ok := self.Filters[strFilter]; !ok {
-					return errors.New("Error during chain loading. Filter by name " +
-						strFilter + " was not defined.")
-				}
-				chain.Filters[i] = strFilter
-			}
-		}
-		// Add the message filter if present
+	for name, section := range configFile.Filters {
+		runner := &filterRunner{}
+		runner.name = name
+		runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+
 		if _, ok := section["message_filter"]; ok {
 			msgFilter := section["message_filter"].(string)
 			fs, err := CreateFilterSpecification(msgFilter)
 			if err != nil {
 				return err
 			}
-			chain.MessageFilter = fs
+			runner.messageFilter = fs
 		}
-		self.FilterChains[name] = chain
+
+		if _, ok := section["output_timer"]; ok {
+			sec := section["output_timer"].(float64)
+			runner.output_timer = uint(sec)
+		}
+		if runner.output_timer == 0 {
+			runner.output_timer = 60
+		}
+
+		if outputs, ok := section["outputs"]; ok {
+			outputList := outputs.([]interface{})
+			runner.outputs = make([]OutputRunner, len(outputList))
+			for i, output := range outputList {
+				strOutput := output.(string)
+				orunner, ok := self.OutputRunners[strOutput]
+				if !ok {
+					return errors.New("Error during chain loading. Output by name " +
+						strOutput + " was not defined.")
+				}
+				runner.outputs[i] = orunner
+			}
+		}
+		var ok bool
+		wrapper := new(PluginWrapper)
+		pluginType := section["type"].(string)
+		wrapper.name = name
+
+		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
+			err := errors.New("No such plugin of that name: " + pluginType)
+			return err
+		}
+		plugin := wrapper.pluginCreator()
+		configLoaded, err := LoadConfigStruct(&section, plugin)
+		if err != nil {
+			return err
+		}
+		wrapper.configCreator = func() interface{} { return configLoaded }
+		tmp, err := wrapper.CreateWithError()
+		if err != nil {
+			return errors.New("Unable to plugin init: " + err.Error())
+		}
+		runner.filter = tmp.(Filter)
+		self.FilterRunners[name] = runner
 	}
 
 	return nil
@@ -404,9 +393,6 @@ func init() {
 	RegisterPlugin("LogOutput", func() interface{} {
 		return new(LogOutput)
 	})
-	RegisterPlugin("CounterOutput", func() interface{} {
-		return new(CounterOutput)
-	})
 	RegisterPlugin("FileOutput", func() interface{} {
 		return new(FileOutput)
 	})
@@ -425,6 +411,15 @@ func init() {
 	RegisterPlugin("StatFilter", func() interface{} {
 		return new(StatFilter)
 	})
+	RegisterPlugin("SandboxFilter", func() interface{} {
+		return new(SandboxFilter)
+	})
+	RegisterPlugin("CounterFilter", func() interface{} {
+		return new(CounterFilter)
+	})
+	//	RegisterPlugin("PassThruFilter", func() interface{} {
+	//		return new(PassThruFilter)
+	//	})
 
 	// The below code should really be in an init() function in
 	// date_helpers.go, but go's compiler loses track of line numbers when

@@ -11,15 +11,17 @@
         {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
     "outputs": [
-        {"type": "CounterOutput"}
+        {"type": "LogOutput"}
     ],
-    "chains": {
+    "filters": {
         "default": {
-            "outputs": ["CounterOutput"]
+            "type" : "StatFilter",
+            "outputs": ["LogOutput"]
         },
         "sample": {
+            "type": "StatFilter",
             "message_filter": "Type == \"counter\" || Type == \"gauge\"",
-            "outputs": ["CounterOutput"]
+            "outputs": ["LogOutput"]
         }
     }
 }
