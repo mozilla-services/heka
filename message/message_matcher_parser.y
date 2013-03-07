@@ -1,11 +1,12 @@
 %{
-package pipeline
+package message
 
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
-   "sync"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -69,14 +70,15 @@ var nodes []*tree
    double      float64
    fieldIndex  int
    arrayIndex  int
+   regexp      *regexp.Regexp
 }
 
-%token OP_EQ OP_NE OP_GT OP_GTE OP_LT OP_LTE
+%token OP_EQ OP_NE OP_GT OP_GTE OP_LT OP_LTE OP_RE OP_NRE
 %token OP_OR OP_AND
 %token VAR_UUID VAR_TYPE VAR_LOGGER VAR_PAYLOAD VAR_ENVVERSION VAR_HOSTNAME
 %token VAR_TIMESTAMP VAR_SEVERITY VAR_PID
 %token VAR_FIELDS
-%token STRING_VALUE NUMERIC_VALUE
+%token STRING_VALUE NUMERIC_VALUE REGEXP_VALUE
 %token TRUE FALSE
 
 %start filter
@@ -95,6 +97,9 @@ relational : OP_EQ
    | OP_LT
    | OP_LTE
 ;
+regexp : OP_RE
+   | OP_NRE
+;
 string_vars : VAR_UUID
    | VAR_TYPE
    | VAR_LOGGER
@@ -107,10 +112,15 @@ numeric_vars : VAR_TIMESTAMP
    | VAR_PID
 ;
 string_test : string_vars relational STRING_VALUE
-   {
-   //fmt.Println("string_test", $1, $2, $3)
-   nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
-   }
+       {
+       //fmt.Println("string_test", $1, $2, $3)
+       nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+       }
+   |   string_vars regexp REGEXP_VALUE
+       {
+       //fmt.Println("string_test regexp", $1, $2, $3)
+       nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+       }
 ;
 numeric_test : numeric_vars relational NUMERIC_VALUE
    {
@@ -131,6 +141,11 @@ field_test : VAR_FIELDS relational NUMERIC_VALUE
    | VAR_FIELDS OP_EQ boolean
       {
       //fmt.Println("field_test boolean", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+      }
+   | VAR_FIELDS regexp REGEXP_VALUE
+      {
+      //fmt.Println("field_test regexp", $1, $2, $3)
       nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
       }
 ;
@@ -161,48 +176,49 @@ expr : '(' expr ')'
 
 %%
 
-type FilterSpecificationParser struct {
-   filter   string
+type MatcherSpecificationParser struct {
+	filter   string
 	sym      string
 	peekrune rune
-   lexPos   int
+	lexPos   int
 }
 
-func parseFilterSpecification(fs *FilterSpecification) error {
+func parseMatcherSpecification(ms *MatcherSpecification) error {
 	parseLock.Lock()
-   defer parseLock.Unlock()
-   nodes = nodes[:0] // reset the global
-   var fsp FilterSpecificationParser
-   fsp.filter = fs.filter
-   fsp.peekrune = ' '
-	if yyParse(&fsp) == 0 {
-	   s := new(stack)
-   	for _, node := range nodes {
-   		if node.stmt.op.tokenId != OP_OR && node.stmt.op.tokenId != OP_AND {
-   			s.push(node)
-   		} else {
-            node.right = s.pop()
-            node.left = s.pop()
-            s.push(node)
-   		}
-   	}
-      fs.vm = s.pop()
+	defer parseLock.Unlock()
+	nodes = nodes[:0] // reset the global
+	var msp MatcherSpecificationParser
+	msp.filter = ms.filter
+	msp.peekrune = ' '
+	if yyParse(&msp) == 0 {
+		s := new(stack)
+		for _, node := range nodes {
+			if node.stmt.op.tokenId != OP_OR &&
+				node.stmt.op.tokenId != OP_AND {
+				s.push(node)
+			} else {
+				node.right = s.pop()
+				node.left = s.pop()
+				s.push(node)
+			}
+		}
+		ms.vm = s.pop()
 		return nil
 	}
-	return fmt.Errorf("syntax error: last token: %s pos: %d", fsp.sym, fsp.lexPos)
+	return fmt.Errorf("syntax error: last token: %s pos: %d", msp.sym, msp.lexPos)
 }
 
-func (f *FilterSpecificationParser) Error(s string) {
-	fmt.Errorf("syntax error: %s last token: %s pos: %d", f.sym, f.lexPos)
+func (m *MatcherSpecificationParser) Error(s string) {
+	fmt.Errorf("syntax error: %s last token: %s pos: %d", m.sym, m.lexPos)
 }
 
-func (f *FilterSpecificationParser) Lex(yylval *yySymType) int {
+func (m *MatcherSpecificationParser) Lex(yylval *yySymType) int {
 	var err error
-	var c rune
+	var c, tmp rune
 	var i int
 
-	c = f.peekrune
-	f.peekrune = ' '
+	c = m.peekrune
+	m.peekrune = ' '
 
 loop:
 	if c >= 'A' && c <= 'Z' {
@@ -213,40 +229,48 @@ loop:
 	}
 	switch c {
 	case ' ', '\t':
-		c = f.getrune()
+		c = m.getrune()
 		goto loop
 	case '=':
-		c = f.getrune()
-		if c != '=' {
+		c = m.getrune()
+		if c == '=' {
+			yylval.token = "=="
+			yylval.tokenId = OP_EQ
+		} else if c == '~' {
+			yylval.token = "=~"
+			yylval.tokenId = OP_RE
+		} else {
 			break
 		}
-		yylval.token = "=="
-		yylval.tokenId = OP_EQ
 		return yylval.tokenId
 	case '!':
-		c = f.getrune()
-		if c != '=' {
+		c = m.getrune()
+		if c == '=' {
+			yylval.token = "!="
+			yylval.tokenId = OP_NE
+		} else if c == '~' {
+			yylval.token = "!~"
+			yylval.tokenId = OP_NRE
+		} else {
 			break
 		}
-		yylval.token = "!="
-		yylval.tokenId = OP_NE
 		return yylval.tokenId
 	case '>':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '=' {
-			f.peekrune = c
+			m.peekrune = c
 			yylval.token = ">"
 			yylval.tokenId = OP_GT
 			return yylval.tokenId
 		}
-		f.peekrune = f.getrune()
+		m.peekrune = m.getrune()
 		yylval.token = ">="
 		yylval.tokenId = OP_GTE
 		return yylval.tokenId
 	case '<':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '=' {
-			f.peekrune = c
+			m.peekrune = c
 			yylval.token = "<"
 			yylval.tokenId = OP_LT
 			return yylval.tokenId
@@ -255,7 +279,7 @@ loop:
 		yylval.tokenId = OP_LTE
 		return yylval.tokenId
 	case '|':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '|' {
 			break
 		}
@@ -263,129 +287,164 @@ loop:
 		yylval.tokenId = OP_OR
 		return yylval.tokenId
 	case '&':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '&' {
 			break
 		}
 		yylval.token = "&&"
 		yylval.tokenId = OP_AND
 		return yylval.tokenId
-	case '"':
+	case '"', '\'':
 		goto quotestring
+	case '/':
+		goto regexpstring
 	}
 	return int(c)
 
 variable:
-	f.sym = ""
+	m.sym = ""
 	for i = 0; ; i++ {
-		f.sym += string(c)
-		c = f.getrune()
+		m.sym += string(c)
+		c = m.getrune()
 		if !rvariable(c) {
 			break
 		}
 	}
-	yylval.tokenId = variables[f.sym]
-   if yylval.tokenId == VAR_FIELDS {
-      if c != '[' {
-         return 0
-      }
-      var bracketCount int
-      var idx [3]string
-      for {
-      	c = f.getrune()
-      	if c == 0 {
-      		return 0
-      	}
-      	if c == ']' { // a closing bracket in the variable name will fail validation
-            if len(idx[bracketCount]) == 0 {
-               return 0
-            }
-            bracketCount++
-			   f.peekrune = f.getrune()
-   			if f.peekrune == '[' && bracketCount < cap(idx) {
-   			   f.peekrune = ' '
-   			} else {
-               break
-            }
-      	} else {
-            switch bracketCount {
-               case 0:
-                  idx[bracketCount] += string(c)
-               case 1,2:
-                  if ddigit(c) {
-                     idx[bracketCount] += string(c)
-                  } else {
-                     return 0
-                  }
-            }
-         }
-   	}
-      if len(idx[1]) == 0 {
-         idx[1] = "0"
-      }
-      if len(idx[2]) == 0 {
-         idx[2] = "0"
-      }
-      var err error
-   	yylval.token = idx[0]
-      yylval.fieldIndex, err = strconv.Atoi(idx[1])
-      if err != nil {
-         return 0
-      }
-      yylval.arrayIndex, err = strconv.Atoi(idx[2])
-      if err != nil {
-         return 0
-      }
-   } else {
-	   yylval.token = f.sym
-	   f.peekrune = c
-   }
+	yylval.tokenId = variables[m.sym]
+	if yylval.tokenId == VAR_FIELDS {
+		if c != '[' {
+			return 0
+		}
+		var bracketCount int
+		var idx [3]string
+		for {
+			c = m.getrune()
+			if c == 0 {
+				return 0
+			}
+			if c == ']' { // a closing bracket in the variable name will fail validation
+				if len(idx[bracketCount]) == 0 {
+					return 0
+				}
+				bracketCount++
+				m.peekrune = m.getrune()
+				if m.peekrune == '[' && bracketCount < cap(idx) {
+					m.peekrune = ' '
+				} else {
+					break
+				}
+			} else {
+				switch bracketCount {
+				case 0:
+					idx[bracketCount] += string(c)
+				case 1, 2:
+					if ddigit(c) {
+						idx[bracketCount] += string(c)
+					} else {
+						return 0
+					}
+				}
+			}
+		}
+		if len(idx[1]) == 0 {
+			idx[1] = "0"
+		}
+		if len(idx[2]) == 0 {
+			idx[2] = "0"
+		}
+		var err error
+		yylval.token = idx[0]
+		yylval.fieldIndex, err = strconv.Atoi(idx[1])
+		if err != nil {
+			return 0
+		}
+		yylval.arrayIndex, err = strconv.Atoi(idx[2])
+		if err != nil {
+			return 0
+		}
+	} else {
+		yylval.token = m.sym
+		m.peekrune = c
+	}
 	return yylval.tokenId
 
 number:
-	f.sym = ""
+	m.sym = ""
 	for i = 0; ; i++ {
-		f.sym += string(c)
-		c = f.getrune()
+		m.sym += string(c)
+		c = m.getrune()
 		if !rdigit(c) {
 			break
 		}
 	}
-	f.peekrune = c
-	yylval.double, err = strconv.ParseFloat(f.sym, 64)
+	m.peekrune = c
+	yylval.double, err = strconv.ParseFloat(m.sym, 64)
 	if err != nil {
-		log.Printf("error converting %v\n", f.sym)
+		log.Printf("error converting %v\n", m.sym)
 		yylval.double = 0
 	}
-	yylval.token = f.sym
+	yylval.token = m.sym
 	yylval.tokenId = NUMERIC_VALUE
 	return yylval.tokenId
 
 quotestring:
-	f.sym = ""
+	tmp = c
+	m.sym = ""
 	for {
-		c = f.getrune()
+		c = m.getrune()
 		if c == 0 {
 			return 0
 		}
 		if c == '\\' {
-			f.peekrune = f.getrune()
-			if f.peekrune == '"' {
-				f.sym += "\""
+			m.peekrune = m.getrune()
+			if m.peekrune == tmp {
+				m.sym += string(tmp)
 			} else {
-				f.sym += string(c)
-				f.sym += string(f.peekrune)
+				m.sym += string(c)
+				m.sym += string(m.peekrune)
 			}
-			f.peekrune = ' '
+			m.peekrune = ' '
 			continue
 		}
-		if c == '"' {
+		if c == tmp {
 			break
 		}
-		f.sym += string(c)
+		m.sym += string(c)
 	}
-	yylval.token = f.sym
+	yylval.token = m.sym
 	yylval.tokenId = STRING_VALUE
+	return yylval.tokenId
+
+regexpstring:
+	m.sym = ""
+	for {
+		c = m.getrune()
+		if c == 0 {
+			return 0
+		}
+		if c == '\\' {
+			m.peekrune = m.getrune()
+			if m.peekrune == '/' {
+				m.sym += "/"
+			} else {
+				m.sym += string(c)
+				m.sym += string(m.peekrune)
+			}
+			m.peekrune = ' '
+			continue
+		}
+		if c == '/' {
+			break
+		}
+		m.sym += string(c)
+	}
+	yylval.regexp, err = regexp.Compile(m.sym)
+	if err != nil {
+		log.Printf("invalid regexp %v\n", m.sym)
+		return 0
+	}
+	yylval.token = m.sym
+	yylval.tokenId = REGEXP_VALUE
 	return yylval.tokenId
 }
 
@@ -413,15 +472,15 @@ func ddigit(c rune) bool {
 	return false
 }
 
-func (f *FilterSpecificationParser) getrune() rune {
+func (m *MatcherSpecificationParser) getrune() rune {
 	var c rune
 	var n int
 
-	if f.lexPos >= len(f.filter) {
+	if m.lexPos >= len(m.filter) {
 		return 0
 	}
-	c, n = utf8.DecodeRuneInString(f.filter[f.lexPos:len(f.filter)])
-	f.lexPos += n
+	c, n = utf8.DecodeRuneInString(m.filter[m.lexPos:len(m.filter)])
+	m.lexPos += n
 	if c == '\n' {
 		c = 0
 	}

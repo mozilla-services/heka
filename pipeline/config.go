@@ -318,17 +318,16 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		runner.name = name
 		runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 
-		if _, ok := section["message_filter"]; ok {
-			msgFilter := section["message_filter"].(string)
-			fs, err := CreateFilterSpecification(msgFilter)
+		if tmp, ok := section["message_matcher"]; ok {
+			ms, err := CreateMatcherSpecification(tmp.(string))
 			if err != nil {
 				return err
 			}
-			runner.messageFilter = fs
+			runner.messageMatcher = ms
 		}
 
-		if _, ok := section["output_timer"]; ok {
-			sec := section["output_timer"].(float64)
+		if tmp, ok := section["output_timer"]; ok {
+			sec := tmp.(float64)
 			runner.output_timer = uint(sec)
 		}
 		if runner.output_timer == 0 {
