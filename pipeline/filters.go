@@ -185,7 +185,7 @@ func (this *CounterFilter) TimerEvent() int {
 	this.output(fmt.Sprintf("Got %d messages. %0.2f msg/sec", this.count,
 		this.rate))
 	this.rates = append(this.rates, this.rate)
-	if this.intervals == 10 {
+	if this.intervals >= 10 {
 		this.intervals = 0
 		amount := len(this.rates)
 		if amount < 1 {
