@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"github.com/mozilla-services/heka/message"
+	"strings"
 )
 
 // FilterSpecification used by the message router to distribute messages
@@ -40,6 +41,20 @@ func CreateFilterSpecification(filter string) (*FilterSpecification, error) {
 
 func (f *FilterSpecification) Start(matchChan chan *PipelinePack) {
 	go func() {
+
+		defer func() {
+			if r := recover(); r != nil {
+				var err error
+				var ok bool
+				if err, ok = r.(error); !ok {
+					panic(r)
+				}
+				if !strings.Contains(err.Error(), "send on closed channel") {
+					panic(r)
+				}
+			}
+		}()
+
 		for pack := range f.inChan {
 			if f.IsMatch(pack.Message) {
 				matchChan <- pack

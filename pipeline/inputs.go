@@ -453,7 +453,6 @@ func (self *MessageGeneratorInput) Start(ir InputRunner, h PluginHelper,
 		wg.Done()
 	}()
 
-	wg.Done() // MGI shuts down last, is handled differently.
 	return
 }
 

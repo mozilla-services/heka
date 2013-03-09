@@ -114,23 +114,26 @@ func (p *PipelinePack) Recycle() {
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
-	var wg sync.WaitGroup
+	var inputsWg sync.WaitGroup
+	var filtersWg sync.WaitGroup
+	var outputsWg sync.WaitGroup
 	var err error
 
 	for name, output := range config.OutputRunners {
-		if err = output.Start(config, &wg); err != nil {
+		if err = output.Start(config, &outputsWg); err != nil {
 			log.Printf("Output '%s' failed to start: %s", name, err)
 			continue
 		}
-		wg.Add(1)
+		outputsWg.Add(1)
 		log.Println("Output started: ", name)
 	}
+
 	for name, filter := range config.FilterRunners {
-		if err = filter.Start(config, &wg); err != nil {
+		if err = filter.Start(config, &filtersWg); err != nil {
 			log.Printf("Filter '%s' failed to start: %s", name, err)
 			continue
 		}
-		wg.Add(1)
+		filtersWg.Add(1)
 		log.Println("Filter started: ", name)
 	}
 
@@ -142,11 +145,14 @@ func Run(config *PipelineConfig) {
 	config.Router().Start()
 
 	for name, input := range config.InputRunners {
-		if err = input.Start(config, &wg); err != nil {
+		if err = input.Start(config, &inputsWg); err != nil {
 			log.Printf("Input '%s' failed to start: %s", name, err)
 			continue
 		}
-		wg.Add(1)
+		// Special case the MGI, it shuts down last.
+		if name != "MessageGeneratorInput" {
+			inputsWg.Add(1)
+		}
 		log.Printf("Input started: %s\n", name)
 	}
 
@@ -182,18 +188,21 @@ func Run(config *PipelineConfig) {
 		input.Input().Stop()
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
+	inputsWg.Wait()
 
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
+	filtersWg.Wait()
+
 	for _, output := range config.OutputRunners {
 		close(output.InChan())
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
+	outputsWg.Wait()
 
-	wg.Wait()
-	wg.Add(1)
+	inputsWg.Add(1)
 	mgi.Stop()
 	log.Println("Shutdown complete.")
 }
