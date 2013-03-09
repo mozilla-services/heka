@@ -17,7 +17,6 @@ package pipeline
 import (
 	"bytes"
 	"fmt"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"net"
 	"regexp"
@@ -58,6 +57,7 @@ type StatsdInput struct {
 	listener         *net.UDPConn
 	percentThreshold int
 	flushInterval    int64
+	stopped          bool
 }
 
 // A StatPacket appropriate for a plugin to feed directly into the
@@ -89,18 +89,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 	return nil
 }
 
-func (s *StatsdInput) SetName(name string) {
-	s.name = name
-}
-
-func (s *StatsdInput) Name() string {
-	return s.name
-}
-
-func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
+func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, s.Name())
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, ir.Name())
 	go sm.Monitor(packets)
 
 	// Spin up the UDP listener if it was configured
@@ -108,23 +101,10 @@ func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		go func() {
 			var n int
 			var err error
-			stopped := false
 			defer s.listener.Close()
-
-			stopChan := make(chan interface{})
-			notify.Start(STOP, stopChan)
-			go func() {
-				select {
-				case <-stopChan:
-					stopped = true
-				}
-			}()
-
 			timeout := time.Duration(time.Millisecond * 100)
-			for {
-				if stopped {
-					break
-				}
+
+			for !s.stopped {
 				message := make([]byte, 512)
 				s.listener.SetReadDeadline(time.Now().Add(timeout))
 				n, _, err = s.listener.ReadFromUDP(message)
@@ -133,7 +113,8 @@ func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 				}
 				go s.handleMessage(message[:n])
 			}
-			log.Println("StatsdUdpInput for input stopped: ", s.Name())
+			close(packets) // shut down the StatMonitor
+			log.Println("StatsdUdpInput for input stopped: ", ir.Name())
 			wg.Done()
 		}()
 	} else {
@@ -142,6 +123,10 @@ func (s *StatsdInput) Start(helper PluginHelper, wg *sync.WaitGroup) error {
 		wg.Done()
 	}
 	return nil
+}
+
+func (s *StatsdInput) Stop() {
+	s.stopped = true
 }
 
 func (s *StatsdInput) handleMessage(message []byte) {
@@ -198,20 +183,19 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
 	var floatValue float64
 	var intValue int
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
 	sm.wg.Add(1)
 
-	t := time.NewTicker(time.Duration(sm.flushInterval) * time.Second)
-statLoop:
-	for {
+	t := time.Tick(time.Duration(sm.flushInterval) * time.Second)
+	ok := true
+	for ok {
 		select {
-		case <-stopChan:
+		case <-t:
 			sm.Flush()
-			break statLoop
-		case <-t.C:
-			sm.Flush()
-		case s = <-packets:
+		case s, ok = <-packets:
+			if !ok {
+				sm.Flush()
+				break
+			}
 			switch s.Modifier {
 			case "ms":
 				floatValue, _ = strconv.ParseFloat(s.Value, 64)

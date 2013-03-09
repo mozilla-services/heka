@@ -16,9 +16,10 @@ package pipeline
 
 import (
 	"bufio"
-	"github.com/rafrombrc/go-notify"
+	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -31,7 +32,7 @@ type LogfileInputConfig struct {
 type LogfileInput struct {
 	Monitor    *FileMonitor
 	DecoderMap map[string][]string
-	name       string
+	stopped    bool
 }
 
 type Logline struct {
@@ -58,75 +59,62 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	return nil
 }
 
-func (lw *LogfileInput) Name() string {
-	return lw.name
-}
-
-func (lw *LogfileInput) SetName(name string) {
-	lw.name = name
-}
-
-func (lw *LogfileInput) LineReader(config *PipelineConfig, stopChan chan interface{},
+func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 	wg *sync.WaitGroup) {
+
 	var pack *PipelinePack
-	var decoder Decoder
-	var decoderName string
+	var dRunner DecoderRunner
+	var dName string
+	decoders := h.Decoders()
 	var ok bool
 	var err error
-runnerLoop:
-	for {
-		select {
-		case <-stopChan:
-			break runnerLoop
-		case logline := <-lw.Monitor.NewLines:
-			select {
-			case <-stopChan:
-				break runnerLoop
-			case pack = <-config.RecycleChan:
-				pack.Message.SetType("logfile")
-				pack.Message.SetPayload(logline.Line)
-				pack.Message.SetLogger(logline.Path)
-				pack.Decoded = true
-				for _, decoderName = range lw.DecoderMap[logline.Path] {
-					decoder, ok = pack.Decoders[decoderName]
-					if !ok {
-						log.Printf("Unable to find configured decoder for log line %s",
-							logline.Path)
-					}
-					err = decoder.Decode(pack)
-					if err == nil {
-						break
-					}
-				}
-				pack.Config.Router.InChan <- pack
+	packSupply := ir.InChan()
+
+	for logline := range lw.Monitor.NewLines {
+		pack = <-packSupply
+		pack.Message.SetType("logfile")
+		pack.Message.SetPayload(logline.Line)
+		pack.Message.SetLogger(logline.Path)
+		pack.Decoded = true
+		for _, dName = range lw.DecoderMap[logline.Path] {
+			if dRunner, ok = decoders[dName]; !ok {
+				ir.LogError(fmt.Errorf("Can't find decoder '%s' for log line %s",
+					dName, logline.Path))
+			}
+			err = dRunner.Decoder().Decode(pack)
+			if err == nil {
+				break
 			}
 		}
+		h.Router().InChan <- pack
 	}
+
 	log.Println("Input stopped: LogfileInput")
 	wg.Done()
 }
 
-func (lw *LogfileInput) Start(config *PipelineConfig,
-	wg *sync.WaitGroup) error {
-
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-	go lw.LineReader(config, stopChan, wg)
-	return nil
+func (lw *LogfileInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+	go lw.LineReader(ir, h, wg)
+	return
 }
 
-func (lw *LogfileInput) Event(eventType string) {
-	lw.Monitor.Event(eventType)
+func (lw *LogfileInput) Stop() {
+	close(lw.Monitor.stopChan) // stops the monitor's watcher
+	runtime.Gosched()          // lets the monitor close
+	close(lw.Monitor.NewLines) // stops the input
 }
 
 // FileMonitor, manages a group of FileTailers
 //
 // The FileMonitor
 type FileMonitor struct {
-	NewLines chan Logline
-	seek     map[string]int64
-	discover map[string]bool
-	fds      map[string]*os.File
+	NewLines  chan Logline
+	stopChan  chan bool
+	seek      map[string]int64
+	discover  map[string]bool
+	fds       map[string]*os.File
+	checkStat <-chan time.Time
 }
 
 func (fm *FileMonitor) OpenFile(fileName string) (err error) {
@@ -152,16 +140,16 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 }
 
 func (fm *FileMonitor) Watcher() {
-	discovery := time.NewTicker(time.Second * 5)
-	checkStat := time.NewTicker(time.Millisecond * 500)
+	discovery := time.Tick(time.Second * 5)
+	checkStat := time.Tick(time.Millisecond * 500)
 
 	for {
 		select {
-		case <-checkStat.C:
+		case <-checkStat:
 			for fileName, _ := range fm.fds {
 				fm.ReadLines(fileName)
 			}
-		case <-discovery.C:
+		case <-discovery:
 			// Check to see if the files exist now, start reading them
 			// if we can, and watch them
 			for fileName, _ := range fm.discover {
@@ -169,6 +157,11 @@ func (fm *FileMonitor) Watcher() {
 					delete(fm.discover, fileName)
 				}
 			}
+		case <-fm.stopChan:
+			for _, fd := range fm.fds {
+				fd.Close()
+			}
+			return
 		}
 	}
 }
@@ -210,6 +203,7 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 
 func (fm *FileMonitor) Init(files [][]string) (err error) {
 	fm.NewLines = make(chan Logline)
+	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
@@ -219,11 +213,4 @@ func (fm *FileMonitor) Init(files [][]string) (err error) {
 	}
 	go fm.Watcher()
 	return
-}
-
-// Respond to an event
-//
-// If its a STOP event, wait until the Watcher goroutine shuts down
-// gracefully
-func (fm *FileMonitor) Event(eventType string) {
 }

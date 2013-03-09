@@ -17,22 +17,14 @@ package pipeline
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"log"
-	"runtime"
 	"sort"
 	"sync"
-//   "sync/atomic"
 	"time"
 )
 
 type Filter interface {
-	// @todo Message and Inject should allow more then just a payload string
-	SetOutput(f func(s string))
-	SetInjectMessage(f func(s string))
-	ProcessMessage(msg *message.Message) int
-	TimerEvent() int
-	Destroy()
+	Start(fr FilterRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
 func defaultOutput(s string) {
@@ -44,129 +36,85 @@ func defaultInjectMessage(s string) {
 }
 
 type FilterRunner interface {
-	PluginRunnerBase
-	Start(helper PluginHelper, wg *sync.WaitGroup)
-	Stop()
+	PluginRunner
+	Filter() Filter
+	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	Ticker() (ticker <-chan time.Time)
 }
 
-type filterRunner struct {
-	pluginRunnerBase
+type fRunner struct {
+	pRunnerBase
 	messageFilter *FilterSpecification
-	outputs       []OutputRunner
-
-	output_timer uint
-	ticker       *time.Ticker
-	filter       Filter
+	tickLength    time.Duration
+	ticker        <-chan time.Time
 }
 
-func (this *filterRunner) Start(helper PluginHelper, wg *sync.WaitGroup) {
-	if this.ticker != nil {
-		log.Printf("Attempted to start a running FilterRunner")
-		wg.Done()
-		return
-	}
+func (fr *fRunner) Filter() Filter {
+	return fr.plugin.(Filter)
+}
 
-//	this.filter.SetOutput(func(s string) {
-//		msg := MessageGenerator.Retrieve()
-//		msg.Message.SetType("heka_filter")
-//		msg.Message.SetLogger(this.name)
-//		msg.Message.SetPayload(s)
-//
-//		packSupply := helper.PackSupply()
-//		pack := <-packSupply
-//		msg.Message.Copy(pack.Message)
-//		pack.Decoded = true
-//		MessageGenerator.RecycleChan <- msg
-//	    for _, output := range this.outputs {
-//	    	atomic.AddInt32(&pack.RefCount, 1)
-//	    	output.InChan() <- pack
-//	    	pack.Recycle()
-//	    }
-//	})
-
-//	this.filter.SetInjectMessage(func(s string) {
-//		msg := MessageGenerator.Retrieve()
-//		msg.Message.SetType("heka_filter")
-//		msg.Message.SetLogger(this.name)
-//		msg.Message.SetPayload(s)
-//		MessageGenerator.Inject(msg)
-//	})
-
-	this.ticker = time.NewTicker(time.Duration(this.output_timer) * time.Second)
-	go func() {
-		log.Printf("Filter started: %s\n", this.Name())
-		var pack *PipelinePack
-		var ok bool = true
-		for ok {
-			runtime.Gosched()
-			select {
-			case pack, ok = <-this.InChan():
-				if !ok {
-					break
-				}
-				if this.messageFilter != nil  &&
-				this.messageFilter.IsMatch(pack.Message) {
-					r := this.filter.ProcessMessage(pack.Message)
-					if r != 0 {
-						log.Printf("%s - ProcessMessage returned %d", this.name, r)
-					}
-				}
-				pack.Recycle()
-			case <-this.ticker.C:
-				r := this.filter.TimerEvent()
-				if r != 0 {
-					log.Printf("%s - TimerEvent returned %d", this.name, r)
-				}
-			}
+func (fr *fRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	fr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	fr.ticker = time.Tick(fr.tickLength)
+	if err = fr.Filter().Start(fr, h, wg); err == nil {
+		if fr.messageFilter != nil {
+			fr.messageFilter.Start(fr.inChan)
 		}
-		this.ticker.Stop()
-		this.ticker = nil
-		this.filter.Destroy()
-		log.Printf("Filter stopped: %s\n", this.Name())
-		wg.Done()
-	}()
+	} else {
+		err = fmt.Errorf("Filter '%s' failed to start: %s", fr.name, err)
+	}
+	return
 }
 
-func (this *filterRunner) Stop() {
-	close(this.InChan())
+func (fr *fRunner) LogError(err error) {
+	log.Printf("Filter '%s' error: %s", fr.name, err)
+}
+
+func (fr *fRunner) Ticker() (ticker <-chan time.Time) {
+	return fr.ticker
 }
 
 type CounterFilter struct {
-	lastTime      time.Time
-	lastCount     uint
-	count         uint
-	zeroes        int8
-	rate          float64
-	rates         []float64
-	intervals     uint
-	output        func(s string)
-	injectMessage func(s string)
+	lastTime  time.Time
+	lastCount uint
+	count     uint
+	zeroes    int8
+	rate      float64
+	rates     []float64
+	intervals uint
 }
 
 func (this *CounterFilter) Init(config interface{}) error {
 	this.lastTime = time.Now()
-	this.output = defaultOutput
-	this.injectMessage = defaultInjectMessage
 	return nil
 }
 
-func (this *CounterFilter) Destroy() {
+func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+
+	inChan := fr.InChan()
+	ticker := fr.Ticker()
+
+	go func() {
+		ok := true
+		for ok {
+			select {
+			case _, ok = <-inChan:
+				if !ok {
+					break
+				}
+			case <-ticker:
+				this.tally()
+			}
+		}
+
+		log.Printf("CounterFilter '%s' stopped.", fr.Name())
+		wg.Done()
+	}()
+	return
 }
 
-func (this *CounterFilter) SetOutput(f func(s string)) {
-	this.output = f
-}
-
-func (this *CounterFilter) SetInjectMessage(f func(s string)) {
-	this.injectMessage = f
-}
-
-func (this *CounterFilter) ProcessMessage(msg *message.Message) int {
-	this.count++
-	return 0
-}
-
-func (this *CounterFilter) TimerEvent() int {
+func (this *CounterFilter) tally() {
 	this.intervals++
 	now := time.Now()
 	msgsSent := this.count - this.lastCount
@@ -176,20 +124,25 @@ func (this *CounterFilter) TimerEvent() int {
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
 	if msgsSent == 0 {
 		if msgsSent == 0 || this.zeroes == 3 {
-			return 0
+			return
 		}
 		this.zeroes++
 	} else {
 		this.zeroes = 0
 	}
-	this.output(fmt.Sprintf("Got %d messages. %0.2f msg/sec", this.count,
-		this.rate))
+
+	outMsg := MessageGenerator.Retrieve()
+	outMsg.Message.SetType("heka.counter_output")
+	outMsg.Message.SetPayload(fmt.Sprintf("Got %d messages. %0.2f msg/sec",
+		this.count, this.rate))
+	MessageGenerator.Inject(outMsg)
+
 	this.rates = append(this.rates, this.rate)
 	if this.intervals == 10 {
 		this.intervals = 0
 		amount := len(this.rates)
 		if amount < 1 {
-			return 0
+			return
 		}
 		sort.Float64s(this.rates)
 		min := this.rates[0]
@@ -200,9 +153,12 @@ func (this *CounterFilter) TimerEvent() int {
 			sum += val
 		}
 		mean = sum / float64(amount)
-		this.output(fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",
-			min, max, mean))
+		outMsg = MessageGenerator.Retrieve()
+		outMsg.Message.SetType("heka.counter_output")
+		outMsg.Message.SetPayload(
+			fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",
+				min, max, mean))
+		MessageGenerator.Inject(outMsg)
 		this.rates = this.rates[:0]
 	}
-	return 0
 }

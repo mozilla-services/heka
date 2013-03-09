@@ -25,84 +25,78 @@ import (
 	"log"
 	"net"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type OutputRunner interface {
-	PluginRunnerBase
-	Start(wg *sync.WaitGroup)
-	Stop()
+	PluginRunner
 	Output() Output
+	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
-type outputRunner struct {
-	pluginRunnerBase
-	output Output
+type oRunner struct {
+	pRunnerBase
+	messageFilter *FilterSpecification
 }
 
-func NewOutputRunner(name string, output Output) OutputRunner {
-	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	return &outputRunner{
-		pluginRunnerBase{
-			name:   name,
-			inChan: inChan,
-		},
-		output,
-	}
+func NewOutputRunner(name string, output Output) (or OutputRunner) {
+	return &oRunner{pRunnerBase: pRunnerBase{name: name, plugin: output.(Plugin)}}
 }
 
-func (self *outputRunner) Start(wg *sync.WaitGroup) {
-	go func() {
-		var pack *PipelinePack
-		var ok bool = true
-		log.Printf("Output started: %s\n", self.Name())
-		for ok {
-			runtime.Gosched()
-			select {
-			case pack, ok = <-self.InChan():
-				if !ok {
-					break
-				}
-				self.output.Deliver(pack)
-				pack.Recycle()
-			}
+func (or *oRunner) Output() Output {
+	return or.plugin.(Output)
+}
+
+func (or *oRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	or.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+
+	if err = or.Output().Start(or, h, wg); err == nil {
+		if or.messageFilter != nil {
+			or.messageFilter.Start(or.inChan)
 		}
-		log.Printf("Output stopped: %s\n", self.Name())
-		wg.Done()
-	}()
+	} else {
+		err = fmt.Errorf("Output '%s' failed to start: %s", or.name, err)
+	}
+	return
 }
 
-func (self *outputRunner) Stop() {
-	close(self.InChan())
-}
-
-func (self *outputRunner) Output() Output {
-	return self.output
+func (or *oRunner) LogError(err error) {
+	log.Printf("Output '%s' error: %s", or.name)
 }
 
 type Output interface {
-	Deliver(pipelinePack *PipelinePack)
+	Start(or OutputRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
 type LogOutput struct {
 }
 
-func (self *LogOutput) Init(config interface{}) error {
-	return nil
+func (self *LogOutput) Init(config interface{}) (err error) {
+	return
 }
 
-func (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
-	msg := *(pipelinePack.Message)
-	log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d\n\tUUID: %s"+
-		"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
-		"\tFields: %+v\n>\n",
-		time.Unix(0, msg.GetTimestamp()),
-		msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-		msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-		msg.GetSeverity(), msg.Fields)
+func (self *LogOutput) Start(or OutputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+
+	go func() {
+		var msg *message.Message
+		for pack := range or.InChan() {
+			msg = pack.Message
+			log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d"+
+				"\n\tUUID: %s"+
+				"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
+				"\tFields: %+v\n>\n",
+				time.Unix(0, msg.GetTimestamp()),
+				msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+				msg.GetSeverity(), msg.Fields)
+		}
+		wg.Done()
+	}()
+
+	return
 }
 
 // Create a protocol buffers stream for the given message, put it in the given
@@ -146,6 +140,7 @@ type FileOutput struct {
 	batchChan     chan []byte
 	backChan      chan []byte
 	wg            *sync.WaitGroup
+	or            OutputRunner
 }
 
 type FileOutputConfig struct {
@@ -183,7 +178,6 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		return
 	}
 	o.flushInterval = conf.FlushInterval
-	o.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 1) // Don't block on the hand-back
 	return
@@ -199,37 +193,36 @@ func (o *FileOutput) Deliver(pack *PipelinePack) {
 	o.inChan <- pack
 }
 
-func (o *FileOutput) Start(wg *sync.WaitGroup) {
+func (o *FileOutput) Start(or OutputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+	o.or = or
 	o.wg = wg
-	wg.Add(1)
-	go o.receiver()
+	go o.receiver(or.InChan())
 	go o.committer()
+	return
 }
 
-func (o *FileOutput) receiver() {
+func (o *FileOutput) receiver(inChan chan *PipelinePack) {
 	var pack *PipelinePack
 	var err error
-	var ok bool
+	ok := true
 	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
 	outBatch := make([]byte, 0, 10000)
 	outBytes := make([]byte, 0, 1000)
 
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-
-	for {
+	for ok {
 		select {
-		case pack, ok = <-o.inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
 				if len(outBatch) > 0 {
 					o.batchChan <- outBatch
 				}
 				close(o.batchChan)
-				return
+				break
 			}
 			if err = o.handleMessage(pack, &outBytes); err != nil {
-				log.Println(err)
+				o.or.LogError(err)
 			} else {
 				outBatch = append(outBatch, outBytes...)
 			}
@@ -242,8 +235,6 @@ func (o *FileOutput) receiver() {
 				o.batchChan <- outBatch
 				outBatch = <-o.backChan
 			}
-		case <-stopChan:
-			close(o.inChan)
 		}
 	}
 }
@@ -279,19 +270,17 @@ func (o *FileOutput) committer() {
 	o.backChan <- initBatch
 	var outBatch []byte
 	var err error
-	var ok bool
 
+	ok := true
 	hupChan := make(chan interface{})
 	notify.Start(RELOAD, hupChan)
 
-	for {
+	for ok {
 		select {
 		case outBatch, ok = <-o.batchChan:
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
-				o.file.Close()
-				o.wg.Done()
-				return
+				break
 			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {
@@ -313,60 +302,60 @@ func (o *FileOutput) committer() {
 			}
 		}
 	}
+
+	o.file.Close()
+	log.Printf("FileOutput '%s' stopped.\n", o.or.Name())
+	o.wg.Done()
 }
 
-// TcpWriter implementation
-type TcpWriter struct {
+// TcpOutput implementation
+type TcpOutput struct {
 	address    string
 	connection net.Conn
 }
 
-type TcpWriterConfig struct {
+type TcpOutputConfig struct {
 	Address string
 }
 
-func (t *TcpWriter) ConfigStruct() interface{} {
-	return &TcpWriterConfig{Address: "localhost:9125"}
+func (t *TcpOutput) ConfigStruct() interface{} {
+	return &TcpOutputConfig{Address: "localhost:9125"}
 }
 
-func (t *TcpWriter) Init(config interface{}) (err error) {
-	conf := config.(*TcpWriterConfig)
+func (t *TcpOutput) Init(config interface{}) (err error) {
+	conf := config.(*TcpOutputConfig)
 	t.address = conf.Address
 	t.connection, err = net.Dial("tcp", t.address)
 	return
 }
 
-func (t *TcpWriter) MakeOutData() interface{} {
-	b := make([]byte, 0, 2000)
-	return &b
-}
+func (t *TcpOutput) Start(or OutputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
 
-func (t *TcpWriter) ZeroOutData(outData interface{}) {
-	outBytes := outData.(*[]byte)
-	*outBytes = (*outBytes)[:0]
-}
+	go func() {
+		var err error // local scope, not the return val
+		var n int
+		outBytes := make([]byte, 0, 2000)
 
-func (t *TcpWriter) PrepOutData(pack *PipelinePack, outData interface{},
-	timeout *time.Duration) (err error) {
-	err = createProtobufStream(pack, outData.(*[]byte))
-	return
-}
+		for pack := range or.InChan() {
+			outBytes = outBytes[:0]
 
-func (t *TcpWriter) Write(outData interface{}) (err error) {
-	outBytes := outData.(*[]byte)
-	n, err := t.connection.Write(*outBytes)
-	if err != nil {
-		err = fmt.Errorf("TcpWriter error writing to %s: %s", t.address, err)
-		return err
-	} else if n != len(*outBytes) {
-		err = fmt.Errorf("TcpWriter truncated output for %s", t.address)
-		return err
-	}
-	return nil
-}
+			if err = createProtobufStream(pack, &outBytes); err != nil {
+				or.LogError(err)
+				continue
+			}
 
-func (t *TcpWriter) Event(eventType string) {
-	if eventType == STOP {
+			if n, err = t.connection.Write(outBytes); err != nil {
+				or.LogError(fmt.Errorf("writing to %s: %s", t.address, err))
+			} else if n != len(outBytes) {
+				or.LogError(fmt.Errorf("truncated output to: %s", t.address))
+			}
+		}
+
 		t.connection.Close()
-	}
+		log.Printf("TcpOutput '%s' stopped.\n", or.Name())
+		wg.Done()
+	}()
+
+	return
 }

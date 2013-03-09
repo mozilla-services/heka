@@ -17,26 +17,45 @@ package pipeline
 
 import (
 	"log"
-   "runtime"
+	"runtime"
 	"sync/atomic"
 )
 
 // Pushes the message onto the filters input channel if it is a match
 type MessageRouter struct {
-	InChan chan *PipelinePack
+	InChan    chan *PipelinePack
+	fMatchers []*FilterSpecification
+	oMatchers []*FilterSpecification
 }
 
 func (self *MessageRouter) Start() {
 	go func() {
-		log.Println("MessageRouter started")
+		var fs *FilterSpecification
+		var ok bool
+		var pack *PipelinePack
 		for {
 			runtime.Gosched()
-			pack := <-self.InChan
-			for _, runner := range pack.Config.FilterRunners {
+			pack, ok = <-self.InChan
+			if !ok {
+				break
+			}
+			for _, fs = range self.fMatchers {
 				atomic.AddInt32(&pack.RefCount, 1)
-				runner.InChan() <- pack
+				fs.inChan <- pack
+			}
+			for _, fs = range self.oMatchers {
+				atomic.AddInt32(&pack.RefCount, 1)
+				fs.inChan <- pack
 			}
 			pack.Recycle()
 		}
+		for _, fs = range self.fMatchers {
+			close(fs.inChan)
+		}
+		for _, fs = range self.oMatchers {
+			close(fs.inChan)
+		}
+		log.Println("MessageRouter stopped.")
 	}()
+	log.Println("MessageRouter started.")
 }

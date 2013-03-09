@@ -22,6 +22,7 @@ import (
 type FilterSpecification struct {
 	vm     *tree
 	filter string
+	inChan chan *PipelinePack
 }
 
 // CreateFilterSpecification compiles the filter string into a simple
@@ -33,7 +34,20 @@ func CreateFilterSpecification(filter string) (*FilterSpecification, error) {
 	if err != nil {
 		return nil, err
 	}
+	fs.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return fs, nil
+}
+
+func (f *FilterSpecification) Start(matchChan chan *PipelinePack) {
+	go func() {
+		for pack := range f.inChan {
+			if f.IsMatch(pack.Message) {
+				matchChan <- pack
+			} else {
+				pack.Recycle()
+			}
+		}
+	}()
 }
 
 // IsMatch compares the message in the pack against the filter specification
