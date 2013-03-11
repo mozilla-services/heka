@@ -395,6 +395,9 @@ func init() {
 	RegisterPlugin("FileOutput", func() interface{} {
 		return new(FileOutput)
 	})
+	RegisterPlugin("WhisperOutput", func() interface{} {
+		return new(WhisperOutput)
+	})
 	RegisterPlugin("LogfileInput", func() interface{} {
 		return new(LogfileInput)
 	})
