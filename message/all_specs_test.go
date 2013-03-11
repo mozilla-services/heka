@@ -28,6 +28,7 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(MessageFieldsSpec)
 	r.AddSpec(MessageEqualsSpec)
+	r.AddSpec(MatcherSpecificationSpec)
 	gospec.MainGoTest(r, t)
 }
 

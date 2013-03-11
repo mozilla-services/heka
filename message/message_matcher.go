@@ -12,47 +12,43 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package pipeline
+package message
 
-import (
-	"github.com/mozilla-services/heka/message"
-)
-
-// FilterSpecification used by the message router to distribute messages
-type FilterSpecification struct {
+// MatcherSpecification used by the message router to distribute messages
+type MatcherSpecification struct {
 	vm     *tree
 	filter string
 }
 
-// CreateFilterSpecification compiles the filter string into a simple
+// CreateMatcherSpecification compiles the filter string into a simple
 // virtual machine for execution
-func CreateFilterSpecification(filter string) (*FilterSpecification, error) {
-	fs := new(FilterSpecification)
-	fs.filter = filter
-	err := parseFilterSpecification(fs)
+func CreateMatcherSpecification(filter string) (*MatcherSpecification, error) {
+	ms := new(MatcherSpecification)
+	ms.filter = filter
+	err := parseMatcherSpecification(ms)
 	if err != nil {
 		return nil, err
 	}
-	return fs, nil
+	return ms, nil
 }
 
-// IsMatch compares the message in the pack against the filter specification
-func (f *FilterSpecification) IsMatch(message *message.Message) bool {
-	return evalFilterSpecification(f.vm, message)
+// IsMatch compares the message in the pack against the matcher specification
+func (m *MatcherSpecification) IsMatch(message *Message) bool {
+	return evalMatcherSpecification(m.vm, message)
 }
 
 // String outputs the filter as text
-func (f *FilterSpecification) String() string {
-	return f.filter
+func (m *MatcherSpecification) String() string {
+	return m.filter
 }
 
-func evalFilterSpecification(t *tree, msg *message.Message) (b bool) {
+func evalMatcherSpecification(t *tree, msg *Message) (b bool) {
 	if t == nil {
 		return false
 	}
 
 	if t.left != nil {
-		b = evalFilterSpecification(t.left, msg)
+		b = evalMatcherSpecification(t.left, msg)
 	} else {
 		return testExpr(msg, t.stmt)
 	}
@@ -64,12 +60,12 @@ func evalFilterSpecification(t *tree, msg *message.Message) (b bool) {
 	}
 
 	if t.right != nil {
-		b = evalFilterSpecification(t.right, msg)
+		b = evalMatcherSpecification(t.right, msg)
 	}
 	return
 }
 
-func getStringValue(msg *message.Message, stmt *Statement) string {
+func getStringValue(msg *Message, stmt *Statement) string {
 	switch stmt.field.tokenId {
 	case VAR_UUID:
 		return msg.GetUuidString()
@@ -87,7 +83,7 @@ func getStringValue(msg *message.Message, stmt *Statement) string {
 	return ""
 }
 
-func getNumericValue(msg *message.Message, stmt *Statement) float64 {
+func getNumericValue(msg *Message, stmt *Statement) float64 {
 	switch stmt.field.tokenId {
 	case VAR_TIMESTAMP:
 		return float64(msg.GetTimestamp())
@@ -113,6 +109,10 @@ func stringTest(s string, stmt *Statement) bool {
 		return (s > stmt.value.token)
 	case OP_GTE:
 		return (s >= stmt.value.token)
+	case OP_RE:
+		return stmt.value.regexp.MatchString(s)
+	case OP_NRE:
+		return !stmt.value.regexp.MatchString(s)
 	}
 	return false
 }
@@ -135,7 +135,7 @@ func numericTest(f float64, stmt *Statement) bool {
 	return false
 }
 
-func testExpr(msg *message.Message, stmt *Statement) bool {
+func testExpr(msg *Message, stmt *Statement) bool {
 	switch stmt.op.tokenId {
 	case TRUE:
 		return true
@@ -157,27 +157,27 @@ func testExpr(msg *message.Message, stmt *Statement) bool {
 			}
 			field := fields[fi]
 			switch field.GetValueType() {
-			case message.Field_STRING:
+			case Field_STRING:
 				if ai >= len(field.ValueString) {
 					return false
 				}
 				return stringTest(field.ValueString[ai], stmt)
-			case message.Field_BYTES:
+			case Field_BYTES:
 				if ai >= len(field.ValueBytes) {
 					return false
 				}
 				return stringTest(string(field.ValueBytes[ai]), stmt)
-			case message.Field_INTEGER:
+			case Field_INTEGER:
 				if ai >= len(field.ValueInteger) {
 					return false
 				}
 				return numericTest(float64(field.ValueInteger[ai]), stmt)
-			case message.Field_DOUBLE:
+			case Field_DOUBLE:
 				if ai >= len(field.ValueDouble) {
 					return false
 				}
 				return numericTest(field.ValueDouble[ai], stmt)
-			case message.Field_BOOL:
+			case Field_BOOL:
 				if ai >= len(field.ValueBool) {
 					return false
 				}

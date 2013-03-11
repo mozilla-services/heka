@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
-//   "sync/atomic"
+	//   "sync/atomic"
 	"time"
 )
 
@@ -51,8 +51,8 @@ type FilterRunner interface {
 
 type filterRunner struct {
 	pluginRunnerBase
-	messageFilter *FilterSpecification
-	outputs       []OutputRunner
+	messageMatcher *message.MatcherSpecification
+	outputs        []OutputRunner
 
 	output_timer uint
 	ticker       *time.Ticker
@@ -66,31 +66,31 @@ func (this *filterRunner) Start(helper PluginHelper, wg *sync.WaitGroup) {
 		return
 	}
 
-//	this.filter.SetOutput(func(s string) {
-//		msg := MessageGenerator.Retrieve()
-//		msg.Message.SetType("heka_filter")
-//		msg.Message.SetLogger(this.name)
-//		msg.Message.SetPayload(s)
-//
-//		packSupply := helper.PackSupply()
-//		pack := <-packSupply
-//		msg.Message.Copy(pack.Message)
-//		pack.Decoded = true
-//		MessageGenerator.RecycleChan <- msg
-//	    for _, output := range this.outputs {
-//	    	atomic.AddInt32(&pack.RefCount, 1)
-//	    	output.InChan() <- pack
-//	    	pack.Recycle()
-//	    }
-//	})
+	//	this.filter.SetOutput(func(s string) {
+	//		msg := MessageGenerator.Retrieve()
+	//		msg.Message.SetType("heka_filter")
+	//		msg.Message.SetLogger(this.name)
+	//		msg.Message.SetPayload(s)
+	//
+	//		packSupply := helper.PackSupply()
+	//		pack := <-packSupply
+	//		msg.Message.Copy(pack.Message)
+	//		pack.Decoded = true
+	//		MessageGenerator.RecycleChan <- msg
+	//	    for _, output := range this.outputs {
+	//	    	atomic.AddInt32(&pack.RefCount, 1)
+	//	    	output.InChan() <- pack
+	//	    	pack.Recycle()
+	//	    }
+	//	})
 
-//	this.filter.SetInjectMessage(func(s string) {
-//		msg := MessageGenerator.Retrieve()
-//		msg.Message.SetType("heka_filter")
-//		msg.Message.SetLogger(this.name)
-//		msg.Message.SetPayload(s)
-//		MessageGenerator.Inject(msg)
-//	})
+	//	this.filter.SetInjectMessage(func(s string) {
+	//		msg := MessageGenerator.Retrieve()
+	//		msg.Message.SetType("heka_filter")
+	//		msg.Message.SetLogger(this.name)
+	//		msg.Message.SetPayload(s)
+	//		MessageGenerator.Inject(msg)
+	//	})
 
 	this.ticker = time.NewTicker(time.Duration(this.output_timer) * time.Second)
 	go func() {
@@ -104,8 +104,8 @@ func (this *filterRunner) Start(helper PluginHelper, wg *sync.WaitGroup) {
 				if !ok {
 					break
 				}
-				if this.messageFilter != nil  &&
-				this.messageFilter.IsMatch(pack.Message) {
+				if this.messageMatcher != nil &&
+					this.messageMatcher.IsMatch(pack.Message) {
 					r := this.filter.ProcessMessage(pack.Message)
 					if r != 0 {
 						log.Printf("%s - ProcessMessage returned %d", this.name, r)
@@ -185,7 +185,7 @@ func (this *CounterFilter) TimerEvent() int {
 	this.output(fmt.Sprintf("Got %d messages. %0.2f msg/sec", this.count,
 		this.rate))
 	this.rates = append(this.rates, this.rate)
-	if this.intervals == 10 {
+	if this.intervals >= 10 {
 		this.intervals = 0
 		amount := len(this.rates)
 		if amount < 1 {
