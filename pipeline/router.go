@@ -28,6 +28,14 @@ type MessageRouter struct {
 	oMatchers []*FilterSpecification
 }
 
+func NewMessageRouter() (router *MessageRouter) {
+	router = new(MessageRouter)
+	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	router.fMatchers = make([]*FilterSpecification, 0, 10)
+	router.oMatchers = make([]*FilterSpecification, 0, 10)
+	return router
+}
+
 func (self *MessageRouter) Start() {
 	go func() {
 		var fs *FilterSpecification

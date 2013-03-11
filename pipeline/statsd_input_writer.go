@@ -126,7 +126,11 @@ func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
 }
 
 func (s *StatsdInput) Stop() {
-	s.stopped = true
+	if s.listener != nil {
+		s.stopped = true
+	} else {
+		close(s.Packet)
+	}
 }
 
 func (s *StatsdInput) handleMessage(message []byte) {

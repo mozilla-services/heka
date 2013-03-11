@@ -19,7 +19,16 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
+	"log"
 )
+
+func defaultOutput(s string) {
+	log.Println(s)
+}
+
+func defaultInjectMessage(s string) {
+	log.Println(s)
+}
 
 type SandboxFilterConfig struct {
 	Sbc sandbox.SandboxConfig `json:"sandbox"`

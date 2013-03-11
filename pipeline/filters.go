@@ -23,18 +23,6 @@ import (
 	"time"
 )
 
-type Filter interface {
-	Start(fr FilterRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
-}
-
-func defaultOutput(s string) {
-	log.Println(s)
-}
-
-func defaultInjectMessage(s string) {
-	log.Println(s)
-}
-
 type FilterRunner interface {
 	PluginRunner
 	Filter() Filter
@@ -42,36 +30,8 @@ type FilterRunner interface {
 	Ticker() (ticker <-chan time.Time)
 }
 
-type fRunner struct {
-	pRunnerBase
-	messageFilter *FilterSpecification
-	tickLength    time.Duration
-	ticker        <-chan time.Time
-}
-
-func (fr *fRunner) Filter() Filter {
-	return fr.plugin.(Filter)
-}
-
-func (fr *fRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
-	fr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	fr.ticker = time.Tick(fr.tickLength)
-	if err = fr.Filter().Start(fr, h, wg); err == nil {
-		if fr.messageFilter != nil {
-			fr.messageFilter.Start(fr.inChan)
-		}
-	} else {
-		err = fmt.Errorf("Filter '%s' failed to start: %s", fr.name, err)
-	}
-	return
-}
-
-func (fr *fRunner) LogError(err error) {
-	log.Printf("Filter '%s' error: %s", fr.name, err)
-}
-
-func (fr *fRunner) Ticker() (ticker <-chan time.Time) {
-	return fr.ticker
+type Filter interface {
+	Start(r FilterRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
 type CounterFilter struct {
@@ -103,6 +63,7 @@ func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
 				if !ok {
 					break
 				}
+				this.count++
 			case <-ticker:
 				this.tally()
 			}

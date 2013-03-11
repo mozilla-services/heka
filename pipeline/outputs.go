@@ -34,36 +34,7 @@ type OutputRunner interface {
 	PluginRunner
 	Output() Output
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
-}
-
-type oRunner struct {
-	pRunnerBase
-	messageFilter *FilterSpecification
-}
-
-func NewOutputRunner(name string, output Output) (or OutputRunner) {
-	return &oRunner{pRunnerBase: pRunnerBase{name: name, plugin: output.(Plugin)}}
-}
-
-func (or *oRunner) Output() Output {
-	return or.plugin.(Output)
-}
-
-func (or *oRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
-	or.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-
-	if err = or.Output().Start(or, h, wg); err == nil {
-		if or.messageFilter != nil {
-			or.messageFilter.Start(or.inChan)
-		}
-	} else {
-		err = fmt.Errorf("Output '%s' failed to start: %s", or.name, err)
-	}
-	return
-}
-
-func (or *oRunner) LogError(err error) {
-	log.Printf("Output '%s' error: %s", or.name)
+	Ticker() (ticker <-chan time.Time)
 }
 
 type Output interface {
@@ -71,9 +42,14 @@ type Output interface {
 }
 
 type LogOutput struct {
+	payloadOnly bool
 }
 
 func (self *LogOutput) Init(config interface{}) (err error) {
+	conf := config.(*PluginConfig)
+	if p, ok := (*conf)["payload_only"]; ok {
+		self.payloadOnly, ok = p.(bool)
+	}
 	return
 }
 
@@ -84,15 +60,20 @@ func (self *LogOutput) Start(or OutputRunner, h PluginHelper,
 		var msg *message.Message
 		for pack := range or.InChan() {
 			msg = pack.Message
-			log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d"+
-				"\n\tUUID: %s"+
-				"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
-				"\tFields: %+v\n>\n",
-				time.Unix(0, msg.GetTimestamp()),
-				msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-				msg.GetSeverity(), msg.Fields)
+			if self.payloadOnly {
+				log.Printf(msg.GetPayload())
+			} else {
+				log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d"+
+					"\n\tUUID: %s"+
+					"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
+					"\tFields: %+v\n>\n",
+					time.Unix(0, msg.GetTimestamp()),
+					msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+					msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+					msg.GetSeverity(), msg.Fields)
+			}
 		}
+		log.Printf("LogOutput '%s' stopped.", or.Name())
 		wg.Done()
 	}()
 

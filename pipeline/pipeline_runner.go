@@ -16,6 +16,7 @@
 package pipeline
 
 import (
+	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
@@ -24,6 +25,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 const (
@@ -37,10 +39,12 @@ const (
 
 var PoolSize int
 
+// Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
 	Init(config interface{}) error
 }
 
+// Base interface for the Heka plugin runners.
 type PluginRunner interface {
 	InChan() chan *PipelinePack
 	Name() string
@@ -70,6 +74,58 @@ func (pr *pRunnerBase) SetName(name string) {
 
 func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
+}
+
+func (pr *pRunnerBase) Input() Input {
+	return pr.plugin.(Input)
+}
+
+func (pr *pRunnerBase) Output() Output {
+	return pr.plugin.(Output)
+}
+
+func (pr *pRunnerBase) Filter() Filter {
+	return pr.plugin.(Filter)
+}
+
+type foRunner struct {
+	pRunnerBase
+	messageFilter *FilterSpecification
+	tickLength    time.Duration
+	ticker        <-chan time.Time
+}
+
+func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
+	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
+	runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	return
+}
+
+func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	if foRunner.tickLength != 0 {
+		foRunner.ticker = time.Tick(foRunner.tickLength)
+	}
+
+	if filter, ok := foRunner.plugin.(Filter); ok {
+		err = filter.Start(foRunner, h, wg)
+	} else if output, ok := foRunner.plugin.(Output); ok {
+		err = output.Start(foRunner, h, wg)
+	}
+
+	if err != nil {
+		err = fmt.Errorf("Plugin '%s' failed to start: %s", foRunner.name, err)
+	} else if foRunner.messageFilter != nil {
+		foRunner.messageFilter.Start(foRunner.inChan)
+	}
+	return
+}
+
+func (foRunner *foRunner) LogError(err error) {
+	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
+}
+
+func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
+	return foRunner.ticker
 }
 
 type PipelinePack struct {
@@ -120,20 +176,22 @@ func Run(config *PipelineConfig) {
 	var err error
 
 	for name, output := range config.OutputRunners {
+		outputsWg.Add(1)
 		if err = output.Start(config, &outputsWg); err != nil {
 			log.Printf("Output '%s' failed to start: %s", name, err)
+			outputsWg.Done()
 			continue
 		}
-		outputsWg.Add(1)
 		log.Println("Output started: ", name)
 	}
 
 	for name, filter := range config.FilterRunners {
+		filtersWg.Add(1)
 		if err = filter.Start(config, &filtersWg); err != nil {
 			log.Printf("Filter '%s' failed to start: %s", name, err)
+			filtersWg.Done()
 			continue
 		}
-		filtersWg.Add(1)
 		log.Println("Filter started: ", name)
 	}
 
@@ -145,13 +203,14 @@ func Run(config *PipelineConfig) {
 	config.Router().Start()
 
 	for name, input := range config.InputRunners {
-		if err = input.Start(config, &inputsWg); err != nil {
-			log.Printf("Input '%s' failed to start: %s", name, err)
-			continue
-		}
 		// Special case the MGI, it shuts down last.
 		if name != "MessageGeneratorInput" {
 			inputsWg.Add(1)
+		}
+		if err = input.Start(config, &inputsWg); err != nil {
+			log.Printf("Input '%s' failed to start: %s", name, err)
+			inputsWg.Done()
+			continue
 		}
 		log.Printf("Input started: %s\n", name)
 	}
