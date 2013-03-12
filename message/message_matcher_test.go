@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"testing"
 )
 
 func MatcherSpecificationSpec(c gospec.Context) {
@@ -152,4 +153,55 @@ func MatcherSpecificationSpec(c gospec.Context) {
 		})
 
 	})
+}
+
+func BenchmarkMatcherCreate(b *testing.B) {
+	s := "Type == 'Test' && Severity == 6"
+	for i := 0; i < b.N; i++ {
+		CreateMatcherSpecification(s)
+	}
+}
+
+func BenchmarkMatcherMatch(b *testing.B) {
+	b.StopTimer()
+	s := "Type == 'Test' && Severity == 6"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.IsMatch(msg)
+	}
+}
+
+func BenchmarkMatcherSimpleRegex(b *testing.B) {
+	b.StopTimer()
+	s := "Type =~ /Test/ && Severity == 6"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.IsMatch(msg)
+	}
+}
+
+func BenchmarkMatcherFieldString(b *testing.B) {
+	b.StopTimer()
+	s := "Fields[foo] == 'bar' && Severity == 6"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.IsMatch(msg)
+	}
+}
+
+func BenchmarkMatcherFieldNumeric(b *testing.B) {
+	b.StopTimer()
+	s := "Fields[number] == 64 && Severity == 6"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.IsMatch(msg)
+	}
 }

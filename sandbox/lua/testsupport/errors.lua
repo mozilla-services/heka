@@ -4,9 +4,9 @@ function process_message ()
     local msg = read_message("Payload")
 
     if msg == "inject_message() no arg" then
-        inject_message()
-    elseif msg == "inject_message() incorrect arg type" then
-        inject_message(nil)
+    inject_message()
+elseif msg == "inject_message() incorrect arg type" then
+    inject_message(nil)
     elseif msg == "inject_message() incorrect number of args" then
         inject_message(1, 2)
     elseif msg == "output() no arg" then
@@ -24,6 +24,18 @@ function process_message ()
         return nil
     elseif msg == "no return" then
         return
+    elseif msg == "read_message() incorrect number of args" then
+        read_message("Type", 1, 1, 1)
+    elseif msg == "read_message() incorrect field name type" then
+        read_message(nil)
+    elseif msg == "read_message() incorrect field index type" then
+        read_message("Type", nil)
+    elseif msg == "read_message() incorrect array index type" then
+        read_message("Type", 0, nil)
+    elseif msg == "read_message() negative field index" then
+        read_message("Type", -1, 0)
+    elseif msg == "read_message() negative array index" then
+        read_message("Type", 0, -1)
     end
     return 0
 end

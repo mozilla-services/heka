@@ -35,6 +35,7 @@ func TestAllSpecs(t *testing.T) {
 func getTestMessage() *Message {
 	hostname, _ := os.Hostname()
 	field, _ := NewField("foo", "bar", Field_RAW)
+	field1, _ := NewField("number", 64, Field_RAW)
 	msg := &Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(time.Now().UnixNano())
@@ -46,6 +47,7 @@ func getTestMessage() *Message {
 	msg.SetPid(int32(os.Getpid()))
 	msg.SetHostname(hostname)
 	msg.AddField(field)
+	msg.AddField(field1)
 
 	return msg
 }
@@ -209,4 +211,11 @@ func MessageEqualsSpec(c gospec.Context) {
 		foos[1].ValueString[0] = "bar2"
 		c.Expect(msg0, gs.Not(gs.Equals), msg1)
 	})
+}
+
+func BenchmarkMessageCreation(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		msg := getTestMessage()
+		msg.SetPid(999)
+	}
 }
