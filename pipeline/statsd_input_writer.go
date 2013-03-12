@@ -111,15 +111,21 @@ func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
 				if err != nil || n == 0 {
 					continue
 				}
-				go s.handleMessage(message[:n])
+				if s.stopped {
+					// If we're stopping, use synchronous call so we don't
+					// close the channel too soon.
+					s.handleMessage(message[:n])
+				} else {
+					go s.handleMessage(message[:n])
+				}
 			}
 			close(packets) // shut down the StatMonitor
 			log.Println("StatsdUdpInput for input stopped: ", ir.Name())
 			wg.Done()
 		}()
 	} else {
-		// In this case, the monitor already incremented for itself, so
-		// we decrement here since we didn't need it
+		// In this case, the monitor already incremented for itself, so we
+		// decrement here since we didn't need it.
 		wg.Done()
 	}
 	return nil
