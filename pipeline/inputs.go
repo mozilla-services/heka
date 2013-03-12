@@ -341,7 +341,7 @@ func (self *msgGenerator) Retrieve() (msg *messageHolder) {
 	msg.Message.SetUuid(uuid.NewRandom())
 	msg.Message.SetHostname(self.hostname)
 	msg.Message.SetPid(self.pid)
-   msg.RefCount = 1
+	msg.RefCount = 1
 	return msg
 }
 
@@ -358,7 +358,7 @@ type MessageGeneratorInput struct {
 }
 
 type messageHolder struct {
-	Message *Message
+	Message  *Message
 	RefCount int32
 }
 
