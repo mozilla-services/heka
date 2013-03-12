@@ -64,6 +64,7 @@ type PipelineConfig struct {
 	PoolSize        int
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
+	logMsgs         []string
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -77,6 +78,7 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.OutputRunners = make(map[string]OutputRunner)
 	config.router = NewMessageRouter()
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
+	config.logMsgs = make([]string, 0, 4)
 	return config
 }
 
@@ -237,6 +239,11 @@ func readJsonFromFile(filename string, configFile *ConfigFile) error {
 	return nil
 }
 
+func (self *PipelineConfig) log(msg string) {
+	self.logMsgs = append(self.logMsgs, msg)
+	log.Println(msg)
+}
+
 // loadSection must be passed a section name and the config for that section.
 // It will create a PluginWrapper (i.e. a factory) for each plugin. For
 // decoders (which are created as needed) the PluginWrappers are stored for
@@ -259,7 +266,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		}
 
 		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-			log.Printf("No such plugin: %s", wrapper.name)
+			self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
 			errcnt++
 			continue
 		}
@@ -268,14 +275,14 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		plugin := wrapper.pluginCreator()
 		var config interface{}
 		if config, err = LoadConfigStruct(&pluginConf, plugin); err != nil {
-			log.Printf("Can't load config for %s '%s': %s", sectionName, wrapper.name,
-				err)
+			self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
+				wrapper.name, err))
 			errcnt++
 			continue
 		}
 		if err = plugin.(Plugin).Init(config); err != nil {
-			log.Printf("Initialization failed for %s '%s': %s", sectionName,
-				wrapper.name, err)
+			self.log(fmt.Sprintf("Initialization failed for %s '%s': %s",
+				sectionName, wrapper.name, err))
 			errcnt++
 			continue
 		}
@@ -286,8 +293,9 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			if encodingName, ok := pluginConf["encoding_name"]; ok {
 				err = regDecoderForHeader(wrapper.name, encodingName.(string))
 				if err != nil {
-					log.Printf("Can't register decoder '%s' for encoding '%s': %s",
-						wrapper.name, encodingName, err)
+					self.log(fmt.Sprintf(
+						"Can't register decoder '%s' for encoding '%s': %s",
+						wrapper.name, encodingName, err))
 					errcnt++
 					continue
 				}
@@ -320,8 +328,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		if matchText, ok := pluginConf["message_filter"]; ok {
 			matchStr := matchText.(string)
 			if fs, err = CreateFilterSpecification(matchStr); err != nil {
-				log.Printf("Can't create message matcher for '%s': %s", wrapper.name,
-					err)
+				self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
+					wrapper.name, err))
 				errcnt++
 				continue
 			}

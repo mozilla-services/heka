@@ -28,6 +28,16 @@ func (_m *MockDecoderRunner) EXPECT() *_MockDecoderRunnerRecorder {
 	return _m.recorder
 }
 
+func (_m *MockDecoderRunner) Decoder() Decoder {
+	ret := _m.ctrl.Call(_m, "Decoder")
+	ret0, _ := ret[0].(Decoder)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) Decoder() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoder")
+}
+
 func (_m *MockDecoderRunner) InChan() chan *PipelinePack {
 	ret := _m.ctrl.Call(_m, "InChan")
 	ret0, _ := ret[0].(chan *PipelinePack)
@@ -38,6 +48,14 @@ func (_mr *_MockDecoderRunnerRecorder) InChan() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InChan")
 }
 
+func (_m *MockDecoderRunner) LogError(_param0 error) {
+	_m.ctrl.Call(_m, "LogError", _param0)
+}
+
+func (_mr *_MockDecoderRunnerRecorder) LogError(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogError", arg0)
+}
+
 func (_m *MockDecoderRunner) Name() string {
 	ret := _m.ctrl.Call(_m, "Name")
 	ret0, _ := ret[0].(string)
@@ -46,6 +64,24 @@ func (_m *MockDecoderRunner) Name() string {
 
 func (_mr *_MockDecoderRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
+}
+
+func (_m *MockDecoderRunner) Plugin() Plugin {
+	ret := _m.ctrl.Call(_m, "Plugin")
+	ret0, _ := ret[0].(Plugin)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) Plugin() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockDecoderRunner) SetName(_param0 string) {
+	_m.ctrl.Call(_m, "SetName", _param0)
+}
+
+func (_mr *_MockDecoderRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
 }
 
 func (_m *MockDecoderRunner) Start() {

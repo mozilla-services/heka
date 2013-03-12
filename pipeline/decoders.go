@@ -180,8 +180,8 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 	return nil
 }
 
-func (self *ProtobufDecoder) Decode(pipelinePack *PipelinePack) error {
-	err := proto.Unmarshal(pipelinePack.MsgBytes, pipelinePack.Message)
+func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
+	err := proto.Unmarshal(pack.MsgBytes, pack.Message)
 	if err != nil {
 		return fmt.Errorf("unmarshaling error: ", err)
 	}
