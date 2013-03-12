@@ -26,7 +26,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -72,6 +71,7 @@ func (self *LogOutput) Start(or OutputRunner, h PluginHelper,
 					msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
 					msg.GetSeverity(), msg.Fields)
 			}
+			pack.Recycle()
 		}
 		log.Printf("LogOutput '%s' stopped.", or.Name())
 		wg.Done()
@@ -117,7 +117,6 @@ type FileOutput struct {
 	perm          os.FileMode
 	flushInterval uint32
 	file          *os.File
-	inChan        chan *PipelinePack
 	batchChan     chan []byte
 	backChan      chan []byte
 	wg            *sync.WaitGroup
@@ -167,11 +166,6 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 func (o *FileOutput) openFile() (err error) {
 	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
 	return
-}
-
-func (o *FileOutput) Deliver(pack *PipelinePack) {
-	atomic.AddInt32(&pack.RefCount, 1)
-	o.inChan <- pack
 }
 
 func (o *FileOutput) Start(or OutputRunner, h PluginHelper,

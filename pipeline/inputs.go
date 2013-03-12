@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"log"
@@ -300,16 +299,6 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *TcpInput) listenForConnection() {
-	conn, err := self.listener.Accept()
-	if err != nil {
-		self.ir.LogError(errors.New("TCP accept failed"))
-		return
-	}
-	go self.handleConnection(conn)
-	self.wg.Add(1)
-}
-
 func (self *TcpInput) Start(ir InputRunner, h PluginHelper,
 	wg *sync.WaitGroup) (err error) {
 
@@ -318,17 +307,22 @@ func (self *TcpInput) Start(ir InputRunner, h PluginHelper,
 	self.stopChan = make(chan bool)
 
 	go func() {
-		var stopped bool
-		for !stopped {
-			select {
-			case <-self.stopChan:
-				stopped = true
-				break
-			default:
-				self.listenForConnection()
+		var conn net.Conn
+		var err error
+
+		for {
+			if conn, err = self.listener.Accept(); err != nil {
+				if err.(net.Error).Temporary() {
+					self.ir.LogError(fmt.Errorf("TCP accept failed: %s", err))
+					continue
+				} else {
+					break
+				}
 			}
+
+			go self.handleConnection(conn)
+			self.wg.Add(1)
 		}
-		self.listener.Close()
 		log.Println("TcpInput stopped: ", ir.Name())
 		wg.Done()
 	}()
@@ -337,6 +331,7 @@ func (self *TcpInput) Start(ir InputRunner, h PluginHelper,
 }
 
 func (self *TcpInput) Stop() {
+	self.listener.Close()
 	close(self.stopChan)
 }
 

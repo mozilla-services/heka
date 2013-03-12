@@ -264,20 +264,20 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			continue
 		}
 
-		// Create and configure the plugin.
+		// Create plugin, test and apply configuration.
 		plugin := wrapper.pluginCreator()
-		if config, err := LoadConfigStruct(&pluginConf, plugin); err != nil {
+		var config interface{}
+		if config, err = LoadConfigStruct(&pluginConf, plugin); err != nil {
 			log.Printf("Can't load config for %s '%s': %s", sectionName, wrapper.name,
 				err)
 			errcnt++
 			continue
-		} else {
-			if err = plugin.(Plugin).Init(config); err != nil {
-				log.Printf("Initialization failed for %s '%s': %s", sectionName,
-					wrapper.name, err)
-				errcnt++
-				continue
-			}
+		}
+		if err = plugin.(Plugin).Init(config); err != nil {
+			log.Printf("Initialization failed for %s '%s': %s", sectionName,
+				wrapper.name, err)
+			errcnt++
+			continue
 		}
 
 		// For decoders check to see if we need to register against a protocol
@@ -292,6 +292,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 					continue
 				}
 			}
+			wrapper.configCreator = func() interface{} { return config }
 			self.DecoderWrappers[wrapper.name] = wrapper
 			continue
 		}

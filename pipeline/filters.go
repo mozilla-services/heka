@@ -57,13 +57,15 @@ func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
 
 	go func() {
 		ok := true
+		var pack *PipelinePack
 		for ok {
 			select {
-			case _, ok = <-inChan:
+			case pack, ok = <-inChan:
 				if !ok {
 					break
 				}
 				this.count++
+				pack.Recycle()
 			case <-ticker:
 				this.tally()
 			}
