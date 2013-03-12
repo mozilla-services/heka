@@ -99,7 +99,7 @@ func (this *CounterFilter) tally() {
 	MessageGenerator.Inject(outMsg)
 
 	this.rates = append(this.rates, this.rate)
-	if this.intervals == 10 {
+	if this.intervals >= 10 {
 		this.intervals = 0
 		amount := len(this.rates)
 		if amount < 1 {
