@@ -99,49 +99,61 @@ int sandbox_read_message(lua_State* lua)
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
-    int n = lua_gettop(lua);
-    if (1 == n) {
-        if (lua_isstring(lua, 1)) {
-            size_t len = 0;
-            const char* field = lua_tolstring(lua, 1, &len);
-            struct go_lua_read_message_return gr;
-            // cast away constness, the value is not modified and will save a
-            // copy
-            gr = go_lua_read_message(lsb->m_go, (char*)field);
-            if (gr.r1 == NULL) {
-                lua_pushnil(lua);
-            } else {
-                switch (gr.r0) {
-                case 0:
-                    lua_pushlstring(lua, gr.r1, gr.r2);
-                    free(gr.r1);
-                    break;
-                case 1:
-                    lua_pushlstring(lua, gr.r1, gr.r2);
-                    break;
-                case 2:
-                    if (strncmp("Pid", field, 3) == 0
-                        || strncmp("Severity", field, 8) == 0) {
-                        lua_pushinteger(lua, *((GoInt32*)gr.r1));
-                    } else {
-                        lua_pushinteger(lua, *((GoInt*)gr.r1));
-                    }
-                    break;
-                case 3:
-                    lua_pushnumber(lua, *((GoFloat64*)gr.r1));
-                    break;
-                case 4:
-                    lua_pushboolean(lua, *((GoInt8*)gr.r1));
-                    break;
-                }
-            }
-        }  else {
-            lua_pushstring(lua, "read_message() argument must be a string");
+    const char* field;
+    int fi = 0, ai = 0;
+    switch (lua_gettop(lua)) {
+    case 3:
+        ai = luaL_checkint(lua, 3);
+        if (ai < 0) {
+            lua_pushstring(lua, "read_message() array index must be >= 0");
             lua_error(lua);
         }
-    } else {
+        // fall-thru
+    case 2:
+        fi = luaL_checkint(lua, 2);
+        if (fi < 0) {
+            lua_pushstring(lua, "read_message() field index must be >= 0");
+            lua_error(lua);
+        }
+        // fall-thru
+    case 1:
+        field = luaL_checkstring(lua, 1);
+        break;
+    default:
         lua_pushstring(lua, "read_message() incorrect number of arguments");
         lua_error(lua);
+        break;
+    }
+
+    struct go_lua_read_message_return gr;
+    // cast away constness, the value is not modified and it will save a copy
+    gr = go_lua_read_message(lsb->m_go, (char*)field, fi, ai);
+    if (gr.r1 == NULL) {
+        lua_pushnil(lua);
+    } else {
+        switch (gr.r0) {
+        case 0:
+            lua_pushlstring(lua, gr.r1, gr.r2);
+            free(gr.r1);
+            break;
+        case 1:
+            lua_pushlstring(lua, gr.r1, gr.r2);
+            break;
+        case 2:
+            if (strncmp("Pid", field, 3) == 0
+                || strncmp("Severity", field, 8) == 0) {
+                lua_pushinteger(lua, *((GoInt32*)gr.r1));
+            } else {
+                lua_pushinteger(lua, *((GoInt*)gr.r1));
+            }
+            break;
+        case 3:
+            lua_pushnumber(lua, *((GoFloat64*)gr.r1));
+            break;
+        case 4:
+            lua_pushboolean(lua, *((GoInt8*)gr.r1));
+            break;
+        }
     }
     return 1;
 }
@@ -298,7 +310,7 @@ lua_sandbox* lua_sandbox_create(void* go,
                                 unsigned mem_limit,
                                 unsigned inst_limit)
 {
-    if (mem_limit > 1024*1024*8 || inst_limit > 1000000) {
+    if (mem_limit > 1024 * 1024 * 8 || inst_limit > 1000000) {
         return NULL;
     }
     lua_sandbox* lsb = malloc(sizeof(lua_sandbox));
@@ -394,7 +406,7 @@ int lua_sandbox_process_message(lua_sandbox* lsb)
     if (!lua_isfunction(lsb->m_lua, -1)) {
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "process_message() function was not found");
-        sandbox_terminate(lsb);       
+        sandbox_terminate(lsb);
         return 1;
     }
 

@@ -36,7 +36,7 @@ struct go_lua_read_message_return {
 	GoInt r2;
 };
 
-extern struct go_lua_read_message_return go_lua_read_message(void* p0, char* p1);
+extern struct go_lua_read_message_return go_lua_read_message(void* p0, char* p1, GoInt p2, GoInt p3);
 
 extern void go_lua_output(void* p0, char* p1);
 

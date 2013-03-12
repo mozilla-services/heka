@@ -151,11 +151,19 @@ func testExpr(msg *Message, stmt *Statement) bool {
 		case VAR_FIELDS:
 			fi := stmt.field.fieldIndex
 			ai := stmt.field.arrayIndex
-			fields := msg.FindAllFields(stmt.field.token)
-			if fi >= len(fields) {
-				return false
+			var field *Field
+
+			if fi != 0 {
+				fields := msg.FindAllFields(stmt.field.token)
+				if fi >= len(fields) {
+					return false
+				}
+				field = fields[fi]
+			} else {
+				if field = msg.FindFirstField(stmt.field.token); field == nil {
+					return false
+				}
 			}
-			field := fields[fi]
 			switch field.GetValueType() {
 			case Field_STRING:
 				if ai >= len(field.ValueString) {

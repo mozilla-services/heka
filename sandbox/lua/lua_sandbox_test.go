@@ -256,7 +256,13 @@ func TestAPIErrors(t *testing.T) {
 		"out of instructions",
 		"operation on a nil",
 		"invalid return",
-		"no return"}
+		"no return",
+		"read_message() incorrect number of args",
+		"read_message() incorrect field name type",
+		"read_message() incorrect field index type",
+		"read_message() incorrect array index type",
+		"read_message() negative field index",
+		"read_message() negative array index"}
 
 	msgs := []string{"process_message() -> inject_message() incorrect number of arguments",
 		"process_message() -> inject_message() argument must be a string",
@@ -266,7 +272,13 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() -> instruction_limit exceeded",
 		"process_message() -> ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
-		"process_message() must return a single numeric value"}
+		"process_message() must return a single numeric value",
+		"process_message() -> read_message() incorrect number of arguments",
+		"process_message() -> ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
+		"process_message() -> ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (number expected, got nil)",
+		"process_message() -> ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (number expected, got nil)",
+		"process_message() -> read_message() field index must be >= 0",
+		"process_message() -> read_message() array index must be >= 0"}
 
 	var sbc sandbox.SandboxConfig
 	sbc.ScriptFilename = "./testsupport/errors.lua"
@@ -342,6 +354,82 @@ func TestReadMessage(t *testing.T) {
 	r = sb.TimerEvent()
 	if r != 0 {
 		t.Errorf("read_message should return nil in timer_event")
+	}
+	sb.Destroy()
+}
+
+func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/sandbox.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	for i := 0; i < b.N; i++ {
+		sb, _ := lua.CreateLuaSandbox(&sbc)
+		sb.Init()
+		sb.Destroy()
+	}
+}
+
+func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
+	b.StopTimer()
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/sandbox.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg)
+	}
+	sb.Destroy()
+}
+
+func BenchmarkSandboxReadMessageString(b *testing.B) {
+	b.StopTimer()
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/readstring.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg)
+	}
+	sb.Destroy()
+}
+
+func BenchmarkSandboxReadMessageInt(b *testing.B) {
+	b.StopTimer()
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/readint.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg)
+	}
+	sb.Destroy()
+}
+
+func BenchmarkSandboxReadMessageField(b *testing.B) {
+	b.StopTimer()
+	var sbc sandbox.SandboxConfig
+	sbc.ScriptFilename = "./testsupport/readfield.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy()
 }
