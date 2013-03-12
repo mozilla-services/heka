@@ -26,19 +26,25 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"log"
-	"regexp"
-	"strconv"
+	"strings"
 	"unsafe"
 )
 
 func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
 	unsafe.Pointer, int) {
 
-	fields := msg.FindAllFields(fn)
-	if fi >= len(fields) {
-		return 0, unsafe.Pointer(nil), 0
+	var field *message.Field
+	if fi != 0 {
+		fields := msg.FindAllFields(fn)
+		if fi >= len(fields) {
+			return 0, unsafe.Pointer(nil), 0
+		}
+		field = fields[fi]
+	} else {
+		if field = msg.FindFirstField(fn); field == nil {
+			return 0, unsafe.Pointer(nil), 0
+		}
 	}
-	field := fields[fi]
 	fieldType := int(field.GetValueType())
 	switch field.GetValueType() {
 	case message.Field_STRING:
@@ -74,7 +80,7 @@ func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
 }
 
 //export go_lua_read_message
-func go_lua_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
+func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe.Pointer,
 	int) {
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
@@ -120,19 +126,10 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer,
 			return int(message.Field_INTEGER),
 				unsafe.Pointer(lsb.msg.Severity), 0
 		default:
-			sm := lsb.fieldRe.FindStringSubmatch(fieldName)
-			var ai int = 0
-			var fi int = 0
-			var fn string
-			if sm != nil {
-				if len(sm[3]) > 0 {
-					ai, _ = strconv.Atoi(sm[3])
-				}
-				if len(sm[2]) > 0 {
-					fi, _ = strconv.Atoi(sm[2])
-				}
-				fn = sm[1]
-				t, p, l := lookup_field(lsb.msg, fn, fi, ai)
+			l := len(fieldName)
+			if l > 0 && fieldName[l-1] == ']' &&
+				strings.Contains(fieldName, "Fields[") {
+				t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
 				return t, p, l
 			}
 		}
@@ -155,7 +152,6 @@ func go_lua_inject_message(ptr unsafe.Pointer, c *C.char) {
 type LuaSandbox struct {
 	lsb           *C.lua_sandbox
 	msg           *message.Message
-	fieldRe       *regexp.Regexp
 	output        func(s string)
 	injectMessage func(s string)
 }
@@ -173,8 +169,6 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
 	// @todo if serialization exists attempt to restore the state
-	lsb.fieldRe, _ = regexp.Compile(
-		"Fields\\[([^\\]]*)\\](?:\\[([\\d]*)\\])?(?:\\[([\\d]*)\\])?")
 	lsb.output = func(s string) { log.Println(s) }
 	lsb.injectMessage = func(s string) { log.Println(s) }
 	return lsb, nil
