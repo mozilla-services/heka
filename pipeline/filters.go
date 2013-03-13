@@ -45,7 +45,6 @@ type CounterFilter struct {
 }
 
 func (this *CounterFilter) Init(config interface{}) error {
-	this.lastTime = time.Now()
 	return nil
 }
 
@@ -54,6 +53,7 @@ func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
 
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
+	this.lastTime = time.Now()
 	go func() {
 		ok := true
 		var pack *PipelinePack
