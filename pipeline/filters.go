@@ -104,11 +104,16 @@ func (this *filterRunner) Start(helper PluginHelper, wg *sync.WaitGroup) {
 				if !ok {
 					break
 				}
-				if this.messageMatcher != nil &&
-					this.messageMatcher.IsMatch(pack.Message) {
-					r := this.filter.ProcessMessage(pack.Message)
-					if r != 0 {
-						log.Printf("%s - ProcessMessage returned %d", this.name, r)
+				if this.messageMatcher != nil {
+					match, _ := this.messageMatcher.Match(pack.Message)
+					// @todo put the match captures in the pack
+					// the filter interface will now need the whole pack
+					if match {
+						r := this.filter.ProcessMessage(pack.Message)
+						if r != 0 {
+							log.Printf("%s - ProcessMessage returned %d",
+								this.name, r)
+						}
 					}
 				}
 				pack.Recycle()
