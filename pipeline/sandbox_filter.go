@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -16,10 +17,10 @@ package pipeline
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"log"
+	"sync"
 )
 
 func defaultOutput(s string) {
@@ -65,17 +66,40 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	return err
 }
 
-func (this *SandboxFilter) Destroy() {
-	this.sb.Destroy()
-	this.sb = nil
-}
+func (this *SandboxFilter) Start(fr FilterRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
 
-func (this *SandboxFilter) ProcessMessage(msg *message.Message) int {
-	return this.sb.ProcessMessage(msg)
-}
+	inChan := fr.InChan()
+	ticker := fr.Ticker()
 
-func (this *SandboxFilter) TimerEvent() int {
-	return this.sb.TimerEvent()
+	go func() {
+		ok := true
+		var pack *PipelinePack
+		var retval int
+		for ok {
+			select {
+			case pack, ok = <-inChan:
+				if !ok {
+					break
+				}
+				if retval = this.sb.ProcessMessage(pack.Message); retval != 0 {
+					fr.LogError(fmt.Errorf(
+						"Sandbox ProcessMessage error code: %d", retval))
+				}
+				pack.Recycle()
+			case <-ticker:
+				if retval = this.sb.TimerEvent(); retval != 0 {
+					fr.LogError(fmt.Errorf(
+						"Sandbox TimerEvent error code: %d", retval))
+				}
+			}
+		}
+		this.sb.Destroy()
+		this.sb = nil
+		log.Printf("SandboxFilter '%s' stopped.", fr.Name())
+		wg.Done()
+	}()
+	return
 }
 
 func (this *SandboxFilter) SetOutput(f func(s string)) {
