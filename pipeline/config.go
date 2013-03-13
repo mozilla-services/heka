@@ -20,10 +20,11 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
+	"log"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Cap size of our decoder set arrays
@@ -41,9 +42,11 @@ type PluginConfig map[string]interface{}
 
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
-	NewDecoder(name string) (runner DecoderRunner, ok bool)
-	NewDecoderSet() (decoders []DecoderRunner)
-	StopChan() (stopChan chan interface{})
+	Decoder(name string) (dRunner DecoderRunner, ok bool)
+	Decoders() (decoders map[string]DecoderRunner)
+	DecodersByEncoding() (decoders []DecoderRunner)
+	Output(name string) (oRunner OutputRunner, ok bool)
+	Router() (router *MessageRouter)
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -54,13 +57,14 @@ type HasConfigStruct interface {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	Inputs        map[string]Input
-	Decoders      map[string]*PluginWrapper // multiple instances are allowed
-	FilterRunners map[string]FilterRunner
-	OutputRunners map[string]OutputRunner
-	PoolSize      int
-	Router        *MessageRouter
-	RecycleChan   chan *PipelinePack
+	InputRunners    map[string]InputRunner
+	DecoderWrappers map[string]*PluginWrapper // multiple instances are allowed
+	FilterRunners   map[string]FilterRunner
+	OutputRunners   map[string]OutputRunner
+	PoolSize        int
+	router          *MessageRouter
+	RecycleChan     chan *PipelinePack
+	logMsgs         []string
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -68,22 +72,50 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	PoolSize = poolSize
 	config = new(PipelineConfig)
 	config.PoolSize = poolSize
-	config.Inputs = make(map[string]Input)
-	config.Decoders = make(map[string]*PluginWrapper)
+	config.InputRunners = make(map[string]InputRunner)
+	config.DecoderWrappers = make(map[string]*PluginWrapper)
 	config.FilterRunners = make(map[string]FilterRunner)
 	config.OutputRunners = make(map[string]OutputRunner)
-	config.Router = new(MessageRouter)
-	config.Router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	config.router = NewMessageRouter()
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
+	config.logMsgs = make([]string, 0, 4)
 	return config
+}
+
+// Returns a running DecoderRunner for the registered decoder of the
+// given name.
+func (self *PipelineConfig) Decoder(name string) (
+	dRunner DecoderRunner, ok bool) {
+
+	var wrapper *PluginWrapper
+	if wrapper, ok = self.DecoderWrappers[name]; !ok {
+		return
+	}
+	decoder := wrapper.Create().(Decoder)
+	dRunner = NewDecoderRunner(name, decoder)
+	dRunner.Start()
+	return
+}
+
+// Returns a map[string]DecoderRunner containing all registered decoders.
+func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
+	decoders = make(map[string]DecoderRunner)
+	var runner DecoderRunner
+	for name, wrapper := range self.DecoderWrappers {
+		decoder := wrapper.Create().(Decoder)
+		runner = NewDecoderRunner(name, decoder)
+		runner.Start()
+		decoders[name] = runner
+	}
+	return
 }
 
 // Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
 // value that each decoder works for.
-func (self *PipelineConfig) NewDecoderSet() []DecoderRunner {
+func (self *PipelineConfig) DecodersByEncoding() []DecoderRunner {
 	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.NewDecoder(name)
+		decoder, ok := self.Decoder(name)
 		if !ok {
 			continue
 		}
@@ -92,27 +124,17 @@ func (self *PipelineConfig) NewDecoderSet() []DecoderRunner {
 	return decoders
 }
 
-func (self *PipelineConfig) NewDecoder(name string) (
-	runner DecoderRunner, ok bool) {
-
-	var wrapper *PluginWrapper
-	if wrapper, ok = self.Decoders[name]; !ok {
-		return
-	}
-	decoder := wrapper.Create().(Decoder)
-	runner = NewDecoderRunner(name, decoder)
-	runner.Start()
-	return
-}
-
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
 	return self.RecycleChan
 }
 
-func (self *PipelineConfig) StopChan() (stopChan chan interface{}) {
-	stopChan = make(chan interface{})
-	notify.Start(STOP, stopChan)
+func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) {
+	oRunner, ok = self.OutputRunners[name]
 	return
+}
+
+func (self *PipelineConfig) Router() (router *MessageRouter) {
+	return self.router
 }
 
 // The JSON config file spec
@@ -120,7 +142,7 @@ type ConfigFile struct {
 	Inputs   []PluginConfig
 	Decoders []PluginConfig
 	Outputs  []PluginConfig
-	Filters  map[string]PluginConfig
+	Filters  []PluginConfig
 }
 
 // A helper function to simplify plugin creation
@@ -167,7 +189,7 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}
 }
 
 // Registers a particular decoder (specified by `decoderName`) to be used for
-// decoding messages sent received a particular message encoding header value
+// decoding messages with a particular message encoding header value
 // (specified by `encodingName`).
 func regDecoderForHeader(decoderName string, encodingName string) (err error) {
 	var encoding Header_MessageEncoding
@@ -195,53 +217,6 @@ func regDecoderForHeader(decoderName string, encodingName string) (err error) {
 	return
 }
 
-// loadSection can be passed a configSection, the appropriate mapping
-// of available plug-ins for that section, and will then create
-// PluginWrappers for each plug-in instance defined
-func loadSection(sectionName string, configSection []PluginConfig) (
-	config map[string]*PluginWrapper, err error) {
-
-	var ok bool
-	config = make(map[string]*PluginWrapper)
-	for _, pluginConf := range configSection {
-		wrapper := new(PluginWrapper)
-		pluginType := pluginConf["type"].(string)
-
-		// Use the specified plugin name or default to the type name
-		if _, ok := pluginConf["name"]; ok {
-			wrapper.name = pluginConf["name"].(string)
-		} else {
-			wrapper.name = pluginType
-		}
-
-		// For decoders check to see if we need to register against a protocol
-		// header
-		if sectionName == "decoders" {
-			if encodingName, ok := pluginConf["encoding_name"]; ok {
-				err = regDecoderForHeader(wrapper.name, encodingName.(string))
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-			err := errors.New("No such plugin of that name: " + pluginType)
-			return nil, err
-		}
-
-		// Create an instance so we can see if we need to marshal the JSON
-		plugin := wrapper.pluginCreator()
-		configLoaded, err := LoadConfigStruct(&pluginConf, plugin)
-		if err != nil {
-			return nil, err
-		}
-		wrapper.configCreator = func() interface{} { return configLoaded }
-		config[wrapper.name] = wrapper
-	}
-	return config, nil
-}
-
 // Given a filename string and JSON structure, read the file and
 // un-marshal it into the structure
 func readJsonFromFile(filename string, configFile *ConfigFile) error {
@@ -264,6 +239,120 @@ func readJsonFromFile(filename string, configFile *ConfigFile) error {
 	return nil
 }
 
+func (self *PipelineConfig) log(msg string) {
+	self.logMsgs = append(self.logMsgs, msg)
+	log.Println(msg)
+}
+
+// loadSection must be passed a section name and the config for that section.
+// It will create a PluginWrapper (i.e. a factory) for each plugin. For
+// decoders (which are created as needed) the PluginWrappers are stored for
+// later use. For the other plugin types, we'll create the plugin, configure
+// it, then create the appropriate plugin runner.
+func (self *PipelineConfig) loadSection(sectionName string,
+	configSection []PluginConfig) (errcnt uint) {
+
+	var ok bool
+	var err error
+	for _, pluginConf := range configSection {
+		wrapper := new(PluginWrapper)
+		pluginType := pluginConf["type"].(string)
+
+		// Use the specified plugin name or default to the type name
+		if _, ok = pluginConf["name"]; ok {
+			wrapper.name = pluginConf["name"].(string)
+		} else {
+			wrapper.name = pluginType
+		}
+
+		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
+			self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
+			errcnt++
+			continue
+		}
+
+		// Create plugin, test and apply configuration.
+		plugin := wrapper.pluginCreator()
+		var config interface{}
+		if config, err = LoadConfigStruct(&pluginConf, plugin); err != nil {
+			self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
+				wrapper.name, err))
+			errcnt++
+			continue
+		}
+		if err = plugin.(Plugin).Init(config); err != nil {
+			self.log(fmt.Sprintf("Initialization failed for %s '%s': %s",
+				sectionName, wrapper.name, err))
+			errcnt++
+			continue
+		}
+
+		// For decoders check to see if we need to register against a protocol
+		// header, store the wrapper and continue.
+		if sectionName == "decoders" {
+			if encodingName, ok := pluginConf["encoding_name"]; ok {
+				err = regDecoderForHeader(wrapper.name, encodingName.(string))
+				if err != nil {
+					self.log(fmt.Sprintf(
+						"Can't register decoder '%s' for encoding '%s': %s",
+						wrapper.name, encodingName, err))
+					errcnt++
+					continue
+				}
+			}
+			wrapper.configCreator = func() interface{} { return config }
+			self.DecoderWrappers[wrapper.name] = wrapper
+			continue
+		}
+
+		// For inputs just store the runner and continue.
+		if sectionName == "inputs" {
+			self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+			continue
+		}
+
+		// Filters and outputs have a few more config settings.
+		runner := NewFORunner(wrapper.name, plugin.(Plugin))
+		runner.name = wrapper.name
+		var tickLength uint
+		if _, ok = pluginConf["ticker_interval"]; ok {
+			sec := pluginConf["ticker_interval"].(float64)
+			tickLength = uint(sec)
+		}
+
+		if tickLength != 0 {
+			runner.tickLength = time.Duration(tickLength) * time.Second
+		}
+
+		var matcher *MatchRunner
+		if matchText, ok := pluginConf["message_matcher"]; ok {
+			matchStr := matchText.(string)
+			if matcher, err = NewMatchRunner(matchStr); err != nil {
+				self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
+					wrapper.name, err))
+				errcnt++
+				continue
+			}
+			runner.matcher = matcher
+		}
+
+		switch sectionName {
+		case "filters":
+			if matcher != nil {
+				self.router.fMatchers = append(self.router.fMatchers, matcher)
+			}
+			self.FilterRunners[runner.name] = runner
+		case "outputs":
+			if matcher != nil {
+				self.router.oMatchers = append(self.router.oMatchers, matcher)
+			}
+			self.OutputRunners[runner.name] = runner
+		}
+	}
+
+	return
+}
+
 // LoadFromConfigFile loads a JSON configuration file and stores the
 // result in the value pointed to by config. The maps in the config
 // will be initialized as needed.
@@ -273,12 +362,13 @@ func readJsonFromFile(filename string, configFile *ConfigFile) error {
 func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	configFile := new(ConfigFile)
 	if err = readJsonFromFile(filename, configFile); err != nil {
-		return err
+		return
 	}
 
-	inputs, err := loadSection("inputs", configFile.Inputs)
-	if err != nil {
-		return err
+	var errcnt uint
+
+	if errcnt = self.loadSection("inputs", configFile.Inputs); errcnt != 0 {
+		return fmt.Errorf("%d errors loading inputs", errcnt)
 	}
 
 	// Setup our message generator input
@@ -287,90 +377,27 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	mgiWrapper.name = "MessageGeneratorInput"
 	mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
 	mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
-	inputs[mgiWrapper.name] = mgiWrapper
-	for k, v := range inputs {
-		tmp, err := v.CreateWithError()
-		if err != nil {
-			return errors.New("Unable to plugin init: " + err.Error())
-		}
-		self.Inputs[k] = tmp.(Input)
+	if mgi, err := mgiWrapper.CreateWithError(); err != nil {
+		return fmt.Errorf("Error creating MGI: %s", err)
+	} else {
+		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name,
+			mgi.(Input))
 	}
 
-	self.Decoders, err = loadSection("decoders", configFile.Decoders)
-	if err != nil {
-		return errors.New("Error reading decoders: " + err.Error())
+	if errcnt = self.loadSection("decoders", configFile.Decoders); errcnt != 0 {
+		return fmt.Errorf("%d errors loading decoders", errcnt)
 	}
 
-	outputs, err := loadSection("outputs", configFile.Outputs)
-	if err != nil {
-		return errors.New("Error reading outputs: " + err.Error())
-	}
-	for k, v := range outputs {
-		tmp, err := v.CreateWithError()
-		if err != nil {
-			return errors.New("Unable to plugin init: " + err.Error())
-		}
-		self.OutputRunners[k] = NewOutputRunner(k, tmp.(Output))
+	if errcnt = self.loadSection("outputs", configFile.Outputs); errcnt != 0 {
+		return fmt.Errorf("%d errors loading outputs", errcnt)
 	}
 
-	for name, section := range configFile.Filters {
-		runner := &filterRunner{}
-		runner.name = name
-		runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	if errcnt = self.loadSection("filters", configFile.Filters); errcnt != 0 {
+		return fmt.Errorf("%d errors loading filters", errcnt)
 
-		if tmp, ok := section["message_matcher"]; ok {
-			ms, err := CreateMatcherSpecification(tmp.(string))
-			if err != nil {
-				return err
-			}
-			runner.messageMatcher = ms
-		}
-
-		if tmp, ok := section["output_timer"]; ok {
-			sec := tmp.(float64)
-			runner.output_timer = uint(sec)
-		}
-		if runner.output_timer == 0 {
-			runner.output_timer = 60
-		}
-
-		if outputs, ok := section["outputs"]; ok {
-			outputList := outputs.([]interface{})
-			runner.outputs = make([]OutputRunner, len(outputList))
-			for i, output := range outputList {
-				strOutput := output.(string)
-				orunner, ok := self.OutputRunners[strOutput]
-				if !ok {
-					return errors.New("Error during chain loading. Output by name " +
-						strOutput + " was not defined.")
-				}
-				runner.outputs[i] = orunner
-			}
-		}
-		var ok bool
-		wrapper := new(PluginWrapper)
-		pluginType := section["type"].(string)
-		wrapper.name = name
-
-		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-			err := errors.New("No such plugin of that name: " + pluginType)
-			return err
-		}
-		plugin := wrapper.pluginCreator()
-		configLoaded, err := LoadConfigStruct(&section, plugin)
-		if err != nil {
-			return err
-		}
-		wrapper.configCreator = func() interface{} { return configLoaded }
-		tmp, err := wrapper.CreateWithError()
-		if err != nil {
-			return errors.New("Unable to plugin init: " + err.Error())
-		}
-		runner.filter = tmp.(Filter)
-		self.FilterRunners[name] = runner
 	}
 
-	return nil
+	return
 }
 
 func init() {
@@ -405,7 +432,7 @@ func init() {
 		return new(TextParserDecoder)
 	})
 	RegisterPlugin("TcpOutput", func() interface{} {
-		return RunnerMaker(new(TcpWriter))
+		return new(TcpOutput)
 	})
 	RegisterPlugin("StatFilter", func() interface{} {
 		return new(StatFilter)
