@@ -27,49 +27,47 @@ import (
 )
 
 type DecoderRunner interface {
-	PluginRunnerBase
+	PluginRunner
+	Decoder() Decoder
 	Start()
 }
 
-type decoderRunner struct {
-	pluginRunnerBase
-	decoder Decoder
+type dRunner struct {
+	pRunnerBase
 }
 
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	return &decoderRunner{
-		pluginRunnerBase{
-			name:   name,
-			inChan: inChan,
-		},
-		decoder,
+	return &dRunner{
+		pRunnerBase{inChan: inChan, name: name, plugin: decoder.(Plugin)},
 	}
 }
 
-func (self *decoderRunner) Start() {
-	var err error
+func (dr *dRunner) Decoder() Decoder {
+	return dr.plugin.(Decoder)
+}
 
+func (dr *dRunner) Start() {
 	go func() {
-		for {
-			pack, ok := <-self.inChan
-			if !ok {
-				break
-			}
-			err = self.decoder.Decode(pack)
-			if err != nil {
-				log.Printf("Decoder '%s' error: '%s", self.Name(), err)
+		var err error
+		for pack := range dr.inChan {
+			if err = dr.Decoder().Decode(pack); err != nil {
+				dr.LogError(err)
 				pack.Recycle()
 				continue
 			}
 			pack.Decoded = true
-			pack.Config.Router.InChan <- pack
+			pack.Config.Router().InChan <- pack
 		}
 	}()
 }
 
+func (dr *dRunner) LogError(err error) {
+	log.Printf("Decoder '%s' error: %s", dr.name, err)
+}
+
 type Decoder interface {
-	Decode(pipelinePack *PipelinePack) error
+	Decode(pack *PipelinePack) error
 }
 
 type JsonDecoder struct{}
@@ -182,8 +180,8 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 	return nil
 }
 
-func (self *ProtobufDecoder) Decode(pipelinePack *PipelinePack) error {
-	err := proto.Unmarshal(pipelinePack.MsgBytes, pipelinePack.Message)
+func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
+	err := proto.Unmarshal(pack.MsgBytes, pack.Message)
 	if err != nil {
 		return fmt.Errorf("unmarshaling error: ", err)
 	}

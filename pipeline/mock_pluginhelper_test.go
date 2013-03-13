@@ -28,35 +28,46 @@ func (_m *MockPluginHelper) EXPECT() *_MockPluginHelperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPluginHelper) MessageRouter() *MessageRouter {
-	ret := _m.ctrl.Call(_m, "MessageRouter")
-	ret0, _ := ret[0].(*MessageRouter)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) MessageRouter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MessageRouter")
-}
-
-func (_m *MockPluginHelper) NewDecoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "NewDecoder", _param0)
+func (_m *MockPluginHelper) Decoder(_param0 string) (DecoderRunner, bool) {
+	ret := _m.ctrl.Call(_m, "Decoder", _param0)
 	ret0, _ := ret[0].(DecoderRunner)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-func (_mr *_MockPluginHelperRecorder) NewDecoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoder", arg0)
+func (_mr *_MockPluginHelperRecorder) Decoder(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoder", arg0)
 }
 
-func (_m *MockPluginHelper) NewDecoderSet() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "NewDecoderSet")
+func (_m *MockPluginHelper) Decoders() map[string]DecoderRunner {
+	ret := _m.ctrl.Call(_m, "Decoders")
+	ret0, _ := ret[0].(map[string]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) Decoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoders")
+}
+
+func (_m *MockPluginHelper) DecodersByEncoding() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "DecodersByEncoding")
 	ret0, _ := ret[0].([]DecoderRunner)
 	return ret0
 }
 
-func (_mr *_MockPluginHelperRecorder) NewDecoderSet() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoderSet")
+func (_mr *_MockPluginHelperRecorder) DecodersByEncoding() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodersByEncoding")
+}
+
+func (_m *MockPluginHelper) Output(_param0 string) (OutputRunner, bool) {
+	ret := _m.ctrl.Call(_m, "Output", _param0)
+	ret0, _ := ret[0].(OutputRunner)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+func (_mr *_MockPluginHelperRecorder) Output(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Output", arg0)
 }
 
 func (_m *MockPluginHelper) PackSupply() chan *PipelinePack {
@@ -69,12 +80,12 @@ func (_mr *_MockPluginHelperRecorder) PackSupply() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PackSupply")
 }
 
-func (_m *MockPluginHelper) StopChan() chan interface{} {
-	ret := _m.ctrl.Call(_m, "StopChan")
-	ret0, _ := ret[0].(chan interface{})
+func (_m *MockPluginHelper) Router() *MessageRouter {
+	ret := _m.ctrl.Call(_m, "Router")
+	ret0, _ := ret[0].(*MessageRouter)
 	return ret0
 }
 
-func (_mr *_MockPluginHelperRecorder) StopChan() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "StopChan")
+func (_mr *_MockPluginHelperRecorder) Router() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Router")
 }
