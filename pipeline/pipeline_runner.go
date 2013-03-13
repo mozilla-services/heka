@@ -17,7 +17,7 @@ package pipeline
 
 import (
 	"fmt"
-	. "github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
 	"os"
@@ -90,9 +90,9 @@ func (pr *pRunnerBase) Filter() Filter {
 
 type foRunner struct {
 	pRunnerBase
-	messageFilter *FilterSpecification
-	tickLength    time.Duration
-	ticker        <-chan time.Time
+	matcher    *MatchRunner
+	tickLength time.Duration
+	ticker     <-chan time.Time
 }
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
@@ -114,8 +114,8 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 
 	if err != nil {
 		err = fmt.Errorf("Plugin '%s' failed to start: %s", foRunner.name, err)
-	} else if foRunner.messageFilter != nil {
-		foRunner.messageFilter.Start(foRunner.inChan)
+	} else if foRunner.matcher != nil {
+		foRunner.matcher.Start(foRunner.inChan)
 	}
 	return
 }
@@ -130,15 +130,15 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 
 type PipelinePack struct {
 	MsgBytes []byte
-	Message  *Message
+	Message  *message.Message
 	Config   *PipelineConfig
 	Decoded  bool
 	RefCount int32
 }
 
 func NewPipelinePack(config *PipelineConfig) (pack *PipelinePack) {
-	msgBytes := make([]byte, MAX_MESSAGE_SIZE)
-	message := &Message{}
+	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
+	message := &message.Message{}
 
 	return &PipelinePack{
 		MsgBytes: msgBytes,
@@ -156,7 +156,7 @@ func (p *PipelinePack) Zero() {
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
-	p.Message = new(Message)
+	p.Message = new(message.Message)
 }
 
 func (p *PipelinePack) Recycle() {

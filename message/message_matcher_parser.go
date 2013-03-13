@@ -1,10 +1,13 @@
-package pipeline
+//line message_matcher_parser.y:2
+package message
 
 import __yyfmt__ "fmt"
 
+//line message_matcher_parser.y:2
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"sync"
 	"unicode/utf8"
@@ -62,6 +65,7 @@ func (s *stack) pop() (node *tree) {
 
 var nodes []*tree
 
+//line message_matcher_parser.y:67
 type yySymType struct {
 	yys        int
 	tokenId    int
@@ -69,6 +73,7 @@ type yySymType struct {
 	double     float64
 	fieldIndex int
 	arrayIndex int
+	regexp     *regexp.Regexp
 }
 
 const OP_EQ = 57346
@@ -77,22 +82,25 @@ const OP_GT = 57348
 const OP_GTE = 57349
 const OP_LT = 57350
 const OP_LTE = 57351
-const OP_OR = 57352
-const OP_AND = 57353
-const VAR_UUID = 57354
-const VAR_TYPE = 57355
-const VAR_LOGGER = 57356
-const VAR_PAYLOAD = 57357
-const VAR_ENVVERSION = 57358
-const VAR_HOSTNAME = 57359
-const VAR_TIMESTAMP = 57360
-const VAR_SEVERITY = 57361
-const VAR_PID = 57362
-const VAR_FIELDS = 57363
-const STRING_VALUE = 57364
-const NUMERIC_VALUE = 57365
-const TRUE = 57366
-const FALSE = 57367
+const OP_RE = 57352
+const OP_NRE = 57353
+const OP_OR = 57354
+const OP_AND = 57355
+const VAR_UUID = 57356
+const VAR_TYPE = 57357
+const VAR_LOGGER = 57358
+const VAR_PAYLOAD = 57359
+const VAR_ENVVERSION = 57360
+const VAR_HOSTNAME = 57361
+const VAR_TIMESTAMP = 57362
+const VAR_SEVERITY = 57363
+const VAR_PID = 57364
+const VAR_FIELDS = 57365
+const STRING_VALUE = 57366
+const NUMERIC_VALUE = 57367
+const REGEXP_VALUE = 57368
+const TRUE = 57369
+const FALSE = 57370
 
 var yyToknames = []string{
 	"OP_EQ",
@@ -101,6 +109,8 @@ var yyToknames = []string{
 	"OP_GTE",
 	"OP_LT",
 	"OP_LTE",
+	"OP_RE",
+	"OP_NRE",
 	"OP_OR",
 	"OP_AND",
 	"VAR_UUID",
@@ -115,6 +125,7 @@ var yyToknames = []string{
 	"VAR_FIELDS",
 	"STRING_VALUE",
 	"NUMERIC_VALUE",
+	"REGEXP_VALUE",
 	"TRUE",
 	"FALSE",
 }
@@ -124,24 +135,26 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-type FilterSpecificationParser struct {
+//line message_matcher_parser.y:177
+type MatcherSpecificationParser struct {
 	filter   string
 	sym      string
 	peekrune rune
 	lexPos   int
 }
 
-func parseFilterSpecification(fs *FilterSpecification) error {
+func parseMatcherSpecification(ms *MatcherSpecification) error {
 	parseLock.Lock()
 	defer parseLock.Unlock()
 	nodes = nodes[:0] // reset the global
-	var fsp FilterSpecificationParser
-	fsp.filter = fs.filter
-	fsp.peekrune = ' '
-	if yyParse(&fsp) == 0 {
+	var msp MatcherSpecificationParser
+	msp.filter = ms.filter
+	msp.peekrune = ' '
+	if yyParse(&msp) == 0 {
 		s := new(stack)
 		for _, node := range nodes {
-			if node.stmt.op.tokenId != OP_OR && node.stmt.op.tokenId != OP_AND {
+			if node.stmt.op.tokenId != OP_OR &&
+				node.stmt.op.tokenId != OP_AND {
 				s.push(node)
 			} else {
 				node.right = s.pop()
@@ -149,23 +162,23 @@ func parseFilterSpecification(fs *FilterSpecification) error {
 				s.push(node)
 			}
 		}
-		fs.vm = s.pop()
+		ms.vm = s.pop()
 		return nil
 	}
-	return fmt.Errorf("syntax error: last token: %s pos: %d", fsp.sym, fsp.lexPos)
+	return fmt.Errorf("syntax error: last token: %s pos: %d", msp.sym, msp.lexPos)
 }
 
-func (f *FilterSpecificationParser) Error(s string) {
-	fmt.Errorf("syntax error: %s last token: %s pos: %d", f.sym, f.lexPos)
+func (m *MatcherSpecificationParser) Error(s string) {
+	fmt.Errorf("syntax error: %s last token: %s pos: %d", m.sym, m.lexPos)
 }
 
-func (f *FilterSpecificationParser) Lex(yylval *yySymType) int {
+func (m *MatcherSpecificationParser) Lex(yylval *yySymType) int {
 	var err error
-	var c rune
+	var c, tmp rune
 	var i int
 
-	c = f.peekrune
-	f.peekrune = ' '
+	c = m.peekrune
+	m.peekrune = ' '
 
 loop:
 	if c >= 'A' && c <= 'Z' {
@@ -176,40 +189,48 @@ loop:
 	}
 	switch c {
 	case ' ', '\t':
-		c = f.getrune()
+		c = m.getrune()
 		goto loop
 	case '=':
-		c = f.getrune()
-		if c != '=' {
+		c = m.getrune()
+		if c == '=' {
+			yylval.token = "=="
+			yylval.tokenId = OP_EQ
+		} else if c == '~' {
+			yylval.token = "=~"
+			yylval.tokenId = OP_RE
+		} else {
 			break
 		}
-		yylval.token = "=="
-		yylval.tokenId = OP_EQ
 		return yylval.tokenId
 	case '!':
-		c = f.getrune()
-		if c != '=' {
+		c = m.getrune()
+		if c == '=' {
+			yylval.token = "!="
+			yylval.tokenId = OP_NE
+		} else if c == '~' {
+			yylval.token = "!~"
+			yylval.tokenId = OP_NRE
+		} else {
 			break
 		}
-		yylval.token = "!="
-		yylval.tokenId = OP_NE
 		return yylval.tokenId
 	case '>':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '=' {
-			f.peekrune = c
+			m.peekrune = c
 			yylval.token = ">"
 			yylval.tokenId = OP_GT
 			return yylval.tokenId
 		}
-		f.peekrune = f.getrune()
+		m.peekrune = m.getrune()
 		yylval.token = ">="
 		yylval.tokenId = OP_GTE
 		return yylval.tokenId
 	case '<':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '=' {
-			f.peekrune = c
+			m.peekrune = c
 			yylval.token = "<"
 			yylval.tokenId = OP_LT
 			return yylval.tokenId
@@ -218,7 +239,7 @@ loop:
 		yylval.tokenId = OP_LTE
 		return yylval.tokenId
 	case '|':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '|' {
 			break
 		}
@@ -226,28 +247,30 @@ loop:
 		yylval.tokenId = OP_OR
 		return yylval.tokenId
 	case '&':
-		c = f.getrune()
+		c = m.getrune()
 		if c != '&' {
 			break
 		}
 		yylval.token = "&&"
 		yylval.tokenId = OP_AND
 		return yylval.tokenId
-	case '"':
+	case '"', '\'':
 		goto quotestring
+	case '/':
+		goto regexpstring
 	}
 	return int(c)
 
 variable:
-	f.sym = ""
+	m.sym = ""
 	for i = 0; ; i++ {
-		f.sym += string(c)
-		c = f.getrune()
+		m.sym += string(c)
+		c = m.getrune()
 		if !rvariable(c) {
 			break
 		}
 	}
-	yylval.tokenId = variables[f.sym]
+	yylval.tokenId = variables[m.sym]
 	if yylval.tokenId == VAR_FIELDS {
 		if c != '[' {
 			return 0
@@ -255,7 +278,7 @@ variable:
 		var bracketCount int
 		var idx [3]string
 		for {
-			c = f.getrune()
+			c = m.getrune()
 			if c == 0 {
 				return 0
 			}
@@ -264,9 +287,9 @@ variable:
 					return 0
 				}
 				bracketCount++
-				f.peekrune = f.getrune()
-				if f.peekrune == '[' && bracketCount < cap(idx) {
-					f.peekrune = ' '
+				m.peekrune = m.getrune()
+				if m.peekrune == '[' && bracketCount < cap(idx) {
+					m.peekrune = ' '
 				} else {
 					break
 				}
@@ -300,55 +323,88 @@ variable:
 			return 0
 		}
 	} else {
-		yylval.token = f.sym
-		f.peekrune = c
+		yylval.token = m.sym
+		m.peekrune = c
 	}
 	return yylval.tokenId
 
 number:
-	f.sym = ""
+	m.sym = ""
 	for i = 0; ; i++ {
-		f.sym += string(c)
-		c = f.getrune()
+		m.sym += string(c)
+		c = m.getrune()
 		if !rdigit(c) {
 			break
 		}
 	}
-	f.peekrune = c
-	yylval.double, err = strconv.ParseFloat(f.sym, 64)
+	m.peekrune = c
+	yylval.double, err = strconv.ParseFloat(m.sym, 64)
 	if err != nil {
-		log.Printf("error converting %v\n", f.sym)
+		log.Printf("error converting %v\n", m.sym)
 		yylval.double = 0
 	}
-	yylval.token = f.sym
+	yylval.token = m.sym
 	yylval.tokenId = NUMERIC_VALUE
 	return yylval.tokenId
 
 quotestring:
-	f.sym = ""
+	tmp = c
+	m.sym = ""
 	for {
-		c = f.getrune()
+		c = m.getrune()
 		if c == 0 {
 			return 0
 		}
 		if c == '\\' {
-			f.peekrune = f.getrune()
-			if f.peekrune == '"' {
-				f.sym += "\""
+			m.peekrune = m.getrune()
+			if m.peekrune == tmp {
+				m.sym += string(tmp)
 			} else {
-				f.sym += string(c)
-				f.sym += string(f.peekrune)
+				m.sym += string(c)
+				m.sym += string(m.peekrune)
 			}
-			f.peekrune = ' '
+			m.peekrune = ' '
 			continue
 		}
-		if c == '"' {
+		if c == tmp {
 			break
 		}
-		f.sym += string(c)
+		m.sym += string(c)
 	}
-	yylval.token = f.sym
+	yylval.token = m.sym
 	yylval.tokenId = STRING_VALUE
+	return yylval.tokenId
+
+regexpstring:
+	m.sym = ""
+	for {
+		c = m.getrune()
+		if c == 0 {
+			return 0
+		}
+		if c == '\\' {
+			m.peekrune = m.getrune()
+			if m.peekrune == '/' {
+				m.sym += "/"
+			} else {
+				m.sym += string(c)
+				m.sym += string(m.peekrune)
+			}
+			m.peekrune = ' '
+			continue
+		}
+		if c == '/' {
+			break
+		}
+		m.sym += string(c)
+	}
+	yylval.regexp, err = regexp.Compile(m.sym)
+	if err != nil {
+		log.Printf("invalid regexp %v\n", m.sym)
+		return 0
+	}
+	yylval.token = m.sym
+	yylval.tokenId = REGEXP_VALUE
 	return yylval.tokenId
 }
 
@@ -376,85 +432,89 @@ func ddigit(c rune) bool {
 	return false
 }
 
-func (f *FilterSpecificationParser) getrune() rune {
+func (m *MatcherSpecificationParser) getrune() rune {
 	var c rune
 	var n int
 
-	if f.lexPos >= len(f.filter) {
+	if m.lexPos >= len(m.filter) {
 		return 0
 	}
-	c, n = utf8.DecodeRuneInString(f.filter[f.lexPos:len(f.filter)])
-	f.lexPos += n
+	c, n = utf8.DecodeRuneInString(m.filter[m.lexPos:len(m.filter)])
+	m.lexPos += n
 	if c == '\n' {
 		c = 0
 	}
 	return c
 }
 
+//line yacctab:1
 var yyExca = []int{
 	-1, 1,
 	1, -1,
 	-2, 0,
 }
 
-const yyNprod = 32
+const yyNprod = 36
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 53
+const yyLast = 77
 
 var yyAct = []int{
 
 	13, 14, 15, 16, 17, 18, 19, 20, 21, 10,
-	7, 39, 11, 12, 3, 24, 23, 2, 40, 22,
-	23, 25, 11, 12, 42, 41, 35, 28, 29, 30,
-	31, 32, 38, 27, 28, 29, 30, 31, 32, 26,
-	6, 36, 37, 24, 23, 5, 43, 4, 9, 33,
-	34, 8, 1,
+	7, 24, 23, 11, 12, 3, 11, 12, 2, 49,
+	22, 44, 25, 45, 47, 46, 43, 24, 23, 42,
+	38, 29, 30, 31, 32, 33, 34, 35, 23, 6,
+	5, 4, 40, 41, 9, 8, 1, 0, 0, 48,
+	28, 29, 30, 31, 32, 33, 34, 35, 28, 29,
+	30, 31, 32, 33, 26, 27, 0, 0, 0, 0,
+	0, 0, 0, 0, 36, 37, 39,
 }
 var yyPact = []int{
 
-	-12, -12, 33, -12, -1000, -1000, -1000, -1000, 29, 29,
-	22, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, 33, -12, -12, 5, -11, -1000, -1000, -1000,
-	-1000, -1000, -1000, -5, 2, -2, -1000, 9, -1000, -1000,
-	-1000, -1000, -1000, -1000,
+	-14, -14, 15, -14, -1000, -1000, -1000, -1000, 46, 54,
+	26, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, 15, -14, -14, -1, 2, -5, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, -2, 0, -11, -7,
+	-1000, 25, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 }
 var yyPgo = []int{
 
-	0, 52, 17, 39, 51, 48, 47, 45, 40, 10,
+	0, 46, 18, 64, 65, 45, 44, 41, 40, 39,
+	10,
 }
 var yyR1 = []int{
 
 	0, 1, 1, 3, 3, 3, 3, 3, 3, 4,
-	4, 4, 4, 4, 4, 5, 5, 5, 6, 7,
-	8, 8, 8, 9, 9, 2, 2, 2, 2, 2,
-	2, 2,
+	4, 5, 5, 5, 5, 5, 5, 6, 6, 6,
+	7, 7, 8, 9, 9, 9, 9, 10, 10, 2,
+	2, 2, 2, 2, 2, 2,
 }
 var yyR2 = []int{
 
 	0, 1, 2, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, 1, 1, 1, 1, 1, 1, 3, 3,
-	3, 3, 3, 1, 1, 3, 3, 3, 1, 1,
-	1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	3, 3, 3, 3, 3, 3, 3, 1, 1, 3,
+	3, 3, 1, 1, 1, 1,
 }
 var yyChk = []int{
 
-	-1000, -1, -2, 26, -6, -7, -8, -9, -4, -5,
-	21, 24, 25, 12, 13, 14, 15, 16, 17, 18,
-	19, 20, -2, 11, 10, -2, -3, 4, 5, 6,
-	7, 8, 9, -3, -3, 4, -2, -2, 27, 22,
-	23, 23, 22, -9,
+	-1000, -1, -2, 29, -7, -8, -9, -10, -5, -6,
+	23, 27, 28, 14, 15, 16, 17, 18, 19, 20,
+	21, 22, -2, 13, 12, -2, -3, -4, 4, 5,
+	6, 7, 8, 9, 10, 11, -3, -3, 4, -4,
+	-2, -2, 30, 24, 26, 25, 25, 24, -10, 26,
 }
 var yyDef = []int{
 
-	0, -2, 1, 0, 28, 29, 30, 31, 0, 0,
-	0, 23, 24, 9, 10, 11, 12, 13, 14, 15,
-	16, 17, 2, 0, 0, 0, 0, 3, 4, 5,
-	6, 7, 8, 0, 0, 3, 26, 27, 25, 18,
-	19, 20, 21, 22,
+	0, -2, 1, 0, 32, 33, 34, 35, 0, 0,
+	0, 27, 28, 11, 12, 13, 14, 15, 16, 17,
+	18, 19, 2, 0, 0, 0, 0, 0, 3, 4,
+	5, 6, 7, 8, 9, 10, 0, 0, 3, 0,
+	30, 31, 29, 20, 21, 22, 23, 24, 25, 26,
 }
 var yyTok1 = []int{
 
@@ -462,17 +522,19 @@ var yyTok1 = []int{
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	26, 27,
+	29, 30,
 }
 var yyTok2 = []int{
 
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 	12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-	22, 23, 24, 25,
+	22, 23, 24, 25, 26, 27, 28,
 }
 var yyTok3 = []int{
 	0,
 }
+
+//line yaccpar:1
 
 /*	parser for yacc output	*/
 
@@ -696,46 +758,67 @@ yydefault:
 	// dummy call; replaced with literal code
 	switch yynt {
 
-	case 18:
+	case 20:
+		//line message_matcher_parser.y:115
 		{
 			//fmt.Println("string_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
-	case 19:
+	case 21:
+		//line message_matcher_parser.y:120
+		{
+			//fmt.Println("string_test regexp", $1, $2, $3)
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+		}
+	case 22:
+		//line message_matcher_parser.y:126
 		{
 			//fmt.Println("numeric_test", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
-	case 20:
+	case 23:
+		//line message_matcher_parser.y:132
 		{
 			//fmt.Println("field_test numeric", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
-	case 21:
+	case 24:
+		//line message_matcher_parser.y:137
 		{
 			//fmt.Println("field_test string", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
-	case 22:
+	case 25:
+		//line message_matcher_parser.y:142
 		{
 			//fmt.Println("field_test boolean", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
 		}
-	case 25:
+	case 26:
+		//line message_matcher_parser.y:147
+		{
+			//fmt.Println("field_test regexp", $1, $2, $3)
+			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+		}
+	case 29:
+		//line message_matcher_parser.y:154
 		{
 			yyVAL = yyS[yypt-1]
 		}
-	case 26:
+	case 30:
+		//line message_matcher_parser.y:158
 		{
 			//fmt.Println("and", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
-	case 27:
+	case 31:
+		//line message_matcher_parser.y:163
 		{
 			//fmt.Println("or", $1, $2, $3)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
 		}
-	case 31:
+	case 35:
+		//line message_matcher_parser.y:171
 		{
 			//fmt.Println("boolean", $1)
 			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-0]}})

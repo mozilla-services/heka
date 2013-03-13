@@ -45,7 +45,6 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(InputsSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
-	r.AddSpec(FilterSpecificationSpec)
 	r.AddSpec(WhisperRunnerSpec)
 	r.AddSpec(WhisperOutputSpec)
 	gospec.MainGoTest(r, t)
@@ -71,4 +70,10 @@ func getTestMessage() *Message {
 
 func getTestPipelinePack() *PipelinePack {
 	return NewPipelinePack(&config)
+}
+
+func BenchmarkPipelinePackCreation(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewPipelinePack(&config)
+	}
 }

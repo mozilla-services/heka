@@ -45,14 +45,14 @@
         },
         "hekabench": {
             "type": "PassThruFilter",
-            "message_filter": "Type == \"hekabench\" && EnvVersion == \"0.8\"",
+            "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
             "outputs": ["counter"]
         },
         "lua_sandbox": {
             "type": "SandboxFilter",
-            "message_filter": "Type == \"hekabench\" && EnvVersion == \"0.8\"",
+            "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
             "outputs": ["LogFileOutput"],
-            "timer_setting" : 60,
+            "output_timer" : 60,
             "sandbox": {
                 "type" : "lua",
                 "filename" : "sandbox.lua",

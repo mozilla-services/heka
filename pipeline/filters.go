@@ -54,7 +54,6 @@ func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
 
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
-
 	go func() {
 		ok := true
 		var pack *PipelinePack

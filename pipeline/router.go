@@ -16,29 +16,31 @@
 package pipeline
 
 import (
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"runtime"
+	"strings"
 	"sync/atomic"
 )
 
 // Pushes the message onto the filters input channel if it is a match
 type MessageRouter struct {
 	InChan    chan *PipelinePack
-	fMatchers []*FilterSpecification
-	oMatchers []*FilterSpecification
+	fMatchers []*MatchRunner
+	oMatchers []*MatchRunner
 }
 
 func NewMessageRouter() (router *MessageRouter) {
 	router = new(MessageRouter)
 	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
-	router.fMatchers = make([]*FilterSpecification, 0, 10)
-	router.oMatchers = make([]*FilterSpecification, 0, 10)
+	router.fMatchers = make([]*MatchRunner, 0, 10)
+	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
 }
 
 func (self *MessageRouter) Start() {
 	go func() {
-		var fs *FilterSpecification
+		var matcher *MatchRunner
 		var ok bool
 		var pack *PipelinePack
 		for {
@@ -47,23 +49,65 @@ func (self *MessageRouter) Start() {
 			if !ok {
 				break
 			}
-			for _, fs = range self.fMatchers {
+			for _, matcher = range self.fMatchers {
 				atomic.AddInt32(&pack.RefCount, 1)
-				fs.inChan <- pack
+				matcher.inChan <- pack
 			}
-			for _, fs = range self.oMatchers {
+			for _, matcher = range self.oMatchers {
 				atomic.AddInt32(&pack.RefCount, 1)
-				fs.inChan <- pack
+				matcher.inChan <- pack
 			}
 			pack.Recycle()
 		}
-		for _, fs = range self.fMatchers {
-			close(fs.inChan)
+		for _, matcher = range self.fMatchers {
+			close(matcher.inChan)
 		}
-		for _, fs = range self.oMatchers {
-			close(fs.inChan)
+		for _, matcher = range self.oMatchers {
+			close(matcher.inChan)
 		}
 		log.Println("MessageRouter stopped.")
 	}()
 	log.Println("MessageRouter started.")
+}
+
+type MatchRunner struct {
+	spec   *message.MatcherSpecification
+	inChan chan *PipelinePack
+}
+
+func NewMatchRunner(filter string) (matcher *MatchRunner, err error) {
+	var spec *message.MatcherSpecification
+	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
+		return
+	}
+	matcher = &MatchRunner{
+		spec:   spec,
+		inChan: make(chan *PipelinePack, PIPECHAN_BUFSIZE),
+	}
+	return
+}
+
+func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				var err error
+				var ok bool
+				if err, ok = r.(error); !ok {
+					panic(r)
+				}
+				if !strings.Contains(err.Error(), "send on closed channel") {
+					panic(r)
+				}
+			}
+		}()
+
+		for pack := range mr.inChan {
+			if mr.spec.IsMatch(pack.Message) {
+				matchChan <- pack
+			} else {
+				pack.Recycle()
+			}
+		}
+	}()
 }

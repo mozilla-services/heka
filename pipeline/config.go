@@ -324,27 +324,27 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			runner.tickLength = time.Duration(tickLength) * time.Second
 		}
 
-		var fs *FilterSpecification
-		if matchText, ok := pluginConf["message_filter"]; ok {
+		var matcher *MatchRunner
+		if matchText, ok := pluginConf["message_matcher"]; ok {
 			matchStr := matchText.(string)
-			if fs, err = CreateFilterSpecification(matchStr); err != nil {
+			if matcher, err = NewMatchRunner(matchStr); err != nil {
 				self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
 					wrapper.name, err))
 				errcnt++
 				continue
 			}
-			runner.messageFilter = fs
+			runner.matcher = matcher
 		}
 
 		switch sectionName {
 		case "filters":
-			if fs != nil {
-				self.router.fMatchers = append(self.router.fMatchers, fs)
+			if matcher != nil {
+				self.router.fMatchers = append(self.router.fMatchers, matcher)
 			}
 			self.FilterRunners[runner.name] = runner
 		case "outputs":
-			if fs != nil {
-				self.router.oMatchers = append(self.router.oMatchers, fs)
+			if matcher != nil {
+				self.router.oMatchers = append(self.router.oMatchers, matcher)
 			}
 			self.OutputRunners[runner.name] = runner
 		}
@@ -394,6 +394,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 	if errcnt = self.loadSection("filters", configFile.Filters); errcnt != 0 {
 		return fmt.Errorf("%d errors loading filters", errcnt)
+
 	}
 
 	return
