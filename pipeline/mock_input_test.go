@@ -29,30 +29,20 @@ func (_m *MockInput) EXPECT() *_MockInputRecorder {
 	return _m.recorder
 }
 
-func (_m *MockInput) Name() string {
-	ret := _m.ctrl.Call(_m, "Name")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockInputRecorder) Name() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
-}
-
-func (_m *MockInput) SetName(_param0 string) {
-	_m.ctrl.Call(_m, "SetName", _param0)
-}
-
-func (_mr *_MockInputRecorder) SetName(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
-}
-
-func (_m *MockInput) Start(_param0 PluginHelper, _param1 *sync.WaitGroup) error {
-	ret := _m.ctrl.Call(_m, "Start", _param0, _param1)
+func (_m *MockInput) Start(_param0 InputRunner, _param1 PluginHelper, _param2 *sync.WaitGroup) error {
+	ret := _m.ctrl.Call(_m, "Start", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockInputRecorder) Start(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0, arg1)
+func (_mr *_MockInputRecorder) Start(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0, arg1, arg2)
+}
+
+func (_m *MockInput) Stop() {
+	_m.ctrl.Call(_m, "Stop")
+}
+
+func (_mr *_MockInputRecorder) Stop() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stop")
 }

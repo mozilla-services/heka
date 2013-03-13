@@ -13,6 +13,18 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline DecoderRunner
 
+# pipeline.InputRunner
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_inputrunner_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline InputRunner
+
+# pipeline.OutputRunner
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_outputrunner_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline OutputRunner
+
 # pipeline.Input
 $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_input_test.go \
@@ -37,3 +49,8 @@ $GOPATH/bin/mockgen -package=testsupport \
 $GOPATH/bin/mockgen -package=testsupport \
                     -destination=testsupport/mock_net_listener.go \
                     net Listener
+
+# net.Error
+$GOPATH/bin/mockgen -package=testsupport \
+                    -destination=testsupport/mock_net_error.go \
+                    net Error

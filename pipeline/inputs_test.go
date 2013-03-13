@@ -31,6 +31,7 @@ type InputTestHelper struct {
 	AddrStr         string
 	ResolvedAddrStr string
 	MockHelper      *MockPluginHelper
+	MockInputRunner *MockInputRunner
 	Decoders        []DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
@@ -51,10 +52,11 @@ func InputsSpec(c gs.Context) {
 
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = NewMockPluginHelper(ctrl)
+	ith.MockInputRunner = NewMockInputRunner(ctrl)
 	ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
 	ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
 	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
-	ith.PackSupply = make(chan *PipelinePack)
+	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A UdpInput", func() {
@@ -75,22 +77,18 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			newDecoderSet := ith.MockHelper.EXPECT().NewDecoderSet()
-			newDecoderSet.Return(ith.Decoders)
-			ith.MockHelper.EXPECT().PackSupply().Return(ith.PackSupply)
-			ith.MockHelper.EXPECT().StopChan()
-
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
 			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
 			readCall.Return(len(msgJson), nil)
 			readCall.Do(putMsgJsonInBytes)
 
 			mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
-			inChanCall := mockDecoderRunner.EXPECT().InChan()
-			inChanCall.Return(ith.DecodeChan)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
 
 			// start the input
 			var wg sync.WaitGroup
-			udpInput.Start(ith.MockHelper, &wg)
+			udpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
@@ -127,12 +125,15 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from its connection", func() {
-			newDecoderSet := ith.MockHelper.EXPECT().NewDecoderSet()
-			newDecoderSet.Return(ith.Decoders)
-			ith.MockHelper.EXPECT().PackSupply().Return(ith.PackSupply)
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
 
-			acceptCall := mockListener.EXPECT().Accept()
-			acceptCall.Return(mockConnection, nil)
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
 
 			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
 			err = errors.New("connection closed")
@@ -141,11 +142,14 @@ func InputsSpec(c gs.Context) {
 			readCall.Do(putPayloadInBytes)
 
 			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
-			inChanCall := mockDecoderRunner.EXPECT().InChan()
-			inChanCall.Return(ith.DecodeChan)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
 			// start the input
-			tcpInput.listenForConnection(ith.MockHelper)
+			var wg sync.WaitGroup
+			wg.Add(1)
+			ith.MockInputRunner.EXPECT().Name().Return("test TcpInput")
+			tcpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)

@@ -13,15 +13,13 @@
     "outputs": [
         {"type": "LogOutput"}
     ],
-    "filters": {
-        "default": {
-            "type" : "StatFilter",
-            "outputs": ["LogOutput"]
-        },
-        "sample": {
+    "filters": [
+        {"name": "default", "type" : "StatFilter", "outputs": ["LogOutput"]},
+        {
+            "name": "sample",
             "type": "StatFilter",
             "message_filter": "Type == \"counter\" || Type == \"gauge\"",
             "outputs": ["LogOutput"]
         }
-    }
+    ]
 }

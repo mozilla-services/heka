@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -83,6 +84,12 @@ func WhisperOutputSpec(c gospec.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	oth := new(OutputTestHelper)
+	oth.MockHelper = NewMockPluginHelper(ctrl)
+	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
+	var wg sync.WaitGroup
+	inChan := make(chan *PipelinePack, 1)
+
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
 		config := o.ConfigStruct()
@@ -93,7 +100,7 @@ func WhisperOutputSpec(c gospec.Context) {
 		baseTime := time.Now().UTC().Add(-10 * time.Second)
 		nameTmpl := "stats.name.%d"
 
-		inChan := make(chan *whisper.Point, count)
+		wChan := make(chan *whisper.Point, count)
 		mockWr := NewMockWhisperRunner(ctrl)
 
 		for i := 0; i < count; i++ {
@@ -105,14 +112,35 @@ func WhisperOutputSpec(c gospec.Context) {
 
 		pack := getTestPipelinePack()
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
+		pack.Config.RecycleChan = make(chan *PipelinePack, 1) // don't block on recycle
 
 		c.Specify("turns statmetric lines into points", func() {
-			inChanCall := mockWr.EXPECT().InChan().Times(count)
+			inChanCall := oth.MockOutputRunner.EXPECT().InChan()
 			inChanCall.Return(inChan)
-			o.Deliver(pack)
+			wChanCall := mockWr.EXPECT().InChan().Times(count)
+			wChanCall.Return(wChan)
+
+			wg.Add(1)
+			o.Start(oth.MockOutputRunner, oth.MockHelper, &wg)
+			inChan <- pack
+
+			// Usually each wChan will be unique instead of shared across
+			// multiple whisper runners. This weird dance here prevents our
+			// mock wChan from being closed multiple times.
+			bogusChan := make(chan *whisper.Point)
+			wChanCall = mockWr.EXPECT().InChan().Times(count)
+			wChanCall.Return(bogusChan)
+			wChanCall.Do(func() {
+				wChanCall.Return(make(chan *whisper.Point))
+			})
+
+			oth.MockOutputRunner.EXPECT().Name()
 			close(inChan)
+			<-bogusChan // wait for inChan to flush
+			close(wChan)
+
 			i := 0
-			for pt := range inChan {
+			for pt := range wChan {
 				statTime := baseTime.Add(time.Duration(i) * time.Second)
 				c.Expect(pt.Value, gs.Equals, float64(i*2))
 				c.Expect(pt.Time().UTC().Unix(), gs.Equals, statTime.Unix())
