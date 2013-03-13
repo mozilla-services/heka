@@ -9,7 +9,6 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
-*   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
