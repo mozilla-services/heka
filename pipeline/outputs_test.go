@@ -267,6 +267,7 @@ func OutputsSpec(c gs.Context) {
 
 			oth.MockOutputRunner.EXPECT().Name().Return("test TcpOutput")
 			close(inChan)
+			wg.Wait() // wait for close to finish, prevents intermittent test failures
 
 			matchBytes := make([]byte, 0, 1000)
 			err = createProtobufStream(pack, &matchBytes)
@@ -274,23 +275,6 @@ func OutputsSpec(c gs.Context) {
 
 			result = <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
-
-			// buf := []byte(result)
-
-			// header := new(message.Header)
-			// matchPack := getTestPipelinePack()
-			// matchPack.Message = getTestMessage()
-			// matchPack.MsgBytes = make([]byte, 0, 1000)
-
-			// pos, _ := findMessage(buf, header, &matchPack.MsgBytes)
-			// fmt.Println("pos: ", pos)
-			// fmt.Println(string(matchPack.MsgBytes))
-			// //err = proto.Unmarshal(msgBytes, matchMsg)
-
-			// decoder := new(ProtobufDecoder)
-			// err = decoder.Decode(pack)
-			// c.Expect(err, gs.IsNil)
-			// c.Expect(matchPack.Message.GetPayload(), gs.Equals, outStr)
 		})
 	})
 }
