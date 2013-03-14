@@ -34,14 +34,19 @@ type OutputTestHelper struct {
 	MockOutputRunner *MockOutputRunner
 }
 
+func NewOutputTestHelper(ctrl *gomock.Controller) (oth *OutputTestHelper) {
+	oth = new(OutputTestHelper)
+	oth.MockHelper = NewMockPluginHelper(ctrl)
+	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
+	return
+}
+
 func OutputsSpec(c gs.Context) {
 	t := new(ts.SimpleT)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	oth := new(OutputTestHelper)
-	oth.MockHelper = NewMockPluginHelper(ctrl)
-	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
+	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
 	inChan := make(chan *PipelinePack, 1)
 
