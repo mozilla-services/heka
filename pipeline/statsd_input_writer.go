@@ -79,23 +79,26 @@ func (s *StatsdInput) Init(config interface{}) error {
 	s.flushInterval = conf.FlushInterval
 	s.percentThreshold = conf.PercentThreshold
 
-	udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
-	if err != nil {
-		return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
-	}
-	s.listener, err = net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+	if conf.Address != "" {
+		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+		if err != nil {
+			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
+		}
+		s.listener, err = net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+		}
 	}
 	return nil
 }
 
-func (s *StatsdInput) Run(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, ir.Name())
-	go sm.Monitor(packets)
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir.Name())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go sm.Monitor(packets, &wg)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
@@ -121,6 +124,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper,
 		}
 		close(packets) // shut down the StatMonitor
 	}
+	wg.Wait()
 	return
 }
 
@@ -165,11 +169,10 @@ type statMonitor struct {
 	percentThreshold int
 	flushInterval    int64
 	inputName        string
-	wg               *sync.WaitGroup
 }
 
 func NewStatMonitor(percentThreshold int, flushInterval int64,
-	wg *sync.WaitGroup, inputName string) *statMonitor {
+	inputName string) *statMonitor {
 	return &statMonitor{
 		counters:         make(map[string]int),
 		timers:           make(map[string][]float64),
@@ -177,16 +180,13 @@ func NewStatMonitor(percentThreshold int, flushInterval int64,
 		percentThreshold: percentThreshold,
 		flushInterval:    flushInterval,
 		inputName:        inputName,
-		wg:               wg,
 	}
 }
 
-func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
+func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 	var s StatPacket
 	var floatValue float64
 	var intValue int
-
-	sm.wg.Add(1)
 
 	t := time.Tick(time.Duration(sm.flushInterval) * time.Second)
 	ok := true
@@ -213,7 +213,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
 		}
 	}
 	log.Println("StatsdMonitor for input stopped: ", sm.inputName)
-	sm.wg.Done()
+	wg.Done()
 }
 
 func (sm *statMonitor) Flush() {

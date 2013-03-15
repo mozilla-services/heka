@@ -68,7 +68,7 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		}()
 
 		// ir.Input().Run() shouldn't return unless error or shutdown
-		if err = ir.Input().Run(ir, h, wg); err != nil {
+		if err = ir.Input().Run(ir, h); err != nil {
 			err = fmt.Errorf("Input '%s' error : %s", ir.name, err)
 		} else {
 			ir.LogMessage("stopped")
@@ -87,7 +87,7 @@ func (ir *iRunner) LogMessage(msg string) {
 
 // Input plugin interface type
 type Input interface {
-	Run(ir InputRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Run(ir InputRunner, h PluginHelper) (err error)
 	Stop()
 }
 
@@ -136,9 +136,7 @@ func (self *UdpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *UdpInput) Run(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	decoders := h.DecodersByEncoding()
 	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
 	if decoder == nil {
@@ -319,9 +317,7 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *TcpInput) Run(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	self.ir = ir
 	self.h = h
 	self.stopChan = make(chan bool)
@@ -421,9 +417,7 @@ func (self *MessageGeneratorInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
 	var msgHolder *messageHolder
 	var outMsg outputMsg
