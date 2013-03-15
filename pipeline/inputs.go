@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -149,9 +150,10 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper,
 	var pack *PipelinePack
 	for !self.stopped {
 		pack = <-ir.InChan()
-		n, e = self.listener.Read(pack.MsgBytes)
-		if e != nil {
-			ir.LogError(fmt.Errorf("Read error: ", e))
+		if n, e = self.listener.Read(pack.MsgBytes); e != nil {
+			if !strings.Contains(e.Error(), "use of closed") {
+				ir.LogError(fmt.Errorf("Read error: ", e))
+			}
 			pack.Recycle()
 			continue
 		}
@@ -169,6 +171,7 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper,
 
 func (self *UdpInput) Stop() {
 	self.stopped = true
+	self.listener.Close()
 }
 
 // TCP Input
