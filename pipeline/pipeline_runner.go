@@ -51,6 +51,7 @@ type PluginRunner interface {
 	SetName(name string)
 	Plugin() Plugin
 	LogError(err error)
+	LogMessage(msg string)
 }
 
 // Base struct for the specialized PluginRunners
@@ -122,6 +123,10 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 
 func (foRunner *foRunner) LogError(err error) {
 	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
+}
+
+func (foRunner *foRunner) LogMessage(msg string) {
+	log.Printf("Plugin '%s': %s", foRunner.name, msg)
 }
 
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {

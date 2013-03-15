@@ -4,9 +4,9 @@
 package pipeline
 
 import (
+	time "time"
 	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
-	time "time"
 )
 
 // Mock of OutputRunner interface
@@ -46,6 +46,14 @@ func (_m *MockOutputRunner) LogError(_param0 error) {
 
 func (_mr *_MockOutputRunnerRecorder) LogError(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogError", arg0)
+}
+
+func (_m *MockOutputRunner) LogMessage(_param0 string) {
+	_m.ctrl.Call(_m, "LogMessage", _param0)
+}
+
+func (_mr *_MockOutputRunnerRecorder) LogMessage(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogMessage", arg0)
 }
 
 func (_m *MockOutputRunner) Name() string {

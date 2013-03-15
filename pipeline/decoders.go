@@ -66,6 +66,10 @@ func (dr *dRunner) LogError(err error) {
 	log.Printf("Decoder '%s' error: %s", dr.name, err)
 }
 
+func (dr *dRunner) LogMessage(msg string) {
+	log.Printf("Decoder '%s': %s", dr.name, msg)
+}
+
 type Decoder interface {
 	Decode(pack *PipelinePack) error
 }

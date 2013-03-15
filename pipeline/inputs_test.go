@@ -88,7 +88,9 @@ func InputsSpec(c gs.Context) {
 
 			// start the input
 			var wg sync.WaitGroup
-			udpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			go func() {
+				udpInput.Run(ith.MockInputRunner, ith.MockHelper, &wg)
+			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
@@ -148,8 +150,9 @@ func InputsSpec(c gs.Context) {
 			// start the input
 			var wg sync.WaitGroup
 			wg.Add(1)
-			ith.MockInputRunner.EXPECT().Name().Return("test TcpInput")
-			tcpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper, &wg)
+			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)

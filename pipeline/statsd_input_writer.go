@@ -90,7 +90,7 @@ func (s *StatsdInput) Init(config interface{}) error {
 	return nil
 }
 
-func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
+func (s *StatsdInput) Run(ir InputRunner, h PluginHelper,
 	wg *sync.WaitGroup) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
@@ -99,37 +99,29 @@ func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
-		go func() {
-			var n int
-			var err error
-			defer s.listener.Close()
-			timeout := time.Duration(time.Millisecond * 100)
+		var n int
+		var e error
+		defer s.listener.Close()
+		timeout := time.Duration(time.Millisecond * 100)
 
-			for !s.stopped {
-				message := make([]byte, 512)
-				s.listener.SetReadDeadline(time.Now().Add(timeout))
-				n, _, err = s.listener.ReadFromUDP(message)
-				if err != nil || n == 0 {
-					continue
-				}
-				if s.stopped {
-					// If we're stopping, use synchronous call so we don't
-					// close the channel too soon.
-					s.handleMessage(message[:n])
-				} else {
-					go s.handleMessage(message[:n])
-				}
+		for !s.stopped {
+			message := make([]byte, 512)
+			s.listener.SetReadDeadline(time.Now().Add(timeout))
+			n, _, e = s.listener.ReadFromUDP(message)
+			if e != nil || n == 0 {
+				continue
 			}
-			close(packets) // shut down the StatMonitor
-			log.Println("StatsdUdpInput for input stopped: ", ir.Name())
-			wg.Done()
-		}()
-	} else {
-		// In this case, the monitor already incremented for itself, so we
-		// decrement here since we didn't need it.
-		wg.Done()
+			if s.stopped {
+				// If we're stopping, use synchronous call so we don't
+				// close the channel too soon.
+				s.handleMessage(message[:n])
+			} else {
+				go s.handleMessage(message[:n])
+			}
+		}
+		close(packets) // shut down the StatMonitor
 	}
-	return nil
+	return
 }
 
 func (s *StatsdInput) Stop() {
