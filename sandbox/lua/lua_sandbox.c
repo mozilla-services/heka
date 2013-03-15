@@ -434,14 +434,13 @@ int lua_sandbox_process_message(lua_sandbox* lsb)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int lua_sandbox_timer_event(lua_sandbox* lsb)
+int lua_sandbox_timer_event(lua_sandbox* lsb, long long ns)
 {
     if (lsb == NULL || lsb->m_lua == NULL) {
         return 1;
     }
 
-    lua_sethook(lsb->m_lua, sandbox_instruction_manager,
-                LUA_MASKCOUNT,
+    lua_sethook(lsb->m_lua, sandbox_instruction_manager, LUA_MASKCOUNT,
                 lsb->m_instruction_limit);
     lua_getglobal(lsb->m_lua, "timer_event");
     if (!lua_isfunction(lsb->m_lua, -1)) {
@@ -451,7 +450,8 @@ int lua_sandbox_timer_event(lua_sandbox* lsb)
         return 1;
     }
 
-    if (lua_pcall(lsb->m_lua, 0, 0, 0) != 0) {
+    lua_pushnumber(lsb->m_lua, ns);
+    if (lua_pcall(lsb->m_lua, 1, 0, 0) != 0) {
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "timer_event() -> %s",
                  lua_tostring(lsb->m_lua, -1));

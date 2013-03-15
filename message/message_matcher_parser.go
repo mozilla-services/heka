@@ -136,12 +136,12 @@ const yyErrCode = 2
 const yyMaxDepth = 200
 
 //line message_matcher_parser.y:177
-
 type MatcherSpecificationParser struct {
 	spec     string
 	sym      string
 	peekrune rune
 	lexPos   int
+	reToken  *regexp.Regexp
 }
 
 func parseMatcherSpecification(ms *MatcherSpecification) error {
@@ -151,6 +151,7 @@ func parseMatcherSpecification(ms *MatcherSpecification) error {
 	var msp MatcherSpecificationParser
 	msp.spec = ms.spec
 	msp.peekrune = ' '
+	msp.reToken, _ = regexp.Compile("%[A-Z]+%")
 	if yyParse(&msp) == 0 {
 		s := new(stack)
 		for _, node := range nodes {
@@ -402,6 +403,14 @@ regexpstring:
 		}
 		m.sym += string(c)
 	}
+	m.sym = m.reToken.ReplaceAllStringFunc(m.sym,
+		func(match string) string {
+			replace, ok := HelperRegexSubs[match[1:len(match)-1]]
+			if !ok {
+				return match
+			}
+			return replace
+		})
 	yylval.regexp, err = regexp.Compile(m.sym)
 	if err != nil {
 		log.Printf("invalid regexp %v\n", m.sym)

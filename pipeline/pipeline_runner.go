@@ -93,11 +93,13 @@ type foRunner struct {
 	matcher    *MatchRunner
 	tickLength time.Duration
 	ticker     <-chan time.Time
+	matchChan  chan *PipelineCapture
 }
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
 	runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	runner.matchChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
 	return
 }
 
@@ -115,7 +117,7 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	if err != nil {
 		err = fmt.Errorf("Plugin '%s' failed to start: %s", foRunner.name, err)
 	} else if foRunner.matcher != nil {
-		foRunner.matcher.Start(foRunner.inChan)
+		foRunner.matcher.Start(foRunner.matchChan)
 	}
 	return
 }
@@ -128,12 +130,21 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
 }
 
+func (foRunner *foRunner) MatchChan() (matchChan chan *PipelineCapture) {
+	return foRunner.matchChan
+}
+
 type PipelinePack struct {
 	MsgBytes []byte
 	Message  *message.Message
 	Config   *PipelineConfig
 	Decoded  bool
 	RefCount int32
+}
+
+type PipelineCapture struct {
+	Pack     *PipelinePack
+	Captures map[string]string
 }
 
 func NewPipelinePack(config *PipelineConfig) (pack *PipelinePack) {
@@ -251,12 +262,14 @@ func Run(config *PipelineConfig) {
 
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
+		close(filter.MatchChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
 		close(output.InChan())
+		close(output.MatchChan())
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()

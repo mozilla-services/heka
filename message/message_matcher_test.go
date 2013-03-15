@@ -32,6 +32,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	msg := getTestMessage()
 	uuidStr := msg.GetUuidString()
 	data := []byte("data")
+	date := "Mon Jan 02 15:04:05 -0700 2006"
 	field1, _ := NewField("bytes", data, Field_RAW)
 	field2, _ := NewField("int", int64(999), Field_RAW)
 	field2.AddValue(int64(1024))
@@ -39,12 +40,14 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	field4, _ := NewField("bool", true, Field_RAW)
 	field5, _ := NewField("foo", "alternate", Field_RAW)
 	field6, _ := NewField("Payload", "name=test;type=web;", Field_RAW)
+	field7, _ := NewField("Timestamp", date, Field_RAW)
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
 	msg.AddField(field4)
 	msg.AddField(field5)
 	msg.AddField(field6)
+	msg.AddField(field7)
 
 	c.Specify("A MatcherSpecification", func() {
 		malformed := []string{
@@ -150,6 +153,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 		capture := []captureTest{
 			{"Type =~ /(ST)/", map[string]string{"Type(1)": "ST"}},
 			{"Payload =~ /(?P<pl>Payload)/ && Fields[Payload] =~ /name=(?P<name>\\w+)/", map[string]string{"pl": "Payload", "name": "test"}},
+			{"Fields[Timestamp] =~ /%TIMESTAMP%/", map[string]string{"Timestamp": date}},
 		}
 
 		captureNegative := []captureTest{
