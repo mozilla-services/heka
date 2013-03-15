@@ -137,10 +137,11 @@ const yyMaxDepth = 200
 
 //line message_matcher_parser.y:177
 type MatcherSpecificationParser struct {
-	filter   string
+	spec     string
 	sym      string
 	peekrune rune
 	lexPos   int
+	reToken  *regexp.Regexp
 }
 
 func parseMatcherSpecification(ms *MatcherSpecification) error {
@@ -148,13 +149,17 @@ func parseMatcherSpecification(ms *MatcherSpecification) error {
 	defer parseLock.Unlock()
 	nodes = nodes[:0] // reset the global
 	var msp MatcherSpecificationParser
-	msp.filter = ms.filter
+	msp.spec = ms.spec
 	msp.peekrune = ' '
+	msp.reToken, _ = regexp.Compile("%[A-Z]+%")
 	if yyParse(&msp) == 0 {
 		s := new(stack)
 		for _, node := range nodes {
 			if node.stmt.op.tokenId != OP_OR &&
 				node.stmt.op.tokenId != OP_AND {
+				if node.stmt.op.tokenId == OP_RE { // no capture for negated regex
+					ms.numCapture += node.stmt.value.regexp.NumSubexp()
+				}
 				s.push(node)
 			} else {
 				node.right = s.pop()
@@ -398,6 +403,14 @@ regexpstring:
 		}
 		m.sym += string(c)
 	}
+	m.sym = m.reToken.ReplaceAllStringFunc(m.sym,
+		func(match string) string {
+			replace, ok := HelperRegexSubs[match[1:len(match)-1]]
+			if !ok {
+				return match
+			}
+			return replace
+		})
 	yylval.regexp, err = regexp.Compile(m.sym)
 	if err != nil {
 		log.Printf("invalid regexp %v\n", m.sym)
@@ -436,10 +449,10 @@ func (m *MatcherSpecificationParser) getrune() rune {
 	var c rune
 	var n int
 
-	if m.lexPos >= len(m.filter) {
+	if m.lexPos >= len(m.spec) {
 		return 0
 	}
-	c, n = utf8.DecodeRuneInString(m.filter[m.lexPos:len(m.filter)])
+	c, n = utf8.DecodeRuneInString(m.spec[m.lexPos:len(m.spec)])
 	m.lexPos += n
 	if c == '\n' {
 		c = 0
