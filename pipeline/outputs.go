@@ -31,6 +31,7 @@ import (
 
 type OutputRunner interface {
 	PluginRunner
+	MatchChan() chan *PipelineCapture
 	Output() Output
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
@@ -55,23 +56,51 @@ func (self *LogOutput) Init(config interface{}) (err error) {
 func (self *LogOutput) Start(or OutputRunner, h PluginHelper,
 	wg *sync.WaitGroup) (err error) {
 
+	inChan := or.InChan()
+	matchChan := or.MatchChan()
+
 	go func() {
-		var msg *message.Message
-		for pack := range or.InChan() {
-			msg = pack.Message
-			if self.payloadOnly {
-				log.Printf(msg.GetPayload())
-			} else {
-				log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d"+
-					"\n\tUUID: %s"+
-					"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
-					"\tFields: %+v\n>\n",
-					time.Unix(0, msg.GetTimestamp()),
-					msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-					msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-					msg.GetSeverity(), msg.Fields)
+		var (
+			inOk, matchOk = true, true
+			pack          *PipelinePack
+			plc           *PipelineCapture
+			msg           *message.Message
+			captures      map[string]string
+		)
+		for inOk || matchOk {
+			pack = nil
+			captures = nil
+			select {
+			case pack, inOk = <-inChan:
+			case plc, matchOk = <-matchChan:
+				if matchOk {
+					pack = plc.Pack
+					captures = plc.Captures
+				}
 			}
-			pack.Recycle()
+			if pack != nil {
+				msg = pack.Message
+				if self.payloadOnly {
+					log.Printf(msg.GetPayload())
+				} else {
+					log.Printf("<\n\tTimestamp: %s\n"+
+						"\tType: %s\n"+
+						"\tHostname: %s\n"+
+						"\tPid: %d\n"+
+						"\tUUID: %s\n"+
+						"\tLogger: %s\n"+
+						"\tPayload: %s\n"+
+						"\tEnvVersion: %s\n"+
+						"\tSeverity: %d\n"+
+						"\tFields: %+v\n"+
+						"\tCaptures: %v\n>\n",
+						time.Unix(0, msg.GetTimestamp()), msg.GetType(),
+						msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+						msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+						msg.GetSeverity(), msg.Fields, captures)
+				}
+				pack.Recycle()
+			}
 		}
 		log.Printf("LogOutput '%s' stopped.", or.Name())
 		wg.Done()

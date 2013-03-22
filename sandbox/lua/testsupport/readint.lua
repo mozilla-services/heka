@@ -4,6 +4,5 @@ function process_message ()
 end
 
 function timer_event()
-    return 0
 end
 

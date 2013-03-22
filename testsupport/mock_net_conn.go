@@ -4,8 +4,8 @@
 package testsupport
 
 import (
-	net "net"
 	gomock "code.google.com/p/gomock/gomock"
+	net "net"
 	time "time"
 )
 

@@ -48,6 +48,16 @@ func (_mr *_MockOutputRunnerRecorder) LogError(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogError", arg0)
 }
 
+func (_m *MockOutputRunner) MatchChan() chan *PipelineCapture {
+	ret := _m.ctrl.Call(_m, "MatchChan")
+	ret0, _ := ret[0].(chan *PipelineCapture)
+	return ret0
+}
+
+func (_mr *_MockOutputRunnerRecorder) MatchChan() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MatchChan")
+}
+
 func (_m *MockOutputRunner) Name() string {
 	ret := _m.ctrl.Call(_m, "Name")
 	ret0, _ := ret[0].(string)

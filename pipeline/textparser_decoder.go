@@ -25,6 +25,8 @@ import (
 
 var varMatcher *regexp.Regexp
 
+type MatchSet map[string]string
+
 type TextParserDecoderConfig struct {
 	SeverityMap     map[string]int32
 	MessageFields   MatchSet

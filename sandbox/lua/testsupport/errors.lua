@@ -41,5 +41,4 @@ elseif msg == "inject_message() incorrect arg type" then
 end
 
 function timer_event()
-    return
 end

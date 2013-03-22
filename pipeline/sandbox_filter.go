@@ -23,14 +23,6 @@ import (
 	"sync"
 )
 
-func defaultOutput(s string) {
-	log.Println(s)
-}
-
-func defaultInjectMessage(s string) {
-	log.Println(s)
-}
-
 type SandboxFilterConfig struct {
 	Sbc sandbox.SandboxConfig `json:"sandbox"`
 }
@@ -61,8 +53,27 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 	err = this.sb.Init()
-	this.SetOutput(defaultOutput)
-	this.SetInjectMessage(defaultInjectMessage)
+
+	this.sb.Output(func(s string) {
+		log.Println(s)
+		///@todo waiting on output refactor since we no longer have the output list
+		// msg := MessageGenerator.Retrieve()
+		// msg.Message.SetType("heka_filter")
+		// msg.Message.SetLogger(this.sbc.ScriptFilename)
+		// msg.Message.SetPayload(s)
+		// for _, name := range todoOutputs {
+		// 	MessageGenerator.Output(name, msg)
+		// }
+	})
+
+	this.sb.InjectMessage(func(s string) {
+		msg := MessageGenerator.Retrieve()
+		msg.Message.SetType("heka.lua_sandbox")
+		msg.Message.SetLogger(this.sbc.ScriptFilename)
+		msg.Message.SetPayload(s)
+		MessageGenerator.Inject(msg)
+	})
+
 	return err
 }
 
@@ -71,27 +82,46 @@ func (this *SandboxFilter) Start(fr FilterRunner, h PluginHelper,
 
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
+	matchChan := fr.MatchChan()
 
 	go func() {
-		ok := true
-		var pack *PipelinePack
-		var retval int
-		for ok {
+		var (
+			inOk, matchOk, terminated = true, true, false
+			pack                      *PipelinePack
+			plc                       *PipelineCapture
+			captures                  map[string]string
+			retval                    int
+		)
+		for (inOk || matchOk) && !terminated {
+			pack = nil
+			captures = nil
 			select {
-			case pack, ok = <-inChan:
-				if !ok {
-					break
+			case pack, inOk = <-inChan:
+			case plc, matchOk = <-matchChan:
+				if matchOk {
+					pack = plc.Pack
+					captures = plc.Captures
 				}
-				if retval = this.sb.ProcessMessage(pack.Message); retval != 0 {
+			case t := <-ticker:
+				if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 					fr.LogError(fmt.Errorf(
-						"Sandbox ProcessMessage error code: %d", retval))
+						"Sandbox TimerEvent error code: %d, error message: %s",
+						retval, this.sb.LastError()))
+					if this.sb.Status() == sandbox.STATUS_TERMINATED {
+						terminated = true
+					}
+				}
+			}
+			if pack != nil {
+				if retval = this.sb.ProcessMessage(pack.Message, captures); retval != 0 {
+					fr.LogError(fmt.Errorf(
+						"Sandbox ProcessMessage error code: %d, error message: %s",
+						retval, this.sb.LastError()))
+					if this.sb.Status() == sandbox.STATUS_TERMINATED {
+						terminated = true
+					}
 				}
 				pack.Recycle()
-			case <-ticker:
-				if retval = this.sb.TimerEvent(); retval != 0 {
-					fr.LogError(fmt.Errorf(
-						"Sandbox TimerEvent error code: %d", retval))
-				}
 			}
 		}
 		this.sb.Destroy()
@@ -100,12 +130,4 @@ func (this *SandboxFilter) Start(fr FilterRunner, h PluginHelper,
 		wg.Done()
 	}()
 	return
-}
-
-func (this *SandboxFilter) SetOutput(f func(s string)) {
-	this.sb.Output(f)
-}
-
-func (this *SandboxFilter) SetInjectMessage(f func(s string)) {
-	this.sb.InjectMessage(f)
 }

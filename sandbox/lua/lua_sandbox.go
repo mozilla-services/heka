@@ -127,10 +127,18 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 				unsafe.Pointer(lsb.msg.Severity), 0
 		default:
 			l := len(fieldName)
-			if l > 0 && fieldName[l-1] == ']' &&
-				strings.Contains(fieldName, "Fields[") {
-				t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
-				return t, p, l
+			if l > 0 && fieldName[l-1] == ']' {
+				if strings.HasPrefix(fieldName, "Fields[") {
+					t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
+					return t, p, l
+				} else if strings.HasPrefix(fieldName, "Captures[") {
+					value, ok := lsb.captures[fieldName[9:l-1]]
+					if ok {
+						cs := C.CString(value) // freed by the caller
+						return int(message.Field_STRING), unsafe.Pointer(cs),
+							len(value)
+					}
+				}
 			}
 		}
 	}
@@ -152,6 +160,7 @@ func go_lua_inject_message(ptr unsafe.Pointer, c *C.char) {
 type LuaSandbox struct {
 	lsb           *C.lua_sandbox
 	msg           *message.Message
+	captures      map[string]string
 	output        func(s string)
 	injectMessage func(s string)
 }
@@ -203,15 +212,18 @@ func (this *LuaSandbox) Instructions(usage int) uint {
 	return uint(C.lua_sandbox_instructions(this.lsb, C.sandbox_usage(usage)))
 }
 
-func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
+func (this *LuaSandbox) ProcessMessage(msg *message.Message,
+	captures map[string]string) int {
 	this.msg = msg
+	this.captures = captures
 	r := int(C.lua_sandbox_process_message(this.lsb))
+	this.captures = nil
 	this.msg = nil
 	return r
 }
 
-func (this *LuaSandbox) TimerEvent() int {
-	return int(C.lua_sandbox_timer_event(this.lsb))
+func (this *LuaSandbox) TimerEvent(ns int64) int {
+	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
 }
 
 func (this *LuaSandbox) Output(f func(s string)) {
