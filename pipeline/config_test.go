@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
@@ -37,44 +38,37 @@ func LoadFromConfigSpec(c gs.Context) {
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
 
-			// and the default decoder is loaded
-			c.Expect(pipeConfig.DefaultDecoder, gs.Equals, "JsonDecoder")
+			// and the decoders are loaded for the right encoding headers
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
+				gs.Equals, "JsonDecoder")
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
+				gs.Equals, "ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name
-			_, ok := pipeConfig.Inputs["udp_stats"]
+			_, ok := pipeConfig.InputRunners["udp_stats"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the decoders section loads
-			_, ok = pipeConfig.Decoders[pipeConfig.DefaultDecoder]
+			// and the decoders sections load
+			_, ok = pipeConfig.DecoderWrappers["JsonDecoder"]
+			c.Expect(ok, gs.Equals, true)
+			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the outputs section loads
-			_, ok = pipeConfig.Outputs["CounterOutput"]
+			_, ok = pipeConfig.OutputRunners["LogOutput"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the non-default chain loaded
-			sampleSection, ok := pipeConfig.FilterChains["sample"]
+			// and the filters sections loads
+			_, ok = pipeConfig.FilterRunners["sample"]
 			c.Expect(ok, gs.Equals, true)
-
-			// and the non-default section has the right filter/outputs
-			c.Assume(sampleSection, gs.Not(gs.IsNil))
-			c.Expect(len(sampleSection.Outputs), gs.Equals, 1)
-
-			// and the message lookup is set properly
-			filterName, ok := pipeConfig.Lookup.MessageType["counter"]
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(filterName[0], gs.Equals, "sample")
-
-			// and the second message lookup is set properly
-			filterName, ok = pipeConfig.Lookup.MessageType["gauge"]
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(filterName[0], gs.Equals, "sample")
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.json")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "Unable to plugin init: Resolve")
+			c.Expect(err.Error(), ts.StringContains, "1 errors loading inputs")
+			msg := pipeConfig.logMsgs[0]
+			c.Expect(msg, ts.StringContains, "'udp_stats': ResolveUDPAddr failed")
 		})
 
 		c.Specify("handles missing config file correctly", func() {
@@ -87,7 +81,9 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Specify("errors correctly w/ bad outputs config", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_outputs.json")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "Error reading outputs: No such plugin")
+			c.Expect(err.Error(), ts.StringContains, "1 errors loading outputs")
+			msg := pipeConfig.logMsgs[0]
+			c.Expect(msg, ts.StringContains, "No such plugin")
 		})
 	})
 }

@@ -11,6 +11,12 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
+/*
+
+Several support structures for use with gospec to ease test comparisons.
+
+*/
 package testsupport
 
 import (

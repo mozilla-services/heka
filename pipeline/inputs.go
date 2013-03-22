@@ -15,15 +15,17 @@
 package pipeline
 
 import (
+	"bytes"
+	"code.google.com/p/go-uuid/uuid"
+	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"log"
 	"net"
 	"os"
-	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,68 +35,46 @@ func (self *TimeoutError) Error() string {
 	return fmt.Sprint("Error: Read timed out")
 }
 
+type InputRunner interface {
+	PluginRunner
+	Input() Input
+	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+}
+
+type iRunner struct {
+	pRunnerBase
+}
+
+func NewInputRunner(name string, input Input) (ir InputRunner) {
+	return &iRunner{pRunnerBase{name: name, plugin: input.(Plugin)}}
+}
+func (ir *iRunner) Input() Input {
+	return ir.plugin.(Input)
+}
+
+func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	ir.inChan = h.PackSupply()
+	if err = ir.Input().Start(ir, h, wg); err != nil {
+		err = fmt.Errorf("Input '%s' failed to start: %s", ir.name, err)
+	}
+	return
+}
+
+func (ir *iRunner) LogError(err error) {
+	log.Printf("Input '%s' error: %s", ir.name, err)
+}
+
+// Input plugin interface type
 type Input interface {
-	Read(pipelinePack *PipelinePack, timeout *time.Duration) error
-}
-
-// InputRunner
-
-// An InputRunner wraps each Input plugin and starts a goroutine for waiting
-// for message data to come in via that input. It also listens for STOP events
-// to cleanly exit the goroutine.
-type InputRunner struct {
-	name    string
-	input   Input
-	timeout *time.Duration
-}
-
-func (self *InputRunner) Start(dataChan chan *PipelinePack,
-	recycleChan <-chan *PipelinePack, wg *sync.WaitGroup) {
-
-	stopChan := make(chan interface{})
-	notify.Start(STOP, stopChan)
-
-	go func() {
-		var err error
-		var pack *PipelinePack
-		needOne := true
-	runnerLoop:
-		for {
-			if needOne {
-				runtime.Gosched()
-				select {
-				case pack = <-recycleChan:
-				case <-stopChan:
-					break runnerLoop
-				}
-			}
-
-			err = self.input.Read(pack, self.timeout)
-			if err != nil {
-				runtime.Gosched()
-				select {
-				case <-stopChan:
-					break runnerLoop
-				default:
-					needOne = false
-					continue
-				}
-			}
-			dataChan <- pack
-			needOne = true
-		}
-		log.Println("Input stopped: ", self.name)
-		wg.Done()
-	}()
+	Start(ir InputRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Stop()
 }
 
 // UdpInput
-
-// Deadline is stored on the struct so we don't have to allocate / GC
-// a new time.Time object for each message received.
 type UdpInput struct {
-	Listener net.Conn
-	Deadline time.Time
+	listener net.Conn
+	name     string
+	stopped  bool
 }
 
 type UdpInputConfig struct {
@@ -117,7 +97,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
-		self.Listener, err = net.FileConn(udpFile)
+		self.listener, err = net.FileConn(udpFile)
 		if err != nil {
 			return fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
 		}
@@ -127,7 +107,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
-		self.Listener, err = net.ListenUDP("udp", udpAddr)
+		self.listener, err = net.ListenUDP("udp", udpAddr)
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
@@ -135,85 +115,341 @@ func (self *UdpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *UdpInput) Read(pipelinePack *PipelinePack,
-	timeout *time.Duration) error {
-	self.Deadline = time.Now().Add(*timeout)
-	self.Listener.SetReadDeadline(self.Deadline)
-	n, err := self.Listener.Read(pipelinePack.MsgBytes)
-	if err == nil {
-		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
+func (self *UdpInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+
+	decoders := h.DecodersByEncoding()
+	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
+	if decoder == nil {
+		return fmt.Errorf("No JSON decoder found.")
 	}
-	return err
+
+	go func() {
+		var err error
+		var n int
+		var pack *PipelinePack
+		for !self.stopped {
+			pack = <-ir.InChan()
+			n, err = self.listener.Read(pack.MsgBytes)
+			if err != nil {
+				ir.LogError(fmt.Errorf("Read error: ", err))
+				pack.Recycle()
+				continue
+			}
+			pack.MsgBytes = pack.MsgBytes[:n]
+			decoder.InChan() <- pack
+		}
+		self.listener.Close()
+		for _, v := range decoders {
+			close(v.InChan())
+		}
+		log.Println("UdpInput stopped: ", ir.Name())
+		wg.Done()
+	}()
+	return nil
+}
+
+func (self *UdpInput) Stop() {
+	self.stopped = true
+}
+
+// TCP Input
+
+type TcpInput struct {
+	listener net.Listener
+	name     string
+	wg       sync.WaitGroup
+	stopChan chan bool
+	ir       InputRunner
+	h        PluginHelper
+}
+
+type TcpInputConfig struct {
+	Address string
+}
+
+func (self *TcpInput) ConfigStruct() interface{} {
+	return new(TcpInputConfig)
+}
+
+func decodeHeader(buf []byte, header *Header) bool {
+	if buf[len(buf)-1] != UNIT_SEPARATOR {
+		log.Println("missing unit separator")
+		return false
+	}
+	err := proto.Unmarshal(buf[0:len(buf)-1], header)
+	if err != nil {
+		log.Println("error unmarshaling header:", err)
+		return false
+	}
+	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
+		log.Printf("message exceeds the maximum length (bytes): %d", MAX_MESSAGE_SIZE)
+		return false
+	}
+	return true
+}
+
+func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
+	ok = true
+	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
+	if pos != -1 {
+		if len(buf) > 1 {
+			headerLength := int(buf[pos+1])
+			headerEnd := pos + headerLength + 3 // recsep+len+header+unitsep
+			if len(buf) >= headerEnd {
+				if header.MessageLength != nil || decodeHeader(buf[pos+2:headerEnd], header) {
+					messageEnd := headerEnd + int(header.GetMessageLength())
+					if len(buf) >= messageEnd {
+						*message = (*message)[:messageEnd-headerEnd]
+						copy(*message, buf[headerEnd:messageEnd])
+						pos = messageEnd
+					} else {
+						ok = false
+						*message = (*message)[:0]
+					}
+				} else {
+					pos, ok = findMessage(buf[pos+1:], header, message)
+				}
+			}
+		}
+	} else {
+		pos = len(buf)
+	}
+	return
+}
+
+func (self *TcpInput) handleConnection(conn net.Conn) {
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+	header := &Header{}
+	var readPos, scanPos, posDelta int
+	var pack *PipelinePack
+	var msgOk bool
+
+	packSupply := self.ir.InChan()
+	decoders := self.h.DecodersByEncoding()
+	var encoding Header_MessageEncoding
+
+	var stopped bool
+	for !stopped {
+		select {
+		case <-self.stopChan:
+			stopped = true
+			break
+		default:
+			n, err := conn.Read(buf[readPos:])
+			if n > 0 {
+				readPos += n
+				for { // consume all available records
+					pack = <-packSupply
+					posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
+					scanPos += posDelta
+
+					if header.MessageLength == nil {
+						// incomplete header, recycle the pack and bail
+						pack.Recycle()
+						break
+					}
+
+					if header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
+						// incomplete message, recycle the pack and bail
+						pack.Recycle()
+						break
+					}
+
+					if msgOk {
+						encoding = header.GetMessageEncoding()
+						decoders[encoding].InChan() <- pack
+					}
+
+					header.Reset()
+				}
+			}
+			if err != nil {
+				break
+			}
+			// make room at the end of the buffer
+			if (header.MessageLength != nil &&
+				int(header.GetMessageLength())+scanPos+MAX_HEADER_SIZE > cap(buf)) ||
+				cap(buf)-scanPos < MAX_HEADER_SIZE {
+				if scanPos == 0 { // out of buffer, dump the connection to the bad client
+					stopped = true
+					break
+				}
+				copy(buf, buf[scanPos:readPos]) // src and dst are allowed to overlap
+				readPos, scanPos = readPos-scanPos, 0
+			}
+		}
+	}
+
+	conn.Close()
+	for _, v := range decoders {
+		close(v.InChan())
+	}
+	self.wg.Done()
+}
+
+func (self *TcpInput) Init(config interface{}) error {
+	var err error
+	conf := config.(*TcpInputConfig)
+	self.listener, err = net.Listen("tcp", conf.Address)
+	if err != nil {
+		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+	}
+	return nil
+}
+
+func (self *TcpInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+
+	self.ir = ir
+	self.h = h
+	self.stopChan = make(chan bool)
+
+	go func() {
+		var conn net.Conn
+		var err error
+
+		for {
+			if conn, err = self.listener.Accept(); err != nil {
+				if err.(net.Error).Temporary() {
+					self.ir.LogError(fmt.Errorf("TCP accept failed: %s", err))
+					continue
+				} else {
+					break
+				}
+			}
+
+			go self.handleConnection(conn)
+			self.wg.Add(1)
+		}
+		log.Println("TcpInput stopped: ", ir.Name())
+		wg.Done()
+	}()
+
+	return nil
+}
+
+func (self *TcpInput) Stop() {
+	self.listener.Close()
+	close(self.stopChan)
 }
 
 // Global MessageGenerator
-var MessageGenerator *msgGenerator = new(msgGenerator)
+var MessageGenerator = new(msgGenerator)
 
 type msgGenerator struct {
-	MessageChan chan *messageHolder
+	RouterChan  chan *messageHolder
+	OutputChan  chan outputMsg
 	RecycleChan chan *messageHolder
+	hostname    string
+	pid         int32
 }
 
 func (self *msgGenerator) Init() {
-	self.MessageChan = make(chan *messageHolder, PoolSize/2)
+	self.RouterChan = make(chan *messageHolder, PoolSize/2)
+	self.OutputChan = make(chan outputMsg, PoolSize/2)
 	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
 	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 0}
+		msg := messageHolder{new(Message), 1}
 		self.RecycleChan <- &msg
 	}
+	self.hostname, _ = os.Hostname()
+	self.pid = int32(os.Getpid())
 }
 
 // Retrieve a message for use by the MessageGenerator.
-// Must be passed the current pipeline.ChainCount.
-//
-// This is actually a messageHolder object that has a message and
-// chainCount. The chainCount should remain untouched, and all the
-// fields of the returned msg.Message should be overwritten as needed
-// The msg.Message
-func (self *msgGenerator) Retrieve(chainCount int) (msg *messageHolder) {
+func (self *msgGenerator) Retrieve() (msg *messageHolder) {
 	msg = <-self.RecycleChan
-	msg.ChainCount = chainCount
+	msg.Message.SetTimestamp(time.Now().UnixNano())
+	msg.Message.SetUuid(uuid.NewRandom())
+	msg.Message.SetHostname(self.hostname)
+	msg.Message.SetPid(self.pid)
+	msg.RefCount = 1
 	return msg
 }
 
-// Injects a message using the MessageGenerator
+// Injects a message using the MessageGenerator.
 func (self *msgGenerator) Inject(msg *messageHolder) {
-	msg.ChainCount++
-	self.MessageChan <- msg
+	self.RouterChan <- msg
+}
+
+// Sends a message directly to a specific output.
+func (self *msgGenerator) Output(name string, msg *messageHolder) {
+	outMsg := outputMsg{name, msg}
+	self.OutputChan <- outMsg
 }
 
 // MessageGeneratorInput
 type MessageGeneratorInput struct {
-	messageChan chan *messageHolder
+	routerChan  chan *messageHolder
+	outputChan  chan outputMsg
 	recycleChan chan *messageHolder
-	msg         *messageHolder
 }
 
 type messageHolder struct {
-	Message    *Message
-	ChainCount int
+	Message  *Message
+	RefCount int32
+}
+
+type outputMsg struct {
+	outputName string
+	msg        *messageHolder
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
 	MessageGenerator.Init()
-	self.messageChan = MessageGenerator.MessageChan
+	self.outputChan = MessageGenerator.OutputChan
+	self.routerChan = MessageGenerator.RouterChan
 	self.recycleChan = MessageGenerator.RecycleChan
 	return nil
 }
 
-func (self *MessageGeneratorInput) Read(pipeline *PipelinePack,
-	timeout *time.Duration) error {
-	select {
-	case msgHolder := <-self.messageChan:
-		msgHolder.Message.Copy(pipeline.Message)
-		pipeline.Decoded = true
-		pipeline.ChainCount = msgHolder.ChainCount
-		self.recycleChan <- msgHolder
-		return nil
-	case <-time.After(*timeout):
-		err := TimeoutError("No messages to read")
-		return &err
-	}
-	// shouldn't get here, compiler makes us have a return
-	return nil
+func (self *MessageGeneratorInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+
+	go func() {
+		var pack *PipelinePack
+		var msgHolder *messageHolder
+		var outMsg outputMsg
+		var output OutputRunner
+		var outChan chan *PipelinePack
+		ok := true
+		packSupply := ir.InChan()
+
+		for ok {
+			pack = <-packSupply
+			select {
+			case msgHolder, ok = <-self.routerChan:
+				// if !ok we'll fall through below
+				outChan = h.Router().InChan
+			case outMsg = <-self.outputChan:
+				msgHolder = outMsg.msg
+				if output, ok = h.Output(outMsg.outputName); !ok {
+					ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
+					ok = true // still deliver to the router
+					outChan = h.Router().InChan
+				} else {
+					outChan = output.InChan()
+				}
+			}
+
+			if ok {
+				msgHolder.Message.Copy(pack.Message)
+				pack.Decoded = true
+				outChan <- pack
+				cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
+				if cnt == 0 {
+					self.recycleChan <- msgHolder
+				}
+			}
+		}
+		log.Println("MessageGeneratorInput stopped.")
+		wg.Done()
+	}()
+
+	return
+}
+
+func (self *MessageGeneratorInput) Stop() {
+	close(self.routerChan)
 }

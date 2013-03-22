@@ -12,37 +12,53 @@
         {
             "type": "UdpStatInput",
             "bind": "127.0.0.1:2423"
+        },         
+        {   "type": "TcpInput",
+            "address": "127.0.0.1:9125"
         }
+
     ],
     "decoders": [
-        {"type": "JsonDecoder", "default": true},
-        {"type": "GobDecoder"}
-    ],
-    "filters": [
-        {"type": "StatRollupFilter"},
-        {
-            "type": "NamedOutputFilter",
-            "name": "graphite_filter",
-            "outputs": ["GraphiteOutput"]
-        }
+        {"type": "JsonDecoder", "encoding_name": "JSON"},
+        {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"} 
     ],
     "outputs": [
         {
             "type": "GraphiteOutput",
             "host": "192.149.324.132:4233"
-        },
+        }, 
+        {
+            "type": "CounterOutput",
+            "name": "counter"
+        }
     ],
-    "chains": {
+    "filters": {
         "stats": {
-            "type": "Counter",
-            "filters": ["StatRollupFilter"]
+            "type": "StatRollupFilter",
+            "message_filter": "TRUE",
+            "outputs": ["LogFileOutput"]
         },
         "stat_dump": {
-            "type": "StatMetric",
+            "type": "PassThruFilter",
+            "message_filter": "TRUE",
             "outputs": ["GraphiteOutput"]
         },
-        "default": {
-            "outputs": ["LogFileOutput"]
+        "hekabench": {
+            "type": "PassThruFilter",
+            "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
+            "outputs": ["counter"]
+        },
+        "lua_sandbox": {
+            "type": "SandboxFilter",
+            "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
+            "outputs": ["LogFileOutput"],
+            "output_timer" : 60,
+            "sandbox": {
+                "type" : "lua",
+                "filename" : "sandbox.lua",
+                "memory_limit" : 32767,
+                "instruction_limit" : 1000
+            }
         }
     }
 }

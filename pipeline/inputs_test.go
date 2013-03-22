@@ -16,87 +16,26 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"errors"
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
-	"github.com/rafrombrc/go-notify"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"sync"
-	"time"
 )
 
-func InputRunnerSpec(c gs.Context) {
-	t := &ts.SimpleT{}
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	c.Specify("An InputRunner", func() {
-		second := time.Second
-
-		poolSize := 5
-		mockInput := NewMockInput(ctrl)
-		inputRunner := InputRunner{"mock", mockInput, &second}
-		defer notify.StopAll(STOP)
-
-		dataChan := make(chan *PipelinePack, poolSize+1)
-		recycleChan := make(chan *PipelinePack, poolSize+1)
-		for i := 0; i < poolSize; i++ {
-			recycleChan <- getTestPipelinePack()
-		}
-
-		var wg sync.WaitGroup
-		comparePack := getTestPipelinePack()
-
-		areAllUsed := func() bool {
-			populatedPacks := 0
-			for {
-				select {
-				case <-dataChan:
-					populatedPacks++
-					if populatedPacks == poolSize {
-						return true
-					}
-				case <-time.After(second):
-					return false
-				}
-			}
-			// we should never reach this but go makes me put it here :P
-			return false
-		}
-
-		c.Specify("will use all the pipelinePacks (in < 1 sec)", func() {
-			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize)
-			readCall.Return(nil)
-
-			inputRunner.Start(dataChan, recycleChan, &wg)
-			wg.Add(1)
-			defer notify.Post(STOP, nil)
-
-			allUsed := areAllUsed()
-			c.Expect(allUsed, gs.IsTrue)
-		})
-
-		c.Specify("even if there are read errors", func() {
-			readCall := mockInput.EXPECT().Read(comparePack, &second).Times(poolSize * 2)
-			i := 0
-			readCall.Do(func(pipelinePack *PipelinePack, timeout *time.Duration) {
-				if i < poolSize {
-					readCall.Return(errors.New("Test Error"))
-				} else {
-					readCall.Return(nil)
-				}
-				i++
-			})
-
-			inputRunner.Start(dataChan, recycleChan, &wg)
-			wg.Add(1)
-			defer notify.Post(STOP, nil)
-
-			allUsed := areAllUsed()
-			c.Expect(allUsed, gs.IsTrue)
-		})
-	})
+type InputTestHelper struct {
+	Msg             *message.Message
+	Pack            *PipelinePack
+	AddrStr         string
+	ResolvedAddrStr string
+	MockHelper      *MockPluginHelper
+	MockInputRunner *MockInputRunner
+	Decoders        []DecoderRunner
+	PackSupply      chan *PipelinePack
+	DecodeChan      chan *PipelinePack
 }
 
 func InputsSpec(c gs.Context) {
@@ -104,40 +43,118 @@ func InputsSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	msg := getTestMessage()
-	pipelinePack := getTestPipelinePack()
+	ith := new(InputTestHelper)
+	ith.Msg = getTestMessage()
+	ith.Pack = getTestPipelinePack()
 
 	// Specify localhost, but we're not really going to use the network
-	addrStr := "localhost:55565"
-	resolvedAddrStr := "127.0.0.1:55565"
+	ith.AddrStr = "localhost:55565"
+	ith.ResolvedAddrStr = "127.0.0.1:55565"
+
+	// set up mock helper, decoder set, and packSupply channel
+	ith.MockHelper = NewMockPluginHelper(ctrl)
+	ith.MockInputRunner = NewMockInputRunner(ctrl)
+	ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
+	ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
+	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
+	ith.PackSupply = make(chan *PipelinePack, 1)
+	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{addrStr})
+		err := udpInput.Init(&UdpInputConfig{ith.AddrStr})
 		c.Assume(err, gs.IsNil)
-		realListener := (udpInput.Listener).(*net.UDPConn)
-		c.Expect(realListener.LocalAddr().String(), gs.Equals, resolvedAddrStr)
+		realListener := (udpInput.listener).(*net.UDPConn)
+		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
 		realListener.Close()
 
-		// Replace the listener object w/ a mock listener
+		// replace the listener object w/ a mock listener
 		mockListener := ts.NewMockConn(ctrl)
-		udpInput.Listener = mockListener
+		udpInput.listener = mockListener
 
-		msgJson, _ := json.Marshal(msg)
+		msgJson, _ := json.Marshal(ith.Msg)
 		putMsgJsonInBytes := func(msgBytes []byte) {
 			copy(msgBytes, msgJson)
 		}
 
-		c.Specify("reads a message from its listener", func() {
-			mockListener.EXPECT().SetReadDeadline(gomock.Any())
-			readCall := mockListener.EXPECT().Read(pipelinePack.MsgBytes)
+		c.Specify("reads a message from the connection and passes it to the decoder", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
 			readCall.Return(len(msgJson), nil)
 			readCall.Do(putMsgJsonInBytes)
-			second := time.Second
-			err := udpInput.Read(pipelinePack, &second)
-			c.Expect(err, gs.IsNil)
-			c.Expect(pipelinePack.Decoded, gs.IsFalse)
-			c.Expect(string(pipelinePack.MsgBytes), gs.Equals, string(msgJson))
+
+			mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
+
+			// start the input
+			var wg sync.WaitGroup
+			udpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(ith.Pack, gs.Equals, packRef)
+			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(msgJson))
+			c.Expect(ith.Pack.Decoded, gs.IsFalse)
+		})
+	})
+
+	c.Specify("A TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		/// @todo use the msg encoder
+		mbytes, _ := proto.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = message.RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = message.UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a message from its connection", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
+
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+
+			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+			// start the input
+			var wg sync.WaitGroup
+			wg.Add(1)
+			ith.MockInputRunner.EXPECT().Name().Return("test TcpInput")
+			tcpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(ith.Pack, gs.Equals, packRef)
+			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 		})
 	})
 }

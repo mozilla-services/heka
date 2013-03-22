@@ -9,12 +9,14 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
 	"os"
@@ -34,34 +36,44 @@ func mockOutputCreator() map[string]Output {
 	return make(map[string]Output)
 }
 
-var config = PipelineConfig{DefaultDecoder: "TEST", DefaultFilterChain: "TEST"}
+var config = PipelineConfig{}
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
-	r.AddSpec(InputRunnerSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
+	r.AddSpec(WhisperRunnerSpec)
+	r.AddSpec(WhisperOutputSpec)
 	gospec.MainGoTest(r, t)
 }
 
 func getTestMessage() *Message {
-	timestamp := time.Now().UTC()
 	hostname, _ := os.Hostname()
-	fields := make(map[string]interface{})
-	fields["foo"] = "bar"
-	msg := Message{
-		Type: "TEST", Timestamp: timestamp,
-		Logger: "GoSpec", Severity: 6,
-		Payload: "Test Payload", Env_version: "0.8",
-		Pid: os.Getpid(), Hostname: hostname,
-		Fields: fields,
-	}
-	return &msg
+	field, _ := NewField("foo", "bar", Field_RAW)
+	msg := &Message{}
+	msg.SetType("TEST")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetLogger("GoSpec")
+	msg.SetSeverity(int32(6))
+	msg.SetPayload("Test Payload")
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(int32(os.Getpid()))
+	msg.SetHostname(hostname)
+	msg.AddField(field)
+
+	return msg
 }
 
 func getTestPipelinePack() *PipelinePack {
 	return NewPipelinePack(&config)
+}
+
+func BenchmarkPipelinePackCreation(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewPipelinePack(&config)
+	}
 }

@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -19,10 +20,10 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -31,28 +32,37 @@ var (
 	packetRegexp   = regexp.MustCompile("([a-zA-Z0-9_]+):(\\-?[0-9\\.]+)\\|(c|ms|g)(\\|@([0-9\\.]+))?")
 )
 
-type StatsdUdpInputConfig struct {
-	Address          string
-	FlushInterval    int64
+// StatsInput Configuration
+type StatsdInputConfig struct {
+	// UDP Address to listen to for statsd packets, if left blank, no
+	// UDP listener will be established
+	Address string
+	// How frequently to flush aggregated statsd metrics
+	FlushInterval int64
+	// Percent threshold to use for
 	PercentThreshold int
 }
 
-// Deadline is stored on the struct so we don't have to allocate / GC
-// a new time.Time object for each message received.
-type StatsdInWriter struct {
-	Listener         net.Conn
-	Deadline         time.Time
-	PercentThreshold int
-	FlushInterval    int64
-	counters         map[string]int
-	timers           map[string][]float64
-	gauges           map[string]int
-	packets          []byte
-	readPacket       []byte
-	value            string
-	p                StatPacket
+// Statsd Input handles statsd metric style input and flushes aggregated
+// values
+//
+// It can listen on a UDP address if configured to do so for standard
+// statsd packets of message type Counter, Gauge, or Timer. It currently
+// doesn't support Sets or other metric types.
+type StatsdInput struct {
+	// Channel for StatPackets, these are fed in by UDP when configured or
+	// can be directly sent in from other Plugins as needed.
+	Packet chan<- StatPacket
+
+	name             string
+	listener         *net.UDPConn
+	percentThreshold int
+	flushInterval    int64
+	stopped          bool
 }
 
+// A StatPacket appropriate for a plugin to feed directly into the
+// StatsdInput.Packet channel
 type StatPacket struct {
 	Bucket   string
 	Value    string
@@ -60,154 +70,183 @@ type StatPacket struct {
 	Sampling float32
 }
 
-func (self *StatsdInWriter) ConfigStruct() interface{} {
-	return &StatsdUdpInputConfig{FlushInterval: 10, PercentThreshold: 90}
+func (s *StatsdInput) ConfigStruct() interface{} {
+	return &StatsdInputConfig{FlushInterval: 10, PercentThreshold: 90}
 }
 
-func (self *StatsdInWriter) Event(eventType string) {
-	if eventType == STOP {
-		fmt.Println("Closing connection")
-		self.Listener.Close()
+func (s *StatsdInput) Init(config interface{}) error {
+	conf := config.(*StatsdInputConfig)
+	s.flushInterval = conf.FlushInterval
+	s.percentThreshold = conf.PercentThreshold
+
+	udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+	if err != nil {
+		return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 	}
+	s.listener, err = net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+	}
+	return nil
 }
 
-func (self *StatsdInWriter) MakeOutData() interface{} {
-	slice := make([]byte, 2000)
-	return &slice
-}
+func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
+	wg *sync.WaitGroup) (err error) {
+	packets := make(chan StatPacket, 5000)
+	s.Packet = packets
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, ir.Name())
+	go sm.Monitor(packets)
 
-func (self *StatsdInWriter) ZeroOutData(outData interface{}) {
-	*(outData.(*[]byte)) = (*(outData.(*[]byte)))[:0]
-}
+	// Spin up the UDP listener if it was configured
+	if s.listener != nil {
+		go func() {
+			var n int
+			var err error
+			defer s.listener.Close()
+			timeout := time.Duration(time.Millisecond * 100)
 
-func (self *StatsdInWriter) Init(config interface{}) (<-chan time.Time, error) {
-	conf := config.(*StatsdUdpInputConfig)
-	self.FlushInterval = conf.FlushInterval
-	self.PercentThreshold = conf.PercentThreshold
-	self.counters = make(map[string]int)
-	self.timers = make(map[string][]float64)
-	self.gauges = make(map[string]int)
-	self.p = StatPacket{}
-
-	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
-		// File descriptor
-		fdStr := conf.Address[3:]
-		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
-		if err != nil {
-			log.Println(err)
-			return nil, fmt.Errorf("Invalid file descriptor: %s", conf.Address)
-		}
-		fd := uintptr(fdInt)
-		udpFile := os.NewFile(fd, "udpFile")
-		self.Listener, err = net.FileConn(udpFile)
-		if err != nil {
-			return nil, fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
-		}
+			for !s.stopped {
+				message := make([]byte, 512)
+				s.listener.SetReadDeadline(time.Now().Add(timeout))
+				n, _, err = s.listener.ReadFromUDP(message)
+				if err != nil || n == 0 {
+					continue
+				}
+				if s.stopped {
+					// If we're stopping, use synchronous call so we don't
+					// close the channel too soon.
+					s.handleMessage(message[:n])
+				} else {
+					go s.handleMessage(message[:n])
+				}
+			}
+			close(packets) // shut down the StatMonitor
+			log.Println("StatsdUdpInput for input stopped: ", ir.Name())
+			wg.Done()
+		}()
 	} else {
-		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
-		if err != nil {
-			return nil, fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
-		}
-		self.Listener, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			return nil, fmt.Errorf("ListenUDP failed: %s\n", err.Error())
-		}
+		// In this case, the monitor already incremented for itself, so we
+		// decrement here since we didn't need it.
+		wg.Done()
 	}
-	ticker := time.NewTicker(time.Duration(conf.FlushInterval) * time.Second)
-	return ticker.C, nil
+	return nil
 }
 
-func (self *StatsdInWriter) PrepOutData(pipelinePack *PipelinePack, outData interface{},
-	timeout *time.Duration) error {
-	pipelinePack.Blocked = true
-	self.Deadline = time.Now().Add(*timeout)
-	self.Listener.SetReadDeadline(self.Deadline)
-	n, err := self.Listener.Read(pipelinePack.MsgBytes)
-	if err == nil {
-		pipelinePack.MsgBytes = pipelinePack.MsgBytes[:n]
-		*(outData.(*[]byte)) = append(*(outData.(*[]byte)), pipelinePack.MsgBytes...)
-		pipelinePack.Decoded = true
+func (s *StatsdInput) Stop() {
+	if s.listener != nil {
+		s.stopped = true
+	} else {
+		close(s.Packet)
 	}
-	return err
 }
 
-func (self *StatsdInWriter) Batch(outData interface{}) (err error) {
-	s := sanitizeRegexp.ReplaceAllString(string(*(outData.(*[]byte))), "")
-	var sampleRate float64
-	var floatValue float64
-	var intValue int
-	for _, item := range packetRegexp.FindAllStringSubmatch(s, -1) {
-		self.p.Bucket = item[1]
-		self.p.Modifier = item[3]
-		self.p.Value = item[2]
+func (s *StatsdInput) handleMessage(message []byte) {
+	var packet StatPacket
+	var value string
+	st := sanitizeRegexp.ReplaceAllString(string(message), "")
+	for _, item := range packetRegexp.FindAllStringSubmatch(st, -1) {
+		value = item[2]
 		if item[3] == "ms" {
-			_, err = strconv.ParseFloat(item[2], 32)
+			_, err := strconv.ParseFloat(item[2], 32)
 			if err != nil {
-				self.p.Value = "0"
+				value = "0"
 			}
 		}
 
-		if item[5] != "" {
-			sampleRate, err = strconv.ParseFloat(item[5], 32)
-			if err != nil {
-				sampleRate = 1
-			}
-		} else {
+		sampleRate, err := strconv.ParseFloat(item[5], 32)
+		if err != nil {
 			sampleRate = 1
 		}
-		self.p.Sampling = float32(sampleRate)
 
-		if self.p.Modifier == "ms" {
-			_, ok := self.timers[self.p.Bucket]
-			if !ok {
-				self.timers[self.p.Bucket] = make([]float64, 100)
-			}
-			floatValue, _ = strconv.ParseFloat(self.p.Value, 64)
-			self.timers[self.p.Bucket] = append(self.timers[self.p.Bucket], floatValue)
-		} else if self.p.Modifier == "g" {
-			_, ok := self.gauges[self.p.Bucket]
-			if !ok {
-				self.gauges[self.p.Bucket] = 0
-			}
-			intValue, _ = strconv.Atoi(self.p.Value)
-			self.gauges[self.p.Bucket] += intValue
-		} else {
-			_, ok := self.counters[self.p.Bucket]
-			if !ok {
-				self.counters[self.p.Bucket] = 0
-			}
-			floatValue, _ = strconv.ParseFloat(self.p.Value, 32)
-			self.counters[self.p.Bucket] += int(float32(floatValue) * (1 / self.p.Sampling))
-		}
+		packet.Bucket = item[1]
+		packet.Value = value
+		packet.Modifier = item[3]
+		packet.Sampling = float32(sampleRate)
+		s.Packet <- packet
 	}
-	return
 }
 
-// statsUdp Flush is called every flushInterval seconds to flush a
-// the aggregated stats as a statmetric injected message
-func (self *StatsdInWriter) Commit() (err error) {
+type statMonitor struct {
+	counters         map[string]int
+	timers           map[string][]float64
+	gauges           map[string]int
+	percentThreshold int
+	flushInterval    int64
+	inputName        string
+	wg               *sync.WaitGroup
+}
+
+func NewStatMonitor(percentThreshold int, flushInterval int64,
+	wg *sync.WaitGroup, inputName string) *statMonitor {
+	return &statMonitor{
+		counters:         make(map[string]int),
+		timers:           make(map[string][]float64),
+		gauges:           make(map[string]int),
+		percentThreshold: percentThreshold,
+		flushInterval:    flushInterval,
+		inputName:        inputName,
+		wg:               wg,
+	}
+}
+
+func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
+	var s StatPacket
+	var floatValue float64
+	var intValue int
+
+	sm.wg.Add(1)
+
+	t := time.Tick(time.Duration(sm.flushInterval) * time.Second)
+	ok := true
+	for ok {
+		select {
+		case <-t:
+			sm.Flush()
+		case s, ok = <-packets:
+			if !ok {
+				sm.Flush()
+				break
+			}
+			switch s.Modifier {
+			case "ms":
+				floatValue, _ = strconv.ParseFloat(s.Value, 64)
+				sm.timers[s.Bucket] = append(sm.timers[s.Bucket], floatValue)
+			case "g":
+				intValue, _ = strconv.Atoi(s.Value)
+				sm.gauges[s.Bucket] += intValue
+			default:
+				floatValue, _ = strconv.ParseFloat(s.Value, 32)
+				sm.counters[s.Bucket] += int(float32(floatValue) * (1 / s.Sampling))
+			}
+		}
+	}
+	log.Println("StatsdMonitor for input stopped: ", sm.inputName)
+	sm.wg.Done()
+}
+
+func (sm *statMonitor) Flush() {
 	var value float64
 	var intval int64
 	numStats := 0
-	now := time.Now()
+	now := time.Now().UTC()
+	nowUnix := now.Unix()
 	buffer := bytes.NewBufferString("")
-	for s, c := range self.counters {
-		value = float64(c) / ((float64(self.FlushInterval) * float64(time.Second)) / float64(1e3))
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", s, value, now)
-		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, now)
-		self.counters[s] = 0
+	for s, c := range sm.counters {
+		value = float64(c) / ((float64(sm.flushInterval) * float64(time.Second)) / float64(1e3))
+		fmt.Fprintf(buffer, "stats.%s %f %d\n", s, value, nowUnix)
+		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, nowUnix)
+		sm.counters[s] = 0
 		numStats++
 	}
-	for i, g := range self.gauges {
+	for i, g := range sm.gauges {
 		intval = int64(g)
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, intval, now)
+		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, intval, nowUnix)
 		numStats++
 	}
 	var min, max, mean, maxAtThreshold, sum float64
 	var count, thresholdIndex, numInThreshold, i int
 	var values []float64
-	for u, t := range self.timers {
+	for u, t := range sm.timers {
 		if len(t) > 0 {
 			sort.Float64s(t)
 			min = t[0]
@@ -216,7 +255,7 @@ func (self *StatsdInWriter) Commit() (err error) {
 			maxAtThreshold = max
 			count = len(t)
 			if len(t) > 1 {
-				thresholdIndex = ((100 - self.PercentThreshold) / 100) * count
+				thresholdIndex = ((100 - sm.percentThreshold) / 100) * count
 				numInThreshold = count - thresholdIndex
 				values = t[0:numInThreshold]
 
@@ -226,22 +265,30 @@ func (self *StatsdInWriter) Commit() (err error) {
 				}
 				mean = sum / float64(numInThreshold)
 			}
-			self.timers[u] = t[:0]
+			sm.timers[u] = t[:0]
 
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, mean, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, max, now)
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
+				sm.percentThreshold, maxAtThreshold, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
+		} else {
+			// Need to still submit timers as zero
+			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
 			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
-				self.PercentThreshold, maxAtThreshold, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, min, now)
-			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, now)
+				sm.percentThreshold, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
+			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
 		}
 		numStats++
 	}
-	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, now)
-	msgHolder := MessageGenerator.Retrieve(0)
-	msgHolder.Message.Type = "statmetric"
-	msgHolder.Message.Timestamp = now
-	msgHolder.Message.Payload = buffer.String()
-	MessageGenerator.Inject(msgHolder)
+	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
+	newMsg := MessageGenerator.Retrieve()
+	newMsg.Message.SetType("statmetric")
+	newMsg.Message.SetTimestamp(now.UnixNano())
+	newMsg.Message.SetPayload(buffer.String())
+	MessageGenerator.Inject(newMsg)
 	return
 }

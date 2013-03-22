@@ -9,11 +9,15 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package client
 
 import (
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
 	"net"
 )
 
@@ -40,4 +44,36 @@ func NewUdpSender(addrStr string) (*UdpSender, error) {
 func (self *UdpSender) SendMessage(msgBytes []byte) error {
 	_, err := self.connection.Write(msgBytes)
 	return err
+}
+
+type TcpSender struct {
+	connection  net.Conn
+	header      []byte
+	protoBuffer *proto.Buffer
+}
+
+func NewTcpSender(addrStr string) (n *TcpSender, err error) {
+	conn, err := net.Dial("tcp", addrStr)
+	if err == nil {
+		n = &(TcpSender{connection: conn})
+		n.header = make([]byte, message.MAX_HEADER_SIZE+3)
+		n.protoBuffer = proto.NewBuffer(n.header)
+	}
+	return
+}
+
+func (t *TcpSender) SendMessage(msgBytes []byte) error {
+	err := EncodeStreamHeader(len(msgBytes), message.Header_PROTOCOL_BUFFER, &t.header)
+	if err != nil {
+		return err
+	}
+	_, err = t.connection.Write(t.header)
+	if err == nil {
+		_, err = t.connection.Write(msgBytes)
+	}
+	return err
+}
+
+func (t *TcpSender) Close() {
+	t.connection.Close()
 }
