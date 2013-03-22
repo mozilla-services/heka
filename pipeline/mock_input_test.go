@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 )
 
 // Mock of Input interface
@@ -29,14 +29,14 @@ func (_m *MockInput) EXPECT() *_MockInputRecorder {
 	return _m.recorder
 }
 
-func (_m *MockInput) Run(_param0 InputRunner, _param1 PluginHelper, _param2 *sync.WaitGroup) error {
-	ret := _m.ctrl.Call(_m, "Run", _param0, _param1, _param2)
+func (_m *MockInput) Start(_param0 InputRunner, _param1 PluginHelper, _param2 *sync.WaitGroup) error {
+	ret := _m.ctrl.Call(_m, "Start", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockInputRecorder) Run(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Run", arg0, arg1, arg2)
+func (_mr *_MockInputRecorder) Start(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0, arg1, arg2)
 }
 
 func (_m *MockInput) Stop() {

@@ -102,6 +102,6 @@ SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb);
  * @return 0 on success
  * 
  */
-SANDBOX_EXPORT int lua_sandbox_timer_event(lua_sandbox* lsb);
+SANDBOX_EXPORT int lua_sandbox_timer_event(lua_sandbox* lsb, long long ns);
 
 #endif

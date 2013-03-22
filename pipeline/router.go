@@ -87,7 +87,7 @@ func NewMatchRunner(filter string) (matcher *MatchRunner, err error) {
 	return
 }
 
-func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
+func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -103,8 +103,10 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 		}()
 
 		for pack := range mr.inChan {
-			if mr.spec.IsMatch(pack.Message) {
-				matchChan <- pack
+			match, captures := mr.spec.Match(pack.Message)
+			if match {
+				plc := &PipelineCapture{Pack: pack, Captures: captures}
+				matchChan <- plc
 			} else {
 				pack.Recycle()
 			}

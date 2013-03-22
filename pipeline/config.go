@@ -22,8 +22,6 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
-	"regexp"
-	"strings"
 	"time"
 )
 
@@ -443,38 +441,4 @@ func init() {
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
 	})
-	//	RegisterPlugin("PassThruFilter", func() interface{} {
-	//		return new(PassThruFilter)
-	//	})
-
-	// The below code should really be in an init() function in
-	// date_helpers.go, but go's compiler loses track of line numbers when
-	// functions are spread across multiple files, so we've merged all init()
-	// functions into one file per package for now. (see
-	// https://code.google.com/p/go/issues/detail?id=4020)
-	HelperRegexSubs = make(map[string]string)
-
-	smonths := "(?:" + strings.Join(shortMonthNames, "|") + ")"
-	sdays := "(?:" + strings.Join(shortDayNames, "|") + ")"
-	days := "(?:" + strings.Join(longDayNames, "|") + ")"
-
-	newMatchStrings := make([]string, 0, 15)
-	replaceShorts, _ := regexp.Compile("(SDAY|DAY|SMONTH)")
-	for _, dateStr := range dateMatchStrings {
-		newStr := replaceShorts.ReplaceAllStringFunc(dateStr,
-			func(match string) string {
-				switch match {
-				case "SDAY":
-					return sdays
-				case "DAY":
-					return days
-				case "SMONTH":
-					return smonths
-				}
-				return match
-			})
-		newMatchStrings = append(newMatchStrings, "(?:"+newStr+")")
-	}
-	tsRegexString := "(?P<Timestamp>" + strings.Join(newMatchStrings, "|") + ")"
-	HelperRegexSubs["TIMESTAMP"] = tsRegexString
 }
