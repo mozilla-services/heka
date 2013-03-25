@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"sync"
 	"time"
@@ -25,73 +24,65 @@ import (
 
 type FilterRunner interface {
 	PluginRunner
+	InChan() chan *PipelineCapture
 	Filter() Filter
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
+	Deliver(pack *PipelinePack)
 }
 
 type Filter interface {
-	Start(r FilterRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Run(r FilterRunner, h PluginHelper) (err error)
 }
 
 type CounterFilter struct {
 	lastTime  time.Time
 	lastCount uint
 	count     uint
-	zeroes    int8
 	rate      float64
 	rates     []float64
-	intervals uint
 }
 
 func (this *CounterFilter) Init(config interface{}) error {
 	return nil
 }
 
-func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
 	this.lastTime = time.Now()
-	go func() {
-		ok := true
-		var pack *PipelinePack
-		for ok {
-			select {
-			case pack, ok = <-inChan:
-				if !ok {
-					break
-				}
-				this.count++
-				pack.Recycle()
-			case <-ticker:
-				this.tally()
-			}
-		}
 
-		log.Printf("CounterFilter '%s' stopped.", fr.Name())
-		wg.Done()
-	}()
+	var (
+		ok  = true
+		plc *PipelineCapture
+	)
+	for ok {
+		select {
+		case plc, ok = <-inChan:
+			if !ok {
+				break
+			}
+			this.count++
+			plc.Pack.Recycle()
+		case <-ticker:
+			this.tally()
+		}
+	}
 	return
 }
 
 func (this *CounterFilter) tally() {
-	this.intervals++
-	now := time.Now()
 	msgsSent := this.count - this.lastCount
+	if msgsSent == 0 {
+		return
+	}
+
+	now := time.Now()
 	elapsedTime := now.Sub(this.lastTime)
 	this.lastCount = this.count
 	this.lastTime = now
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
-	if msgsSent == 0 {
-		if msgsSent == 0 || this.zeroes == 3 {
-			return
-		}
-		this.zeroes++
-	} else {
-		this.zeroes = 0
-	}
+	this.rates = append(this.rates, this.rate)
 
 	outMsg := MessageGenerator.Retrieve()
 	outMsg.Message.SetType("heka.counter_output")
@@ -99,22 +90,16 @@ func (this *CounterFilter) tally() {
 		this.count, this.rate))
 	MessageGenerator.Inject(outMsg)
 
-	this.rates = append(this.rates, this.rate)
-	if this.intervals >= 10 {
-		this.intervals = 0
-		amount := len(this.rates)
-		if amount < 1 {
-			return
-		}
+	samples := len(this.rates)
+	if samples == 10 { // generate a summary every 10 samples
 		sort.Float64s(this.rates)
 		min := this.rates[0]
-		max := this.rates[amount-1]
-		mean := min
+		max := this.rates[samples-1]
 		sum := float64(0)
 		for _, val := range this.rates {
 			sum += val
 		}
-		mean = sum / float64(amount)
+		mean := sum / float64(samples)
 		outMsg = MessageGenerator.Retrieve()
 		outMsg.Message.SetType("heka.counter_output")
 		outMsg.Message.SetPayload(

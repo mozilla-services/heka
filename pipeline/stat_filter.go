@@ -9,12 +9,11 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package pipeline
-
-import "github.com/mozilla-services/heka/message"
 
 type metric struct {
 	Type_ string `json:"type"`
@@ -23,13 +22,11 @@ type metric struct {
 }
 
 type StatFilterConfig struct {
-	Match  MatchCriteriaLayout
 	Metric []metric
 }
 
 type StatFilter struct {
-	msgMatcher MessageMatcher
-	metrics    []metric
+	metrics []metric
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
@@ -38,68 +35,37 @@ func (s *StatFilter) ConfigStruct() interface{} {
 
 func (s *StatFilter) Init(config interface{}) (err error) {
 	conf := config.(*StatFilterConfig)
-	if s.msgMatcher, err = NewMessageMatcher(&conf.Match); err != nil {
-		return
-	}
 	s.metrics = conf.Metric
 	return
 }
 
-//func (s *StatFilter) FilterMsg(pack *PipelinePack) {
-//	set, matched := s.msgMatcher.Match(pack.Message)
-//	if !matched {
-//		return
-//	}
-//
-//	// Load existing fields into the set for replacement
-//	set["Logger"] = pack.Message.GetLogger()
-//	set["Hostname"] = pack.Message.GetHostname()
-//	set["Type"] = pack.Message.GetType()
-//	set["Payload"] = pack.Message.GetPayload()
-//
-//	// We matched, generate appropriate metrics
-//	for _, m := range s.metrics {
-//		msg := MessageGenerator.Retrieve()
-//		msg.Message.SetType(m.Type_)
-//		msg.Message.SetLogger(InterpolateString(m.Name, set))
-//		msg.Message.SetPayload(InterpolateString(m.Value, set))
-//		MessageGenerator.Inject(msg)
-//	}
-//	return
-//}
+func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
-func (s *StatFilter) ProcessMessage(m *message.Message) int {
-	set, matched := s.msgMatcher.Match(m)
-	if !matched {
-		return 0
+	inChan := fr.InChan()
+
+	var (
+		pack     *PipelinePack
+		captures map[string]string
+	)
+	for plc := range inChan {
+		pack = plc.Pack
+		captures = plc.Captures
+
+		// Load existing fields into the set for replacement
+		captures["Logger"] = pack.Message.GetLogger()
+		captures["Hostname"] = pack.Message.GetHostname()
+		captures["Type"] = pack.Message.GetType()
+		captures["Payload"] = pack.Message.GetPayload()
+
+		// We matched, generate appropriate metrics
+		for _, met := range s.metrics {
+			m := MessageGenerator.Retrieve()
+			m.Message.SetType(met.Type_)
+			m.Message.SetLogger(InterpolateString(met.Name, captures))
+			m.Message.SetPayload(InterpolateString(met.Value, captures))
+			MessageGenerator.Inject(m)
+		}
 	}
 
-	// Load existing fields into the set for replacement
-	set["Logger"] = m.GetLogger()
-	set["Hostname"] = m.GetHostname()
-	set["Type"] = m.GetType()
-	set["Payload"] = m.GetPayload()
-
-	// We matched, generate appropriate metrics
-	for _, m := range s.metrics {
-		msg := MessageGenerator.Retrieve()
-		msg.Message.SetType(m.Type_)
-		msg.Message.SetLogger(InterpolateString(m.Name, set))
-		msg.Message.SetPayload(InterpolateString(m.Value, set))
-		MessageGenerator.Inject(msg)
-	}
-	return 0
-}
-
-func (s *StatFilter) SetOutput(f func(s string)) {
-}
-
-func (s *StatFilter) SetInjectMessage(f func(s string)) {
-}
-
-func (s *StatFilter) TimerEvent() int {
-	return 0
-}
-
-func (s *StatFilter) Destroy() {
+	return
 }

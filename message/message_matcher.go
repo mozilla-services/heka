@@ -14,17 +14,20 @@
 
 package message
 
+import "fmt"
+
 // MatcherSpecification used by the message router to distribute messages
 type MatcherSpecification struct {
-	vm     *tree
-	filter string
+	vm         *tree
+	spec       string
+	numCapture int
 }
 
-// CreateMatcherSpecification compiles the filter string into a simple
+// CreateMatcherSpecification compiles the spec string into a simple
 // virtual machine for execution
-func CreateMatcherSpecification(filter string) (*MatcherSpecification, error) {
+func CreateMatcherSpecification(spec string) (*MatcherSpecification, error) {
 	ms := new(MatcherSpecification)
-	ms.filter = filter
+	ms.spec = spec
 	err := parseMatcherSpecification(ms)
 	if err != nil {
 		return nil, err
@@ -32,25 +35,35 @@ func CreateMatcherSpecification(filter string) (*MatcherSpecification, error) {
 	return ms, nil
 }
 
-// IsMatch compares the message in the pack against the matcher specification
-func (m *MatcherSpecification) IsMatch(message *Message) bool {
-	return evalMatcherSpecification(m.vm, message)
+// Match compares the message against the matcher spec and return the match
+// result and captures if applicable
+func (m *MatcherSpecification) Match(message *Message) (match bool,
+	captures map[string]string) {
+	if m.numCapture > 0 {
+		captures = make(map[string]string, m.numCapture)
+	}
+	match = evalMatcherSpecification(m.vm, message, captures)
+	if !match {
+		captures = nil
+	}
+	return
 }
 
-// String outputs the filter as text
+// String outputs the spec as text
 func (m *MatcherSpecification) String() string {
-	return m.filter
+	return m.spec
 }
 
-func evalMatcherSpecification(t *tree, msg *Message) (b bool) {
+func evalMatcherSpecification(t *tree, msg *Message,
+	captures map[string]string) (b bool) {
 	if t == nil {
 		return false
 	}
 
 	if t.left != nil {
-		b = evalMatcherSpecification(t.left, msg)
+		b = evalMatcherSpecification(t.left, msg, captures)
 	} else {
-		return testExpr(msg, t.stmt)
+		return testExpr(msg, t.stmt, captures)
 	}
 	if b == true && t.stmt.op.tokenId == OP_OR {
 		return // short circuit
@@ -60,7 +73,7 @@ func evalMatcherSpecification(t *tree, msg *Message) (b bool) {
 	}
 
 	if t.right != nil {
-		b = evalMatcherSpecification(t.right, msg)
+		b = evalMatcherSpecification(t.right, msg, captures)
 	}
 	return
 }
@@ -95,7 +108,35 @@ func getNumericValue(msg *Message, stmt *Statement) float64 {
 	return 0
 }
 
-func stringTest(s string, stmt *Statement) bool {
+func regexpTest(s string, stmt *Statement, captures map[string]string) bool {
+	if stmt.value.regexp.NumSubexp() == 0 {
+		return stmt.value.regexp.MatchString(s)
+	} else {
+		findResults := stmt.value.regexp.FindStringSubmatch(s)
+		resultLength := len(findResults)
+		if resultLength < 2 {
+			return false
+		}
+		for index, name := range stmt.value.regexp.SubexpNames() {
+			if index == 0 {
+				continue
+			}
+			if name == "" {
+				name = fmt.Sprintf("%s(%d)", stmt.field.token, index)
+			}
+
+			if index > resultLength-1 {
+				captures[name] = ""
+			} else {
+				captures[name] = findResults[index]
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func stringTest(s string, stmt *Statement, captures map[string]string) bool {
 	switch stmt.op.tokenId {
 	case OP_EQ:
 		return (s == stmt.value.token)
@@ -110,7 +151,7 @@ func stringTest(s string, stmt *Statement) bool {
 	case OP_GTE:
 		return (s >= stmt.value.token)
 	case OP_RE:
-		return stmt.value.regexp.MatchString(s)
+		return regexpTest(s, stmt, captures)
 	case OP_NRE:
 		return !stmt.value.regexp.MatchString(s)
 	}
@@ -135,7 +176,7 @@ func numericTest(f float64, stmt *Statement) bool {
 	return false
 }
 
-func testExpr(msg *Message, stmt *Statement) bool {
+func testExpr(msg *Message, stmt *Statement, captures map[string]string) bool {
 	switch stmt.op.tokenId {
 	case TRUE:
 		return true
@@ -145,7 +186,7 @@ func testExpr(msg *Message, stmt *Statement) bool {
 		switch stmt.field.tokenId {
 		case VAR_UUID, VAR_TYPE, VAR_LOGGER, VAR_PAYLOAD,
 			VAR_ENVVERSION, VAR_HOSTNAME:
-			return stringTest(getStringValue(msg, stmt), stmt)
+			return stringTest(getStringValue(msg, stmt), stmt, captures)
 		case VAR_TIMESTAMP, VAR_SEVERITY, VAR_PID:
 			return numericTest(getNumericValue(msg, stmt), stmt)
 		case VAR_FIELDS:
@@ -169,12 +210,12 @@ func testExpr(msg *Message, stmt *Statement) bool {
 				if ai >= len(field.ValueString) {
 					return false
 				}
-				return stringTest(field.ValueString[ai], stmt)
+				return stringTest(field.ValueString[ai], stmt, captures)
 			case Field_BYTES:
 				if ai >= len(field.ValueBytes) {
 					return false
 				}
-				return stringTest(string(field.ValueBytes[ai]), stmt)
+				return stringTest(string(field.ValueBytes[ai]), stmt, captures)
 			case Field_INTEGER:
 				if ai >= len(field.ValueInteger) {
 					return false

@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 	time "time"
 )
 
@@ -30,9 +30,17 @@ func (_m *MockOutputRunner) EXPECT() *_MockOutputRunnerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOutputRunner) InChan() chan *PipelinePack {
+func (_m *MockOutputRunner) Deliver(_param0 *PipelinePack) {
+	_m.ctrl.Call(_m, "Deliver", _param0)
+}
+
+func (_mr *_MockOutputRunnerRecorder) Deliver(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Deliver", arg0)
+}
+
+func (_m *MockOutputRunner) InChan() chan *PipelineCapture {
 	ret := _m.ctrl.Call(_m, "InChan")
-	ret0, _ := ret[0].(chan *PipelinePack)
+	ret0, _ := ret[0].(chan *PipelineCapture)
 	return ret0
 }
 
@@ -46,6 +54,14 @@ func (_m *MockOutputRunner) LogError(_param0 error) {
 
 func (_mr *_MockOutputRunnerRecorder) LogError(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogError", arg0)
+}
+
+func (_m *MockOutputRunner) LogMessage(_param0 string) {
+	_m.ctrl.Call(_m, "LogMessage", _param0)
+}
+
+func (_mr *_MockOutputRunnerRecorder) LogMessage(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogMessage", arg0)
 }
 
 func (_m *MockOutputRunner) Name() string {

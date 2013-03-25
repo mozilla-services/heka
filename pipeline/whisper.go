@@ -22,7 +22,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
@@ -145,60 +144,58 @@ func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
 	return
 }
 
-// Listen for stop event so we can close all our files.
-func (o *WhisperOutput) Start(or OutputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
-	go func() {
-		var fields []string
-		var wr WhisperRunner
-		var unixTime uint64
-		var value float64
-		var payload string
-		var err error
+	var (
+		fields   []string
+		wr       WhisperRunner
+		unixTime uint64
+		value    float64
+		payload  string
+		e        error
+		pack     *PipelinePack
+	)
 
-		for pack := range or.InChan() {
-			payload = pack.Message.GetPayload()
-			pack.Recycle() // Once we've copied the payload we're done w/ the pack.
-			lines := strings.Split(strings.Trim(payload, " \n"), "\n")
-			for _, line := range lines {
-				// `fields` should be "<name> <value> <timestamp>"
-				fields = strings.Fields(line)
-				if len(fields) != 3 || !strings.HasPrefix(fields[0], "stats") {
-					or.LogError(fmt.Errorf("malformed statmetric line: '%s'", line))
-					continue
-				}
-				if wr = o.dbs[fields[0]]; wr == nil {
-					wr, err = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultArchiveInfo,
-						o.defaultAggMethod)
-					if err != nil {
-						or.LogError(fmt.Errorf("can't create WhisperRunner: %s", err))
-						continue
-					}
-					o.dbs[fields[0]] = wr
-				}
-				if unixTime, err = strconv.ParseUint(fields[2], 0, 32); err != nil {
-					or.LogError(fmt.Errorf("parsing time: %s", err))
-					continue
-				}
-				if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
-					or.LogError(fmt.Errorf("parsing value '%s': %s", fields[1], err))
-					continue
-				}
-				pt := &whisper.Point{
-					Timestamp: uint32(unixTime),
-					Value:     value,
-				}
-				wr.InChan() <- pt
+	for plc := range or.InChan() {
+		pack = plc.Pack
+		payload = pack.Message.GetPayload()
+		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
+		lines := strings.Split(strings.Trim(payload, " \n"), "\n")
+		for _, line := range lines {
+			// `fields` should be "<name> <value> <timestamp>"
+			fields = strings.Fields(line)
+			if len(fields) != 3 || !strings.HasPrefix(fields[0], "stats") {
+				or.LogError(fmt.Errorf("malformed statmetric line: '%s'", line))
+				continue
 			}
+			if wr = o.dbs[fields[0]]; wr == nil {
+				wr, e = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultArchiveInfo,
+					o.defaultAggMethod)
+				if e != nil {
+					or.LogError(fmt.Errorf("can't create WhisperRunner: %s", e))
+					continue
+				}
+				o.dbs[fields[0]] = wr
+			}
+			if unixTime, e = strconv.ParseUint(fields[2], 0, 32); e != nil {
+				or.LogError(fmt.Errorf("parsing time: %s", e))
+				continue
+			}
+			if value, e = strconv.ParseFloat(fields[1], 64); e != nil {
+				or.LogError(fmt.Errorf("parsing value '%s': %s", fields[1], e))
+				continue
+			}
+			pt := &whisper.Point{
+				Timestamp: uint32(unixTime),
+				Value:     value,
+			}
+			wr.InChan() <- pt
 		}
+	}
 
-		for _, wr := range o.dbs {
-			close(wr.InChan())
-		}
-		log.Printf("WhisperOutput '%s' stopped.", or.Name())
-		wg.Done()
-	}()
+	for _, wr := range o.dbs {
+		close(wr.InChan())
+	}
 
 	return
 }

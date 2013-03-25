@@ -30,16 +30,19 @@ type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
 	Start()
+	InChan() chan *PipelinePack
 }
 
 type dRunner struct {
 	pRunnerBase
+	inChan chan *PipelinePack
 }
 
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &dRunner{
-		pRunnerBase{inChan: inChan, name: name, plugin: decoder.(Plugin)},
+		pRunnerBase{name: name, plugin: decoder.(Plugin)},
+		inChan,
 	}
 }
 
@@ -62,8 +65,16 @@ func (dr *dRunner) Start() {
 	}()
 }
 
+func (dr *dRunner) InChan() chan *PipelinePack {
+	return dr.inChan
+}
+
 func (dr *dRunner) LogError(err error) {
 	log.Printf("Decoder '%s' error: %s", dr.name, err)
+}
+
+func (dr *dRunner) LogMessage(msg string) {
+	log.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
 type Decoder interface {

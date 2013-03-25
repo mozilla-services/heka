@@ -46,22 +46,17 @@ type Plugin interface {
 
 // Base interface for the Heka plugin runners.
 type PluginRunner interface {
-	InChan() chan *PipelinePack
 	Name() string
 	SetName(name string)
 	Plugin() Plugin
 	LogError(err error)
+	LogMessage(msg string)
 }
 
 // Base struct for the specialized PluginRunners
 type pRunnerBase struct {
-	inChan chan *PipelinePack
 	name   string
 	plugin Plugin
-}
-
-func (pr *pRunnerBase) InChan() chan *PipelinePack {
-	return pr.inChan
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -93,11 +88,12 @@ type foRunner struct {
 	matcher    *MatchRunner
 	tickLength time.Duration
 	ticker     <-chan time.Time
+	inChan     chan *PipelineCapture
 }
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
-	runner.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	runner.inChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
 	return
 }
 
@@ -106,26 +102,55 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
 
-	if filter, ok := foRunner.plugin.(Filter); ok {
-		err = filter.Start(foRunner, h, wg)
-	} else if output, ok := foRunner.plugin.(Output); ok {
-		err = output.Start(foRunner, h, wg)
-	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Only recovers from panics in the main `Run` method
+				// goroutine, but better than nothing.
+				foRunner.LogError(fmt.Errorf("PANIC: %s", r))
+			}
+			wg.Done()
+		}()
 
-	if err != nil {
-		err = fmt.Errorf("Plugin '%s' failed to start: %s", foRunner.name, err)
-	} else if foRunner.matcher != nil {
-		foRunner.matcher.Start(foRunner.inChan)
-	}
+		if foRunner.matcher != nil {
+			foRunner.matcher.Start(foRunner.inChan)
+		}
+
+		// `Run` method only returns if there's an error or we're shutting
+		// down.
+		if filter, ok := foRunner.plugin.(Filter); ok {
+			err = filter.Run(foRunner, h)
+		} else if output, ok := foRunner.plugin.(Output); ok {
+			err = output.Run(foRunner, h)
+		}
+		if err != nil {
+			err = fmt.Errorf("Plugin '%s' error: %s", foRunner.name, err)
+		} else {
+			foRunner.LogMessage("stopped")
+		}
+	}()
 	return
+}
+
+func (foRunner *foRunner) Deliver(pack *PipelinePack) {
+	plc := &PipelineCapture{Pack: pack}
+	foRunner.inChan <- plc
 }
 
 func (foRunner *foRunner) LogError(err error) {
 	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
 }
 
+func (foRunner *foRunner) LogMessage(msg string) {
+	log.Printf("Plugin '%s': %s", foRunner.name, msg)
+}
+
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
+}
+
+func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
+	return foRunner.inChan
 }
 
 type PipelinePack struct {
@@ -134,6 +159,11 @@ type PipelinePack struct {
 	Config   *PipelineConfig
 	Decoded  bool
 	RefCount int32
+}
+
+type PipelineCapture struct {
+	Pack     *PipelinePack
+	Captures map[string]string
 }
 
 func NewPipelinePack(config *PipelineConfig) (pack *PipelinePack) {

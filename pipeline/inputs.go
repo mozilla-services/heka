@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,26 +38,50 @@ func (self *TimeoutError) Error() string {
 
 type InputRunner interface {
 	PluginRunner
+	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
 type iRunner struct {
 	pRunnerBase
+	inChan chan *PipelinePack
 }
 
 func NewInputRunner(name string, input Input) (ir InputRunner) {
-	return &iRunner{pRunnerBase{name: name, plugin: input.(Plugin)}}
+	iRunner := new(iRunner)
+	iRunner.name = name
+	iRunner.plugin = input.(Plugin)
+	return
 }
 func (ir *iRunner) Input() Input {
 	return ir.plugin.(Input)
 }
 
+func (ir *iRunner) InChan() chan *PipelinePack {
+	return ir.inChan
+}
+
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.inChan = h.PackSupply()
-	if err = ir.Input().Start(ir, h, wg); err != nil {
-		err = fmt.Errorf("Input '%s' failed to start: %s", ir.name, err)
-	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Panics in separate goroutines that are spun up by the input
+				// will still bring the process down, but this protects us at
+				// least a little bit. :P
+				ir.LogError(fmt.Errorf("PANIC: %s", r))
+			}
+			wg.Done()
+		}()
+
+		// ir.Input().Run() shouldn't return unless error or shutdown
+		if err = ir.Input().Run(ir, h); err != nil {
+			err = fmt.Errorf("Input '%s' error: %s", ir.name, err)
+		} else {
+			ir.LogMessage("stopped")
+		}
+	}()
 	return
 }
 
@@ -64,9 +89,13 @@ func (ir *iRunner) LogError(err error) {
 	log.Printf("Input '%s' error: %s", ir.name, err)
 }
 
+func (ir *iRunner) LogMessage(msg string) {
+	log.Printf("Input '%s': %s", ir.name, msg)
+}
+
 // Input plugin interface type
 type Input interface {
-	Start(ir InputRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Run(ir InputRunner, h PluginHelper) (err error)
 	Stop()
 }
 
@@ -115,42 +144,40 @@ func (self *UdpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *UdpInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	decoders := h.DecodersByEncoding()
 	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
 	if decoder == nil {
 		return fmt.Errorf("No JSON decoder found.")
 	}
 
-	go func() {
-		var err error
-		var n int
-		var pack *PipelinePack
-		for !self.stopped {
-			pack = <-ir.InChan()
-			n, err = self.listener.Read(pack.MsgBytes)
-			if err != nil {
-				ir.LogError(fmt.Errorf("Read error: ", err))
-				pack.Recycle()
-				continue
+	var e error
+	var n int
+	var pack *PipelinePack
+	for !self.stopped {
+		pack = <-ir.InChan()
+		if n, e = self.listener.Read(pack.MsgBytes); e != nil {
+			if !strings.Contains(e.Error(), "use of closed") {
+				ir.LogError(fmt.Errorf("Read error: ", e))
 			}
-			pack.MsgBytes = pack.MsgBytes[:n]
-			decoder.InChan() <- pack
+			pack.Recycle()
+			continue
 		}
-		self.listener.Close()
-		for _, v := range decoders {
-			close(v.InChan())
-		}
-		log.Println("UdpInput stopped: ", ir.Name())
-		wg.Done()
-	}()
-	return nil
+		pack.MsgBytes = pack.MsgBytes[:n]
+		decoder.InChan() <- pack
+	}
+
+	self.listener.Close()
+	for _, v := range decoders {
+		close(v.InChan())
+	}
+
+	return
 }
 
 func (self *UdpInput) Stop() {
 	self.stopped = true
+	self.listener.Close()
 }
 
 // TCP Input
@@ -298,35 +325,29 @@ func (self *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *TcpInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	self.ir = ir
 	self.h = h
 	self.stopChan = make(chan bool)
 
-	go func() {
-		var conn net.Conn
-		var err error
+	var conn net.Conn
+	var e error
 
-		for {
-			if conn, err = self.listener.Accept(); err != nil {
-				if err.(net.Error).Temporary() {
-					self.ir.LogError(fmt.Errorf("TCP accept failed: %s", err))
-					continue
-				} else {
-					break
-				}
+	for {
+		if conn, e = self.listener.Accept(); e != nil {
+			if e.(net.Error).Temporary() {
+				self.ir.LogError(fmt.Errorf("TCP accept failed: %s", e))
+				continue
+			} else {
+				break
 			}
-
-			go self.handleConnection(conn)
-			self.wg.Add(1)
 		}
-		log.Println("TcpInput stopped: ", ir.Name())
-		wg.Done()
-	}()
 
-	return nil
+		go self.handleConnection(conn)
+		self.wg.Add(1)
+	}
+
+	return
 }
 
 func (self *TcpInput) Stop() {
@@ -404,48 +425,46 @@ func (self *MessageGeneratorInput) Init(config interface{}) error {
 	return nil
 }
 
-func (self *MessageGeneratorInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	var pack *PipelinePack
+	var msgHolder *messageHolder
+	var outMsg outputMsg
+	var output OutputRunner
+	var outChan chan *PipelinePack
+	ok := true
+	packSupply := ir.InChan()
 
-	go func() {
-		var pack *PipelinePack
-		var msgHolder *messageHolder
-		var outMsg outputMsg
-		var output OutputRunner
-		var outChan chan *PipelinePack
-		ok := true
-		packSupply := ir.InChan()
-
-		for ok {
-			pack = <-packSupply
-			select {
-			case msgHolder, ok = <-self.routerChan:
-				// if !ok we'll fall through below
+	for ok {
+		output = nil
+		outChan = nil
+		pack = <-packSupply
+		select {
+		case msgHolder, ok = <-self.routerChan:
+			// if !ok we'll fall through below
+			outChan = h.Router().InChan
+		case outMsg = <-self.outputChan:
+			msgHolder = outMsg.msg
+			if output, ok = h.Output(outMsg.outputName); !ok {
+				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
+				ok = true // still deliver to the router; is this what we want?
 				outChan = h.Router().InChan
-			case outMsg = <-self.outputChan:
-				msgHolder = outMsg.msg
-				if output, ok = h.Output(outMsg.outputName); !ok {
-					ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
-					ok = true // still deliver to the router
-					outChan = h.Router().InChan
-				} else {
-					outChan = output.InChan()
-				}
-			}
-
-			if ok {
-				msgHolder.Message.Copy(pack.Message)
-				pack.Decoded = true
-				outChan <- pack
-				cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
-				if cnt == 0 {
-					self.recycleChan <- msgHolder
-				}
 			}
 		}
-		log.Println("MessageGeneratorInput stopped.")
-		wg.Done()
-	}()
+
+		if ok {
+			msgHolder.Message.Copy(pack.Message)
+			pack.Decoded = true
+			if output != nil {
+				output.Deliver(pack)
+			} else {
+				outChan <- pack
+			}
+			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
+			if cnt == 0 {
+				self.recycleChan <- msgHolder
+			}
+		}
+	}
 
 	return
 }

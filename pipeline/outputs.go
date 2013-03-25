@@ -31,13 +31,15 @@ import (
 
 type OutputRunner interface {
 	PluginRunner
+	InChan() chan *PipelineCapture
 	Output() Output
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
+	Deliver(pack *PipelinePack)
 }
 
 type Output interface {
-	Start(or OutputRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Run(or OutputRunner, h PluginHelper) (err error)
 }
 
 type LogOutput struct {
@@ -52,31 +54,37 @@ func (self *LogOutput) Init(config interface{}) (err error) {
 	return
 }
 
-func (self *LogOutput) Start(or OutputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	inChan := or.InChan()
 
-	go func() {
-		var msg *message.Message
-		for pack := range or.InChan() {
-			msg = pack.Message
-			if self.payloadOnly {
-				log.Printf(msg.GetPayload())
-			} else {
-				log.Printf("<\n\tTimestamp: %s\n\tType: %s\n\tHostname: %s\n\tPid: %d"+
-					"\n\tUUID: %s"+
-					"\n\tLogger: %s\n\tPayload: %s\n\tEnvVersion: %s\n\tSeverity: %d\n"+
-					"\tFields: %+v\n>\n",
-					time.Unix(0, msg.GetTimestamp()),
-					msg.GetType(), msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-					msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-					msg.GetSeverity(), msg.Fields)
-			}
-			pack.Recycle()
+	var (
+		pack *PipelinePack
+		msg  *message.Message
+	)
+	for plc := range inChan {
+		pack = plc.Pack
+		msg = pack.Message
+		if self.payloadOnly {
+			log.Printf(msg.GetPayload())
+		} else {
+			log.Printf("<\n\tTimestamp: %s\n"+
+				"\tType: %s\n"+
+				"\tHostname: %s\n"+
+				"\tPid: %d\n"+
+				"\tUUID: %s\n"+
+				"\tLogger: %s\n"+
+				"\tPayload: %s\n"+
+				"\tEnvVersion: %s\n"+
+				"\tSeverity: %d\n"+
+				"\tFields: %+v\n"+
+				"\tCaptures: %v\n>\n",
+				time.Unix(0, msg.GetTimestamp()), msg.GetType(),
+				msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+				msg.GetSeverity(), msg.Fields, plc.Captures)
 		}
-		log.Printf("LogOutput '%s' stopped.", or.Name())
-		wg.Done()
-	}()
-
+		pack.Recycle()
+	}
 	return
 }
 
@@ -119,8 +127,6 @@ type FileOutput struct {
 	file          *os.File
 	batchChan     chan []byte
 	backChan      chan []byte
-	wg            *sync.WaitGroup
-	or            OutputRunner
 }
 
 type FileOutputConfig struct {
@@ -168,26 +174,27 @@ func (o *FileOutput) openFile() (err error) {
 	return
 }
 
-func (o *FileOutput) Start(or OutputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-	o.or = or
-	o.wg = wg
-	go o.receiver(or.InChan())
-	go o.committer()
+func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go o.receiver(or, &wg)
+	go o.committer(&wg)
+	wg.Wait()
 	return
 }
 
-func (o *FileOutput) receiver(inChan chan *PipelinePack) {
-	var pack *PipelinePack
-	var err error
+func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
+	var plc *PipelineCapture
+	var e error
 	ok := true
 	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
 	outBatch := make([]byte, 0, 10000)
 	outBytes := make([]byte, 0, 1000)
+	inChan := or.InChan()
 
 	for ok {
 		select {
-		case pack, ok = <-inChan:
+		case plc, ok = <-inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
 				if len(outBatch) > 0 {
@@ -196,13 +203,13 @@ func (o *FileOutput) receiver(inChan chan *PipelinePack) {
 				close(o.batchChan)
 				break
 			}
-			if err = o.handleMessage(pack, &outBytes); err != nil {
-				o.or.LogError(err)
+			if e = o.handleMessage(plc.Pack, &outBytes); e != nil {
+				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
 			}
 			outBytes = outBytes[:0]
-			pack.Recycle()
+			plc.Pack.Recycle()
 		case <-ticker:
 			if len(outBatch) > 0 {
 				// This will block until the other side is ready to accept
@@ -212,6 +219,7 @@ func (o *FileOutput) receiver(inChan chan *PipelinePack) {
 			}
 		}
 	}
+	wg.Done()
 }
 
 func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
@@ -240,7 +248,7 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 	return
 }
 
-func (o *FileOutput) committer() {
+func (o *FileOutput) committer(wg *sync.WaitGroup) {
 	initBatch := make([]byte, 0, 10000)
 	o.backChan <- initBatch
 	var outBatch []byte
@@ -279,8 +287,7 @@ func (o *FileOutput) committer() {
 	}
 
 	o.file.Close()
-	log.Printf("FileOutput '%s' stopped.\n", o.or.Name())
-	o.wg.Done()
+	wg.Done()
 }
 
 // TcpOutput implementation
@@ -304,33 +311,27 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	return
 }
 
-func (t *TcpOutput) Start(or OutputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	var e error
+	var n int
+	outBytes := make([]byte, 0, 2000)
 
-	go func() {
-		var err error // local scope, not the return val
-		var n int
-		outBytes := make([]byte, 0, 2000)
+	for plc := range or.InChan() {
+		outBytes = outBytes[:0]
 
-		for pack := range or.InChan() {
-			outBytes = outBytes[:0]
-
-			if err = createProtobufStream(pack, &outBytes); err != nil {
-				or.LogError(err)
-				continue
-			}
-
-			if n, err = t.connection.Write(outBytes); err != nil {
-				or.LogError(fmt.Errorf("writing to %s: %s", t.address, err))
-			} else if n != len(outBytes) {
-				or.LogError(fmt.Errorf("truncated output to: %s", t.address))
-			}
+		if e = createProtobufStream(plc.Pack, &outBytes); e != nil {
+			or.LogError(e)
+			continue
 		}
 
-		t.connection.Close()
-		log.Printf("TcpOutput '%s' stopped.\n", or.Name())
-		wg.Done()
-	}()
+		if n, e = t.connection.Write(outBytes); e != nil {
+			or.LogError(fmt.Errorf("writing to %s: %s", t.address, e))
+		} else if n != len(outBytes) {
+			or.LogError(fmt.Errorf("truncated output to: %s", t.address))
+		}
+	}
+
+	t.connection.Close()
 
 	return
 }
