@@ -48,7 +48,7 @@ func OutputsSpec(c gs.Context) {
 
 	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
-	inChan := make(chan *PipelinePack, 1)
+	inChan := make(chan *PipelineCapture, 1)
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
@@ -64,6 +64,7 @@ func OutputsSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 		pack.Config.RecycleChan = make(chan *PipelinePack, 1)
+		plc := &PipelineCapture{Pack: pack}
 
 		toString := func(outData interface{}) string {
 			return string(*(outData.(*[]byte)))
@@ -144,22 +145,19 @@ func OutputsSpec(c gs.Context) {
 			// Save for comparison.
 			payload := fmt.Sprintf("%s\n", pack.Message.GetPayload())
 
-			go fileOutput.receiver(inChan)
-			inChan <- pack
+			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			wg.Add(1)
+			go fileOutput.receiver(oth.MockOutputRunner, &wg)
+			inChan <- plc
 			close(inChan)
-
 			outBatch := <-fileOutput.batchChan
+			wg.Wait()
 			c.Expect(string(outBatch), gs.Equals, payload)
 		})
 
 		c.Specify("commits to a file", func() {
 			outStr := "Write me out to the log file"
 			outBytes := []byte(outStr)
-			fileOutput.wg = &wg
-			fileOutput.wg.Add(1)
-
-			fileOutput.or = oth.MockOutputRunner
-			oth.MockOutputRunner.EXPECT().Name().Return("test FileOutput")
 
 			c.Specify("with default settings", func() {
 				err := fileOutput.Init(config)
@@ -167,7 +165,8 @@ func OutputsSpec(c gs.Context) {
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
-				go fileOutput.committer()
+				wg.Add(1)
+				go fileOutput.committer(&wg)
 
 				// Feed and close the batchChan
 				go func() {
@@ -176,9 +175,10 @@ func OutputsSpec(c gs.Context) {
 					close(fileOutput.batchChan)
 				}()
 
+				wg.Wait()
 				// Wait for the file close operation to happen.
-				for ; err == nil; _, err = fileOutput.file.Stat() {
-				}
+				//for ; err == nil; _, err = fileOutput.file.Stat() {
+				//}
 
 				tmpFile, err := os.Open(tmpFilePath)
 				defer tmpFile.Close()
@@ -195,7 +195,8 @@ func OutputsSpec(c gs.Context) {
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
-				go fileOutput.committer()
+				wg.Add(1)
+				go fileOutput.committer(&wg)
 
 				// Feed and close the batchChan
 				go func() {
@@ -204,9 +205,10 @@ func OutputsSpec(c gs.Context) {
 					close(fileOutput.batchChan)
 				}()
 
+				wg.Wait()
 				// Wait for the file close operation to happen.
-				for ; err == nil; _, err = fileOutput.file.Stat() {
-				}
+				//for ; err == nil; _, err = fileOutput.file.Stat() {
+				//}
 
 				tmpFile, err := os.Open(tmpFilePath)
 				defer tmpFile.Close()
@@ -229,6 +231,7 @@ func OutputsSpec(c gs.Context) {
 		pack := getTestPipelinePack()
 		pack.Message = msg
 		pack.Decoded = true
+		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("correctly formats protocol buffer stream output", func() {
 			outBytes := make([]byte, 0, 200)
@@ -266,11 +269,13 @@ func OutputsSpec(c gs.Context) {
 
 			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
-			wg.Add(1)
-			tcpOutput.Start(oth.MockOutputRunner, oth.MockHelper, &wg)
-			inChan <- pack
+			go func() {
+				wg.Add(1)
+				tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				wg.Done()
+			}()
+			inChan <- plc
 
-			oth.MockOutputRunner.EXPECT().Name().Return("test TcpOutput")
 			close(inChan)
 			wg.Wait() // wait for close to finish, prevents intermittent test failures
 

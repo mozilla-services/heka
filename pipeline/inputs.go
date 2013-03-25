@@ -38,20 +38,29 @@ func (self *TimeoutError) Error() string {
 
 type InputRunner interface {
 	PluginRunner
+	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 }
 
 type iRunner struct {
 	pRunnerBase
+	inChan chan *PipelinePack
 }
 
 func NewInputRunner(name string, input Input) (ir InputRunner) {
-	return &iRunner{pRunnerBase{name: name, plugin: input.(Plugin)}}
+	iRunner := new(iRunner)
+	iRunner.name = name
+	iRunner.plugin = input.(Plugin)
+	return
 }
 
 func (ir *iRunner) Input() Input {
 	return ir.plugin.(Input)
+}
+
+func (ir *iRunner) InChan() chan *PipelinePack {
+	return ir.inChan
 }
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
@@ -69,7 +78,7 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 
 		// ir.Input().Run() shouldn't return unless error or shutdown
 		if err = ir.Input().Run(ir, h); err != nil {
-			err = fmt.Errorf("Input '%s' error : %s", ir.name, err)
+			err = fmt.Errorf("Input '%s' error: %s", ir.name, err)
 		} else {
 			ir.LogMessage("stopped")
 		}
@@ -427,6 +436,8 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 	packSupply := ir.InChan()
 
 	for ok {
+		output = nil
+		outChan = nil
 		pack = <-packSupply
 		select {
 		case msgHolder, ok = <-self.routerChan:
@@ -436,17 +447,19 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 			msgHolder = outMsg.msg
 			if output, ok = h.Output(outMsg.outputName); !ok {
 				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
-				ok = true // still deliver to the router
+				ok = true // still deliver to the router; is this what we want?
 				outChan = h.Router().InChan
-			} else {
-				outChan = output.InChan()
 			}
 		}
 
 		if ok {
 			msgHolder.Message.Copy(pack.Message)
 			pack.Decoded = true
-			outChan <- pack
+			if output != nil {
+				output.Deliver(pack)
+			} else {
+				outChan <- pack
+			}
 			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
 			if cnt == 0 {
 				self.recycleChan <- msgHolder

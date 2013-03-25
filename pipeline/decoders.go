@@ -30,16 +30,19 @@ type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
 	Start()
+	InChan() chan *PipelinePack
 }
 
 type dRunner struct {
 	pRunnerBase
+	inChan chan *PipelinePack
 }
 
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &dRunner{
-		pRunnerBase{inChan: inChan, name: name, plugin: decoder.(Plugin)},
+		pRunnerBase{name: name, plugin: decoder.(Plugin)},
+		inChan,
 	}
 }
 
@@ -60,6 +63,10 @@ func (dr *dRunner) Start() {
 			pack.Config.Router().InChan <- pack
 		}
 	}()
+}
+
+func (dr *dRunner) InChan() chan *PipelinePack {
+	return dr.inChan
 }
 
 func (dr *dRunner) LogError(err error) {
