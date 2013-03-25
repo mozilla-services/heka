@@ -177,23 +177,31 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	if lsb.lsb == nil {
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
-	// @todo if serialization exists attempt to restore the state
 	lsb.output = func(s string) { log.Println(s) }
 	lsb.injectMessage = func(s string) { log.Println(s) }
 	return lsb, nil
 }
 
-func (this *LuaSandbox) Init() error {
-	r := int(C.lua_sandbox_init(this.lsb))
+func (this *LuaSandbox) Init(dataFile string) error {
+	cs := C.CString(dataFile)
+	defer C.free(unsafe.Pointer(cs))
+	r := int(C.lua_sandbox_init(this.lsb, cs))
 	if r != 0 {
 		return fmt.Errorf("Init() %s", this.LastError())
 	}
 	return nil
 }
 
-func (this *LuaSandbox) Destroy() {
-	// @todo serialize the state
-	C.lua_sandbox_destroy(this.lsb)
+func (this *LuaSandbox) Destroy(dataFile string) error {
+	cs := C.CString(dataFile)
+	defer C.free(unsafe.Pointer(cs))
+	c := C.lua_sandbox_destroy(this.lsb, cs)
+	if c != nil {
+		err := C.GoString(c)
+		C.free(unsafe.Pointer(c))
+		return fmt.Errorf("Destroy() %s", err)
+	}
+	return nil
 }
 
 func (this *LuaSandbox) Status() int {

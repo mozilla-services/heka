@@ -27,22 +27,30 @@ SANDBOX_EXPORT lua_sandbox* lua_sandbox_create(void* go,
                                                unsigned mem_limit,
                                                unsigned inst_limit);
 
-/** 
+/**
  * Frees the memory associated with the sandbox
  * 
- * @param lsb sandbox pointer to discard
+ * @param lsb        sandbox pointer to discard
+ * @param state_file filename to save the sandbox state to (empty or NULL for no
+ *                   preservation)
+ * 
+ * @return NULL on success, pointer to an error message on failure (MUST BE 
+ * FREED by the caller) 
  */
-SANDBOX_EXPORT void lua_sandbox_destroy(lua_sandbox* lsb);
+SANDBOX_EXPORT char* lua_sandbox_destroy(lua_sandbox* lsb,
+                                         const char* state_file);
 
 /** 
  * Initialize the Lua sandbox and loads/runs the Lua script that was specified 
  * in lua_create_sandbox 
  * 
  * @param lsb pointer to the sandbox
+ * @param state_file filename to read the sandbox state from (empty or NULL for 
+ *                   no restoration)
  * 
  * @return int 0 on success
  */
-SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb);
+SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
 
 /** 
  * Retrieve the sandbox memory statistics

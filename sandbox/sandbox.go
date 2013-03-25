@@ -33,8 +33,8 @@ const (
 
 type Sandbox interface {
 	// Sandbox control
-	Init() error
-	Destroy()
+	Init(dataFile string) error
+	Destroy(dataFile string) error
 
 	// Sandbox state
 	Status() int
@@ -54,6 +54,7 @@ type Sandbox interface {
 type SandboxConfig struct {
 	ScriptType       string `json:"type"`
 	ScriptFilename   string `json:"filename"`
+	PreserveData     bool   `json:"preserve_data"`
 	MemoryLimit      uint   `json:"memory_limit"`
 	InstructionLimit uint   `json:"instruction_limit"`
 }
