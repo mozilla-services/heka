@@ -57,6 +57,14 @@ func (_mr *_MockInputRunnerRecorder) LogError(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogError", arg0)
 }
 
+func (_m *MockInputRunner) LogMessage(_param0 string) {
+	_m.ctrl.Call(_m, "LogMessage", _param0)
+}
+
+func (_mr *_MockInputRunnerRecorder) LogMessage(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LogMessage", arg0)
+}
+
 func (_m *MockInputRunner) Name() string {
 	ret := _m.ctrl.Call(_m, "Name")
 	ret0, _ := ret[0].(string)

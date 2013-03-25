@@ -79,57 +79,53 @@ func (s *StatsdInput) Init(config interface{}) error {
 	s.flushInterval = conf.FlushInterval
 	s.percentThreshold = conf.PercentThreshold
 
-	udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
-	if err != nil {
-		return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
-	}
-	s.listener, err = net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+	if conf.Address != "" {
+		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+		if err != nil {
+			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
+		}
+		s.listener, err = net.ListenUDP("udp", udpAddr)
+		if err != nil {
+			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+		}
 	}
 	return nil
 }
 
-func (s *StatsdInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
+func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, wg, ir.Name())
-	go sm.Monitor(packets)
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir.Name())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go sm.Monitor(packets, &wg)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
-		go func() {
-			var n int
-			var err error
-			defer s.listener.Close()
-			timeout := time.Duration(time.Millisecond * 100)
+		var n int
+		var e error
+		defer s.listener.Close()
+		timeout := time.Duration(time.Millisecond * 100)
 
-			for !s.stopped {
-				message := make([]byte, 512)
-				s.listener.SetReadDeadline(time.Now().Add(timeout))
-				n, _, err = s.listener.ReadFromUDP(message)
-				if err != nil || n == 0 {
-					continue
-				}
-				if s.stopped {
-					// If we're stopping, use synchronous call so we don't
-					// close the channel too soon.
-					s.handleMessage(message[:n])
-				} else {
-					go s.handleMessage(message[:n])
-				}
+		for !s.stopped {
+			message := make([]byte, 512)
+			s.listener.SetReadDeadline(time.Now().Add(timeout))
+			n, _, e = s.listener.ReadFromUDP(message)
+			if e != nil || n == 0 {
+				continue
 			}
-			close(packets) // shut down the StatMonitor
-			log.Println("StatsdUdpInput for input stopped: ", ir.Name())
-			wg.Done()
-		}()
-	} else {
-		// In this case, the monitor already incremented for itself, so we
-		// decrement here since we didn't need it.
-		wg.Done()
+			if s.stopped {
+				// If we're stopping, use synchronous call so we don't
+				// close the channel too soon.
+				s.handleMessage(message[:n])
+			} else {
+				go s.handleMessage(message[:n])
+			}
+		}
+		close(packets) // shut down the StatMonitor
 	}
-	return nil
+	wg.Wait()
+	return
 }
 
 func (s *StatsdInput) Stop() {
@@ -173,11 +169,10 @@ type statMonitor struct {
 	percentThreshold int
 	flushInterval    int64
 	inputName        string
-	wg               *sync.WaitGroup
 }
 
 func NewStatMonitor(percentThreshold int, flushInterval int64,
-	wg *sync.WaitGroup, inputName string) *statMonitor {
+	inputName string) *statMonitor {
 	return &statMonitor{
 		counters:         make(map[string]int),
 		timers:           make(map[string][]float64),
@@ -185,16 +180,13 @@ func NewStatMonitor(percentThreshold int, flushInterval int64,
 		percentThreshold: percentThreshold,
 		flushInterval:    flushInterval,
 		inputName:        inputName,
-		wg:               wg,
 	}
 }
 
-func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
+func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 	var s StatPacket
 	var floatValue float64
 	var intValue int
-
-	sm.wg.Add(1)
 
 	t := time.Tick(time.Duration(sm.flushInterval) * time.Second)
 	ok := true
@@ -221,7 +213,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket) {
 		}
 	}
 	log.Println("StatsdMonitor for input stopped: ", sm.inputName)
-	sm.wg.Done()
+	wg.Done()
 }
 
 func (sm *statMonitor) Flush() {
