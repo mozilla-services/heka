@@ -82,21 +82,25 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 	var (
 		ok, terminated = true, false
-		pack           *PipelinePack
 		plc            *PipelineCapture
-		captures       map[string]string
 		retval         int
 	)
 	for ok && !terminated {
-		pack = nil
-		captures = nil
 		select {
 		case plc, ok = <-inChan:
 			if !ok {
 				break
 			}
-			pack = plc.Pack
-			captures = plc.Captures
+			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
+			if retval != 0 {
+				fr.LogError(fmt.Errorf(
+					"Sandbox ProcessMessage error code: %d, error message: %s",
+					retval, this.sb.LastError()))
+				if this.sb.Status() == sandbox.STATUS_TERMINATED {
+					terminated = true
+				}
+			}
+			plc.Pack.Recycle()
 		case t := <-ticker:
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				fr.LogError(fmt.Errorf(
@@ -106,17 +110,6 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 					terminated = true
 				}
 			}
-		}
-		if pack != nil {
-			if retval = this.sb.ProcessMessage(pack.Message, captures); retval != 0 {
-				fr.LogError(fmt.Errorf(
-					"Sandbox ProcessMessage error code: %d, error message: %s",
-					retval, this.sb.LastError()))
-				if this.sb.Status() == sandbox.STATUS_TERMINATED {
-					terminated = true
-				}
-			}
-			pack.Recycle()
 		}
 	}
 	this.sb.Destroy()
