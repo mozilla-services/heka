@@ -48,11 +48,11 @@ type iRunner struct {
 	inChan chan *PipelinePack
 }
 
-func NewInputRunner(name string, input Input) (ir InputRunner) {
+func NewInputRunner(name string, input Input) InputRunner {
 	iRunner := new(iRunner)
 	iRunner.name = name
 	iRunner.plugin = input.(Plugin)
-	return
+	return iRunner
 }
 
 func (ir *iRunner) Input() Input {
