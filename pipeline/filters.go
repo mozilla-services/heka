@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"sync"
 	"time"
@@ -25,14 +24,15 @@ import (
 
 type FilterRunner interface {
 	PluginRunner
-	MatchChan() chan *PipelineCapture
+	InChan() chan *PipelineCapture
 	Filter() Filter
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
+	Deliver(pack *PipelinePack)
 }
 
 type Filter interface {
-	Start(r FilterRunner, h PluginHelper, wg *sync.WaitGroup) (err error)
+	Run(r FilterRunner, h PluginHelper) (err error)
 }
 
 type CounterFilter struct {
@@ -47,40 +47,27 @@ func (this *CounterFilter) Init(config interface{}) error {
 	return nil
 }
 
-func (this *CounterFilter) Start(fr FilterRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
-	matchChan := fr.MatchChan()
 	this.lastTime = time.Now()
-	go func() {
-		var (
-			inOk, matchOk = true, true
-			pack          *PipelinePack
-			plc           *PipelineCapture
-		)
-		for inOk || matchOk {
-			pack = nil
-			plc = nil
-			select {
-			case pack, inOk = <-inChan:
-			case plc, matchOk = <-matchChan:
-				if matchOk {
-					pack = plc.Pack
-				}
-			case <-ticker:
-				this.tally()
-			}
-			if pack != nil {
-				this.count++
-				pack.Recycle()
-			}
-		}
 
-		log.Printf("CounterFilter '%s' stopped.", fr.Name())
-		wg.Done()
-	}()
+	var (
+		ok  = true
+		plc *PipelineCapture
+	)
+	for ok {
+		select {
+		case plc, ok = <-inChan:
+			if !ok {
+				break
+			}
+			this.count++
+			plc.Pack.Recycle()
+		case <-ticker:
+			this.tally()
+		}
+	}
 	return
 }
 

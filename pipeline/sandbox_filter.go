@@ -19,9 +19,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
-	"log"
 	"os"
-	"sync"
 )
 
 func fileExists(path string) bool {
@@ -79,61 +77,47 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	return err
 }
 
-func (this *SandboxFilter) Start(fr FilterRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-
+func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
-	matchChan := fr.MatchChan()
 
-	go func() {
-		var (
-			inOk, matchOk, terminated = true, true, false
-			pack                      *PipelinePack
-			plc                       *PipelineCapture
-			captures                  map[string]string
-			retval                    int
-		)
-		for (inOk || matchOk) && !terminated {
-			pack = nil
-			captures = nil
-			select {
-			case pack, inOk = <-inChan:
-			case plc, matchOk = <-matchChan:
-				if matchOk {
-					pack = plc.Pack
-					captures = plc.Captures
-				}
-			case t := <-ticker:
-				if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
-					fr.LogError(fmt.Errorf(
-						"Sandbox TimerEvent error code: %d, error message: %s",
-						retval, this.sb.LastError()))
-					if this.sb.Status() == sandbox.STATUS_TERMINATED {
-						terminated = true
-					}
+	var (
+		ok, terminated = true, false
+		plc            *PipelineCapture
+		retval         int
+	)
+	for ok && !terminated {
+		select {
+		case plc, ok = <-inChan:
+			if !ok {
+				break
+			}
+			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
+			if retval != 0 {
+				fr.LogError(fmt.Errorf(
+					"Sandbox ProcessMessage error code: %d, error message: %s",
+					retval, this.sb.LastError()))
+				if this.sb.Status() == sandbox.STATUS_TERMINATED {
+					terminated = true
 				}
 			}
-			if pack != nil {
-				if retval = this.sb.ProcessMessage(pack.Message, captures); retval != 0 {
-					fr.LogError(fmt.Errorf(
-						"Sandbox ProcessMessage error code: %d, error message: %s",
-						retval, this.sb.LastError()))
-					if this.sb.Status() == sandbox.STATUS_TERMINATED {
-						terminated = true
-					}
+			plc.Pack.Recycle()
+		case t := <-ticker:
+			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
+				fr.LogError(fmt.Errorf(
+					"Sandbox TimerEvent error code: %d, error message: %s",
+					retval, this.sb.LastError()))
+				if this.sb.Status() == sandbox.STATUS_TERMINATED {
+					terminated = true
 				}
-				pack.Recycle()
 			}
 		}
-		if this.sbc.PreserveData {
-			this.sb.Destroy(this.sbc.ScriptFilename + ".data")
-		} else {
-			this.sb.Destroy("")
-		}
-		this.sb = nil
-		log.Printf("SandboxFilter '%s' stopped.", fr.Name())
-		wg.Done()
-	}()
+	}
+	if this.sbc.PreserveData {
+		this.sb.Destroy(this.sbc.ScriptFilename + ".data")
+	} else {
+		this.sb.Destroy("")
+	}
+	this.sb = nil
 	return
 }

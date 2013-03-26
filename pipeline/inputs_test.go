@@ -22,7 +22,6 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
-	"sync"
 )
 
 type InputTestHelper struct {
@@ -87,8 +86,9 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
 
 			// start the input
-			var wg sync.WaitGroup
-			udpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			go func() {
+				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
@@ -146,10 +146,9 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
 			// start the input
-			var wg sync.WaitGroup
-			wg.Add(1)
-			ith.MockInputRunner.EXPECT().Name().Return("test TcpInput")
-			tcpInput.Start(ith.MockInputRunner, ith.MockHelper, &wg)
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
