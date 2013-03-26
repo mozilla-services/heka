@@ -160,6 +160,14 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 
 // Creates a new instance
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
+	defer func() {
+		// Slight protection against Init call into plugin code.
+		if r := recover(); r != nil {
+			plugin = nil
+			err = fmt.Errorf("'%s' Init() panicked: %s", self.name, r)
+		}
+	}()
+
 	plugin = self.pluginCreator()
 	err = plugin.(Plugin).Init(self.configCreator())
 	return
@@ -168,22 +176,35 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 // If `configable` supports the `HasConfigStruct` interface this will use said
 // interface to fetch a config struct object and populate it w/ the values in
 // provided `config`. If not, simply returns `config` unchanged.
-func LoadConfigStruct(config *PluginConfig, configable interface{}) (interface{}, error) {
+func LoadConfigStruct(config *PluginConfig, configable interface{}) (
+	configStruct interface{}, err error) {
+
+	// On two lines for scoping reasons.
 	hasConfigStruct, ok := configable.(HasConfigStruct)
 	if !ok {
 		return config, nil
 	}
 
-	data, err := json.Marshal(config)
-	if err != nil {
-		return nil, errors.New("Unable to marshal: " + err.Error())
+	var data []byte
+	if data, err = json.Marshal(config); err != nil {
+		err = fmt.Errorf("Can't marshal config: %s", err)
+		return
 	}
-	configStruct := hasConfigStruct.ConfigStruct()
-	err = json.Unmarshal(data, configStruct)
-	if err != nil {
-		return nil, errors.New("Unable to unmarshal: " + err.Error())
+
+	defer func() {
+		// Slight protection against ConfigStruct call into plugin code.
+		if r := recover(); r != nil {
+			configStruct = nil
+			err = fmt.Errorf("ConfigStruct() panicked: %s", r)
+		}
+	}()
+
+	configStruct = hasConfigStruct.ConfigStruct()
+	if err = json.Unmarshal(data, configStruct); err != nil {
+		configStruct = nil
+		err = fmt.Errorf("Can't unmarshal config: %s", err)
 	}
-	return configStruct, nil
+	return
 }
 
 // Registers a particular decoder (specified by `decoderName`) to be used for

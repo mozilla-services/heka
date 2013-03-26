@@ -14,10 +14,17 @@
 package pipeline
 
 import (
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
+
+type PanicPlugin struct{}
+
+func (p *PanicPlugin) Init(config interface{}) (err error) {
+	panic("PANIC")
+}
 
 func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
@@ -83,6 +90,15 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading outputs")
 			msg := pipeConfig.logMsgs[0]
 			c.Expect(msg, ts.StringContains, "No such plugin")
+		})
+
+		c.Specify("captures plugin Init() panics", func() {
+			RegisterPlugin("PanicOutput", func() interface{} {
+				return new(PanicPlugin)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.json")
+			fmt.Println(err)
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
 }
