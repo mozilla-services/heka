@@ -21,7 +21,8 @@ function timer_event(ns)
     lastTime = ns
     rate = msgsSent / (elapsedTime / 1000000000)
     rates[#rates+1] = rate
-    inject_message(string.format("Got %d messages. %0.2f msg/sec", count, rate))
+    output(string.format("Got %d messages. %0.2f msg/sec", count, rate))
+    inject_message()
     
     local samples = #rates
     if samples == 10 then -- generate a summary every 10 samples
@@ -32,7 +33,8 @@ function timer_event(ns)
         for i, val in ipairs(rates) do
             sum = sum + val
 	     end
-        inject_message(string.format("AGG Sum. Min: %0.2f Max: %0.2f Mean: %0.2f", min, max, sum/samples))
+        output(string.format("AGG Sum. Min: %0.2f Max: %0.2f Mean: %0.2f", min, max, sum/samples))
+        inject_message()
 	     rates = {}
     end
 end

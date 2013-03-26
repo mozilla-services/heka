@@ -17,55 +17,55 @@ typedef struct lua_sandbox lua_sandbox;
  * 
  * @param go pointer to associate the Go struct to this sandbox
  * @param lua_file filename of the Lua script to run in this sandbox
- * @param mem_limit  sets the sandbox memory limit
- * @param inst_limit sets the sandbox Lua instruction limit
+ * @param mem_lim  sets the sandbox memory limit (bytes)
+ * @param ins_lim sets the sandbox Lua instruction limit (count)
+ * @param out_lim sets the single message payload limit (bytes)
  * 
  * @return lua_sandbox
  */
 SANDBOX_EXPORT lua_sandbox* lua_sandbox_create(void* go,
                                                const char* lua_file,
-                                               unsigned mem_limit,
-                                               unsigned inst_limit);
+                                               unsigned mem_lim,
+                                               unsigned ins_lim,
+                                               unsigned out_lim);
 
-/** 
+/**
  * Frees the memory associated with the sandbox
  * 
- * @param lsb sandbox pointer to discard
+ * @param lsb        sandbox pointer to discard
+ * @param state_file filename to save the sandbox state to (empty or NULL for no
+ *                   preservation)
+ * 
+ * @return NULL on success, pointer to an error message on failure (MUST BE 
+ * FREED by the caller) 
  */
-SANDBOX_EXPORT void lua_sandbox_destroy(lua_sandbox* lsb);
+SANDBOX_EXPORT char* lua_sandbox_destroy(lua_sandbox* lsb,
+                                         const char* state_file);
 
 /** 
  * Initialize the Lua sandbox and loads/runs the Lua script that was specified 
  * in lua_create_sandbox 
  * 
  * @param lsb pointer to the sandbox
+ * @param state_file filename to read the sandbox state from (empty or NULL for 
+ *                   no restoration)
  * 
  * @return int 0 on success
  */
-SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb);
+SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
 
 /** 
  * Retrieve the sandbox memory statistics
  * 
  * @param lsb pointer to the sandbox
- * @param sandbox_usage requested statistic
+ * @param sandbox_usage_type
+ * @param sandbox_usage_stat
  * 
  * @return unsigned number of bytes of memory
  */
-SANDBOX_EXPORT unsigned lua_sandbox_memory(lua_sandbox* lsb,
-                                           sandbox_usage stat);
-
-/** 
- * Retrieve the sandbox instruction statistics
- * 
- * @param lsb pointer to the sandbox
- * @param sandbox_usage requested statistic
- * 
- * @return unsigned number of Lua instructions
- */
-SANDBOX_EXPORT unsigned lua_sandbox_instructions(lua_sandbox* lsb,
-                                                 sandbox_usage stat);
-
+SANDBOX_EXPORT unsigned lua_sandbox_usage(lua_sandbox* lsb,
+                                          sandbox_usage_type utype, 
+                                          sandbox_usage_stat ustat);
 /**
  * Sandbox status
  * 

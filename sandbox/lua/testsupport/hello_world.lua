@@ -1,1 +1,3 @@
-output("Hello World!")
+output("Hello")
+output(" World!")
+inject_message()
