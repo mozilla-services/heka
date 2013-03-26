@@ -68,18 +68,6 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		err = this.sb.Init("")
 	}
 
-	this.sb.Output(func(s string) {
-		log.Println(s)
-		///@todo waiting on output refactor since we no longer have the output list
-		// msg := MessageGenerator.Retrieve()
-		// msg.Message.SetType("heka_filter")
-		// msg.Message.SetLogger(this.sbc.ScriptFilename)
-		// msg.Message.SetPayload(s)
-		// for _, name := range todoOutputs {
-		// 	MessageGenerator.Output(name, msg)
-		// }
-	})
-
 	this.sb.InjectMessage(func(s string) {
 		msg := MessageGenerator.Retrieve()
 		msg.Message.SetType("heka.lua_sandbox")

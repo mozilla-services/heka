@@ -3,11 +3,7 @@ data = ""
 function process_message ()
     local msg = read_message("Payload")
 
-    if msg == "inject_message() no arg" then
-    inject_message()
-elseif msg == "inject_message() incorrect arg type" then
-    inject_message(nil)
-    elseif msg == "inject_message() incorrect number of args" then
+    if msg == "inject_message() incorrect number of args" then
         inject_message(1, 2)
     elseif msg == "output() no arg" then
         output()
@@ -36,6 +32,10 @@ elseif msg == "inject_message() incorrect arg type" then
         read_message("Type", -1, 0)
     elseif msg == "read_message() negative array index" then
         read_message("Type", 0, -1)
+    elseif msg == "output limit exceeded" then
+        for i=1,10 do
+            output("012345678901234567890123456789010123456789012345678901234567890123456789012345678901234567890123456789")
+        end
     end
     return 0
 end

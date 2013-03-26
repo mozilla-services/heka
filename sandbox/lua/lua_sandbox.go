@@ -145,12 +145,6 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 	return 0, unsafe.Pointer(nil), 0
 }
 
-//export go_lua_output
-func go_lua_output(ptr unsafe.Pointer, c *C.char) {
-	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	lsb.output(C.GoString(c))
-}
-
 //export go_lua_inject_message
 func go_lua_inject_message(ptr unsafe.Pointer, c *C.char) {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
@@ -173,7 +167,8 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
 		cs,
 		C.uint(conf.MemoryLimit),
-		C.uint(conf.InstructionLimit))
+		C.uint(conf.InstructionLimit),
+		C.uint(conf.OutputLimit))
 	if lsb.lsb == nil {
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
@@ -212,12 +207,9 @@ func (this *LuaSandbox) LastError() string {
 	return C.GoString(C.lua_sandbox_last_error(this.lsb))
 }
 
-func (this *LuaSandbox) Memory(usage int) uint {
-	return uint(C.lua_sandbox_memory(this.lsb, C.sandbox_usage(usage)))
-}
-
-func (this *LuaSandbox) Instructions(usage int) uint {
-	return uint(C.lua_sandbox_instructions(this.lsb, C.sandbox_usage(usage)))
+func (this *LuaSandbox) Usage(utype, ustat int) uint {
+	return uint(C.lua_sandbox_usage(this.lsb, C.sandbox_usage_type(utype),
+		C.sandbox_usage_stat(ustat)))
 }
 
 func (this *LuaSandbox) ProcessMessage(msg *message.Message,
@@ -232,10 +224,6 @@ func (this *LuaSandbox) ProcessMessage(msg *message.Message,
 
 func (this *LuaSandbox) TimerEvent(ns int64) int {
 	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
-}
-
-func (this *LuaSandbox) Output(f func(s string)) {
-	this.output = f
 }
 
 func (this *LuaSandbox) InjectMessage(f func(s string)) {

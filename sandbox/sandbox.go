@@ -26,9 +26,13 @@ const (
 	STATUS_RUNNING    = C.STATUS_RUNNING
 	STATUS_TERMINATED = C.STATUS_TERMINATED
 
-	USAGE_LIMIT   = C.USAGE_LIMIT
-	USAGE_CURRENT = C.USAGE_CURRENT
-	USAGE_MAXIMUM = C.USAGE_MAXIMUM
+	STAT_LIMIT   = C.US_LIM
+	STAT_CURRENT = C.US_CUR
+	STAT_MAXIMUM = C.US_MAX
+
+	TYPE_MEMORY       = C.UT_MEM
+	TYPE_INSTRUCTIONS = C.UT_INS
+	TYPE_OUTPUT       = C.UT_OUT
 )
 
 type Sandbox interface {
@@ -39,15 +43,13 @@ type Sandbox interface {
 	// Sandbox state
 	Status() int
 	LastError() string
-	Memory(usage int) uint
-	Instructions(usage int) uint
+	Usage(utype, ustat int) uint
 
 	// Plugin functions
 	ProcessMessage(msg *message.Message, captures map[string]string) int
 	TimerEvent(ns int64) int
 
-	// Go callbacks
-	Output(f func(s string))
+	// Go callback
 	InjectMessage(f func(s string))
 }
 
@@ -57,4 +59,5 @@ type SandboxConfig struct {
 	PreserveData     bool   `json:"preserve_data"`
 	MemoryLimit      uint   `json:"memory_limit"`
 	InstructionLimit uint   `json:"instruction_limit"`
+	OutputLimit      uint   `json:"output_limit"`
 }

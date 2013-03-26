@@ -4,6 +4,7 @@ count = 0
 function process_message ()
     count = count + 1
     output(count)
+    inject_message()
     return 0
 end
 
