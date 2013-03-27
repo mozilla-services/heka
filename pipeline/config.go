@@ -146,60 +146,6 @@ func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
 }
 
-type chanStat struct {
-	chanName string
-	capacity int
-	length   int
-}
-
-func (self *PipelineConfig) queueReport() {
-	reports := make(map[string][]chanStat)
-
-	recycleReport := make([]chanStat, 1)
-	recycleReport[0] = chanStat{
-		"RecycleChan", cap(self.RecycleChan), len(self.RecycleChan)}
-	reports["RecycleChan"] = recycleReport
-
-	var stat chanStat
-	filtersReport := make([]chanStat, 0, len(self.FilterRunners))
-	for name, runner := range self.FilterRunners {
-		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
-		filtersReport = append(filtersReport, stat)
-	}
-	reports["filters"] = filtersReport
-
-	outputsReport := make([]chanStat, 0, len(self.OutputRunners))
-	for name, runner := range self.OutputRunners {
-		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
-		outputsReport = append(outputsReport, stat)
-	}
-	reports["outputs"] = outputsReport
-
-	var reportName string
-	for i, dSet := range self.decoderRunners {
-		dSetReport := make([]chanStat, len(dSet))
-		for j, runner := range dSet {
-			stat = chanStat{runner.Name(), cap(runner.InChan()), len(runner.InChan())}
-			dSetReport[j] = stat
-		}
-		reportName = fmt.Sprintf("DecoderSet-%d", i)
-		reports[reportName] = dSetReport
-	}
-
-	var payload string
-	for name, report := range reports {
-		payload = fmt.Sprintf("%s%s:\n", payload, name)
-		for _, stat = range report {
-			payload = fmt.Sprintf("%s\t%s:\t%d\t%d\n", payload, stat.chanName,
-				stat.capacity, stat.length)
-		}
-	}
-	msg := MessageGenerator.Retrieve()
-	msg.Message.SetType("heka.queue-report")
-	msg.Message.SetPayload(payload)
-	MessageGenerator.Inject(msg)
-}
-
 // The JSON config file spec
 type ConfigFile struct {
 	Inputs   []PluginConfig

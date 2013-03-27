@@ -264,7 +264,7 @@ func Run(config *PipelineConfig) {
 				ok = false
 			case syscall.SIGUSR1:
 				log.Println("Queue report initiated.")
-				go config.queueReport()
+				go config.sendReport()
 			}
 		}
 	}
