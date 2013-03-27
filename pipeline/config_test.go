@@ -84,5 +84,13 @@ func LoadFromConfigSpec(c gs.Context) {
 			msg := pipeConfig.logMsgs[0]
 			c.Expect(msg, ts.StringContains, "No such plugin")
 		})
+
+		c.Specify("captures plugin Init() panics", func() {
+			RegisterPlugin("PanicOutput", func() interface{} {
+				return new(PanicOutput)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.json")
+			c.Expect(err, gs.Not(gs.IsNil))
+		})
 	})
 }

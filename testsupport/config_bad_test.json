@@ -6,13 +6,8 @@
             "address": "1000"
         }
     ],
-    "chains": {
-        "default": {
-            "outputs": ["CounterOutput"]
-        },
-        "sample": {
-            "message_type": ["counter"],
-            "outputs": ["CounterOutput"]
-        }
-    }
+    "outputs": [
+        {"type": "CounterOutput",
+         "message_matcher": "Type != \"heka.counter_output\""}
+    ]
 }

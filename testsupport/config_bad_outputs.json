@@ -7,18 +7,9 @@
         }
     ],
     "decoders": [
-        {"type": "JsonDecoder", "default": true}
+        {"type": "JsonDecoder", "encoding_name": "JSON"}
     ],
     "outputs": [
         {"type": "WhatOutput"}
-    ],
-    "chains": {
-        "default": {
-            "outputs": ["CounterOutput"]
-        },
-        "sample": {
-            "message_type": ["counter"],
-            "outputs": ["CounterOutput"]
-        }
-    }
+    ]
 }
