@@ -44,7 +44,7 @@ func NewOutputTestHelper(ctrl *gomock.Controller) (oth *OutputTestHelper) {
 type PanicOutput struct{}
 
 func (p *PanicOutput) Init(config interface{}) (err error) {
-	return
+	panic("PANICOUTPUT")
 }
 
 func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
