@@ -9,7 +9,9 @@ Welcome to hekad's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   sandbox/index
+   message/index
+   :maxdepth: 3
 
 
 
