@@ -63,6 +63,7 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
+	decoderRunners  [][]DecoderRunner
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -77,14 +78,12 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.router = NewMessageRouter()
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	config.logMsgs = make([]string, 0, 4)
+	config.decoderRunners = make([][]DecoderRunner, 0, 4)
 	return config
 }
 
-// Returns a running DecoderRunner for the registered decoder of the
-// given name.
-func (self *PipelineConfig) Decoder(name string) (
-	dRunner DecoderRunner, ok bool) {
-
+// Actually creates and starts a decoder instance.
+func (self *PipelineConfig) makeDecoder(name string) (dRunner DecoderRunner, ok bool) {
 	var wrapper *PluginWrapper
 	if wrapper, ok = self.DecoderWrappers[name]; !ok {
 		return
@@ -95,16 +94,27 @@ func (self *PipelineConfig) Decoder(name string) (
 	return
 }
 
+// Returns a running DecoderRunner for the registered decoder of the
+// given name.
+func (self *PipelineConfig) Decoder(name string) (dRunner DecoderRunner, ok bool) {
+	dRunner, ok = self.makeDecoder(name)
+	self.decoderRunners = append(self.decoderRunners, []DecoderRunner{dRunner})
+	return
+}
+
 // Returns a map[string]DecoderRunner containing all registered decoders.
 func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
 	decoders = make(map[string]DecoderRunner)
+	dSlice := make([]DecoderRunner, 0, len(self.DecoderWrappers))
 	var runner DecoderRunner
 	for name, wrapper := range self.DecoderWrappers {
 		decoder := wrapper.Create().(Decoder)
 		runner = NewDecoderRunner(name, decoder)
 		runner.Start()
 		decoders[name] = runner
+		dSlice = append(dSlice, runner)
 	}
+	self.decoderRunners = append(self.decoderRunners, dSlice)
 	return
 }
 
@@ -113,12 +123,13 @@ func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
 func (self *PipelineConfig) DecodersByEncoding() []DecoderRunner {
 	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.Decoder(name)
+		decoder, ok := self.makeDecoder(name)
 		if !ok {
 			continue
 		}
 		decoders[encoding] = decoder
 	}
+	self.decoderRunners = append(self.decoderRunners, decoders)
 	return decoders
 }
 
@@ -133,6 +144,60 @@ func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) 
 
 func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
+}
+
+type chanStat struct {
+	chanName string
+	capacity int
+	length   int
+}
+
+func (self *PipelineConfig) queueReport() {
+	reports := make(map[string][]chanStat)
+
+	recycleReport := make([]chanStat, 1)
+	recycleReport[0] = chanStat{
+		"RecycleChan", cap(self.RecycleChan), len(self.RecycleChan)}
+	reports["RecycleChan"] = recycleReport
+
+	var stat chanStat
+	filtersReport := make([]chanStat, 0, len(self.FilterRunners))
+	for name, runner := range self.FilterRunners {
+		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
+		filtersReport = append(filtersReport, stat)
+	}
+	reports["filters"] = filtersReport
+
+	outputsReport := make([]chanStat, 0, len(self.OutputRunners))
+	for name, runner := range self.OutputRunners {
+		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
+		outputsReport = append(outputsReport, stat)
+	}
+	reports["outputs"] = outputsReport
+
+	var reportName string
+	for i, dSet := range self.decoderRunners {
+		dSetReport := make([]chanStat, len(dSet))
+		for j, runner := range dSet {
+			stat = chanStat{runner.Name(), cap(runner.InChan()), len(runner.InChan())}
+			dSetReport[j] = stat
+		}
+		reportName = fmt.Sprintf("DecoderSet-%d", i)
+		reports[reportName] = dSetReport
+	}
+
+	var payload string
+	for name, report := range reports {
+		payload = fmt.Sprintf("%s%s:\n", payload, name)
+		for _, stat = range report {
+			payload = fmt.Sprintf("%s\t%s:\t%d\t%d\n", payload, stat.chanName,
+				stat.capacity, stat.length)
+		}
+	}
+	msg := MessageGenerator.Retrieve()
+	msg.Message.SetType("heka.queue-report")
+	msg.Message.SetPayload(payload)
+	MessageGenerator.Inject(msg)
 }
 
 // The JSON config file spec

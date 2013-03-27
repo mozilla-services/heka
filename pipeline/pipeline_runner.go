@@ -247,7 +247,7 @@ func Run(config *PipelineConfig) {
 
 	// wait for sigint
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
 	ok := true
 	for ok {
@@ -262,6 +262,9 @@ func Run(config *PipelineConfig) {
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
 				ok = false
+			case syscall.SIGUSR1:
+				log.Println("Queue report initiated.")
+				go config.queueReport()
 			}
 		}
 	}
