@@ -52,8 +52,20 @@ func (dr *dRunner) Decoder() Decoder {
 
 func (dr *dRunner) Start() {
 	go func() {
+		var pack *PipelinePack
+
+		defer func() {
+			if r := recover(); r != nil {
+				dr.LogError(fmt.Errorf("Decoder '%s' panicked: %s", dr.name, r))
+				if pack != nil {
+					pack.Recycle()
+				}
+				dr.Start()
+			}
+		}()
+
 		var err error
-		for pack := range dr.inChan {
+		for pack = range dr.inChan {
 			if err = dr.Decoder().Decode(pack); err != nil {
 				dr.LogError(err)
 				pack.Recycle()
