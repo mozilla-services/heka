@@ -64,7 +64,7 @@ Quoted String
 Regular Expression String
 =========================
     - enclosed by forward slashes
-    - must be placed on the right side of the relational comparison i.e. Type =- /test/
+    - must be placed on the right side of the relational comparison i.e. Type =~ /test/
 
 Regular Expression Capture Groups
 ---------------------------------
