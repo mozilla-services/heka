@@ -33,7 +33,7 @@ func (p *PanicDecoder) Init(config interface{}) (err error) {
 }
 
 func (p *PanicDecoder) Decode(pack *PipelinePack) (err error) {
-	panic("PANIC!")
+	panic("PANICDECODER")
 	return
 }
 
