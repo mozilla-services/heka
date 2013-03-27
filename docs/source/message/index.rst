@@ -6,4 +6,4 @@ Heka Message
 
 .. toctree::
    message_matcher
-   :maxdepth: 3
+   :maxdepth: 2

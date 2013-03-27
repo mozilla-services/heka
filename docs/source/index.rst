@@ -11,7 +11,7 @@ Contents:
 .. toctree::
    sandbox/index
    message/index
-   :maxdepth: 3
+   :maxdepth: 2
 
 
 

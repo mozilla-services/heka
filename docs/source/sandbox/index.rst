@@ -12,7 +12,7 @@ new uses of the data (i.e. debugging, monitoring, dynamic provisioning,
 SLA analysis, intrusion detection, ad-hoc reporting, etc.)
 
 Features
---------
+========
 - dynamic loading - ability to start/stop on a self-service basis
 - small - memory requirements are about 16 KiB for a basic sandbox
 - fast - microsecond execution times
@@ -20,9 +20,9 @@ Features
 - isolated - failures are contained and malfunctioning sandboxes are terminated
 
 Sandbox Configuration
-----------------------------
+=====================
 Heka Sandbox Filter Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------
 name
   The name of this specific instance of the sandbox
 
@@ -39,7 +39,7 @@ ticker_interval
   The number of seconds after which the timer_event callback will be executed
 
 Sandbox Specific Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------------
 type
   The language the sandbox is written in.  Currently the only valid option is
   'lua'
@@ -86,7 +86,7 @@ output_limit
     }
 
 Available Sandbox Types
------------------------
+=======================
 .. toctree::
    lua
-   :maxdepth: 3
+   :maxdepth: 2
