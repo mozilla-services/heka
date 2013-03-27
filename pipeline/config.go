@@ -290,7 +290,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			continue
 		}
 
-		// Create plugin, test and apply configuration.
+		// Create plugin, test config object generation.
 		plugin := wrapper.pluginCreator()
 		var config interface{}
 		if config, err = LoadConfigStruct(&pluginConf, plugin); err != nil {
@@ -299,7 +299,20 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			errcnt++
 			continue
 		}
-		if err = plugin.(Plugin).Init(config); err != nil {
+		wrapper.configCreator = func() interface{} { return config }
+
+		// Apply configuration to instantiated plugin.
+		configPlugin := func() (err error) {
+			defer func() {
+				// Slight protection against Init call into plugin code.
+				if r := recover(); r != nil {
+					err = fmt.Errorf("Init() panicked: %s", r)
+				}
+			}()
+			err = plugin.(Plugin).Init(config)
+			return
+		}
+		if err = configPlugin(); err != nil {
 			self.log(fmt.Sprintf("Initialization failed for %s '%s': %s",
 				sectionName, wrapper.name, err))
 			errcnt++
@@ -319,7 +332,6 @@ func (self *PipelineConfig) loadSection(sectionName string,
 					continue
 				}
 			}
-			wrapper.configCreator = func() interface{} { return config }
 			self.DecoderWrappers[wrapper.name] = wrapper
 			continue
 		}
