@@ -213,8 +213,12 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'hekad', u'hekad Documentation',
-     [u'Mozilla'], 1)
+    ('man/usage', 'hekad', u'hekad Daemon',
+     [u'Mozilla'], 1),
+    ('man/config', 'hekad.config', u'hekad Configuration',
+     [u'Mozilla'], 5),
+    ('man/plugin', 'hekad.plugin', u'hekad Plugin Help',
+     [u'Mozilla'], 5)
 ]
 
 # If true, show URL addresses after external links.
