@@ -1,24 +1,27 @@
-.. hekad documentation master file, created by
-   sphinx-quickstart on Mon Mar 25 09:50:16 2013.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+=====
+hekad
+=====
 
-Welcome to hekad's documentation!
-=================================
+.. include:: man/usage.rst
+    :start-after: start-description
+    :end-before: end-description
 
 Contents:
 
 .. toctree::
+   :maxdepth: 2
+
+   configuration
    sandbox/index
    message/index
-   :maxdepth: 2
+   developing/plugin
 
 
 
 Indices and tables
 ==================
 
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
+* :ref:`glossary`
 
+.. _heka_project: https://heka-docs.readthedocs.org
