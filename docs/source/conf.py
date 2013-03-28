@@ -91,7 +91,7 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'default'
+html_theme = 'mozilla'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -99,7 +99,7 @@ html_theme = 'default'
 #html_theme_options = {}
 
 # Add any paths that contain custom themes here, relative to this directory.
-#html_theme_path = []
+html_theme_path = ['_themes']
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
@@ -213,8 +213,12 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'hekad', u'hekad Documentation',
-     [u'Mozilla'], 1)
+    ('man/usage', 'hekad', u'hekad Daemon',
+     [u'Mozilla'], 1),
+    ('man/config', 'hekad.config', u'hekad Configuration',
+     [u'Mozilla'], 5),
+    ('man/plugin', 'hekad.plugin', u'hekad Plugin Help',
+     [u'Mozilla'], 5)
 ]
 
 # If true, show URL addresses after external links.

@@ -37,7 +37,7 @@ const (
 )
 
 func main() {
-	configFile := flag.String("config", "/etc/hekad.json", "Config file")
+	configFile := flag.String("config", "/etc/hekad.toml", "Config file")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
 	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
 	cpuProfName := flag.String("cpuprof", "", "Go CPU profiler output file")

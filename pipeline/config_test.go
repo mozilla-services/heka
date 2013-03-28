@@ -31,7 +31,7 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
 
 		c.Specify("works w/ good config file", func() {
-			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test.json")
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test.toml")
 			c.Assume(err, gs.IsNil)
 
 			// We use a set of Expect's rather than c.Specify because the
@@ -64,26 +64,32 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
-			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.json")
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "1 errors loading inputs")
-			msg := pipeConfig.logMsgs[0]
-			c.Expect(msg, ts.StringContains, "'udp_stats': ResolveUDPAddr failed")
+			c.Expect(err.Error(), ts.StringContains, "2 errors loading plugins")
+			c.Expect(pipeConfig.logMsgs, gs.ContainsAny, gs.Values("No such plugin: CounterOutput"))
 		})
 
 		c.Specify("handles missing config file correctly", func() {
-			err := pipeConfig.LoadFromConfigFile("no_such_file.json")
+			err := pipeConfig.LoadFromConfigFile("no_such_file.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "Unable to open file")
-			c.Expect(err.Error(), ts.StringContains, "no such file or directory")
+			c.Expect(err.Error(), ts.StringContains, "open no_such_file.toml: no such file or directory")
 		})
 
 		c.Specify("errors correctly w/ bad outputs config", func() {
-			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_outputs.json")
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_outputs.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "1 errors loading outputs")
+			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
 			msg := pipeConfig.logMsgs[0]
 			c.Expect(msg, ts.StringContains, "No such plugin")
+		})
+
+		c.Specify("captures plugin Init() panics", func() {
+			RegisterPlugin("PanicOutput", func() interface{} {
+				return new(PanicOutput)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.toml")
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
 }

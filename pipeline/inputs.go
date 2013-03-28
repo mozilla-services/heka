@@ -107,7 +107,7 @@ type UdpInput struct {
 }
 
 type UdpInputConfig struct {
-	Address string
+	Address string `toml:"address"`
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {

@@ -23,6 +23,7 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
+	"sync"
 )
 
 type InputTestHelper struct {
@@ -35,6 +36,20 @@ type InputTestHelper struct {
 	Decoders        []DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
+}
+
+type PanicInput struct{}
+
+func (p *PanicInput) Init(config interface{}) (err error) {
+	return
+}
+
+func (p *PanicInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	panic("PANICINPUT")
+}
+
+func (p *PanicInput) Stop() {
+	panic("PANICINPUT")
 }
 
 func InputsSpec(c gs.Context) {
@@ -155,5 +170,15 @@ func InputsSpec(c gs.Context) {
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 		})
+	})
+
+	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
+		input := new(PanicInput)
+		iRunner := NewInputRunner("panic", input)
+		var wg sync.WaitGroup
+		ith.MockHelper.EXPECT().PackSupply()
+		wg.Add(1)
+		iRunner.Start(ith.MockHelper, &wg) // no panic => success
+		wg.Wait()
 	})
 }
