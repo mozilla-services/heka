@@ -16,27 +16,29 @@
 package pipeline
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/BurntSushi/toml"
 	. "github.com/mozilla-services/heka/message"
 	"log"
-	"os"
+	"regexp"
 	"time"
 )
 
 // Cap size of our decoder set arrays
 const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
 
-var AvailablePlugins = make(map[string]func() interface{})
-var DecodersByEncoding = make(map[Header_MessageEncoding]string)
-var topHeaderMessageEncoding Header_MessageEncoding
+var (
+	AvailablePlugins         = make(map[string]func() interface{})
+	DecodersByEncoding       = make(map[Header_MessageEncoding]string)
+	topHeaderMessageEncoding Header_MessageEncoding
+	PluginTypeRegex          = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
+)
 
 func RegisterPlugin(name string, factory func() interface{}) {
 	AvailablePlugins[name] = factory
 }
 
-type PluginConfig map[string]interface{}
+type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
@@ -146,12 +148,13 @@ func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
 }
 
-// The JSON config file spec
-type ConfigFile struct {
-	Inputs   []PluginConfig
-	Decoders []PluginConfig
-	Outputs  []PluginConfig
-	Filters  []PluginConfig
+// The TOML config file spec
+type ConfigFile PluginConfig
+type PluginGlobals struct {
+	Typ      string  `toml:"type"`
+	Ticker   float64 `toml:"ticker_interval"`
+	Encoding string  `toml:"encoding_name"`
+	Matcher  string  `toml:"message_matcher"`
 }
 
 // A helper function to simplify plugin creation
@@ -187,18 +190,17 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 // If `configable` supports the `HasConfigStruct` interface this will use said
 // interface to fetch a config struct object and populate it w/ the values in
 // provided `config`. If not, simply returns `config` unchanged.
-func LoadConfigStruct(config *PluginConfig, configable interface{}) (
+func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	configStruct interface{}, err error) {
 
 	// On two lines for scoping reasons.
 	hasConfigStruct, ok := configable.(HasConfigStruct)
 	if !ok {
-		return config, nil
-	}
-
-	var data []byte
-	if data, err = json.Marshal(config); err != nil {
-		err = fmt.Errorf("Can't marshal config: %s", err)
+		// If we don't have a config struct, change it to a PluginConfig
+		configStruct = new(PluginConfig)
+		if err = toml.PrimitiveDecode(config, configStruct); err != nil {
+			configStruct = nil
+		}
 		return
 	}
 
@@ -211,7 +213,7 @@ func LoadConfigStruct(config *PluginConfig, configable interface{}) (
 	}()
 
 	configStruct = hasConfigStruct.ConfigStruct()
-	if err = json.Unmarshal(data, configStruct); err != nil {
+	if err = toml.PrimitiveDecode(config, configStruct); err != nil {
 		configStruct = nil
 		err = fmt.Errorf("Can't unmarshal config: %s", err)
 	}
@@ -247,170 +249,160 @@ func regDecoderForHeader(decoderName string, encodingName string) (err error) {
 	return
 }
 
-// Given a filename string and JSON structure, read the file and
-// un-marshal it into the structure
-func readJsonFromFile(filename string, configFile *ConfigFile) error {
-	file, err := os.Open(filename)
-	if err != nil {
-		return errors.New("Unable to open file: " + err.Error())
-	}
-	defer file.Close()
-
-	jsonBytes := make([]byte, 1e5)
-	n, err := file.Read(jsonBytes)
-	if err != nil {
-		return errors.New("Error reading byte in file: " + err.Error())
-	}
-	jsonBytes = jsonBytes[:n]
-
-	if err = json.Unmarshal(jsonBytes, configFile); err != nil {
-		return errors.New("Error with config file unmarshal: " + err.Error())
-	}
-	return nil
-}
-
 func (self *PipelineConfig) log(msg string) {
 	self.logMsgs = append(self.logMsgs, msg)
 	log.Println(msg)
 }
 
-// loadSection must be passed a section name and the config for that section.
-// It will create a PluginWrapper (i.e. a factory) for each plugin. For
+// loadSection must be passed a plugin name and the config for that plugin.
+// It will create a PluginWrapper (i.e. a factory). For
 // decoders (which are created as needed) the PluginWrappers are stored for
 // later use. For the other plugin types, we'll create the plugin, configure
 // it, then create the appropriate plugin runner.
 func (self *PipelineConfig) loadSection(sectionName string,
-	configSection []PluginConfig) (errcnt uint) {
-
+	configSection toml.Primitive) (errcnt uint) {
 	var ok bool
 	var err error
-	for _, pluginConf := range configSection {
-		wrapper := new(PluginWrapper)
-		pluginType := pluginConf["type"].(string)
+	var pluginGlobals PluginGlobals
+	var pluginType string
 
-		// Use the specified plugin name or default to the type name
-		if _, ok = pluginConf["name"]; ok {
-			wrapper.name = pluginConf["name"].(string)
-		} else {
-			wrapper.name = pluginType
+	wrapper := new(PluginWrapper)
+	wrapper.name = sectionName
+
+	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
+		self.log(fmt.Sprint("Unable to locate type in plugin: %s", wrapper.name))
+		errcnt++
+		return
+	}
+	pluginType = pluginGlobals.Typ
+
+	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
+		self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
+		errcnt++
+		return
+	}
+
+	// Create plugin, test config object generation.
+	plugin := wrapper.pluginCreator()
+	var config interface{}
+	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
+		self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
+			wrapper.name, err))
+		errcnt++
+		return
+	}
+	wrapper.configCreator = func() interface{} { return config }
+
+	// Apply configuration to instantiated plugin.
+	configPlugin := func() (err error) {
+		defer func() {
+			// Slight protection against Init call into plugin code.
+			if r := recover(); r != nil {
+				err = fmt.Errorf("Init() panicked: %s", r)
+			}
+		}()
+		err = plugin.(Plugin).Init(config)
+		return
+	}
+	if err = configPlugin(); err != nil {
+		self.log(fmt.Sprintf("Initialization failed for '%s': %s",
+			sectionName, err))
+		errcnt++
+		return
+	}
+
+	// Determine the plugin type
+	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginGlobals.Typ)
+	if len(pluginCats) < 2 {
+		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginGlobals.Typ))
+		errcnt++
+		return
+	}
+	pluginCategory := pluginCats[1]
+
+	// For decoders check to see if we need to register against a protocol
+	// header, store the wrapper and continue.
+	if pluginCategory == "Decoder" {
+		if pluginGlobals.Encoding != "" {
+			err = regDecoderForHeader(pluginGlobals.Typ, pluginGlobals.Encoding)
+			if err != nil {
+				self.log(fmt.Sprintf(
+					"Can't register decoder '%s' for encoding '%s': %s",
+					wrapper.name, pluginGlobals.Encoding, err))
+				errcnt++
+				return
+			}
 		}
+		self.DecoderWrappers[wrapper.name] = wrapper
+		return
+	}
 
-		if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-			self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
-			errcnt++
-			continue
-		}
+	// For inputs just store the runner and continue.
+	if pluginCategory == "Input" {
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		return
+	}
 
-		// Create plugin, test config object generation.
-		plugin := wrapper.pluginCreator()
-		var config interface{}
-		if config, err = LoadConfigStruct(&pluginConf, plugin); err != nil {
-			self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
+	// Filters and outputs have a few more config settings.
+	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner.name = wrapper.name
+	var tickLength uint
+	if pluginGlobals.Ticker != 0 {
+		sec := pluginGlobals.Ticker
+		tickLength = uint(sec)
+	}
+
+	if tickLength != 0 {
+		runner.tickLength = time.Duration(tickLength) * time.Second
+	}
+
+	var matcher *MatchRunner
+	if pluginGlobals.Matcher != "" {
+		if matcher, err = NewMatchRunner(pluginGlobals.Matcher); err != nil {
+			self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
 				wrapper.name, err))
 			errcnt++
-			continue
-		}
-		wrapper.configCreator = func() interface{} { return config }
-
-		// Apply configuration to instantiated plugin.
-		configPlugin := func() (err error) {
-			defer func() {
-				// Slight protection against Init call into plugin code.
-				if r := recover(); r != nil {
-					err = fmt.Errorf("Init() panicked: %s", r)
-				}
-			}()
-			err = plugin.(Plugin).Init(config)
 			return
 		}
-		if err = configPlugin(); err != nil {
-			self.log(fmt.Sprintf("Initialization failed for %s '%s': %s",
-				sectionName, wrapper.name, err))
-			errcnt++
-			continue
-		}
+		runner.matcher = matcher
+	}
 
-		// For decoders check to see if we need to register against a protocol
-		// header, store the wrapper and continue.
-		if sectionName == "decoders" {
-			if encodingName, ok := pluginConf["encoding_name"]; ok {
-				err = regDecoderForHeader(wrapper.name, encodingName.(string))
-				if err != nil {
-					self.log(fmt.Sprintf(
-						"Can't register decoder '%s' for encoding '%s': %s",
-						wrapper.name, encodingName, err))
-					errcnt++
-					continue
-				}
-			}
-			self.DecoderWrappers[wrapper.name] = wrapper
-			continue
+	switch pluginCategory {
+	case "Filter":
+		if matcher != nil {
+			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
-
-		// For inputs just store the runner and continue.
-		if sectionName == "inputs" {
-			self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
-			continue
+		self.FilterRunners[runner.name] = runner
+	case "Output":
+		if matcher != nil {
+			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
-
-		// Filters and outputs have a few more config settings.
-		runner := NewFORunner(wrapper.name, plugin.(Plugin))
-		runner.name = wrapper.name
-		var tickLength uint
-		if _, ok = pluginConf["ticker_interval"]; ok {
-			sec := pluginConf["ticker_interval"].(float64)
-			tickLength = uint(sec)
-		}
-
-		if tickLength != 0 {
-			runner.tickLength = time.Duration(tickLength) * time.Second
-		}
-
-		var matcher *MatchRunner
-		if matchText, ok := pluginConf["message_matcher"]; ok {
-			matchStr := matchText.(string)
-			if matcher, err = NewMatchRunner(matchStr); err != nil {
-				self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
-					wrapper.name, err))
-				errcnt++
-				continue
-			}
-			runner.matcher = matcher
-		}
-
-		switch sectionName {
-		case "filters":
-			if matcher != nil {
-				self.router.fMatchers = append(self.router.fMatchers, matcher)
-			}
-			self.FilterRunners[runner.name] = runner
-		case "outputs":
-			if matcher != nil {
-				self.router.oMatchers = append(self.router.oMatchers, matcher)
-			}
-			self.OutputRunners[runner.name] = runner
-		}
+		self.OutputRunners[runner.name] = runner
 	}
 
 	return
 }
 
-// LoadFromConfigFile loads a JSON configuration file and stores the
+// LoadFromConfigFile loads a TOML configuration file and stores the
 // result in the value pointed to by config. The maps in the config
 // will be initialized as needed.
 //
 // The PipelineConfig should be already initialized before passed in via
 // its Init function.
 func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
-	configFile := new(ConfigFile)
-	if err = readJsonFromFile(filename, configFile); err != nil {
-		return
+	var configFile ConfigFile
+	if _, err := toml.DecodeFile(filename, &configFile); err != nil {
+		return fmt.Errorf("Error decoding config file: %s", err)
 	}
 
+	// Load all the plugins
 	var errcnt uint
-
-	if errcnt = self.loadSection("inputs", configFile.Inputs); errcnt != 0 {
-		return fmt.Errorf("%d errors loading inputs", errcnt)
+	for name, conf := range configFile {
+		log.Println("Loading: ", name)
+		errcnt += self.loadSection(name, conf)
+	}
+	if errcnt != 0 {
+		return fmt.Errorf("%d errors loading plugins", errcnt)
 	}
 
 	// Setup our message generator input
@@ -425,20 +417,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name,
 			mgi.(Input))
 	}
-
-	if errcnt = self.loadSection("decoders", configFile.Decoders); errcnt != 0 {
-		return fmt.Errorf("%d errors loading decoders", errcnt)
-	}
-
-	if errcnt = self.loadSection("outputs", configFile.Outputs); errcnt != 0 {
-		return fmt.Errorf("%d errors loading outputs", errcnt)
-	}
-
-	if errcnt = self.loadSection("filters", configFile.Filters); errcnt != 0 {
-		return fmt.Errorf("%d errors loading filters", errcnt)
-
-	}
-
 	return
 }
 
