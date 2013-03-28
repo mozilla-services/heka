@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	message "github.com/mozilla-services/heka/message"
 	gomock "code.google.com/p/gomock/gomock"
 )
 
@@ -82,6 +83,16 @@ func (_m *MockDecoderRunner) Plugin() Plugin {
 
 func (_mr *_MockDecoderRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockDecoderRunner) PopulateReportMsg(_param0 *message.Message) error {
+	ret := _m.ctrl.Call(_m, "PopulateReportMsg", _param0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) PopulateReportMsg(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PopulateReportMsg", arg0)
 }
 
 func (_m *MockDecoderRunner) SetName(_param0 string) {

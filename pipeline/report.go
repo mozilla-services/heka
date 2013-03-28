@@ -16,129 +16,135 @@ package pipeline
 
 import (
 	"fmt"
-	"strconv"
+	"github.com/mozilla-services/heka/message"
+	"strings"
 )
 
-// Supports int, float, and string values
-type PluginReport map[string]interface{}
+// Interface for Heka plugins that will provide reporting data. Plugins can
+// populate the Message Fields w/ arbitrary output data.
+type ReportingPlugin interface {
+	ReportMsg(msg *message.Message) (err error)
+}
 
-// Throws out any value that can't be converted to either int64, float64, or
-// string.
-func (pr PluginReport) Stringify() (prStr map[string]string) {
-	prStr = make(map[string]string)
-	var (
-		ok bool
-		i  int64
-		f  float64
-		s  string
-	)
-	for k, v := range pr {
-		if i, ok = v.(int64); ok {
-			prStr[k] = strconv.FormatInt(i, 10)
-		} else if f, ok = v.(float64); ok {
-			prStr[k] = strconv.FormatFloat(f, 'g', 6, 64)
-		} else if s, ok = v.(string); ok {
-			prStr[k] = s
+func newIntField(msg *message.Message, name string, val int) {
+	f, err := message.NewField(name, val, message.Field_RAW)
+	if err == nil {
+		msg.AddField(f)
+	}
+}
+
+func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("'%s' `populateReportMsg` panic: %s", pr.Name(), r)
+		}
+	}()
+
+	if reporter, ok := pr.Plugin().(ReportingPlugin); ok {
+		if err = reporter.ReportMsg(msg); err != nil {
+			return
 		}
 	}
+
+	if fRunner, ok := pr.(FilterRunner); ok {
+		newIntField(msg, "InChanCapacity", cap(fRunner.InChan()))
+		newIntField(msg, "InChanLength", len(fRunner.InChan()))
+	} else if dRunner, ok := pr.(DecoderRunner); ok {
+		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
+		newIntField(msg, "InChanLength", len(dRunner.InChan()))
+	}
+
+	if msg.GetType() != "" {
+		var f *message.Field
+		f, err = message.NewField("Type", msg.GetType(), message.Field_RAW)
+		if err != nil {
+			return
+		}
+		msg.AddField(f)
+	}
+	msg.SetType("heka.plugin-report")
 	return
 }
 
-// Interface for Heka plugins that will provide data for the queue report.
-type ReportingPlugin interface {
-	ReportData() PluginReport
-}
-
-type chanStat struct {
-	chanName string
-	capacity int
-	length   int
-}
-
-// Generate and return queue (i.e. channel) reports and plugin reports.
-func (pc *PipelineConfig) reports() (qReports map[string][]chanStat,
-	pReports map[string]PluginReport) {
-
-	qReports = make(map[string][]chanStat)
-	pReports = make(map[string]PluginReport)
-
-	recycleReport := make([]chanStat, 1)
-	recycleReport[0] = chanStat{
-		"RecycleChan", cap(pc.RecycleChan), len(pc.RecycleChan)}
-	qReports["RecycleChan"] = recycleReport
-
+// Generate and return recycle channel and plugin report messages.
+func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
+	reports = make(map[string]*messageHolder)
 	var (
-		stat     chanStat
-		reporter ReportingPlugin
-		ok       bool
+		f      *message.Field
+		holder *messageHolder
+		msg    *message.Message
+		err, e error
 	)
+
+	holder = MessageGenerator.Retrieve()
+	msg = holder.Message
+	newIntField(msg, "InChanCapacity", cap(pc.RecycleChan))
+	newIntField(msg, "InChanLength", len(pc.RecycleChan))
+	msg.SetType("heka.recycle-report")
+	reports["recycle"] = holder
+
+	getReport := func(runner PluginRunner) (holder *messageHolder) {
+		holder = MessageGenerator.Retrieve()
+		if err = PopulateReportMsg(runner, holder.Message); err != nil {
+			msg = holder.Message
+			f, e = message.NewField("Error", err.Error(), message.Field_RAW)
+			if e == nil {
+				msg.AddField(f)
+			}
+			msg.SetType("heka.plugin-report")
+		}
+		return
+	}
 
 	for name, runner := range pc.InputRunners {
-		if reporter, ok = runner.Plugin().(ReportingPlugin); ok {
-			pReports[name] = reporter.ReportData()
+		holder = getReport(runner)
+		if len(holder.Message.Fields) > 0 || holder.Message.GetPayload() != "" {
+			reports[name] = holder
 		}
 	}
 
-	fqReport := make([]chanStat, 0, len(pc.FilterRunners))
 	for name, runner := range pc.FilterRunners {
-		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
-		fqReport = append(fqReport, stat)
-		if reporter, ok = runner.Plugin().(ReportingPlugin); ok {
-			pReports[name] = reporter.ReportData()
-		}
+		reports[name] = getReport(runner)
 	}
-	qReports["filter-queues"] = fqReport
 
-	oqReport := make([]chanStat, 0, len(pc.OutputRunners))
 	for name, runner := range pc.OutputRunners {
-		stat = chanStat{name, cap(runner.InChan()), len(runner.InChan())}
-		oqReport = append(oqReport, stat)
-		if reporter, ok = runner.Plugin().(ReportingPlugin); ok {
-			pReports[name] = reporter.ReportData()
-		}
+		reports[name] = getReport(runner)
 	}
-	qReports["output-queues"] = oqReport
 
-	var reportName string
+	var name string
 	for i, dSet := range pc.decoderRunners {
-		dSetReport := make([]chanStat, len(dSet))
-		for j, runner := range dSet {
-			stat = chanStat{runner.Name(), cap(runner.InChan()), len(runner.InChan())}
-			dSetReport[j] = stat
+		for _, runner := range dSet {
+			name = fmt.Sprintf("%s-dset-%d", runner.Name(), i)
+			reports[name] = getReport(runner)
 		}
-		reportName = fmt.Sprintf("decoder-set-queues-%d", i)
-		qReports[reportName] = dSetReport
 	}
-
 	return
 }
 
-func (pc *PipelineConfig) sendReport() {
-	qReports, pReports := pc.reports()
-	var (
-		stat                chanStat
-		payload, name, k, v string
-		qr                  []chanStat
-		pr                  PluginReport
-	)
+//
+func (pc *PipelineConfig) allReportsMsg() {
+	payload := make([]string, 0, 10)
+	var line string
+	reports := pc.reports()
 
-	for name, qr = range qReports {
-		payload = fmt.Sprintf("%s%s:\n", payload, name)
-		for _, stat = range qr {
-			payload = fmt.Sprintf("%s\t%s:\t%d\t%d\n", payload, stat.chanName,
-				stat.capacity, stat.length)
+	for name, holder := range reports {
+		line = fmt.Sprintf("%s:", name)
+		payload = append(payload, line)
+		for _, field := range holder.Message.Fields {
+			line = fmt.Sprintf("\t%s:\t%v", field.GetName(), field.GetValue())
+			payload = append(payload, line)
 		}
+		if holder.Message.GetPayload() != "" {
+			line = fmt.Sprintf("\tPayload:\t%s", holder.Message.GetPayload())
+			payload = append(payload, line)
+		}
+		payload = append(payload, "")
+		holder.Message = new(message.Message)
+		MessageGenerator.RecycleChan <- holder
 	}
 
-	for name, pr = range pReports {
-		payload = fmt.Sprintf("%s%s:\n", payload, name)
-		for k, v = range pr.Stringify() {
-			payload = fmt.Sprintf("%s:\t%s\n", k, v)
-		}
-	}
-
-	msg := MessageGenerator.Retrieve()
-	msg.Message.SetType("heka.queue-report")
-	msg.Message.SetPayload(payload)
-	MessageGenerator.Inject(msg)
+	holder := MessageGenerator.Retrieve()
+	holder.Message.SetType("heka.all-report")
+	holder.Message.SetPayload(strings.Join(payload, "\n"))
+	MessageGenerator.Inject(holder)
 }

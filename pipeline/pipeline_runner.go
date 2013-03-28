@@ -71,18 +71,6 @@ func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
 }
 
-func (pr *pRunnerBase) Input() Input {
-	return pr.plugin.(Input)
-}
-
-func (pr *pRunnerBase) Output() Output {
-	return pr.plugin.(Output)
-}
-
-func (pr *pRunnerBase) Filter() Filter {
-	return pr.plugin.(Filter)
-}
-
 type foRunner struct {
 	pRunnerBase
 	matcher    *MatchRunner
@@ -151,6 +139,14 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 
 func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
 	return foRunner.inChan
+}
+
+func (foRunner *foRunner) Output() Output {
+	return foRunner.plugin.(Output)
+}
+
+func (foRunner *foRunner) Filter() Filter {
+	return foRunner.plugin.(Filter)
 }
 
 type PipelinePack struct {
@@ -264,7 +260,7 @@ func Run(config *PipelineConfig) {
 				ok = false
 			case syscall.SIGUSR1:
 				log.Println("Queue report initiated.")
-				go config.sendReport()
+				go config.allReportsMsg()
 			}
 		}
 	}
