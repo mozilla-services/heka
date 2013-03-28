@@ -4,10 +4,9 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 	time "time"
-	message "github.com/mozilla-services/heka/message"
 )
 
 // Mock of OutputRunner interface
@@ -93,16 +92,6 @@ func (_m *MockOutputRunner) Plugin() Plugin {
 
 func (_mr *_MockOutputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
-}
-
-func (_m *MockOutputRunner) PopulateReportMsg(_param0 *message.Message) error {
-	ret := _m.ctrl.Call(_m, "PopulateReportMsg", _param0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockOutputRunnerRecorder) PopulateReportMsg(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "PopulateReportMsg", arg0)
 }
 
 func (_m *MockOutputRunner) SetName(_param0 string) {
