@@ -80,8 +80,15 @@ func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
 	msg = holder.Message
 	newIntField(msg, "InChanCapacity", cap(pc.RecycleChan))
 	newIntField(msg, "InChanLength", len(pc.RecycleChan))
-	msg.SetType("heka.recycle-report")
-	reports["recycle"] = holder
+	msg.SetType("heka.recycler-report")
+	reports["RecycleChan"] = holder
+
+	holder = MessageGenerator.Retrieve()
+	msg = holder.Message
+	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan))
+	newIntField(msg, "InChanLength", len(pc.Router().InChan))
+	msg.SetType("heka.router-report")
+	reports["Router"] = holder
 
 	getReport := func(runner PluginRunner) (holder *messageHolder) {
 		holder = MessageGenerator.Retrieve()
