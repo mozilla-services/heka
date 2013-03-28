@@ -54,10 +54,10 @@ type Sandbox interface {
 }
 
 type SandboxConfig struct {
-	ScriptType       string `json:"type"`
-	ScriptFilename   string `json:"filename"`
-	PreserveData     bool   `json:"preserve_data"`
-	MemoryLimit      uint   `json:"memory_limit"`
-	InstructionLimit uint   `json:"instruction_limit"`
-	OutputLimit      uint   `json:"output_limit"`
+	ScriptType       string `toml:"type"`
+	ScriptFilename   string `toml:"filename"`
+	PreserveData     bool   `toml:"preserve_data"`
+	MemoryLimit      uint   `toml:"memory_limit"`
+	InstructionLimit uint   `toml:"instruction_limit"`
+	OutputLimit      uint   `toml:"output_limit"`
 }
