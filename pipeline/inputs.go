@@ -462,6 +462,7 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 			}
 			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
 			if cnt == 0 {
+				msgHolder.Message = new(Message)
 				self.recycleChan <- msgHolder
 			}
 		}
