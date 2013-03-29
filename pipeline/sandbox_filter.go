@@ -31,7 +31,7 @@ func fileExists(path string) bool {
 }
 
 type SandboxFilterConfig struct {
-	Sbc sandbox.SandboxConfig `json:"sandbox"`
+	Sbc sandbox.SandboxConfig `toml:"settings"`
 }
 
 type SandboxFilter struct {
