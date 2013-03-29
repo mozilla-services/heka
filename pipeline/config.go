@@ -260,8 +260,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	wrapper.name = sectionName
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		self.log(fmt.Sprintf("Unable to locate type in plugin: %s", wrapper.name))
-		self.log(err.Error())
+		self.log(fmt.Sprintf("Unable to decode config for plugin: %s, error: %s",
+			wrapper.name, err.Error()))
 		errcnt++
 		return
 	}
