@@ -4,9 +4,9 @@
 package pipeline
 
 import (
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
 	time "time"
+	sync "sync"
 )
 
 // Mock of OutputRunner interface
@@ -74,6 +74,37 @@ func (_mr *_MockOutputRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
+func (_m *MockOutputRunner) NewDecoder(_param0 string) (DecoderRunner, bool) {
+	ret := _m.ctrl.Call(_m, "NewDecoder", _param0)
+	ret0, _ := ret[0].(DecoderRunner)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+func (_mr *_MockOutputRunnerRecorder) NewDecoder(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoder", arg0)
+}
+
+func (_m *MockOutputRunner) NewDecoders() map[string]DecoderRunner {
+	ret := _m.ctrl.Call(_m, "NewDecoders")
+	ret0, _ := ret[0].(map[string]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockOutputRunnerRecorder) NewDecoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoders")
+}
+
+func (_m *MockOutputRunner) NewDecodersByEncoding() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "NewDecodersByEncoding")
+	ret0, _ := ret[0].([]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockOutputRunnerRecorder) NewDecodersByEncoding() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecodersByEncoding")
+}
+
 func (_m *MockOutputRunner) Output() Output {
 	ret := _m.ctrl.Call(_m, "Output")
 	ret0, _ := ret[0].(Output)
@@ -92,6 +123,16 @@ func (_m *MockOutputRunner) Plugin() Plugin {
 
 func (_mr *_MockOutputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockOutputRunner) RunningDecoders() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "RunningDecoders")
+	ret0, _ := ret[0].([]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockOutputRunnerRecorder) RunningDecoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RunningDecoders")
 }
 
 func (_m *MockOutputRunner) SetName(_param0 string) {

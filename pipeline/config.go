@@ -42,11 +42,11 @@ type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
-	Decoder(name string) (dRunner DecoderRunner, ok bool)
-	Decoders() (decoders map[string]DecoderRunner)
-	DecodersByEncoding() (decoders []DecoderRunner)
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
+	decoder(name string) (dRunner DecoderRunner, ok bool)
+	decoders() (decoders map[string]DecoderRunner)
+	decodersByEncoding() (decoders []DecoderRunner)
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -65,7 +65,6 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
-	decoderRunners  [][]DecoderRunner
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -80,58 +79,45 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.router = NewMessageRouter()
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	config.logMsgs = make([]string, 0, 4)
-	config.decoderRunners = make([][]DecoderRunner, 0, 4)
 	return config
-}
-
-// Actually creates and starts a decoder instance.
-func (self *PipelineConfig) makeDecoder(name string) (dRunner DecoderRunner, ok bool) {
-	var wrapper *PluginWrapper
-	if wrapper, ok = self.DecoderWrappers[name]; !ok {
-		return
-	}
-	decoder := wrapper.Create().(Decoder)
-	dRunner = NewDecoderRunner(name, decoder)
-	dRunner.Start()
-	return
 }
 
 // Returns a running DecoderRunner for the registered decoder of the
 // given name.
-func (self *PipelineConfig) Decoder(name string) (dRunner DecoderRunner, ok bool) {
-	dRunner, ok = self.makeDecoder(name)
-	self.decoderRunners = append(self.decoderRunners, []DecoderRunner{dRunner})
+func (self *PipelineConfig) decoder(name string) (dRunner DecoderRunner, ok bool) {
+	var wrapper *PluginWrapper
+	if wrapper, ok = self.DecoderWrappers[name]; ok {
+		decoder := wrapper.Create().(Decoder)
+		dRunner = NewDecoderRunner(name, decoder)
+		dRunner.Start()
+	}
 	return
 }
 
 // Returns a map[string]DecoderRunner containing all registered decoders.
-func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
+func (self *PipelineConfig) decoders() (decoders map[string]DecoderRunner) {
 	decoders = make(map[string]DecoderRunner)
-	dSlice := make([]DecoderRunner, 0, len(self.DecoderWrappers))
 	var runner DecoderRunner
 	for name, wrapper := range self.DecoderWrappers {
 		decoder := wrapper.Create().(Decoder)
 		runner = NewDecoderRunner(name, decoder)
 		runner.Start()
 		decoders[name] = runner
-		dSlice = append(dSlice, runner)
 	}
-	self.decoderRunners = append(self.decoderRunners, dSlice)
 	return
 }
 
 // Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
 // value that each decoder works for.
-func (self *PipelineConfig) DecodersByEncoding() []DecoderRunner {
+func (self *PipelineConfig) decodersByEncoding() []DecoderRunner {
 	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
 	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.makeDecoder(name)
+		decoder, ok := self.decoder(name)
 		if !ok {
 			continue
 		}
 		decoders[encoding] = decoder
 	}
-	self.decoderRunners = append(self.decoderRunners, decoders)
 	return decoders
 }
 

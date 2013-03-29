@@ -31,18 +31,21 @@ type DecoderRunner interface {
 	Decoder() Decoder
 	Start()
 	InChan() chan *PipelinePack
+	setIndex(owner *pRunnerBase, idx uint)
 }
 
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
+	idx    uint
+	owner  *pRunnerBase
 }
 
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &dRunner{
-		pRunnerBase{name: name, plugin: decoder.(Plugin)},
-		inChan,
+		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
+		inChan:      inChan,
 	}
 }
 
@@ -74,11 +77,18 @@ func (dr *dRunner) Start() {
 			pack.Decoded = true
 			pack.Config.Router().InChan <- pack
 		}
+
+		dr.owner.removeDecoder(dr.idx)
 	}()
 }
 
 func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
+}
+
+func (dr *dRunner) setIndex(owner *pRunnerBase, idx uint) {
+	dr.idx = idx
+	dr.owner = owner
 }
 
 func (dr *dRunner) LogError(err error) {

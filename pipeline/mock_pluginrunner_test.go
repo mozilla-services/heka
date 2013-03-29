@@ -54,6 +54,37 @@ func (_mr *_MockPluginRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
+func (_m *MockPluginRunner) NewDecoder(_param0 string) (DecoderRunner, bool) {
+	ret := _m.ctrl.Call(_m, "NewDecoder", _param0)
+	ret0, _ := ret[0].(DecoderRunner)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+func (_mr *_MockPluginRunnerRecorder) NewDecoder(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoder", arg0)
+}
+
+func (_m *MockPluginRunner) NewDecoders() map[string]DecoderRunner {
+	ret := _m.ctrl.Call(_m, "NewDecoders")
+	ret0, _ := ret[0].(map[string]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginRunnerRecorder) NewDecoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoders")
+}
+
+func (_m *MockPluginRunner) NewDecodersByEncoding() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "NewDecodersByEncoding")
+	ret0, _ := ret[0].([]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginRunnerRecorder) NewDecodersByEncoding() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecodersByEncoding")
+}
+
 func (_m *MockPluginRunner) Plugin() Plugin {
 	ret := _m.ctrl.Call(_m, "Plugin")
 	ret0, _ := ret[0].(Plugin)
@@ -62,6 +93,16 @@ func (_m *MockPluginRunner) Plugin() Plugin {
 
 func (_mr *_MockPluginRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockPluginRunner) RunningDecoders() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "RunningDecoders")
+	ret0, _ := ret[0].([]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginRunnerRecorder) RunningDecoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RunningDecoders")
 }
 
 func (_m *MockPluginRunner) SetName(_param0 string) {

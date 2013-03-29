@@ -28,37 +28,6 @@ func (_m *MockPluginHelper) EXPECT() *_MockPluginHelperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPluginHelper) Decoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "Decoder", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-func (_mr *_MockPluginHelperRecorder) Decoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoder", arg0)
-}
-
-func (_m *MockPluginHelper) Decoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "Decoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) Decoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoders")
-}
-
-func (_m *MockPluginHelper) DecodersByEncoding() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "DecodersByEncoding")
-	ret0, _ := ret[0].([]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) DecodersByEncoding() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodersByEncoding")
-}
-
 func (_m *MockPluginHelper) Output(_param0 string) (OutputRunner, bool) {
 	ret := _m.ctrl.Call(_m, "Output", _param0)
 	ret0, _ := ret[0].(OutputRunner)
@@ -88,4 +57,35 @@ func (_m *MockPluginHelper) Router() *MessageRouter {
 
 func (_mr *_MockPluginHelperRecorder) Router() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Router")
+}
+
+func (_m *MockPluginHelper) decoder(_param0 string) (DecoderRunner, bool) {
+	ret := _m.ctrl.Call(_m, "decoder", _param0)
+	ret0, _ := ret[0].(DecoderRunner)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+func (_mr *_MockPluginHelperRecorder) decoder(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "decoder", arg0)
+}
+
+func (_m *MockPluginHelper) decoders() map[string]DecoderRunner {
+	ret := _m.ctrl.Call(_m, "decoders")
+	ret0, _ := ret[0].(map[string]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) decoders() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "decoders")
+}
+
+func (_m *MockPluginHelper) decodersByEncoding() []DecoderRunner {
+	ret := _m.ctrl.Call(_m, "decodersByEncoding")
+	ret0, _ := ret[0].([]DecoderRunner)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) decodersByEncoding() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "decodersByEncoding")
 }

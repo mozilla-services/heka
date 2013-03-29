@@ -103,28 +103,32 @@ func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
 		return
 	}
 
+	var dRunner DecoderRunner
+
 	for name, runner := range pc.InputRunners {
 		holder = getReport(runner)
 		if len(holder.Message.Fields) > 0 || holder.Message.GetPayload() != "" {
 			reports[name] = holder
 		}
+		for _, dRunner = range runner.RunningDecoders() {
+			reports[dRunner.Name()] = getReport(dRunner)
+		}
 	}
 
 	for name, runner := range pc.FilterRunners {
 		reports[name] = getReport(runner)
+		for _, dRunner = range runner.RunningDecoders() {
+			reports[dRunner.Name()] = getReport(dRunner)
+		}
 	}
 
 	for name, runner := range pc.OutputRunners {
 		reports[name] = getReport(runner)
-	}
-
-	var name string
-	for i, dSet := range pc.decoderRunners {
-		for _, runner := range dSet {
-			name = fmt.Sprintf("%s-dset-%d", runner.Name(), i)
-			reports[name] = getReport(runner)
+		for _, dRunner = range runner.RunningDecoders() {
+			reports[dRunner.Name()] = getReport(dRunner)
 		}
 	}
+
 	return
 }
 
