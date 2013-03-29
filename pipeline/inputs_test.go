@@ -16,6 +16,9 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
+	"crypto/hmac"
+	"crypto/md5"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"github.com/mozilla-services/heka/message"
@@ -23,6 +26,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"sync"
+	"time"
 )
 
 type InputTestHelper struct {
@@ -72,6 +76,8 @@ func InputsSpec(c gs.Context) {
 	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
+	key := "testkey"
+	signers := map[string]Signer{"test_1": {key}}
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
@@ -114,7 +120,7 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("A TcpInput", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr})
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
 		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -168,6 +174,292 @@ func InputsSpec(c gs.Context) {
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+		})
+	})
+
+	c.Specify("A MD5 Signed TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		mbytes, _ := proto.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetHmacHashFunction(message.Header_MD5)
+		header.SetHmacSigner("test")
+		header.SetHmacKeyVersion(uint32(1))
+		hm := hmac.New(md5.New, []byte(key))
+		hm.Write(mbytes)
+		header.SetHmac(hm.Sum(nil))
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = message.RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = message.UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a MD5 signed message from its connection", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
+
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+
+			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+			// start the input
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			timeout := make(chan bool, 1)
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				timeout <- true
+			}()
+			select {
+			case packRef := <-ith.DecodeChan:
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+				c.Expect(ith.Pack.Signer, gs.Equals, "test")
+			case t := <-timeout:
+				c.Expect(t, gs.IsNil)
+			}
+		})
+	})
+
+	c.Specify("A SHA1 Signed TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		mbytes, _ := proto.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetHmacHashFunction(message.Header_SHA1)
+		header.SetHmacSigner("test")
+		header.SetHmacKeyVersion(uint32(1))
+		hm := hmac.New(sha1.New, []byte(key))
+		hm.Write(mbytes)
+		header.SetHmac(hm.Sum(nil))
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = message.RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = message.UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a MD5 signed message from its connection", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
+
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+
+			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+			// start the input
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			timeout := make(chan bool, 1)
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				timeout <- true
+			}()
+			select {
+			case packRef := <-ith.DecodeChan:
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+				c.Expect(ith.Pack.Signer, gs.Equals, "test")
+			case t := <-timeout:
+				c.Expect(t, gs.IsNil)
+			}
+		})
+	})
+
+	c.Specify("An expired signing key TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		mbytes, _ := proto.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetHmacHashFunction(message.Header_MD5)
+		header.SetHmacSigner("test")
+		header.SetHmacKeyVersion(uint32(11)) // non-existent key version
+		hm := hmac.New(md5.New, []byte(key))
+		hm.Write(mbytes)
+		header.SetHmac(hm.Sum(nil))
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = message.RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = message.UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a unauthenicated signed message from its connection", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
+
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+
+			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+			// start the input
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				close(mockDecoderRunner.InChan())
+			}()
+			select {
+			case packRef := <-ith.DecodeChan:
+				c.Expect(packRef, gs.IsNil)
+			}
+		})
+	})
+
+	c.Specify("A mis-matched digest signed TcpInput", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		mbytes, _ := proto.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetHmacHashFunction(message.Header_MD5)
+		header.SetHmacSigner("test")
+		header.SetHmacKeyVersion(uint32(11)) // non-existent key version
+		hm := hmac.New(md5.New, []byte(key))
+		hm.Write([]byte("some bytes"))
+		header.SetHmac(hm.Sum(nil))
+		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buflen := 3 + len(hbytes) + len(mbytes)
+		putPayloadInBytes := func(msgBytes []byte) {
+			msgBytes[0] = message.RECORD_SEPARATOR
+			msgBytes[1] = uint8(len(hbytes))
+			copy(msgBytes[2:], hbytes)
+			pos := 2 + len(hbytes)
+			msgBytes[pos] = message.UNIT_SEPARATOR
+			copy(msgBytes[pos+1:], mbytes)
+		}
+
+		c.Specify("reads a unauthenicated signed message from its connection", func() {
+			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+
+			neterr := ts.NewMockError(ctrl)
+			neterr.EXPECT().Temporary().Return(false)
+			acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+			acceptCall.Do(func() {
+				acceptCall = mockListener.EXPECT().Accept()
+				acceptCall.Return(nil, neterr)
+			})
+
+			buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+			err = errors.New("connection closed")
+			readCall := mockConnection.EXPECT().Read(buf)
+			readCall.Return(buflen, err)
+			readCall.Do(putPayloadInBytes)
+
+			mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+			// start the input
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				close(mockDecoderRunner.InChan())
+			}()
+			select {
+			case packRef := <-ith.DecodeChan:
+				c.Expect(packRef, gs.IsNil)
+			}
 		})
 	})
 
