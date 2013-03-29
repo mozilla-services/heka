@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
 )
 
@@ -115,9 +116,9 @@ func (_mr *_MockDecoderRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
 }
 
-func (_m *MockDecoderRunner) RunningDecoders() []DecoderRunner {
+func (_m *MockDecoderRunner) RunningDecoders() map[string]DecoderRunner {
 	ret := _m.ctrl.Call(_m, "RunningDecoders")
-	ret0, _ := ret[0].([]DecoderRunner)
+	ret0, _ := ret[0].(map[string]DecoderRunner)
 	return ret0
 }
 
@@ -133,18 +134,28 @@ func (_mr *_MockDecoderRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
 }
 
-func (_m *MockDecoderRunner) Start() {
-	_m.ctrl.Call(_m, "Start")
+func (_m *MockDecoderRunner) Start(_param0 *sync.WaitGroup) {
+	_m.ctrl.Call(_m, "Start", _param0)
 }
 
-func (_mr *_MockDecoderRunnerRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+func (_mr *_MockDecoderRunnerRecorder) Start(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0)
 }
 
-func (_m *MockDecoderRunner) setIndex(_param0 *pRunnerBase, _param1 uint) {
-	_m.ctrl.Call(_m, "setIndex", _param0, _param1)
+func (_m *MockDecoderRunner) UUID() string {
+	ret := _m.ctrl.Call(_m, "UUID")
+	ret0, _ := ret[0].(string)
+	return ret0
 }
 
-func (_mr *_MockDecoderRunnerRecorder) setIndex(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "setIndex", arg0, arg1)
+func (_mr *_MockDecoderRunnerRecorder) UUID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "UUID")
+}
+
+func (_m *MockDecoderRunner) setOwner(_param0 *pRunnerBase) {
+	_m.ctrl.Call(_m, "setOwner", _param0)
+}
+
+func (_mr *_MockDecoderRunnerRecorder) setOwner(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "setOwner", arg0)
 }

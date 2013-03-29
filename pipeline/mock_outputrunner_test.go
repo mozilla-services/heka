@@ -125,9 +125,9 @@ func (_mr *_MockOutputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
 }
 
-func (_m *MockOutputRunner) RunningDecoders() []DecoderRunner {
+func (_m *MockOutputRunner) RunningDecoders() map[string]DecoderRunner {
 	ret := _m.ctrl.Call(_m, "RunningDecoders")
-	ret0, _ := ret[0].([]DecoderRunner)
+	ret0, _ := ret[0].(map[string]DecoderRunner)
 	return ret0
 }
 

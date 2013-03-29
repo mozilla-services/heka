@@ -23,22 +23,24 @@ import (
 	"github.com/bitly/go-simplejson"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"sync"
 	"time"
 )
 
 type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
-	Start()
+	Start(wg *sync.WaitGroup)
 	InChan() chan *PipelinePack
-	setIndex(owner *pRunnerBase, idx uint)
+	UUID() string
+	setOwner(owner *pRunnerBase)
 }
 
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
-	idx    uint
 	owner  *pRunnerBase
+	uuid   string
 }
 
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
@@ -46,6 +48,7 @@ func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	return &dRunner{
 		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
 		inChan:      inChan,
+		uuid:        uuid.NewRandom().String(),
 	}
 }
 
@@ -53,17 +56,21 @@ func (dr *dRunner) Decoder() Decoder {
 	return dr.plugin.(Decoder)
 }
 
-func (dr *dRunner) Start() {
+func (dr *dRunner) Start(wg *sync.WaitGroup) {
 	go func() {
 		var pack *PipelinePack
 
 		defer func() {
 			if r := recover(); r != nil {
-				dr.LogError(fmt.Errorf("Decoder '%s' panicked: %s", dr.name, r))
+				dr.LogError(fmt.Errorf("PANIC: %s", r))
 				if pack != nil {
 					pack.Recycle()
 				}
-				dr.Start()
+				if Stopping {
+					wg.Done()
+				} else {
+					dr.Start(wg)
+				}
 			}
 		}()
 
@@ -77,8 +84,9 @@ func (dr *dRunner) Start() {
 			pack.Decoded = true
 			pack.Config.Router().InChan <- pack
 		}
-
-		dr.owner.removeDecoder(dr.idx)
+		dr.owner.removeDecoder(dr.uuid)
+		dr.LogMessage("stopped")
+		wg.Done()
 	}()
 }
 
@@ -86,9 +94,12 @@ func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
 }
 
-func (dr *dRunner) setIndex(owner *pRunnerBase, idx uint) {
-	dr.idx = idx
+func (dr *dRunner) setOwner(owner *pRunnerBase) {
 	dr.owner = owner
+}
+
+func (dr *dRunner) UUID() string {
+	return dr.uuid
 }
 
 func (dr *dRunner) LogError(err error) {

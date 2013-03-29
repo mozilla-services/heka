@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
-	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"github.com/rafrombrc/gospec/src/gospec"
+	"sync"
 	"testing"
 	"time"
 )
@@ -150,8 +151,13 @@ func DecodersSpec(c gospec.Context) {
 		decoder := new(PanicDecoder)
 		dRunner := NewDecoderRunner("panic", decoder)
 		pack := getTestPipelinePack()
-		dRunner.Start()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		Stopping = true
+		dRunner.Start(&wg)
 		dRunner.InChan() <- pack // No panic ==> success
+		wg.Wait()
+		Stopping = false
 	})
 }
 

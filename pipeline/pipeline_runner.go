@@ -37,7 +37,10 @@ const (
 	PIPECHAN_BUFSIZE = 500
 )
 
-var PoolSize int
+var (
+	PoolSize int
+	Stopping bool
+)
 
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
@@ -54,7 +57,7 @@ type PluginRunner interface {
 	NewDecoder(name string) (dRunner DecoderRunner, ok bool)
 	NewDecoders() (decoders map[string]DecoderRunner)
 	NewDecodersByEncoding() (decoders []DecoderRunner)
-	RunningDecoders() (decoders []DecoderRunner)
+	RunningDecoders() (decoders map[string]DecoderRunner)
 }
 
 // Base struct for the specialized PluginRunners
@@ -62,7 +65,7 @@ type pRunnerBase struct {
 	name         string
 	plugin       Plugin
 	h            PluginHelper
-	decoders     []DecoderRunner
+	decoders     map[string]DecoderRunner
 	decodersLock *sync.Mutex
 }
 
@@ -80,23 +83,22 @@ func (pr *pRunnerBase) Plugin() Plugin {
 
 // Thread-safe add to registry of running decoders.
 func (pr *pRunnerBase) addDecoders(decoders []DecoderRunner) {
-	pr.decodersLock.Lock()
-	startIdx := len(pr.decoders)
-	pr.decoders = append(pr.decoders, decoders...)
-	pr.decodersLock.Unlock()
 	var name string
-	for i, dRunner := range decoders {
-		name = fmt.Sprintf("%s-%s-%d", dRunner.Name(), pr.name, startIdx+i)
-		dRunner.SetName(name)
-		dRunner.setIndex(pr, uint(startIdx+i))
+	pr.decodersLock.Lock()
+	for _, d := range decoders {
+		pr.decoders[d.UUID()] = d
+		name = fmt.Sprintf("%s-%s-%s", pr.name, d.Name(), d.UUID()[:6])
+		d.setOwner(pr)
+		d.SetName(name)
 	}
+	pr.decodersLock.Unlock()
 	return
 }
 
 // Thread safe removal from registry of running decoders.
-func (pr *pRunnerBase) removeDecoder(idx uint) {
+func (pr *pRunnerBase) removeDecoder(uuid string) {
 	pr.decodersLock.Lock()
-	pr.decoders = append(pr.decoders[:idx], pr.decoders[idx+1:]...)
+	delete(pr.decoders, uuid)
 	pr.decodersLock.Unlock()
 }
 
@@ -126,7 +128,7 @@ func (pr *pRunnerBase) NewDecodersByEncoding() (decoders []DecoderRunner) {
 	return
 }
 
-func (pr *pRunnerBase) RunningDecoders() (decoders []DecoderRunner) {
+func (pr *pRunnerBase) RunningDecoders() (decoders map[string]DecoderRunner) {
 	return pr.decoders
 }
 
@@ -140,7 +142,7 @@ type foRunner struct {
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
-	runner.decoders = make([]DecoderRunner, 0)
+	runner.decoders = make(map[string]DecoderRunner)
 	runner.decodersLock = new(sync.Mutex)
 	runner.inChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
 	return
@@ -171,6 +173,9 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 			err = filter.Run(foRunner, h)
 		} else if output, ok := foRunner.plugin.(Output); ok {
 			err = output.Run(foRunner, h)
+		}
+		for _, d := range foRunner.decoders {
+			close(d.InChan())
 		}
 		if err != nil {
 			err = fmt.Errorf("Plugin '%s' error: %s", foRunner.name, err)
@@ -306,8 +311,7 @@ func Run(config *PipelineConfig) {
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	ok := true
-	for ok {
+	for !Stopping {
 		select {
 		case sig := <-sigChan:
 			switch sig {
@@ -318,7 +322,7 @@ func Run(config *PipelineConfig) {
 				}
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
-				ok = false
+				Stopping = true
 			case syscall.SIGUSR1:
 				log.Println("Queue report initiated.")
 				go config.allReportsMsg()
@@ -350,6 +354,10 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
+
+	log.Println("Waiting for decoders shutdown")
+	config.decodersWg.Wait()
+	log.Println("Decoders shutdown complete")
 
 	inputsWg.Add(1)
 	mgi.Stop()

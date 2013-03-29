@@ -21,6 +21,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 )
 
@@ -65,6 +66,7 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
+	decodersWg      sync.WaitGroup
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -89,7 +91,8 @@ func (self *PipelineConfig) decoder(name string) (dRunner DecoderRunner, ok bool
 	if wrapper, ok = self.DecoderWrappers[name]; ok {
 		decoder := wrapper.Create().(Decoder)
 		dRunner = NewDecoderRunner(name, decoder)
-		dRunner.Start()
+		self.decodersWg.Add(1)
+		dRunner.Start(&self.decodersWg)
 	}
 	return
 }
@@ -101,7 +104,8 @@ func (self *PipelineConfig) decoders() (decoders map[string]DecoderRunner) {
 	for name, wrapper := range self.DecoderWrappers {
 		decoder := wrapper.Create().(Decoder)
 		runner = NewDecoderRunner(name, decoder)
-		runner.Start()
+		self.decodersWg.Add(1)
+		runner.Start(&self.decodersWg)
 		decoders[name] = runner
 	}
 	return

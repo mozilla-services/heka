@@ -52,7 +52,7 @@ func NewInputRunner(name string, input Input) InputRunner {
 	iRunner := new(iRunner)
 	iRunner.name = name
 	iRunner.plugin = input.(Plugin)
-	iRunner.decoders = make([]DecoderRunner, 0)
+	iRunner.decoders = make(map[string]DecoderRunner)
 	iRunner.decodersLock = new(sync.Mutex)
 	return iRunner
 }
