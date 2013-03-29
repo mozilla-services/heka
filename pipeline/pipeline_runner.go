@@ -159,6 +159,7 @@ type PipelinePack struct {
 	Config   *PipelineConfig
 	Decoded  bool
 	RefCount int32
+	Signer   string
 }
 
 type PipelineCapture struct {
@@ -183,6 +184,7 @@ func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
 	p.RefCount = 1
+	p.Signer = ""
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
