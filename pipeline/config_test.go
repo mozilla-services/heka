@@ -38,9 +38,9 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the decoders are loaded for the right encoding headers
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
+			c.Expect(pipeConfig.decodersByEncoding()[message.Header_JSON].Name(),
 				gs.Equals, "JsonDecoder")
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
+			c.Expect(pipeConfig.decodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
 				gs.Equals, "ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name

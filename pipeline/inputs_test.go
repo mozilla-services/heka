@@ -91,7 +91,7 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+			ith.MockInputRunner.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
 			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
 			readCall.Return(len(msgJson), nil)
 			readCall.Do(putMsgJsonInBytes)
@@ -140,7 +140,7 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from its connection", func() {
-			ith.MockHelper.EXPECT().DecodersByEncoding().Return(ith.Decoders)
+			ith.MockInputRunner.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
 
 			neterr := ts.NewMockError(ctrl)
 			neterr.EXPECT().Temporary().Return(false)
