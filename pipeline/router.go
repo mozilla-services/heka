@@ -72,16 +72,18 @@ func (self *MessageRouter) Start() {
 
 type MatchRunner struct {
 	spec   *message.MatcherSpecification
+	signer string
 	inChan chan *PipelinePack
 }
 
-func NewMatchRunner(filter string) (matcher *MatchRunner, err error) {
+func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	var spec *message.MatcherSpecification
 	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
 		return
 	}
 	matcher = &MatchRunner{
 		spec:   spec,
+		signer: signer,
 		inChan: make(chan *PipelinePack, PIPECHAN_BUFSIZE),
 	}
 	return
@@ -103,6 +105,10 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 		}()
 
 		for pack := range mr.inChan {
+			if len(mr.signer) != 0 && mr.signer != pack.Signer {
+				pack.Recycle()
+				continue
+			}
 			match, captures := mr.spec.Match(pack.Message)
 			if match {
 				plc := &PipelineCapture{Pack: pack, Captures: captures}

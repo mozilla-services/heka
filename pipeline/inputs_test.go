@@ -57,12 +57,13 @@ func (p *PanicInput) Stop() {
 
 func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	return func(msgBytes []byte) {
-			msgBytes[0] = message.RECORD_SEPARATOR
-			msgBytes[1] = uint8(len(hbytes))
-			copy(msgBytes[2:], hbytes)
-			pos := 2 + len(hbytes)
-			msgBytes[pos] = message.UNIT_SEPARATOR
-			copy(msgBytes[pos+1:], mbytes)}
+		msgBytes[0] = message.RECORD_SEPARATOR
+		msgBytes[1] = uint8(len(hbytes))
+		copy(msgBytes[2:], hbytes)
+		pos := 2 + len(hbytes)
+		msgBytes[pos] = message.UNIT_SEPARATOR
+		copy(msgBytes[pos+1:], mbytes)
+	}
 }
 
 func InputsSpec(c gs.Context) {
@@ -88,7 +89,7 @@ func InputsSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 	key := "testkey"
 	signers := map[string]Signer{"test_1": {key}}
-   signer := "test"
+	signer := "test"
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
@@ -128,7 +129,6 @@ func InputsSpec(c gs.Context) {
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
 		})
 	})
-
 
 	c.Specify("A TcpInput", func() {
 		tcpInput := TcpInput{}

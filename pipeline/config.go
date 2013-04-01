@@ -144,6 +144,7 @@ type PluginGlobals struct {
 	Ticker   float64 `toml:"ticker_interval"`
 	Encoding string  `toml:"encoding_name"`
 	Matcher  string  `toml:"message_matcher"`
+	Signer   string  `toml:"message_signer"`
 }
 
 // A helper function to simplify plugin creation
@@ -348,7 +349,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher != "" {
-		if matcher, err = NewMatchRunner(pluginGlobals.Matcher); err != nil {
+		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
+			pluginGlobals.Signer); err != nil {
 			self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
 				wrapper.name, err))
 			errcnt++
