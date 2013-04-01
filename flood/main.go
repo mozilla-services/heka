@@ -27,6 +27,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"flag"
 	"fmt"
+	"github.com/BurntSushi/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
@@ -37,6 +38,17 @@ import (
 	"syscall"
 	"time"
 )
+
+type FloodSection struct {
+	IpAddress   string                       `toml:"ip_address"`
+	Sender	    string                       `toml:"sender"`
+	PprofFile   string                       `toml:"pprof_file"`
+	Encoder     string                       `toml:"encoder"`
+	NumMessages uint64                       `toml:"num_messages"`
+	Signer      message.MessageSigningConfig `toml:"signer"`
+}
+
+type FloodConfig map[string]FloodSection
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
 	lastTime := time.Now().UTC()
@@ -70,15 +82,24 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 }
 
 func main() {
-	addrStr := flag.String("ipaddr", "127.0.0.1:5565", "IP address string")
-	senderName := flag.String("sender", "udp", "Message sender (udp|tcp)")
-	pprofName := flag.String("pprof", "", "pprof output file path")
-	encoderName := flag.String("encoder", "protobuf", "Message encoder (json|protobuf)")
-	numToSend := flag.Uint64("num", 0, "Number of messages to send")
+	configFile := flag.String("config", "flood.toml", "Flood configuration file")
+	configSection := flag.String("section", "default", "Configuration section to load")
 	flag.Parse()
 
-	if *pprofName != "" {
-		profFile, err := os.Create(*pprofName)
+	var config FloodConfig
+	if _, err := toml.DecodeFile(*configFile, &config); err != nil {
+		log.Printf("Error decoding config file: %s", err)
+		return
+	}
+	var section FloodSection
+	var ok bool
+	if section, ok = config[*configSection]; !ok {
+		log.Printf("Configuration section: '%s' was not found", *configSection)
+		return
+	}
+
+	if section.PprofFile != "" {
+		profFile, err := os.Create(section.PprofFile)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -88,23 +109,24 @@ func main() {
 
 	var err error
 	var sender client.Sender
-	switch *senderName {
+	switch section.Sender {
 	case "udp":
-		sender, err = client.NewUdpSender(*addrStr)
+		sender, err = client.NewUdpSender(section.IpAddress)
 	case "tcp":
-		sender, err = client.NewTcpSender(*addrStr)
+		sender, err = client.NewTcpSender(section.IpAddress)
 	}
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
 	var encoder client.Encoder
-	switch *encoderName {
+	switch section.Encoder {
 	case "json":
 		encoder = new(client.JsonEncoder)
 	case "protobuf":
 		encoder = new(client.ProtobufEncoder)
 	}
+
 	hostname, _ := os.Hostname()
 	message := &message.Message{}
 	message.SetType("hekabench")
@@ -133,7 +155,11 @@ func main() {
 			continue
 		default:
 		}
-		err = sender.SendMessage(msgBytes)
+		if len(section.Signer.Name) != 0 {
+			err = sender.SendSignedMessage(msgBytes, &section.Signer)
+		} else {
+			err = sender.SendMessage(msgBytes)
+		}
 		if err != nil {
 			if !strings.Contains(err.Error(), "connection refused") {
 				log.Printf("Error sending message: %s\n",
@@ -141,7 +167,7 @@ func main() {
 			}
 		} else {
 			msgsSent++
-			if *numToSend != 0 && msgsSent >= *numToSend {
+			if section.NumMessages != 0 && msgsSent >= section.NumMessages {
 				break
 			}
 		}

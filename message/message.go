@@ -35,6 +35,13 @@ const (
 	UUID_SIZE        = 16
 )
 
+type MessageSigningConfig struct {
+	Name    string `toml:"name"`
+	Hash    string `toml:"hmac_hash"`
+	Key     string `toml:"hmac_key"`
+	Version uint32 `toml:"version"`
+}
+
 func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
 	if h != nil {
 		if h.MessageEncoding == nil {

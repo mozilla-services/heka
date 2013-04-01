@@ -23,6 +23,7 @@ import (
 
 type Sender interface {
 	SendMessage(msgBytes []byte) error
+	SendSignedMessage(msgBytes []byte, msc *message.MessageSigningConfig) error
 }
 
 type UdpSender struct {
@@ -46,6 +47,12 @@ func (self *UdpSender) SendMessage(msgBytes []byte) error {
 	return err
 }
 
+func (self *UdpSender) SendSignedMessage(msgBytes []byte,
+	msc *message.MessageSigningConfig) error {
+	_, err := self.connection.Write(msgBytes)
+	return err
+}
+
 type TcpSender struct {
 	connection  net.Conn
 	header      []byte
@@ -64,6 +71,19 @@ func NewTcpSender(addrStr string) (n *TcpSender, err error) {
 
 func (t *TcpSender) SendMessage(msgBytes []byte) error {
 	err := EncodeStreamHeader(len(msgBytes), message.Header_PROTOCOL_BUFFER, &t.header)
+	if err != nil {
+		return err
+	}
+	_, err = t.connection.Write(t.header)
+	if err == nil {
+		_, err = t.connection.Write(msgBytes)
+	}
+	return err
+}
+
+func (t *TcpSender) SendSignedMessage(msgBytes []byte, msc *message.MessageSigningConfig) error {
+	err := EncodeSignedStreamHeader(msgBytes,
+		message.Header_PROTOCOL_BUFFER, &t.header, msc)
 	if err != nil {
 		return err
 	}

@@ -203,7 +203,7 @@ type Signer struct {
 
 type TcpInputConfig struct {
 	Address string
-	Signers map[string]Signer
+	Signers map[string]Signer `toml:"signer"`
 }
 
 func (self *TcpInput) ConfigStruct() interface{} {
