@@ -75,37 +75,6 @@ func (_mr *_MockDecoderRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
-func (_m *MockDecoderRunner) NewDecoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "NewDecoder", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-func (_mr *_MockDecoderRunnerRecorder) NewDecoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoder", arg0)
-}
-
-func (_m *MockDecoderRunner) NewDecoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "NewDecoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockDecoderRunnerRecorder) NewDecoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoders")
-}
-
-func (_m *MockDecoderRunner) NewDecodersByEncoding() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "NewDecodersByEncoding")
-	ret0, _ := ret[0].([]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockDecoderRunnerRecorder) NewDecodersByEncoding() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecodersByEncoding")
-}
-
 func (_m *MockDecoderRunner) Plugin() Plugin {
 	ret := _m.ctrl.Call(_m, "Plugin")
 	ret0, _ := ret[0].(Plugin)
@@ -114,16 +83,6 @@ func (_m *MockDecoderRunner) Plugin() Plugin {
 
 func (_mr *_MockDecoderRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
-}
-
-func (_m *MockDecoderRunner) RunningDecoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "RunningDecoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockDecoderRunnerRecorder) RunningDecoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RunningDecoders")
 }
 
 func (_m *MockDecoderRunner) SetName(_param0 string) {
@@ -150,12 +109,4 @@ func (_m *MockDecoderRunner) UUID() string {
 
 func (_mr *_MockDecoderRunnerRecorder) UUID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "UUID")
-}
-
-func (_m *MockDecoderRunner) setOwner(_param0 *pRunnerBase) {
-	_m.ctrl.Call(_m, "setOwner", _param0)
-}
-
-func (_mr *_MockDecoderRunnerRecorder) setOwner(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "setOwner", arg0)
 }

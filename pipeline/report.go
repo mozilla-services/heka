@@ -110,23 +110,17 @@ func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
 		if len(holder.Message.Fields) > 0 || holder.Message.GetPayload() != "" {
 			reports[name] = holder
 		}
-		for _, dRunner = range runner.RunningDecoders() {
+		for _, dRunner = range runner.DecoderSource().RunningDecoders() {
 			reports[dRunner.Name()] = getReport(dRunner)
 		}
 	}
 
 	for name, runner := range pc.FilterRunners {
 		reports[name] = getReport(runner)
-		for _, dRunner = range runner.RunningDecoders() {
-			reports[dRunner.Name()] = getReport(dRunner)
-		}
 	}
 
 	for name, runner := range pc.OutputRunners {
 		reports[name] = getReport(runner)
-		for _, dRunner = range runner.RunningDecoders() {
-			reports[dRunner.Name()] = getReport(dRunner)
-		}
 	}
 
 	return

@@ -26,15 +26,16 @@ import (
 )
 
 type InputTestHelper struct {
-	Msg             *message.Message
-	Pack            *PipelinePack
-	AddrStr         string
-	ResolvedAddrStr string
-	MockHelper      *MockPluginHelper
-	MockInputRunner *MockInputRunner
-	Decoders        []DecoderRunner
-	PackSupply      chan *PipelinePack
-	DecodeChan      chan *PipelinePack
+	Msg               *message.Message
+	Pack              *PipelinePack
+	AddrStr           string
+	ResolvedAddrStr   string
+	MockHelper        *MockPluginHelper
+	MockInputRunner   *MockInputRunner
+	MockDecoderSource *MockDecoderSource
+	Decoders          []DecoderRunner
+	PackSupply        chan *PipelinePack
+	DecodeChan        chan *PipelinePack
 }
 
 type PanicInput struct{}
@@ -72,6 +73,7 @@ func InputsSpec(c gs.Context) {
 	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
+	ith.MockDecoderSource = NewMockDecoderSource(ctrl)
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
@@ -91,7 +93,8 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			ith.MockInputRunner.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
+			ith.MockInputRunner.EXPECT().DecoderSource().Return(ith.MockDecoderSource)
+			ith.MockDecoderSource.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
 			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
 			readCall.Return(len(msgJson), nil)
 			readCall.Do(putMsgJsonInBytes)
@@ -140,7 +143,8 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a message from its connection", func() {
-			ith.MockInputRunner.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
+			ith.MockInputRunner.EXPECT().DecoderSource().Return(ith.MockDecoderSource)
+			ith.MockDecoderSource.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
 
 			neterr := ts.NewMockError(ctrl)
 			neterr.EXPECT().Temporary().Return(false)
@@ -173,7 +177,7 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
 		input := new(PanicInput)
-		iRunner := NewInputRunner("panic", input)
+		iRunner := NewInputRunner("panic", input, nil)
 		var wg sync.WaitGroup
 		ith.MockHelper.EXPECT().PackSupply()
 		wg.Add(1)

@@ -54,19 +54,13 @@ type PluginRunner interface {
 	Plugin() Plugin
 	LogError(err error)
 	LogMessage(msg string)
-	NewDecoder(name string) (dRunner DecoderRunner, ok bool)
-	NewDecoders() (decoders map[string]DecoderRunner)
-	NewDecodersByEncoding() (decoders []DecoderRunner)
-	RunningDecoders() (decoders map[string]DecoderRunner)
 }
 
 // Base struct for the specialized PluginRunners
 type pRunnerBase struct {
-	name         string
-	plugin       Plugin
-	h            PluginHelper
-	decoders     map[string]DecoderRunner
-	decodersLock *sync.Mutex
+	name   string
+	plugin Plugin
+	h      PluginHelper
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -81,57 +75,6 @@ func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
 }
 
-// Thread-safe add to registry of running decoders.
-func (pr *pRunnerBase) addDecoders(decoders []DecoderRunner) {
-	var name string
-	pr.decodersLock.Lock()
-	for _, d := range decoders {
-		pr.decoders[d.UUID()] = d
-		name = fmt.Sprintf("%s-%s-%s", pr.name, d.Name(), d.UUID()[:6])
-		d.setOwner(pr)
-		d.SetName(name)
-	}
-	pr.decodersLock.Unlock()
-	return
-}
-
-// Thread safe removal from registry of running decoders.
-func (pr *pRunnerBase) removeDecoder(uuid string) {
-	pr.decodersLock.Lock()
-	delete(pr.decoders, uuid)
-	pr.decodersLock.Unlock()
-}
-
-func (pr *pRunnerBase) NewDecoder(name string) (dRunner DecoderRunner, ok bool) {
-	if dRunner, ok = pr.h.decoder(name); ok {
-		decoders := []DecoderRunner{dRunner}
-		pr.addDecoders(decoders)
-	}
-	return
-}
-
-func (pr *pRunnerBase) NewDecoders() (decoders map[string]DecoderRunner) {
-	if decoders = pr.h.decoders(); len(decoders) > 0 {
-		dSlice := make([]DecoderRunner, 0, len(decoders))
-		for _, d := range decoders {
-			dSlice = append(dSlice, d)
-		}
-		pr.addDecoders(dSlice)
-	}
-	return
-}
-
-func (pr *pRunnerBase) NewDecodersByEncoding() (decoders []DecoderRunner) {
-	if decoders = pr.h.decodersByEncoding(); len(decoders) > 0 {
-		pr.addDecoders(decoders)
-	}
-	return
-}
-
-func (pr *pRunnerBase) RunningDecoders() (decoders map[string]DecoderRunner) {
-	return pr.decoders
-}
-
 type foRunner struct {
 	pRunnerBase
 	matcher    *MatchRunner
@@ -142,8 +85,6 @@ type foRunner struct {
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
-	runner.decoders = make(map[string]DecoderRunner)
-	runner.decodersLock = new(sync.Mutex)
 	runner.inChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
 	return
 }
@@ -173,9 +114,6 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 			err = filter.Run(foRunner, h)
 		} else if output, ok := foRunner.plugin.(Output); ok {
 			err = output.Run(foRunner, h)
-		}
-		for _, d := range foRunner.decoders {
-			close(d.InChan())
 		}
 		if err != nil {
 			err = fmt.Errorf("Plugin '%s' error: %s", foRunner.name, err)

@@ -39,10 +39,13 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the decoders are loaded for the right encoding headers
-			c.Expect(pipeConfig.decodersByEncoding()[message.Header_JSON].Name(),
-				gs.Equals, "JsonDecoder")
-			c.Expect(pipeConfig.decodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
-				gs.Equals, "ProtobufDecoder")
+			dMgr := newDecoderManager(pipeConfig, "test")
+			decoders := dMgr.NewDecodersByEncoding()
+			jsonName := decoders[message.Header_JSON].Name()
+			c.Expect(jsonName[:len("test-JsonDecoder")], gs.Equals, "test-JsonDecoder")
+			pbName := decoders[message.Header_PROTOCOL_BUFFER].Name()
+			c.Expect(pbName[:len("test-ProtobufDecoder")], gs.Equals,
+				"test-ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name
 			_, ok := pipeConfig.InputRunners["udp_stats"]

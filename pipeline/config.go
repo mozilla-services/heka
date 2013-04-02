@@ -45,9 +45,6 @@ type PluginHelper interface {
 	PackSupply() chan *PipelinePack
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
-	decoder(name string) (dRunner DecoderRunner, ok bool)
-	decoders() (decoders map[string]DecoderRunner)
-	decodersByEncoding() (decoders []DecoderRunner)
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -82,47 +79,6 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	config.logMsgs = make([]string, 0, 4)
 	return config
-}
-
-// Returns a running DecoderRunner for the registered decoder of the
-// given name.
-func (self *PipelineConfig) decoder(name string) (dRunner DecoderRunner, ok bool) {
-	var wrapper *PluginWrapper
-	if wrapper, ok = self.DecoderWrappers[name]; ok {
-		decoder := wrapper.Create().(Decoder)
-		dRunner = NewDecoderRunner(name, decoder)
-		self.decodersWg.Add(1)
-		dRunner.Start(&self.decodersWg)
-	}
-	return
-}
-
-// Returns a map[string]DecoderRunner containing all registered decoders.
-func (self *PipelineConfig) decoders() (decoders map[string]DecoderRunner) {
-	decoders = make(map[string]DecoderRunner)
-	var runner DecoderRunner
-	for name, wrapper := range self.DecoderWrappers {
-		decoder := wrapper.Create().(Decoder)
-		runner = NewDecoderRunner(name, decoder)
-		self.decodersWg.Add(1)
-		runner.Start(&self.decodersWg)
-		decoders[name] = runner
-	}
-	return
-}
-
-// Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
-// value that each decoder works for.
-func (self *PipelineConfig) decodersByEncoding() []DecoderRunner {
-	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
-	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.decoder(name)
-		if !ok {
-			continue
-		}
-		decoders[encoding] = decoder
-	}
-	return decoders
 }
 
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
@@ -328,9 +284,10 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 
-	// For inputs just store the runner and continue.
+	// For inputs create a DecoderSource, store the runner, and continue.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		dMgr := newDecoderManager(self, wrapper.name)
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input), dMgr)
 		return
 	}
 
@@ -405,8 +362,9 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	if mgi, err := mgiWrapper.CreateWithError(); err != nil {
 		return fmt.Errorf("Error creating MGI: %s", err)
 	} else {
+		dMgr := newDecoderManager(self, mgiWrapper.name)
 		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name,
-			mgi.(Input))
+			mgi.(Input), dMgr)
 	}
 	return
 }

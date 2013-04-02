@@ -27,13 +27,124 @@ import (
 	"time"
 )
 
+type DecoderSource interface {
+	NewDecoder(name string) (decoder DecoderRunner, ok bool)
+	NewDecoders() (decoders map[string]DecoderRunner)
+	NewDecodersByEncoding() (decoders []DecoderRunner)
+	RunningDecoders() (decoders map[string]DecoderRunner)
+}
+
+type decoderManager struct {
+	config    *PipelineConfig
+	decoders  map[string]DecoderRunner
+	lock      *sync.Mutex
+	wg        *sync.WaitGroup
+	ownerName string
+}
+
+func newDecoderManager(config *PipelineConfig, ownerName string) (
+	dm *decoderManager) {
+
+	return &decoderManager{
+		config:    config,
+		wg:        &config.decodersWg,
+		ownerName: ownerName,
+		decoders:  make(map[string]DecoderRunner),
+		lock:      new(sync.Mutex),
+	}
+}
+
+// Instantiates a single DecoderRunner of the given name. `ok` value of
+// `false` means no decoder of the given name was registered in the config.
+func (dm *decoderManager) makeDecoder(name string) (dRunner DecoderRunner, ok bool) {
+	var wrapper *PluginWrapper
+	if wrapper, ok = dm.config.DecoderWrappers[name]; ok {
+		decoder := wrapper.Create().(Decoder)
+		dRunner = NewDecoderRunner(name, decoder, dm)
+		dm.wg.Add(1)
+		dRunner.Start(dm.wg)
+	}
+	return
+}
+
+// Thread-safe add to registry of running decoders.
+func (dm *decoderManager) regDecoders(decoders []DecoderRunner) {
+	if len(decoders) == 0 {
+		return
+	}
+	var name string
+	dm.lock.Lock()
+	for _, d := range decoders {
+		dm.decoders[d.UUID()] = d
+		name = fmt.Sprintf("%s-%s-%s", dm.ownerName, d.Name(), d.UUID()[:6])
+		d.SetName(name)
+	}
+	dm.lock.Unlock()
+}
+
+// Thread safe removal from registry of running decoders.
+func (dm *decoderManager) unregDecoder(uuid string) {
+	dm.lock.Lock()
+	delete(dm.decoders, uuid)
+	dm.lock.Unlock()
+}
+
+// Instantiates a single DecoderRunner of the given name and registers it in
+// this manager's set of running decoders. `ok` value of `false` means no
+// decoder of the given name was registered in the config.
+func (dm *decoderManager) NewDecoder(name string) (decoder DecoderRunner, ok bool) {
+	if decoder, ok = dm.makeDecoder(name); ok {
+		decoders := []DecoderRunner{decoder}
+		dm.regDecoders(decoders)
+	}
+	return
+}
+
+// Creates and starts one of every decoder type registered in the config and
+// adds them to this manager's set of running decoders. Return map is keyed by
+// decoder name.
+func (dm *decoderManager) NewDecoders() (decoders map[string]DecoderRunner) {
+	decoders = make(map[string]DecoderRunner)
+	dSlice := make([]DecoderRunner, 0, len(dm.config.DecoderWrappers))
+	var runner DecoderRunner
+	for name, wrapper := range dm.config.DecoderWrappers {
+		decoder := wrapper.Create().(Decoder)
+		runner = NewDecoderRunner(name, decoder, dm)
+		dm.wg.Add(1)
+		runner.Start(dm.wg)
+		decoders[name] = runner
+		dSlice = append(dSlice, runner)
+	}
+	dm.regDecoders(dSlice)
+	return
+}
+
+// Creates and starts one of every decoder type which has been registered to
+// be used for a specific `message.Header_MessageEncoding` value. Return slice
+// is indexed by these `Header_MessageEncoding` values.
+func (dm *decoderManager) NewDecodersByEncoding() (decoders []DecoderRunner) {
+	decoders = make([]DecoderRunner, topHeaderMessageEncoding+1)
+	for encoding, name := range DecodersByEncoding {
+		decoder, ok := dm.makeDecoder(name)
+		if !ok {
+			continue
+		}
+		decoders[encoding] = decoder
+	}
+	dm.regDecoders(decoders)
+	return
+}
+
+func (dm *decoderManager) RunningDecoders() (decoders map[string]DecoderRunner) {
+	return dm.decoders
+}
+
 type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
 	Start(wg *sync.WaitGroup)
 	InChan() chan *PipelinePack
 	UUID() string
-	setOwner(owner *pRunnerBase)
 }
 
 type dRunner struct {
@@ -41,14 +152,16 @@ type dRunner struct {
 	inChan chan *PipelinePack
 	owner  *pRunnerBase
 	uuid   string
+	mgr    *decoderManager
 }
 
-func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
+func NewDecoderRunner(name string, decoder Decoder, mgr *decoderManager) DecoderRunner {
 	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &dRunner{
 		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
 		inChan:      inChan,
 		uuid:        uuid.NewRandom().String(),
+		mgr:         mgr,
 	}
 }
 
@@ -84,7 +197,7 @@ func (dr *dRunner) Start(wg *sync.WaitGroup) {
 			pack.Decoded = true
 			pack.Config.Router().InChan <- pack
 		}
-		dr.owner.removeDecoder(dr.uuid)
+		dr.mgr.unregDecoder(dr.uuid)
 		dr.LogMessage("stopped")
 		wg.Done()
 	}()

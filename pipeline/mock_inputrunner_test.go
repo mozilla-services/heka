@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of InputRunner interface
@@ -27,6 +27,16 @@ func NewMockInputRunner(ctrl *gomock.Controller) *MockInputRunner {
 
 func (_m *MockInputRunner) EXPECT() *_MockInputRunnerRecorder {
 	return _m.recorder
+}
+
+func (_m *MockInputRunner) DecoderSource() DecoderSource {
+	ret := _m.ctrl.Call(_m, "DecoderSource")
+	ret0, _ := ret[0].(DecoderSource)
+	return ret0
+}
+
+func (_mr *_MockInputRunnerRecorder) DecoderSource() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecoderSource")
 }
 
 func (_m *MockInputRunner) InChan() chan *PipelinePack {
@@ -75,37 +85,6 @@ func (_mr *_MockInputRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
-func (_m *MockInputRunner) NewDecoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "NewDecoder", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-func (_mr *_MockInputRunnerRecorder) NewDecoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoder", arg0)
-}
-
-func (_m *MockInputRunner) NewDecoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "NewDecoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockInputRunnerRecorder) NewDecoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecoders")
-}
-
-func (_m *MockInputRunner) NewDecodersByEncoding() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "NewDecodersByEncoding")
-	ret0, _ := ret[0].([]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockInputRunnerRecorder) NewDecodersByEncoding() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NewDecodersByEncoding")
-}
-
 func (_m *MockInputRunner) Plugin() Plugin {
 	ret := _m.ctrl.Call(_m, "Plugin")
 	ret0, _ := ret[0].(Plugin)
@@ -114,16 +93,6 @@ func (_m *MockInputRunner) Plugin() Plugin {
 
 func (_mr *_MockInputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
-}
-
-func (_m *MockInputRunner) RunningDecoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "RunningDecoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockInputRunnerRecorder) RunningDecoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RunningDecoders")
 }
 
 func (_m *MockInputRunner) SetName(_param0 string) {

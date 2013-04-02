@@ -66,7 +66,7 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 	var pack *PipelinePack
 	var dRunner DecoderRunner
 	var dName string
-	decoders := ir.NewDecoders()
+	decoders := ir.DecoderSource().NewDecoders()
 	var ok bool
 	var err error
 	packSupply := ir.InChan()
