@@ -266,6 +266,11 @@ func Run(config *PipelineConfig) {
 		}
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC during shutdown: %s", r)
+		}
+	}()
 	var mgi Input
 	for name, input := range config.InputRunners {
 		// First we stop all the inputs save the MGI to prevent new messages
