@@ -281,6 +281,10 @@ func Run(config *PipelineConfig) {
 	}
 	inputsWg.Wait()
 
+	log.Println("Waiting for decoders shutdown")
+	config.decodersWg.Wait()
+	log.Println("Decoders shutdown complete")
+
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
@@ -292,10 +296,6 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
-
-	log.Println("Waiting for decoders shutdown")
-	config.decodersWg.Wait()
-	log.Println("Decoders shutdown complete")
 
 	inputsWg.Add(1)
 	mgi.Stop()
