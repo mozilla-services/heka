@@ -48,7 +48,7 @@ func LoadFromConfigSpec(c gs.Context) {
 				"test-ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name
-			_, ok := pipeConfig.InputRunners["udp_stats"]
+			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
@@ -66,6 +66,17 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 		})
 
+		c.Specify("works w/ decoder defaults", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults.toml")
+			c.Assume(err, gs.Not(gs.IsNil))
+
+			// Decoders are loaded
+			c.Expect(len(pipeConfig.Decoders()), gs.Equals, 2)
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
+				gs.Equals, "JsonDecoder")
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
+				gs.Equals, "ProtobufDecoder")
+		})
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))

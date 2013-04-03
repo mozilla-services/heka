@@ -103,6 +103,15 @@ type PluginGlobals struct {
 	Matcher  string  `toml:"message_matcher"`
 }
 
+// Default Decoders
+var defaultDecoderTOML = `
+[JsonDecoder]
+encoding_name = "JSON"
+
+[ProtobufDecoder]
+encoding_name = "PROTOCOL_BUFFER"
+`
+
 // A helper function to simplify plugin creation
 type PluginWrapper struct {
 	name          string
@@ -221,7 +230,11 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		errcnt++
 		return
 	}
-	pluginType = pluginGlobals.Typ
+	if pluginGlobals.Typ == "" {
+		pluginType = sectionName
+	} else {
+		pluginType = pluginGlobals.Typ
+	}
 
 	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
 		self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
@@ -259,9 +272,9 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 
 	// Determine the plugin type
-	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginGlobals.Typ)
+	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
 	if len(pluginCats) < 2 {
-		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginGlobals.Typ))
+		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginType))
 		errcnt++
 		return
 	}
@@ -271,7 +284,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// header, store the wrapper and continue.
 	if pluginCategory == "Decoder" {
 		if pluginGlobals.Encoding != "" {
-			err = regDecoderForHeader(pluginGlobals.Typ, pluginGlobals.Encoding)
+			err = regDecoderForHeader(pluginType, pluginGlobals.Encoding)
 			if err != nil {
 				self.log(fmt.Sprintf(
 					"Can't register decoder '%s' for encoding '%s': %s",
@@ -349,6 +362,21 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		log.Println("Loading: ", name)
 		errcnt += self.loadSection(name, conf)
 	}
+
+	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
+	var configDefault ConfigFile
+	toml.Decode(defaultDecoderTOML, &configDefault)
+	decoders := self.Decoders()
+
+	if _, ok := decoders["JsonDecoder"]; !ok {
+		log.Println("Loading: JsonDecoder")
+		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
+	}
+	if _, ok := decoders["ProtobufDecoder"]; !ok {
+		log.Println("Loading: ProtobufDecoder")
+		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
+	}
+
 	if errcnt != 0 {
 		return fmt.Errorf("%d errors loading plugins", errcnt)
 	}

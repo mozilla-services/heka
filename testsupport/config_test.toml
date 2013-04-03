@@ -1,5 +1,4 @@
-[udp_stats]
-type = "UdpInput"
+[UdpInput]
 address = "127.0.0.1:29329"
 
 [JsonDecoder]
