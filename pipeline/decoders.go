@@ -37,6 +37,7 @@ type DecoderSource interface {
 type decoderManager struct {
 	config    *PipelineConfig
 	decoders  map[string]DecoderRunner
+	stopped   map[string]DecoderRunner
 	lock      *sync.Mutex
 	wg        *sync.WaitGroup
 	ownerName string
@@ -50,6 +51,7 @@ func newDecoderManager(config *PipelineConfig, ownerName string) (
 		wg:        &config.decodersWg,
 		ownerName: ownerName,
 		decoders:  make(map[string]DecoderRunner),
+		stopped:   make(map[string]DecoderRunner),
 		lock:      new(sync.Mutex),
 	}
 }
@@ -57,10 +59,33 @@ func newDecoderManager(config *PipelineConfig, ownerName string) (
 // Instantiates a single DecoderRunner of the given name. `ok` value of
 // `false` means no decoder of the given name was registered in the config.
 func (dm *decoderManager) makeDecoder(name string) (dRunner DecoderRunner, ok bool) {
+	if dRunner, ok = dm.fromStopped(name); ok {
+		return
+	}
 	var wrapper *PluginWrapper
 	if wrapper, ok = dm.config.DecoderWrappers[name]; ok {
 		decoder := wrapper.Create().(Decoder)
 		dRunner = NewDecoderRunner(name, decoder, dm)
+		dm.wg.Add(1)
+		dRunner.Start(dm.wg)
+	}
+	return
+}
+
+// Checks to see if we have a decoder of the given name among our stopped
+// decoders, start and return if so.
+func (dm *decoderManager) fromStopped(name string) (dRunner DecoderRunner, ok bool) {
+	dm.lock.Lock()
+	for uuid, dr := range dm.stopped {
+		if dr.Name() == name {
+			dRunner = dr
+			ok = true
+			delete(dm.stopped, uuid)
+			break
+		}
+	}
+	dm.lock.Unlock()
+	if ok {
 		dm.wg.Add(1)
 		dRunner.Start(dm.wg)
 	}
@@ -74,19 +99,23 @@ func (dm *decoderManager) regDecoders(decoders []DecoderRunner) {
 	}
 	var name string
 	dm.lock.Lock()
+	defer dm.lock.Unlock()
 	for _, d := range decoders {
 		dm.decoders[d.UUID()] = d
 		name = fmt.Sprintf("%s-%s-%s", dm.ownerName, d.Name(), d.UUID()[:6])
 		d.SetName(name)
 	}
-	dm.lock.Unlock()
 }
 
 // Thread safe removal from registry of running decoders.
 func (dm *decoderManager) unregDecoder(uuid string) {
 	dm.lock.Lock()
-	delete(dm.decoders, uuid)
-	dm.lock.Unlock()
+	defer dm.lock.Unlock()
+	if decoder, ok := dm.decoders[uuid]; ok {
+		decoder.SetName(decoder.OrigName())
+		dm.stopped[uuid] = decoder
+		delete(dm.decoders, uuid)
+	}
 }
 
 // Instantiates a single DecoderRunner of the given name and registers it in
@@ -106,12 +135,19 @@ func (dm *decoderManager) NewDecoder(name string) (decoder DecoderRunner, ok boo
 func (dm *decoderManager) NewDecoders() (decoders map[string]DecoderRunner) {
 	decoders = make(map[string]DecoderRunner)
 	dSlice := make([]DecoderRunner, 0, len(dm.config.DecoderWrappers))
-	var runner DecoderRunner
+	var (
+		runner  DecoderRunner
+		decoder Decoder
+		ok      bool
+	)
+	// Nested `for` loops below, might be worth doing more efficiently.
 	for name, wrapper := range dm.config.DecoderWrappers {
-		decoder := wrapper.Create().(Decoder)
-		runner = NewDecoderRunner(name, decoder, dm)
-		dm.wg.Add(1)
-		runner.Start(dm.wg)
+		if runner, ok = dm.fromStopped(name); !ok {
+			decoder = wrapper.Create().(Decoder)
+			runner = NewDecoderRunner(name, decoder, dm)
+			dm.wg.Add(1)
+			runner.Start(dm.wg)
+		}
 		decoders[name] = runner
 		dSlice = append(dSlice, runner)
 	}
@@ -145,21 +181,21 @@ type DecoderRunner interface {
 	Start(wg *sync.WaitGroup)
 	InChan() chan *PipelinePack
 	UUID() string
+	OrigName() string
 }
 
 type dRunner struct {
 	pRunnerBase
-	inChan chan *PipelinePack
-	owner  *pRunnerBase
-	uuid   string
-	mgr    *decoderManager
+	origName string
+	inChan   chan *PipelinePack
+	uuid     string
+	mgr      *decoderManager
 }
 
 func NewDecoderRunner(name string, decoder Decoder, mgr *decoderManager) DecoderRunner {
-	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	return &dRunner{
 		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
-		inChan:      inChan,
+		origName:    name,
 		uuid:        uuid.NewRandom().String(),
 		mgr:         mgr,
 	}
@@ -170,6 +206,7 @@ func (dr *dRunner) Decoder() Decoder {
 }
 
 func (dr *dRunner) Start(wg *sync.WaitGroup) {
+	dr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	go func() {
 		var pack *PipelinePack
 
@@ -207,12 +244,12 @@ func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
 }
 
-func (dr *dRunner) setOwner(owner *pRunnerBase) {
-	dr.owner = owner
-}
-
 func (dr *dRunner) UUID() string {
 	return dr.uuid
+}
+
+func (dr *dRunner) OrigName() string {
+	return dr.origName
 }
 
 func (dr *dRunner) LogError(err error) {

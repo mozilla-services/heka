@@ -89,6 +89,7 @@ func DecoderMgrSpec(c gospec.Context) {
 		name := "test"
 		dm := newDecoderManager(config, name)
 		c.Assume(len(dm.decoders), gs.Equals, 0)
+		defer config.decodersWg.Wait()
 
 		c.Specify("add decoders to the registry when NewDecoders is called", func() {
 			decoders := dm.NewDecoders()
@@ -101,7 +102,7 @@ func DecoderMgrSpec(c gospec.Context) {
 			c.Expect(len(dm.decoders), gs.Equals, count)
 		})
 
-		c.Specify("add decoders to the registry when NewDecodersByEncoding is called", func() {
+		c.Specify("when NewDecodersByEncoding is called", func() {
 			decoders := dm.NewDecodersByEncoding()
 			defer func() {
 				for _, d := range decoders {
@@ -109,16 +110,31 @@ func DecoderMgrSpec(c gospec.Context) {
 				}
 			}()
 			c.Expect(len(decoders), gs.Equals, count)
-			for i := 0; i < count; i++ {
-				dRunner := decoders[message.Header_MessageEncoding(i)]
-				nameStarts := fmt.Sprintf("%s-%s%d", name, "mock", i)
-				c.Expect(dRunner.Name()[:len(nameStarts)], gs.Equals, nameStarts)
-			}
-		})
 
-		// and unregisters the decoders when they're closed
-		config.decodersWg.Wait()
-		c.Expect(len(dm.decoders), gs.Equals, 0)
+			c.Specify("adds decoders to the registry", func() {
+				for i := 0; i < count; i++ {
+					dRunner := decoders[message.Header_MessageEncoding(i)]
+					nameStarts := fmt.Sprintf("%s-%s%d", name, "mock", i)
+					c.Expect(dRunner.Name()[:len(nameStarts)], gs.Equals, nameStarts)
+				}
+			})
+
+			c.Specify("reuses stopped decoders", func() {
+				for _, d := range decoders {
+					close(d.InChan())
+				}
+				config.decodersWg.Wait()
+				c.Expect(len(dm.stopped), gs.Equals, count)
+				decoders2 := dm.NewDecodersByEncoding()
+				c.Expect(len(decoders2), gs.Equals, count)
+				c.Expect(len(dm.decoders), gs.Equals, count)
+				c.Expect(len(dm.stopped), gs.Equals, 0)
+				for _, d := range decoders {
+					_, ok := dm.decoders[d.UUID()]
+					c.Expect(ok, gs.IsTrue)
+				}
+			})
+		})
 	})
 }
 
