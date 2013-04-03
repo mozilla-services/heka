@@ -264,7 +264,11 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		errcnt++
 		return
 	}
-	pluginType = pluginGlobals.Typ
+	if pluginGlobals.Typ == "" {
+		pluginType = sectionName
+	} else {
+		pluginType = pluginGlobals.Typ
+	}
 
 	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
 		self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
@@ -302,7 +306,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 
 	// Determine the plugin type
-	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginGlobals.Typ)
+	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
 	if len(pluginCats) < 2 {
 		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginGlobals.Typ))
 		errcnt++

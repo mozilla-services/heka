@@ -44,7 +44,7 @@ func LoadFromConfigSpec(c gs.Context) {
 				gs.Equals, "ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name
-			_, ok := pipeConfig.InputRunners["udp_stats"]
+			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
