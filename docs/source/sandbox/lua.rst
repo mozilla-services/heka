@@ -4,11 +4,18 @@
 Lua Sandbox
 ===========
 
+The `Lua` sandbox provides full access to the Lua language in a
+sandboxed environment under `hekad` that enforces configurable
+restrictions.
+
+.. seealso:: `Lua Reference Manual <http://www.lua.org/manual/5.1/>`_
+
 API
----
+===
 
 Functions that must be exposed from the Lua sandbox
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------------------------
+
 **int process_message()**
     Called by Heka when a message is available to the sandbox
 
@@ -28,7 +35,8 @@ Functions that must be exposed from the Lua sandbox
         none
 
 Heka functions that are exposed to the Lua sandbox
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------------------------
+
 **read_message(variableName, fieldIndex, arrayIndex)**
     Provides access to the Heka message data
 
@@ -50,7 +58,7 @@ Heka functions that are exposed to the Lua sandbox
         - arrayIndex (unsigned) only used in combination with the Fields variableName
             - use to retrieve a specific element out of a field containing an array
 
-    *Return* 
+    *Return*
         number, string, bool, nil depending on the type of variable requested
 
 **output(type0, type1, ...typeN)**
@@ -59,27 +67,29 @@ Heka functions that are exposed to the Lua sandbox
     *Arguments*
         - type (number, string, bool, nil)
 
-    *Return* 
+    *Return*
         none
 
 **inject_message()**
     Creates a new Heka message using the contents of the output payload buffer
     and then resets the buffer
 
-    *Arguments* 
+    *Arguments*
         none
 
-    *Return* 
+    *Return*
         none
 
 
 Tutorials
----------
+=========
 
 How to create a simple sandbox filter
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------------------
+
 1. Implement the required Heka interface in Lua
-::
+
+.. code-block:: lua
 
     function process_message ()
         return 0
@@ -89,7 +99,8 @@ How to create a simple sandbox filter
     end
 
 2. Add the business logic (count the number of 'demo' events per minute)
-::
+
+.. code-block:: lua
 
     total = 0 -- preserved between restarts since it is in global scope
     local count = 0 -- local scope so this will not be preserved
@@ -107,26 +118,26 @@ How to create a simple sandbox filter
     end
 
 3. Setup the configuration
-::
 
-    {
-        "name"              : "demo_counter",
-        "type"              : "SandboxFilter",
-        "message_matcher"   : "Type == 'demo'",
-        "ticker_interval"   : 60,
-            "sandbox": {
-                "type"              : "lua",
-                "filename"          : "counter.lua",
-                "preserve_data"     : true,
-                "memory_limit"      : 32767,
-                "instruction_limit" : 100,
-                "output_limit"      : 256
-            }
-    }
+.. code-block:: ini
 
-4. Extending the business logic (count the number of 'demo' events per minute 
+    [demo_counter]
+    type = "SandboxFilter"
+    message_matcher = "Type == 'demo'"
+    ticker_interval = 60
+
+    [demo_counter.settings]
+    type = "lua"
+    filename = "counter.lua"
+    preserve_data = true
+    memory_limit = 32767
+    instruction_limit = 100
+    output_limit = 256
+
+4. Extending the business logic (count the number of 'demo' events per minute
 per device)
-::
+
+.. code-block:: lua
 
     device_counters = {}
 
@@ -157,11 +168,9 @@ per device)
     end
 
 5. Depending on the number of devices you will most likely want to update the configuration
-::
 
-    "memory_limit"      : 65536,
-    "instruction_limit" : 20000,
-    "output_limit"      : 64512
+.. code-block:: ini
 
-.. seealso:: `Lua Reference Manual <http://www.lua.org/manual/5.1/>`_
-
+    memory_limit = 65536
+    instruction_limit = 20000
+    output_limit =64512

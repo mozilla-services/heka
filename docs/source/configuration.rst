@@ -4,66 +4,73 @@
 Configuring hekad
 =================
 
-`hekad` is the primary daemon application deployed to collect node data
-and route messages to the back-ends. It's a multi-purpose agent as it
-can act in several different roles depending on how its configured.
+.. start-hekad-config
 
-A simple example configuration file:
+A hekad configuration file contains what inputs, decoders, filters, and
+outputs will be loaded. The configuration file is in TOML format, which
+is very similar to INI configuration formats. The config file is broken
+into sections, each section configures a single instance of a plugin.
 
-.. code-block:: javascript
+Each section must either be named for the specific plugin it is
+configuring, or include the type which must designate the plugin being
+configured. When a section name and the type differs, the section name
+is considered the 'name' of that particular configured plugin. This is
+convenient when setting up multiple instances of the same plugin that
+have varying configurations.
 
-   {
-       "inputs": [
-                 {"name": "tcp:5565",
-                     "type": "TcpInput",
-                     "address": "127.0.0.1:5565"
-                 }
-                 ],
-       "decoders": [
-                   {"type": "JsonDecoder", "encoding_name": "JSON"},
-                   {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"}
+If the name of a section doesn't directly reference a plugin, then that
+section must include a `type` naming the plugin type being configured.
+Additional settings for the section are passed through to the plugin as
+its configuration values.
 
-                   ],
-       "outputs": [
-                  {"name": "debug", "type": "LogOutput"}
-                  ],
-       "filters": {
-           "counter" :
-           {
-               "type": "CounterFilter",
-               "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
-               "output_timer" : 1,
-               "outputs" : ["debug"]
-           },
-           "lua_sandbox" :
-           {
-               "type": "SandboxFilter",
-               "message_matcher": "Type == 'hekabench' && EnvVersion == '0.8'",
-               "output_timer" : 1,
-               "outputs" : ["debug"],
-               "sandbox": {
-                   "type" : "lua",
-                   "filename" : "lua/sandbox.lua",
-                   "memory_limit" : 32767,
-                   "instruction_limit" : 1000
-               }
-           }
-       }
-   }
+.. end-hekad-config
 
-This example will accept TCP input on the specified address, decode messages
-that arrive serialized as JSON or Protobuf, pass the message to all filters
-that match the message, and then write the filter output to the debug log.
+Example hekad.toml File
+=======================
 
-Inputs, decoders, filters, and outputs are all hekad plug-ins and have
-some configuration keys in common. Individual plug-ins may have
-additional optional or required parameters as well.
+.. start-hekad-toml
 
-Each plug-in declaration results in an 'instance' of the plug-in being
-created when `hekad` starts up.
+.. code-block:: ini
+
+    [tcp-5565]
+    address = "127.0.0.1:5565"
+
+    [JsonDecoder]
+    encoding_name = "JSON"
+
+    [ProtobufDecoder]
+    encoding_name = "PROTOCOL_BUFFER"
+
+    [debug]
+    type = "LogOutput"
+
+    [counter]
+    type = "CounterFilter"
+    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
+    output_timer = 1
+
+    [lua_sandbox]
+    type = "SandboxFilter"
+    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
+    output_timer = 1
+
+    [lua_sandbox.settings]
+    type = "lua"
+    filename = "lua/sandbox.lua"
+    memory_limit = 32767
+    instruction_limit = 1000
+
+.. end-hekad-toml
+
+This example will accept TCP input on the specified address, decode
+messages that arrive serialized as JSON or Protobuf, pass the message
+to all filters that match the message, and then write the filter output
+to the debug log.
 
 Common Roles
 ============
+
+.. start-roles
 
 - **Agent** - Single default filter that passes all messages directly to
   another `hekad` daemon on a separate machine configured as an
@@ -76,30 +83,38 @@ Common Roles
   other `hekad` daemons acting as Agents), rolls up stats, and routes
   messages to appropriate back-ends.
 
+.. end-roles
+
 Command Line Options
 ====================
 
-.. include:: man/usage.rst
-    :start-after: start-options
-    :end-before: end-options
+.. start-options
 
-Configuration File Format
-=========================
+``-version``
+    Output the version number, then exit.
 
-hekad's configuration file is a plain JSON text file that designates
-several keys to configure the various hekad plug-ins:
+``-config`` `config_file`
+    Specify the configuration file to use; the default is /etc/hekad.json.  (See hekad.config(5).)
 
-- inputs
-- decoders
-- filters
-- outputs
+``-cpuprof`` `output_file`
+    Turn on CPU profiling of hekad; output is logged to the `output_file`.
 
-Inputs, decoders, filters, and output plug-ins must each be specified
-by `type` and may optionally supply a `name` to be used for referring
-to it later. Plug-ins may be specified multiple times as needed. For
-example, if `hekad` should listen on multiple UDP sockets then it can
-be added twice with the appropriate `address` for each IP/port to
-listen on. They then must be named to avoid plug-in name conflicts.
+``-maxprocs`` `int`
+    Enable multi-core usage; the default is 1 core. More cores will generally
+    increase message throughput. Best performance is usually attained by
+    setting this to 2 x (number of cores). This assumes each core is
+    hyper-threaded.
+
+``-memprof`` `output_file`
+    Enable memory profiling; output is logged to the `output_file`.
+
+``-poolsize`` `int`
+    Toggle the pool size of maximum messages that can exist; default is 1000
+    which is usually sufficient and performs optimally.
+
+.. end-options
+
+.. start-inputs
 
 Inputs
 ======
@@ -122,16 +137,14 @@ UdpInput
 
 Parameters:
 
-    - Address (string): An IP address:port.
+- Address (string): An IP address:port.
 
 Example:
 
-.. code-block:: javascript
+.. code-block:: ini
 
-    {
-        "type": "UdpInput",
-        "address": "127.0.0.1:4880"
-    }
+    [UdpInput]
+    address = "127.0.0.1:4880"
 
 Listens on a specific UDP address and port for messages.
 
@@ -140,44 +153,57 @@ TcpInput
 
 Parameters:
 
-    - Address (string): An IP address:port.
+- Address (string): An IP address:port.
 
 Example:
 
-.. code-block:: javascript
+.. code-block:: ini
 
-    {
-        "name": "tcp:5565",
-        "type": "TcpInput",
-        "address": "127.0.0.1:5565"
-    }
+    [TcpInput]
+    address = "127.0.0.1:5565"
 
 Listens on a specific TCP address and port for messages.
+
+.. end-inputs
+
+.. start-decoders
 
 Decoders
 ========
 
-A decoder should be specified for each encoding type defined in message.pb.go
+A decoder should be specified for each encoding type defined in
+message.pb.go.
 
-.. code-block:: javascript
+Example:
 
-      {"type": "JsonDecoder", "encoding_name": "JSON"},
-      {"type": "ProtobufDecoder", "encoding_name": "PROTOCOL_BUFFER"}
+.. code-block:: ini
+
+    [JsonDecoder]
+    encoding_name = "JSON"
+
+    [ProtobufDecoder]
+    encoding_name = "PROTOCOL_BUFFER"
 
 
-The JSON decoder converts JSON serialized Metlog client messages to hekad
-messages.  The PROTOCOL_BUFFER decoder converts protobuf serialized messages
-into hekad. The hekad message schema in defined in message.proto.
+The JSON decoder converts JSON serialized Metlog client messages to
+hekad messages.  The PROTOCOL_BUFFER decoder converts protobuf
+serialized messages into hekad. The hekad message schema in defined in
+message.proto.
 
 .. seealso:: `Protocol Buffers - Google's data interchange format <http://code.google.com/p/protobuf/>`_
+
+.. end-decoders
+
+.. start-filters
 
 Filters
 =======
 
 Common Parameters:
-    - message_matcher (string): Boolean expression, when evaluated to true passes the message to the filter for processing
-    - output_timer (uint):  Frequency in seconds that a timer event will be sent to the filter
-    - outputs ([]string): List of output destinations for the data produced (referenced by name from the 'outputs' section)
+
+- message_matcher (string): Boolean expression, when evaluated to true passes the message to the filter for processing
+- output_timer (uint):  Frequency in seconds that a timer event will be sent to the filter
+- outputs ([]string): List of output destinations for the data produced (referenced by name from the 'outputs' section)
 
 
 CounterFilter
@@ -191,13 +217,33 @@ SandboxFilter
 -------------
 Parameters:
 
-    - sandbox (object): Sandbox specific configuration
-           - type (string): Sandbox virtual machine, currently only "lua" is supported
-           - filename (string): Path to the Lua script
-           - memory_limit (uint): Maximum number of bytes the sandbox is allowed to consume before being terminated
-           - instruction_limit (uint): Maximum number of Lua instructions the sandbox is allowed to consume (per function call) before being terminated
+- settings (object): Sandbox specific settings
+
+   - type (string): Sandbox virtual machine, currently only "lua" is supported
+   - filename (string): Path to the Lua script
+   - memory_limit (uint): Maximum number of bytes the sandbox is allowed to consume before being terminated
+   - instruction_limit (uint): Maximum number of Lua instructions the sandbox is allowed to consume (per function call) before being terminated
+
+Example:
+
+.. code-block:: ini
+
+    [lua_sandbox]
+    type = "SandboxFilter"
+    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
+    output_timer = 1
+
+    [lua_sandbox.settings]
+    type = "lua"
+    filename = "lua/sandbox.lua"
+    memory_limit = 32767
+    instruction_limit = 1000
 
 Outputs whatever data is produced by the sandbox to the specified destinations.
+
+.. end-filters
+
+.. start-outputs
 
 Outputs
 =======
@@ -207,12 +253,12 @@ FileOutput
 
 Parameters:
 
-    - Path (string): Path to the file to write.
-    - Format (string): Output format for the message to be written.
-      Can be either `json` or `text`. Defaults to ``text``.
-    - Prefix_ts (bool): Whether a timestamp should be prefixed to each
-      message line in the file. Defaults to ``false``.
-    - Perm (int): File permission for writing. Defaults to ``0666``.
+- Path (string): Path to the file to write.
+- Format (string): Output format for the message to be written.
+  Can be either `json` or `text`. Defaults to ``text``.
+- Prefix_ts (bool): Whether a timestamp should be prefixed to each
+  message line in the file. Defaults to ``false``.
+- Perm (int): File permission for writing. Defaults to ``0666``.
 
 Writes a message to the designated file in the format given (including
 a prefixed timestamp if configured).
@@ -223,3 +269,5 @@ LogOutput
 Parameters: **None**
 
 Logs the message to stdout.
+
+.. end-outputs

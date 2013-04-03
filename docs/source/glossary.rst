@@ -6,6 +6,10 @@ Glossary
 .. glossary::
     :sorted:
 
+    hekad
+        Daemon that routes messages from inputs to their outputs applying
+        filters as configured.
+
     Message
         A message is the atomic unit of data that Hekad deals with. It
         is a data structure related to a single event happening in the
