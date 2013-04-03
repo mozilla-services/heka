@@ -38,6 +38,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the decoders are loaded for the right encoding headers
+			c.Expect(len(pipeConfig.Decoders()), gs.Equals, 2)
 			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
 				gs.Equals, "JsonDecoder")
 			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
@@ -62,6 +63,17 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 		})
 
+		c.Specify("works w/ decoder defaults", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults.toml")
+			c.Assume(err, gs.Not(gs.IsNil))
+
+			// Decoders are loaded
+			c.Expect(len(pipeConfig.Decoders()), gs.Equals, 2)
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
+				gs.Equals, "JsonDecoder")
+			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
+				gs.Equals, "ProtobufDecoder")
+		})
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))

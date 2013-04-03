@@ -146,6 +146,15 @@ type PluginGlobals struct {
 	Matcher  string  `toml:"message_matcher"`
 }
 
+// Default Decoders
+var defaultDecoderTOML = `
+[JsonDecoder]
+encoding_name = "JSON"
+
+[ProtobufDecoder]
+encoding_name = "PROTOCOL_BUFFER"
+`
+
 // A helper function to simplify plugin creation
 type PluginWrapper struct {
 	name          string
@@ -395,6 +404,21 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		log.Println("Loading: ", name)
 		errcnt += self.loadSection(name, conf)
 	}
+
+	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
+	var configDefault ConfigFile
+	toml.Decode(defaultDecoderTOML, &configDefault)
+	decoders := self.Decoders()
+
+	if _, ok := decoders["JsonDecoder"]; !ok {
+		log.Println("Loading: JsonDecoder")
+		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
+	}
+	if _, ok := decoders["ProtobufDecoder"]; !ok {
+		log.Println("Loading: ProtobufDecoder")
+		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
+	}
+
 	if errcnt != 0 {
 		return fmt.Errorf("%d errors loading plugins", errcnt)
 	}

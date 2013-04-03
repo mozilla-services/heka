@@ -23,6 +23,9 @@ section must include a `type` naming the plugin type being configured.
 Additional settings for the section are passed through to the plugin as
 its configuration values.
 
+The JsonDecoder and ProtobufDecoder will be automatically setup if not
+specified explicitly in the configuration file.
+
 .. end-hekad-config
 
 Example hekad.toml File
@@ -35,16 +38,10 @@ Example hekad.toml File
     [tcp-5565]
     address = "127.0.0.1:5565"
 
-    [JsonDecoder]
-    encoding_name = "JSON"
-
-    [ProtobufDecoder]
-    encoding_name = "PROTOCOL_BUFFER"
-
     [debug]
     type = "LogOutput"
 
-    [counter]
+    [CounterFilter]
     type = "CounterFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
     output_timer = 1
@@ -171,8 +168,9 @@ Listens on a specific TCP address and port for messages.
 Decoders
 ========
 
-A decoder should be specified for each encoding type defined in
-message.pb.go.
+A decoder may be specified for each encoding type defined in
+message.pb.go. By default the JsonDecoder and ProtobufDecoder will be
+configured as if you had included this portion.
 
 Example:
 
@@ -189,6 +187,12 @@ The JSON decoder converts JSON serialized Metlog client messages to
 hekad messages.  The PROTOCOL_BUFFER decoder converts protobuf
 serialized messages into hekad. The hekad message schema in defined in
 message.proto.
+
+.. note::
+
+    These sections remain configurable explicitly in the configuration
+    file for possible future use where a different Decoder may want to
+    handle one of these encodings.
 
 .. seealso:: `Protocol Buffers - Google's data interchange format <http://code.google.com/p/protobuf/>`_
 
