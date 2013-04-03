@@ -22,7 +22,7 @@ Contents:
    installing
    configuration
    sandbox/index
-   message/index
+   message_matcher.rst
    developing/plugin
 
 
