@@ -308,7 +308,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// Determine the plugin type
 	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
 	if len(pluginCats) < 2 {
-		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginGlobals.Typ))
+		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginType))
 		errcnt++
 		return
 	}
@@ -318,7 +318,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// header, store the wrapper and continue.
 	if pluginCategory == "Decoder" {
 		if pluginGlobals.Encoding != "" {
-			err = regDecoderForHeader(pluginGlobals.Typ, pluginGlobals.Encoding)
+			err = regDecoderForHeader(pluginType, pluginGlobals.Encoding)
 			if err != nil {
 				self.log(fmt.Sprintf(
 					"Can't register decoder '%s' for encoding '%s': %s",
