@@ -23,9 +23,11 @@ import (
 func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
 		origPoolSize := PoolSize
+		origDecodersByEncoding := DecodersByEncoding
 		pipeConfig := NewPipelineConfig(1)
 		defer func() {
 			PoolSize = origPoolSize
+			DecodersByEncoding = origDecodersByEncoding
 		}()
 
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
@@ -71,11 +73,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.Not(gs.IsNil))
 
 			// Decoders are loaded
-			c.Expect(len(pipeConfig.Decoders()), gs.Equals, 2)
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
-				gs.Equals, "JsonDecoder")
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
-				gs.Equals, "ProtobufDecoder")
+			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
+			c.Expect(DecodersByEncoding[message.Header_JSON], gs.Equals, "JsonDecoder")
+			c.Expect(DecodersByEncoding[message.Header_PROTOCOL_BUFFER], gs.Equals,
+				"ProtobufDecoder")
 		})
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")

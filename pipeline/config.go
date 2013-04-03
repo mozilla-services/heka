@@ -366,7 +366,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
 	var configDefault ConfigFile
 	toml.Decode(defaultDecoderTOML, &configDefault)
-	decoders := self.Decoders()
+	decoders := self.DecoderWrappers
 
 	if _, ok := decoders["JsonDecoder"]; !ok {
 		log.Println("Loading: JsonDecoder")
