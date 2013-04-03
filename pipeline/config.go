@@ -21,6 +21,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 )
 
@@ -47,6 +48,9 @@ type PluginHelper interface {
 	DecodersByEncoding() (decoders []DecoderRunner)
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
+	FindFilterRunner(name string) (fRunner FilterRunner, ok bool)
+	AddFilterRunner(fRunner FilterRunner) error
+	RemoveFilterRunner(name string) bool
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -65,6 +69,8 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
+	filtersLock     sync.Mutex
+	filtersWg       sync.WaitGroup
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -135,6 +141,42 @@ func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) 
 
 func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
+}
+
+// Returns a FilterRunner with the given name, false in not found
+func (self *PipelineConfig) FindFilterRunner(name string) (fRunner FilterRunner,
+	ok bool) {
+	fRunner, ok = self.FilterRunners[name]
+	return
+}
+
+// Adds the specified FilterRunner to the configuration
+func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
+	self.filtersLock.Lock()
+	defer self.filtersLock.Unlock()
+	self.FilterRunners[fRunner.Name()] = fRunner
+	self.filtersWg.Add(1)
+	if err := fRunner.Start(self, &self.filtersWg); err != nil {
+		self.filtersWg.Done()
+		return fmt.Errorf("AddFilterRunner '%s' failed to start: %s",
+			fRunner.Name(), err)
+	} else {
+		self.router.MrChan <- fRunner.MatchRunner()
+	}
+	return nil
+}
+
+// Removes the specified FilterRunner from the configuration
+func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
+	self.filtersLock.Lock()
+	defer self.filtersLock.Unlock()
+	if fRunner, ok := self.FilterRunners[name]; ok {
+		self.router.MrChan <- fRunner.MatchRunner()
+		close(fRunner.InChan())
+		delete(self.FilterRunners, name)
+		return true
+	}
+	return false
 }
 
 // The TOML config file spec
@@ -454,5 +496,8 @@ func init() {
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
+	})
+	RegisterPlugin("SandboxManagerFilter", func() interface{} {
+		return new(SandboxManagerFilter)
 	})
 }

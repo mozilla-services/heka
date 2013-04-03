@@ -41,7 +41,7 @@ import (
 
 type FloodSection struct {
 	IpAddress   string                       `toml:"ip_address"`
-	Sender	    string                       `toml:"sender"`
+	Sender      string                       `toml:"sender"`
 	PprofFile   string                       `toml:"pprof_file"`
 	Encoder     string                       `toml:"encoder"`
 	NumMessages uint64                       `toml:"num_messages"`

@@ -153,6 +153,10 @@ func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
 	return foRunner.inChan
 }
 
+func (foRunner *foRunner) MatchRunner() *MatchRunner {
+	return foRunner.matcher
+}
+
 type PipelinePack struct {
 	MsgBytes []byte
 	Message  *message.Message
@@ -203,7 +207,6 @@ func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
-	var filtersWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
 
@@ -218,10 +221,10 @@ func Run(config *PipelineConfig) {
 	}
 
 	for name, filter := range config.FilterRunners {
-		filtersWg.Add(1)
-		if err = filter.Start(config, &filtersWg); err != nil {
+		config.filtersWg.Add(1)
+		if err = filter.Start(config, &config.filtersWg); err != nil {
 			log.Printf("Filter '%s' failed to start: %s", name, err)
-			filtersWg.Done()
+			config.filtersWg.Done()
 			continue
 		}
 		log.Println("Filter started: ", name)
@@ -285,7 +288,7 @@ func Run(config *PipelineConfig) {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
-	filtersWg.Wait()
+	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
 		close(output.InChan())

@@ -1,0 +1,6 @@
+ip_address          = "127.0.0.1:5565"
+[signer]
+    name         = "test"
+    hmac_hash    = "md5"
+    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version      = 0

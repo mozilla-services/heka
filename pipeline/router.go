@@ -26,6 +26,7 @@ import (
 // Pushes the message onto the filters input channel if it is a match
 type MessageRouter struct {
 	InChan    chan *PipelinePack
+	MrChan    chan *MatchRunner
 	fMatchers []*MatchRunner
 	oMatchers []*MatchRunner
 }
@@ -33,6 +34,7 @@ type MessageRouter struct {
 func NewMessageRouter() (router *MessageRouter) {
 	router = new(MessageRouter)
 	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	router.MrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
@@ -41,26 +43,55 @@ func NewMessageRouter() (router *MessageRouter) {
 func (self *MessageRouter) Start() {
 	go func() {
 		var matcher *MatchRunner
-		var ok bool
+		var ok = true
 		var pack *PipelinePack
-		for {
+		for ok {
 			runtime.Gosched()
-			pack, ok = <-self.InChan
-			if !ok {
-				break
+			select {
+			case matcher = <-self.MrChan:
+				if matcher != nil {
+					removed := false
+					available := -1
+					for i, m := range self.fMatchers {
+						if m == nil {
+							available = i
+						}
+						if matcher == m {
+							close(m.inChan)
+							self.fMatchers[i] = nil
+							removed = true
+							break
+						}
+					}
+					if !removed {
+						if available != -1 {
+							self.fMatchers[available] = matcher
+						} else {
+							self.fMatchers = append(self.fMatchers, matcher)
+						}
+					}
+				}
+			case pack, ok = <-self.InChan:
+				if !ok {
+					break
+				}
+				for _, matcher = range self.fMatchers {
+					if matcher != nil {
+						atomic.AddInt32(&pack.RefCount, 1)
+						matcher.inChan <- pack
+					}
+				}
+				for _, matcher = range self.oMatchers {
+					atomic.AddInt32(&pack.RefCount, 1)
+					matcher.inChan <- pack
+				}
+				pack.Recycle()
 			}
-			for _, matcher = range self.fMatchers {
-				atomic.AddInt32(&pack.RefCount, 1)
-				matcher.inChan <- pack
-			}
-			for _, matcher = range self.oMatchers {
-				atomic.AddInt32(&pack.RefCount, 1)
-				matcher.inChan <- pack
-			}
-			pack.Recycle()
 		}
 		for _, matcher = range self.fMatchers {
-			close(matcher.inChan)
+			if matcher != nil {
+				close(matcher.inChan)
+			}
 		}
 		for _, matcher = range self.oMatchers {
 			close(matcher.inChan)
