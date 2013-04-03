@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of InputRunner interface
@@ -27,6 +27,16 @@ func NewMockInputRunner(ctrl *gomock.Controller) *MockInputRunner {
 
 func (_m *MockInputRunner) EXPECT() *_MockInputRunnerRecorder {
 	return _m.recorder
+}
+
+func (_m *MockInputRunner) DecoderSource() DecoderSource {
+	ret := _m.ctrl.Call(_m, "DecoderSource")
+	ret0, _ := ret[0].(DecoderSource)
+	return ret0
+}
+
+func (_mr *_MockInputRunnerRecorder) DecoderSource() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecoderSource")
 }
 
 func (_m *MockInputRunner) InChan() chan *PipelinePack {

@@ -23,26 +23,181 @@ import (
 	"github.com/bitly/go-simplejson"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"sync"
 	"time"
 )
+
+type DecoderSource interface {
+	NewDecoder(name string) (decoder DecoderRunner, ok bool)
+	NewDecoders() (decoders map[string]DecoderRunner)
+	NewDecodersByEncoding() (decoders []DecoderRunner)
+	RunningDecoders() (decoders map[string]DecoderRunner)
+}
+
+type decoderManager struct {
+	config    *PipelineConfig
+	decoders  map[string]DecoderRunner
+	stopped   map[string]DecoderRunner
+	lock      *sync.Mutex
+	wg        *sync.WaitGroup
+	ownerName string
+}
+
+func newDecoderManager(config *PipelineConfig, ownerName string) (
+	dm *decoderManager) {
+
+	return &decoderManager{
+		config:    config,
+		wg:        &config.decodersWg,
+		ownerName: ownerName,
+		decoders:  make(map[string]DecoderRunner),
+		stopped:   make(map[string]DecoderRunner),
+		lock:      new(sync.Mutex),
+	}
+}
+
+// Instantiates a single DecoderRunner of the given name. `ok` value of
+// `false` means no decoder of the given name was registered in the config.
+func (dm *decoderManager) makeDecoder(name string) (dRunner DecoderRunner, ok bool) {
+	if dRunner, ok = dm.fromStopped(name); ok {
+		return
+	}
+	var wrapper *PluginWrapper
+	if wrapper, ok = dm.config.DecoderWrappers[name]; ok {
+		decoder := wrapper.Create().(Decoder)
+		dRunner = NewDecoderRunner(name, decoder, dm)
+		dm.wg.Add(1)
+		dRunner.Start(dm.wg)
+	}
+	return
+}
+
+// Checks to see if we have a decoder of the given name among our stopped
+// decoders, start and return if so.
+func (dm *decoderManager) fromStopped(name string) (dRunner DecoderRunner, ok bool) {
+	dm.lock.Lock()
+	for uuid, dr := range dm.stopped {
+		if dr.Name() == name {
+			dRunner = dr
+			ok = true
+			delete(dm.stopped, uuid)
+			break
+		}
+	}
+	dm.lock.Unlock()
+	if ok {
+		dm.wg.Add(1)
+		dRunner.Start(dm.wg)
+	}
+	return
+}
+
+// Thread-safe add to registry of running decoders.
+func (dm *decoderManager) regDecoders(decoders []DecoderRunner) {
+	if len(decoders) == 0 {
+		return
+	}
+	var name string
+	dm.lock.Lock()
+	defer dm.lock.Unlock()
+	for _, d := range decoders {
+		dm.decoders[d.UUID()] = d
+		name = fmt.Sprintf("%s-%s-%s", dm.ownerName, d.Name(), d.UUID()[:6])
+		d.SetName(name)
+	}
+}
+
+// Thread safe removal from registry of running decoders.
+func (dm *decoderManager) unregDecoder(uuid string) {
+	dm.lock.Lock()
+	defer dm.lock.Unlock()
+	if decoder, ok := dm.decoders[uuid]; ok {
+		decoder.SetName(decoder.OrigName())
+		dm.stopped[uuid] = decoder
+		delete(dm.decoders, uuid)
+	}
+}
+
+// Instantiates a single DecoderRunner of the given name and registers it in
+// this manager's set of running decoders. `ok` value of `false` means no
+// decoder of the given name was registered in the config.
+func (dm *decoderManager) NewDecoder(name string) (decoder DecoderRunner, ok bool) {
+	if decoder, ok = dm.makeDecoder(name); ok {
+		decoders := []DecoderRunner{decoder}
+		dm.regDecoders(decoders)
+	}
+	return
+}
+
+// Creates and starts one of every decoder type registered in the config and
+// adds them to this manager's set of running decoders. Return map is keyed by
+// decoder name.
+func (dm *decoderManager) NewDecoders() (decoders map[string]DecoderRunner) {
+	decoders = make(map[string]DecoderRunner)
+	dSlice := make([]DecoderRunner, 0, len(dm.config.DecoderWrappers))
+	var (
+		runner  DecoderRunner
+		decoder Decoder
+		ok      bool
+	)
+	// Nested `for` loops below, might be worth doing more efficiently.
+	for name, wrapper := range dm.config.DecoderWrappers {
+		if runner, ok = dm.fromStopped(name); !ok {
+			decoder = wrapper.Create().(Decoder)
+			runner = NewDecoderRunner(name, decoder, dm)
+			dm.wg.Add(1)
+			runner.Start(dm.wg)
+		}
+		decoders[name] = runner
+		dSlice = append(dSlice, runner)
+	}
+	dm.regDecoders(dSlice)
+	return
+}
+
+// Creates and starts one of every decoder type which has been registered to
+// be used for a specific `message.Header_MessageEncoding` value. Return slice
+// is indexed by these `Header_MessageEncoding` values.
+func (dm *decoderManager) NewDecodersByEncoding() (decoders []DecoderRunner) {
+	decoders = make([]DecoderRunner, topHeaderMessageEncoding+1)
+	for encoding, name := range DecodersByEncoding {
+		decoder, ok := dm.makeDecoder(name)
+		if !ok {
+			continue
+		}
+		decoders[encoding] = decoder
+	}
+	dm.regDecoders(decoders)
+	return
+}
+
+func (dm *decoderManager) RunningDecoders() (decoders map[string]DecoderRunner) {
+	return dm.decoders
+}
 
 type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
-	Start()
+	Start(wg *sync.WaitGroup)
 	InChan() chan *PipelinePack
+	UUID() string
+	OrigName() string
 }
 
 type dRunner struct {
 	pRunnerBase
-	inChan chan *PipelinePack
+	origName string
+	inChan   chan *PipelinePack
+	uuid     string
+	mgr      *decoderManager
 }
 
-func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
-	inChan := make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+func NewDecoderRunner(name string, decoder Decoder, mgr *decoderManager) DecoderRunner {
 	return &dRunner{
-		pRunnerBase{name: name, plugin: decoder.(Plugin)},
-		inChan,
+		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
+		origName:    name,
+		uuid:        uuid.NewRandom().String(),
+		mgr:         mgr,
 	}
 }
 
@@ -50,17 +205,22 @@ func (dr *dRunner) Decoder() Decoder {
 	return dr.plugin.(Decoder)
 }
 
-func (dr *dRunner) Start() {
+func (dr *dRunner) Start(wg *sync.WaitGroup) {
+	dr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	go func() {
 		var pack *PipelinePack
 
 		defer func() {
 			if r := recover(); r != nil {
-				dr.LogError(fmt.Errorf("Decoder '%s' panicked: %s", dr.name, r))
+				dr.LogError(fmt.Errorf("PANIC: %s", r))
 				if pack != nil {
 					pack.Recycle()
 				}
-				dr.Start()
+				if Stopping {
+					wg.Done()
+				} else {
+					dr.Start(wg)
+				}
 			}
 		}()
 
@@ -74,11 +234,22 @@ func (dr *dRunner) Start() {
 			pack.Decoded = true
 			pack.Config.Router().InChan <- pack
 		}
+		dr.mgr.unregDecoder(dr.uuid)
+		dr.LogMessage("stopped")
+		wg.Done()
 	}()
 }
 
 func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
+}
+
+func (dr *dRunner) UUID() string {
+	return dr.uuid
+}
+
+func (dr *dRunner) OrigName() string {
+	return dr.origName
 }
 
 func (dr *dRunner) LogError(err error) {

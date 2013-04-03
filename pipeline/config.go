@@ -21,6 +21,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 )
 
@@ -42,9 +43,6 @@ type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
-	Decoder(name string) (dRunner DecoderRunner, ok bool)
-	Decoders() (decoders map[string]DecoderRunner)
-	DecodersByEncoding() (decoders []DecoderRunner)
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
 }
@@ -65,6 +63,7 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
+	decodersWg      sync.WaitGroup
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -80,48 +79,6 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	config.logMsgs = make([]string, 0, 4)
 	return config
-}
-
-// Returns a running DecoderRunner for the registered decoder of the
-// given name.
-func (self *PipelineConfig) Decoder(name string) (
-	dRunner DecoderRunner, ok bool) {
-
-	var wrapper *PluginWrapper
-	if wrapper, ok = self.DecoderWrappers[name]; !ok {
-		return
-	}
-	decoder := wrapper.Create().(Decoder)
-	dRunner = NewDecoderRunner(name, decoder)
-	dRunner.Start()
-	return
-}
-
-// Returns a map[string]DecoderRunner containing all registered decoders.
-func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
-	decoders = make(map[string]DecoderRunner)
-	var runner DecoderRunner
-	for name, wrapper := range self.DecoderWrappers {
-		decoder := wrapper.Create().(Decoder)
-		runner = NewDecoderRunner(name, decoder)
-		runner.Start()
-		decoders[name] = runner
-	}
-	return
-}
-
-// Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
-// value that each decoder works for.
-func (self *PipelineConfig) DecodersByEncoding() []DecoderRunner {
-	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
-	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.Decoder(name)
-		if !ok {
-			continue
-		}
-		decoders[encoding] = decoder
-	}
-	return decoders
 }
 
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
@@ -340,9 +297,10 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 
-	// For inputs just store the runner and continue.
+	// For inputs create a DecoderSource, store the runner, and continue.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		dMgr := newDecoderManager(self, wrapper.name)
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input), dMgr)
 		return
 	}
 
@@ -408,7 +366,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
 	var configDefault ConfigFile
 	toml.Decode(defaultDecoderTOML, &configDefault)
-	decoders := self.Decoders()
+	decoders := self.DecoderWrappers
 
 	if _, ok := decoders["JsonDecoder"]; !ok {
 		log.Println("Loading: JsonDecoder")
@@ -432,8 +390,9 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	if mgi, err := mgiWrapper.CreateWithError(); err != nil {
 		return fmt.Errorf("Error creating MGI: %s", err)
 	} else {
+		dMgr := newDecoderManager(self, mgiWrapper.name)
 		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name,
-			mgi.(Input))
+			mgi.(Input), dMgr)
 	}
 	return
 }

@@ -41,22 +41,30 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	DecoderSource() (dSource DecoderSource)
 }
 
 type iRunner struct {
 	pRunnerBase
-	inChan chan *PipelinePack
+	input   Input
+	inChan  chan *PipelinePack
+	dSource DecoderSource
 }
 
-func NewInputRunner(name string, input Input) InputRunner {
-	iRunner := new(iRunner)
-	iRunner.name = name
-	iRunner.plugin = input.(Plugin)
-	return iRunner
+func NewInputRunner(name string, input Input, dSource DecoderSource) (
+	ir InputRunner) {
+	return &iRunner{
+		pRunnerBase: pRunnerBase{
+			name:   name,
+			plugin: input.(Plugin),
+		},
+		input:   input,
+		dSource: dSource,
+	}
 }
 
 func (ir *iRunner) Input() Input {
-	return ir.plugin.(Input)
+	return ir.input
 }
 
 func (ir *iRunner) InChan() chan *PipelinePack {
@@ -64,6 +72,7 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 }
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	ir.h = h
 	ir.inChan = h.PackSupply()
 	go func() {
 		defer func() {
@@ -84,6 +93,10 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		}
 	}()
 	return
+}
+
+func (ir *iRunner) DecoderSource() (dSource DecoderSource) {
+	return ir.dSource
 }
 
 func (ir *iRunner) LogError(err error) {
@@ -146,7 +159,7 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	decoders := h.DecodersByEncoding()
+	decoders := ir.DecoderSource().NewDecodersByEncoding()
 	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
 	if decoder == nil {
 		return fmt.Errorf("No JSON decoder found.")
@@ -254,7 +267,7 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	var msgOk bool
 
 	packSupply := self.ir.InChan()
-	decoders := self.h.DecodersByEncoding()
+	decoders := self.ir.DecoderSource().NewDecodersByEncoding()
 	var encoding Header_MessageEncoding
 
 	var stopped bool
@@ -462,6 +475,7 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 			}
 			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
 			if cnt == 0 {
+				msgHolder.Message = new(Message)
 				self.recycleChan <- msgHolder
 			}
 		}
