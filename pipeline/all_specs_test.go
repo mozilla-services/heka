@@ -68,11 +68,6 @@ func getTestMessage() *Message {
 	return msg
 }
 
-func getTestPipelinePack() *PipelinePack {
-	config := NewPipelineConfig(1)
-	return NewPipelinePack(config)
-}
-
 func BenchmarkPipelinePackCreation(b *testing.B) {
 	var config = PipelineConfig{}
 	for i := 0; i < b.N; i++ {
