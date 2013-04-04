@@ -262,7 +262,8 @@ func InputsSpec(c gs.Context) {
 				time.Sleep(100 * time.Millisecond)
 				close(mockDecoderRunner.InChan())
 			}()
-			packRef := <-ith.DecodeChan
+			packRef, ok := <-ith.DecodeChan
+			c.Expect(ok, gs.IsFalse)
 			c.Expect(packRef, gs.IsNil)
 		})
 
@@ -286,8 +287,8 @@ func InputsSpec(c gs.Context) {
 				time.Sleep(100 * time.Millisecond)
 				close(mockDecoderRunner.InChan())
 			}()
-
-			packRef := <-ith.DecodeChan
+			packRef, ok := <-ith.DecodeChan
+			c.Expect(ok, gs.IsFalse)
 			c.Expect(packRef, gs.IsNil)
 		})
 	})
