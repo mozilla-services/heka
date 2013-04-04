@@ -349,6 +349,7 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 				}
 			}
 			if err != nil {
+				stopped = true
 				break
 			}
 			// make room at the end of the buffer
@@ -364,7 +365,6 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 			}
 		}
 	}
-
 	conn.Close()
 	for _, v := range decoders {
 		close(v.InChan())
@@ -399,11 +399,10 @@ func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 				break
 			}
 		}
-
-		go self.handleConnection(conn)
 		self.wg.Add(1)
+		go self.handleConnection(conn)
 	}
-
+	self.wg.Wait()
 	return
 }
 

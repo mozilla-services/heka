@@ -149,7 +149,7 @@ func InputsSpec(c gs.Context) {
 		header := &message.Header{}
 		header.SetMessageLength(uint32(len(mbytes)))
 		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
-		err = errors.New("connection closed")
+		err = errors.New("connection closed") // used in the read return(s)
 		readCall := mockConnection.EXPECT().Read(buf)
 
 		neterr := ts.NewMockError(ctrl)
@@ -258,13 +258,17 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
+			timeout := make(chan bool)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
-				close(mockDecoderRunner.InChan())
+				timeout <- true
 			}()
-			packRef, ok := <-ith.DecodeChan
-			c.Expect(ok, gs.IsFalse)
-			c.Expect(packRef, gs.IsNil)
+			select {
+			case packRef := <-mockDecoderRunner.InChan():
+				c.Expect(packRef, gs.IsNil)
+			case t := <-timeout:
+				c.Expect(t, gs.IsTrue)
+			}
 		})
 
 		c.Specify("reads a signed message with an incorrect hmac from its connection", func() {
@@ -283,13 +287,17 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
+			timeout := make(chan bool)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
-				close(mockDecoderRunner.InChan())
+				timeout <- true
 			}()
-			packRef, ok := <-ith.DecodeChan
-			c.Expect(ok, gs.IsFalse)
-			c.Expect(packRef, gs.IsNil)
+			select {
+			case packRef := <-mockDecoderRunner.InChan():
+				c.Expect(packRef, gs.IsNil)
+			case t := <-timeout:
+				c.Expect(t, gs.IsTrue)
+			}
 		})
 	})
 
