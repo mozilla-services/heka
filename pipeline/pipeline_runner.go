@@ -37,7 +37,10 @@ const (
 	PIPECHAN_BUFSIZE = 500
 )
 
-var PoolSize int
+var (
+	PoolSize int
+	Stopping bool
+)
 
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
@@ -57,6 +60,7 @@ type PluginRunner interface {
 type pRunnerBase struct {
 	name   string
 	plugin Plugin
+	h      PluginHelper
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -69,18 +73,6 @@ func (pr *pRunnerBase) SetName(name string) {
 
 func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
-}
-
-func (pr *pRunnerBase) Input() Input {
-	return pr.plugin.(Input)
-}
-
-func (pr *pRunnerBase) Output() Output {
-	return pr.plugin.(Output)
-}
-
-func (pr *pRunnerBase) Filter() Filter {
-	return pr.plugin.(Filter)
 }
 
 type foRunner struct {
@@ -155,6 +147,14 @@ func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
 
 func (foRunner *foRunner) MatchRunner() *MatchRunner {
 	return foRunner.matcher
+}
+
+func (foRunner *foRunner) Output() Output {
+	return foRunner.plugin.(Output)
+}
+
+func (foRunner *foRunner) Filter() Filter {
+	return foRunner.plugin.(Filter)
 }
 
 type PipelinePack struct {
@@ -252,10 +252,9 @@ func Run(config *PipelineConfig) {
 
 	// wait for sigint
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	ok := true
-	for ok {
+	for !Stopping {
 		select {
 		case sig := <-sigChan:
 			switch sig {
@@ -266,11 +265,19 @@ func Run(config *PipelineConfig) {
 				}
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
-				ok = false
+				Stopping = true
+			case syscall.SIGUSR1:
+				log.Println("Queue report initiated.")
+				go config.allReportsMsg()
 			}
 		}
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC during shutdown: %s", r)
+		}
+	}()
 	var mgi Input
 	for name, input := range config.InputRunners {
 		// First we stop all the inputs save the MGI to prevent new messages
@@ -283,6 +290,10 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
 	inputsWg.Wait()
+
+	log.Println("Waiting for decoders shutdown")
+	config.decodersWg.Wait()
+	log.Println("Decoders shutdown complete")
 
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())

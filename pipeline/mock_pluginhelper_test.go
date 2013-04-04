@@ -38,37 +38,6 @@ func (_mr *_MockPluginHelperRecorder) AddFilterRunner(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddFilterRunner", arg0)
 }
 
-func (_m *MockPluginHelper) Decoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "Decoder", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
-	ret1, _ := ret[1].(bool)
-	return ret0, ret1
-}
-
-func (_mr *_MockPluginHelperRecorder) Decoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoder", arg0)
-}
-
-func (_m *MockPluginHelper) Decoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "Decoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) Decoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoders")
-}
-
-func (_m *MockPluginHelper) DecodersByEncoding() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "DecodersByEncoding")
-	ret0, _ := ret[0].([]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) DecodersByEncoding() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodersByEncoding")
-}
-
 func (_m *MockPluginHelper) FindFilterRunner(_param0 string) (FilterRunner, bool) {
 	ret := _m.ctrl.Call(_m, "FindFilterRunner", _param0)
 	ret0, _ := ret[0].(FilterRunner)
@@ -101,8 +70,10 @@ func (_mr *_MockPluginHelperRecorder) PackSupply() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PackSupply")
 }
 
-func (_m *MockPluginHelper) RemoveFilterRunner(_param0 string) {
-	_m.ctrl.Call(_m, "RemoveFilterRunner", _param0)
+func (_m *MockPluginHelper) RemoveFilterRunner(_param0 string) bool {
+	ret := _m.ctrl.Call(_m, "RemoveFilterRunner", _param0)
+	ret0, _ := ret[0].(bool)
+	return ret0
 }
 
 func (_mr *_MockPluginHelperRecorder) RemoveFilterRunner(arg0 interface{}) *gomock.Call {

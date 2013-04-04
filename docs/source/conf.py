@@ -217,7 +217,7 @@ man_pages = [
      [u'Mozilla'], 1),
     ('man/config', 'hekad.config', u'hekad Configuration',
      [u'Mozilla'], 5),
-    ('man/plugin', 'hekad.plugin', u'hekad Plugin Help',
+    ('man/plugin', 'hekad.plugin', u'hekad Plugins',
      [u'Mozilla'], 5)
 ]
 

@@ -7,6 +7,24 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline PluginHelper
 
+# pipeline.PluginRunner
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_pluginrunner_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline PluginRunner
+
+# pipeline.DecoderSource
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_decodersource_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline DecoderSource
+
+# pipeline.Decoder
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_decoder_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline Decoder
+
 # pipeline.DecoderRunner
 $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_decoderrunner_test.go \

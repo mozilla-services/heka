@@ -43,9 +43,6 @@ type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
-	Decoder(name string) (dRunner DecoderRunner, ok bool)
-	Decoders() (decoders map[string]DecoderRunner)
-	DecodersByEncoding() (decoders []DecoderRunner)
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
 	FindFilterRunner(name string) (fRunner FilterRunner, ok bool)
@@ -71,6 +68,7 @@ type PipelineConfig struct {
 	logMsgs         []string
 	filtersLock     sync.Mutex
 	filtersWg       sync.WaitGroup
+	decodersWg      sync.WaitGroup
 }
 
 // Creates and initializes a PipelineConfig object.
@@ -86,48 +84,6 @@ func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
 	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
 	config.logMsgs = make([]string, 0, 4)
 	return config
-}
-
-// Returns a running DecoderRunner for the registered decoder of the
-// given name.
-func (self *PipelineConfig) Decoder(name string) (
-	dRunner DecoderRunner, ok bool) {
-
-	var wrapper *PluginWrapper
-	if wrapper, ok = self.DecoderWrappers[name]; !ok {
-		return
-	}
-	decoder := wrapper.Create().(Decoder)
-	dRunner = NewDecoderRunner(name, decoder)
-	dRunner.Start()
-	return
-}
-
-// Returns a map[string]DecoderRunner containing all registered decoders.
-func (self *PipelineConfig) Decoders() (decoders map[string]DecoderRunner) {
-	decoders = make(map[string]DecoderRunner)
-	var runner DecoderRunner
-	for name, wrapper := range self.DecoderWrappers {
-		decoder := wrapper.Create().(Decoder)
-		runner = NewDecoderRunner(name, decoder)
-		runner.Start()
-		decoders[name] = runner
-	}
-	return
-}
-
-// Returns a slice of DecoderRunners indexed by the Header_MessageEncoding
-// value that each decoder works for.
-func (self *PipelineConfig) DecodersByEncoding() []DecoderRunner {
-	decoders := make([]DecoderRunner, topHeaderMessageEncoding+1)
-	for encoding, name := range DecodersByEncoding {
-		decoder, ok := self.Decoder(name)
-		if !ok {
-			continue
-		}
-		decoders[encoding] = decoder
-	}
-	return decoders
 }
 
 func (self *PipelineConfig) PackSupply() chan *PipelinePack {
@@ -188,6 +144,15 @@ type PluginGlobals struct {
 	Matcher  string  `toml:"message_matcher"`
 	Signer   string  `toml:"message_signer"`
 }
+
+// Default Decoders
+var defaultDecoderTOML = `
+[JsonDecoder]
+encoding_name = "JSON"
+
+[ProtobufDecoder]
+encoding_name = "PROTOCOL_BUFFER"
+`
 
 // A helper function to simplify plugin creation
 type PluginWrapper struct {
@@ -307,7 +272,11 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		errcnt++
 		return
 	}
-	pluginType = pluginGlobals.Typ
+	if pluginGlobals.Typ == "" {
+		pluginType = sectionName
+	} else {
+		pluginType = pluginGlobals.Typ
+	}
 
 	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
 		self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
@@ -345,9 +314,9 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 
 	// Determine the plugin type
-	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginGlobals.Typ)
+	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
 	if len(pluginCats) < 2 {
-		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginGlobals.Typ))
+		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginType))
 		errcnt++
 		return
 	}
@@ -357,7 +326,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// header, store the wrapper and continue.
 	if pluginCategory == "Decoder" {
 		if pluginGlobals.Encoding != "" {
-			err = regDecoderForHeader(pluginGlobals.Typ, pluginGlobals.Encoding)
+			err = regDecoderForHeader(pluginType, pluginGlobals.Encoding)
 			if err != nil {
 				self.log(fmt.Sprintf(
 					"Can't register decoder '%s' for encoding '%s': %s",
@@ -370,9 +339,10 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 
-	// For inputs just store the runner and continue.
+	// For inputs create a DecoderSource, store the runner, and continue.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		dMgr := newDecoderManager(self, wrapper.name)
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input), dMgr)
 		return
 	}
 
@@ -435,6 +405,21 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		log.Println("Loading: ", name)
 		errcnt += self.loadSection(name, conf)
 	}
+
+	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
+	var configDefault ConfigFile
+	toml.Decode(defaultDecoderTOML, &configDefault)
+	decoders := self.DecoderWrappers
+
+	if _, ok := decoders["JsonDecoder"]; !ok {
+		log.Println("Loading: JsonDecoder")
+		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
+	}
+	if _, ok := decoders["ProtobufDecoder"]; !ok {
+		log.Println("Loading: ProtobufDecoder")
+		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
+	}
+
 	if errcnt != 0 {
 		return fmt.Errorf("%d errors loading plugins", errcnt)
 	}
@@ -448,8 +433,9 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	if mgi, err := mgiWrapper.CreateWithError(); err != nil {
 		return fmt.Errorf("Error creating MGI: %s", err)
 	} else {
+		dMgr := newDecoderManager(self, mgiWrapper.name)
 		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name,
-			mgi.(Input))
+			mgi.(Input), dMgr)
 	}
 	return
 }

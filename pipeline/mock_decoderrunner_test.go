@@ -5,6 +5,7 @@ package pipeline
 
 import (
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 )
 
 // Mock of DecoderRunner interface
@@ -74,6 +75,16 @@ func (_mr *_MockDecoderRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
+func (_m *MockDecoderRunner) OrigName() string {
+	ret := _m.ctrl.Call(_m, "OrigName")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) OrigName() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OrigName")
+}
+
 func (_m *MockDecoderRunner) Plugin() Plugin {
 	ret := _m.ctrl.Call(_m, "Plugin")
 	ret0, _ := ret[0].(Plugin)
@@ -92,10 +103,20 @@ func (_mr *_MockDecoderRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
 }
 
-func (_m *MockDecoderRunner) Start() {
-	_m.ctrl.Call(_m, "Start")
+func (_m *MockDecoderRunner) Start(_param0 *sync.WaitGroup) {
+	_m.ctrl.Call(_m, "Start", _param0)
 }
 
-func (_mr *_MockDecoderRunnerRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
+func (_mr *_MockDecoderRunnerRecorder) Start(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0)
+}
+
+func (_m *MockDecoderRunner) UUID() string {
+	ret := _m.ctrl.Call(_m, "UUID")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) UUID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "UUID")
 }

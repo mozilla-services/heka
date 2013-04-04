@@ -47,6 +47,8 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(LoadFromConfigSpec)
 	r.AddSpec(WhisperRunnerSpec)
 	r.AddSpec(WhisperOutputSpec)
+	r.AddSpec(ReportSpec)
+	r.AddSpec(DecoderMgrSpec)
 	gospec.MainGoTest(r, t)
 }
 

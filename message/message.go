@@ -367,6 +367,33 @@ func (f *Field) AddValue(value interface{}) error {
 	return nil
 }
 
+// Helper function that returns the appropriate value object.
+func (f *Field) GetValue() (value interface{}) {
+	switch *f.ValueType {
+	case Field_STRING:
+		if len(f.ValueString) > 0 {
+			value = f.ValueString[0]
+		}
+	case Field_BYTES:
+		if len(f.ValueBytes) > 0 {
+			value = f.ValueBytes[0]
+		}
+	case Field_INTEGER:
+		if len(f.ValueInteger) > 0 {
+			value = f.ValueInteger[0]
+		}
+	case Field_DOUBLE:
+		if len(f.ValueDouble) > 0 {
+			value = f.ValueDouble[0]
+		}
+	case Field_BOOL:
+		if len(f.ValueBool) > 0 {
+			value = f.ValueBool[0]
+		}
+	}
+	return
+}
+
 // Field copy constructor
 func CopyField(src *Field) *Field {
 	if src == nil {
@@ -422,34 +449,7 @@ func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
 	if f == nil {
 		return
 	}
-	switch *f.ValueType {
-	case Field_STRING:
-		if len(f.ValueString) > 0 {
-			value = f.ValueString[0]
-			ok = true
-		}
-	case Field_BYTES:
-		if len(f.ValueBytes) > 0 {
-			value = f.ValueBytes[0]
-			ok = true
-		}
-	case Field_INTEGER:
-		if len(f.ValueInteger) > 0 {
-			value = f.ValueInteger[0]
-			ok = true
-		}
-	case Field_DOUBLE:
-		if len(f.ValueDouble) > 0 {
-			value = f.ValueDouble[0]
-			ok = true
-		}
-	case Field_BOOL:
-		if len(f.ValueBool) > 0 {
-			value = f.ValueBool[0]
-			ok = true
-		}
-	}
-	return
+	return f.GetValue(), true
 }
 
 // FindAllFields finds and returns all the fields with the specified name

@@ -11,6 +11,7 @@
 #   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -22,9 +23,11 @@ import (
 func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
 		origPoolSize := PoolSize
+		origDecodersByEncoding := DecodersByEncoding
 		pipeConfig := NewPipelineConfig(1)
 		defer func() {
 			PoolSize = origPoolSize
+			DecodersByEncoding = origDecodersByEncoding
 		}()
 
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
@@ -38,13 +41,16 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the decoders are loaded for the right encoding headers
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_JSON].Name(),
-				gs.Equals, "JsonDecoder")
-			c.Expect(pipeConfig.DecodersByEncoding()[message.Header_PROTOCOL_BUFFER].Name(),
-				gs.Equals, "ProtobufDecoder")
+			dMgr := newDecoderManager(pipeConfig, "test")
+			decoders := dMgr.NewDecodersByEncoding()
+			jsonName := decoders[message.Header_JSON].Name()
+			c.Expect(jsonName[:len("test-JsonDecoder")], gs.Equals, "test-JsonDecoder")
+			pbName := decoders[message.Header_PROTOCOL_BUFFER].Name()
+			c.Expect(pbName[:len("test-ProtobufDecoder")], gs.Equals,
+				"test-ProtobufDecoder")
 
 			// and the inputs section loads properly with a custom name
-			_, ok := pipeConfig.InputRunners["udp_stats"]
+			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
@@ -62,6 +68,16 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 		})
 
+		c.Specify("works w/ decoder defaults", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults.toml")
+			c.Assume(err, gs.Not(gs.IsNil))
+
+			// Decoders are loaded
+			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
+			c.Expect(DecodersByEncoding[message.Header_JSON], gs.Equals, "JsonDecoder")
+			c.Expect(DecodersByEncoding[message.Header_PROTOCOL_BUFFER], gs.Equals,
+				"ProtobufDecoder")
+		})
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
