@@ -242,60 +242,54 @@ func InputsSpec(c gs.Context) {
 			}
 		})
 
-		// todo: investigate - the select hangs after the dev branch was merged in
-//		c.Specify("reads a signed message with an expired key from its connection", func() {
-//			header.SetHmacHashFunction(message.Header_MD5)
-//			header.SetHmacSigner(signer)
-//			header.SetHmacKeyVersion(uint32(11)) // non-existent key version
-//			hm := hmac.New(md5.New, []byte(key))
-//			hm.Write(mbytes)
-//			header.SetHmac(hm.Sum(nil))
-//			hbytes, _ := proto.Marshal(header)
-//			buflen := 3 + len(hbytes) + len(mbytes)
-//			readCall.Return(buflen, err)
-//			readCall.Do(getPayloadBytes(hbytes, mbytes))
-//
-//			go func() {
-//				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-//			}()
-//			ith.PackSupply <- ith.Pack
-//			go func() {
-//				time.Sleep(100 * time.Millisecond)
-//				close(mockDecoderRunner.InChan())
-//			}()
-//			select {
-//			case packRef, ok := <-ith.DecodeChan:
-//				c.Expect(ok, gs.IsFalse)
-//				c.Expect(packRef, gs.IsNil)
-//			}
-//		})
-//
-//		c.Specify("reads a signed message with an incorrect hmac from its connection", func() {
-//			header.SetHmacHashFunction(message.Header_MD5)
-//			header.SetHmacSigner(signer)
-//			header.SetHmacKeyVersion(uint32(1))
-//			hm := hmac.New(md5.New, []byte(key))
-//			hm.Write([]byte("some bytes"))
-//			header.SetHmac(hm.Sum(nil))
-//			hbytes, _ := proto.Marshal(header)
-//			buflen := 3 + len(hbytes) + len(mbytes)
-//			readCall.Return(buflen, err)
-//			readCall.Do(getPayloadBytes(hbytes, mbytes))
-//
-//			go func() {
-//				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-//			}()
-//			ith.PackSupply <- ith.Pack
-//			go func() {
-//				time.Sleep(100 * time.Millisecond)
-//				close(mockDecoderRunner.InChan())
-//			}()
-//			select {
-//			case packRef, ok := <-ith.DecodeChan:
-//				c.Expect(ok, gs.IsFalse)
-//				c.Expect(packRef, gs.IsNil)
-//			}
-//		})
+		c.Specify("reads a signed message with an expired key from its connection", func() {
+			header.SetHmacHashFunction(message.Header_MD5)
+			header.SetHmacSigner(signer)
+			header.SetHmacKeyVersion(uint32(11)) // non-existent key version
+			hm := hmac.New(md5.New, []byte(key))
+			hm.Write(mbytes)
+			header.SetHmac(hm.Sum(nil))
+			hbytes, _ := proto.Marshal(header)
+			buflen := 3 + len(hbytes) + len(mbytes)
+			readCall.Return(buflen, err)
+			readCall.Do(getPayloadBytes(hbytes, mbytes))
+
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				close(mockDecoderRunner.InChan())
+			}()
+			packRef := <-ith.DecodeChan
+			c.Expect(packRef, gs.IsNil)
+		})
+
+		c.Specify("reads a signed message with an incorrect hmac from its connection", func() {
+			header.SetHmacHashFunction(message.Header_MD5)
+			header.SetHmacSigner(signer)
+			header.SetHmacKeyVersion(uint32(1))
+			hm := hmac.New(md5.New, []byte(key))
+			hm.Write([]byte("some bytes"))
+			header.SetHmac(hm.Sum(nil))
+			hbytes, _ := proto.Marshal(header)
+			buflen := 3 + len(hbytes) + len(mbytes)
+			readCall.Return(buflen, err)
+			readCall.Do(getPayloadBytes(hbytes, mbytes))
+
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				close(mockDecoderRunner.InChan())
+			}()
+
+			packRef := <-ith.DecodeChan
+			c.Expect(packRef, gs.IsNil)
+		})
 	})
 
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
