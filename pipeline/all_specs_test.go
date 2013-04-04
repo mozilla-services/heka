@@ -70,12 +70,8 @@ func getTestMessage() *Message {
 	return msg
 }
 
-func getTestPipelinePack() *PipelinePack {
-	return NewPipelinePack(&config)
-}
-
 func BenchmarkPipelinePackCreation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		NewPipelinePack(&config)
+		NewPipelinePack(config.RecycleChan)
 	}
 }

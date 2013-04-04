@@ -140,6 +140,7 @@ func DecoderMgrSpec(c gospec.Context) {
 
 func DecodersSpec(c gospec.Context) {
 	msg := getTestMessage()
+	config := NewPipelineConfig(1)
 
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
@@ -151,7 +152,7 @@ func DecodersSpec(c gospec.Context) {
 			timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 			fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
-		pipelinePack := getTestPipelinePack()
+		pipelinePack := NewPipelinePack(config)
 		pipelinePack.MsgBytes = []byte(jsonString)
 		jsonDecoder := new(JsonDecoder)
 
@@ -226,7 +227,7 @@ func DecodersSpec(c gospec.Context) {
 		msg := getTestMessage()
 		encoded, err := proto.Marshal(msg)
 		c.Assume(err, gs.IsNil)
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(config)
 		decoder := new(ProtobufDecoder)
 
 		c.Specify("decodes a msgpack message", func() {
@@ -250,7 +251,7 @@ func DecodersSpec(c gospec.Context) {
 	c.Specify("Recovers from a panic in `Decode()`", func() {
 		decoder := new(PanicDecoder)
 		dRunner := NewDecoderRunner("panic", decoder, nil)
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(config)
 		var wg sync.WaitGroup
 		wg.Add(1)
 		Stopping = true
@@ -272,7 +273,8 @@ func BenchmarkDecodeJSON(b *testing.B) {
 		timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
-	pipelinePack := getTestPipelinePack()
+	config := NewPipelineConfig(1)
+	pipelinePack := NewPipelinePack(config)
 	pipelinePack.MsgBytes = []byte(jsonString)
 	jsonDecoder := new(JsonDecoder)
 	b.StartTimer()
@@ -293,7 +295,8 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
 	msg := getTestMessage()
 	encoded, _ := proto.Marshal(msg)
-	pack := getTestPipelinePack()
+	config := NewPipelineConfig(1)
+	pack := NewPipelinePack(config)
 	decoder := new(ProtobufDecoder)
 	pack.MsgBytes = encoded
 	b.StartTimer()

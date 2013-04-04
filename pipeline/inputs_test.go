@@ -57,9 +57,10 @@ func InputsSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	config := NewPipelineConfig(1)
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
-	ith.Pack = getTestPipelinePack()
+	ith.Pack = NewPipelinePack(config)
 
 	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
