@@ -87,6 +87,7 @@ func WhisperOutputSpec(c gospec.Context) {
 	oth.MockHelper = NewMockPluginHelper(ctrl)
 	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
 	inChan := make(chan *PipelineCapture, 1)
+	pConfig := NewPipelineConfig(1)
 
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
@@ -108,7 +109,7 @@ func WhisperOutputSpec(c gospec.Context) {
 			o.dbs[statName] = mockWr
 		}
 
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig)
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
 		pack.Config.RecycleChan = make(chan *PipelinePack, 1) // don't block on recycle
 		plc := &PipelineCapture{Pack: pack}
