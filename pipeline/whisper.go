@@ -22,6 +22,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
@@ -34,10 +35,12 @@ type wRunner struct {
 	path   string
 	db     *whisper.Whisper
 	inChan chan *whisper.Point
+	wg     *sync.WaitGroup
 }
 
 func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
-	aggMethod whisper.AggregationMethod) (wr WhisperRunner, err error) {
+	aggMethod whisper.AggregationMethod, wg *sync.WaitGroup) (
+	wr WhisperRunner, err error) {
 
 	var db *whisper.Whisper
 	if db, err = whisper.Open(path_); err != nil {
@@ -63,7 +66,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		}
 	}
 	inChan := make(chan *whisper.Point, 10)
-	realWr := &wRunner{path_, db, inChan}
+	realWr := &wRunner{path_, db, inChan, wg}
 	realWr.start()
 	wr = realWr
 	return
@@ -77,6 +80,7 @@ func (wr *wRunner) start() {
 				log.Printf("Error updating whisper db '%s': %s", wr.path, err)
 			}
 		}
+		wr.wg.Done()
 	}()
 }
 
@@ -154,6 +158,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		payload  string
 		e        error
 		pack     *PipelinePack
+		wg       sync.WaitGroup
 	)
 
 	for plc := range or.InChan() {
@@ -169,8 +174,9 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				continue
 			}
 			if wr = o.dbs[fields[0]]; wr == nil {
+				wg.Add(1)
 				wr, e = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultArchiveInfo,
-					o.defaultAggMethod)
+					o.defaultAggMethod, &wg)
 				if e != nil {
 					or.LogError(fmt.Errorf("can't create WhisperRunner: %s", e))
 					continue
@@ -196,6 +202,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	for _, wr := range o.dbs {
 		close(wr.InChan())
 	}
+	wg.Wait()
 
 	return
 }
