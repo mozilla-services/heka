@@ -1,0 +1,54 @@
+[default]
+ip_address          = "127.0.0.1:5565"
+sender              = "tcp"                 # tcp or udp
+pprof_file          = ""
+encoder             = "protobuf"            # protobuf or json
+num_messages        = 0                     # number of message to send 0 = infinite
+[default.signer]
+    name            = ""                    # empty for no message signing
+    hmac_hash       = "md5"                 # md5 or sha1
+    hmac_key        = ""
+    version         = 0
+
+[udp]
+ip_address          = "127.0.0.1:5565"
+sender               = "udp"
+encoder             = "protobuf"
+num_messages        = 0
+
+[signed]
+ip_address          = "127.0.0.1:5565"
+sender               = "tcp"
+encoder             = "protobuf"
+[signed.signer]
+    name         = "test"
+    hmac_hash    = "md5"
+    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version      = 0
+
+[signed_sha1]
+ip_address          = "127.0.0.1:5565"
+sender              = "tcp"
+encoder             = "protobuf"
+[signed_sha1.signer]
+    name         = "test"
+    hmac_hash    = "sha1"
+    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version      = 0
+
+[1000]
+ip_address          = "127.0.0.1:5565"
+sender               = "tcp"
+encoder             = "protobuf"
+num_messages        = 1000
+
+[1000_signed]
+ip_address          = "127.0.0.1:5565"
+sender               = "tcp"
+encoder             = "protobuf"
+num_messages        = 1000
+[1000_signed.signer]
+    name         = "test"
+    hmac_hash    = "md5"
+    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version      = 0
