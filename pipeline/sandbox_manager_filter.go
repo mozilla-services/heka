@@ -160,7 +160,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 		} else {
 			for name, conf := range configFile {
 				name = getSandboxName(fr.Name(), name)
-				if _, ok := h.PipelineConfig().Filter(name); ok {
+				if _, ok := h.Filter(name); ok {
 					// todo support reload
 					return fmt.Errorf("loadSandbox failed: %s is already running", name)
 				}
