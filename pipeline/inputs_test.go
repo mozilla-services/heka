@@ -60,7 +60,7 @@ func InputsSpec(c gs.Context) {
 	config := NewPipelineConfig(1)
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
-	ith.Pack = NewPipelinePack(config)
+	ith.Pack = NewPipelinePack(config.RecycleChan)
 
 	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"

@@ -152,7 +152,7 @@ func DecodersSpec(c gospec.Context) {
 			timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 			fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
-		pipelinePack := NewPipelinePack(config)
+		pipelinePack := NewPipelinePack(config.RecycleChan)
 		pipelinePack.MsgBytes = []byte(jsonString)
 		jsonDecoder := new(JsonDecoder)
 
@@ -227,7 +227,7 @@ func DecodersSpec(c gospec.Context) {
 		msg := getTestMessage()
 		encoded, err := proto.Marshal(msg)
 		c.Assume(err, gs.IsNil)
-		pack := NewPipelinePack(config)
+		pack := NewPipelinePack(config.RecycleChan)
 		decoder := new(ProtobufDecoder)
 
 		c.Specify("decodes a msgpack message", func() {
@@ -251,11 +251,11 @@ func DecodersSpec(c gospec.Context) {
 	c.Specify("Recovers from a panic in `Decode()`", func() {
 		decoder := new(PanicDecoder)
 		dRunner := NewDecoderRunner("panic", decoder, nil)
-		pack := NewPipelinePack(config)
+		pack := NewPipelinePack(config.RecycleChan)
 		var wg sync.WaitGroup
 		wg.Add(1)
 		Stopping = true
-		dRunner.Start(&wg)
+		dRunner.Start(config, &wg)
 		dRunner.InChan() <- pack // No panic ==> success
 		wg.Wait()
 		Stopping = false
@@ -274,7 +274,7 @@ func BenchmarkDecodeJSON(b *testing.B) {
 		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
 	config := NewPipelineConfig(1)
-	pipelinePack := NewPipelinePack(config)
+	pipelinePack := NewPipelinePack(config.RecycleChan)
 	pipelinePack.MsgBytes = []byte(jsonString)
 	jsonDecoder := new(JsonDecoder)
 	b.StartTimer()
@@ -296,7 +296,7 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	msg := getTestMessage()
 	encoded, _ := proto.Marshal(msg)
 	config := NewPipelineConfig(1)
-	pack := NewPipelinePack(config)
+	pack := NewPipelinePack(config.RecycleChan)
 	decoder := new(ProtobufDecoder)
 	pack.MsgBytes = encoded
 	b.StartTimer()

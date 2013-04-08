@@ -114,9 +114,8 @@ func WhisperOutputSpec(c gospec.Context) {
 			o.dbs[statName] = mockWr
 		}
 
-		pack := NewPipelinePack(pConfig)
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
-		pack.Config.RecycleChan = make(chan *PipelinePack, 1) // don't block on recycle
 		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("turns statmetric lines into points", func() {

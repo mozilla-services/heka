@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -373,62 +372,56 @@ func (self *TcpInput) Stop() {
 var MessageGenerator = new(msgGenerator)
 
 type msgGenerator struct {
-	RouterChan  chan *messageHolder
+	RouterChan  chan *PipelinePack
 	OutputChan  chan outputMsg
-	RecycleChan chan *messageHolder
+	RecycleChan chan *PipelinePack
 	hostname    string
 	pid         int32
 }
 
 func (self *msgGenerator) Init() {
-	self.RouterChan = make(chan *messageHolder, PoolSize)
+	self.RouterChan = make(chan *PipelinePack, PoolSize)
 	self.OutputChan = make(chan outputMsg, PoolSize)
-	self.RecycleChan = make(chan *messageHolder, PoolSize)
+	self.RecycleChan = make(chan *PipelinePack, PoolSize)
 	for i := 0; i < PoolSize; i++ {
-		msg := messageHolder{new(Message), 1}
-		self.RecycleChan <- &msg
+		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
 	}
 	self.hostname, _ = os.Hostname()
 	self.pid = int32(os.Getpid())
 }
 
 // Retrieve a message for use by the MessageGenerator.
-func (self *msgGenerator) Retrieve() (msg *messageHolder) {
-	msg = <-self.RecycleChan
-	msg.Message.SetTimestamp(time.Now().UnixNano())
-	msg.Message.SetUuid(uuid.NewRandom())
-	msg.Message.SetHostname(self.hostname)
-	msg.Message.SetPid(self.pid)
-	msg.RefCount = 1
-	return msg
+func (self *msgGenerator) Retrieve() (pack *PipelinePack) {
+	pack = <-self.RecycleChan
+	pack.Message.SetTimestamp(time.Now().UnixNano())
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetHostname(self.hostname)
+	pack.Message.SetPid(self.pid)
+	pack.RefCount = 1
+	return
 }
 
 // Injects a message using the MessageGenerator.
-func (self *msgGenerator) Inject(msg *messageHolder) {
-	self.RouterChan <- msg
+func (self *msgGenerator) Inject(pack *PipelinePack) {
+	self.RouterChan <- pack
 }
 
 // Sends a message directly to a specific output.
-func (self *msgGenerator) Output(name string, msg *messageHolder) {
-	outMsg := outputMsg{name, msg}
+func (self *msgGenerator) Output(name string, pack *PipelinePack) {
+	outMsg := outputMsg{name, pack}
 	self.OutputChan <- outMsg
 }
 
 // MessageGeneratorInput
 type MessageGeneratorInput struct {
-	routerChan  chan *messageHolder
+	routerChan  chan *PipelinePack
 	outputChan  chan outputMsg
-	recycleChan chan *messageHolder
-}
-
-type messageHolder struct {
-	Message  *Message
-	RefCount int32
+	recycleChan chan *PipelinePack
 }
 
 type outputMsg struct {
 	outputName string
-	msg        *messageHolder
+	pack       *PipelinePack
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
@@ -441,21 +434,18 @@ func (self *MessageGeneratorInput) Init(config interface{}) error {
 
 func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
-	var msgHolder *messageHolder
 	var outMsg outputMsg
 	var output OutputRunner
 	ok := true
-	packSupply := ir.InChan()
 	outChan := h.Router().InChan
 
 	for ok {
 		output = nil
-		pack = <-packSupply
 		select {
-		case msgHolder, ok = <-self.routerChan:
+		case pack, ok = <-self.routerChan:
 			// if !ok we'll fall through below
 		case outMsg = <-self.outputChan:
-			msgHolder = outMsg.msg
+			pack = outMsg.pack
 			if output, ok = h.Output(outMsg.outputName); !ok {
 				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
 				ok = true // still deliver to the router; is this what we want?
@@ -463,17 +453,11 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 		}
 
 		if ok {
-			msgHolder.Message.Copy(pack.Message)
 			pack.Decoded = true
 			if output != nil {
 				output.Deliver(pack)
 			} else {
 				outChan <- pack
-			}
-			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
-			if cnt == 0 {
-				msgHolder.Message = new(Message)
-				self.recycleChan <- msgHolder
 			}
 		}
 	}

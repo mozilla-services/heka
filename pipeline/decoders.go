@@ -67,7 +67,7 @@ func (dm *decoderManager) makeDecoder(name string) (dRunner DecoderRunner, ok bo
 		decoder := wrapper.Create().(Decoder)
 		dRunner = NewDecoderRunner(name, decoder, dm)
 		dm.wg.Add(1)
-		dRunner.Start(dm.wg)
+		dRunner.Start(dm.config, dm.wg)
 	}
 	return
 }
@@ -87,7 +87,7 @@ func (dm *decoderManager) fromStopped(name string) (dRunner DecoderRunner, ok bo
 	dm.lock.Unlock()
 	if ok {
 		dm.wg.Add(1)
-		dRunner.Start(dm.wg)
+		dRunner.Start(dm.config, dm.wg)
 	}
 	return
 }
@@ -146,7 +146,7 @@ func (dm *decoderManager) NewDecoders() (decoders map[string]DecoderRunner) {
 			decoder = wrapper.Create().(Decoder)
 			runner = NewDecoderRunner(name, decoder, dm)
 			dm.wg.Add(1)
-			runner.Start(dm.wg)
+			runner.Start(dm.config, dm.wg)
 		}
 		decoders[name] = runner
 		dSlice = append(dSlice, runner)
@@ -178,7 +178,7 @@ func (dm *decoderManager) RunningDecoders() (decoders map[string]DecoderRunner) 
 type DecoderRunner interface {
 	PluginRunner
 	Decoder() Decoder
-	Start(wg *sync.WaitGroup)
+	Start(h PluginHelper, wg *sync.WaitGroup)
 	InChan() chan *PipelinePack
 	UUID() string
 	OrigName() string
@@ -205,7 +205,7 @@ func (dr *dRunner) Decoder() Decoder {
 	return dr.plugin.(Decoder)
 }
 
-func (dr *dRunner) Start(wg *sync.WaitGroup) {
+func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	dr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	go func() {
 		var pack *PipelinePack
@@ -219,7 +219,7 @@ func (dr *dRunner) Start(wg *sync.WaitGroup) {
 				if Stopping {
 					wg.Done()
 				} else {
-					dr.Start(wg)
+					dr.Start(h, wg)
 				}
 			}
 		}()
@@ -232,7 +232,7 @@ func (dr *dRunner) Start(wg *sync.WaitGroup) {
 				continue
 			}
 			pack.Decoded = true
-			pack.Config.Router().InChan <- pack
+			h.Router().InChan <- pack
 		}
 		dr.mgr.unregDecoder(dr.uuid)
 		dr.LogMessage("stopped")
