@@ -145,6 +145,10 @@ func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
 	return foRunner.inChan
 }
 
+func (foRunner *foRunner) MatchRunner() *MatchRunner {
+	return foRunner.matcher
+}
+
 func (foRunner *foRunner) Output() Output {
 	return foRunner.plugin.(Output)
 }
@@ -159,6 +163,7 @@ type PipelinePack struct {
 	Config   *PipelineConfig
 	Decoded  bool
 	RefCount int32
+	Signer   string
 }
 
 type PipelineCapture struct {
@@ -183,6 +188,7 @@ func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
 	p.RefCount = 1
+	p.Signer = ""
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
@@ -201,7 +207,6 @@ func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
-	var filtersWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
 
@@ -216,10 +221,10 @@ func Run(config *PipelineConfig) {
 	}
 
 	for name, filter := range config.FilterRunners {
-		filtersWg.Add(1)
-		if err = filter.Start(config, &filtersWg); err != nil {
+		config.filtersWg.Add(1)
+		if err = filter.Start(config, &config.filtersWg); err != nil {
 			log.Printf("Filter '%s' failed to start: %s", name, err)
-			filtersWg.Done()
+			config.filtersWg.Done()
 			continue
 		}
 		log.Println("Filter started: ", name)
@@ -294,7 +299,7 @@ func Run(config *PipelineConfig) {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
-	filtersWg.Wait()
+	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
 		close(output.InChan())
