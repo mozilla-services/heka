@@ -45,9 +45,8 @@ type PluginHelper interface {
 	PackSupply() chan *PipelinePack
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
-	FindFilterRunner(name string) (fRunner FilterRunner, ok bool)
-	AddFilterRunner(fRunner FilterRunner) error
-	RemoveFilterRunner(name string) bool
+	Filter(name string) (fRunner FilterRunner, ok bool)
+	PipelineConfig() *PipelineConfig
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -99,9 +98,13 @@ func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
 }
 
+// Returns the configuration via the Helper interface
+func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
+	return self
+}
+
 // Returns a FilterRunner with the given name, false in not found
-func (self *PipelineConfig) FindFilterRunner(name string) (fRunner FilterRunner,
-	ok bool) {
+func (self *PipelineConfig) Filter(name string) (fRunner FilterRunner, ok bool) {
 	fRunner, ok = self.FilterRunners[name]
 	return
 }

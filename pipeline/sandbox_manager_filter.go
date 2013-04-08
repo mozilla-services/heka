@@ -160,7 +160,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 		} else {
 			for name, conf := range configFile {
 				name = getSandboxName(fr.Name(), name)
-				if _, ok := h.FindFilterRunner(name); ok {
+				if _, ok := h.PipelineConfig().Filter(name); ok {
 					// todo support reload
 					return fmt.Errorf("loadSandbox failed: %s is already running", name)
 				}
@@ -186,7 +186,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
-				err = h.AddFilterRunner(runner)
+				err = h.PipelineConfig().AddFilterRunner(runner)
 				if err == nil {
 					this.currentFilters++
 				}
@@ -216,7 +216,7 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelp
 						removeAll(dir, fmt.Sprintf("%s.*", name))
 						break
 					}
-					err = h.AddFilterRunner(runner)
+					err = h.PipelineConfig().AddFilterRunner(runner)
 					if err != nil {
 						fr.LogError(err)
 					} else {
@@ -256,7 +256,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 				fv, _ := plc.Pack.Message.GetFieldValue("name")
 				if name, ok := fv.(string); ok {
 					name = getSandboxName(fr.Name(), name)
-					if h.RemoveFilterRunner(name) {
+					if h.PipelineConfig().RemoveFilterRunner(name) {
 						this.currentFilters--
 						removeAll(this.workingDirectory, fmt.Sprintf("%s.*", name))
 					}
