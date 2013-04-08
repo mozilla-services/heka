@@ -29,6 +29,7 @@ type FilterRunner interface {
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
 	Deliver(pack *PipelinePack)
+	MatchRunner() *MatchRunner
 }
 
 type Filter interface {

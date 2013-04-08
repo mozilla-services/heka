@@ -18,8 +18,12 @@ import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
+	"crypto/hmac"
+	"crypto/md5"
+	"crypto/sha1"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
+	"hash"
 	"log"
 	"net"
 	"os"
@@ -202,10 +206,16 @@ type TcpInput struct {
 	stopChan chan bool
 	ir       InputRunner
 	h        PluginHelper
+	config   *TcpInputConfig
+}
+
+type Signer struct {
+	HmacKey string `toml:"hmac_key"`
 }
 
 type TcpInputConfig struct {
 	Address string
+	Signers map[string]Signer `toml:"signer"`
 }
 
 func (self *TcpInput) ConfigStruct() interface{} {
@@ -258,6 +268,36 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
+func authenticateMessage(signers map[string]Signer, header *Header,
+	pack *PipelinePack) bool {
+	digest := header.GetHmac()
+	if digest != nil {
+		var key string
+		signer := fmt.Sprintf("%s_%d", header.GetHmacSigner(),
+			header.GetHmacKeyVersion())
+		if s, ok := signers[signer]; ok {
+			key = s.HmacKey
+		} else {
+			return false
+		}
+
+		var hm hash.Hash
+		switch header.GetHmacHashFunction() {
+		case Header_MD5:
+			hm = hmac.New(md5.New, []byte(key))
+		case Header_SHA1:
+			hm = hmac.New(sha1.New, []byte(key))
+		}
+		hm.Write(pack.MsgBytes)
+		expectedDigest := hm.Sum(nil)
+		if bytes.Compare(digest, expectedDigest) != 0 {
+			return false
+		}
+		pack.Signer = header.GetHmacSigner()
+	}
+	return true
+}
+
 func (self *TcpInput) handleConnection(conn net.Conn) {
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
 	header := &Header{}
@@ -297,14 +337,18 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 					}
 
 					if msgOk {
-						encoding = header.GetMessageEncoding()
-						decoders[encoding].InChan() <- pack
+						if authenticateMessage(self.config.Signers, header, pack) {
+							encoding = header.GetMessageEncoding()
+							decoders[encoding].InChan() <- pack
+						} else {
+							pack.Recycle()
+						}
 					}
-
 					header.Reset()
 				}
 			}
 			if err != nil {
+				stopped = true
 				break
 			}
 			// make room at the end of the buffer
@@ -320,7 +364,6 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 			}
 		}
 	}
-
 	conn.Close()
 	for _, v := range decoders {
 		close(v.InChan())
@@ -330,8 +373,8 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 
 func (self *TcpInput) Init(config interface{}) error {
 	var err error
-	conf := config.(*TcpInputConfig)
-	self.listener, err = net.Listen("tcp", conf.Address)
+	self.config = config.(*TcpInputConfig)
+	self.listener, err = net.Listen("tcp", self.config.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
@@ -355,11 +398,10 @@ func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 				break
 			}
 		}
-
-		go self.handleConnection(conn)
 		self.wg.Add(1)
+		go self.handleConnection(conn)
 	}
-
+	self.wg.Wait()
 	return
 }
 

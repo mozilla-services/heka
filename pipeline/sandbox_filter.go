@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
+	"path"
 )
 
 func fileExists(path string) bool {
@@ -35,8 +36,9 @@ type SandboxFilterConfig struct {
 }
 
 type SandboxFilter struct {
-	sb  sandbox.Sandbox
-	sbc sandbox.SandboxConfig
+	sb               sandbox.Sandbox
+	sbc              sandbox.SandboxConfig
+	preservationFile string
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -60,16 +62,17 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	if this.sbc.PreserveData && fileExists(this.sbc.ScriptFilename+".data") {
-		err = this.sb.Init(this.sbc.ScriptFilename + ".data")
+	this.preservationFile = this.sbc.ScriptFilename + ".data"
+	if this.sbc.PreserveData && fileExists(this.preservationFile) {
+		err = this.sb.Init(this.preservationFile)
 	} else {
 		err = this.sb.Init("")
 	}
 
 	this.sb.InjectMessage(func(s string) {
 		pack := MessageGenerator.Retrieve()
-		pack.Message.SetType("heka.lua_sandbox")
-		pack.Message.SetLogger(this.sbc.ScriptFilename)
+		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetLogger(path.Base(this.sbc.ScriptFilename))
 		pack.Message.SetPayload(s)
 		MessageGenerator.Inject(pack)
 	})
@@ -114,7 +117,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		}
 	}
 	if this.sbc.PreserveData {
-		this.sb.Destroy(this.sbc.ScriptFilename + ".data")
+		this.sb.Destroy(this.preservationFile)
 	} else {
 		this.sb.Destroy("")
 	}
