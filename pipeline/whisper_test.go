@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,7 +40,9 @@ func WhisperRunnerSpec(c gospec.Context) {
 	}
 
 	c.Specify("A WhisperRunner", func() {
-		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM, &wg)
 		c.Assume(err, gs.IsNil)
 		defer func() {
 			os.Remove(tmpFileName)
@@ -50,6 +53,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 			c.Expect(err, gs.IsNil)
 			c.Expect(fi.Size(), gs.Equals, int64(856))
 			close(wr.InChan())
+			wg.Wait()
 		})
 
 		c.Specify("writes a data point to the whisper file", func() {
@@ -59,6 +63,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 			pt := whisper.NewPoint(when, val)
 			wr.InChan() <- &pt
 			close(wr.InChan())
+			wg.Wait()
 
 			// Open db file and fetch interval including our data point.
 			from := when.Add(-1 * time.Second).Unix()

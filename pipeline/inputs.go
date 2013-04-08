@@ -529,3 +529,13 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 func (self *MessageGeneratorInput) Stop() {
 	close(self.routerChan)
 }
+
+func (self *MessageGeneratorInput) ReportMsg(msg *Message) (err error) {
+	newIntField(msg, "OutputChanCapacity", cap(self.outputChan))
+	newIntField(msg, "OutputChanLength", len(self.outputChan))
+	newIntField(msg, "RouterChanCapacity", cap(self.routerChan))
+	newIntField(msg, "RouterChanLength", len(self.routerChan))
+	newIntField(msg, "RecycleChanCapacity", cap(self.recycleChan))
+	newIntField(msg, "RecycleChanLength", len(self.recycleChan))
+	return
+}
