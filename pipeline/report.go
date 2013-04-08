@@ -109,6 +109,8 @@ func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
 		holder = getReport(runner)
 		if len(holder.Message.Fields) > 0 || holder.Message.GetPayload() != "" {
 			reports[name] = holder
+		} else {
+			MessageGenerator.RecycleChan <- holder
 		}
 		for _, dRunner = range runner.DecoderSource().RunningDecoders() {
 			reports[dRunner.Name()] = getReport(dRunner)

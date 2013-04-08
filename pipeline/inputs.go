@@ -381,10 +381,10 @@ type msgGenerator struct {
 }
 
 func (self *msgGenerator) Init() {
-	self.RouterChan = make(chan *messageHolder, PoolSize/2)
-	self.OutputChan = make(chan outputMsg, PoolSize/2)
-	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
-	for i := 0; i < PoolSize/2; i++ {
+	self.RouterChan = make(chan *messageHolder, PoolSize)
+	self.OutputChan = make(chan outputMsg, PoolSize)
+	self.RecycleChan = make(chan *messageHolder, PoolSize)
+	for i := 0; i < PoolSize; i++ {
 		msg := messageHolder{new(Message), 1}
 		self.RecycleChan <- &msg
 	}
@@ -444,24 +444,21 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 	var msgHolder *messageHolder
 	var outMsg outputMsg
 	var output OutputRunner
-	var outChan chan *PipelinePack
 	ok := true
 	packSupply := ir.InChan()
+	outChan := h.Router().InChan
 
 	for ok {
 		output = nil
-		outChan = nil
 		pack = <-packSupply
 		select {
 		case msgHolder, ok = <-self.routerChan:
 			// if !ok we'll fall through below
-			outChan = h.Router().InChan
 		case outMsg = <-self.outputChan:
 			msgHolder = outMsg.msg
 			if output, ok = h.Output(outMsg.outputName); !ok {
 				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
 				ok = true // still deliver to the router; is this what we want?
-				outChan = h.Router().InChan
 			}
 		}
 
