@@ -75,8 +75,7 @@ func ReportSpec(c gs.Context) {
 
 	iName := "udp"
 	input := new(UdpInput)
-	mockDSource := NewMockDecoderSource(ctrl)
-	iRunner := NewInputRunner(iName, input, mockDSource)
+	iRunner := NewInputRunner(iName, input)
 
 	c.Specify("`PopulateReportMsg`", func() {
 		msg := getTestMessage()
@@ -117,10 +116,10 @@ func ReportSpec(c gs.Context) {
 		pc := NewPipelineConfig(10)
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
+		pc.DecoderSets = nil
 
 		c.Specify("returns full set of accurate reports", func() {
 			MessageGenerator.Init()
-			mockDSource.EXPECT().RunningDecoders().Return(nil)
 			reports := pc.reports()
 
 			fReport := reports[fName]
