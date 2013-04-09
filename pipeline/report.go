@@ -103,8 +103,6 @@ func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
 		return
 	}
 
-	var dRunner DecoderRunner
-
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
 		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
@@ -112,8 +110,11 @@ func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
 		} else {
 			pack.Recycle()
 		}
-		for _, dRunner = range runner.DecoderSource().RunningDecoders() {
-			reports[dRunner.Name()] = getReport(dRunner)
+	}
+
+	for i, dSet := range pc.DecoderSets {
+		for name, runner := range dSet.AllByName() {
+			reports[fmt.Sprintf("%s-%d", name, i)] = getReport(runner)
 		}
 	}
 
