@@ -33,6 +33,13 @@ func newIntField(msg *message.Message, name string, val int) {
 	}
 }
 
+func setNameField(msg *message.Message, name string) {
+	f, err := message.NewField("name", name, message.Field_RAW)
+	if err == nil {
+		msg.AddField(f)
+	}
+}
+
 func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -66,9 +73,9 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 	return
 }
 
-// Generate and return recycle channel and plugin report messages.
-func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
-	reports = make(map[string]*PipelinePack)
+// Generate recycle channel and plugin report messages and put them on the
+// provided channel.
+func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	var (
 		f      *message.Field
 		pack   *PipelinePack
@@ -81,14 +88,16 @@ func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
 	newIntField(msg, "InChanCapacity", cap(pc.RecycleChan))
 	newIntField(msg, "InChanLength", len(pc.RecycleChan))
 	msg.SetType("heka.recycler-report")
-	reports["RecycleChan"] = pack
+	setNameField(msg, "RecycleChan")
+	reportChan <- pack
 
 	pack = MessageGenerator.Retrieve()
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan))
 	newIntField(msg, "InChanLength", len(pc.Router().InChan))
 	msg.SetType("heka.router-report")
-	reports["Router"] = pack
+	setNameField(msg, "Router")
+	reportChan <- pack
 
 	getReport := func(runner PluginRunner) (pack *PipelinePack) {
 		pack = MessageGenerator.Retrieve()
@@ -106,39 +115,54 @@ func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
 		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
-			reports[name] = pack
+			setNameField(pack.Message, name)
+			reportChan <- pack
 		} else {
 			pack.Recycle()
 		}
 	}
-
 	for i, dSet := range pc.DecoderSets {
 		for name, runner := range dSet.AllByName() {
-			reports[fmt.Sprintf("%s-%d", name, i)] = getReport(runner)
+			pack = getReport(runner)
+			setNameField(pack.Message, fmt.Sprintf("%s-%d", name, i))
+			reportChan <- pack
 		}
 	}
-
 	for name, runner := range pc.FilterRunners {
-		reports[name] = getReport(runner)
+		pack = getReport(runner)
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
-
 	for name, runner := range pc.OutputRunners {
-		reports[name] = getReport(runner)
+		pack = getReport(runner)
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
-
-	return
+	close(reportChan)
 }
 
 //
 func (pc *PipelineConfig) allReportsMsg() {
 	payload := make([]string, 0, 10)
-	var line string
-	reports := pc.reports()
+	var iName interface{}
+	var name, line string
+	var ok bool
+	reports := make(chan *PipelinePack)
+	go pc.reports(reports)
 
-	for name, pack := range reports {
+	MISSING := "MISSING"
+	for pack := range reports {
+		if iName, ok = pack.Message.GetFieldValue("name"); !ok {
+			name = MISSING
+		} else if name, ok = iName.(string); !ok {
+			name = MISSING
+		}
 		line = fmt.Sprintf("%s:", name)
 		payload = append(payload, line)
 		for _, field := range pack.Message.Fields {
+			if field.GetName() == "name" {
+				continue
+			}
 			line = fmt.Sprintf("\t%s:\t%v", field.GetName(), field.GetValue())
 			payload = append(payload, line)
 		}

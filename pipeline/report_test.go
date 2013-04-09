@@ -120,7 +120,18 @@ func ReportSpec(c gs.Context) {
 
 		c.Specify("returns full set of accurate reports", func() {
 			MessageGenerator.Init()
-			reports := pc.reports()
+			reportChan := make(chan *PipelinePack)
+			go pc.reports(reportChan)
+
+			reports := make(map[string]*PipelinePack)
+			for r := range reportChan {
+				iName, ok := r.Message.GetFieldValue("name")
+				c.Expect(ok, gs.IsTrue)
+				name, ok := iName.(string)
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(name, gs.Not(gs.Equals), "MISSING")
+				reports[name] = r
+			}
 
 			fReport := reports[fName]
 			c.Expect(fReport, gs.Not(gs.IsNil))
