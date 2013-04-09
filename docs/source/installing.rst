@@ -13,6 +13,15 @@ From Source
 built. This task has been automated in the `heka build`_ repository. To
 create a working `hekad` binary for your platform:
 
+Prerequisites:
+
+- cmake 2.8+
+- gcc
+- g++
+- git
+- mercurial
+
+
 1. Check out the `heka build`_ repository:
 
     .. code-block:: bash

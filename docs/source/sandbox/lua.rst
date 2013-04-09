@@ -17,7 +17,8 @@ Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
 
 **int process_message()**
-    Called by Heka when a message is available to the sandbox
+    Called by Heka when a message is available to the sandbox.  The 
+    instruction_limit configuration parameter is applied to this function call.
 
     *Arguments*
         none
@@ -26,7 +27,8 @@ Functions that must be exposed from the Lua sandbox
         0 for success, non zero for failure
 
 **timer_event(ns)**
-    Called by Heka when the ticker_interval expires
+    Called by Heka when the ticker_interval expires.  The instruction_limit 
+    configuration parameter is applied to this function call.
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch
@@ -62,7 +64,8 @@ Heka functions that are exposed to the Lua sandbox
         number, string, bool, nil depending on the type of variable requested
 
 **output(type0, type1, ...typeN)**
-    Appends data to the payload buffer
+    Appends data to the payload buffer, which cannot exceed the output_limit 
+    configuration parameter.
 
     *Arguments*
         - type (number, string, bool, nil)
@@ -72,7 +75,7 @@ Heka functions that are exposed to the Lua sandbox
 
 **inject_message()**
     Creates a new Heka message using the contents of the output payload buffer
-    and then resets the buffer
+    and then clears the buffer.
 
     *Arguments*
         none
@@ -167,10 +170,10 @@ per device)
         inject_message()
     end
 
-5. Depending on the number of devices you will most likely want to update the configuration
+5. Depending on the number of devices being counted you will most likely want to update the configuration to account for the additional resource requirements.
 
 .. code-block:: ini
 
     memory_limit = 65536
     instruction_limit = 20000
-    output_limit =64512
+    output_limit = 64512

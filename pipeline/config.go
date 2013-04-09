@@ -45,6 +45,8 @@ type PluginHelper interface {
 	PackSupply() chan *PipelinePack
 	Output(name string) (oRunner OutputRunner, ok bool)
 	Router() (router *MessageRouter)
+	Filter(name string) (fRunner FilterRunner, ok bool)
+	PipelineConfig() *PipelineConfig
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -63,6 +65,8 @@ type PipelineConfig struct {
 	router          *MessageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
+	filtersLock     sync.Mutex
+	filtersWg       sync.WaitGroup
 	decodersWg      sync.WaitGroup
 }
 
@@ -94,6 +98,46 @@ func (self *PipelineConfig) Router() (router *MessageRouter) {
 	return self.router
 }
 
+// Returns the configuration via the Helper interface
+func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
+	return self
+}
+
+// Returns a FilterRunner with the given name, false in not found
+func (self *PipelineConfig) Filter(name string) (fRunner FilterRunner, ok bool) {
+	fRunner, ok = self.FilterRunners[name]
+	return
+}
+
+// Adds the specified FilterRunner to the configuration
+func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
+	self.filtersLock.Lock()
+	defer self.filtersLock.Unlock()
+	self.FilterRunners[fRunner.Name()] = fRunner
+	self.filtersWg.Add(1)
+	if err := fRunner.Start(self, &self.filtersWg); err != nil {
+		self.filtersWg.Done()
+		return fmt.Errorf("AddFilterRunner '%s' failed to start: %s",
+			fRunner.Name(), err)
+	} else {
+		self.router.MrChan <- fRunner.MatchRunner()
+	}
+	return nil
+}
+
+// Removes the specified FilterRunner from the configuration
+func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
+	self.filtersLock.Lock()
+	defer self.filtersLock.Unlock()
+	if fRunner, ok := self.FilterRunners[name]; ok {
+		self.router.MrChan <- fRunner.MatchRunner()
+		close(fRunner.InChan())
+		delete(self.FilterRunners, name)
+		return true
+	}
+	return false
+}
+
 // The TOML config file spec
 type ConfigFile PluginConfig
 type PluginGlobals struct {
@@ -101,6 +145,7 @@ type PluginGlobals struct {
 	Ticker   float64 `toml:"ticker_interval"`
 	Encoding string  `toml:"encoding_name"`
 	Matcher  string  `toml:"message_matcher"`
+	Signer   string  `toml:"message_signer"`
 }
 
 // Default Decoders
@@ -319,7 +364,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher != "" {
-		if matcher, err = NewMatchRunner(pluginGlobals.Matcher); err != nil {
+		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
+			pluginGlobals.Signer); err != nil {
 			self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
 				wrapper.name, err))
 			errcnt++
@@ -439,5 +485,8 @@ func init() {
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
+	})
+	RegisterPlugin("SandboxManagerFilter", func() interface{} {
+		return new(SandboxManagerFilter)
 	})
 }

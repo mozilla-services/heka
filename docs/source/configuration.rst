@@ -53,9 +53,11 @@ Example hekad.toml File
 
     [lua_sandbox.settings]
     type = "lua"
+    preserve_data = true
     filename = "lua/sandbox.lua"
     memory_limit = 32767
     instruction_limit = 1000
+    output_limit = 1024
 
 .. end-hekad-toml
 
@@ -151,6 +153,10 @@ TcpInput
 Parameters:
 
 - Address (string): An IP address:port.
+        [TcpInput.signer.test_0]
+        hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+- signer (object - optional): The TOML key name consists of a signer name, underscore, and numeric version of the key
+    - hmac_key: The hash key used to sign the message.
 
 Example:
 
@@ -159,7 +165,19 @@ Example:
     [TcpInput]
     address = "127.0.0.1:5565"
 
-Listens on a specific TCP address and port for messages.
+    [TcpInput.signer.ops_0]
+    hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    [TcpInput.signer.ops_1]
+    hmac_key = "xdd908lfcgikauexdi8elogusridaxoalf"
+
+    [TcpInput.signer.dev_1]
+    hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
+
+Listens on a specific TCP address and port for messages.  If the message is
+signed it is verified against the signer name and specified key version. If
+the signature is not valid the message is discarded otherwise the signer name 
+is added to the pipeline pack and can be use to accept messages using the 
+message_signer configuration option.
 
 .. end-inputs
 
@@ -203,11 +221,14 @@ message.proto.
 Filters
 =======
 
-Common Parameters:
+.. _common_filter_parameters:
 
-- message_matcher (string): Boolean expression, when evaluated to true passes the message to the filter for processing
-- output_timer (uint):  Frequency in seconds that a timer event will be sent to the filter
-- outputs ([]string): List of output destinations for the data produced (referenced by name from the 'outputs' section)
+Common Parameters
+-----------------
+
+- message_matcher (string): Boolean expression, when evaluated to true passes the message to the filter for processing. See: :ref:`message_matcher`
+- message_signer (string - optional): The name of the message signer.  If specified only messages with this signer are passed to the filter for processing.
+- ticker_interval (uint):  Frequency in seconds that a timer event will be sent to the filter
 
 
 CounterFilter
@@ -219,31 +240,16 @@ ten seconds an aggregate count with an average per second is output.
 
 SandboxFilter
 -------------
-Parameters:
+The sandbox filter provides an isolated execution environment for data analysis.
 
-- settings (object): Sandbox specific settings
+:ref:`sandboxfilter_settings`
 
-   - type (string): Sandbox virtual machine, currently only "lua" is supported
-   - filename (string): Path to the Lua script
-   - memory_limit (uint): Maximum number of bytes the sandbox is allowed to consume before being terminated
-   - instruction_limit (uint): Maximum number of Lua instructions the sandbox is allowed to consume (per function call) before being terminated
+SandboxManagerFilter
+--------------------
+The sandbox manager provides dynamic control (start/stop) of sandbox filters in
+a secure manner without stopping the Heka daemon.
 
-Example:
-
-.. code-block:: ini
-
-    [lua_sandbox]
-    type = "SandboxFilter"
-    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
-
-    [lua_sandbox.settings]
-    type = "lua"
-    filename = "lua/sandbox.lua"
-    memory_limit = 32767
-    instruction_limit = 1000
-
-Outputs whatever data is produced by the sandbox to the specified destinations.
+:ref:`sandboxmanagerfilter_settings`
 
 .. end-filters
 

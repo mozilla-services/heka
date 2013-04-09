@@ -59,6 +59,7 @@ func OutputsSpec(c gs.Context) {
 	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
 	inChan := make(chan *PipelineCapture, 1)
+	pConfig := NewPipelineConfig(1)
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
@@ -70,10 +71,9 @@ func OutputsSpec(c gs.Context) {
 		config.Path = tmpFilePath
 
 		msg := getTestMessage()
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		pack.Config.RecycleChan = make(chan *PipelinePack, 1)
 		plc := &PipelineCapture{Pack: pack}
 
 		toString := func(outData interface{}) string {
@@ -238,7 +238,7 @@ func OutputsSpec(c gs.Context) {
 		tcpOutput.connection = ts.NewMockConn(ctrl)
 
 		msg := getTestMessage()
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
 		plc := &PipelineCapture{Pack: pack}

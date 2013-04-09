@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -39,7 +40,9 @@ func WhisperRunnerSpec(c gospec.Context) {
 	}
 
 	c.Specify("A WhisperRunner", func() {
-		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM, &wg)
 		c.Assume(err, gs.IsNil)
 		defer func() {
 			os.Remove(tmpFileName)
@@ -50,6 +53,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 			c.Expect(err, gs.IsNil)
 			c.Expect(fi.Size(), gs.Equals, int64(856))
 			close(wr.InChan())
+			wg.Wait()
 		})
 
 		c.Specify("writes a data point to the whisper file", func() {
@@ -59,6 +63,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 			pt := whisper.NewPoint(when, val)
 			wr.InChan() <- &pt
 			close(wr.InChan())
+			wg.Wait()
 
 			// Open db file and fetch interval including our data point.
 			from := when.Add(-1 * time.Second).Unix()
@@ -87,6 +92,7 @@ func WhisperOutputSpec(c gospec.Context) {
 	oth.MockHelper = NewMockPluginHelper(ctrl)
 	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
 	inChan := make(chan *PipelineCapture, 1)
+	pConfig := NewPipelineConfig(1)
 
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
@@ -108,9 +114,8 @@ func WhisperOutputSpec(c gospec.Context) {
 			o.dbs[statName] = mockWr
 		}
 
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
-		pack.Config.RecycleChan = make(chan *PipelinePack, 1) // don't block on recycle
 		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("turns statmetric lines into points", func() {

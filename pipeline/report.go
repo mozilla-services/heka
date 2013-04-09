@@ -67,33 +67,33 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 }
 
 // Generate and return recycle channel and plugin report messages.
-func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
-	reports = make(map[string]*messageHolder)
+func (pc *PipelineConfig) reports() (reports map[string]*PipelinePack) {
+	reports = make(map[string]*PipelinePack)
 	var (
 		f      *message.Field
-		holder *messageHolder
+		pack   *PipelinePack
 		msg    *message.Message
 		err, e error
 	)
 
-	holder = MessageGenerator.Retrieve()
-	msg = holder.Message
+	pack = MessageGenerator.Retrieve()
+	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.RecycleChan))
 	newIntField(msg, "InChanLength", len(pc.RecycleChan))
 	msg.SetType("heka.recycler-report")
-	reports["RecycleChan"] = holder
+	reports["RecycleChan"] = pack
 
-	holder = MessageGenerator.Retrieve()
-	msg = holder.Message
+	pack = MessageGenerator.Retrieve()
+	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan))
 	newIntField(msg, "InChanLength", len(pc.Router().InChan))
 	msg.SetType("heka.router-report")
-	reports["Router"] = holder
+	reports["Router"] = pack
 
-	getReport := func(runner PluginRunner) (holder *messageHolder) {
-		holder = MessageGenerator.Retrieve()
-		if err = PopulateReportMsg(runner, holder.Message); err != nil {
-			msg = holder.Message
+	getReport := func(runner PluginRunner) (pack *PipelinePack) {
+		pack = MessageGenerator.Retrieve()
+		if err = PopulateReportMsg(runner, pack.Message); err != nil {
+			msg = pack.Message
 			f, e = message.NewField("Error", err.Error(), message.Field_RAW)
 			if e == nil {
 				msg.AddField(f)
@@ -106,9 +106,11 @@ func (pc *PipelineConfig) reports() (reports map[string]*messageHolder) {
 	var dRunner DecoderRunner
 
 	for name, runner := range pc.InputRunners {
-		holder = getReport(runner)
-		if len(holder.Message.Fields) > 0 || holder.Message.GetPayload() != "" {
-			reports[name] = holder
+		pack = getReport(runner)
+		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
+			reports[name] = pack
+		} else {
+			pack.Recycle()
 		}
 		for _, dRunner = range runner.DecoderSource().RunningDecoders() {
 			reports[dRunner.Name()] = getReport(dRunner)
@@ -132,24 +134,23 @@ func (pc *PipelineConfig) allReportsMsg() {
 	var line string
 	reports := pc.reports()
 
-	for name, holder := range reports {
+	for name, pack := range reports {
 		line = fmt.Sprintf("%s:", name)
 		payload = append(payload, line)
-		for _, field := range holder.Message.Fields {
+		for _, field := range pack.Message.Fields {
 			line = fmt.Sprintf("\t%s:\t%v", field.GetName(), field.GetValue())
 			payload = append(payload, line)
 		}
-		if holder.Message.GetPayload() != "" {
-			line = fmt.Sprintf("\tPayload:\t%s", holder.Message.GetPayload())
+		if pack.Message.GetPayload() != "" {
+			line = fmt.Sprintf("\tPayload:\t%s", pack.Message.GetPayload())
 			payload = append(payload, line)
 		}
 		payload = append(payload, "")
-		holder.Message = new(message.Message)
-		MessageGenerator.RecycleChan <- holder
+		pack.Recycle()
 	}
 
-	holder := MessageGenerator.Retrieve()
-	holder.Message.SetType("heka.all-report")
-	holder.Message.SetPayload(strings.Join(payload, "\n"))
-	MessageGenerator.Inject(holder)
+	pack := MessageGenerator.Retrieve()
+	pack.Message.SetType("heka.all-report")
+	pack.Message.SetPayload(strings.Join(payload, "\n"))
+	MessageGenerator.Inject(pack)
 }

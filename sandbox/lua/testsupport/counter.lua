@@ -2,7 +2,7 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-lastTime = os.time() * 1000000000
+lastTime = os.time() * 1e9
 lastCount = 0
 count = 0
 rate = 0.0
@@ -23,7 +23,7 @@ function timer_event(ns)
 
     lastCount = count
     lastTime = ns
-    rate = msgsSent / (elapsedTime / 1000000000)
+    rate = msgsSent / (elapsedTime / 1e9)
     rates[#rates+1] = rate
     output(string.format("Got %d messages. %0.2f msg/sec", count, rate))
     inject_message()

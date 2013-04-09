@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 )
 
 // Mock of DecoderRunner interface
@@ -103,12 +103,12 @@ func (_mr *_MockDecoderRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
 }
 
-func (_m *MockDecoderRunner) Start(_param0 *sync.WaitGroup) {
-	_m.ctrl.Call(_m, "Start", _param0)
+func (_m *MockDecoderRunner) Start(_param0 PluginHelper, _param1 *sync.WaitGroup) {
+	_m.ctrl.Call(_m, "Start", _param0, _param1)
 }
 
-func (_mr *_MockDecoderRunnerRecorder) Start(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0)
+func (_mr *_MockDecoderRunnerRecorder) Start(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0, arg1)
 }
 
 func (_m *MockDecoderRunner) UUID() string {

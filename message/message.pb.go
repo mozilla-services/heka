@@ -49,6 +49,42 @@ func (x *Header_MessageEncoding) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type Header_HmacHashFunction int32
+
+const (
+	Header_MD5  Header_HmacHashFunction = 0
+	Header_SHA1 Header_HmacHashFunction = 1
+)
+
+var Header_HmacHashFunction_name = map[int32]string{
+	0: "MD5",
+	1: "SHA1",
+}
+var Header_HmacHashFunction_value = map[string]int32{
+	"MD5":  0,
+	"SHA1": 1,
+}
+
+func (x Header_HmacHashFunction) Enum() *Header_HmacHashFunction {
+	p := new(Header_HmacHashFunction)
+	*p = x
+	return p
+}
+func (x Header_HmacHashFunction) String() string {
+	return proto.EnumName(Header_HmacHashFunction_name, int32(x))
+}
+func (x Header_HmacHashFunction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(x.String())
+}
+func (x *Header_HmacHashFunction) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(Header_HmacHashFunction_value, data, "Header_HmacHashFunction")
+	if err != nil {
+		return err
+	}
+	*x = Header_HmacHashFunction(value)
+	return nil
+}
+
 type Field_ValueType int32
 
 const (
@@ -137,9 +173,13 @@ func (x *Field_ValueFormat) UnmarshalJSON(data []byte) error {
 }
 
 type Header struct {
-	MessageLength    *uint32                 `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
-	MessageEncoding  *Header_MessageEncoding `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
-	XXX_unrecognized []byte                  `json:"-"`
+	MessageLength    *uint32                  `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
+	MessageEncoding  *Header_MessageEncoding  `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
+	HmacHashFunction *Header_HmacHashFunction `protobuf:"varint,3,opt,name=hmac_hash_function,enum=message.Header_HmacHashFunction,def=0" json:"hmac_hash_function,omitempty"`
+	HmacSigner       *string                  `protobuf:"bytes,4,opt,name=hmac_signer" json:"hmac_signer,omitempty"`
+	HmacKeyVersion   *uint32                  `protobuf:"varint,5,opt,name=hmac_key_version" json:"hmac_key_version,omitempty"`
+	Hmac             []byte                   `protobuf:"bytes,6,opt,name=hmac" json:"hmac,omitempty"`
+	XXX_unrecognized []byte                   `json:"-"`
 }
 
 func (this *Header) Reset()         { *this = Header{} }
@@ -147,6 +187,7 @@ func (this *Header) String() string { return proto.CompactTextString(this) }
 func (*Header) ProtoMessage()       {}
 
 const Default_Header_MessageEncoding Header_MessageEncoding = Header_PROTOCOL_BUFFER
+const Default_Header_HmacHashFunction Header_HmacHashFunction = Header_MD5
 
 func (this *Header) GetMessageLength() uint32 {
 	if this != nil && this.MessageLength != nil {
@@ -160,6 +201,34 @@ func (this *Header) GetMessageEncoding() Header_MessageEncoding {
 		return *this.MessageEncoding
 	}
 	return Default_Header_MessageEncoding
+}
+
+func (this *Header) GetHmacHashFunction() Header_HmacHashFunction {
+	if this != nil && this.HmacHashFunction != nil {
+		return *this.HmacHashFunction
+	}
+	return Default_Header_HmacHashFunction
+}
+
+func (this *Header) GetHmacSigner() string {
+	if this != nil && this.HmacSigner != nil {
+		return *this.HmacSigner
+	}
+	return ""
+}
+
+func (this *Header) GetHmacKeyVersion() uint32 {
+	if this != nil && this.HmacKeyVersion != nil {
+		return *this.HmacKeyVersion
+	}
+	return 0
+}
+
+func (this *Header) GetHmac() []byte {
+	if this != nil {
+		return this.Hmac
+	}
+	return nil
 }
 
 type Field struct {
@@ -285,6 +354,7 @@ func (this *Message) GetHostname() string {
 
 func init() {
 	proto.RegisterEnum("message.Header_MessageEncoding", Header_MessageEncoding_name, Header_MessageEncoding_value)
+	proto.RegisterEnum("message.Header_HmacHashFunction", Header_HmacHashFunction_name, Header_HmacHashFunction_value)
 	proto.RegisterEnum("message.Field_ValueType", Field_ValueType_name, Field_ValueType_value)
 	proto.RegisterEnum("message.Field_ValueFormat", Field_ValueFormat_name, Field_ValueFormat_value)
 }
