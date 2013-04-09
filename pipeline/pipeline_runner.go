@@ -158,12 +158,12 @@ func (foRunner *foRunner) Filter() Filter {
 }
 
 type PipelinePack struct {
-	MsgBytes []byte
-	Message  *message.Message
-	Config   *PipelineConfig
-	Decoded  bool
-	RefCount int32
-	Signer   string
+	MsgBytes    []byte
+	Message     *message.Message
+	RecycleChan chan *PipelinePack
+	Decoded     bool
+	RefCount    int32
+	Signer      string
 }
 
 type PipelineCapture struct {
@@ -171,16 +171,16 @@ type PipelineCapture struct {
 	Captures map[string]string
 }
 
-func NewPipelinePack(config *PipelineConfig) (pack *PipelinePack) {
+func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
 
 	return &PipelinePack{
-		MsgBytes: msgBytes,
-		Message:  message,
-		Config:   config,
-		Decoded:  false,
-		RefCount: int32(1),
+		MsgBytes:    msgBytes,
+		Message:     message,
+		RecycleChan: recycleChan,
+		Decoded:     false,
+		RefCount:    int32(1),
 	}
 }
 
@@ -199,7 +199,7 @@ func (p *PipelinePack) Recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
-		p.Config.RecycleChan <- p
+		p.RecycleChan <- p
 	}
 }
 
@@ -232,7 +232,7 @@ func Run(config *PipelineConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < config.PoolSize; i++ {
-		config.RecycleChan <- NewPipelinePack(config)
+		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
 	}
 
 	config.Router().Start()

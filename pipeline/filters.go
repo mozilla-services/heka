@@ -85,11 +85,11 @@ func (this *CounterFilter) tally() {
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
 	this.rates = append(this.rates, this.rate)
 
-	outMsg := MessageGenerator.Retrieve()
-	outMsg.Message.SetType("heka.counter-output")
-	outMsg.Message.SetPayload(fmt.Sprintf("Got %d messages. %0.2f msg/sec",
+	pack := MessageGenerator.Retrieve()
+	pack.Message.SetType("heka.counter-output")
+	pack.Message.SetPayload(fmt.Sprintf("Got %d messages. %0.2f msg/sec",
 		this.count, this.rate))
-	MessageGenerator.Inject(outMsg)
+	MessageGenerator.Inject(pack)
 
 	samples := len(this.rates)
 	if samples == 10 { // generate a summary every 10 samples
@@ -101,12 +101,12 @@ func (this *CounterFilter) tally() {
 			sum += val
 		}
 		mean := sum / float64(samples)
-		outMsg = MessageGenerator.Retrieve()
-		outMsg.Message.SetType("heka.counter-output")
-		outMsg.Message.SetPayload(
+		pack = MessageGenerator.Retrieve()
+		pack.Message.SetType("heka.counter-output")
+		pack.Message.SetPayload(
 			fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",
 				min, max, mean))
-		MessageGenerator.Inject(outMsg)
+		MessageGenerator.Inject(pack)
 		this.rates = this.rates[:0]
 	}
 }
