@@ -29,16 +29,6 @@ func (_m *MockInputRunner) EXPECT() *_MockInputRunnerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockInputRunner) DecoderSource() DecoderSource {
-	ret := _m.ctrl.Call(_m, "DecoderSource")
-	ret0, _ := ret[0].(DecoderSource)
-	return ret0
-}
-
-func (_mr *_MockInputRunnerRecorder) DecoderSource() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecoderSource")
-}
-
 func (_m *MockInputRunner) InChan() chan *PipelinePack {
 	ret := _m.ctrl.Call(_m, "InChan")
 	ret0, _ := ret[0].(chan *PipelinePack)
