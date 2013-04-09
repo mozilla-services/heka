@@ -70,11 +70,11 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	}
 
 	this.sb.InjectMessage(func(s string) {
-		msg := MessageGenerator.Retrieve()
-		msg.Message.SetType("heka.sandbox")
-		msg.Message.SetLogger(path.Base(this.sbc.ScriptFilename))
-		msg.Message.SetPayload(s)
-		MessageGenerator.Inject(msg)
+		pack := MessageGenerator.Retrieve()
+		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetLogger(path.Base(this.sbc.ScriptFilename))
+		pack.Message.SetPayload(s)
+		MessageGenerator.Inject(pack)
 	})
 
 	return err
