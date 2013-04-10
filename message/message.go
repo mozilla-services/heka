@@ -11,6 +11,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 // Extensions to make Message more useable in our current code outside the scope
 // of protocol buffers.  See message.pb.go for the actually message definition.
 

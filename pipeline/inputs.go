@@ -62,7 +62,6 @@ func NewInputRunner(name string, input Input) (
 		input: input,
 	}
 }
-
 func (ir *iRunner) Input() Input {
 	return ir.input
 }
