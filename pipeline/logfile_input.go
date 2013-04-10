@@ -66,7 +66,7 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 	var pack *PipelinePack
 	var dRunner DecoderRunner
 	var dName string
-	decoders := h.Decoders()
+	dSet := h.DecoderSet()
 	var ok bool
 	var err error
 	packSupply := ir.InChan()
@@ -78,7 +78,7 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 		pack.Message.SetLogger(logline.Path)
 		pack.Decoded = true
 		for _, dName = range lw.DecoderMap[logline.Path] {
-			if dRunner, ok = decoders[dName]; !ok {
+			if dRunner, ok = dSet.ByName(dName); !ok {
 				ir.LogError(fmt.Errorf("Can't find decoder '%s' for log line %s",
 					dName, logline.Path))
 			}

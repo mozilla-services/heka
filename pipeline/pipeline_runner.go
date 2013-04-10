@@ -32,24 +32,55 @@ const (
 	// Control channel event types used by go-notify
 	RELOAD = "reload"
 	STOP   = "stop"
-
-	// buffer size for plugin channels
-	PIPECHAN_BUFSIZE = 500
 )
 
-var PoolSize int
+// Struct for holding global pipeline config values.
+type GlobalConfigStruct struct {
+	PoolSize        int
+	DecoderPoolSize int
+	PluginChanSize  int
+	Stopping        bool
+}
+
+// Creates a GlobalConfigStruct object populated w/ default values.
+func DefaultGlobals() (globals *GlobalConfigStruct) {
+	return &GlobalConfigStruct{
+		PoolSize:        100,
+		DecoderPoolSize: 4,
+		PluginChanSize:  50,
+	}
+}
+
+// Returns global pipeline config values. This function is overwritten by the
+// `pipeline.NewPipelineConfig` function. Globals are generally A Bad Idea, so
+// we're at least using a function instead of a struct for global state to
+// make it easier to change the underlying implementation.
+var Globals func() *GlobalConfigStruct
 
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
+	// Receives either PluginConfig or custom config struct, populated from
+	// the TOML config, and uses that data to initialize the plugin.
 	Init(config interface{}) error
 }
 
 // Base interface for the Heka plugin runners.
 type PluginRunner interface {
+	// Plugin name.
 	Name() string
+
+	// Plugin name mutator.
 	SetName(name string)
+
+	// Underlying plugin object.
 	Plugin() Plugin
+
+	// Plugins should call `LogError` on their runner to log error messages
+	// rather than doing logging directly.
 	LogError(err error)
+
+	// Plugins should call `LogMessage` on their runner to write to the log
+	// rather than doing so directly.
 	LogMessage(msg string)
 }
 
@@ -57,6 +88,7 @@ type PluginRunner interface {
 type pRunnerBase struct {
 	name   string
 	plugin Plugin
+	h      PluginHelper
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -71,18 +103,6 @@ func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
 }
 
-func (pr *pRunnerBase) Input() Input {
-	return pr.plugin.(Input)
-}
-
-func (pr *pRunnerBase) Output() Output {
-	return pr.plugin.(Output)
-}
-
-func (pr *pRunnerBase) Filter() Filter {
-	return pr.plugin.(Filter)
-}
-
 type foRunner struct {
 	pRunnerBase
 	matcher    *MatchRunner
@@ -93,7 +113,7 @@ type foRunner struct {
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
-	runner.inChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
+	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
 	return
 }
 
@@ -153,12 +173,25 @@ func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
 	return foRunner.inChan
 }
 
+func (foRunner *foRunner) MatchRunner() *MatchRunner {
+	return foRunner.matcher
+}
+
+func (foRunner *foRunner) Output() Output {
+	return foRunner.plugin.(Output)
+}
+
+func (foRunner *foRunner) Filter() Filter {
+	return foRunner.plugin.(Filter)
+}
+
 type PipelinePack struct {
-	MsgBytes []byte
-	Message  *message.Message
-	Config   *PipelineConfig
-	Decoded  bool
-	RefCount int32
+	MsgBytes    []byte
+	Message     *message.Message
+	RecycleChan chan *PipelinePack
+	Decoded     bool
+	RefCount    int32
+	Signer      string
 }
 
 type PipelineCapture struct {
@@ -166,16 +199,16 @@ type PipelineCapture struct {
 	Captures map[string]string
 }
 
-func NewPipelinePack(config *PipelineConfig) (pack *PipelinePack) {
+func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
 
 	return &PipelinePack{
-		MsgBytes: msgBytes,
-		Message:  message,
-		Config:   config,
-		Decoded:  false,
-		RefCount: int32(1),
+		MsgBytes:    msgBytes,
+		Message:     message,
+		RecycleChan: recycleChan,
+		Decoded:     false,
+		RefCount:    int32(1),
 	}
 }
 
@@ -183,6 +216,7 @@ func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
 	p.RefCount = 1
+	p.Signer = ""
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
@@ -193,7 +227,7 @@ func (p *PipelinePack) Recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
-		p.Config.RecycleChan <- p
+		p.RecycleChan <- p
 	}
 }
 
@@ -201,7 +235,6 @@ func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
-	var filtersWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
 
@@ -216,18 +249,18 @@ func Run(config *PipelineConfig) {
 	}
 
 	for name, filter := range config.FilterRunners {
-		filtersWg.Add(1)
-		if err = filter.Start(config, &filtersWg); err != nil {
+		config.filtersWg.Add(1)
+		if err = filter.Start(config, &config.filtersWg); err != nil {
 			log.Printf("Filter '%s' failed to start: %s", name, err)
-			filtersWg.Done()
+			config.filtersWg.Done()
 			continue
 		}
 		log.Println("Filter started: ", name)
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
-	for i := 0; i < config.PoolSize; i++ {
-		config.RecycleChan <- NewPipelinePack(config)
+	for i := 0; i < Globals().PoolSize; i++ {
+		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
 	}
 
 	config.Router().Start()
@@ -247,10 +280,10 @@ func Run(config *PipelineConfig) {
 
 	// wait for sigint
 	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	ok := true
-	for ok {
+	globals := Globals()
+	for !globals.Stopping {
 		select {
 		case sig := <-sigChan:
 			switch sig {
@@ -261,11 +294,19 @@ func Run(config *PipelineConfig) {
 				}
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
-				ok = false
+				globals.Stopping = true
+			case syscall.SIGUSR1:
+				log.Println("Queue report initiated.")
+				go config.allReportsMsg()
 			}
 		}
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC during shutdown: %s", r)
+		}
+	}()
 	var mgi Input
 	for name, input := range config.InputRunners {
 		// First we stop all the inputs save the MGI to prevent new messages
@@ -279,11 +320,15 @@ func Run(config *PipelineConfig) {
 	}
 	inputsWg.Wait()
 
+	log.Println("Waiting for decoders shutdown")
+	config.decodersWg.Wait()
+	log.Println("Decoders shutdown complete")
+
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
-	filtersWg.Wait()
+	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
 		close(output.InChan())

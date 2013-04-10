@@ -1,0 +1,7 @@
+[udp_stats]
+type = "UdpInput"
+address = 1000
+
+[CounterOutput]
+type = "CounterOutput"
+message_matcher = "Type != \"heka.counter_output\""

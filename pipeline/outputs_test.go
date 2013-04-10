@@ -42,6 +42,16 @@ func NewOutputTestHelper(ctrl *gomock.Controller) (oth *OutputTestHelper) {
 	return
 }
 
+type PanicOutput struct{}
+
+func (p *PanicOutput) Init(config interface{}) (err error) {
+	panic("PANICOUTPUT")
+}
+
+func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	panic("PANICOUTPUT")
+}
+
 func OutputsSpec(c gs.Context) {
 	t := new(ts.SimpleT)
 	ctrl := gomock.NewController(t)
@@ -50,6 +60,7 @@ func OutputsSpec(c gs.Context) {
 	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
 	inChan := make(chan *PipelineCapture, 1)
+	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
@@ -61,10 +72,9 @@ func OutputsSpec(c gs.Context) {
 		config.Path = tmpFilePath
 
 		msg := getTestMessage()
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		pack.Config.RecycleChan = make(chan *PipelinePack, 1)
 		plc := &PipelineCapture{Pack: pack}
 
 		toString := func(outData interface{}) string {
@@ -229,7 +239,7 @@ func OutputsSpec(c gs.Context) {
 		tcpOutput.connection = ts.NewMockConn(ctrl)
 
 		msg := getTestMessage()
-		pack := getTestPipelinePack()
+		pack := NewPipelinePack(pConfig.RecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
 		plc := &PipelineCapture{Pack: pack}
@@ -287,5 +297,14 @@ func OutputsSpec(c gs.Context) {
 			result = <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
 		})
+	})
+
+	c.Specify("Runner recovers from panic in output's `Run()` method", func() {
+		output := new(PanicOutput)
+		oRunner := NewFORunner("panic", output)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		oRunner.Start(oth.MockHelper, &wg) // no panic => success
+		wg.Wait()
 	})
 }

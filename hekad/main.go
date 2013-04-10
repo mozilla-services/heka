@@ -37,9 +37,11 @@ const (
 )
 
 func main() {
-	configFile := flag.String("config", "/etc/hekad.json", "Config file")
+	configFile := flag.String("config", "/etc/hekad.toml", "Config file")
 	maxprocs := flag.Int("maxprocs", 1, "Go runtime MAXPROCS value")
-	poolSize := flag.Int("poolsize", 1000, "Pipeline pool size")
+	poolSize := flag.Int("poolsize", 100, "Pipeline pool size")
+	decoderPoolSize := flag.Int("decoder_poolsize", 4, "Decoder pool size")
+	chanSize := flag.Int("plugin_chansize", 50, "Plugin input channel buffer size")
 	cpuProfName := flag.String("cpuprof", "", "Go CPU profiler output file")
 	memProfName := flag.String("memprof", "", "Go memory profiler output file")
 	version := flag.Bool("version", false, "Output version and exit")
@@ -73,7 +75,11 @@ func main() {
 	}
 
 	// Set up and load the pipeline configuration and start the daemon.
-	pipeconf := pipeline.NewPipelineConfig(*poolSize)
+	globals := pipeline.DefaultGlobals()
+	globals.PoolSize = *poolSize
+	globals.DecoderPoolSize = *decoderPoolSize
+	globals.PluginChanSize = *chanSize
+	pipeconf := pipeline.NewPipelineConfig(globals)
 	err := pipeconf.LoadFromConfigFile(*configFile)
 	if err != nil {
 		log.Fatal("Error reading config: ", err)

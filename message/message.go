@@ -36,6 +36,13 @@ const (
 	UUID_SIZE        = 16
 )
 
+type MessageSigningConfig struct {
+	Name    string `toml:"name"`
+	Hash    string `toml:"hmac_hash"`
+	Key     string `toml:"hmac_key"`
+	Version uint32 `toml:"version"`
+}
+
 func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
 	if h != nil {
 		if h.MessageEncoding == nil {
@@ -54,9 +61,42 @@ func (h *Header) SetMessageLength(v uint32) {
 	}
 }
 
+func (h *Header) SetHmacHashFunction(v Header_HmacHashFunction) {
+	if h != nil {
+		if h.HmacHashFunction == nil {
+			h.HmacHashFunction = new(Header_HmacHashFunction)
+		}
+		*h.HmacHashFunction = v
+	}
+}
+
+func (h *Header) SetHmacSigner(v string) {
+	if h != nil {
+		h.HmacSigner = &v
+	}
+}
+
+func (h *Header) SetHmacKeyVersion(v uint32) {
+	if h != nil {
+		if h.HmacKeyVersion == nil {
+			h.HmacKeyVersion = new(uint32)
+		}
+		*h.HmacKeyVersion = v
+	}
+}
+
+func (h *Header) SetHmac(v []byte) {
+	if h != nil {
+		if cap(h.Hmac) < len(v) {
+			h.Hmac = make([]byte, len(v))
+		}
+		copy(h.Hmac, v)
+	}
+}
+
 func (m *Message) SetUuid(v []byte) {
 	if m != nil {
-		if len(m.Uuid) != UUID_SIZE {
+		if cap(m.Uuid) != UUID_SIZE {
 			m.Uuid = make([]byte, UUID_SIZE)
 		}
 		copy(m.Uuid, v)
@@ -328,6 +368,33 @@ func (f *Field) AddValue(value interface{}) error {
 	return nil
 }
 
+// Helper function that returns the appropriate value object.
+func (f *Field) GetValue() (value interface{}) {
+	switch *f.ValueType {
+	case Field_STRING:
+		if len(f.ValueString) > 0 {
+			value = f.ValueString[0]
+		}
+	case Field_BYTES:
+		if len(f.ValueBytes) > 0 {
+			value = f.ValueBytes[0]
+		}
+	case Field_INTEGER:
+		if len(f.ValueInteger) > 0 {
+			value = f.ValueInteger[0]
+		}
+	case Field_DOUBLE:
+		if len(f.ValueDouble) > 0 {
+			value = f.ValueDouble[0]
+		}
+	case Field_BOOL:
+		if len(f.ValueBool) > 0 {
+			value = f.ValueBool[0]
+		}
+	}
+	return
+}
+
 // Field copy constructor
 func CopyField(src *Field) *Field {
 	if src == nil {
@@ -383,34 +450,7 @@ func (m *Message) GetFieldValue(name string) (value interface{}, ok bool) {
 	if f == nil {
 		return
 	}
-	switch *f.ValueType {
-	case Field_STRING:
-		if len(f.ValueString) > 0 {
-			value = f.ValueString[0]
-			ok = true
-		}
-	case Field_BYTES:
-		if len(f.ValueBytes) > 0 {
-			value = f.ValueBytes[0]
-			ok = true
-		}
-	case Field_INTEGER:
-		if len(f.ValueInteger) > 0 {
-			value = f.ValueInteger[0]
-			ok = true
-		}
-	case Field_DOUBLE:
-		if len(f.ValueDouble) > 0 {
-			value = f.ValueDouble[0]
-			ok = true
-		}
-	case Field_BOOL:
-		if len(f.ValueBool) > 0 {
-			value = f.ValueBool[0]
-			ok = true
-		}
-	}
-	return
+	return f.GetValue(), true
 }
 
 // FindAllFields finds and returns all the fields with the specified name

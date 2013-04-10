@@ -26,13 +26,15 @@ import (
 // Pushes the message onto the filters input channel if it is a match
 type MessageRouter struct {
 	InChan    chan *PipelinePack
+	MrChan    chan *MatchRunner
 	fMatchers []*MatchRunner
 	oMatchers []*MatchRunner
 }
 
 func NewMessageRouter() (router *MessageRouter) {
 	router = new(MessageRouter)
-	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	router.InChan = make(chan *PipelinePack, Globals().PluginChanSize)
+	router.MrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
@@ -41,26 +43,55 @@ func NewMessageRouter() (router *MessageRouter) {
 func (self *MessageRouter) Start() {
 	go func() {
 		var matcher *MatchRunner
-		var ok bool
+		var ok = true
 		var pack *PipelinePack
-		for {
+		for ok {
 			runtime.Gosched()
-			pack, ok = <-self.InChan
-			if !ok {
-				break
+			select {
+			case matcher = <-self.MrChan:
+				if matcher != nil {
+					removed := false
+					available := -1
+					for i, m := range self.fMatchers {
+						if m == nil {
+							available = i
+						}
+						if matcher == m {
+							close(m.inChan)
+							self.fMatchers[i] = nil
+							removed = true
+							break
+						}
+					}
+					if !removed {
+						if available != -1 {
+							self.fMatchers[available] = matcher
+						} else {
+							self.fMatchers = append(self.fMatchers, matcher)
+						}
+					}
+				}
+			case pack, ok = <-self.InChan:
+				if !ok {
+					break
+				}
+				for _, matcher = range self.fMatchers {
+					if matcher != nil {
+						atomic.AddInt32(&pack.RefCount, 1)
+						matcher.inChan <- pack
+					}
+				}
+				for _, matcher = range self.oMatchers {
+					atomic.AddInt32(&pack.RefCount, 1)
+					matcher.inChan <- pack
+				}
+				pack.Recycle()
 			}
-			for _, matcher = range self.fMatchers {
-				atomic.AddInt32(&pack.RefCount, 1)
-				matcher.inChan <- pack
-			}
-			for _, matcher = range self.oMatchers {
-				atomic.AddInt32(&pack.RefCount, 1)
-				matcher.inChan <- pack
-			}
-			pack.Recycle()
 		}
 		for _, matcher = range self.fMatchers {
-			close(matcher.inChan)
+			if matcher != nil {
+				close(matcher.inChan)
+			}
 		}
 		for _, matcher = range self.oMatchers {
 			close(matcher.inChan)
@@ -72,17 +103,19 @@ func (self *MessageRouter) Start() {
 
 type MatchRunner struct {
 	spec   *message.MatcherSpecification
+	signer string
 	inChan chan *PipelinePack
 }
 
-func NewMatchRunner(filter string) (matcher *MatchRunner, err error) {
+func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	var spec *message.MatcherSpecification
 	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
 		return
 	}
 	matcher = &MatchRunner{
 		spec:   spec,
-		inChan: make(chan *PipelinePack, PIPECHAN_BUFSIZE),
+		signer: signer,
+		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 	return
 }
@@ -103,6 +136,10 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 		}()
 
 		for pack := range mr.inChan {
+			if len(mr.signer) != 0 && mr.signer != pack.Signer {
+				pack.Recycle()
+				continue
+			}
 			match, captures := mr.spec.Match(pack.Message)
 			if match {
 				plc := &PipelineCapture{Pack: pack, Captures: captures}

@@ -18,15 +18,18 @@ import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
+	"crypto/hmac"
+	"crypto/md5"
+	"crypto/sha1"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
+	"hash"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -45,17 +48,22 @@ type InputRunner interface {
 
 type iRunner struct {
 	pRunnerBase
+	input  Input
 	inChan chan *PipelinePack
 }
 
-func NewInputRunner(name string, input Input) InputRunner {
-	iRunner := new(iRunner)
-	iRunner.name = name
-	iRunner.plugin = input.(Plugin)
-	return iRunner
+func NewInputRunner(name string, input Input) (
+	ir InputRunner) {
+	return &iRunner{
+		pRunnerBase: pRunnerBase{
+			name:   name,
+			plugin: input.(Plugin),
+		},
+		input: input,
+	}
 }
 func (ir *iRunner) Input() Input {
-	return ir.plugin.(Input)
+	return ir.input
 }
 
 func (ir *iRunner) InChan() chan *PipelinePack {
@@ -63,6 +71,7 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 }
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	ir.h = h
 	ir.inChan = h.PackSupply()
 	go func() {
 		defer func() {
@@ -107,7 +116,7 @@ type UdpInput struct {
 }
 
 type UdpInputConfig struct {
-	Address string
+	Address string `toml:"address"`
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {
@@ -145,9 +154,9 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	decoders := h.DecodersByEncoding()
-	decoder := decoders[Header_JSON] // TODO: Diff encodings over UDP
-	if decoder == nil {
+	dSet := h.DecoderSet()
+	decoder, ok := dSet.ByEncoding(Header_JSON) // TODO: Diff encodings over UDP
+	if !ok {
 		return fmt.Errorf("No JSON decoder found.")
 	}
 
@@ -168,10 +177,6 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	}
 
 	self.listener.Close()
-	for _, v := range decoders {
-		close(v.InChan())
-	}
-
 	return
 }
 
@@ -189,10 +194,16 @@ type TcpInput struct {
 	stopChan chan bool
 	ir       InputRunner
 	h        PluginHelper
+	config   *TcpInputConfig
+}
+
+type Signer struct {
+	HmacKey string `toml:"hmac_key"`
 }
 
 type TcpInputConfig struct {
 	Address string
+	Signers map[string]Signer `toml:"signer"`
 }
 
 func (self *TcpInput) ConfigStruct() interface{} {
@@ -245,18 +256,50 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
+func authenticateMessage(signers map[string]Signer, header *Header,
+	pack *PipelinePack) bool {
+	digest := header.GetHmac()
+	if digest != nil {
+		var key string
+		signer := fmt.Sprintf("%s_%d", header.GetHmacSigner(),
+			header.GetHmacKeyVersion())
+		if s, ok := signers[signer]; ok {
+			key = s.HmacKey
+		} else {
+			return false
+		}
+
+		var hm hash.Hash
+		switch header.GetHmacHashFunction() {
+		case Header_MD5:
+			hm = hmac.New(md5.New, []byte(key))
+		case Header_SHA1:
+			hm = hmac.New(sha1.New, []byte(key))
+		}
+		hm.Write(pack.MsgBytes)
+		expectedDigest := hm.Sum(nil)
+		if bytes.Compare(digest, expectedDigest) != 0 {
+			return false
+		}
+		pack.Signer = header.GetHmacSigner()
+	}
+	return true
+}
+
 func (self *TcpInput) handleConnection(conn net.Conn) {
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
 	header := &Header{}
-	var readPos, scanPos, posDelta int
-	var pack *PipelinePack
-	var msgOk bool
+	var (
+		readPos, scanPos, posDelta int
+		pack                       *PipelinePack
+		encoding                   Header_MessageEncoding
+		decoder                    DecoderRunner
+		ok, stopped                bool
+	)
 
 	packSupply := self.ir.InChan()
-	decoders := self.h.DecodersByEncoding()
-	var encoding Header_MessageEncoding
+	decoders := self.h.DecoderSet()
 
-	var stopped bool
 	for !stopped {
 		select {
 		case <-self.stopChan:
@@ -268,30 +311,33 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 				readPos += n
 				for { // consume all available records
 					pack = <-packSupply
-					posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
+					posDelta, ok = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
 					scanPos += posDelta
 
-					if header.MessageLength == nil {
-						// incomplete header, recycle the pack and bail
+					// Recycle pack and bail if incomplete header or incomplete message.
+					if header.MessageLength == nil ||
+						header.GetMessageLength() != uint32(len(pack.MsgBytes)) ||
+						!ok {
+
 						pack.Recycle()
 						break
 					}
 
-					if header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
-						// incomplete message, recycle the pack and bail
-						pack.Recycle()
-						break
-					}
-
-					if msgOk {
+					if authenticateMessage(self.config.Signers, header, pack) {
 						encoding = header.GetMessageEncoding()
-						decoders[encoding].InChan() <- pack
+						if decoder, ok = decoders.ByEncoding(encoding); ok {
+							decoder.InChan() <- pack
+						} else {
+							pack.Recycle()
+						}
+					} else {
+						pack.Recycle()
 					}
-
 					header.Reset()
 				}
 			}
 			if err != nil {
+				stopped = true
 				break
 			}
 			// make room at the end of the buffer
@@ -307,18 +353,14 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 			}
 		}
 	}
-
 	conn.Close()
-	for _, v := range decoders {
-		close(v.InChan())
-	}
 	self.wg.Done()
 }
 
 func (self *TcpInput) Init(config interface{}) error {
 	var err error
-	conf := config.(*TcpInputConfig)
-	self.listener, err = net.Listen("tcp", conf.Address)
+	self.config = config.(*TcpInputConfig)
+	self.listener, err = net.Listen("tcp", self.config.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
@@ -342,11 +384,10 @@ func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 				break
 			}
 		}
-
-		go self.handleConnection(conn)
 		self.wg.Add(1)
+		go self.handleConnection(conn)
 	}
-
+	self.wg.Wait()
 	return
 }
 
@@ -359,62 +400,57 @@ func (self *TcpInput) Stop() {
 var MessageGenerator = new(msgGenerator)
 
 type msgGenerator struct {
-	RouterChan  chan *messageHolder
+	RouterChan  chan *PipelinePack
 	OutputChan  chan outputMsg
-	RecycleChan chan *messageHolder
+	RecycleChan chan *PipelinePack
 	hostname    string
 	pid         int32
 }
 
 func (self *msgGenerator) Init() {
-	self.RouterChan = make(chan *messageHolder, PoolSize/2)
-	self.OutputChan = make(chan outputMsg, PoolSize/2)
-	self.RecycleChan = make(chan *messageHolder, PoolSize/2)
-	for i := 0; i < PoolSize/2; i++ {
-		msg := messageHolder{new(Message), 1}
-		self.RecycleChan <- &msg
+	poolSize := Globals().PoolSize
+	self.RouterChan = make(chan *PipelinePack, poolSize)
+	self.OutputChan = make(chan outputMsg, poolSize)
+	self.RecycleChan = make(chan *PipelinePack, poolSize)
+	for i := 0; i < poolSize; i++ {
+		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
 	}
 	self.hostname, _ = os.Hostname()
 	self.pid = int32(os.Getpid())
 }
 
 // Retrieve a message for use by the MessageGenerator.
-func (self *msgGenerator) Retrieve() (msg *messageHolder) {
-	msg = <-self.RecycleChan
-	msg.Message.SetTimestamp(time.Now().UnixNano())
-	msg.Message.SetUuid(uuid.NewRandom())
-	msg.Message.SetHostname(self.hostname)
-	msg.Message.SetPid(self.pid)
-	msg.RefCount = 1
-	return msg
+func (self *msgGenerator) Retrieve() (pack *PipelinePack) {
+	pack = <-self.RecycleChan
+	pack.Message.SetTimestamp(time.Now().UnixNano())
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetHostname(self.hostname)
+	pack.Message.SetPid(self.pid)
+	pack.RefCount = 1
+	return
 }
 
 // Injects a message using the MessageGenerator.
-func (self *msgGenerator) Inject(msg *messageHolder) {
-	self.RouterChan <- msg
+func (self *msgGenerator) Inject(pack *PipelinePack) {
+	self.RouterChan <- pack
 }
 
 // Sends a message directly to a specific output.
-func (self *msgGenerator) Output(name string, msg *messageHolder) {
-	outMsg := outputMsg{name, msg}
+func (self *msgGenerator) Output(name string, pack *PipelinePack) {
+	outMsg := outputMsg{name, pack}
 	self.OutputChan <- outMsg
 }
 
 // MessageGeneratorInput
 type MessageGeneratorInput struct {
-	routerChan  chan *messageHolder
+	routerChan  chan *PipelinePack
 	outputChan  chan outputMsg
-	recycleChan chan *messageHolder
-}
-
-type messageHolder struct {
-	Message  *Message
-	RefCount int32
+	recycleChan chan *PipelinePack
 }
 
 type outputMsg struct {
 	outputName string
-	msg        *messageHolder
+	pack       *PipelinePack
 }
 
 func (self *MessageGeneratorInput) Init(config interface{}) error {
@@ -427,41 +463,30 @@ func (self *MessageGeneratorInput) Init(config interface{}) error {
 
 func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
-	var msgHolder *messageHolder
 	var outMsg outputMsg
 	var output OutputRunner
-	var outChan chan *PipelinePack
 	ok := true
-	packSupply := ir.InChan()
+	outChan := h.Router().InChan
 
 	for ok {
 		output = nil
-		outChan = nil
-		pack = <-packSupply
 		select {
-		case msgHolder, ok = <-self.routerChan:
+		case pack, ok = <-self.routerChan:
 			// if !ok we'll fall through below
-			outChan = h.Router().InChan
 		case outMsg = <-self.outputChan:
-			msgHolder = outMsg.msg
+			pack = outMsg.pack
 			if output, ok = h.Output(outMsg.outputName); !ok {
 				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
 				ok = true // still deliver to the router; is this what we want?
-				outChan = h.Router().InChan
 			}
 		}
 
 		if ok {
-			msgHolder.Message.Copy(pack.Message)
 			pack.Decoded = true
 			if output != nil {
 				output.Deliver(pack)
 			} else {
 				outChan <- pack
-			}
-			cnt := atomic.AddInt32(&msgHolder.RefCount, -1)
-			if cnt == 0 {
-				self.recycleChan <- msgHolder
 			}
 		}
 	}
@@ -471,4 +496,14 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 
 func (self *MessageGeneratorInput) Stop() {
 	close(self.routerChan)
+}
+
+func (self *MessageGeneratorInput) ReportMsg(msg *Message) (err error) {
+	newIntField(msg, "OutputChanCapacity", cap(self.outputChan))
+	newIntField(msg, "OutputChanLength", len(self.outputChan))
+	newIntField(msg, "RouterChanCapacity", cap(self.routerChan))
+	newIntField(msg, "RouterChanLength", len(self.routerChan))
+	newIntField(msg, "RecycleChanCapacity", cap(self.recycleChan))
+	newIntField(msg, "RecycleChanLength", len(self.recycleChan))
+	return
 }

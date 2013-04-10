@@ -28,35 +28,25 @@ func (_m *MockPluginHelper) EXPECT() *_MockPluginHelperRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPluginHelper) Decoder(_param0 string) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "Decoder", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
+func (_m *MockPluginHelper) DecoderSet() DecoderSet {
+	ret := _m.ctrl.Call(_m, "DecoderSet")
+	ret0, _ := ret[0].(DecoderSet)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) DecoderSet() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecoderSet")
+}
+
+func (_m *MockPluginHelper) Filter(_param0 string) (FilterRunner, bool) {
+	ret := _m.ctrl.Call(_m, "Filter", _param0)
+	ret0, _ := ret[0].(FilterRunner)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-func (_mr *_MockPluginHelperRecorder) Decoder(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoder", arg0)
-}
-
-func (_m *MockPluginHelper) Decoders() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "Decoders")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) Decoders() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Decoders")
-}
-
-func (_m *MockPluginHelper) DecodersByEncoding() []DecoderRunner {
-	ret := _m.ctrl.Call(_m, "DecodersByEncoding")
-	ret0, _ := ret[0].([]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) DecodersByEncoding() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecodersByEncoding")
+func (_mr *_MockPluginHelperRecorder) Filter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Filter", arg0)
 }
 
 func (_m *MockPluginHelper) Output(_param0 string) (OutputRunner, bool) {
@@ -78,6 +68,16 @@ func (_m *MockPluginHelper) PackSupply() chan *PipelinePack {
 
 func (_mr *_MockPluginHelperRecorder) PackSupply() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PackSupply")
+}
+
+func (_m *MockPluginHelper) PipelineConfig() *PipelineConfig {
+	ret := _m.ctrl.Call(_m, "PipelineConfig")
+	ret0, _ := ret[0].(*PipelineConfig)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) PipelineConfig() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PipelineConfig")
 }
 
 func (_m *MockPluginHelper) Router() *MessageRouter {

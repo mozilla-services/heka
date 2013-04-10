@@ -1,22 +1,36 @@
-.. hekad documentation master file, created by
-   sphinx-quickstart on Mon Mar 25 09:50:16 2013.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+=====
+hekad
+=====
 
-Welcome to hekad's documentation!
-=================================
+.. start-description
+
+The hekad daemon is the core component of the heka project, which
+handles routing messages, generating metrics, aggregating statsd-type
+messages, running plugins on the messages, and sending messages to the
+configured destinations.
+
+.. end-description
+
+.. seealso::
+    `heka project`_
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
 
+   installing
+   configuration
+   sandbox/index
+   message_matcher.rst
+   developing/plugin
+
 
 
 Indices and tables
 ==================
 
-* :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
+* :ref:`glossary`
 
+.. _heka project: https://heka-docs.readthedocs.org
