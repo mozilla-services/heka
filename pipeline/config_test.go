@@ -22,11 +22,11 @@ import (
 
 func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
-		origPoolSize := PoolSize
+		origGlobals := Globals
 		origDecodersByEncoding := DecodersByEncoding
-		pipeConfig := NewPipelineConfig(1)
+		pipeConfig := NewPipelineConfig(nil)
 		defer func() {
-			PoolSize = origPoolSize
+			Globals = origGlobals
 			DecodersByEncoding = origDecodersByEncoding
 		}()
 
@@ -53,7 +53,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(dRunner.Name(), gs.Equals, "ProtobufDecoder")
 
 			// decoders channel is full
-			c.Expect(len(pipeConfig.decodersChan), gs.Equals, pipeConfig.DecoderSetPoolSize)
+			c.Expect(len(pipeConfig.decodersChan), gs.Equals, Globals().DecoderPoolSize)
 
 			// and the inputs section loads properly with a custom name
 			_, ok = pipeConfig.InputRunners["UdpInput"]

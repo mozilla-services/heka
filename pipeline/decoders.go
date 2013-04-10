@@ -113,6 +113,7 @@ func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	return &dRunner{
 		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
 		uuid:        uuid.NewRandom().String(),
+		inChan:      make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 }
 
@@ -121,7 +122,6 @@ func (dr *dRunner) Decoder() Decoder {
 }
 
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
-	dr.inChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
 	go func() {
 		var pack *PipelinePack
 
@@ -131,7 +131,7 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 				if pack != nil {
 					pack.Recycle()
 				}
-				if Stopping {
+				if Globals().Stopping {
 					wg.Done()
 				} else {
 					dr.Start(h, wg)

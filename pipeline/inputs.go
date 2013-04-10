@@ -409,10 +409,11 @@ type msgGenerator struct {
 }
 
 func (self *msgGenerator) Init() {
-	self.RouterChan = make(chan *PipelinePack, PoolSize)
-	self.OutputChan = make(chan outputMsg, PoolSize)
-	self.RecycleChan = make(chan *PipelinePack, PoolSize)
-	for i := 0; i < PoolSize; i++ {
+	poolSize := Globals().PoolSize
+	self.RouterChan = make(chan *PipelinePack, poolSize)
+	self.OutputChan = make(chan outputMsg, poolSize)
+	self.RecycleChan = make(chan *PipelinePack, poolSize)
+	for i := 0; i < poolSize; i++ {
 		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
 	}
 	self.hostname, _ = os.Hostname()
