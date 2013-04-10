@@ -33,7 +33,7 @@ type MessageRouter struct {
 
 func NewMessageRouter() (router *MessageRouter) {
 	router = new(MessageRouter)
-	router.InChan = make(chan *PipelinePack, PIPECHAN_BUFSIZE)
+	router.InChan = make(chan *PipelinePack, Globals().PluginChanSize)
 	router.MrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
@@ -115,7 +115,7 @@ func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	matcher = &MatchRunner{
 		spec:   spec,
 		signer: signer,
-		inChan: make(chan *PipelinePack, PIPECHAN_BUFSIZE),
+		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 	return
 }

@@ -72,7 +72,7 @@ func InputsSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
 	ith.Pack = NewPipelinePack(config.RecycleChan)

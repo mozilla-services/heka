@@ -43,6 +43,14 @@ func ReportSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	origGlobals := Globals
+	Globals = func() *GlobalConfigStruct {
+		return DefaultGlobals()
+	}
+	defer func() {
+		Globals = origGlobals
+	}()
+
 	checkForFields := func(c gs.Context, msg *message.Message) {
 		f0Val, ok := msg.GetFieldValue(f0.GetName())
 		c.Expect(ok, gs.IsTrue)
@@ -59,7 +67,7 @@ func ReportSpec(c gs.Context) {
 		if i, ok = capVal.(int64); !ok {
 			return
 		}
-		if ok = (i == int64(PIPECHAN_BUFSIZE)); !ok {
+		if ok = (i == int64(Globals().PluginChanSize)); !ok {
 			return
 		}
 		if i, ok = lenVal.(int64); !ok {
@@ -113,7 +121,7 @@ func ReportSpec(c gs.Context) {
 	})
 
 	c.Specify("PipelineConfig", func() {
-		pc := NewPipelineConfig(10)
+		pc := NewPipelineConfig(nil)
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
 		pc.DecoderSets = nil
@@ -146,7 +154,7 @@ func ReportSpec(c gs.Context) {
 			c.Expect(recycleReport, gs.Not(gs.IsNil))
 			capVal, ok := recycleReport.Message.GetFieldValue("InChanCapacity")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(capVal.(int64), gs.Equals, int64(PoolSize+1))
+			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
 
 			routerReport := reports["Router"]
 			c.Expect(routerReport, gs.Not(gs.IsNil))

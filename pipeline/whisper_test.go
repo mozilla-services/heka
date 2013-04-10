@@ -92,7 +92,7 @@ func WhisperOutputSpec(c gospec.Context) {
 	oth.MockHelper = NewMockPluginHelper(ctrl)
 	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
 	inChan := make(chan *PipelineCapture, 1)
-	pConfig := NewPipelineConfig(1)
+	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
