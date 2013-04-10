@@ -5,8 +5,8 @@ sources, performing "in-flight" processing of collected data, and delivering
 the results to any number of destinations for further analysis.
 
 More details can be found on the ReadTheDocs sites for the [Heka
-project](https://heka-docs.readthedocs.org/) and for the [Heka
-daemon](https://hekad.readthedocs.org/).
+project](http://heka-docs.readthedocs.org/) and for the [Heka
+daemon](http://hekad.readthedocs.org/).
 
 Heka is written in [Go](http://golang.org/). The easiest way to install Heka
 is using [Heka-Build](https://github.com/mozilla-services/heka-build), which
