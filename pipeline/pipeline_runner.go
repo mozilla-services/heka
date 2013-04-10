@@ -32,27 +32,55 @@ const (
 	// Control channel event types used by go-notify
 	RELOAD = "reload"
 	STOP   = "stop"
-
-	// buffer size for plugin channels
-	PIPECHAN_BUFSIZE = 500
 )
 
-var (
-	PoolSize int
-	Stopping bool
-)
+// Struct for holding global pipeline config values.
+type GlobalConfigStruct struct {
+	PoolSize        int
+	DecoderPoolSize int
+	PluginChanSize  int
+	Stopping        bool
+}
+
+// Creates a GlobalConfigStruct object populated w/ default values.
+func DefaultGlobals() (globals *GlobalConfigStruct) {
+	return &GlobalConfigStruct{
+		PoolSize:        100,
+		DecoderPoolSize: 4,
+		PluginChanSize:  50,
+	}
+}
+
+// Returns global pipeline config values. This function is overwritten by the
+// `pipeline.NewPipelineConfig` function. Globals are generally A Bad Idea, so
+// we're at least using a function instead of a struct for global state to
+// make it easier to change the underlying implementation.
+var Globals func() *GlobalConfigStruct
 
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
+	// Receives either PluginConfig or custom config struct, populated from
+	// the TOML config, and uses that data to initialize the plugin.
 	Init(config interface{}) error
 }
 
 // Base interface for the Heka plugin runners.
 type PluginRunner interface {
+	// Plugin name.
 	Name() string
+
+	// Plugin name mutator.
 	SetName(name string)
+
+	// Underlying plugin object.
 	Plugin() Plugin
+
+	// Plugins should call `LogError` on their runner to log error messages
+	// rather than doing logging directly.
 	LogError(err error)
+
+	// Plugins should call `LogMessage` on their runner to write to the log
+	// rather than doing so directly.
 	LogMessage(msg string)
 }
 
@@ -85,7 +113,7 @@ type foRunner struct {
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
-	runner.inChan = make(chan *PipelineCapture, PIPECHAN_BUFSIZE)
+	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
 	return
 }
 
@@ -231,7 +259,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// Initialize all of the PipelinePacks that we'll need
-	for i := 0; i < config.PoolSize; i++ {
+	for i := 0; i < Globals().PoolSize; i++ {
 		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
 	}
 
@@ -254,7 +282,8 @@ func Run(config *PipelineConfig) {
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	for !Stopping {
+	globals := Globals()
+	for !globals.Stopping {
 		select {
 		case sig := <-sigChan:
 			switch sig {
@@ -265,7 +294,7 @@ func Run(config *PipelineConfig) {
 				}
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
-				Stopping = true
+				globals.Stopping = true
 			case syscall.SIGUSR1:
 				log.Println("Queue report initiated.")
 				go config.allReportsMsg()

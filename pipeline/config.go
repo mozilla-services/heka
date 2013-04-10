@@ -58,37 +58,40 @@ type HasConfigStruct interface {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	InputRunners       map[string]InputRunner
-	DecoderWrappers    map[string]*PluginWrapper
-	DecoderSets        []DecoderSet
-	FilterRunners      map[string]FilterRunner
-	OutputRunners      map[string]OutputRunner
-	PoolSize           int
-	DecoderSetPoolSize int
-	router             *MessageRouter
-	RecycleChan        chan *PipelinePack
-	logMsgs            []string
-	filtersLock        sync.Mutex
-	filtersWg          sync.WaitGroup
-	decodersWg         sync.WaitGroup
-	decodersChan       chan DecoderSet
+	InputRunners    map[string]InputRunner
+	DecoderWrappers map[string]*PluginWrapper
+	DecoderSets     []DecoderSet
+	FilterRunners   map[string]FilterRunner
+	OutputRunners   map[string]OutputRunner
+	router          *MessageRouter
+	RecycleChan     chan *PipelinePack
+	logMsgs         []string
+	filtersLock     sync.Mutex
+	filtersWg       sync.WaitGroup
+	decodersWg      sync.WaitGroup
+	decodersChan    chan DecoderSet
 }
 
-// Creates and initializes a PipelineConfig object.
-func NewPipelineConfig(poolSize int) (config *PipelineConfig) {
-	PoolSize = poolSize
+// Creates and initializes a PipelineConfig object. `nil` value for `globals`
+// argument means we should use the default global config values.
+func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config = new(PipelineConfig)
-	config.PoolSize = poolSize
-	config.DecoderSetPoolSize = 10 // should come from config file
+	if globals == nil {
+		globals = DefaultGlobals()
+	}
+	// Replace global `Globals` function w/ one that returns our values.
+	Globals = func() *GlobalConfigStruct {
+		return globals
+	}
 	config.InputRunners = make(map[string]InputRunner)
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
-	config.DecoderSets = make([]DecoderSet, config.DecoderSetPoolSize)
+	config.DecoderSets = make([]DecoderSet, globals.DecoderPoolSize)
 	config.FilterRunners = make(map[string]FilterRunner)
 	config.OutputRunners = make(map[string]OutputRunner)
 	config.router = NewMessageRouter()
-	config.RecycleChan = make(chan *PipelinePack, poolSize+1)
+	config.RecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.logMsgs = make([]string, 0, 4)
-	config.decodersChan = make(chan DecoderSet, config.DecoderSetPoolSize)
+	config.decodersChan = make(chan DecoderSet, globals.DecoderPoolSize)
 	return config
 }
 
@@ -435,7 +438,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 	// Create / prep the DecoderSet pool
 	var dRunner DecoderRunner
-	for i := 0; i < self.DecoderSetPoolSize; i++ {
+	for i := 0; i < Globals().DecoderPoolSize; i++ {
 		if self.DecoderSets[i], err = newDecoderSet(dWrappers); err != nil {
 			log.Println(err)
 			errcnt += 1

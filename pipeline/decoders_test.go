@@ -45,7 +45,7 @@ func (d *MockDecoder) Init(config interface{}) (err error) {
 
 func DecodersSpec(c gospec.Context) {
 	msg := getTestMessage()
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 
 	c.Specify("A JsonDecoder", func() {
 		var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
@@ -159,11 +159,11 @@ func DecodersSpec(c gospec.Context) {
 		pack := NewPipelinePack(config.RecycleChan)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		Stopping = true
+		Globals().Stopping = true
 		dRunner.Start(config, &wg)
 		dRunner.InChan() <- pack // No panic ==> success
 		wg.Wait()
-		Stopping = false
+		Globals().Stopping = false
 	})
 }
 
@@ -178,7 +178,7 @@ func BenchmarkDecodeJSON(b *testing.B) {
 		timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 	pipelinePack := NewPipelinePack(config.RecycleChan)
 	pipelinePack.MsgBytes = []byte(jsonString)
 	jsonDecoder := new(JsonDecoder)
@@ -200,7 +200,7 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
 	msg := getTestMessage()
 	encoded, _ := proto.Marshal(msg)
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 	pack := NewPipelinePack(config.RecycleChan)
 	decoder := new(ProtobufDecoder)
 	pack.MsgBytes = encoded
