@@ -28,6 +28,16 @@ func (_m *MockPluginHelper) EXPECT() *_MockPluginHelperRecorder {
 	return _m.recorder
 }
 
+func (_m *MockPluginHelper) DecoderSet() DecoderSet {
+	ret := _m.ctrl.Call(_m, "DecoderSet")
+	ret0, _ := ret[0].(DecoderSet)
+	return ret0
+}
+
+func (_mr *_MockPluginHelperRecorder) DecoderSet() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DecoderSet")
+}
+
 func (_m *MockPluginHelper) Filter(_param0 string) (FilterRunner, bool) {
 	ret := _m.ctrl.Call(_m, "Filter", _param0)
 	ret0, _ := ret[0].(FilterRunner)

@@ -12,6 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
@@ -59,7 +60,7 @@ func OutputsSpec(c gs.Context) {
 	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
 	inChan := make(chan *PipelineCapture, 1)
-	pConfig := NewPipelineConfig(1)
+	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)

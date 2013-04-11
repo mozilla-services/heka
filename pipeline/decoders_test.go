@@ -12,15 +12,13 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package pipeline
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/gospec/src/gospec"
 	"sync"
@@ -44,103 +42,9 @@ func (d *MockDecoder) Init(config interface{}) (err error) {
 	return
 }
 
-func DecoderMgrSpec(c gospec.Context) {
-	t := &ts.SimpleT{}
-	ctrl := gomock.NewController(t)
-	origPoolSize := PoolSize
-	origDecodersByEncoding := DecodersByEncoding
-	origTopHeaderMessageEncoding := topHeaderMessageEncoding
-	defer func() {
-		PoolSize = origPoolSize
-		DecodersByEncoding = origDecodersByEncoding
-		topHeaderMessageEncoding = origTopHeaderMessageEncoding
-		ctrl.Finish()
-	}()
-
-	fakeDecoderWrappers := func(count int) (wrappers map[string]*PluginWrapper) {
-		wrappers = make(map[string]*PluginWrapper)
-		var w *PluginWrapper
-		for i := 0; i < count; i++ {
-			w = &PluginWrapper{
-				name: fmt.Sprintf("mock%d", i),
-			}
-
-			w.configCreator = func() interface{} {
-				return nil
-			}
-
-			w.pluginCreator = func() interface{} {
-				return NewMockDecoder(ctrl)
-			}
-
-			wrappers[w.name] = w
-			DecodersByEncoding[message.Header_MessageEncoding(i)] = w.name
-		}
-		topHeaderMessageEncoding = message.Header_MessageEncoding(count - 1)
-		return
-	}
-
-	c.Specify("decoderManager instances", func() {
-
-		config := NewPipelineConfig(10)
-		count := 5
-		wrappers := fakeDecoderWrappers(count)
-		config.DecoderWrappers = wrappers
-		name := "test"
-		dm := newDecoderManager(config, name)
-		c.Assume(len(dm.decoders), gs.Equals, 0)
-		defer config.decodersWg.Wait()
-
-		c.Specify("add decoders to the registry when NewDecoders is called", func() {
-			decoders := dm.NewDecoders()
-			defer func() {
-				for _, d := range decoders {
-					close(d.InChan())
-				}
-			}()
-			c.Expect(len(decoders), gs.Equals, count)
-			c.Expect(len(dm.decoders), gs.Equals, count)
-		})
-
-		c.Specify("when NewDecodersByEncoding is called", func() {
-			decoders := dm.NewDecodersByEncoding()
-			defer func() {
-				for _, d := range decoders {
-					close(d.InChan())
-				}
-			}()
-			c.Expect(len(decoders), gs.Equals, count)
-
-			c.Specify("adds decoders to the registry", func() {
-				for i := 0; i < count; i++ {
-					dRunner := decoders[message.Header_MessageEncoding(i)]
-					nameStarts := fmt.Sprintf("%s-%s%d", name, "mock", i)
-					c.Expect(dRunner.Name()[:len(nameStarts)], gs.Equals, nameStarts)
-				}
-			})
-
-			c.Specify("reuses stopped decoders", func() {
-				for _, d := range decoders {
-					close(d.InChan())
-				}
-				config.decodersWg.Wait()
-				c.Expect(len(dm.stopped), gs.Equals, count)
-				decoders2 := dm.NewDecodersByEncoding()
-				c.Expect(len(decoders2), gs.Equals, count)
-				c.Expect(len(dm.decoders), gs.Equals, count)
-				c.Expect(len(dm.stopped), gs.Equals, 0)
-				for _, d := range decoders {
-					_, ok := dm.decoders[d.UUID()]
-					c.Expect(ok, gs.IsTrue)
-				}
-			})
-		})
-	})
-}
-
 func DecodersSpec(c gospec.Context) {
 	msg := getTestMessage()
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 
 	c.Specify("A JsonDecoder", func() {
 		encoded, err := json.Marshal(msg)
@@ -192,15 +96,15 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("Recovers from a panic in `Decode()`", func() {
 		decoder := new(PanicDecoder)
-		dRunner := NewDecoderRunner("panic", decoder, nil)
+		dRunner := NewDecoderRunner("panic", decoder)
 		pack := NewPipelinePack(config.RecycleChan)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		Stopping = true
+		Globals().Stopping = true
 		dRunner.Start(config, &wg)
 		dRunner.InChan() <- pack // No panic ==> success
 		wg.Wait()
-		Stopping = false
+		Globals().Stopping = false
 	})
 }
 
@@ -215,7 +119,7 @@ func BenchmarkDecodeJSON(b *testing.B) {
 		timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
 		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
 
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 	pipelinePack := NewPipelinePack(config.RecycleChan)
 	pipelinePack.MsgBytes = []byte(jsonString)
 	jsonDecoder := new(JsonDecoder)
@@ -237,7 +141,7 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
 	msg := getTestMessage()
 	encoded, _ := proto.Marshal(msg)
-	config := NewPipelineConfig(1)
+	config := NewPipelineConfig(nil)
 	pack := NewPipelinePack(config.RecycleChan)
 	decoder := new(ProtobufDecoder)
 	pack.MsgBytes = encoded

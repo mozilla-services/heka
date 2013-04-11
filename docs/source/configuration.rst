@@ -108,8 +108,20 @@ Command Line Options
     Enable memory profiling; output is logged to the `output_file`.
 
 ``-poolsize`` `int`
-    Toggle the pool size of maximum messages that can exist; default is 1000
-    which is usually sufficient and performs optimally.
+    Specify the pool size of maximum messages that can exist; default is 100
+    which is usually sufficient and of optimal performance.
+
+``-decoder_poolsize`` `int`
+    Specify the number of decoder sets to spin up for use converting input
+    data to Heka's Message objects. Default is 4, optimal value is variable,
+    depending on number of total running plugins, number of expected
+    concurrent connections, amount of expected traffic, and number of
+    available cores on the host.
+
+``-plugin_chansize`` `int`
+    Specify the buffer size for the input channel for the various Heka
+    plugins. Defaults to 50, which is usually sufficient and of optimal
+    performance.
 
 .. end-options
 

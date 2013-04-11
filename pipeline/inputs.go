@@ -44,28 +44,24 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
-	DecoderSource() (dSource DecoderSource)
 }
 
 type iRunner struct {
 	pRunnerBase
-	input   Input
-	inChan  chan *PipelinePack
-	dSource DecoderSource
+	input  Input
+	inChan chan *PipelinePack
 }
 
-func NewInputRunner(name string, input Input, dSource DecoderSource) (
+func NewInputRunner(name string, input Input) (
 	ir InputRunner) {
 	return &iRunner{
 		pRunnerBase: pRunnerBase{
 			name:   name,
 			plugin: input.(Plugin),
 		},
-		input:   input,
-		dSource: dSource,
+		input: input,
 	}
 }
-
 func (ir *iRunner) Input() Input {
 	return ir.input
 }
@@ -96,10 +92,6 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		}
 	}()
 	return
-}
-
-func (ir *iRunner) DecoderSource() (dSource DecoderSource) {
-	return ir.dSource
 }
 
 func (ir *iRunner) LogError(err error) {
@@ -166,13 +158,12 @@ func (self *UdpInput) Init(config interface{}) error {
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
-	var msgOk bool
-	decoders := ir.DecoderSource().NewDecodersByEncoding()
-	var encoding Header_MessageEncoding
+	decoders := h.DecoderSet()
 
 	var e error
 	var n int
 	var pack *PipelinePack
+	var msgOk bool
 	for !self.stopped {
 		pack = <-ir.InChan()
 		if n, e = self.listener.Read(buf); e != nil {
@@ -185,8 +176,12 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
 		if msgOk {
 			if authenticateMessage(self.config.Signers, header, pack) {
-				encoding = header.GetMessageEncoding()
-				decoders[encoding].InChan() <- pack
+				encoding := header.GetMessageEncoding()
+				if decoder, ok := decoders.ByEncoding(encoding); ok {
+					decoder.InChan() <- pack
+				} else {
+					pack.Recycle()
+				}
 			} else {
 				pack.Recycle()
 			}
@@ -197,10 +192,6 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	}
 
 	self.listener.Close()
-	for _, v := range decoders {
-		close(v.InChan())
-	}
-
 	return
 }
 
@@ -312,15 +303,17 @@ func authenticateMessage(signers map[string]Signer, header *Header,
 func (self *TcpInput) handleConnection(conn net.Conn) {
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
-	var readPos, scanPos, posDelta int
-	var pack *PipelinePack
-	var msgOk bool
+	var (
+		readPos, scanPos, posDelta int
+		pack                       *PipelinePack
+		encoding                   Header_MessageEncoding
+		decoder                    DecoderRunner
+		ok, stopped                bool
+	)
 
 	packSupply := self.ir.InChan()
-	decoders := self.ir.DecoderSource().NewDecodersByEncoding()
-	var encoding Header_MessageEncoding
+	decoders := self.h.DecoderSet()
 
-	var stopped bool
 	for !stopped {
 		select {
 		case <-self.stopChan:
@@ -332,28 +325,27 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 				readPos += n
 				for { // consume all available records
 					pack = <-packSupply
-					posDelta, msgOk = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
+					posDelta, ok = findMessage(buf[scanPos:readPos], header, &(pack.MsgBytes))
 					scanPos += posDelta
 
-					if header.MessageLength == nil {
-						// incomplete header, recycle the pack and bail
+					// Recycle pack and bail if incomplete header or incomplete message.
+					if header.MessageLength == nil ||
+						header.GetMessageLength() != uint32(len(pack.MsgBytes)) ||
+						!ok {
+
 						pack.Recycle()
 						break
 					}
 
-					if header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
-						// incomplete message, recycle the pack and bail
-						pack.Recycle()
-						break
-					}
-
-					if msgOk {
-						if authenticateMessage(self.config.Signers, header, pack) {
-							encoding = header.GetMessageEncoding()
-							decoders[encoding].InChan() <- pack
+					if authenticateMessage(self.config.Signers, header, pack) {
+						encoding = header.GetMessageEncoding()
+						if decoder, ok = decoders.ByEncoding(encoding); ok {
+							decoder.InChan() <- pack
 						} else {
 							pack.Recycle()
 						}
+					} else {
+						pack.Recycle()
 					}
 					header.Reset()
 				}
@@ -376,9 +368,6 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 		}
 	}
 	conn.Close()
-	for _, v := range decoders {
-		close(v.InChan())
-	}
 	self.wg.Done()
 }
 
@@ -433,10 +422,11 @@ type msgGenerator struct {
 }
 
 func (self *msgGenerator) Init() {
-	self.RouterChan = make(chan *PipelinePack, PoolSize)
-	self.OutputChan = make(chan outputMsg, PoolSize)
-	self.RecycleChan = make(chan *PipelinePack, PoolSize)
-	for i := 0; i < PoolSize; i++ {
+	poolSize := Globals().PoolSize
+	self.RouterChan = make(chan *PipelinePack, poolSize)
+	self.OutputChan = make(chan outputMsg, poolSize)
+	self.RecycleChan = make(chan *PipelinePack, poolSize)
+	for i := 0; i < poolSize; i++ {
 		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
 	}
 	self.hostname, _ = os.Hostname()

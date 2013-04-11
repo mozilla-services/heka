@@ -13,17 +13,17 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline PluginRunner
 
-# pipeline.DecoderSource
-$GOPATH/bin/mockgen -package=pipeline \
-                    -destination=pipeline/mock_decodersource_test.go \
-                    -self_package=github.com/mozilla-services/heka/pipeline \
-                    github.com/mozilla-services/heka/pipeline DecoderSource
-
 # pipeline.Decoder
 $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_decoder_test.go \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline Decoder
+
+# pipeline.DecoderSet
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_decoderset_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline DecoderSet
 
 # pipeline.DecoderRunner
 $GOPATH/bin/mockgen -package=pipeline \

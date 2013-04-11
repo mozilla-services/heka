@@ -43,6 +43,14 @@ func ReportSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	origGlobals := Globals
+	Globals = func() *GlobalConfigStruct {
+		return DefaultGlobals()
+	}
+	defer func() {
+		Globals = origGlobals
+	}()
+
 	checkForFields := func(c gs.Context, msg *message.Message) {
 		f0Val, ok := msg.GetFieldValue(f0.GetName())
 		c.Expect(ok, gs.IsTrue)
@@ -59,7 +67,7 @@ func ReportSpec(c gs.Context) {
 		if i, ok = capVal.(int64); !ok {
 			return
 		}
-		if ok = (i == int64(PIPECHAN_BUFSIZE)); !ok {
+		if ok = (i == int64(Globals().PluginChanSize)); !ok {
 			return
 		}
 		if i, ok = lenVal.(int64); !ok {
@@ -75,8 +83,7 @@ func ReportSpec(c gs.Context) {
 
 	iName := "udp"
 	input := new(UdpInput)
-	mockDSource := NewMockDecoderSource(ctrl)
-	iRunner := NewInputRunner(iName, input, mockDSource)
+	iRunner := NewInputRunner(iName, input)
 
 	c.Specify("`PopulateReportMsg`", func() {
 		msg := getTestMessage()
@@ -114,14 +121,25 @@ func ReportSpec(c gs.Context) {
 	})
 
 	c.Specify("PipelineConfig", func() {
-		pc := NewPipelineConfig(10)
+		pc := NewPipelineConfig(nil)
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
+		pc.DecoderSets = nil
 
 		c.Specify("returns full set of accurate reports", func() {
 			MessageGenerator.Init()
-			mockDSource.EXPECT().RunningDecoders().Return(nil)
-			reports := pc.reports()
+			reportChan := make(chan *PipelinePack)
+			go pc.reports(reportChan)
+
+			reports := make(map[string]*PipelinePack)
+			for r := range reportChan {
+				iName, ok := r.Message.GetFieldValue("name")
+				c.Expect(ok, gs.IsTrue)
+				name, ok := iName.(string)
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(name, gs.Not(gs.Equals), "MISSING")
+				reports[name] = r
+			}
 
 			fReport := reports[fName]
 			c.Expect(fReport, gs.Not(gs.IsNil))
@@ -136,7 +154,7 @@ func ReportSpec(c gs.Context) {
 			c.Expect(recycleReport, gs.Not(gs.IsNil))
 			capVal, ok := recycleReport.Message.GetFieldValue("InChanCapacity")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(capVal.(int64), gs.Equals, int64(PoolSize+1))
+			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
 
 			routerReport := reports["Router"]
 			c.Expect(routerReport, gs.Not(gs.IsNil))
