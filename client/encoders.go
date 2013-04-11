@@ -27,6 +27,7 @@ import (
 
 type Encoder interface {
 	EncodeMessage(msg *message.Message) ([]byte, error)
+	Encoding() message.Header_MessageEncoding
 }
 
 type JsonEncoder struct {
@@ -36,42 +37,22 @@ type ProtobufEncoder struct {
 }
 
 func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	result, err := json.Marshal(msg)
-	return result, err
+	return json.Marshal(msg)
+}
+
+func (self *JsonEncoder) Encoding() message.Header_MessageEncoding {
+	return message.Header_JSON
 }
 
 func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	result, err := proto.Marshal(msg)
-	return result, err
+	return proto.Marshal(msg)
 }
 
-func EncodeStreamHeader(messageSize int,
-	encoding message.Header_MessageEncoding,
-	headerBytes *[]byte) error {
-	h := &message.Header{}
-	h.SetMessageLength(uint32(messageSize))
-	if encoding != message.Default_Header_MessageEncoding {
-		h.SetMessageEncoding(encoding)
-	}
-	headerSize := uint8(proto.Size(h))
-	requiredSize := int(3 + headerSize)
-	if cap(*headerBytes) < requiredSize {
-		*headerBytes = make([]byte, requiredSize)
-	} else {
-		*headerBytes = (*headerBytes)[:requiredSize]
-	}
-	(*headerBytes)[0] = message.RECORD_SEPARATOR
-	(*headerBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*headerBytes)[2:2])
-	err := pbuf.Marshal(h)
-	if err != nil {
-		return err
-	}
-	(*headerBytes)[headerSize+2] = message.UNIT_SEPARATOR
-	return nil
+func (self *ProtobufEncoder) Encoding() message.Header_MessageEncoding {
+	return message.Header_PROTOCOL_BUFFER
 }
 
-func EncodeSignedStreamHeader(msgBytes []byte,
+func EncodeStreamHeader(msgBytes []byte,
 	encoding message.Header_MessageEncoding,
 	headerBytes *[]byte, msc *message.MessageSigningConfig) error {
 	h := &message.Header{}
@@ -79,19 +60,21 @@ func EncodeSignedStreamHeader(msgBytes []byte,
 	if encoding != message.Default_Header_MessageEncoding {
 		h.SetMessageEncoding(encoding)
 	}
-	h.SetHmacSigner(msc.Name)
-	h.SetHmacKeyVersion(msc.Version)
-	var hm hash.Hash
-	switch msc.Hash {
-	case "sha1":
-		hm = hmac.New(sha1.New, []byte(msc.Key))
-		h.SetHmacHashFunction(message.Header_SHA1)
-	default:
-		hm = hmac.New(md5.New, []byte(msc.Key))
-	}
+	if msc != nil {
+		h.SetHmacSigner(msc.Name)
+		h.SetHmacKeyVersion(msc.Version)
+		var hm hash.Hash
+		switch msc.Hash {
+		case "sha1":
+			hm = hmac.New(sha1.New, []byte(msc.Key))
+			h.SetHmacHashFunction(message.Header_SHA1)
+		default:
+			hm = hmac.New(md5.New, []byte(msc.Key))
+		}
 
-	hm.Write(msgBytes)
-	h.SetHmac(hm.Sum(nil))
+		hm.Write(msgBytes)
+		h.SetHmac(hm.Sum(nil))
+	}
 	headerSize := uint8(proto.Size(h))
 	requiredSize := int(3 + headerSize)
 	if cap(*headerBytes) < requiredSize {

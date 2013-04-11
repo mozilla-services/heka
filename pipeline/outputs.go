@@ -92,8 +92,11 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // byte slice.
 func createProtobufStream(pack *PipelinePack, outBytes *[]byte) (err error) {
 	messageSize := proto.Size(pack.Message)
-	if err = client.EncodeStreamHeader(messageSize, message.Header_PROTOCOL_BUFFER,
-		outBytes); err != nil {
+	pack.MsgBytes = pack.MsgBytes[0:messageSize] // buffer is not actually used
+	// since it is not signed but it has to be the correct length for the header
+	if err = client.EncodeStreamHeader(pack.MsgBytes,
+		message.Header_PROTOCOL_BUFFER,
+		outBytes, nil); err != nil {
 		return
 	}
 	headerSize := len(*outBytes)

@@ -22,12 +22,14 @@ import (
 )
 
 type Sender interface {
-	SendMessage(msgBytes []byte) error
-	SendSignedMessage(msgBytes []byte, msc *message.MessageSigningConfig) error
+	SendMessage(msgBytes []byte, encoding message.Header_MessageEncoding,
+		msc *message.MessageSigningConfig) error
 }
 
 type UdpSender struct {
-	connection *net.UDPConn
+	connection  *net.UDPConn
+	buf         []byte
+	protoBuffer *proto.Buffer
 }
 
 func NewUdpSender(addrStr string) (*UdpSender, error) {
@@ -35,21 +37,24 @@ func NewUdpSender(addrStr string) (*UdpSender, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err == nil {
-		self = &(UdpSender{conn})
+		self = &(UdpSender{connection: conn})
+		self.buf = make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
+		self.protoBuffer = proto.NewBuffer(self.buf)
 	} else {
 		self = nil
 	}
 	return self, err
 }
 
-func (self *UdpSender) SendMessage(msgBytes []byte) (err error) {
-	_, err = self.connection.Write(msgBytes)
-	return
-}
-
-func (self *UdpSender) SendSignedMessage(msgBytes []byte,
+func (self *UdpSender) SendMessage(msgBytes []byte,
+	encoding message.Header_MessageEncoding,
 	msc *message.MessageSigningConfig) (err error) {
-	_, err = self.connection.Write(msgBytes)
+	err = EncodeStreamHeader(msgBytes, encoding, &self.buf, msc)
+	if err != nil {
+		return
+	}
+	self.buf = append(self.buf, msgBytes...)
+	_, err = self.connection.Write(self.buf)
 	return
 }
 
@@ -69,23 +74,10 @@ func NewTcpSender(addrStr string) (n *TcpSender, err error) {
 	return
 }
 
-func (t *TcpSender) SendMessage(msgBytes []byte) (err error) {
-	err = EncodeStreamHeader(len(msgBytes),
-		message.Header_PROTOCOL_BUFFER, &t.header)
-	if err != nil {
-		return
-	}
-	_, err = t.connection.Write(t.header)
-	if err == nil {
-		_, err = t.connection.Write(msgBytes)
-	}
-	return
-}
-
-func (t *TcpSender) SendSignedMessage(msgBytes []byte,
+func (t *TcpSender) SendMessage(msgBytes []byte,
+	encoding message.Header_MessageEncoding,
 	msc *message.MessageSigningConfig) (err error) {
-	err = EncodeSignedStreamHeader(msgBytes,
-		message.Header_PROTOCOL_BUFFER, &t.header, msc)
+	err = EncodeStreamHeader(msgBytes, encoding, &t.header, msc)
 	if err != nil {
 		return
 	}

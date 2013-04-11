@@ -96,7 +96,7 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{ith.AddrStr})
+		err := udpInput.Init(&UdpInputConfig{ith.AddrStr, signers})
 		c.Assume(err, gs.IsNil)
 		realListener := (udpInput.listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -106,31 +106,76 @@ func InputsSpec(c gs.Context) {
 		mockListener := ts.NewMockConn(ctrl)
 		udpInput.listener = mockListener
 
-		msgJson, _ := json.Marshal(ith.Msg)
-		putMsgJsonInBytes := func(msgBytes []byte) {
-			copy(msgBytes, msgJson)
-		}
+		mbytes, _ := json.Marshal(ith.Msg)
+		header := &message.Header{}
+		header.SetMessageEncoding(message.Header_JSON)
+		header.SetMessageLength(uint32(len(mbytes)))
+		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
+		readCall := mockListener.EXPECT().Read(buf)
+
+		mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+		ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().DecoderSource().Return(ith.MockDecoderSource)
+		ith.MockDecoderSource.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			ith.MockInputRunner.EXPECT().DecoderSource().Return(ith.MockDecoderSource)
-			ith.MockDecoderSource.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
-			readCall := mockListener.EXPECT().Read(ith.Pack.MsgBytes)
-			readCall.Return(len(msgJson), nil)
-			readCall.Do(putMsgJsonInBytes)
-
-			mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
-			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
-			ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
-
-			// start the input
+			hbytes, _ := proto.Marshal(header)
+			buflen := 3 + len(hbytes) + len(mbytes)
+			readCall.Return(buflen, nil)
+			readCall.Do(getPayloadBytes(hbytes, mbytes))
 			go func() {
 				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
-			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(msgJson))
+			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
+		})
+
+		c.Specify("reads a MD5 signed message from its connection", func() {
+			header.SetHmacHashFunction(message.Header_MD5)
+			header.SetHmacSigner(signer)
+			header.SetHmacKeyVersion(uint32(1))
+			hm := hmac.New(md5.New, []byte(key))
+			hm.Write(mbytes)
+			header.SetHmac(hm.Sum(nil))
+			hbytes, _ := proto.Marshal(header)
+			buflen := 3 + len(hbytes) + len(mbytes)
+			readCall.Return(buflen, err)
+			readCall.Do(getPayloadBytes(hbytes, mbytes))
+			go func() {
+				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(ith.Pack, gs.Equals, packRef)
+			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+			c.Expect(ith.Pack.Signer, gs.Equals, "test")
+		})
+
+		c.Specify("invalid header", func() {
+			hbytes, _ := proto.Marshal(header)
+			hbytes[0] = 0
+			buflen := 3 + len(hbytes) + len(mbytes)
+			readCall.Return(buflen, nil)
+			readCall.Do(getPayloadBytes(hbytes, mbytes))
+			go func() {
+				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			timeout := make(chan bool)
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				timeout <- true
+			}()
+			select {
+			case packRef := <-mockDecoderRunner.InChan():
+				c.Expect(packRef, gs.IsNil)
+			case t := <-timeout:
+				c.Expect(t, gs.IsTrue)
+			}
 		})
 	})
 
@@ -149,7 +194,7 @@ func InputsSpec(c gs.Context) {
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
 		header.SetMessageLength(uint32(len(mbytes)))
-		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE)
+		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
 		err = errors.New("connection closed") // used in the read return(s)
 		readCall := mockConnection.EXPECT().Read(buf)
 

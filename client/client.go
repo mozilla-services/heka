@@ -58,11 +58,12 @@ func NewHekaClient(sender Sender, encoder Encoder, logger *string,
 	return &self
 }
 
-func (self *Client) SendMessage(msg *message.Message) error {
+func (self *Client) SendMessage(msg *message.Message,
+	msc *message.MessageSigningConfig) error {
 	var err error
 	msgBytes, err := self.Encoder.EncodeMessage(msg)
 	if err == nil {
-		err = self.Sender.SendMessage(msgBytes)
+		err = self.Sender.SendMessage(msgBytes, self.Encoder.Encoding(), msc)
 	}
 	return err
 }

@@ -17,38 +17,144 @@
 Flood client.
 
 Flooding client used to test heka message through-put and tolerances.
-Can be run with several options on the command line to indicate how
-the messages should be sent and encoded.
+Can be run with several configuration options to indicate how the messages
+should be sent and encoded.
 
 */
 package main
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"code.google.com/p/goprotobuf/proto"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"math"
+	"math/rand"
+	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
 )
 
-type FloodSection struct {
-	IpAddress   string                       `toml:"ip_address"`
-	Sender      string                       `toml:"sender"`
-	PprofFile   string                       `toml:"pprof_file"`
-	Encoder     string                       `toml:"encoder"`
-	NumMessages uint64                       `toml:"num_messages"`
-	Signer      message.MessageSigningConfig `toml:"signer"`
+type FloodTest struct {
+	IpAddress            string                       `toml:"ip_address"`
+	Sender               string                       `toml:"sender"`
+	PprofFile            string                       `toml:"pprof_file"`
+	Encoder              string                       `toml:"encoder"`
+	NumMessages          uint64                       `toml:"num_messages"`
+	Signer               message.MessageSigningConfig `toml:"signer"`
+	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
+	SignedPercentage     float64                      `toml:"signed_percentage"`
+	VariableSizeMessages bool                         `toml:"variable_size_messages"`
 }
 
-type FloodConfig map[string]FloodSection
+type FloodConfig map[string]FloodTest
+
+type Sender interface {
+	SendMessage(msgBytes []byte, encoding message.Header_MessageEncoding,
+		msc *message.MessageSigningConfig, signed, corrupt bool) error
+}
+
+type UdpSender struct {
+	connection  *net.UDPConn
+	buf         []byte
+	protoBuffer *proto.Buffer
+}
+
+func NewUdpSender(addrStr string) (*UdpSender, error) {
+	var self *UdpSender
+	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err == nil {
+		self = &(UdpSender{connection: conn})
+		self.buf = make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
+		self.protoBuffer = proto.NewBuffer(self.buf)
+	} else {
+		self = nil
+	}
+	return self, err
+}
+
+func (self *UdpSender) SendMessage(msgBytes []byte,
+	encoding message.Header_MessageEncoding,
+	msc *message.MessageSigningConfig, signed, corrupt bool) (err error) {
+	if signed {
+		err = client.EncodeStreamHeader(msgBytes, encoding, &self.buf, msc)
+	} else {
+		err = client.EncodeStreamHeader(msgBytes, encoding, &self.buf, nil)
+	}
+	if err != nil {
+		return
+	}
+	self.buf = append(self.buf, msgBytes...)
+	if corrupt {
+		index := rand.Int() % len(self.buf)
+		replacement := rand.Int() % 256
+		self.buf[index] = byte(replacement)
+	}
+	_, err = self.connection.Write(self.buf)
+	return
+}
+
+type TcpSender struct {
+	connection  net.Conn
+	header      []byte
+	protoBuffer *proto.Buffer
+}
+
+func NewTcpSender(addrStr string) (n *TcpSender, err error) {
+	conn, err := net.Dial("tcp", addrStr)
+	if err == nil {
+		n = &(TcpSender{connection: conn})
+		n.header = make([]byte, message.MAX_HEADER_SIZE+3)
+		n.protoBuffer = proto.NewBuffer(n.header)
+	}
+	return
+}
+
+func (self *TcpSender) SendMessage(msgBytes []byte,
+	encoding message.Header_MessageEncoding,
+	msc *message.MessageSigningConfig, signed, corrupt bool) (err error) {
+	if signed {
+		err = client.EncodeStreamHeader(msgBytes, encoding, &self.header, msc)
+	} else {
+		err = client.EncodeStreamHeader(msgBytes, encoding, &self.header, nil)
+	}
+	if err != nil {
+		return
+	}
+	var corruptHeader = (corrupt && rand.Int()%2 == 1)
+
+	if corruptHeader {
+		index := rand.Int() % len(self.header)
+		replacement := rand.Int() % 256
+		self.header[index] = byte(replacement)
+	}
+	_, err = self.connection.Write(self.header)
+	if err == nil {
+		var b byte
+		var index int
+		if corrupt && !corruptHeader {
+			index = rand.Int() % len(msgBytes)
+			replacement := rand.Int() % 256
+			b = msgBytes[index]
+			msgBytes[index] = byte(replacement)
+			_, err = self.connection.Write(msgBytes)
+			msgBytes[index] = b
+		} else {
+			_, err = self.connection.Write(msgBytes)
+		}
+	}
+	return
+}
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
 	lastTime := time.Now().UTC()
@@ -81,9 +187,87 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 	}
 }
 
+func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
+	ma := make([][]byte, items)
+	hostname, _ := os.Hostname()
+	pid := int32(os.Getpid())
+	var cnt int
+
+	for x := 0; x < items; x++ {
+		msg := &message.Message{}
+		msg.SetUuid(uuid.NewRandom())
+		msg.SetTimestamp(time.Now().UnixNano())
+		msg.SetType("hekabench")
+		msg.SetLogger("flood")
+		msg.SetSeverity(int32(0))
+		msg.SetEnvVersion("0.2")
+		msg.SetPid(pid)
+		msg.SetHostname(hostname)
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			b := byte(c)
+			field, _ := message.NewField(fmt.Sprintf("bytes%d", c), []byte{b, b, b, b, b, b, b, b}, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("int%d", c), c, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("double%d", c), float64(c), message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("bool%d", c), true, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = (rand.Int() % 63) * 1024
+		buf := make([]byte, cnt)
+		field, _ := message.NewField("filler", buf, message.Field_RAW)
+		msg.AddField(field)
+
+		mbytes, err := encoder.EncodeMessage(msg)
+		if err != nil {
+			log.Println(err)
+		}
+		ma[x] = mbytes
+	}
+	return ma
+}
+
+func makeFixedMessage(encoder client.Encoder) [][]byte {
+	ma := make([][]byte, 1)
+	hostname, _ := os.Hostname()
+	pid := int32(os.Getpid())
+
+	msg := &message.Message{}
+	msg.SetType("hekabench")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetSeverity(int32(6))
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(pid)
+	msg.SetHostname(hostname)
+	msg.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
+	mbytes, err := encoder.EncodeMessage(msg)
+	if err != nil {
+		log.Println(err)
+	}
+	ma[0] = mbytes
+	return ma
+}
+
 func main() {
 	configFile := flag.String("config", "flood.toml", "Flood configuration file")
-	configSection := flag.String("section", "default", "Configuration section to load")
+	configTest := flag.String("test", "default", "Test section to load")
 	flag.Parse()
 
 	var config FloodConfig
@@ -91,15 +275,15 @@ func main() {
 		log.Printf("Error decoding config file: %s", err)
 		return
 	}
-	var section FloodSection
+	var test FloodTest
 	var ok bool
-	if section, ok = config[*configSection]; !ok {
-		log.Printf("Configuration section: '%s' was not found", *configSection)
+	if test, ok = config[*configTest]; !ok {
+		log.Printf("Configuration test: '%s' was not found", *configTest)
 		return
 	}
 
-	if section.PprofFile != "" {
-		profFile, err := os.Create(section.PprofFile)
+	if test.PprofFile != "" {
+		profFile, err := os.Create(test.PprofFile)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -108,58 +292,73 @@ func main() {
 	}
 
 	var err error
-	var sender client.Sender
-	switch section.Sender {
+	var sender Sender
+	switch test.Sender {
 	case "udp":
-		sender, err = client.NewUdpSender(section.IpAddress)
+		sender, err = NewUdpSender(test.IpAddress)
 	case "tcp":
-		sender, err = client.NewTcpSender(section.IpAddress)
+		sender, err = NewTcpSender(test.IpAddress)
 	}
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
 	var encoder client.Encoder
-	switch section.Encoder {
+	switch test.Encoder {
 	case "json":
 		encoder = new(client.JsonEncoder)
 	case "protobuf":
 		encoder = new(client.ProtobufEncoder)
 	}
 
-	hostname, _ := os.Hostname()
-	message := &message.Message{}
-	message.SetType("hekabench")
-	message.SetTimestamp(time.Now().UnixNano())
-	message.SetUuid(uuid.NewRandom())
-	message.SetSeverity(int32(6))
-	message.SetEnvVersion("0.8")
-	message.SetPid(int32(os.Getpid()))
-	message.SetHostname(hostname)
-	message.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
-	msgBytes, err := encoder.EncodeMessage(message)
+	var messageArraySize = 1
+	var messageArray [][]byte
 
+	if test.VariableSizeMessages {
+		messageArraySize = 100
+		messageArray = makeVariableMessage(encoder, messageArraySize)
+	} else {
+		messageArray = makeFixedMessage(encoder)
+	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 	var msgsSent uint64
+	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
+	var corrupt, signed bool
 
 	// set up counter loop
 	ticker := time.NewTicker(time.Duration(time.Second))
 	go timerLoop(&msgsSent, ticker)
 
+	test.CorruptPercentage /= 100.0
+	test.SignedPercentage /= 100.0
+
 	for gotsigint := false; !gotsigint; {
+		runtime.Gosched()
 		select {
 		case <-sigChan:
 			gotsigint = true
 			continue
 		default:
 		}
-		if len(section.Signer.Name) != 0 {
-			err = sender.SendSignedMessage(msgBytes, &section.Signer)
+		corruptPercentage = math.Floor(float64(msgsSent) * test.CorruptPercentage)
+		if corruptPercentage != lastCorruptPercentage {
+			lastCorruptPercentage = corruptPercentage
+			corrupt = true
 		} else {
-			err = sender.SendMessage(msgBytes)
+			corrupt = false
 		}
+		signedPercentage = math.Floor(float64(msgsSent) * test.SignedPercentage)
+		if signedPercentage != lastSignedPercentage {
+			lastSignedPercentage = signedPercentage
+			signed = true
+		} else {
+			signed = false
+		}
+
+		msgId := rand.Int() % messageArraySize
+		err = sender.SendMessage(messageArray[msgId], encoder.Encoding(), &test.Signer, signed, corrupt)
 		if err != nil {
 			if !strings.Contains(err.Error(), "connection refused") {
 				log.Printf("Error sending message: %s\n",
@@ -167,7 +366,7 @@ func main() {
 			}
 		} else {
 			msgsSent++
-			if section.NumMessages != 0 && msgsSent >= section.NumMessages {
+			if test.NumMessages != 0 && msgsSent >= test.NumMessages {
 				break
 			}
 		}

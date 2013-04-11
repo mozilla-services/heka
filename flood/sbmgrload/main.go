@@ -124,7 +124,7 @@ ticker_interval = 1.0
 			f1, _ := message.NewField("action", *action, message.Field_RAW)
 			msg.AddField(f1)
 			msgBytes, err := encoder.EncodeMessage(msg)
-			err = sender.SendSignedMessage(msgBytes, &config.Signer)
+			err = sender.SendMessage(msgBytes, encoder.Encoding(), &config.Signer)
 			if err != nil {
 				log.Printf("Error sending message: %s\n", err.Error())
 			}
@@ -142,7 +142,7 @@ ticker_interval = 1.0
 			f1, _ := message.NewField("action", *action, message.Field_RAW)
 			msg.AddField(f1)
 			msgBytes, err := encoder.EncodeMessage(msg)
-			err = sender.SendSignedMessage(msgBytes, &config.Signer)
+			err = sender.SendMessage(msgBytes, encoder.Encoding(), &config.Signer)
 			if err != nil {
 				log.Printf("Error sending message: %s\n", err.Error())
 			}
