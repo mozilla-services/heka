@@ -330,17 +330,18 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 
 					// Recycle pack and bail if incomplete header or incomplete message.
 					if header.MessageLength == nil ||
-						header.GetMessageLength() != uint32(len(pack.MsgBytes)) ||
-						!ok {
-
+						header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
 						pack.Recycle()
 						break
 					}
-
-					if authenticateMessage(self.config.Signers, header, pack) {
-						encoding = header.GetMessageEncoding()
-						if decoder, ok = decoders.ByEncoding(encoding); ok {
-							decoder.InChan() <- pack
+					if ok {
+						if authenticateMessage(self.config.Signers, header, pack) {
+							encoding = header.GetMessageEncoding()
+							if decoder, ok = decoders.ByEncoding(encoding); ok {
+								decoder.InChan() <- pack
+							} else {
+								pack.Recycle()
+							}
 						} else {
 							pack.Recycle()
 						}
