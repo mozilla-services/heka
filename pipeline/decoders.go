@@ -145,7 +145,7 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 				continue
 			}
 			pack.Decoded = true
-			h.Router().InChan <- pack
+			h.Router().InChan() <- pack
 		}
 		dr.LogMessage("stopped")
 		wg.Done()
