@@ -10,96 +10,100 @@
 
 #include "../sandbox.h"
 
-typedef struct lua_sandbox lua_sandbox;
+typedef struct lua_sandbox lua_sandbox; 
 
 /**
- * Allocates and initializes the structure around the Lua sandbox
+ * Allocates and initializes the structure around the Lua sandbox.
  * 
- * @param go pointer to associate the Go struct to this sandbox
- * @param lua_file filename of the Lua script to run in this sandbox
- * @param mem_lim  sets the sandbox memory limit (bytes)
- * @param ins_lim sets the sandbox Lua instruction limit (count)
- * @param out_lim sets the single message payload limit (bytes)
+ * @param go Pointer to associate the Go struct to this sandbox.
+ * @param lua_file Filename of the Lua script to run in this sandbox.
+ * @param memory_limit Sets the sandbox memory limit (bytes).
+ * @param instruction_limit Sets the sandbox Lua instruction limit (count). 
+ * This limit is per call to process_message or timer_event 
+ * @param output_limit Sets the single message payload limit (bytes). This 
+ * limit applies to the in memory output buffer.  The buffer is reset back 
+ * to zero when inject_message is called. 
  * 
- * @return lua_sandbox
+ * @return lua_sandbox Sandbox pointer or NULL on failure.
  */
 SANDBOX_EXPORT lua_sandbox* lua_sandbox_create(void* go,
                                                const char* lua_file,
-                                               unsigned mem_lim,
-                                               unsigned ins_lim,
-                                               unsigned out_lim);
+                                               unsigned memory_limit,
+                                               unsigned instruction_limit,
+                                               unsigned output_limit);
 
 /**
- * Frees the memory associated with the sandbox
+ * Frees the memory associated with the sandbox.
  * 
- * @param lsb        sandbox pointer to discard
- * @param state_file filename to save the sandbox state to (empty or NULL for no
- *                   preservation)
+ * @param lsb        Sandbox pointer to discard.
+ * @param state_file Filename where the sandbox global data is saved. Use a 
+ * NULL or empty string for no preservation.
  * 
- * @return NULL on success, pointer to an error message on failure (MUST BE 
- * FREED by the caller) 
+ * @return NULL on success, pointer to an error message on failure that MUST BE
+ * FREED by the caller.
  */
 SANDBOX_EXPORT char* lua_sandbox_destroy(lua_sandbox* lsb,
                                          const char* state_file);
 
 /** 
- * Initialize the Lua sandbox and loads/runs the Lua script that was specified 
- * in lua_create_sandbox 
+ * Initializes the Lua sandbox and loads/runs the Lua script that was specified 
+ * in lua_create_sandbox.
  * 
- * @param lsb pointer to the sandbox
- * @param state_file filename to read the sandbox state from (empty or NULL for 
- *                   no restoration)
+ * @param lsb Pointer to the sandbox.
+ * @param state_file Filename where the global data is read. Use a NULL or empty
+ *                   string no data restoration.
  * 
- * @return int 0 on success
+ * @return int Zero on success, non-zero on failure.
  */
 SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
 
 /** 
- * Retrieve the sandbox memory statistics
+ * Retrieve the sandbox usage statistics.
  * 
- * @param lsb pointer to the sandbox
- * @param sandbox_usage_type
- * @param sandbox_usage_stat
+ * @param lsb Pointer to the sandbox.
+ * @param sandbox_usage_type Type of statistic to retrieve i.e. memory.
+ * @param sandbox_usage_stat Type of statistic to retrieve i.e. current.
  * 
- * @return unsigned number of bytes of memory
+ * @return unsigned Count or number of bytes depending on the statistic.
  */
 SANDBOX_EXPORT unsigned lua_sandbox_usage(lua_sandbox* lsb,
-                                          sandbox_usage_type utype, 
+                                          sandbox_usage_type utype,
                                           sandbox_usage_stat ustat);
 /**
- * Sandbox status
+ * Retrieve the current sandbox status.
  * 
- * @param lsb    pointer to the sandbox
+ * @param lsb    Pointer to the sandbox.
  * 
- * @return status code
+ * @return sandbox_status code
  */
 SANDBOX_EXPORT sandbox_status lua_sandbox_status(lua_sandbox* lsb);
 
 /** 
- * Human readable error message
+ * Return the last error in human readable form.
  * 
- * @param lsb pointer to the sandbox
+ * @param lsb Pointer to the sandbox.
  * 
  * @return const char* error message
  */
 SANDBOX_EXPORT const char* lua_sandbox_last_error(lua_sandbox* lsb);
 
 /**
- * Passes a Heka message down to the sandbox for processing
+ * Passes a Heka message down to the sandbox for processing. The instruction 
+ * count limits are active during this call. 
  * 
- * @param lsb pointer to the sandbox
+ * @param lsb Pointer to the sandbox
  * 
- * @return 0 on success
+ * @return int Zero on success, non-zero on failure.
  */
 SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb);
 
 /**
  * Called when the plugin timer expires (the garbage collector is run after 
- * its execution) 
+ * its execution). The instruction count limits are active during this call. 
  * 
- * @param lsb pointer to the sandbox 
+ * @param lsb Pointer to the sandbox.
  *  
- * @return 0 on success
+ * @return int Zero on success, non-zero on failure.
  * 
  */
 SANDBOX_EXPORT int lua_sandbox_timer_event(lua_sandbox* lsb, long long ns);
