@@ -20,7 +20,6 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
-	"path"
 )
 
 func fileExists(path string) bool {
@@ -69,20 +68,20 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		err = this.sb.Init("")
 	}
 
-	this.sb.InjectMessage(func(s string) {
-		pack := MessageGenerator.Retrieve()
-		pack.Message.SetType("heka.sandbox")
-		pack.Message.SetLogger(path.Base(this.sbc.ScriptFilename))
-		pack.Message.SetPayload(s)
-		MessageGenerator.Inject(pack)
-	})
-
 	return err
 }
 
 func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
+
+	this.sb.InjectMessage(func(s string) {
+		pack := MessageGenerator.Retrieve()
+		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetLogger(fr.Name())
+		pack.Message.SetPayload(s)
+		MessageGenerator.Inject(pack)
+	})
 
 	var (
 		ok, terminated = true, false

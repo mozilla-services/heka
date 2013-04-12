@@ -16,86 +16,31 @@
 package client
 
 import (
-	"code.google.com/p/goprotobuf/proto"
-	"github.com/mozilla-services/heka/message"
 	"net"
 )
 
 type Sender interface {
-	SendMessage(msgBytes []byte) error
-	SendSignedMessage(msgBytes []byte, msc *message.MessageSigningConfig) error
+	SendMessage(outBytes []byte) (err error)
+	Close()
 }
 
-type UdpSender struct {
-	connection *net.UDPConn
+type NetworkSender struct {
+	connection net.Conn
 }
 
-func NewUdpSender(addrStr string) (*UdpSender, error) {
-	var self *UdpSender
-	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
-	conn, err := net.DialUDP("udp", nil, udpAddr)
+func NewNetworkSender(proto, addr string) (self *NetworkSender, err error) {
+	conn, err := net.Dial(proto, addr)
 	if err == nil {
-		self = &(UdpSender{conn})
-	} else {
-		self = nil
-	}
-	return self, err
-}
-
-func (self *UdpSender) SendMessage(msgBytes []byte) (err error) {
-	_, err = self.connection.Write(msgBytes)
-	return
-}
-
-func (self *UdpSender) SendSignedMessage(msgBytes []byte,
-	msc *message.MessageSigningConfig) (err error) {
-	_, err = self.connection.Write(msgBytes)
-	return
-}
-
-type TcpSender struct {
-	connection  net.Conn
-	header      []byte
-	protoBuffer *proto.Buffer
-}
-
-func NewTcpSender(addrStr string) (n *TcpSender, err error) {
-	conn, err := net.Dial("tcp", addrStr)
-	if err == nil {
-		n = &(TcpSender{connection: conn})
-		n.header = make([]byte, message.MAX_HEADER_SIZE+3)
-		n.protoBuffer = proto.NewBuffer(n.header)
+		self = &(NetworkSender{conn})
 	}
 	return
 }
 
-func (t *TcpSender) SendMessage(msgBytes []byte) (err error) {
-	err = EncodeStreamHeader(len(msgBytes),
-		message.Header_PROTOCOL_BUFFER, &t.header)
-	if err != nil {
-		return
-	}
-	_, err = t.connection.Write(t.header)
-	if err == nil {
-		_, err = t.connection.Write(msgBytes)
-	}
+func (self *NetworkSender) SendMessage(outBytes []byte) (err error) {
+	_, err = self.connection.Write(outBytes)
 	return
 }
 
-func (t *TcpSender) SendSignedMessage(msgBytes []byte,
-	msc *message.MessageSigningConfig) (err error) {
-	err = EncodeSignedStreamHeader(msgBytes,
-		message.Header_PROTOCOL_BUFFER, &t.header, msc)
-	if err != nil {
-		return
-	}
-	_, err = t.connection.Write(t.header)
-	if err == nil {
-		_, err = t.connection.Write(msgBytes)
-	}
-	return
-}
-
-func (t *TcpSender) Close() {
-	t.connection.Close()
+func (self *NetworkSender) Close() {
+	self.connection.Close()
 }

@@ -27,85 +27,86 @@ import (
 
 type Encoder interface {
 	EncodeMessage(msg *message.Message) ([]byte, error)
+	EncodeMessageStream(msg *message.Message, outBytes *[]byte) error
 }
 
 type JsonEncoder struct {
+	signer *message.MessageSigningConfig
 }
 
-type ProtobufEncoder struct {
+func NewJsonEncoder(signer *message.MessageSigningConfig) *JsonEncoder {
+	return &JsonEncoder{signer}
 }
 
 func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	result, err := json.Marshal(msg)
-	return result, err
+	return json.Marshal(msg)
+}
+
+func (self *JsonEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
+	msgBytes, err := self.EncodeMessage(msg)
+	if err == nil {
+		err = createStream(msgBytes, message.Header_JSON, outBytes, self.signer)
+	}
+	return
+}
+
+type ProtobufEncoder struct {
+	signer *message.MessageSigningConfig
+}
+
+func NewProtobufEncoder(signer *message.MessageSigningConfig) *ProtobufEncoder {
+	return &ProtobufEncoder{signer}
 }
 
 func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	result, err := proto.Marshal(msg)
-	return result, err
+	return proto.Marshal(msg)
 }
 
-func EncodeStreamHeader(messageSize int,
-	encoding message.Header_MessageEncoding,
-	headerBytes *[]byte) error {
-	h := &message.Header{}
-	h.SetMessageLength(uint32(messageSize))
-	if encoding != message.Default_Header_MessageEncoding {
-		h.SetMessageEncoding(encoding)
+func (self *ProtobufEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
+	msgBytes, err := self.EncodeMessage(msg) // TODO if we compute the size of the header first this can be marshaled directly to outBytes
+	if err == nil {
+		err = createStream(msgBytes, message.Header_PROTOCOL_BUFFER, outBytes, self.signer)
 	}
-	headerSize := uint8(proto.Size(h))
-	requiredSize := int(3 + headerSize)
-	if cap(*headerBytes) < requiredSize {
-		*headerBytes = make([]byte, requiredSize)
-	} else {
-		*headerBytes = (*headerBytes)[:requiredSize]
-	}
-	(*headerBytes)[0] = message.RECORD_SEPARATOR
-	(*headerBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*headerBytes)[2:2])
-	err := pbuf.Marshal(h)
-	if err != nil {
-		return err
-	}
-	(*headerBytes)[headerSize+2] = message.UNIT_SEPARATOR
-	return nil
+	return
 }
 
-func EncodeSignedStreamHeader(msgBytes []byte,
-	encoding message.Header_MessageEncoding,
-	headerBytes *[]byte, msc *message.MessageSigningConfig) error {
+func createStream(msgBytes []byte, encoding message.Header_MessageEncoding,
+	outBytes *[]byte, msc *message.MessageSigningConfig) error {
 	h := &message.Header{}
 	h.SetMessageLength(uint32(len(msgBytes)))
 	if encoding != message.Default_Header_MessageEncoding {
 		h.SetMessageEncoding(encoding)
 	}
-	h.SetHmacSigner(msc.Name)
-	h.SetHmacKeyVersion(msc.Version)
-	var hm hash.Hash
-	switch msc.Hash {
-	case "sha1":
-		hm = hmac.New(sha1.New, []byte(msc.Key))
-		h.SetHmacHashFunction(message.Header_SHA1)
-	default:
-		hm = hmac.New(md5.New, []byte(msc.Key))
-	}
+	if msc != nil {
+		h.SetHmacSigner(msc.Name)
+		h.SetHmacKeyVersion(msc.Version)
+		var hm hash.Hash
+		switch msc.Hash {
+		case "sha1":
+			hm = hmac.New(sha1.New, []byte(msc.Key))
+			h.SetHmacHashFunction(message.Header_SHA1)
+		default:
+			hm = hmac.New(md5.New, []byte(msc.Key))
+		}
 
-	hm.Write(msgBytes)
-	h.SetHmac(hm.Sum(nil))
+		hm.Write(msgBytes)
+		h.SetHmac(hm.Sum(nil))
+	}
 	headerSize := uint8(proto.Size(h))
 	requiredSize := int(3 + headerSize)
-	if cap(*headerBytes) < requiredSize {
-		*headerBytes = make([]byte, requiredSize)
+	if cap(*outBytes) < requiredSize {
+		*outBytes = make([]byte, requiredSize, requiredSize+len(msgBytes))
 	} else {
-		*headerBytes = (*headerBytes)[:requiredSize]
+		*outBytes = (*outBytes)[:requiredSize]
 	}
-	(*headerBytes)[0] = message.RECORD_SEPARATOR
-	(*headerBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*headerBytes)[2:2])
+	(*outBytes)[0] = message.RECORD_SEPARATOR
+	(*outBytes)[1] = uint8(headerSize)
+	pbuf := proto.NewBuffer((*outBytes)[2:2])
 	err := pbuf.Marshal(h)
 	if err != nil {
 		return err
 	}
-	(*headerBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	(*outBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	*outBytes = append(*outBytes, msgBytes...)
 	return nil
 }
