@@ -53,6 +53,17 @@ Glossary
         A Heka configuration setting which specifies the size of the input
         channel buffer for the various Heka plugins. Defaults to 50.
 
+    PluginHelper
+        An interface that provides access to certain Heka internals that may
+        be required by plugins in the course of their activity.
+
+    PluginRunner
+        A plugin-specific helper object that manages the lifespan of a given
+        plugin and handles most details of interaction w/ the greater Heka
+        environment. Comes in four variants, each tailored to a specific
+        plugin type (i.e. `InputRunner`, `DecoderRunner`, `FilterRunner`,
+        `OutputRunner`).
+
     PoolSize
         A Heka configuration setting which specifies the number of
         `PipelinePack` structs that will be created. This is roughly
