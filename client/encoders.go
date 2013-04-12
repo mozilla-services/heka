@@ -27,34 +27,51 @@ import (
 
 type Encoder interface {
 	EncodeMessage(msg *message.Message) ([]byte, error)
-	Encoding() message.Header_MessageEncoding
+	EncodeMessageStream(msg *message.Message, outBytes *[]byte) error
 }
 
 type JsonEncoder struct {
+	signer *message.MessageSigningConfig
 }
 
-type ProtobufEncoder struct {
+func NewJsonEncoder(signer *message.MessageSigningConfig) *JsonEncoder {
+	return &JsonEncoder{signer}
 }
 
 func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	return json.Marshal(msg)
 }
 
-func (self *JsonEncoder) Encoding() message.Header_MessageEncoding {
-	return message.Header_JSON
+func (self *JsonEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
+	msgBytes, err := self.EncodeMessage(msg)
+	if err == nil {
+		err = createStream(msgBytes, message.Header_JSON, outBytes, self.signer)
+	}
+	return
+}
+
+type ProtobufEncoder struct {
+	signer *message.MessageSigningConfig
+}
+
+func NewProtobufEncoder(signer *message.MessageSigningConfig) *ProtobufEncoder {
+	return &ProtobufEncoder{signer}
 }
 
 func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	return proto.Marshal(msg)
 }
 
-func (self *ProtobufEncoder) Encoding() message.Header_MessageEncoding {
-	return message.Header_PROTOCOL_BUFFER
+func (self *ProtobufEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
+	msgBytes, err := self.EncodeMessage(msg) // TODO if we compute the size of the header first this can be marshaled directly to outBytes
+	if err == nil {
+		err = createStream(msgBytes, message.Header_PROTOCOL_BUFFER, outBytes, self.signer)
+	}
+	return
 }
 
-func EncodeStreamHeader(msgBytes []byte,
-	encoding message.Header_MessageEncoding,
-	headerBytes *[]byte, msc *message.MessageSigningConfig) error {
+func createStream(msgBytes []byte, encoding message.Header_MessageEncoding,
+	outBytes *[]byte, msc *message.MessageSigningConfig) error {
 	h := &message.Header{}
 	h.SetMessageLength(uint32(len(msgBytes)))
 	if encoding != message.Default_Header_MessageEncoding {
@@ -77,18 +94,19 @@ func EncodeStreamHeader(msgBytes []byte,
 	}
 	headerSize := uint8(proto.Size(h))
 	requiredSize := int(3 + headerSize)
-	if cap(*headerBytes) < requiredSize {
-		*headerBytes = make([]byte, requiredSize)
+	if cap(*outBytes) < requiredSize {
+		*outBytes = make([]byte, requiredSize, requiredSize+len(msgBytes))
 	} else {
-		*headerBytes = (*headerBytes)[:requiredSize]
+		*outBytes = (*outBytes)[:requiredSize]
 	}
-	(*headerBytes)[0] = message.RECORD_SEPARATOR
-	(*headerBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*headerBytes)[2:2])
+	(*outBytes)[0] = message.RECORD_SEPARATOR
+	(*outBytes)[1] = uint8(headerSize)
+	pbuf := proto.NewBuffer((*outBytes)[2:2])
 	err := pbuf.Marshal(h)
 	if err != nil {
 		return err
 	}
-	(*headerBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	(*outBytes)[headerSize+2] = message.UNIT_SEPARATOR
+	*outBytes = append(*outBytes, msgBytes...)
 	return nil
 }

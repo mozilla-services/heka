@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -25,7 +26,6 @@ package main
 
 import (
 	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/goprotobuf/proto"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
@@ -34,7 +34,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net"
 	"os"
 	"os/signal"
 	"runtime"
@@ -57,104 +56,6 @@ type FloodTest struct {
 }
 
 type FloodConfig map[string]FloodTest
-
-type Sender interface {
-	SendMessage(msgBytes []byte, encoding message.Header_MessageEncoding,
-		msc *message.MessageSigningConfig, signed, corrupt bool) error
-}
-
-type UdpSender struct {
-	connection  *net.UDPConn
-	buf         []byte
-	protoBuffer *proto.Buffer
-}
-
-func NewUdpSender(addrStr string) (*UdpSender, error) {
-	var self *UdpSender
-	udpAddr, err := net.ResolveUDPAddr("udp", addrStr)
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err == nil {
-		self = &(UdpSender{connection: conn})
-		self.buf = make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
-		self.protoBuffer = proto.NewBuffer(self.buf)
-	} else {
-		self = nil
-	}
-	return self, err
-}
-
-func (self *UdpSender) SendMessage(msgBytes []byte,
-	encoding message.Header_MessageEncoding,
-	msc *message.MessageSigningConfig, signed, corrupt bool) (err error) {
-	if signed {
-		err = client.EncodeStreamHeader(msgBytes, encoding, &self.buf, msc)
-	} else {
-		err = client.EncodeStreamHeader(msgBytes, encoding, &self.buf, nil)
-	}
-	if err != nil {
-		return
-	}
-	self.buf = append(self.buf, msgBytes...)
-	if corrupt {
-		index := rand.Int() % len(self.buf)
-		replacement := rand.Int() % 256
-		self.buf[index] = byte(replacement)
-	}
-	_, err = self.connection.Write(self.buf)
-	return
-}
-
-type TcpSender struct {
-	connection  net.Conn
-	header      []byte
-	protoBuffer *proto.Buffer
-}
-
-func NewTcpSender(addrStr string) (n *TcpSender, err error) {
-	conn, err := net.Dial("tcp", addrStr)
-	if err == nil {
-		n = &(TcpSender{connection: conn})
-		n.header = make([]byte, message.MAX_HEADER_SIZE+3)
-		n.protoBuffer = proto.NewBuffer(n.header)
-	}
-	return
-}
-
-func (self *TcpSender) SendMessage(msgBytes []byte,
-	encoding message.Header_MessageEncoding,
-	msc *message.MessageSigningConfig, signed, corrupt bool) (err error) {
-	if signed {
-		err = client.EncodeStreamHeader(msgBytes, encoding, &self.header, msc)
-	} else {
-		err = client.EncodeStreamHeader(msgBytes, encoding, &self.header, nil)
-	}
-	if err != nil {
-		return
-	}
-	var corruptHeader = (corrupt && rand.Int()%2 == 1)
-
-	if corruptHeader {
-		index := rand.Int() % len(self.header)
-		replacement := rand.Int() % 256
-		self.header[index] = byte(replacement)
-	}
-	_, err = self.connection.Write(self.header)
-	if err == nil {
-		var b byte
-		var index int
-		if corrupt && !corruptHeader {
-			index = rand.Int() % len(msgBytes)
-			replacement := rand.Int() % 256
-			b = msgBytes[index]
-			msgBytes[index] = byte(replacement)
-			_, err = self.connection.Write(msgBytes)
-			msgBytes[index] = b
-		} else {
-			_, err = self.connection.Write(msgBytes)
-		}
-	}
-	return
-}
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
 	lastTime := time.Now().UTC()
@@ -234,11 +135,11 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 		field, _ := message.NewField("filler", buf, message.Field_RAW)
 		msg.AddField(field)
 
-		mbytes, err := encoder.EncodeMessage(msg)
-		if err != nil {
+		var stream []byte
+		if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
 			log.Println(err)
 		}
-		ma[x] = mbytes
+		ma[x] = stream
 	}
 	return ma
 }
@@ -257,12 +158,28 @@ func makeFixedMessage(encoder client.Encoder) [][]byte {
 	msg.SetPid(pid)
 	msg.SetHostname(hostname)
 	msg.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
-	mbytes, err := encoder.EncodeMessage(msg)
-	if err != nil {
+	var stream []byte
+	if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
 		log.Println(err)
 	}
-	ma[0] = mbytes
+	ma[0] = stream
 	return ma
+}
+
+func sendMessage(sender client.Sender, buf []byte, corrupt bool) (err error) {
+	var b byte
+	var index int
+	if corrupt {
+		index = rand.Int() % len(buf)
+		replacement := rand.Int() % 256
+		b = buf[index]
+		buf[index] = byte(replacement)
+		err = sender.SendMessage(buf)
+		buf[index] = b
+	} else {
+		err = sender.SendMessage(buf)
+	}
+	return
 }
 
 func main() {
@@ -291,41 +208,40 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	var err error
-	var sender Sender
-	switch test.Sender {
-	case "udp":
-		sender, err = NewUdpSender(test.IpAddress)
-	case "tcp":
-		sender, err = NewTcpSender(test.IpAddress)
-	}
+	sender, err := client.NewNetworkSender(test.Sender, test.IpAddress)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
-	var encoder client.Encoder
+	var unsignedEncoder client.Encoder
+	var signedEncoder client.Encoder
 	switch test.Encoder {
 	case "json":
-		encoder = new(client.JsonEncoder)
+		unsignedEncoder = client.NewJsonEncoder(nil)
+		signedEncoder = client.NewJsonEncoder(&test.Signer)
 	case "protobuf":
-		encoder = new(client.ProtobufEncoder)
+		unsignedEncoder = client.NewProtobufEncoder(nil)
+		signedEncoder = client.NewProtobufEncoder(&test.Signer)
 	}
 
-	var messageArraySize = 1
-	var messageArray [][]byte
+	var numTestMessages = 1
+	var unsignedMessages [][]byte
+	var signedMessages [][]byte
 
 	if test.VariableSizeMessages {
-		messageArraySize = 100
-		messageArray = makeVariableMessage(encoder, messageArraySize)
+		numTestMessages = 64
+		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages)
+		signedMessages = makeVariableMessage(signedEncoder, numTestMessages)
 	} else {
-		messageArray = makeFixedMessage(encoder)
+		unsignedMessages = makeFixedMessage(unsignedEncoder)
+		signedMessages = makeFixedMessage(signedEncoder)
 	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 	var msgsSent uint64
 	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
-	var corrupt, signed bool
+	var corrupt bool
 
 	// set up counter loop
 	ticker := time.NewTicker(time.Duration(time.Second))
@@ -334,6 +250,7 @@ func main() {
 	test.CorruptPercentage /= 100.0
 	test.SignedPercentage /= 100.0
 
+	var buf []byte
 	for gotsigint := false; !gotsigint; {
 		runtime.Gosched()
 		select {
@@ -342,6 +259,7 @@ func main() {
 			continue
 		default:
 		}
+		msgId := rand.Int() % numTestMessages
 		corruptPercentage = math.Floor(float64(msgsSent) * test.CorruptPercentage)
 		if corruptPercentage != lastCorruptPercentage {
 			lastCorruptPercentage = corruptPercentage
@@ -352,13 +270,11 @@ func main() {
 		signedPercentage = math.Floor(float64(msgsSent) * test.SignedPercentage)
 		if signedPercentage != lastSignedPercentage {
 			lastSignedPercentage = signedPercentage
-			signed = true
+			buf = signedMessages[msgId]
 		} else {
-			signed = false
+			buf = unsignedMessages[msgId]
 		}
-
-		msgId := rand.Int() % messageArraySize
-		err = sender.SendMessage(messageArray[msgId], encoder.Encoding(), &test.Signer, signed, corrupt)
+		err = sendMessage(sender, buf, corrupt)
 		if err != nil {
 			if !strings.Contains(err.Error(), "connection refused") {
 				log.Printf("Error sending message: %s\n",
@@ -371,5 +287,6 @@ func main() {
 			}
 		}
 	}
+   sender.Close()
 	log.Println("Clean shutdown: ", msgsSent, " messages sent")
 }

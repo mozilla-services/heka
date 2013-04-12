@@ -16,7 +16,6 @@
 package pipeline
 
 import (
-	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
@@ -91,20 +90,8 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // Create a protocol buffers stream for the given message, put it in the given
 // byte slice.
 func createProtobufStream(pack *PipelinePack, outBytes *[]byte) (err error) {
-	messageSize := proto.Size(pack.Message)
-	pack.MsgBytes = pack.MsgBytes[0:messageSize] // buffer is not actually used
-	// since it is not signed but it has to be the correct length for the header
-	if err = client.EncodeStreamHeader(pack.MsgBytes,
-		message.Header_PROTOCOL_BUFFER,
-		outBytes, nil); err != nil {
-		return
-	}
-	headerSize := len(*outBytes)
-	pbuf := proto.NewBuffer((*outBytes)[headerSize:])
-	if err = pbuf.Marshal(pack.Message); err != nil {
-		return
-	}
-	*outBytes = (*outBytes)[:headerSize+messageSize]
+	enc := client.NewProtobufEncoder(nil)
+	err = enc.EncodeMessageStream(pack.Message, outBytes)
 	return
 }
 

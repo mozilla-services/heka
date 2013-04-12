@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -21,49 +22,24 @@ package client
 
 import (
 	"github.com/mozilla-services/heka/message"
-	"log"
-	"os"
 )
 
 type Client struct {
-	Sender   Sender
-	Encoder  Encoder
-	Logger   string
-	Severity int
-	Hostname string
-	Pid      int
+	Sender  Sender
+	Encoder Encoder
+	buf     []byte
 }
 
-var defaultClient = Client{Logger: "", Severity: 6, Hostname: "", Pid: 0}
-
-func NewHekaClient(sender Sender, encoder Encoder, logger *string,
-	severity *int) *Client {
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Printf("Error getting hostname: %s\n", err.Error())
-		hostname = "ERROR"
-	}
-	pid := os.Getpid()
-	self := defaultClient
-	self.Sender = sender
-	self.Encoder = encoder
-	if logger != nil {
-		self.Logger = *logger
-	}
-	if severity != nil {
-		self.Severity = *severity
-	}
-	self.Hostname = hostname
-	self.Pid = pid
-	return &self
+func NewClient(sender Sender, encoder Encoder) (self *Client) {
+	buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
+	self = &Client{sender, encoder, buf}
+	return
 }
 
-func (self *Client) SendMessage(msg *message.Message,
-	msc *message.MessageSigningConfig) error {
-	var err error
-	msgBytes, err := self.Encoder.EncodeMessage(msg)
+func (self *Client) SendMessage(msg *message.Message) (err error) {
+	err = self.Encoder.EncodeMessageStream(msg, &self.buf)
 	if err == nil {
-		err = self.Sender.SendMessage(msgBytes, self.Encoder.Encoding(), msc)
+		err = self.Sender.SendMessage(self.buf)
 	}
-	return err
+	return
 }

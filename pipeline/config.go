@@ -115,7 +115,7 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 
 func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
 	ch := <-self.decodersChan
-   self.decodersChan <- ch
+	self.decodersChan <- ch
 	return ch
 }
 

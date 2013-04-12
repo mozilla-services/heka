@@ -178,12 +178,8 @@ func (self *JsonDecoder) Init(config interface{}) error {
 	return nil
 }
 
-func (self *JsonDecoder) Decode(pack *PipelinePack) (err error) {
-	err = json.Unmarshal(pack.MsgBytes, pack.Message)
-	if err != nil {
-		return fmt.Errorf("JsonDecoder error: ", err)
-	}
-	return
+func (self *JsonDecoder) Decode(pack *PipelinePack) error {
+	return json.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
 type ProtobufDecoder struct{}
@@ -192,10 +188,6 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 	return nil
 }
 
-func (self *ProtobufDecoder) Decode(pack *PipelinePack) (err error) {
-	err = proto.Unmarshal(pack.MsgBytes, pack.Message)
-	if err != nil {
-		return fmt.Errorf("ProtobufDecoder error: ", err)
-	}
-	return
+func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
+	return proto.Unmarshal(pack.MsgBytes, pack.Message)
 }

@@ -24,6 +24,7 @@ Contents:
    sandbox/index
    message_matcher.rst
    developing/plugin
+   developing/testing
 
 
 
