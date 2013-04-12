@@ -44,7 +44,7 @@ type PluginConfig map[string]toml.Primitive
 type PluginHelper interface {
 	PackSupply() chan *PipelinePack
 	Output(name string) (oRunner OutputRunner, ok bool)
-	Router() (router *MessageRouter)
+	Router() (router MessageRouter)
 	Filter(name string) (fRunner FilterRunner, ok bool)
 	PipelineConfig() *PipelineConfig
 	DecoderSet() DecoderSet
@@ -63,7 +63,7 @@ type PipelineConfig struct {
 	DecoderSets     []DecoderSet
 	FilterRunners   map[string]FilterRunner
 	OutputRunners   map[string]OutputRunner
-	router          *MessageRouter
+	router          *messageRouter
 	RecycleChan     chan *PipelinePack
 	logMsgs         []string
 	filtersLock     sync.Mutex
@@ -104,7 +104,7 @@ func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) 
 	return
 }
 
-func (self *PipelineConfig) Router() (router *MessageRouter) {
+func (self *PipelineConfig) Router() (router MessageRouter) {
 	return self.router
 }
 
@@ -114,7 +114,9 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 }
 
 func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
-	return <-self.decodersChan
+	ch := <-self.decodersChan
+	self.decodersChan <- ch
+	return ch
 }
 
 // Returns a FilterRunner with the given name, false in not found
@@ -134,7 +136,7 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 		return fmt.Errorf("AddFilterRunner '%s' failed to start: %s",
 			fRunner.Name(), err)
 	} else {
-		self.router.MrChan <- fRunner.MatchRunner()
+		self.router.MrChan() <- fRunner.MatchRunner()
 	}
 	return nil
 }
@@ -144,7 +146,7 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	self.filtersLock.Lock()
 	defer self.filtersLock.Unlock()
 	if fRunner, ok := self.FilterRunners[name]; ok {
-		self.router.MrChan <- fRunner.MatchRunner()
+		self.router.MrChan() <- fRunner.MatchRunner()
 		close(fRunner.InChan())
 		delete(self.FilterRunners, name)
 		return true

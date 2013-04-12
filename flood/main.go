@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -17,8 +18,8 @@
 Flood client.
 
 Flooding client used to test heka message through-put and tolerances.
-Can be run with several options on the command line to indicate how
-the messages should be sent and encoded.
+Can be run with several configuration options to indicate how the messages
+should be sent and encoded.
 
 */
 package main
@@ -31,24 +32,30 @@ import (
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"math"
+	"math/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
 )
 
-type FloodSection struct {
-	IpAddress   string                       `toml:"ip_address"`
-	Sender      string                       `toml:"sender"`
-	PprofFile   string                       `toml:"pprof_file"`
-	Encoder     string                       `toml:"encoder"`
-	NumMessages uint64                       `toml:"num_messages"`
-	Signer      message.MessageSigningConfig `toml:"signer"`
+type FloodTest struct {
+	IpAddress            string                       `toml:"ip_address"`
+	Sender               string                       `toml:"sender"`
+	PprofFile            string                       `toml:"pprof_file"`
+	Encoder              string                       `toml:"encoder"`
+	NumMessages          uint64                       `toml:"num_messages"`
+	Signer               message.MessageSigningConfig `toml:"signer"`
+	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
+	SignedPercentage     float64                      `toml:"signed_percentage"`
+	VariableSizeMessages bool                         `toml:"variable_size_messages"`
 }
 
-type FloodConfig map[string]FloodSection
+type FloodConfig map[string]FloodTest
 
 func timerLoop(count *uint64, ticker *time.Ticker) {
 	lastTime := time.Now().UTC()
@@ -81,9 +88,103 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 	}
 }
 
+func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
+	ma := make([][]byte, items)
+	hostname, _ := os.Hostname()
+	pid := int32(os.Getpid())
+	var cnt int
+
+	for x := 0; x < items; x++ {
+		msg := &message.Message{}
+		msg.SetUuid(uuid.NewRandom())
+		msg.SetTimestamp(time.Now().UnixNano())
+		msg.SetType("hekabench")
+		msg.SetLogger("flood")
+		msg.SetSeverity(int32(0))
+		msg.SetEnvVersion("0.2")
+		msg.SetPid(pid)
+		msg.SetHostname(hostname)
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			b := byte(c)
+			field, _ := message.NewField(fmt.Sprintf("bytes%d", c), []byte{b, b, b, b, b, b, b, b}, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("int%d", c), c, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("double%d", c), float64(c), message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = rand.Int() % 5
+		for c := 0; c < cnt; c++ {
+			field, _ := message.NewField(fmt.Sprintf("bool%d", c), true, message.Field_RAW)
+			msg.AddField(field)
+		}
+		cnt = (rand.Int() % 63) * 1024
+		buf := make([]byte, cnt)
+		field, _ := message.NewField("filler", buf, message.Field_RAW)
+		msg.AddField(field)
+
+		var stream []byte
+		if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
+			log.Println(err)
+		}
+		ma[x] = stream
+	}
+	return ma
+}
+
+func makeFixedMessage(encoder client.Encoder) [][]byte {
+	ma := make([][]byte, 1)
+	hostname, _ := os.Hostname()
+	pid := int32(os.Getpid())
+
+	msg := &message.Message{}
+	msg.SetType("hekabench")
+	msg.SetTimestamp(time.Now().UnixNano())
+	msg.SetUuid(uuid.NewRandom())
+	msg.SetSeverity(int32(6))
+	msg.SetEnvVersion("0.8")
+	msg.SetPid(pid)
+	msg.SetHostname(hostname)
+	msg.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
+	var stream []byte
+	if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
+		log.Println(err)
+	}
+	ma[0] = stream
+	return ma
+}
+
+func sendMessage(sender client.Sender, buf []byte, corrupt bool) (err error) {
+	var b byte
+	var index int
+	if corrupt {
+		index = rand.Int() % len(buf)
+		replacement := rand.Int() % 256
+		b = buf[index]
+		buf[index] = byte(replacement)
+		err = sender.SendMessage(buf)
+		buf[index] = b
+	} else {
+		err = sender.SendMessage(buf)
+	}
+	return
+}
+
 func main() {
 	configFile := flag.String("config", "flood.toml", "Flood configuration file")
-	configSection := flag.String("section", "default", "Configuration section to load")
+	configTest := flag.String("test", "default", "Test section to load")
 	flag.Parse()
 
 	var config FloodConfig
@@ -91,15 +192,15 @@ func main() {
 		log.Printf("Error decoding config file: %s", err)
 		return
 	}
-	var section FloodSection
+	var test FloodTest
 	var ok bool
-	if section, ok = config[*configSection]; !ok {
-		log.Printf("Configuration section: '%s' was not found", *configSection)
+	if test, ok = config[*configTest]; !ok {
+		log.Printf("Configuration test: '%s' was not found", *configTest)
 		return
 	}
 
-	if section.PprofFile != "" {
-		profFile, err := os.Create(section.PprofFile)
+	if test.PprofFile != "" {
+		profFile, err := os.Create(test.PprofFile)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -107,59 +208,73 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	var err error
-	var sender client.Sender
-	switch section.Sender {
-	case "udp":
-		sender, err = client.NewUdpSender(section.IpAddress)
-	case "tcp":
-		sender, err = client.NewTcpSender(section.IpAddress)
-	}
+	sender, err := client.NewNetworkSender(test.Sender, test.IpAddress)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
-	var encoder client.Encoder
-	switch section.Encoder {
+	var unsignedEncoder client.Encoder
+	var signedEncoder client.Encoder
+	switch test.Encoder {
 	case "json":
-		encoder = new(client.JsonEncoder)
+		unsignedEncoder = client.NewJsonEncoder(nil)
+		signedEncoder = client.NewJsonEncoder(&test.Signer)
 	case "protobuf":
-		encoder = new(client.ProtobufEncoder)
+		unsignedEncoder = client.NewProtobufEncoder(nil)
+		signedEncoder = client.NewProtobufEncoder(&test.Signer)
 	}
 
-	hostname, _ := os.Hostname()
-	message := &message.Message{}
-	message.SetType("hekabench")
-	message.SetTimestamp(time.Now().UnixNano())
-	message.SetUuid(uuid.NewRandom())
-	message.SetSeverity(int32(6))
-	message.SetEnvVersion("0.8")
-	message.SetPid(int32(os.Getpid()))
-	message.SetHostname(hostname)
-	message.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
-	msgBytes, err := encoder.EncodeMessage(message)
+	var numTestMessages = 1
+	var unsignedMessages [][]byte
+	var signedMessages [][]byte
 
+	if test.VariableSizeMessages {
+		numTestMessages = 64
+		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages)
+		signedMessages = makeVariableMessage(signedEncoder, numTestMessages)
+	} else {
+		unsignedMessages = makeFixedMessage(unsignedEncoder)
+		signedMessages = makeFixedMessage(signedEncoder)
+	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 	var msgsSent uint64
+	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
+	var corrupt bool
 
 	// set up counter loop
 	ticker := time.NewTicker(time.Duration(time.Second))
 	go timerLoop(&msgsSent, ticker)
 
+	test.CorruptPercentage /= 100.0
+	test.SignedPercentage /= 100.0
+
+	var buf []byte
 	for gotsigint := false; !gotsigint; {
+		runtime.Gosched()
 		select {
 		case <-sigChan:
 			gotsigint = true
 			continue
 		default:
 		}
-		if len(section.Signer.Name) != 0 {
-			err = sender.SendSignedMessage(msgBytes, &section.Signer)
+		msgId := rand.Int() % numTestMessages
+		corruptPercentage = math.Floor(float64(msgsSent) * test.CorruptPercentage)
+		if corruptPercentage != lastCorruptPercentage {
+			lastCorruptPercentage = corruptPercentage
+			corrupt = true
 		} else {
-			err = sender.SendMessage(msgBytes)
+			corrupt = false
 		}
+		signedPercentage = math.Floor(float64(msgsSent) * test.SignedPercentage)
+		if signedPercentage != lastSignedPercentage {
+			lastSignedPercentage = signedPercentage
+			buf = signedMessages[msgId]
+		} else {
+			buf = unsignedMessages[msgId]
+		}
+		err = sendMessage(sender, buf, corrupt)
 		if err != nil {
 			if !strings.Contains(err.Error(), "connection refused") {
 				log.Printf("Error sending message: %s\n",
@@ -167,10 +282,11 @@ func main() {
 			}
 		} else {
 			msgsSent++
-			if section.NumMessages != 0 && msgsSent >= section.NumMessages {
+			if test.NumMessages != 0 && msgsSent >= test.NumMessages {
 				break
 			}
 		}
 	}
+   sender.Close()
 	log.Println("Clean shutdown: ", msgsSent, " messages sent")
 }

@@ -263,7 +263,7 @@ func Run(config *PipelineConfig) {
 		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
 	}
 
-	config.Router().Start()
+	config.router.Start()
 
 	for name, input := range config.InputRunners {
 		// Special case the MGI, it shuts down last.

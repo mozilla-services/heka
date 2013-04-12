@@ -80,9 +80,9 @@ func (_mr *_MockPluginHelperRecorder) PipelineConfig() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PipelineConfig")
 }
 
-func (_m *MockPluginHelper) Router() *MessageRouter {
+func (_m *MockPluginHelper) Router() MessageRouter {
 	ret := _m.ctrl.Call(_m, "Router")
-	ret0, _ := ret[0].(*MessageRouter)
+	ret0, _ := ret[0].(MessageRouter)
 	return ret0
 }
 
