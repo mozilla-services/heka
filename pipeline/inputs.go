@@ -481,7 +481,7 @@ func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err erro
 	var outMsg outputMsg
 	var output OutputRunner
 	ok := true
-	outChan := h.Router().InChan
+	outChan := h.Router().InChan()
 
 	for ok {
 		output = nil
