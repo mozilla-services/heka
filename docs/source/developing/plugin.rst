@@ -205,53 +205,81 @@ destination. The initialization code might look as follows::
 Inputs
 ======
 
-Input plugins are responsible for injecting messages into the Heka pipeline.
-They might be passively listening for incoming network data, actively scanning
-external sources (either on the local machine or over a network), or even just
-creating messages from nothing based on triggers internal to the `hekad`
-process. The input plugin interface is very simple::
+Input plugins are responsible for acquiring data from the outside world and
+injecting this data into the Heka pipeline. An input might be passively
+listening for incoming network data or actively scanning external sources
+(either on the local machine or over a network). The input plugin interface
+is::
 
     type Input interface {
-            Read(pipelinePack *PipelinePack, timeout *time.Duration) error
+            Run(ir InputRunner, h PluginHelper) (err error)
+            Stop()
     }
 
-As you can see, there is only a single `Read` method that accepts a pointer to
-a `PipelinePack` (into which the message data should be written) and a pointer
-to a `time.Duration` (which specifies how much time the read operation should
-allow to pass before a timeout is considered to have occurred). The only
-return value is an error (or `nil` if the read succeeds).
+The `Run` method is called when Heka starts and, if all is functioning as
+intended, should not return until Heka is shut down. If a condition arises
+such that the input can not perform its intended activity it should return
+with an appropriate error, otherwise it should continue to run until a
+shutdown event is triggered by Heka calling the input's `Stop` method, at
+which time any clean-up should be done and a clean shutdown should be
+indicated by returning a `nil` error.
 
-Note that it is very important that your input plugin honors the specified
-read timeout value by returning an appropriate error if the duration elapses
-before the input can get the requested data. Heka creates a fixed number of
-pipeline goroutines, and if your input's `Read` method never returns, then it
-will be tying up one of these goroutines, effectively removing it from the
-pool.
+Inside the `Run` method, an input has three primary responsibilities::
 
-An input plugin that reads successfully can either output raw message bytes or
-a fully decoded `Message` struct object. In the former case, the message bytes
-should be written into the `pipelinePack.MsgBytes` byte slice attribute. In
-the latter case, the `pipelinePack.Message` object should be populated w/ the
-appropriate values, and the `pipelinePack.Decoded` attribute should be set to
-`true` to indicate that further decoding is not required.
+1. Acquire information from the outside world
+2. Use acquired information to populate a `PipelinePack` object that can be
+   processed by Heka.
+3. Pass the populated `PipelinePack` objects on to the appropriate next stage
+   in the Heka pipeline (usually to a decoder plugin so raw input data can be
+   converted to a `Message` object.)
 
-In either case, for efficiency's sake, it is important to ensure that you are
-actually writing the data into the memory that has already been allocated by
-the `pipelinePack` struct, rather than creating new objects and repointing the
-`pipelinePack` attributes to the ones you've created. Creating new objects
-each time will end up causing a lot of allocation and garbage collection to
-occur, which will hurt Heka performance. A lot of care has been put into the
-Heka pipeline code to reuse allocated memory where possible in order to
-minimize garbage collector performance impact, but a poorly written plugin can
-undo these efforts and cause significant (and unnecessary) slowdowns.
+The details of the first step are clearly entirely defined by the plugin's
+intended input mechanism(s). Plugins can (and should!) spin up goroutines as
+needed to perform tasks such as listening on a network connection, making
+requests to external data sources, scanning machine resources and operational
+characteristics, reading files from a file system, etc.
 
-If an input generates raw bytes and wishes to explicitly specify which decoder
-should be used (overriding the specified default), the input can modify the
-`pipelinePack.Decoder` string value. The value chosen here *must* be one of
-the keys of the `pipelinePack.Decoders` map or there will be an error
-condition and the message will not be processed. And, obviously, the decoder
-in question must know how to work with the provided message bytes, or the
-decoding will fail, again resulting in the message being lost.
+For the second step, before you can populate a `PipelinePack` object you have
+to actually *have* one. You can get empty packs from a channel provided to you
+by the `InputRunner`. You get the channel itself by calling `ir.InChan()` and
+then pull a pack from the channel whenever you need one.
+
+Often, populating a `PipelinePack` is as simple as storing the raw data that
+was retrieved from the outside world in the pack's `MsgBytes` attribute. For
+efficiency's sake, it's best to write directly into the already allocated
+memory rather than overwriting the attribute with a `[]byte` slice pointing to
+a new array. Overwriting the array is likely to lead to a lot of garbage
+collector churn.
+
+The third step involves the input plugin deciding where next to pass the
+`PipelinePack` and then doing so. Once the `MsgBytes` attribute has been set
+the pack will typically be passed on to a decoder plugin, which will convert
+the raw bytes into a `Message` object, also an attribute of the
+`PipelinePack`. An input can gain access to the decoders that are available by
+calling `PluginHelper.DecoderSet()`, which can be used to access decoders
+either by the name they have been registered as in the config, or by the Heka
+protocol's encoding header they have been specified as decoding.
+
+It is up to the input to decide which decoder should be used. Once the decoder
+has been determined and fetched from the `DecoderSet` the input should call
+`decoder.InChan()` to fetch the input channel upon which the `PipelinePack`
+can be placed.
+
+Sometimes the input itself might wish to decode the data, rather than
+delegating that job to a separate decoder. In this case the input can directly
+populate the `pack.Message` and set the `pack.Decoded` value as `true`, as a
+decoder would do. Decoded messages are then typically passed along to the main
+Heka message router to be delivered to the appropriate filter and output
+plugins. The router is available via the `PluginHelper.Router()`, and messages
+are passed in by dropping the `PipelinePack` on to the router's input channel,
+available via the router's `InChan` method.
+
+One final important detail: if for any reason your input plugin should pull a
+`PipelinePack` off of the input channel and *not* end up passing it on to
+another step in the pipeline (i.e. to a decoder or to the router), you *must*
+call `PipelinePack.Recycle()` to free the pack up to be used again. Failure to
+do so will cause the `PipelinePack` pool to be depleted and will cause Heka to
+freeze.
 
 .. _decoders:
 
