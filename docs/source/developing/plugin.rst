@@ -291,15 +291,15 @@ data into actual `Message` struct objects that the Heka pipeline can process.
 As with inputs, the `Decoder` interface is quite simple::
 
     type Decoder interface {
-            Decode(pipelinePack *PipelinePack) error
+            Decode(pack *PipelinePack) error
     }
 
 A decoder's `Decode` method should extract the raw message data from
-`pipelinePack.MsgBytes` and attempt to deserialize this and use the contained
-information to populate the Message struct pointed to by the
-`pipelinePack.Message` attribute. Again, to minimize GC churn, take care to
-reuse the already allocated memory rather than creating new objects and
-overwriting the existing ones.
+`pack.MsgBytes` and attempt to deserialize this and use the contained
+information to populate the Message struct pointed to by the `pack.Message`
+attribute. Again, to minimize GC churn, take care to reuse the already
+allocated memory rather than creating new objects and overwriting the existing
+ones.
 
 If the message bytes are decoded successfully then `Decode` should return
 `nil`. If not, then an appropriate error should be returned, in which case the
