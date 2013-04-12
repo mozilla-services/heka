@@ -114,7 +114,9 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 }
 
 func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
-	return <-self.decodersChan
+	ch := <-self.decodersChan
+	self.decodersChan <- ch
+	return ch
 }
 
 // Returns a FilterRunner with the given name, false in not found

@@ -113,10 +113,12 @@ type UdpInput struct {
 	listener net.Conn
 	name     string
 	stopped  bool
+	config   *UdpInputConfig
 }
 
 type UdpInputConfig struct {
-	Address string `toml:"address"`
+	Address string            `toml:"address"`
+	Signers map[string]Signer `toml:"signer"`
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {
@@ -124,14 +126,14 @@ func (self *UdpInput) ConfigStruct() interface{} {
 }
 
 func (self *UdpInput) Init(config interface{}) error {
-	conf := config.(*UdpInputConfig)
-	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
+	self.config = config.(*UdpInputConfig)
+	if len(self.config.Address) > 3 && self.config.Address[:3] == "fd:" {
 		// File descriptor
-		fdStr := conf.Address[3:]
+		fdStr := self.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
 			log.Println(err)
-			return fmt.Errorf("Invalid file descriptor: %s", conf.Address)
+			return fmt.Errorf("Invalid file descriptor: %s", self.config.Address)
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
@@ -141,7 +143,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		}
 	} else {
 		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+		udpAddr, err := net.ResolveUDPAddr("udp", self.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
@@ -154,26 +156,39 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	dSet := h.DecoderSet()
-	decoder, ok := dSet.ByEncoding(Header_JSON) // TODO: Diff encodings over UDP
-	if !ok {
-		return fmt.Errorf("No JSON decoder found.")
-	}
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
+	header := &Header{}
+	decoders := h.DecoderSet()
 
 	var e error
 	var n int
 	var pack *PipelinePack
+	var msgOk bool
 	for !self.stopped {
 		pack = <-ir.InChan()
-		if n, e = self.listener.Read(pack.MsgBytes); e != nil {
+		if n, e = self.listener.Read(buf); e != nil {
 			if !strings.Contains(e.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: ", e))
 			}
 			pack.Recycle()
 			continue
 		}
-		pack.MsgBytes = pack.MsgBytes[:n]
-		decoder.InChan() <- pack
+		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
+		if msgOk {
+			if authenticateMessage(self.config.Signers, header, pack) {
+				encoding := header.GetMessageEncoding()
+				if decoder, ok := decoders.ByEncoding(encoding); ok {
+					decoder.InChan() <- pack
+				} else {
+					pack.Recycle()
+				}
+			} else {
+				pack.Recycle()
+			}
+		} else {
+			pack.Recycle()
+		}
+		header.Reset()
 	}
 
 	self.listener.Close()
@@ -228,7 +243,6 @@ func decodeHeader(buf []byte, header *Header) bool {
 }
 
 func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
-	ok = true
 	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
 	if pos != -1 {
 		if len(buf) > 1 {
@@ -241,8 +255,8 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 						*message = (*message)[:messageEnd-headerEnd]
 						copy(*message, buf[headerEnd:messageEnd])
 						pos = messageEnd
+						ok = true
 					} else {
-						ok = false
 						*message = (*message)[:0]
 					}
 				} else {
@@ -287,7 +301,7 @@ func authenticateMessage(signers map[string]Signer, header *Header,
 }
 
 func (self *TcpInput) handleConnection(conn net.Conn) {
-	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
 	var (
 		readPos, scanPos, posDelta int
@@ -316,17 +330,18 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 
 					// Recycle pack and bail if incomplete header or incomplete message.
 					if header.MessageLength == nil ||
-						header.GetMessageLength() != uint32(len(pack.MsgBytes)) ||
-						!ok {
-
+						header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
 						pack.Recycle()
 						break
 					}
-
-					if authenticateMessage(self.config.Signers, header, pack) {
-						encoding = header.GetMessageEncoding()
-						if decoder, ok = decoders.ByEncoding(encoding); ok {
-							decoder.InChan() <- pack
+					if ok {
+						if authenticateMessage(self.config.Signers, header, pack) {
+							encoding = header.GetMessageEncoding()
+							if decoder, ok = decoders.ByEncoding(encoding); ok {
+								decoder.InChan() <- pack
+							} else {
+								pack.Recycle()
+							}
 						} else {
 							pack.Recycle()
 						}

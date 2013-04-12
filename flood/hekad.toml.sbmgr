@@ -4,6 +4,12 @@ address = "127.0.0.1:5565"
 	[TCP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
+[UDP:5565]
+type = "UdpInput"
+address = "127.0.0.1:5565"
+	[UDP:5565.signer.test_0]
+	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+
 [JsonDecoder]
 type ="JsonDecoder"
 encoding_name = "JSON"
@@ -14,7 +20,7 @@ encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
-message_matcher = "Type == 'heka.counter_output' || Type == 'heka.sandbox'"
+message_matcher = "Type == 'heka.counter-output' || Type == 'heka.sandbox'"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
