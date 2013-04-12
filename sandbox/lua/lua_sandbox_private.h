@@ -9,7 +9,7 @@
 #define lua_sandbox_private_h_
 
 #include <lua.h>
-#include "../sandbox.h"
+#include "lua_sandbox.h"
 
 #define ERROR_SIZE 255
 #define OUTPUT_SIZE 1024 * 4
@@ -24,7 +24,7 @@ typedef struct
     char*  m_data;
 } output_data;
 
-typedef struct lua_sandbox
+struct lua_sandbox
 {
     lua_State*      m_lua;
     void*           m_go;
@@ -33,7 +33,7 @@ typedef struct lua_sandbox
     char*           m_lua_file;
     unsigned        m_usage[MAX_USAGE_TYPE][MAX_USAGE_STAT];
     char            m_error_message[ERROR_SIZE];
-} lua_sandbox;
+};
 
 typedef struct
 {
