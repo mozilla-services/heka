@@ -93,8 +93,8 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	pack = MessageGenerator.Retrieve()
 	msg = pack.Message
-	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan))
-	newIntField(msg, "InChanLength", len(pc.Router().InChan))
+	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan()))
+	newIntField(msg, "InChanLength", len(pc.Router().InChan()))
 	msg.SetType("heka.router-report")
 	setNameField(msg, "Router")
 	reportChan <- pack
