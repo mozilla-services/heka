@@ -6,6 +6,11 @@ Glossary
 .. glossary::
     :sorted:
 
+    DecoderPoolSize
+        A Heka configuration setting which specifies the number of decoder
+        sets that should be created to handle decoding of incoming message
+        data.
+
     hekad
         Daemon that routes messages from inputs to their outputs applying
         filters as configured.
@@ -19,46 +24,42 @@ Glossary
         `message.go <https://github.com/mozilla-
         services/heka/tree/dev/message/message.go>`_ file.
 
-    Plugin
-        Hekad plugins are functional units that perform specific actions
-        on or with messages. There are four distinct types of plugins:
-        inputs, decoders, filters, and outputs.
+    Message matcher
+        A configuration option for filter and output plugins that specifies
+        which messages that plugin accepts for processing. The Heka router
+        will evaluate the message matchers against every message to and will
+        deliver the message when the match is positive.
 
     Pipeline
-        Messages being processed by Hekad are passed through a specific
-        set of plugins. A set of plugins to be applied to a message
-        make up what is called a Hekad pipeline. Many Hekad pipelines can
-        be processed simultaneously, each running in its own goroutine.
-
-    PoolSize
-        `PoolSize` is a Hekad configuration setting which specifies the
-        maximum number of pipelines allowed to be concurrently processed in a
-        running Hekad server. (default: 1000)
+        Messages being processed by Hekad are passed through a specific set of
+        plugins. A set of plugins to be applied to a message is often called
+        (somewhat informally) a Heka pipeline.
 
     PipelinePack
-
         In addition to the core message data, Hekad needs to track some
-        related state and configuration information for each message.
-        To this end there is a `PipelinePack` struct defined in the
-        `heka/pipeline` package's `pipeline_runner.go
-        <https://github.com/mozilla-
+        related state and configuration information for each message. To this
+        end there is a `PipelinePack` struct defined in the `heka/pipeline`
+        package's `pipeline_runner.go <https://github.com/mozilla-
         services/heka/tree/dev/pipeline/pipeline_runner.go>`_ file.
-        `PipelinePack` objects are what get passed in to the various
-        Hekad plugins as messages flow through the pipelines.
+        `PipelinePack` objects are what get passed in to the various Hekad
+        plugins as messages flow through the pipelines.
 
-    PluginWithGlobal / PluginGlobal
-        When Hekad starts up, `PoolSize` copies of each decoder, filter,
-        and output plugin are created and are stored in `PipelinePack`
-        objects. Many plugins, however, need to share access to a
-        single, unique resource among the entire pool of plugin
-        instances; it would not be a great idea to have 1000 different
-        copies of a file output all competing to open a handle to the
-        same output file, for instance. For this reason, many plugins
-        are of type `PluginWithGlobal` and have an accompanying
-        `PluginGlobal` object (see `pipeline_runner.go
-        <https://github.com/mozilla-
-        services/heka/tree/dev/pipeline/pipeline_runner.go>`_). Each
-        `PluginWithGlobal` plugin type specified in your Hekad
-        configuration will cause `PoolSize` instances of the plugin
-        itself to be created but only a single `PluginGlobal` instance
-        to be shared between them.
+    Plugin
+        Hekad plugins are functional units that perform specific actions on or
+        with messages. There are four distinct types of plugins: inputs,
+        decoders, filters, and outputs.
+
+    PluginChanSize
+        A Heka configuration setting which specifies the size of the input
+        channel buffer for the various Heka plugins. Defaults to 50.
+
+    PoolSize
+        A Heka configuration setting which specifies the number of
+        `PipelinePack` structs that will be created. This is roughly
+        equivalent to the number of messages that can be in flight through a
+        Heka instance at one time.
+
+    Router
+        Component in the Heka pipeline that accepts messages and delivers them
+        to the appropriate filter and output plugins, as specified by the
+        plugins' message matcher values.
