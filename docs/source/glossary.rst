@@ -22,7 +22,7 @@ Glossary
         an application exception, a notification message, etc. It is
         specified as a `Message` struct in the `heka/message` packages
         `message.go <https://github.com/mozilla-
-        services/heka/tree/dev/message/message.go>`_ file.
+        services/heka/blob/master/message/message.go>`_ file.
 
     Message matcher
         A configuration option for filter and output plugins that specifies
@@ -40,7 +40,7 @@ Glossary
         related state and configuration information for each message. To this
         end there is a `PipelinePack` struct defined in the `heka/pipeline`
         package's `pipeline_runner.go <https://github.com/mozilla-
-        services/heka/tree/dev/pipeline/pipeline_runner.go>`_ file.
+        services/heka/blob/master/pipeline/pipeline_runner.go>`_ file.
         `PipelinePack` objects are what get passed in to the various Hekad
         plugins as messages flow through the pipelines.
 
@@ -55,7 +55,9 @@ Glossary
 
     PluginHelper
         An interface that provides access to certain Heka internals that may
-        be required by plugins in the course of their activity.
+        be required by plugins in the course of their activity. Defined in
+        `config.go <https://github.com/mozilla-
+        services/heka/blob/master/pipeline/config.go>`_.
 
     PluginRunner
         A plugin-specific helper object that manages the lifespan of a given

@@ -153,7 +153,7 @@ configuration data, into which the TOML configuration will be decoded.
 
 Plugins that wish to provide a custom configuration struct should implement
 the `HasConfigStruct` interface defined in the `config.go
-<https://github.com/mozilla-services/heka/blob/dev/pipeline/config.go>`_
+<https://github.com/mozilla-services/heka/blob/master/pipeline/config.go>`_
 file::
 
     type HasConfigStruct interface {
@@ -400,7 +400,7 @@ functions that should create and return a new instance of the right plugin
 type. In order to add `hekad` support for custom plugins, you need to add your
 own entries to this map. The hekad main package contains a
 `plugin_loader.go.in <https://github.com /mozilla-
-services/heka/blob/dev/hekad/plugin_loader.go.in>`_ file, which you can copy
+services/heka/blob/master/hekad/plugin_loader.go.in>`_ file, which you can copy
 to `plugin_loader.go` and edit for this purpose.
 
 A custom `plugin_loader.go` file might look like this::
