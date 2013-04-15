@@ -68,9 +68,9 @@ Glossary
 
     PoolSize
         A Heka configuration setting which specifies the number of
-        `PipelinePack` structs that will be created. This is roughly
-        equivalent to the number of messages that can be in flight through a
-        Heka instance at one time.
+        `PipelinePack` structs that will be created. This value specifies the
+        maximum number of incoming messages that Heka can be processing at any
+        one time.
 
     Router
         Component in the Heka pipeline that accepts messages and delivers them
