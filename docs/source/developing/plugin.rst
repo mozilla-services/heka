@@ -400,28 +400,21 @@ Outputs
 
 Finally we come to the output plugins, which are responsible for receiving
 Heka messages and using them to generate interactions with the outside world.
-As with the other plugin types, the `Output` interface is simple, only a
-single method::
+The `Output` interface is nearly identical to the `Filter` interface::
 
     type Output interface {
-            Deliver(pipelinePack *PipelinePack)
+            Run(or OutputRunner, h PluginHelper) (err error)
     }
 
-The `Deliver` method's job should be obvious: extract desired message
-information from the `pipelinePack` and send it on to the intended
-destination. In trivial cases this is straightforward, such as this example
-which simply writes the message payload out using Go's `log` module::
-
-    type (self *LogOutput) Deliver(pipelinePack *PipelinePack) {
-            log.Println(pipelinePack.Message.Payload)
-    }
-
-Most output requirements aren't trivial, however. Output plugins often require
-a connection resource that must be shared among the message pipelines. A
-connection sharing system could be implemented by hand using the
-`PluginGlobal` and `PluginWithGlobal` mechanism described above, but this is
-such a common requirement that Heka goes even further and provides something
-called the `Runner` plugin to do this for you.
+In fact, there is very little difference between filter and output plugins,
+other than tasks that they will be performing. Like filters, outputs should
+call the `InChan` method on the provided runner to get an input channel, which
+will feed `PipelineCapture` objects, containing populated `PipelinePack`
+objects within. Like filters, outputs should listen on this channel until it
+is closed, at which time they should perform any necessary clean-up and then
+return. And, like filters, any output plugin with a `ticker_interval` value in
+the configuration will use that value to create a ticker channel that can be
+accessed using the runner's `Ticker` method.
 
 Registering Your Plugin
 =======================
