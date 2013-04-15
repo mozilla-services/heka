@@ -142,6 +142,7 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		// down.
 		if filter, ok := foRunner.plugin.(Filter); ok {
 			err = filter.Run(foRunner, h)
+			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
 		} else if output, ok := foRunner.plugin.(Output); ok {
 			err = output.Run(foRunner, h)
 		}
@@ -329,10 +330,12 @@ func Run(config *PipelineConfig) {
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
+	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
+	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {

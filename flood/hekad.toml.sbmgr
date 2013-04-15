@@ -42,13 +42,37 @@ ticker_interval = 1.0
 	instruction_limit = 1000
 	output_limit = 1024
 
-[Loop]
+[LoopToSelf]
 type = "SandboxFilter"
 message_matcher = "TRUE"
 ticker_interval = 1.0
-	[Loop.settings]
+	[LoopToSelf.settings]
 	type = "lua"
 	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/loop.lua"
+	preserve_data = true
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
+[LoopToOtherA]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench' && EnvVersion == '0.8' || Logger == 'LoopToOtherB'"
+ticker_interval = 1.0
+	[LoopToOtherA.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
+	preserve_data = true
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
+[LoopToOtherB]
+type = "SandboxFilter"
+message_matcher = "Logger == 'LoopToOtherA'"
+ticker_interval = 1.0
+	[LoopToOtherB.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 	preserve_data = true
 	memory_limit = 32767
 	instruction_limit = 1000

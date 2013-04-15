@@ -143,6 +143,10 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 
 // Removes the specified FilterRunner from the configuration
 func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
+	if Globals().Stopping {
+		return false
+	}
+
 	self.filtersLock.Lock()
 	defer self.filtersLock.Unlock()
 	if fRunner, ok := self.FilterRunners[name]; ok {

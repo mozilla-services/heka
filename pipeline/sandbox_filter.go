@@ -84,9 +84,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 	)
 
-	this.sb.InjectMessage(func(s string) {
-		if msgLoopCount > this.maxMsgLoops {
-			return // TODO add a return value so we can terminate from lua
+	this.sb.InjectMessage(func(s string) int {
+		if msgLoopCount >= this.maxMsgLoops {
+			return 1
 		}
 		pack := MessageGenerator.Retrieve()
 		pack.MsgLoopCount = msgLoopCount
@@ -97,9 +97,10 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		match, _ := spec.Match(pack.Message)
 		if match {
 			pack.Recycle()
-			return // TODO add a return value so we can terminate from lua
+			return 1
 		}
 		MessageGenerator.Inject(pack)
+		return 0
 	})
 
 	for ok && !terminated {
@@ -120,7 +121,6 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			plc.Pack.Recycle()
 		case t := <-ticker:
-			msgLoopCount = 0
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				fr.LogError(fmt.Errorf(
 					"Sandbox TimerEvent error code: %d, error message: %s",
