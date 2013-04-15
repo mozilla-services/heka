@@ -25,17 +25,17 @@ typedef enum {
 } sandbox_status;
 
 typedef enum {
-    US_LIM   = 0,
-    US_CUR   = 1,
-    US_MAX   = 2,
+    USAGE_STAT_LIMIT    = 0,
+    USAGE_STAT_CURRENT  = 1,
+    USAGE_STAT_MAXIMUM  = 2,
 
     MAX_USAGE_STAT
 } sandbox_usage_stat;
 
 typedef enum {
-    UT_MEM  = 0,
-    UT_INS  = 1,
-    UT_OUT  = 2,
+    USAGE_TYPE_MEMORY       = 0,
+    USAGE_TYPE_INSTRUCTION  = 1,
+    USAGE_TYPE_OUTPUT       = 2,
 
     MAX_USAGE_TYPE
 } sandbox_usage_type;
