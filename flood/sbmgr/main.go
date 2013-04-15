@@ -54,7 +54,7 @@ func main() {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 	encoder := client.NewProtobufEncoder(&config.Signer)
-   manager := client.NewClient(sender, encoder);
+	manager := client.NewClient(sender, encoder)
 
 	hostname, _ := os.Hostname()
 	msg := &message.Message{}

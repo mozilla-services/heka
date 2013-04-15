@@ -39,6 +39,7 @@ type GlobalConfigStruct struct {
 	PoolSize        int
 	DecoderPoolSize int
 	PluginChanSize  int
+	MaxMsgLoops     uint
 	Stopping        bool
 }
 
@@ -48,6 +49,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		PoolSize:        100,
 		DecoderPoolSize: 4,
 		PluginChanSize:  50,
+		MaxMsgLoops:     4,
 	}
 }
 
@@ -186,12 +188,13 @@ func (foRunner *foRunner) Filter() Filter {
 }
 
 type PipelinePack struct {
-	MsgBytes    []byte
-	Message     *message.Message
-	RecycleChan chan *PipelinePack
-	Decoded     bool
-	RefCount    int32
-	Signer      string
+	MsgBytes     []byte
+	Message      *message.Message
+	RecycleChan  chan *PipelinePack
+	Decoded      bool
+	RefCount     int32
+	Signer       string
+	MsgLoopCount uint
 }
 
 type PipelineCapture struct {
@@ -204,11 +207,12 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	message := &message.Message{}
 
 	return &PipelinePack{
-		MsgBytes:    msgBytes,
-		Message:     message,
-		RecycleChan: recycleChan,
-		Decoded:     false,
-		RefCount:    int32(1),
+		MsgBytes:     msgBytes,
+		Message:      message,
+		RecycleChan:  recycleChan,
+		Decoded:      false,
+		RefCount:     int32(1),
+		MsgLoopCount: uint(0),
 	}
 }
 
@@ -216,6 +220,7 @@ func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
 	p.RefCount = 1
+	p.MsgLoopCount = 0
 	p.Signer = ""
 
 	// TODO: Possibly zero the message instead depending on benchmark

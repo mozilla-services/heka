@@ -38,6 +38,7 @@ type SandboxFilter struct {
 	sb               sandbox.Sandbox
 	sbc              sandbox.SandboxConfig
 	preservationFile string
+	maxMsgLoops      uint
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -67,6 +68,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	} else {
 		err = this.sb.Init("")
 	}
+	this.maxMsgLoops = Globals().MaxMsgLoops
 
 	return err
 }
@@ -75,25 +77,38 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
 
-	this.sb.InjectMessage(func(s string) {
-		pack := MessageGenerator.Retrieve()
-		pack.Message.SetType("heka.sandbox")
-		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetPayload(s)
-		MessageGenerator.Inject(pack)
-	})
-
 	var (
 		ok, terminated = true, false
 		plc            *PipelineCapture
 		retval         int
+		msgLoopCount   uint
 	)
+
+	this.sb.InjectMessage(func(s string) {
+		if msgLoopCount > this.maxMsgLoops {
+			return // TODO add a return value so we can terminate from lua
+		}
+		pack := MessageGenerator.Retrieve()
+		pack.MsgLoopCount = msgLoopCount
+		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetLogger(fr.Name())
+		pack.Message.SetPayload(s)
+		spec := fr.MatchRunner().MatcherSpecification()
+		match, _ := spec.Match(pack.Message)
+		if match {
+			pack.Recycle()
+			return // TODO add a return value so we can terminate from lua
+		}
+		MessageGenerator.Inject(pack)
+	})
+
 	for ok && !terminated {
 		select {
 		case plc, ok = <-inChan:
 			if !ok {
 				break
 			}
+			msgLoopCount = plc.Pack.MsgLoopCount
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
 			if retval != 0 {
 				fr.LogError(fmt.Errorf(
@@ -105,6 +120,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			plc.Pack.Recycle()
 		case t := <-ticker:
+			msgLoopCount = 0
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				fr.LogError(fmt.Errorf(
 					"Sandbox TimerEvent error code: %d, error message: %s",

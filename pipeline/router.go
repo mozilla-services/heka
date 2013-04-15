@@ -25,10 +25,11 @@ import (
 
 // Pushes the message onto the filters input channel if it is a match
 type MessageRouter struct {
-	InChan    chan *PipelinePack
-	MrChan    chan *MatchRunner
-	fMatchers []*MatchRunner
-	oMatchers []*MatchRunner
+	InChan      chan *PipelinePack
+	MrChan      chan *MatchRunner
+	fMatchers   []*MatchRunner
+	oMatchers   []*MatchRunner
+	maxMsgLoops uint
 }
 
 func NewMessageRouter() (router *MessageRouter) {
@@ -37,6 +38,7 @@ func NewMessageRouter() (router *MessageRouter) {
 	router.MrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
+	router.maxMsgLoops = Globals().MaxMsgLoops
 	return router
 }
 
@@ -73,6 +75,11 @@ func (self *MessageRouter) Start() {
 				}
 			case pack, ok = <-self.InChan:
 				if !ok {
+					break
+				}
+				if pack.MsgLoopCount++; pack.MsgLoopCount > self.maxMsgLoops {
+					log.Printf("MaxMsgLoops (%d) exceeded\n", self.maxMsgLoops)
+					pack.Recycle()
 					break
 				}
 				for _, matcher = range self.fMatchers {
@@ -118,6 +125,10 @@ func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 	return
+}
+
+func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
+	return mr.spec
 }
 
 func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {

@@ -107,7 +107,7 @@ ticker_interval = 1.0
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 	encoder := client.NewProtobufEncoder(&config.Signer)
-   manager := client.NewClient(sender, encoder);
+	manager := client.NewClient(sender, encoder)
 	hostname, _ := os.Hostname()
 
 	switch *action {
@@ -141,7 +141,7 @@ ticker_interval = 1.0
 			msg.AddField(f)
 			f1, _ := message.NewField("action", *action, message.Field_RAW)
 			msg.AddField(f1)
-   		err = manager.SendMessage(msg)
+			err = manager.SendMessage(msg)
 			if err != nil {
 				log.Printf("Error sending message: %s\n", err.Error())
 			}

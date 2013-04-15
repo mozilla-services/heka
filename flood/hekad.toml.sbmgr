@@ -42,6 +42,18 @@ ticker_interval = 1.0
 	instruction_limit = 1000
 	output_limit = 1024
 
+[Loop]
+type = "SandboxFilter"
+message_matcher = "TRUE"
+ticker_interval = 1.0
+	[Loop.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/loop.lua"
+	preserve_data = true
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
 [Counter]
 type = "CounterFilter"
 message_matcher = "Type == 'hekabench'"
