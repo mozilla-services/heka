@@ -379,12 +379,19 @@ a channel (type `<-chan time.Time`) that will send a tick at the specified
 interval. Your plugin code can listen on the ticker channel and take action as
 needed.
 
-Finally you might have noticed that, unlike the `Input` interface, filters
-don't need to implement a `Stop` method. Instead, Heka will communicate a
-shutdown event to filter plugins by closing the input channel from which the
-filter is receiving the `PipelineCapture` objects. When this channel is
-closed, a filter should perform any necessary clean-up and then return from
-the `Run` method.
+Observant readers might have noticed that, unlike the `Input` interface,
+filters don't need to implement a `Stop` method. Instead, Heka will
+communicate a shutdown event to filter plugins by closing the input channel
+from which the filter is receiving the `PipelineCapture` objects. When this
+channel is closed, a filter should perform any necessary clean-up and then
+return from the `Run` method with a `nil` value to indicate a clean exit.
+
+Finally, there is one very important point that all authors of filter plugins
+should keep in mind: if you are *not* passing your received `PipelinePack`
+object on to another filter or output plugin for further processing, then you
+*must* call `PipelinePack.Recycle()` to tell Heka that you are through with
+the pack. Failure to do so will cause Heka to not free up the packs for reuse,
+exhausting the supply and eventually causing the entire pipeline to freeze.
 
 .. _outputs:
 
