@@ -311,69 +311,80 @@ pipeline processing will occur.
 Filters
 =======
 
-As with inputs and decoders, the filter plugin interface is just a single
-method::
+Filter plugins are the message processing engine of the Heka system. They are
+used to examine and process message contents, and trigger events based on
+those contents in real time as messages are flowing through the Heka system.
+
+The filter plugin interface is just a single method::
 
     type Filter interface {
-            FilterMsg(pipelinePack *PipelinePack)
+            Run(r FilterRunner, h PluginHelper) (err error)
     }
 
-The `pipelinePack` (which, by the time filters are invoked, should always
-contain a valid decoded Message struct pointed to by `pipelinePack.Message`)
-will be passed by the Heka pipeline engine into the filter plugin, where the
-filter can perform its intended task, making any changes to either the Message
-or to any other values stored on the pipelinePack to influence further
-processing.
+Like input plugins, filters have a `Run` method which accepts a runner and a
+helper, and which should not return until shutdown unless there's an error
+condition. And like input plugins, filters should call `runner.InChan()` to
+gain access to the plugin's input channel.
 
-"Intended task" is pretty vague, however. What task does a filter perform,
-exactly? The specific function performed by a filter plugin is not as narrowly
-or clearly defined as those of inputs or decoders. Filters are where the bulk
-of Heka's message processing takes place and, as such, a filter might be
-performing one of any number of possible jobs:
+The similarities end there, however. A filter's input channel provides
+pointers to `PipelineCapture` objects, defined in `pipeline_runner.go
+<https://github.com/mozilla-
+services/heka/blob/master/pipeline/pipeline_runner.go>`_ as follows::
 
-Filtering
-    As the name suggests, one possible action a filter plugin can take is to
-    block a message from any further processing. This immediately scraps the
-    message, preventing it from being passed to any further filters or to any
-    output plugins. This is accomplished by setting `pipelinePack.Blocked` to
-    `true`.
+    type PipelineCapture struct {
+            Pack     *PipelinePack
+            Captures map[string]string
+    }
 
-Output Selection
-    The set of output plugins to which the message will be passed is indicated
-    by the `pipelinePack.OutputNames` map. Any filter can change the set of
-    outputs for a given message by adding or removing keys to or from this
-    set.
+The `Pack` attribute contains a fully decoded `Message` object from which the
+filter can extract any desired information. The `Captures` value, if not nil,
+will contain the values of any regular expression capture groups that might be
+defined in the filter's `message_matcher` (see :ref:`matcher_capture_groups`).
 
-Message Injection
-    A filter might possibly watch the pipeline for certain events to happen so
-    that, when triggered, a new message is generated. This can be done by
-    making use of `MessageGenerator` API (global to the `pipeline` package),
-    as in this example::
+Upon processing a message, a filter plugin can perform any of three tasks:
 
-        msgHolder := pipeline.MessageGenerator.Retrieve()
-        msgHolder.Message.Type = "yourtype"
-        msgHolder.Message.Payload = "Your message payload"
-        pipeline.MessageGenerator.Inject(msgHolder)
+1. Pass the original message through unchanged to one or more specific
+   alternative Heka filter or output plugins.
+2. Generate one or more *new* messages, which can be passed to either a
+   specific set of Heka plugins, or which can be handed back to the router to
+   be checked against all registered plugins' `message_matcher` rules.
+3. Nothing (e.g. when performing counting / aggregation / roll-ups).
 
-Counting / Aggregation / Roll-ups
-    In some cases you might want to count the number of messages of a
-    particular type that pass through a Heka pipeline. One possible way to
-    handle this is to implement a filter that does the counting. The filter
-    could also perform simple roll-up operations by swallowing the original
-    individual messages and using message injection to generate messages
-    representing the aggregate.
+To pass a message through unchanged, a filter can call `PluginHelper.Filter()`
+or `PluginHelper.Output()` to access a filter or output plugin, and then call
+that plugin's `Deliver()` method, passing in the `PipelinePack`.
 
-Event / Anomaly Detection
-    A filter might be coded to watch for certain message types or message
-    events such that it notices when specific behavior is (or isn't)
-    happening. A simple example of this would be if an app generated a
-    heartbeat message at regular intervals, a filter might be expecting these
-    and would then notice if the heartbeats stopped arriving. This can be
-    combined with message injection to generate notifications.
+To generate new messages, your filter must call
+`PluginHelper.PipelinePack(loopCount int)`. The `loopCount` value to be passed
+in should be obtained from the `loopCount` value on the `PipelinePack` that
+you're already holding, or zero, if the new message is being triggered by a
+timed ticker instead of an incoming message. The `PipelinePack` method will
+either return a pack ready for you to populate or `nil` if the loop count is
+greater than the configured maximum value, as a safeguard against
+inadvertently creating infinite message loops.
 
-Note that this is merely a list of some of the more common uses for Heka
-filter plugins. It is certainly not meant to be a comprehensive list of what
-filters can do. A filter can perform any message processing that you can code.
+Once you've acquired a `PipelinePack`, you can populate its `Message` object
+and then pass the pack along to either a specific plugin (or plugins) as
+above, or you can pass it to the message router. TODO: HOW DO YOU DO THIS?
+
+Sometimes a filter will take a specific action triggered by a single incoming
+message. There are many cases, however, when a filter is merely collecting or
+aggregating data from the incoming messages, and instead will be sending out
+reports on the data that has been collected at specific intervals. Heka has
+built-in support for this use case. Any filter (or output) plugin can include
+a `ticker_interval` config setting (in seconds, integers only), which will
+automatically be extracted by Heka when the configuration is loaded. Then from
+within your plugin code you can call `FilterRunner.Ticker()` and you will get
+a channel (type `<-chan time.Time`) that will send a tick at the specified
+interval. Your plugin code can listen on the ticker channel and take action as
+needed.
+
+Finally you might have noticed that, unlike the `Input` interface, filters
+don't need to implement a `Stop` method. Instead, Heka will communicate a
+shutdown event to filter plugins by closing the input channel from which the
+filter is receiving the `PipelineCapture` objects. When this channel is
+closed, a filter should perform any necessary clean-up and then return from
+the `Run` method.
 
 .. _outputs:
 
