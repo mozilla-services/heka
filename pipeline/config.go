@@ -231,7 +231,7 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	hasConfigStruct, ok := configable.(HasConfigStruct)
 	if !ok {
 		// If we don't have a config struct, change it to a PluginConfig
-		configStruct = new(PluginConfig)
+		configStruct = PluginConfig{}
 		if err = toml.PrimitiveDecode(config, configStruct); err != nil {
 			configStruct = nil
 		}
