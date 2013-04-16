@@ -31,11 +31,10 @@ type MessageRouter interface {
 // Pushes the message onto the input channel for every filter and output
 // plugin that is a match
 type messageRouter struct {
-	inChan      chan *PipelinePack
-	mrChan      chan *MatchRunner
-	fMatchers   []*MatchRunner
-	oMatchers   []*MatchRunner
-	maxMsgLoops uint
+	inChan    chan *PipelinePack
+	mrChan    chan *MatchRunner
+	fMatchers []*MatchRunner
+	oMatchers []*MatchRunner
 }
 
 func NewMessageRouter() (router *messageRouter) {
@@ -44,7 +43,6 @@ func NewMessageRouter() (router *messageRouter) {
 	router.mrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
-	router.maxMsgLoops = Globals().MaxMsgLoops
 	return router
 }
 

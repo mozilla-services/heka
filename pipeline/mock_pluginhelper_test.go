@@ -79,13 +79,3 @@ func (_m *MockPluginHelper) PipelinePack(_param0 uint) *PipelinePack {
 func (_mr *_MockPluginHelperRecorder) PipelinePack(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PipelinePack", arg0)
 }
-
-func (_m *MockPluginHelper) Router() MessageRouter {
-	ret := _m.ctrl.Call(_m, "Router")
-	ret0, _ := ret[0].(MessageRouter)
-	return ret0
-}
-
-func (_mr *_MockPluginHelperRecorder) Router() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Router")
-}

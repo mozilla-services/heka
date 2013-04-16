@@ -287,6 +287,6 @@ func (sm *statMonitor) Flush() {
 	pack.Message.SetHostname(sm.h.PipelineConfig().hostname)
 	pack.Message.SetPid(sm.h.PipelineConfig().pid)
 	pack.Message.SetPayload(buffer.String())
-	sm.h.Router().InChan() <- pack
+	sm.ir.Inject(pack)
 	return
 }

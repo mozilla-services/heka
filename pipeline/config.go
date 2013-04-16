@@ -45,7 +45,6 @@ type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
 	Output(name string) (oRunner OutputRunner, ok bool)
-	Router() (router MessageRouter)
 	Filter(name string) (fRunner FilterRunner, ok bool)
 	PipelineConfig() *PipelineConfig
 	DecoderSet() DecoderSet
@@ -106,7 +105,6 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 
 func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
 	if msgLoopCount++; msgLoopCount > Globals().MaxMsgLoops {
-		log.Printf("MaxMsgLoops (%d) has been exceeded\n", Globals().MaxMsgLoops)
 		return nil
 	}
 	pack := <-self.injectRecycleChan
@@ -122,10 +120,6 @@ func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
 func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) {
 	oRunner, ok = self.OutputRunners[name]
 	return
-}
-
-func (self *PipelineConfig) Router() (router MessageRouter) {
-	return self.router
 }
 
 // Returns the configuration via the Helper interface

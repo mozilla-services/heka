@@ -42,6 +42,7 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	Inject(pack *PipelinePack)
 }
 
 type iRunner struct {
@@ -90,6 +91,10 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		}
 	}()
 	return
+}
+
+func (ir *iRunner) Inject(pack *PipelinePack) {
+	ir.h.PipelineConfig().router.InChan() <- pack
 }
 
 func (ir *iRunner) LogError(err error) {

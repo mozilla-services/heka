@@ -167,11 +167,10 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 	match, _ := spec.Match(pack.Message)
 	if match {
 		pack.Recycle()
-		log.Printf("Plugin '%s' error: attempted to Inject a message to itself",
-			foRunner.name)
+		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
 		return false
 	}
-	foRunner.h.Router().InChan() <- pack
+	foRunner.h.PipelineConfig().router.InChan() <- pack
 	return true
 }
 

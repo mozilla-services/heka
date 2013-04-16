@@ -85,6 +85,8 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	this.sb.InjectMessage(func(s string) int {
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
+			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
+				Globals().MaxMsgLoops))
 			return 1
 		}
 		pack.Message.SetType("heka.sandbox")
