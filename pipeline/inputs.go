@@ -408,8 +408,3 @@ func (self *TcpInput) Stop() {
 	self.listener.Close()
 	close(self.stopChan)
 }
-
-type outputMsg struct {
-	outputName string
-	pack       *PipelinePack
-}
