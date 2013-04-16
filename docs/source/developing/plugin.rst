@@ -423,57 +423,43 @@ accessed using the runner's `Ticker` method. And, finally, outputs should also
 be sure to call `PipelinePack.Recycle()` when they finish w/ a pack so that
 Heka knows the pack is freed up for reuse.
 
+.. _register_custom_plugins
+
 Registering Your Plugin
 =======================
 
 The last step you have to take after implementing your plugin is to register
-it with `hekad` so it can actually be configured and used. Heka defines an
-`AvailablePlugins` map for this purpose, with default entries such as these::
+it with `hekad` so it can actually be configured and used. You do this by
+calling the `pipeline` package's `RegisterPlugin` function::
 
-    var AvailablePlugins = map[string]func() interface{}{
-            "UdpInput":       func() interface{} { return new(UdpInput) },
-            "JsonDecoder":    func() interface{} { return new(JsonDecoder) },
-            "MsgPackDecoder": func() interface{} { return new(MsgPackDecoder) },
-            "StatsdUdpInput": func() interface{} { return RunnerMaker(new(StatsdInWriter)) },
-            "LogOutput":      func() interface{} { return new(LogOutput) },
-            "CounterOutput":  func() interface{} { return new(CounterOutput) },
-            "FileOutput":     func() interface{} { return RunnerMaker(new(FileWriter)) },
-    }
+    func RegisterPlugin(name string, factory func() interface{})
 
-The `AvailablePlugins` map keys are string identifiers that can be used in
-Heka's JSON config file (see :ref:`configuration`). The values are factory
-functions that should create and return a new instance of the right plugin
-type. In order to add `hekad` support for custom plugins, you need to add your
-own entries to this map. The hekad main package contains a
-`plugin_loader.go.in <https://github.com /mozilla-
-services/heka/blob/master/hekad/plugin_loader.go.in>`_ file, which you can copy
-to `plugin_loader.go` and edit for this purpose.
+The `name` value should be a unique identifier for your plugin, and it should
+end in one of "Input", "Decoder", "Filter", or "Output", depending on the
+plugin type.
 
-A custom `plugin_loader.go` file might look like this::
+The `factory` value should be a function that returns an instance of your
+plugin, usually a pointer to a struct, where the pointer type implements the
+`Plugin` interface and the interface appropriate to its type (i.e. `Input`,
+`Decoder`, `Filter`, or `Output`).
 
-    package main
+This sounds more complicated than it is. Here are some examples from Heka
+itself::
 
-    import (
-            "github.com/mozilla-services/heka/pipeline"
-            "github.com/myaccount/mypackage"
-    )
+    RegisterPlugin("UdpInput", func() interface{} {return new(UdpInput)})
+    RegisterPlugin("TcpInput", func() interface{} {return new(TcpInput)})
+    RegisterPlugin("JsonDecoder", func() interface{} {return new(JsonDecoder)})
+    RegisterPlugin("ProtobufDecoder", func() interface{} {return new(ProtobufDecoder)})
+    RegisterPlugin("CounterFilter", func() interface{} {return new(CounterFilter)})
+    RegisterPlugin("StatFilter", func() interface{} {return new(StatFilter)})
+    RegisterPlugin("LogOutput", func() interface{} {return new(LogOutput)})
+    RegisterPlugin("FileOutput", func() interface{} {return new(FileOutput)})
 
-    // Add custom plugins to `AvailablePlugins`, one at a time
-    func init() {
-            pipeline.AvailablePlugins["my_input_1"] = func() interface{} {
-                    return new(mypackage.CustomInput)
-            }
+It is recommended that `RegisterPlugin` calls be put in your Go package's
+`init() function <http://golang.org/doc/effective_go.html#init>`_ so that you
+can simply import your package when building `hekad` and the package's plugins
+will be registered and available for use in your Heka config file. This is
+made a bit easier if you use `heka build`_, see
+:ref:`build_include_externals`.
 
-            pipeline.AvailablePlugins["my_input_2"] = func() interface{} {
-                    return new(mypackage.CustomInput)
-            }
-
-            pipeline.AvailablePlugins["my_output"] = func() interface{} {
-                    return pipeline.RunnerMaker(new(mypackage.CustomWriter))
-            }
-    }
-
-Note that for simple plugins the factory function can just create an instance
-and return it, but if you'd like to use the built in `Runner` plugin with a
-custom `Writer` or `BatchWriter` the factory function should delegate to the
-`pipeline.RunnerMaker` function, passing in an instance of the custom writer.
+.. _heka build: https://github.com/mozilla-services/heka-build
