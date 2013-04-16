@@ -355,17 +355,22 @@ or `PluginHelper.Output()` to access a filter or output plugin, and then call
 that plugin's `Deliver()` method, passing in the `PipelinePack`.
 
 To generate new messages, your filter must call
-`PluginHelper.PipelinePack(loopCount int)`. The `loopCount` value to be passed
-in should be obtained from the `loopCount` value on the `PipelinePack` that
-you're already holding, or zero, if the new message is being triggered by a
-timed ticker instead of an incoming message. The `PipelinePack` method will
-either return a pack ready for you to populate or `nil` if the loop count is
-greater than the configured maximum value, as a safeguard against
-inadvertently creating infinite message loops.
+`PluginHelper.PipelinePack(msgLoopCount int)`. The `msgloopCount` value to be
+passed in should be obtained from the `MsgLoopCount` value on the
+`PipelinePack` that you're already holding, or possibly zero if the new
+message is being triggered by a timed ticker instead of an incoming message.
+The `PipelinePack` method will either return a pack ready for you to populate
+or `nil` if the loop count is greater than the configured maximum value, as a
+safeguard against inadvertently creating infinite message loops.
 
-Once you've acquired a `PipelinePack`, you can populate its `Message` object
-and then pass the pack along to either a specific plugin (or plugins) as
-above, or you can pass it to the message router. TODO: HOW DO YOU DO THIS?
+Once a `PipelinePack` has been obtained, a filter plugin can populate its
+`Message` object. The pack can then be passed along to a specific plugin (or
+plugins) as above. Alternatively, the pack can be injected into the Heka
+message router queue, where it will be checked against all plugin message
+matchers, by passing it to the `FilterRunner.Inject(pack *PipelinePack)`
+method. Note that, again as a precaution against message looping, a plugin
+will not be allowed to inject a message which would get a positive response
+from that plugin's own matcher.
 
 Sometimes a filter will take a specific action triggered by a single incoming
 message. There are many cases, however, when a filter is merely collecting or
