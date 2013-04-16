@@ -227,11 +227,12 @@ indicated by returning a `nil` error.
 Inside the `Run` method, an input has three primary responsibilities::
 
 1. Acquire information from the outside world
-2. Use acquired information to populate a `PipelinePack` object that can be
+2. Use acquired information to populate `PipelinePack` objects that can be
    processed by Heka.
 3. Pass the populated `PipelinePack` objects on to the appropriate next stage
-   in the Heka pipeline (usually to a decoder plugin so raw input data can be
-   converted to a `Message` object.)
+   in the Heka pipeline (either to a decoder plugin so raw input data can be
+   converted to a `Message` object, or by injecting them directly into the
+   Heka message router if the `Message` object is already populated.)
 
 The details of the first step are clearly entirely defined by the plugin's
 intended input mechanism(s). Plugins can (and should!) spin up goroutines as
