@@ -528,8 +528,12 @@ int inject_message(lua_State* lua)
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
     if (lsb->m_output.m_pos != 0) {
-        go_lua_inject_message(lsb->m_go, lsb->m_output.m_data);
+        int result = go_lua_inject_message(lsb->m_go, lsb->m_output.m_data);
         lsb->m_output.m_pos = 0;
+        if (result != 0) {
+            lua_pushstring(lua, "inject_message() exceeded MaxMsgLoops");
+            lua_error(lua);
+        }
     }
     return 0;
 }

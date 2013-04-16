@@ -70,6 +70,6 @@ func getTestMessage() *Message {
 func BenchmarkPipelinePackCreation(b *testing.B) {
 	var config = PipelineConfig{}
 	for i := 0; i < b.N; i++ {
-		NewPipelinePack(config.RecycleChan)
+		NewPipelinePack(config.inputRecycleChan)
 	}
 }

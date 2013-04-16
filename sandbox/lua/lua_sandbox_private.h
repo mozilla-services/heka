@@ -232,8 +232,8 @@ int output(lua_State* lua);
 int read_message(lua_State* lua);
 
 /** 
- * Inject a message into the Heka MGI using the output buffer's contents as the 
- * message payload. 
+ * Inject a message into Heka using the output buffer's contents as the message 
+ * payload. 
  * 
  * @param lua Pointer to the Lua state.
  * 

@@ -71,7 +71,7 @@ char* lua_sandbox_destroy(lua_sandbox* lsb, const char* data_file)
     char* err = NULL;
     if (lsb == NULL) return err;
 
-    if (data_file != NULL && strnlen(data_file, 1) > 0) {
+    if (lsb->m_lua != NULL && data_file != NULL && strnlen(data_file, 1) > 0) {
         if (preserve_global_data(lsb, data_file) != 0) {
             size_t len = strnlen(lsb->m_error_message, ERROR_SIZE);
             err = malloc(len + 1);

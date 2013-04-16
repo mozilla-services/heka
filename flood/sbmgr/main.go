@@ -49,11 +49,12 @@ func main() {
 		log.Printf("Error decoding config file: %s", err)
 		return
 	}
-	sender, err := client.NewTcpSender(config.IpAddress)
+	sender, err := client.NewNetworkSender("tcp", config.IpAddress)
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
-	encoder := new(client.ProtobufEncoder)
+	encoder := client.NewProtobufEncoder(&config.Signer)
+	manager := client.NewClient(sender, encoder)
 
 	hostname, _ := os.Hostname()
 	msg := &message.Message{}
@@ -86,8 +87,7 @@ func main() {
 
 	f1, _ := message.NewField("action", *action, message.Field_RAW)
 	msg.AddField(f1)
-	msgBytes, err := encoder.EncodeMessage(msg)
-	err = sender.SendMessage(msgBytes, encoder.Encoding(), &config.Signer)
+	err = manager.SendMessage(msg)
 	if err != nil {
 		log.Printf("Error sending message: %s\n", err.Error())
 	}

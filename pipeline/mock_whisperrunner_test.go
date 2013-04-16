@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	whisper "github.com/rafrombrc/whisper-go/whisper"
 	gomock "code.google.com/p/gomock/gomock"
+	whisper "github.com/rafrombrc/whisper-go/whisper"
 )
 
 // Mock of WhisperRunner interface

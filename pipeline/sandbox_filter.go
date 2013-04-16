@@ -75,25 +75,36 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
 
-	this.sb.InjectMessage(func(s string) {
-		pack := MessageGenerator.Retrieve()
-		pack.Message.SetType("heka.sandbox")
-		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetPayload(s)
-		MessageGenerator.Inject(pack)
-	})
-
 	var (
 		ok, terminated = true, false
 		plc            *PipelineCapture
 		retval         int
+		msgLoopCount   uint
 	)
+
+	this.sb.InjectMessage(func(s string) int {
+		pack := h.PipelinePack(msgLoopCount)
+		if pack == nil {
+			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
+				Globals().MaxMsgLoops))
+			return 1
+		}
+		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetLogger(fr.Name())
+		pack.Message.SetPayload(s)
+		if !fr.Inject(pack) {
+			return 1
+		}
+		return 0
+	})
+
 	for ok && !terminated {
 		select {
 		case plc, ok = <-inChan:
 			if !ok {
 				break
 			}
+			msgLoopCount = plc.Pack.MsgLoopCount
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
 			if retval != 0 {
 				fr.LogError(fmt.Errorf(
