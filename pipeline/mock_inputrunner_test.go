@@ -39,6 +39,14 @@ func (_mr *_MockInputRunnerRecorder) InChan() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InChan")
 }
 
+func (_m *MockInputRunner) Inject(_param0 *PipelinePack) {
+	_m.ctrl.Call(_m, "Inject", _param0)
+}
+
+func (_mr *_MockInputRunnerRecorder) Inject(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Inject", arg0)
+}
+
 func (_m *MockInputRunner) Input() Input {
 	ret := _m.ctrl.Call(_m, "Input")
 	ret0, _ := ret[0].(Input)

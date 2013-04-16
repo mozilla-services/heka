@@ -45,6 +45,7 @@ func main() {
 	cpuProfName := flag.String("cpuprof", "", "Go CPU profiler output file")
 	memProfName := flag.String("memprof", "", "Go memory profiler output file")
 	version := flag.Bool("version", false, "Output version and exit")
+	maxMsgLoops := flag.Uint("max_message_loops", 4, "Maximum number of times a message can pass thru the system")
 	flag.Parse()
 
 	if *version {
@@ -79,6 +80,10 @@ func main() {
 	globals.PoolSize = *poolSize
 	globals.DecoderPoolSize = *decoderPoolSize
 	globals.PluginChanSize = *chanSize
+	globals.MaxMsgLoops = *maxMsgLoops
+	if globals.MaxMsgLoops == 0 {
+		globals.MaxMsgLoops = 1
+	}
 	pipeconf := pipeline.NewPipelineConfig(globals)
 	err := pipeconf.LoadFromConfigFile(*configFile)
 	if err != nil {

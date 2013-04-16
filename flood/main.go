@@ -287,6 +287,6 @@ func main() {
 			}
 		}
 	}
-   sender.Close()
+	sender.Close()
 	log.Println("Clean shutdown: ", msgsSent, " messages sent")
 }

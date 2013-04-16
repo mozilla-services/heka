@@ -16,10 +16,12 @@
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	. "github.com/mozilla-services/heka/message"
 	"log"
+	"os"
 	"regexp"
 	"sync"
 	"time"
@@ -42,12 +44,11 @@ func RegisterPlugin(name string, factory func() interface{}) {
 type PluginConfig map[string]toml.Primitive
 
 type PluginHelper interface {
-	PackSupply() chan *PipelinePack
 	Output(name string) (oRunner OutputRunner, ok bool)
-	Router() (router MessageRouter)
 	Filter(name string) (fRunner FilterRunner, ok bool)
 	PipelineConfig() *PipelineConfig
 	DecoderSet() DecoderSet
+	PipelinePack(msgLoopCount uint) *PipelinePack
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -58,18 +59,21 @@ type HasConfigStruct interface {
 
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
-	InputRunners    map[string]InputRunner
-	DecoderWrappers map[string]*PluginWrapper
-	DecoderSets     []DecoderSet
-	FilterRunners   map[string]FilterRunner
-	OutputRunners   map[string]OutputRunner
-	router          *messageRouter
-	RecycleChan     chan *PipelinePack
-	logMsgs         []string
-	filtersLock     sync.Mutex
-	filtersWg       sync.WaitGroup
-	decodersWg      sync.WaitGroup
-	decodersChan    chan DecoderSet
+	InputRunners      map[string]InputRunner
+	DecoderWrappers   map[string]*PluginWrapper
+	DecoderSets       []DecoderSet
+	FilterRunners     map[string]FilterRunner
+	OutputRunners     map[string]OutputRunner
+	router            *messageRouter
+	inputRecycleChan  chan *PipelinePack
+	injectRecycleChan chan *PipelinePack // need a separate pool for message injection to avoid a deadlock with input
+	logMsgs           []string
+	filtersLock       sync.Mutex
+	filtersWg         sync.WaitGroup
+	decodersWg        sync.WaitGroup
+	decodersChan      chan DecoderSet
+	hostname          string
+	pid               int32
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -89,23 +93,33 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.FilterRunners = make(map[string]FilterRunner)
 	config.OutputRunners = make(map[string]OutputRunner)
 	config.router = NewMessageRouter()
-	config.RecycleChan = make(chan *PipelinePack, globals.PoolSize)
+	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
+	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.logMsgs = make([]string, 0, 4)
 	config.decodersChan = make(chan DecoderSet, globals.DecoderPoolSize)
+	config.hostname, _ = os.Hostname()
+	config.pid = int32(os.Getpid())
+
 	return config
 }
 
-func (self *PipelineConfig) PackSupply() chan *PipelinePack {
-	return self.RecycleChan
+func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
+	if msgLoopCount++; msgLoopCount > Globals().MaxMsgLoops {
+		return nil
+	}
+	pack := <-self.injectRecycleChan
+	pack.Message.SetTimestamp(time.Now().UnixNano())
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetHostname(self.hostname)
+	pack.Message.SetPid(self.pid)
+	pack.RefCount = 1
+	pack.MsgLoopCount = msgLoopCount
+	return pack
 }
 
 func (self *PipelineConfig) Output(name string) (oRunner OutputRunner, ok bool) {
 	oRunner, ok = self.OutputRunners[name]
 	return
-}
-
-func (self *PipelineConfig) Router() (router MessageRouter) {
-	return self.router
 }
 
 // Returns the configuration via the Helper interface
@@ -143,6 +157,10 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 
 // Removes the specified FilterRunner from the configuration
 func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
+	if Globals().Stopping {
+		return false
+	}
+
 	self.filtersLock.Lock()
 	defer self.filtersLock.Unlock()
 	if fRunner, ok := self.FilterRunners[name]; ok {
@@ -455,17 +473,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		return fmt.Errorf("%d errors loading plugins", errcnt)
 	}
 
-	// Setup our message generator input
-	MessageGenerator.Init()
-	mgiWrapper := new(PluginWrapper)
-	mgiWrapper.name = "MessageGeneratorInput"
-	mgiWrapper.pluginCreator = func() interface{} { return new(MessageGeneratorInput) }
-	mgiWrapper.configCreator = func() interface{} { return new(PluginConfig) }
-	if mgi, err := mgiWrapper.CreateWithError(); err != nil {
-		return fmt.Errorf("Error creating MGI: %s", err)
-	} else {
-		self.InputRunners[mgiWrapper.name] = NewInputRunner(mgiWrapper.name, mgi.(Input))
-	}
 	return
 }
 

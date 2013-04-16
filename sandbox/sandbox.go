@@ -50,7 +50,7 @@ type Sandbox interface {
 	TimerEvent(ns int64) int
 
 	// Go callback
-	InjectMessage(f func(s string))
+	InjectMessage(f func(s string) int)
 }
 
 type SandboxConfig struct {

@@ -445,10 +445,11 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	sb.InjectMessage(func(s string) {
+	sb.InjectMessage(func(s string) int {
 		if s != "11" {
 			t.Errorf("State was not restored")
 		}
+		return 0
 	})
 	r := sb.ProcessMessage(msg, captures)
 	if r != 0 {
@@ -530,6 +531,41 @@ func TestPreserveFailureNoGlobal(t *testing.T) {
 			t.Errorf("expected '%s' got '%s'", expect, err)
 		}
 	}
+}
+
+func TestFailedMessageInjection(t *testing.T) {
+	var sbc SandboxConfig
+	var captures map[string]string
+	sbc.ScriptFilename = "./testsupport/loop.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 1024
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.InjectMessage(func(s string) int {
+		return 1
+	})
+	r := sb.ProcessMessage(msg, captures)
+	if r != 1 {
+		t.Errorf("ProcessMessage should return 1, received %d", r)
+	}
+	if STATUS_TERMINATED != sb.Status() {
+		t.Errorf("status should be %d, received %d",
+			STATUS_TERMINATED, sb.Status())
+	}
+	s := sb.LastError()
+	errMsg := "process_message() inject_message() exceeded MaxMsgLoops"
+	if s != errMsg {
+		t.Errorf("error should be \"%s\", received \"%s\"", errMsg, s)
+	}
+	sb.Destroy("")
 }
 
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
