@@ -122,12 +122,15 @@ func ReportSpec(c gs.Context) {
 
 	c.Specify("PipelineConfig", func() {
 		pc := NewPipelineConfig(nil)
+		// Initialize all of the PipelinePacks that we'll need
+		for i := 0; i < Globals().PoolSize; i++ {
+			pc.injectRecycleChan <- NewPipelinePack(pc.injectRecycleChan)
+		}
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
 		pc.DecoderSets = nil
 
 		c.Specify("returns full set of accurate reports", func() {
-			MessageGenerator.Init()
 			reportChan := make(chan *PipelinePack)
 			go pc.reports(reportChan)
 
@@ -140,7 +143,6 @@ func ReportSpec(c gs.Context) {
 				c.Expect(name, gs.Not(gs.Equals), "MISSING")
 				reports[name] = r
 			}
-
 			fReport := reports[fName]
 			c.Expect(fReport, gs.Not(gs.IsNil))
 			checkForFields(c, fReport.Message)
@@ -150,9 +152,15 @@ func ReportSpec(c gs.Context) {
 			c.Expect(iReport, gs.Not(gs.IsNil))
 			checkForFields(c, iReport.Message)
 
-			recycleReport := reports["RecycleChan"]
+			recycleReport := reports["inputRecycleChan"]
 			c.Expect(recycleReport, gs.Not(gs.IsNil))
 			capVal, ok := recycleReport.Message.GetFieldValue("InChanCapacity")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
+
+			injectReport := reports["injectRecycleChan"]
+			c.Expect(injectReport, gs.Not(gs.IsNil))
+			capVal, ok = injectReport.Message.GetFieldValue("InChanCapacity")
 			c.Expect(ok, gs.IsTrue)
 			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
 

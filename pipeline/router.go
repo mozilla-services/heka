@@ -134,6 +134,10 @@ func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	return
 }
 
+func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
+	return mr.spec
+}
+
 func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 	go func() {
 		defer func() {

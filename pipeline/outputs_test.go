@@ -72,7 +72,7 @@ func OutputsSpec(c gs.Context) {
 		config.Path = tmpFilePath
 
 		msg := getTestMessage()
-		pack := NewPipelinePack(pConfig.RecycleChan)
+		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
 		plc := &PipelineCapture{Pack: pack}
@@ -239,7 +239,7 @@ func OutputsSpec(c gs.Context) {
 		tcpOutput.connection = ts.NewMockConn(ctrl)
 
 		msg := getTestMessage()
-		pack := NewPipelinePack(pConfig.RecycleChan)
+		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
 		plc := &PipelineCapture{Pack: pack}
