@@ -268,11 +268,9 @@ can be placed.
 Sometimes the input itself might wish to decode the data, rather than
 delegating that job to a separate decoder. In this case the input can directly
 populate the `pack.Message` and set the `pack.Decoded` value as `true`, as a
-decoder would do. Decoded messages are then typically passed along to the main
-Heka message router to be delivered to the appropriate filter and output
-plugins. The router is available via the `PluginHelper.Router()`, and messages
-are passed in by dropping the `PipelinePack` on to the router's input channel,
-available via the router's `InChan` method.
+decoder would do. Decoded messages are then injected into Heka's routing
+system by calling `InputRunner.Inject(pack)`. The message will then be
+delivered to the appropriate filter and output plugins.
 
 One final important detail: if for any reason your input plugin should pull a
 `PipelinePack` off of the input channel and *not* end up passing it on to
