@@ -419,7 +419,9 @@ objects within. Like filters, outputs should listen on this channel until it
 is closed, at which time they should perform any necessary clean-up and then
 return. And, like filters, any output plugin with a `ticker_interval` value in
 the configuration will use that value to create a ticker channel that can be
-accessed using the runner's `Ticker` method.
+accessed using the runner's `Ticker` method. And, finally, outputs should also
+be sure to call `PipelinePack.Recycle()` when they finish w/ a pack so that
+Heka knows the pack is freed up for reuse.
 
 Registering Your Plugin
 =======================
