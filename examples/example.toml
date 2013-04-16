@@ -1,0 +1,19 @@
+[TcpInput]
+address = "127.0.0.1:5565"
+
+[HostFilter]
+message_matcher = "Type != 'heka.counter-output'"
+hosts = ["127.0.0.1", "grail"]
+output = "UdpOutput"
+
+[CounterFilter]
+message_matcher = "Type != 'heka.counter-output'"
+ticker_interval = 1.0
+
+[UdpOutput]
+address = "127.0.0.1:6676"
+
+[LogOutput]
+message_matcher = "Type == 'heka.counter-output' || Type == 'heka.all-report'"
+payload_only = true
+

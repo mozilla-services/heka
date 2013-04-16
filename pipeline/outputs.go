@@ -46,8 +46,8 @@ type LogOutput struct {
 }
 
 func (self *LogOutput) Init(config interface{}) (err error) {
-	conf := config.(*PluginConfig)
-	if p, ok := (*conf)["payload_only"]; ok {
+	conf := config.(PluginConfig)
+	if p, ok := conf["payload_only"]; ok {
 		self.payloadOnly, ok = p.(bool)
 	}
 	return
