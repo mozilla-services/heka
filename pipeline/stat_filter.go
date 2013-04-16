@@ -59,11 +59,14 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
-			pack := MessageGenerator.Retrieve()
+			pack := h.PipelinePack(plc.Pack.MsgLoopCount)
+			if pack == nil {
+				break
+			}
 			pack.Message.SetType(met.Type_)
 			pack.Message.SetLogger(InterpolateString(met.Name, captures))
 			pack.Message.SetPayload(InterpolateString(met.Value, captures))
-			MessageGenerator.Inject(pack)
+			fr.Inject(pack)
 		}
 	}
 

@@ -38,7 +38,6 @@ type SandboxFilter struct {
 	sb               sandbox.Sandbox
 	sbc              sandbox.SandboxConfig
 	preservationFile string
-	maxMsgLoops      uint
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -68,7 +67,6 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	} else {
 		err = this.sb.Init("")
 	}
-	this.maxMsgLoops = Globals().MaxMsgLoops
 
 	return err
 }
@@ -85,21 +83,16 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	)
 
 	this.sb.InjectMessage(func(s string) int {
-		if msgLoopCount >= this.maxMsgLoops {
+		pack := h.PipelinePack(msgLoopCount)
+		if pack == nil {
 			return 1
 		}
-		pack := MessageGenerator.Retrieve()
-		pack.MsgLoopCount = msgLoopCount
 		pack.Message.SetType("heka.sandbox")
 		pack.Message.SetLogger(fr.Name())
 		pack.Message.SetPayload(s)
-		spec := fr.MatchRunner().MatcherSpecification()
-		match, _ := spec.Match(pack.Message)
-		if match {
-			pack.Recycle()
+		if !fr.Inject(pack) {
 			return 1
 		}
-		MessageGenerator.Inject(pack)
 		return 0
 	})
 

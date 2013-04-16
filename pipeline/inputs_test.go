@@ -76,7 +76,7 @@ func InputsSpec(c gs.Context) {
 	config := NewPipelineConfig(nil)
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
-	ith.Pack = NewPipelinePack(config.RecycleChan)
+	ith.Pack = NewPipelinePack(config.inputRecycleChan)
 
 	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
@@ -363,7 +363,8 @@ func InputsSpec(c gs.Context) {
 		input := new(PanicInput)
 		iRunner := NewInputRunner("panic", input)
 		var wg sync.WaitGroup
-		ith.MockHelper.EXPECT().PackSupply()
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
+		cfgCall.Return(config)
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg) // no panic => success
 		wg.Wait()

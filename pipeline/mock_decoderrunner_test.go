@@ -75,16 +75,6 @@ func (_mr *_MockDecoderRunnerRecorder) Name() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Name")
 }
 
-func (_m *MockDecoderRunner) OrigName() string {
-	ret := _m.ctrl.Call(_m, "OrigName")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockDecoderRunnerRecorder) OrigName() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "OrigName")
-}
-
 func (_m *MockDecoderRunner) Plugin() Plugin {
 	ret := _m.ctrl.Call(_m, "Plugin")
 	ret0, _ := ret[0].(Plugin)

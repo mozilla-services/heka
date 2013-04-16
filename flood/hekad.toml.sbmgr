@@ -61,7 +61,7 @@ ticker_interval = 1.0
 	[LoopToOtherA.settings]
 	type = "lua"
 	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-	preserve_data = true
+	preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
 	memory_limit = 32767
 	instruction_limit = 1000
 	output_limit = 1024
@@ -73,7 +73,7 @@ ticker_interval = 1.0
 	[LoopToOtherB.settings]
 	type = "lua"
 	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-	preserve_data = true
+	preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
 	memory_limit = 32767
 	instruction_limit = 1000
 	output_limit = 1024

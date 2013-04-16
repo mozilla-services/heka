@@ -111,6 +111,7 @@ type foRunner struct {
 	tickLength time.Duration
 	ticker     <-chan time.Time
 	inChan     chan *PipelineCapture
+	h          PluginHelper
 }
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
@@ -120,6 +121,7 @@ func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 }
 
 func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	foRunner.h = h
 	if foRunner.tickLength != 0 {
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
@@ -158,6 +160,19 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 func (foRunner *foRunner) Deliver(pack *PipelinePack) {
 	plc := &PipelineCapture{Pack: pack}
 	foRunner.inChan <- plc
+}
+
+func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
+	spec := foRunner.MatchRunner().MatcherSpecification()
+	match, _ := spec.Match(pack.Message)
+	if match {
+		pack.Recycle()
+		log.Printf("Plugin '%s' error: attempted to Inject a message to itself",
+			foRunner.name)
+		return false
+	}
+	foRunner.h.Router().InChan() <- pack
+	return true
 }
 
 func (foRunner *foRunner) LogError(err error) {
@@ -266,16 +281,14 @@ func Run(config *PipelineConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < Globals().PoolSize; i++ {
-		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
+		config.inputRecycleChan <- NewPipelinePack(config.inputRecycleChan)
+		config.injectRecycleChan <- NewPipelinePack(config.injectRecycleChan)
 	}
 
 	config.router.Start()
 
 	for name, input := range config.InputRunners {
-		// Special case the MGI, it shuts down last.
-		if name != "MessageGeneratorInput" {
-			inputsWg.Add(1)
-		}
+		inputsWg.Add(1)
 		if err = input.Start(config, &inputsWg); err != nil {
 			log.Printf("Input '%s' failed to start: %s", name, err)
 			inputsWg.Done()
@@ -313,14 +326,7 @@ func Run(config *PipelineConfig) {
 			log.Printf("PANIC during shutdown: %s", r)
 		}
 	}()
-	var mgi Input
-	for name, input := range config.InputRunners {
-		// First we stop all the inputs save the MGI to prevent new messages
-		// from being accepted.
-		if name == "MessageGeneratorInput" {
-			mgi = input.Input()
-			continue
-		}
+	for _, input := range config.InputRunners {
 		input.Input().Stop()
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
@@ -343,8 +349,5 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
-
-	inputsWg.Add(1)
-	mgi.Stop()
 	log.Println("Shutdown complete.")
 }

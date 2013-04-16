@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bytes"
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"log"
 	"net"
@@ -95,7 +96,7 @@ func (s *StatsdInput) Init(config interface{}) error {
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
-	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir.Name())
+	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir, h)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go sm.Monitor(packets, &wg)
@@ -168,18 +169,20 @@ type statMonitor struct {
 	gauges           map[string]int
 	percentThreshold int
 	flushInterval    int64
-	inputName        string
+	ir               InputRunner
+	h                PluginHelper
 }
 
-func NewStatMonitor(percentThreshold int, flushInterval int64,
-	inputName string) *statMonitor {
+func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
+	h PluginHelper) *statMonitor {
 	return &statMonitor{
 		counters:         make(map[string]int),
 		timers:           make(map[string][]float64),
 		gauges:           make(map[string]int),
 		percentThreshold: percentThreshold,
 		flushInterval:    flushInterval,
-		inputName:        inputName,
+		ir:               ir,
+		h:                h,
 	}
 }
 
@@ -212,7 +215,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 			}
 		}
 	}
-	log.Println("StatsdMonitor for input stopped: ", sm.inputName)
+	log.Println("StatsdMonitor for input stopped: ", sm.ir.Name())
 	wg.Done()
 }
 
@@ -277,10 +280,13 @@ func (sm *statMonitor) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
-	pack := MessageGenerator.Retrieve()
+	pack := <-sm.ir.InChan()
 	pack.Message.SetType("statmetric")
 	pack.Message.SetTimestamp(now.UnixNano())
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetHostname(sm.h.PipelineConfig().hostname)
+	pack.Message.SetPid(sm.h.PipelineConfig().pid)
 	pack.Message.SetPayload(buffer.String())
-	MessageGenerator.Inject(pack)
+	sm.h.Router().InChan() <- pack
 	return
 }

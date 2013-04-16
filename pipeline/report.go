@@ -83,15 +83,23 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		err, e error
 	)
 
-	pack = MessageGenerator.Retrieve()
+	pack = pc.PipelinePack(0)
 	msg = pack.Message
-	newIntField(msg, "InChanCapacity", cap(pc.RecycleChan))
-	newIntField(msg, "InChanLength", len(pc.RecycleChan))
-	msg.SetType("heka.recycler-report")
-	setNameField(msg, "RecycleChan")
+	newIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan))
+	newIntField(msg, "InChanLength", len(pc.inputRecycleChan))
+	msg.SetType("heka.input-report")
+	setNameField(msg, "inputRecycleChan")
 	reportChan <- pack
 
-	pack = MessageGenerator.Retrieve()
+	pack = pc.PipelinePack(0)
+	msg = pack.Message
+	newIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan))
+	newIntField(msg, "InChanLength", len(pc.injectRecycleChan))
+	msg.SetType("heka.inject-report")
+	setNameField(msg, "injectRecycleChan")
+	reportChan <- pack
+
+	pack = pc.PipelinePack(0)
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.Router().InChan()))
 	newIntField(msg, "InChanLength", len(pc.Router().InChan()))
@@ -100,7 +108,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	reportChan <- pack
 
 	getReport := func(runner PluginRunner) (pack *PipelinePack) {
-		pack = MessageGenerator.Retrieve()
+		pack = pc.PipelinePack(0)
 		if err = PopulateReportMsg(runner, pack.Message); err != nil {
 			msg = pack.Message
 			f, e = message.NewField("Error", err.Error(), message.Field_RAW)
@@ -174,8 +182,8 @@ func (pc *PipelineConfig) allReportsMsg() {
 		pack.Recycle()
 	}
 
-	pack := MessageGenerator.Retrieve()
+	pack := pc.PipelinePack(0)
 	pack.Message.SetType("heka.all-report")
 	pack.Message.SetPayload(strings.Join(payload, "\n"))
-	MessageGenerator.Inject(pack)
+	pc.Router().InChan() <- pack
 }

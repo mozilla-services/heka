@@ -91,11 +91,6 @@ func (self *messageRouter) Start() {
 				if !ok {
 					break
 				}
-				if pack.MsgLoopCount++; pack.MsgLoopCount > self.maxMsgLoops {
-					log.Printf("MaxMsgLoops (%d) exceeded\n", self.maxMsgLoops)
-					pack.Recycle()
-					break
-				}
 				for _, matcher = range self.fMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)

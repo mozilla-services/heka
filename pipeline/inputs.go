@@ -16,7 +16,6 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
@@ -30,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type TimeoutError string
@@ -72,7 +70,7 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
-	ir.inChan = h.PackSupply()
+	ir.inChan = h.PipelineConfig().inputRecycleChan
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -411,114 +409,7 @@ func (self *TcpInput) Stop() {
 	close(self.stopChan)
 }
 
-// Global MessageGenerator
-var MessageGenerator = new(msgGenerator)
-
-type msgGenerator struct {
-	RouterChan  chan *PipelinePack
-	OutputChan  chan outputMsg
-	RecycleChan chan *PipelinePack
-	hostname    string
-	pid         int32
-}
-
-func (self *msgGenerator) Init() {
-	poolSize := Globals().PoolSize
-	self.RouterChan = make(chan *PipelinePack, poolSize)
-	self.OutputChan = make(chan outputMsg, poolSize)
-	self.RecycleChan = make(chan *PipelinePack, poolSize)
-	for i := 0; i < poolSize; i++ {
-		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
-	}
-	self.hostname, _ = os.Hostname()
-	self.pid = int32(os.Getpid())
-}
-
-// Retrieve a message for use by the MessageGenerator.
-func (self *msgGenerator) Retrieve() (pack *PipelinePack) {
-	pack = <-self.RecycleChan
-	pack.Message.SetTimestamp(time.Now().UnixNano())
-	pack.Message.SetUuid(uuid.NewRandom())
-	pack.Message.SetHostname(self.hostname)
-	pack.Message.SetPid(self.pid)
-	pack.RefCount = 1
-	return
-}
-
-// Injects a message using the MessageGenerator.
-func (self *msgGenerator) Inject(pack *PipelinePack) {
-	self.RouterChan <- pack
-}
-
-// Sends a message directly to a specific output.
-func (self *msgGenerator) Output(name string, pack *PipelinePack) {
-	outMsg := outputMsg{name, pack}
-	self.OutputChan <- outMsg
-}
-
-// MessageGeneratorInput
-type MessageGeneratorInput struct {
-	routerChan  chan *PipelinePack
-	outputChan  chan outputMsg
-	recycleChan chan *PipelinePack
-}
-
 type outputMsg struct {
 	outputName string
 	pack       *PipelinePack
-}
-
-func (self *MessageGeneratorInput) Init(config interface{}) error {
-	MessageGenerator.Init()
-	self.outputChan = MessageGenerator.OutputChan
-	self.routerChan = MessageGenerator.RouterChan
-	self.recycleChan = MessageGenerator.RecycleChan
-	return nil
-}
-
-func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var pack *PipelinePack
-	var outMsg outputMsg
-	var output OutputRunner
-	ok := true
-	outChan := h.Router().InChan()
-
-	for ok {
-		output = nil
-		select {
-		case pack, ok = <-self.routerChan:
-			// if !ok we'll fall through below
-		case outMsg = <-self.outputChan:
-			pack = outMsg.pack
-			if output, ok = h.Output(outMsg.outputName); !ok {
-				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
-				ok = true // still deliver to the router; is this what we want?
-			}
-		}
-
-		if ok {
-			pack.Decoded = true
-			if output != nil {
-				output.Deliver(pack)
-			} else {
-				outChan <- pack
-			}
-		}
-	}
-
-	return
-}
-
-func (self *MessageGeneratorInput) Stop() {
-	close(self.routerChan)
-}
-
-func (self *MessageGeneratorInput) ReportMsg(msg *Message) (err error) {
-	newIntField(msg, "OutputChanCapacity", cap(self.outputChan))
-	newIntField(msg, "OutputChanLength", len(self.outputChan))
-	newIntField(msg, "RouterChanCapacity", cap(self.routerChan))
-	newIntField(msg, "RouterChanLength", len(self.routerChan))
-	newIntField(msg, "RecycleChanCapacity", cap(self.recycleChan))
-	newIntField(msg, "RecycleChanLength", len(self.recycleChan))
-	return
 }
