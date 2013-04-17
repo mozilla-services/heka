@@ -21,7 +21,6 @@ import (
 	"log"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -60,9 +59,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	return nil
 }
 
-func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) {
-
+func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper) {
 	var pack *PipelinePack
 	var dRunner DecoderRunner
 	var dName string
@@ -91,12 +88,10 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 	}
 
 	log.Println("Input stopped: LogfileInput")
-	wg.Done()
 }
 
-func (lw *LogfileInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-	go lw.LineReader(ir, h, wg)
+func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	go lw.LineReader(ir, h)
 	return
 }
 
