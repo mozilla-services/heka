@@ -28,6 +28,14 @@ encoder             = "protobuf"
 num_messages        = 0
 static_message_size = 20000
 
+[simple_20k_2]                       # no errors fixed size message ~20KB
+ip_address          = "127.0.0.1:5566"
+sender              = "tcp"
+pprof_file          = ""
+encoder             = "protobuf"
+num_messages        = 0
+static_message_size = 20000
+
 [simple_var]                                # no errors var size message
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
@@ -45,9 +53,9 @@ num_messages        = 0
 
 [udp]                                       # real world some errors, variable size messages
 ip_address          = "127.0.0.1:5565"
-sender              = "udp"                 
+sender              = "udp"
 pprof_file          = ""
-encoder             = "protobuf"           
+encoder             = "protobuf"
 num_messages        = 0
 corrupt_percentage  = 0.0001
 signed_percentage   = 0.00011
@@ -65,7 +73,7 @@ pprof_file          = ""
 encoder             = "protobuf"            # protobuf or json
 num_messages        = 0                     # number of message to send 0 = infinite
 
-[simple_udp_json]                           
+[simple_udp_json]
 ip_address          = "127.0.0.1:5565"
 sender              = "udp"
 pprof_file          = ""
