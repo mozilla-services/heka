@@ -39,7 +39,7 @@ type SbmgrConfig struct {
 func main() {
 	configFile := flag.String("config", "sbmgr.toml", "Sandbox manager configuration file")
 	scriptFile := flag.String("script", "xyz.lua", "Sandbox script file")
-	scriptConf := flag.String("scriptconf", "xyz.toml", "Sandbox script configuration file")
+	scriptConfig := flag.String("scriptconfig", "xyz.toml", "Sandbox script configuration file")
 	filterName := flag.String("filtername", "filter", "Sandbox filter name (used on unload)")
 	action := flag.String("action", "load", "Sandbox manager action")
 	flag.Parse()
@@ -71,9 +71,9 @@ func main() {
 			return
 		}
 		msg.SetPayload(string(code))
-		conf, err := ioutil.ReadFile(*scriptConf)
+		conf, err := ioutil.ReadFile(*scriptConfig)
 		if err != nil {
-			log.Printf("Error reading scriptConf: %s\n", err.Error())
+			log.Printf("Error reading scriptConfig: %s\n", err.Error())
 			return
 		}
 		f, _ := message.NewField("config", string(conf), message.Field_RAW)
