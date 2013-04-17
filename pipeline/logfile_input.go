@@ -59,13 +59,12 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	return nil
 }
 
-func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper) {
+func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
 	var dRunner DecoderRunner
 	var dName string
-	dSet := h.DecoderSet()
 	var ok bool
-	var err error
+	dSet := h.DecoderSet()
 	packSupply := ir.InChan()
 
 	for logline := range lw.Monitor.NewLines {
@@ -88,10 +87,6 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper) {
 	}
 
 	log.Println("Input stopped: LogfileInput")
-}
-
-func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	go lw.LineReader(ir, h)
 	return
 }
 

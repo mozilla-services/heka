@@ -16,7 +16,7 @@
 package pipeline
 
 type metric struct {
-	Type_ string `json:"type"`
+	Type_ string `toml:"type"`
 	Name  string
 	Value string
 }

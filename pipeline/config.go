@@ -18,7 +18,7 @@ package pipeline
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
-	"github.com/BurntSushi/toml"
+	"github.com/bbangert/toml"
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
