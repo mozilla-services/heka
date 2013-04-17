@@ -87,7 +87,7 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 				break
 			}
 		}
-		h.Router().InChan <- pack
+		ir.Inject(pack)
 	}
 
 	log.Println("Input stopped: LogfileInput")

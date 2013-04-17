@@ -3,10 +3,12 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 function process_message ()
-    s = read_message("Captures[exists]")
+    output("loop to self")
+    inject_message()
     return 0
 end
 
-function timer_event()
+
+function timer_event(ns)
 end
 

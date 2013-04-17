@@ -39,6 +39,7 @@ type GlobalConfigStruct struct {
 	PoolSize        int
 	DecoderPoolSize int
 	PluginChanSize  int
+	MaxMsgLoops     uint
 	Stopping        bool
 }
 
@@ -48,6 +49,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		PoolSize:        100,
 		DecoderPoolSize: 4,
 		PluginChanSize:  50,
+		MaxMsgLoops:     4,
 	}
 }
 
@@ -109,6 +111,7 @@ type foRunner struct {
 	tickLength time.Duration
 	ticker     <-chan time.Time
 	inChan     chan *PipelineCapture
+	h          PluginHelper
 }
 
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
@@ -118,6 +121,7 @@ func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 }
 
 func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
+	foRunner.h = h
 	if foRunner.tickLength != 0 {
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
@@ -140,6 +144,7 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		// down.
 		if filter, ok := foRunner.plugin.(Filter); ok {
 			err = filter.Run(foRunner, h)
+			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
 		} else if output, ok := foRunner.plugin.(Output); ok {
 			err = output.Run(foRunner, h)
 		}
@@ -155,6 +160,18 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 func (foRunner *foRunner) Deliver(pack *PipelinePack) {
 	plc := &PipelineCapture{Pack: pack}
 	foRunner.inChan <- plc
+}
+
+func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
+	spec := foRunner.MatchRunner().MatcherSpecification()
+	match, _ := spec.Match(pack.Message)
+	if match {
+		pack.Recycle()
+		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
+		return false
+	}
+	foRunner.h.PipelineConfig().router.InChan() <- pack
+	return true
 }
 
 func (foRunner *foRunner) LogError(err error) {
@@ -186,12 +203,13 @@ func (foRunner *foRunner) Filter() Filter {
 }
 
 type PipelinePack struct {
-	MsgBytes    []byte
-	Message     *message.Message
-	RecycleChan chan *PipelinePack
-	Decoded     bool
-	RefCount    int32
-	Signer      string
+	MsgBytes     []byte
+	Message      *message.Message
+	RecycleChan  chan *PipelinePack
+	Decoded      bool
+	RefCount     int32
+	Signer       string
+	MsgLoopCount uint
 }
 
 type PipelineCapture struct {
@@ -204,11 +222,12 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	message := &message.Message{}
 
 	return &PipelinePack{
-		MsgBytes:    msgBytes,
-		Message:     message,
-		RecycleChan: recycleChan,
-		Decoded:     false,
-		RefCount:    int32(1),
+		MsgBytes:     msgBytes,
+		Message:      message,
+		RecycleChan:  recycleChan,
+		Decoded:      false,
+		RefCount:     int32(1),
+		MsgLoopCount: uint(0),
 	}
 }
 
@@ -216,6 +235,7 @@ func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
 	p.RefCount = 1
+	p.MsgLoopCount = 0
 	p.Signer = ""
 
 	// TODO: Possibly zero the message instead depending on benchmark
@@ -260,16 +280,14 @@ func Run(config *PipelineConfig) {
 
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < Globals().PoolSize; i++ {
-		config.RecycleChan <- NewPipelinePack(config.RecycleChan)
+		config.inputRecycleChan <- NewPipelinePack(config.inputRecycleChan)
+		config.injectRecycleChan <- NewPipelinePack(config.injectRecycleChan)
 	}
 
-	config.Router().Start()
+	config.router.Start()
 
 	for name, input := range config.InputRunners {
-		// Special case the MGI, it shuts down last.
-		if name != "MessageGeneratorInput" {
-			inputsWg.Add(1)
-		}
+		inputsWg.Add(1)
 		if err = input.Start(config, &inputsWg); err != nil {
 			log.Printf("Input '%s' failed to start: %s", name, err)
 			inputsWg.Done()
@@ -307,14 +325,7 @@ func Run(config *PipelineConfig) {
 			log.Printf("PANIC during shutdown: %s", r)
 		}
 	}()
-	var mgi Input
-	for name, input := range config.InputRunners {
-		// First we stop all the inputs save the MGI to prevent new messages
-		// from being accepted.
-		if name == "MessageGeneratorInput" {
-			mgi = input.Input()
-			continue
-		}
+	for _, input := range config.InputRunners {
 		input.Input().Stop()
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
@@ -324,10 +335,12 @@ func Run(config *PipelineConfig) {
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
+	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
 		close(filter.InChan())
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
+	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
@@ -335,8 +348,5 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
-
-	inputsWg.Add(1)
-	mgi.Stop()
 	log.Println("Shutdown complete.")
 }

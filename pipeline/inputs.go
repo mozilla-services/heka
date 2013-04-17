@@ -16,7 +16,6 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
@@ -30,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 type TimeoutError string
@@ -44,6 +42,7 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	Input() Input
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	Inject(pack *PipelinePack)
 }
 
 type iRunner struct {
@@ -72,7 +71,7 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
-	ir.inChan = h.PackSupply()
+	ir.inChan = h.PipelineConfig().inputRecycleChan
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -94,6 +93,10 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	return
 }
 
+func (ir *iRunner) Inject(pack *PipelinePack) {
+	ir.h.PipelineConfig().router.InChan() <- pack
+}
+
 func (ir *iRunner) LogError(err error) {
 	log.Printf("Input '%s' error: %s", ir.name, err)
 }
@@ -113,10 +116,12 @@ type UdpInput struct {
 	listener net.Conn
 	name     string
 	stopped  bool
+	config   *UdpInputConfig
 }
 
 type UdpInputConfig struct {
-	Address string `toml:"address"`
+	Address string            `toml:"address"`
+	Signers map[string]Signer `toml:"signer"`
 }
 
 func (self *UdpInput) ConfigStruct() interface{} {
@@ -124,14 +129,14 @@ func (self *UdpInput) ConfigStruct() interface{} {
 }
 
 func (self *UdpInput) Init(config interface{}) error {
-	conf := config.(*UdpInputConfig)
-	if len(conf.Address) > 3 && conf.Address[:3] == "fd:" {
+	self.config = config.(*UdpInputConfig)
+	if len(self.config.Address) > 3 && self.config.Address[:3] == "fd:" {
 		// File descriptor
-		fdStr := conf.Address[3:]
+		fdStr := self.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
 			log.Println(err)
-			return fmt.Errorf("Invalid file descriptor: %s", conf.Address)
+			return fmt.Errorf("Invalid file descriptor: %s", self.config.Address)
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
@@ -141,7 +146,7 @@ func (self *UdpInput) Init(config interface{}) error {
 		}
 	} else {
 		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+		udpAddr, err := net.ResolveUDPAddr("udp", self.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
@@ -154,26 +159,39 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	dSet := h.DecoderSet()
-	decoder, ok := dSet.ByEncoding(Header_JSON) // TODO: Diff encodings over UDP
-	if !ok {
-		return fmt.Errorf("No JSON decoder found.")
-	}
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
+	header := &Header{}
+	decoders := h.DecoderSet()
 
 	var e error
 	var n int
 	var pack *PipelinePack
+	var msgOk bool
 	for !self.stopped {
 		pack = <-ir.InChan()
-		if n, e = self.listener.Read(pack.MsgBytes); e != nil {
+		if n, e = self.listener.Read(buf); e != nil {
 			if !strings.Contains(e.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: ", e))
 			}
 			pack.Recycle()
 			continue
 		}
-		pack.MsgBytes = pack.MsgBytes[:n]
-		decoder.InChan() <- pack
+		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
+		if msgOk {
+			if authenticateMessage(self.config.Signers, header, pack) {
+				encoding := header.GetMessageEncoding()
+				if decoder, ok := decoders.ByEncoding(encoding); ok {
+					decoder.InChan() <- pack
+				} else {
+					pack.Recycle()
+				}
+			} else {
+				pack.Recycle()
+			}
+		} else {
+			pack.Recycle()
+		}
+		header.Reset()
 	}
 
 	self.listener.Close()
@@ -228,7 +246,6 @@ func decodeHeader(buf []byte, header *Header) bool {
 }
 
 func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
-	ok = true
 	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
 	if pos != -1 {
 		if len(buf) > 1 {
@@ -241,8 +258,8 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 						*message = (*message)[:messageEnd-headerEnd]
 						copy(*message, buf[headerEnd:messageEnd])
 						pos = messageEnd
+						ok = true
 					} else {
-						ok = false
 						*message = (*message)[:0]
 					}
 				} else {
@@ -287,7 +304,7 @@ func authenticateMessage(signers map[string]Signer, header *Header,
 }
 
 func (self *TcpInput) handleConnection(conn net.Conn) {
-	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE)
+	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
 	var (
 		readPos, scanPos, posDelta int
@@ -316,17 +333,18 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 
 					// Recycle pack and bail if incomplete header or incomplete message.
 					if header.MessageLength == nil ||
-						header.GetMessageLength() != uint32(len(pack.MsgBytes)) ||
-						!ok {
-
+						header.GetMessageLength() != uint32(len(pack.MsgBytes)) {
 						pack.Recycle()
 						break
 					}
-
-					if authenticateMessage(self.config.Signers, header, pack) {
-						encoding = header.GetMessageEncoding()
-						if decoder, ok = decoders.ByEncoding(encoding); ok {
-							decoder.InChan() <- pack
+					if ok {
+						if authenticateMessage(self.config.Signers, header, pack) {
+							encoding = header.GetMessageEncoding()
+							if decoder, ok = decoders.ByEncoding(encoding); ok {
+								decoder.InChan() <- pack
+							} else {
+								pack.Recycle()
+							}
 						} else {
 							pack.Recycle()
 						}
@@ -394,116 +412,4 @@ func (self *TcpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 func (self *TcpInput) Stop() {
 	self.listener.Close()
 	close(self.stopChan)
-}
-
-// Global MessageGenerator
-var MessageGenerator = new(msgGenerator)
-
-type msgGenerator struct {
-	RouterChan  chan *PipelinePack
-	OutputChan  chan outputMsg
-	RecycleChan chan *PipelinePack
-	hostname    string
-	pid         int32
-}
-
-func (self *msgGenerator) Init() {
-	poolSize := Globals().PoolSize
-	self.RouterChan = make(chan *PipelinePack, poolSize)
-	self.OutputChan = make(chan outputMsg, poolSize)
-	self.RecycleChan = make(chan *PipelinePack, poolSize)
-	for i := 0; i < poolSize; i++ {
-		self.RecycleChan <- NewPipelinePack(self.RecycleChan)
-	}
-	self.hostname, _ = os.Hostname()
-	self.pid = int32(os.Getpid())
-}
-
-// Retrieve a message for use by the MessageGenerator.
-func (self *msgGenerator) Retrieve() (pack *PipelinePack) {
-	pack = <-self.RecycleChan
-	pack.Message.SetTimestamp(time.Now().UnixNano())
-	pack.Message.SetUuid(uuid.NewRandom())
-	pack.Message.SetHostname(self.hostname)
-	pack.Message.SetPid(self.pid)
-	pack.RefCount = 1
-	return
-}
-
-// Injects a message using the MessageGenerator.
-func (self *msgGenerator) Inject(pack *PipelinePack) {
-	self.RouterChan <- pack
-}
-
-// Sends a message directly to a specific output.
-func (self *msgGenerator) Output(name string, pack *PipelinePack) {
-	outMsg := outputMsg{name, pack}
-	self.OutputChan <- outMsg
-}
-
-// MessageGeneratorInput
-type MessageGeneratorInput struct {
-	routerChan  chan *PipelinePack
-	outputChan  chan outputMsg
-	recycleChan chan *PipelinePack
-}
-
-type outputMsg struct {
-	outputName string
-	pack       *PipelinePack
-}
-
-func (self *MessageGeneratorInput) Init(config interface{}) error {
-	MessageGenerator.Init()
-	self.outputChan = MessageGenerator.OutputChan
-	self.routerChan = MessageGenerator.RouterChan
-	self.recycleChan = MessageGenerator.RecycleChan
-	return nil
-}
-
-func (self *MessageGeneratorInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var pack *PipelinePack
-	var outMsg outputMsg
-	var output OutputRunner
-	ok := true
-	outChan := h.Router().InChan
-
-	for ok {
-		output = nil
-		select {
-		case pack, ok = <-self.routerChan:
-			// if !ok we'll fall through below
-		case outMsg = <-self.outputChan:
-			pack = outMsg.pack
-			if output, ok = h.Output(outMsg.outputName); !ok {
-				ir.LogError(fmt.Errorf("No '%s' output", outMsg.outputName))
-				ok = true // still deliver to the router; is this what we want?
-			}
-		}
-
-		if ok {
-			pack.Decoded = true
-			if output != nil {
-				output.Deliver(pack)
-			} else {
-				outChan <- pack
-			}
-		}
-	}
-
-	return
-}
-
-func (self *MessageGeneratorInput) Stop() {
-	close(self.routerChan)
-}
-
-func (self *MessageGeneratorInput) ReportMsg(msg *Message) (err error) {
-	newIntField(msg, "OutputChanCapacity", cap(self.outputChan))
-	newIntField(msg, "OutputChanLength", len(self.outputChan))
-	newIntField(msg, "RouterChanCapacity", cap(self.routerChan))
-	newIntField(msg, "RouterChanLength", len(self.routerChan))
-	newIntField(msg, "RecycleChanCapacity", cap(self.recycleChan))
-	newIntField(msg, "RecycleChanLength", len(self.recycleChan))
-	return
 }

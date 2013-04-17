@@ -4,6 +4,12 @@ address = "127.0.0.1:5565"
 	[TCP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
+[UDP:5565]
+type = "UdpInput"
+address = "127.0.0.1:5565"
+	[UDP:5565.signer.test_0]
+	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+
 [JsonDecoder]
 type ="JsonDecoder"
 encoding_name = "JSON"
@@ -14,7 +20,7 @@ encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
-message_matcher = "Type == 'heka.counter_output' || Type == 'heka.sandbox'"
+message_matcher = "Type == 'heka.counter-output' || Type == 'heka.sandbox'"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
@@ -32,6 +38,42 @@ ticker_interval = 1.0
 	type = "lua"
 	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 	preserve_data = true
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
+[LoopToSelf]
+type = "SandboxFilter"
+message_matcher = "TRUE"
+ticker_interval = 1.0
+	[LoopToSelf.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/loop.lua"
+	preserve_data = true
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
+[LoopToOtherA]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench' && EnvVersion == '0.8' || Logger == 'LoopToOtherB'"
+ticker_interval = 1.0
+	[LoopToOtherA.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
+	preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+	memory_limit = 32767
+	instruction_limit = 1000
+	output_limit = 1024
+
+[LoopToOtherB]
+type = "SandboxFilter"
+message_matcher = "Logger == 'LoopToOtherA'"
+ticker_interval = 1.0
+	[LoopToOtherB.settings]
+	type = "lua"
+	filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
+	preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
 	memory_limit = 32767
 	instruction_limit = 1000
 	output_limit = 1024

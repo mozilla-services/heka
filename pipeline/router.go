@@ -23,24 +23,38 @@ import (
 	"sync/atomic"
 )
 
-// Pushes the message onto the filters input channel if it is a match
-type MessageRouter struct {
-	InChan    chan *PipelinePack
-	MrChan    chan *MatchRunner
+type MessageRouter interface {
+	InChan() chan *PipelinePack
+	MrChan() chan *MatchRunner
+}
+
+// Pushes the message onto the input channel for every filter and output
+// plugin that is a match
+type messageRouter struct {
+	inChan    chan *PipelinePack
+	mrChan    chan *MatchRunner
 	fMatchers []*MatchRunner
 	oMatchers []*MatchRunner
 }
 
-func NewMessageRouter() (router *MessageRouter) {
-	router = new(MessageRouter)
-	router.InChan = make(chan *PipelinePack, Globals().PluginChanSize)
-	router.MrChan = make(chan *MatchRunner, 0)
+func NewMessageRouter() (router *messageRouter) {
+	router = new(messageRouter)
+	router.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
+	router.mrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
 }
 
-func (self *MessageRouter) Start() {
+func (self *messageRouter) InChan() chan *PipelinePack {
+	return self.inChan
+}
+
+func (self *messageRouter) MrChan() chan *MatchRunner {
+	return self.mrChan
+}
+
+func (self *messageRouter) Start() {
 	go func() {
 		var matcher *MatchRunner
 		var ok = true
@@ -48,7 +62,7 @@ func (self *MessageRouter) Start() {
 		for ok {
 			runtime.Gosched()
 			select {
-			case matcher = <-self.MrChan:
+			case matcher = <-self.mrChan:
 				if matcher != nil {
 					removed := false
 					available := -1
@@ -71,7 +85,7 @@ func (self *MessageRouter) Start() {
 						}
 					}
 				}
-			case pack, ok = <-self.InChan:
+			case pack, ok = <-self.inChan:
 				if !ok {
 					break
 				}
@@ -118,6 +132,10 @@ func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 	return
+}
+
+func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
+	return mr.spec
 }
 
 func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {

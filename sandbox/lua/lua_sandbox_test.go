@@ -304,13 +304,13 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
-		"process_message() ./testsupport/errors.lua:18: attempt to perform arithmetic on global 'x' (a nil value)",
+		"process_message() ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
 		"process_message() must return a single numeric value",
 		"process_message() read_message() incorrect number of arguments",
-		"process_message() ./testsupport/errors.lua:26: bad argument #1 to 'read_message' (string expected, got nil)",
-		"process_message() ./testsupport/errors.lua:28: bad argument #2 to 'read_message' (number expected, got nil)",
-		"process_message() ./testsupport/errors.lua:30: bad argument #3 to 'read_message' (number expected, got nil)",
+		"process_message() ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
+		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (number expected, got nil)",
+		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (number expected, got nil)",
 		"process_message() read_message() field index must be >= 0",
 		"process_message() read_message() array index must be >= 0",
 		"process_message() output_limit exceeded"}
@@ -445,10 +445,11 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	sb.InjectMessage(func(s string) {
+	sb.InjectMessage(func(s string) int {
 		if s != "11" {
 			t.Errorf("State was not restored")
 		}
+		return 0
 	})
 	r := sb.ProcessMessage(msg, captures)
 	if r != 0 {
@@ -530,6 +531,41 @@ func TestPreserveFailureNoGlobal(t *testing.T) {
 			t.Errorf("expected '%s' got '%s'", expect, err)
 		}
 	}
+}
+
+func TestFailedMessageInjection(t *testing.T) {
+	var sbc SandboxConfig
+	var captures map[string]string
+	sbc.ScriptFilename = "./testsupport/loop.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 1024
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.InjectMessage(func(s string) int {
+		return 1
+	})
+	r := sb.ProcessMessage(msg, captures)
+	if r != 1 {
+		t.Errorf("ProcessMessage should return 1, received %d", r)
+	}
+	if STATUS_TERMINATED != sb.Status() {
+		t.Errorf("status should be %d, received %d",
+			STATUS_TERMINATED, sb.Status())
+	}
+	s := sb.LastError()
+	errMsg := "process_message() inject_message() exceeded MaxMsgLoops"
+	if s != errMsg {
+		t.Errorf("error should be \"%s\", received \"%s\"", errMsg, s)
+	}
+	sb.Destroy("")
 }
 
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {

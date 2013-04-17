@@ -1,54 +1,99 @@
-[default]
+[default]                                   # real world some errors, variable size messages
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"                 # tcp or udp
 pprof_file          = ""
 encoder             = "protobuf"            # protobuf or json
 num_messages        = 0                     # number of message to send 0 = infinite
+corrupt_percentage  = 0.0001                # 1 in a million
+signed_percentage   = 0.00011
+variable_size_messages = true
 [default.signer]
-    name            = ""                    # empty for no message signing
-    hmac_hash       = "md5"                 # md5 or sha1
-    hmac_key        = ""
-    version         = 0
+    name            = "test"
+    hmac_hash       = "md5"
+    hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version          = 0
 
-[udp]
+[simple]                                    # no errors fixed size message
 ip_address          = "127.0.0.1:5565"
-sender               = "udp"
+sender              = "tcp"
+pprof_file          = ""
 encoder             = "protobuf"
+num_messages        = 0
+
+[simple_json]
+ip_address          = "127.0.0.1:5565"
+sender              = "tcp"
+pprof_file          = ""
+encoder             = "json"
+num_messages        = 0
+
+[udp]                                       # real world some errors, variable size messages
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"                 
+pprof_file          = ""
+encoder             = "protobuf"           
+num_messages        = 0
+corrupt_percentage  = 0.0001
+signed_percentage   = 0.00011
+variable_size_messages = true
+[udp.signer]
+    name            = "test"
+    hmac_hash       = "md5"
+    hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version          = 0
+
+[simple_udp]                                # no errors fixed size message
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"
+pprof_file          = ""
+encoder             = "protobuf"            # protobuf or json
+num_messages        = 0                     # number of message to send 0 = infinite
+
+[simple_udp_json]                           
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"
+pprof_file          = ""
+encoder             = "json"
 num_messages        = 0
 
 [signed]
 ip_address          = "127.0.0.1:5565"
-sender               = "tcp"
+sender              = "tcp"
 encoder             = "protobuf"
+corrupt_percentage  = 0.0001                # 1 in a million
+signed_percentage   = 100.0
 [signed.signer]
-    name         = "test"
-    hmac_hash    = "md5"
-    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-    version      = 0
+    name            = "test"
+    hmac_hash       = "md5"
+    hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version         = 0
 
 [signed_sha1]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
 encoder             = "protobuf"
+corrupt_percentage  = 0.0001                # 1 in a million
+signed_percentage   = 100.0
 [signed_sha1.signer]
-    name         = "test"
-    hmac_hash    = "sha1"
-    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-    version      = 0
+    name            = "test"
+    hmac_hash       = "sha1"
+    hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version         = 0
 
 [1000]
 ip_address          = "127.0.0.1:5565"
-sender               = "tcp"
+sender              = "tcp"
 encoder             = "protobuf"
 num_messages        = 1000
 
 [1000_signed]
 ip_address          = "127.0.0.1:5565"
-sender               = "tcp"
+sender              = "tcp"
 encoder             = "protobuf"
 num_messages        = 1000
+signed_percentage   = 100.0
 [1000_signed.signer]
-    name         = "test"
-    hmac_hash    = "md5"
-    hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-    version      = 0
+    name            = "test"
+    hmac_hash       = "md5"
+    hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    version          = 0

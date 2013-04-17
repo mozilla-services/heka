@@ -114,7 +114,7 @@ func WhisperOutputSpec(c gospec.Context) {
 			o.dbs[statName] = mockWr
 		}
 
-		pack := NewPipelinePack(pConfig.RecycleChan)
+		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
 		plc := &PipelineCapture{Pack: pack}
 

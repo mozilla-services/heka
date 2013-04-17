@@ -80,6 +80,8 @@ Regular Expression String
 - enclosed by forward slashes
 - must be placed on the right side of the relational comparison i.e. Type =~ /test/
 
+.. _matcher_capture_groups:
+
 Regular Expression Capture Groups
 ---------------------------------
 
@@ -108,6 +110,8 @@ i.e.::
 
     If multiple regular expressions have capture groups with the same
     name the results will be overwritten.
+
+.. _matcher_regex_helpers:
 
 Regular Expression Helpers
 --------------------------

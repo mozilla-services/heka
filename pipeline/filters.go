@@ -29,6 +29,7 @@ type FilterRunner interface {
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	Ticker() (ticker <-chan time.Time)
 	Deliver(pack *PipelinePack)
+	Inject(pack *PipelinePack) bool
 	MatchRunner() *MatchRunner
 }
 
@@ -54,8 +55,9 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	this.lastTime = time.Now()
 
 	var (
-		ok  = true
-		plc *PipelineCapture
+		ok           = true
+		plc          *PipelineCapture
+		msgLoopCount uint
 	)
 	for ok {
 		select {
@@ -63,16 +65,18 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
+			msgLoopCount = plc.Pack.MsgLoopCount
 			this.count++
 			plc.Pack.Recycle()
 		case <-ticker:
-			this.tally()
+			this.tally(fr, h, msgLoopCount)
 		}
 	}
 	return
 }
 
-func (this *CounterFilter) tally() {
+func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
+	msgLoopCount uint) {
 	msgsSent := this.count - this.lastCount
 	if msgsSent == 0 {
 		return
@@ -85,11 +89,16 @@ func (this *CounterFilter) tally() {
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
 	this.rates = append(this.rates, this.rate)
 
-	pack := MessageGenerator.Retrieve()
+	pack := h.PipelinePack(msgLoopCount)
+	if pack == nil {
+		fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
+			Globals().MaxMsgLoops))
+		return
+	}
 	pack.Message.SetType("heka.counter-output")
 	pack.Message.SetPayload(fmt.Sprintf("Got %d messages. %0.2f msg/sec",
 		this.count, this.rate))
-	MessageGenerator.Inject(pack)
+	fr.Inject(pack)
 
 	samples := len(this.rates)
 	if samples == 10 { // generate a summary every 10 samples
@@ -101,12 +110,17 @@ func (this *CounterFilter) tally() {
 			sum += val
 		}
 		mean := sum / float64(samples)
-		pack = MessageGenerator.Retrieve()
+		pack := h.PipelinePack(msgLoopCount)
+		if pack == nil {
+			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
+				Globals().MaxMsgLoops))
+			return
+		}
 		pack.Message.SetType("heka.counter-output")
 		pack.Message.SetPayload(
 			fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",
 				min, max, mean))
-		MessageGenerator.Inject(pack)
+		fr.Inject(pack)
 		this.rates = this.rates[:0]
 	}
 }
