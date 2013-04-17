@@ -92,7 +92,7 @@ func timerLoop(count, bytes *uint64, ticker *time.Ticker) {
 		} else {
 			zeroes = 0
 		}
-		log.Printf("Sent %d messages. %0.2f msg/sec %0.2f MBits\n", newCount, msgRate, bitRate)
+		log.Printf("Sent %d messages. %0.2f msg/sec %0.2f Mbit/sec\n", newCount, msgRate, bitRate)
 	}
 }
 
