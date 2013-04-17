@@ -20,6 +20,22 @@ pprof_file          = ""
 encoder             = "protobuf"
 num_messages        = 0
 
+[simple_20k]                         # no errors fixed size message ~20KB
+ip_address          = "127.0.0.1:5565"
+sender              = "tcp"
+pprof_file          = ""
+encoder             = "protobuf"
+num_messages        = 0
+static_message_size = 20000
+
+[simple_var]                                # no errors var size message
+ip_address          = "127.0.0.1:5565"
+sender              = "tcp"
+pprof_file          = ""
+encoder             = "protobuf"
+num_messages        = 0
+variable_size_messages = true
+
 [simple_json]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"

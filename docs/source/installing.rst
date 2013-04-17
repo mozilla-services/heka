@@ -12,16 +12,16 @@ From Source
 `hekad` requires a Go work environment to be setup for the binary to be
 built. This task has been automated in the `heka build`_ repository. To
 create a working `hekad` binary for your platform you'll need to
-install some prerequisites. Most of these are standard on modern linux
+install some prerequisites. Many of these are standard on modern linux
 distributions and OSX.
 
 Prerequisites:
 
 - cmake 2.8+
+- make
 - gcc
 - g++
 - git
-- mercurial
 - python 2.6 or greater
 - perl
 
