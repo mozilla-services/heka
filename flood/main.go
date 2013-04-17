@@ -60,25 +60,30 @@ type FloodTest struct {
 
 type FloodConfig map[string]FloodTest
 
-func timerLoop(count *uint64, ticker *time.Ticker) {
+func timerLoop(count, bytes *uint64, ticker *time.Ticker) {
 	lastTime := time.Now().UTC()
 	lastCount := *count
+	lastBytes := *bytes
 	zeroes := int8(0)
 	var (
-		msgsSent, newCount uint64
-		elapsedTime        time.Duration
-		now                time.Time
-		rate               float64
+		msgsSent, newCount, bytesSent, newBytes uint64
+		elapsedTime                             time.Duration
+		now                                     time.Time
+		msgRate, bitRate                        float64
 	)
 	for {
 		_ = <-ticker.C
 		newCount = *count
+		newBytes = *bytes
 		now = time.Now()
 		msgsSent = newCount - lastCount
 		lastCount = newCount
+		bytesSent = newBytes - lastBytes
+		lastBytes = newBytes
 		elapsedTime = now.Sub(lastTime)
 		lastTime = now
-		rate = float64(msgsSent) / elapsedTime.Seconds()
+		msgRate = float64(msgsSent) / elapsedTime.Seconds()
+		bitRate = float64(bytesSent*8.0) / 1e6 / elapsedTime.Seconds()
 		if msgsSent == 0 {
 			if newCount == 0 || zeroes == 3 {
 				continue
@@ -87,7 +92,7 @@ func timerLoop(count *uint64, ticker *time.Ticker) {
 		} else {
 			zeroes = 0
 		}
-		log.Printf("Sent %d messages. %0.2f msg/sec\n", newCount, rate)
+		log.Printf("Sent %d messages. %0.2f msg/sec %0.2f MBits\n", newCount, msgRate, bitRate)
 	}
 }
 
@@ -268,13 +273,13 @@ func main() {
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
-	var msgsSent uint64
+	var msgsSent, bytesSent uint64
 	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
 	var corrupt bool
 
 	// set up counter loop
 	ticker := time.NewTicker(time.Duration(time.Second))
-	go timerLoop(&msgsSent, ticker)
+	go timerLoop(&msgsSent, &bytesSent, ticker)
 
 	test.CorruptPercentage /= 100.0
 	test.SignedPercentage /= 100.0
@@ -303,6 +308,7 @@ func main() {
 		} else {
 			buf = unsignedMessages[msgId]
 		}
+		bytesSent += uint64(len(buf))
 		err = sendMessage(sender, buf, corrupt)
 		if err != nil {
 			if !strings.Contains(err.Error(), "connection refused") {
