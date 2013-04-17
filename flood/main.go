@@ -25,12 +25,14 @@ should be sent and encoded.
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -53,6 +55,7 @@ type FloodTest struct {
 	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
 	SignedPercentage     float64                      `toml:"signed_percentage"`
 	VariableSizeMessages bool                         `toml:"variable_size_messages"`
+	StaticMessageSize    uint64                       `toml:"static_message_size"`
 }
 
 type FloodConfig map[string]FloodTest
@@ -144,7 +147,18 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 	return ma
 }
 
-func makeFixedMessage(encoder client.Encoder) [][]byte {
+type randomDataMaker struct {
+	src rand.Source
+}
+
+func (r *randomDataMaker) Read(p []byte) (n int, err error) {
+	for i := range p {
+		p[i] = byte(r.src.Int63() & 0xff)
+	}
+	return len(p), nil
+}
+
+func makeFixedMessage(encoder client.Encoder, size uint64) [][]byte {
 	ma := make([][]byte, 1)
 	hostname, _ := os.Hostname()
 	pid := int32(os.Getpid())
@@ -157,7 +171,19 @@ func makeFixedMessage(encoder client.Encoder) [][]byte {
 	msg.SetEnvVersion("0.8")
 	msg.SetPid(pid)
 	msg.SetHostname(hostname)
-	msg.SetPayload(fmt.Sprintf("hekabench: %s", hostname))
+	rdm := &randomDataMaker{
+		src: rand.NewSource(time.Now().UnixNano()),
+	}
+	buf := make([]byte, size)
+	payloadSuffix := bytes.NewBuffer(buf)
+	_, err := io.CopyN(payloadSuffix, rdm, int64(size))
+	payload := fmt.Sprintf("hekabench: %s", hostname)
+	if err == nil {
+		payload = fmt.Sprintf("%s - %s", payload, payloadSuffix.String())
+	} else {
+		log.Println("Error getting random string: ", err)
+	}
+	msg.SetPayload(payload)
 	var stream []byte
 	if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
 		log.Println(err)
@@ -233,8 +259,11 @@ func main() {
 		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages)
 		signedMessages = makeVariableMessage(signedEncoder, numTestMessages)
 	} else {
-		unsignedMessages = makeFixedMessage(unsignedEncoder)
-		signedMessages = makeFixedMessage(signedEncoder)
+		if test.StaticMessageSize == 0 {
+			test.StaticMessageSize = 1000
+		}
+		unsignedMessages = makeFixedMessage(unsignedEncoder, test.StaticMessageSize)
+		signedMessages = makeFixedMessage(signedEncoder, test.StaticMessageSize)
 	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
