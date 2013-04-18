@@ -37,23 +37,49 @@ var (
 	PluginTypeRegex          = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
 )
 
+// Adds a plugin to the set of usable Heka plugins that can be referenced from
+// a Heka config file.
 func RegisterPlugin(name string, factory func() interface{}) {
 	AvailablePlugins[name] = factory
 }
 
+// Generic plugin configuration type that will be used for plugins that don't
+// provide the `HasConfigStruct` interface.
 type PluginConfig map[string]toml.Primitive
 
+// API made available to all plugins providing Heka-wide utility functions.
 type PluginHelper interface {
+
+	// Returns an `OutputRunner` for an output plugin registered using the
+	// specified name, or ok == false if no output by that name is registered.
 	Output(name string) (oRunner OutputRunner, ok bool)
+
+	// Returns an `FilterRunner` for a filter plugin registered using the
+	// specified name, or ok == false if no filter by that name is registered.
 	Filter(name string) (fRunner FilterRunner, ok bool)
+
+	// Returns the currently running Heka instance's unique PipelineConfig
+	// object.
 	PipelineConfig() *PipelineConfig
+
+	// Returns a single `DecoderSet` of running decoders for use by any plugin
+	// (usually inputs) that wants to decode binary data into a `Message`
+	// struct.
 	DecoderSet() DecoderSet
+
+	// Expects a loop count value from an existing message (or zero if there's
+	// no relevant existing message), returns an initialized `PipelinePack`
+	// pointer that can be populated w/ message data and inserted into the
+	// Heka pipeline. Returns `nil` if the loop count value provided is
+	// greater than the maximum allowed by the Heka instance.
 	PipelinePack(msgLoopCount uint) *PipelinePack
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
 // passed in to its Init method.
 type HasConfigStruct interface {
+	// Returns a default-value-populated configuration structure into which
+	// the plugin's TOML configuration will be deserialized.
 	ConfigStruct() interface{}
 }
 

@@ -23,9 +23,16 @@ import (
 // Interface for Heka plugins that will provide reporting data. Plugins can
 // populate the Message Fields w/ arbitrary output data.
 type ReportingPlugin interface {
+	// When generating a Heka "self-report", Heka will check each running
+	// plugin to see if it implements the `ReportingPlugin` interface. If so,
+	// Heka will call the `ReportMsg` method on the plugin, passing in a
+	// message struct. The plugin can populate the message fields with any
+	// arbitrary information regarding the plugin's operational state that
+	// might be useful in a report.
 	ReportMsg(msg *message.Message) (err error)
 }
 
+// Convenience function for creating a new integer field on a message object.
 func newIntField(msg *message.Message, name string, val int) {
 	f, err := message.NewField(name, val, message.Field_RAW)
 	if err == nil {
@@ -33,6 +40,8 @@ func newIntField(msg *message.Message, name string, val int) {
 	}
 }
 
+// Convenience function for creating and setting a string field called "name"
+// on a message object.
 func setNameField(msg *message.Message, name string) {
 	f, err := message.NewField("name", name, message.Field_RAW)
 	if err == nil {
@@ -40,6 +49,10 @@ func setNameField(msg *message.Message, name string) {
 	}
 }
 
+// Given a PluginRunner and a Message struct, this function will populate the
+// Message struct's field values with the plugin's input channel length and
+// capacity, plus any additional data that the plugin might provide through
+// implementation of the `ReportingPlugin` interface defined above.
 func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -74,7 +87,7 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 }
 
 // Generate recycle channel and plugin report messages and put them on the
-// provided channel.
+// provided channel as they're ready.
 func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	var (
 		f      *message.Field
@@ -149,7 +162,9 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	close(reportChan)
 }
 
-//
+// Generates a single message with a payload that is a string representation
+// of the fields data and payload extracted from each running plugin's report
+// message and hands the message to the router for delivery.
 func (pc *PipelineConfig) allReportsMsg() {
 	payload := make([]string, 0, 10)
 	var iName interface{}
