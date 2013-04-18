@@ -15,6 +15,10 @@
 
 package pipeline
 
+import (
+	"fmt"
+)
+
 type metric struct {
 	Type_ string `toml:"type"`
 	Name  string
@@ -22,11 +26,11 @@ type metric struct {
 }
 
 type StatFilterConfig struct {
-	Metric []metric
+	Metric map[string]metric
 }
 
 type StatFilter struct {
-	metrics []metric
+	metrics map[string]metric
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
@@ -45,8 +49,22 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 	var (
 		pack     *PipelinePack
+		sp       StatPacket
 		captures map[string]string
+		ir       InputRunner
+		ok       bool
 	)
+
+	// Pull the statsd input out
+	ir, ok = h.PipelineConfig().InputRunners["StatsdInput"]
+	if !ok {
+		return fmt.Errorf("Unable to locate StatsdInput, was it configured?")
+	}
+	statInput, ok := ir.Plugin().(*StatsdInput)
+	if !ok {
+		return fmt.Errorf("Unable to coerce input plugin to StatsdInput")
+	}
+
 	for plc := range inChan {
 		pack = plc.Pack
 		captures = plc.Captures
@@ -59,15 +77,19 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
-			pack := h.PipelinePack(plc.Pack.MsgLoopCount)
-			if pack == nil {
-				break
+			sp.Bucket = InterpolateString(met.Name, captures)
+			switch met.Type_ {
+			case "Counter":
+				sp.Modifier = ""
+			case "Timer":
+				sp.Modifier = "ms"
+			case "Gauge":
+				sp.Modifier = "g"
 			}
-			pack.Message.SetType(met.Type_)
-			pack.Message.SetLogger(InterpolateString(met.Name, captures))
-			pack.Message.SetPayload(InterpolateString(met.Value, captures))
-			fr.Inject(pack)
+			sp.Value = InterpolateString(met.Value, captures)
+			statInput.Packet <- sp
 		}
+		pack.Recycle()
 	}
 
 	return
