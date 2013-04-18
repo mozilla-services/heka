@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"log"
 	"os"
-	"runtime"
 	"time"
 )
 
@@ -81,8 +80,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 func (lw *LogfileInput) Stop() {
 	close(lw.Monitor.stopChan) // stops the monitor's watcher
-	runtime.Gosched()          // lets the monitor close
-	close(lw.Monitor.NewLines) // stops the input
 }
 
 // FileMonitor, manages a group of FileTailers
@@ -141,6 +138,7 @@ func (fm *FileMonitor) Watcher() {
 			for _, fd := range fm.fds {
 				fd.Close()
 			}
+			close(fm.NewLines)
 			return
 		}
 	}
