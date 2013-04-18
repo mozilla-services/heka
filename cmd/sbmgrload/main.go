@@ -23,7 +23,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
+	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
