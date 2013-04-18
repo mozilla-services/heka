@@ -53,3 +53,44 @@ Stopping a SandboxFilter
 - Fields[name]: The SandboxFilter name specified in the configuration
 
 
+sbmgr
+=====
+Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
+the control messages defined above.
+
+Command Line Options
+--------------------
+sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
+[``-script`` `sandbox script filename`] [``-scriptconfig`` `sandbox script configuration filename`]
+
+sbmgrload
+=========
+Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
+script and configuration are built into the tool and the filters will be named:
+CounterSandbox\ **N** where **N** is the instance number.
+
+Command Line Options
+--------------------
+sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
+
+
+Configuration Variables
+-----------------------
+- ip_address (string): IP address of the Heka server.
+- signer (object): Signer information for the encoder.
+    - name (string): The name of the signer.
+    - hmac_hash (string): md5 or sha1
+    - hmac_key (string): The key the message will be signed with.
+    - version (int): The version number of the hmac_key. 
+
+Example
+
+.. code-block:: ini
+
+    ip_address          = "127.0.0.1:5565"
+    [signer]
+        name         = "test"
+        hmac_hash    = "md5"
+        hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+        version      = 0
+

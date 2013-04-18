@@ -17,23 +17,22 @@ package pipeline
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 )
 
 type LogfileInputConfig struct {
 	SincedbFlush int
-	LogFiles     [][]string
+	LogFiles     []string
+	Hostname     string
 }
 
 type LogfileInput struct {
-	Monitor    *FileMonitor
-	DecoderMap map[string][]string
-	stopped    bool
+	Monitor  *FileMonitor
+	hostname string
+	stopped  bool
 }
 
 type Logline struct {
@@ -48,27 +47,22 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
-	lw.DecoderMap = make(map[string][]string)
+	val := conf.Hostname
+	if val == "" {
+		val, err = os.Hostname()
+		if err != nil {
+			return
+		}
+	}
+	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
 		return err
-	}
-	for _, logconf := range conf.LogFiles {
-		if len(logconf) > 1 {
-			lw.DecoderMap[logconf[0]] = logconf[1:]
-		}
 	}
 	return nil
 }
 
-func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) {
-
+func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
-	var dRunner DecoderRunner
-	var dName string
-	dSet := h.DecoderSet()
-	var ok bool
-	var err error
 	packSupply := ir.InChan()
 
 	for logline := range lw.Monitor.NewLines {
@@ -76,27 +70,12 @@ func (lw *LogfileInput) LineReader(ir InputRunner, h PluginHelper,
 		pack.Message.SetType("logfile")
 		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetLogger(logline.Path)
+		pack.Message.SetHostname(lw.hostname)
 		pack.Decoded = true
-		for _, dName = range lw.DecoderMap[logline.Path] {
-			if dRunner, ok = dSet.ByName(dName); !ok {
-				ir.LogError(fmt.Errorf("Can't find decoder '%s' for log line %s",
-					dName, logline.Path))
-			}
-			err = dRunner.Decoder().Decode(pack)
-			if err == nil {
-				break
-			}
-		}
 		ir.Inject(pack)
 	}
 
 	log.Println("Input stopped: LogfileInput")
-	wg.Done()
-}
-
-func (lw *LogfileInput) Start(ir InputRunner, h PluginHelper,
-	wg *sync.WaitGroup) (err error) {
-	go lw.LineReader(ir, h, wg)
 	return
 }
 
@@ -202,14 +181,13 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 	return
 }
 
-func (fm *FileMonitor) Init(files [][]string) (err error) {
+func (fm *FileMonitor) Init(files []string) (err error) {
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	for _, fileData := range files {
-		fileName := fileData[0]
+	for _, fileName := range files {
 		fm.discover[fileName] = true
 	}
 	go fm.Watcher()

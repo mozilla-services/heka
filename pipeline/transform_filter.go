@@ -27,27 +27,25 @@ var varMatcher *regexp.Regexp
 
 type MatchSet map[string]string
 
-type TextParserDecoderConfig struct {
+type TransformFilterConfig struct {
 	SeverityMap     map[string]int32
 	MessageFields   MatchSet
 	TimestampLayout string
-	PayloadMatch    string
 }
 
-type TextParserDecoder struct {
+type TransformFilter struct {
 	SeverityMap     map[string]int32
 	MessageFields   MatchSet
 	TimestampLayout string
-	PayloadMatch    *regexp.Regexp
 	basicFields     []string
 }
 
-func (t *TextParserDecoder) ConfigStruct() interface{} {
-	return new(TextParserDecoderConfig)
+func (t *TransformFilter) ConfigStruct() interface{} {
+	return new(TransformFilterConfig)
 }
 
-func (t *TextParserDecoder) Init(config interface{}) (err error) {
-	conf := config.(*TextParserDecoderConfig)
+func (t *TransformFilter) Init(config interface{}) (err error) {
+	conf := config.(*TransformFilterConfig)
 	t.SeverityMap = make(map[string]int32)
 	t.MessageFields = make(MatchSet)
 	t.basicFields = []string{"Timestamp", "Logger", "Type", "Hostname",
@@ -63,77 +61,80 @@ func (t *TextParserDecoder) Init(config interface{}) (err error) {
 		}
 	}
 
-	// Replace helper words with complex regex
-	wordMatcher, _ := regexp.Compile("TIMESTAMP")
-	newPayload := wordMatcher.ReplaceAllStringFunc(conf.PayloadMatch,
-		func(match string) string {
-			if match == "TIMESTAMP" {
-				return HelperRegexSubs["TIMESTAMP"]
-			}
-			return match
-		})
-	t.PayloadMatch, err = regexp.Compile(newPayload)
-	if err != nil {
-		return
-	}
 	t.TimestampLayout = conf.TimestampLayout
-	varMatcher, _ = regexp.Compile("@[A-Za-z]+")
 	return
 }
 
-func (t *TextParserDecoder) Decode(pipelinePack *PipelinePack) error {
-	matchParts := make(MatchSet)
-	changeFields := make(MatchSet)
+func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
+	inChan := fr.InChan()
 
-	// Copy our message fields to change
-	for field, val := range t.MessageFields {
-		changeFields[field] = val
-	}
+	var (
+		pack     *PipelinePack
+		newPack  *PipelinePack
+		captures map[string]string
+	)
 
-	if t.PayloadMatch.String() != "" {
-		err := t.ParsePayload(pipelinePack.Message.Payload, matchParts,
-			pipelinePack)
-		if err != nil {
-			return logError(err, pipelinePack)
+	for plc := range inChan {
+		pack = plc.Pack
+		captures = plc.Captures
+		newPack = h.PipelinePack(plc.Pack.MsgLoopCount)
+
+		changeFields := make(MatchSet)
+
+		// Copy our message fields to change
+		for field, val := range t.MessageFields {
+			changeFields[field] = val
 		}
-	}
 
-	if severityString, ok := matchParts["Severity"]; ok {
-		// First see if we have a mapping for this severity
-		if sevInt, ok := t.SeverityMap[severityString]; ok {
-			pipelinePack.Message.Severity = &sevInt
-		} else {
-			sevInt, err := strconv.ParseInt(severityString, 10, 32)
-			if err != nil {
-				return logError(err, pipelinePack)
+		if severityString, ok := captures["Severity"]; ok {
+			// First see if we have a mapping for this severity
+			if sevInt, ok := t.SeverityMap[severityString]; ok {
+				newPack.Message.SetSeverity(sevInt)
+			} else {
+				// Otherwise, assume the severity located will be an int
+				sevInt, err := strconv.ParseInt(severityString, 10, 32)
+				if err != nil {
+					logError(err, pack)
+					pack.Recycle()
+					newPack.Recycle()
+					continue
+				}
+				sevInt32 := int32(sevInt)
+				newPack.Message.SetSeverity(sevInt32)
 			}
-			sevInt32 := int32(sevInt)
-			pipelinePack.Message.Severity = &sevInt32
 		}
-	}
 
-	// Only copy basic fields into the changeFields
-	for _, matchField := range t.basicFields {
-		// Does it exist in our matchParts?
-		value := matchParts[matchField]
-		if value == "" {
+		// Only copy basic fields into the changeFields
+	basicFieldMatch:
+		for _, matchField := range t.basicFields {
+			// Does it exist in our captured parts?
+			value := captures[matchField]
+			if value == "" {
+				continue basicFieldMatch
+			}
+			if _, present := t.MessageFields[matchField]; !present {
+				changeFields[matchField] = value
+			}
+		}
+
+		err := t.updateMessage(newPack.Message, changeFields, captures)
+		if err != nil {
+			logError(err, pack)
+			pack.Recycle()
+			newPack.Recycle()
 			continue
 		}
-		if _, present := t.MessageFields[matchField]; !present {
-			changeFields[matchField] = value
-		}
+
+		fr.Inject(newPack)
+		pack.Recycle()
 	}
 
-	err := t.updateMessage(pipelinePack.Message, changeFields, matchParts)
-	if err != nil {
-		return logError(err, pipelinePack)
-	}
-	pipelinePack.Decoded = true
-	return nil
+	return
+
 }
 
 // Update a message based on the populated fields to use for altering it
-func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
+func (t *TransformFilter) updateMessage(message *Message, changeFields,
 	matchParts MatchSet) error {
 	for field, formatRegexp := range changeFields {
 		if field == "Timestamp" {
@@ -173,30 +174,6 @@ func (t *TextParserDecoder) updateMessage(message *Message, changeFields,
 			if err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-
-// Parse a payload and put the matched regular subexpressions into matchParts
-//
-// This will return an error if there are no subexpressions present
-func (t *TextParserDecoder) ParsePayload(payload *string, matchParts MatchSet,
-	pipelinePack *PipelinePack) error {
-	findResults := t.PayloadMatch.FindStringSubmatch(*payload)
-	if findResults == nil || len(findResults) < 2 {
-		return logError(fmt.Errorf("No regexp matches found in %s", *payload),
-			pipelinePack)
-	}
-	resultLength := len(findResults)
-	for index, name := range t.PayloadMatch.SubexpNames() {
-		if name == "" {
-			continue
-		}
-		if index > resultLength-1 {
-			matchParts[name] = ""
-		} else {
-			matchParts[name] = findResults[index]
 		}
 	}
 	return nil
