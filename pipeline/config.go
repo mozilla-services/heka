@@ -504,9 +504,6 @@ func init() {
 	RegisterPlugin("LogfileInput", func() interface{} {
 		return new(LogfileInput)
 	})
-	RegisterPlugin("TextParserDecoder", func() interface{} {
-		return new(TextParserDecoder)
-	})
 	RegisterPlugin("TcpOutput", func() interface{} {
 		return new(TcpOutput)
 	})
@@ -515,6 +512,9 @@ func init() {
 	})
 	RegisterPlugin("SandboxFilter", func() interface{} {
 		return new(SandboxFilter)
+	})
+	RegisterPlugin("TransformFilter", func() interface{} {
+		return new(TransformFilter)
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
