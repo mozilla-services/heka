@@ -27,11 +27,13 @@ import (
 type LogfileInputConfig struct {
 	SincedbFlush int
 	LogFiles     [][]string
+	Hostname     string
 }
 
 type LogfileInput struct {
 	Monitor    *FileMonitor
 	DecoderMap map[string][]string
+	hostname   string
 	stopped    bool
 }
 
@@ -48,6 +50,14 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
 	lw.DecoderMap = make(map[string][]string)
+	val := conf.Hostname
+	if val == "" {
+		val, err = os.Hostname()
+		if err != nil {
+			return
+		}
+	}
+	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
 		return err
 	}
@@ -72,6 +82,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack.Message.SetType("logfile")
 		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetLogger(logline.Path)
+		pack.Message.SetHostname(lw.hostname)
 		pack.Decoded = true
 		for _, dName = range lw.DecoderMap[logline.Path] {
 			if dRunner, ok = dSet.ByName(dName); !ok {
