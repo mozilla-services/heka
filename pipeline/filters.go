@@ -22,21 +22,45 @@ import (
 	"time"
 )
 
+// Heka PluginRunner interface for Filter type plugins.
 type FilterRunner interface {
 	PluginRunner
+	// Input channel on which the Filter should listen for incoming messages
+	// to be processed. Closure of the channel signals shutdown to the filter.
 	InChan() chan *PipelineCapture
+	// Associated Filter plugin object.
 	Filter() Filter
+	// Starts the FilterRunner / Filter pair so they're listening on the input
+	// channel for messages to be processed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	// Returns a ticker channel configured to send ticks at an interval
+	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
+	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
+	// value) and drops it on the Filter's input channel.
 	Deliver(pack *PipelinePack)
+	// Hands provided PipelinePack to the Heka Router for delivery to any
+	// Filter or Output plugins with a corresponding message_matcher. Returns
+	// false and doesn't perform message injection if the message would be
+	// caught by the sending Filter's message_matcher.
 	Inject(pack *PipelinePack) bool
+	// Parsing engine for this Filter's message_matcher.
 	MatchRunner() *MatchRunner
 }
 
+// Heka Filter plugin type.
 type Filter interface {
+	// Starts the filter listening on the FilterRunner's provided input
+	// channel. Should not return until shutdown, signaled to the Filter by
+	// the closure of the input channel. Should return a non-nil error value
+	// only if errors happen during start-up or if there is an unclean
+	// shutdown (i.e. not due to an error processing an isolated message, in
+	// that case use FilterRunner.LogError).
 	Run(r FilterRunner, h PluginHelper) (err error)
 }
 
+// Filter that counts the number of messages flowing through and provides
+// primitive aggregation counts.
 type CounterFilter struct {
 	lastTime  time.Time
 	lastCount uint
