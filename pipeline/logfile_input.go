@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"bufio"
-	"log"
 	"os"
 	"time"
 )
@@ -28,6 +27,12 @@ type LogfileInputConfig struct {
 	LogFiles []string
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
+	// Interval btn hd scans for existence of watched files, in milliseconds,
+	// default 5000 (i.e. 5 seconds).
+	DiscoverInterval int
+	// Interval btn reads from open file handles, in milliseconds, default
+	// 500.
+	StatInterval int
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -50,7 +55,10 @@ type Logline struct {
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
-	return new(LogfileInputConfig)
+	return &LogfileInputConfig{
+		DiscoverInterval: 5000,
+		StatInterval:     1,
+	}
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
@@ -64,7 +72,8 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
-	if err = lw.Monitor.Init(conf.LogFiles); err != nil {
+	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
+		conf.StatInterval); err != nil {
 		return err
 	}
 	return nil
@@ -83,8 +92,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack.Decoded = true
 		ir.Inject(pack)
 	}
-
-	log.Println("Input stopped: LogfileInput")
 	return
 }
 
@@ -99,12 +106,14 @@ func (lw *LogfileInput) Stop() {
 type FileMonitor struct {
 	// Channel onto which FileMonitor will place LogLine objects as the file
 	// is being read.
-	NewLines  chan Logline
-	stopChan  chan bool
-	seek      map[string]int64
-	discover  map[string]bool
-	fds       map[string]*os.File
-	checkStat <-chan time.Time
+	NewLines         chan Logline
+	stopChan         chan bool
+	seek             map[string]int64
+	discover         map[string]bool
+	fds              map[string]*os.File
+	checkStat        <-chan time.Time
+	discoverInterval time.Duration
+	statInterval     time.Duration
 }
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's
@@ -135,8 +144,8 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 // a) try to open any upopened files and b) read any new data from already
 // opened files.
 func (fm *FileMonitor) Watcher() {
-	discovery := time.Tick(time.Second * 5)
-	checkStat := time.Tick(time.Millisecond * 500)
+	discovery := time.Tick(fm.discoverInterval)
+	checkStat := time.Tick(fm.statInterval)
 
 	for {
 		select {
@@ -199,7 +208,9 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 	return
 }
 
-func (fm *FileMonitor) Init(files []string) (err error) {
+func (fm *FileMonitor) Init(files []string, discoverInterval int,
+	statInterval int) (err error) {
+
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
@@ -208,6 +219,8 @@ func (fm *FileMonitor) Init(files []string) (err error) {
 	for _, fileName := range files {
 		fm.discover[fileName] = true
 	}
+	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
+	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	go fm.Watcher()
 	return
 }
