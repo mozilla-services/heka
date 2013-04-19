@@ -298,8 +298,9 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
-// Returns true is the provided message and header is confirmed to be signed
-// by one of the provided signers.
+// Returns true if the provided message is unsigned or has a valid signature
+// from one of the provided signers. If signed, the signer name is added to
+// the PipelinePack.
 func authenticateMessage(signers map[string]Signer, header *Header,
 	pack *PipelinePack) bool {
 	digest := header.GetHmac()
