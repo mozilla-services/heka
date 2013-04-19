@@ -23,7 +23,6 @@ import (
 )
 
 type LogfileInputConfig struct {
-	SincedbFlush int
 	LogFiles     []string
 	Hostname     string
 }
@@ -40,7 +39,7 @@ type Logline struct {
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
-	return &LogfileInputConfig{SincedbFlush: 1}
+	return new(LogfileInputConfig)
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
