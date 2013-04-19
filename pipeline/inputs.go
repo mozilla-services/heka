@@ -31,12 +31,6 @@ import (
 	"sync"
 )
 
-type TimeoutError string
-
-func (self *TimeoutError) Error() string {
-	return fmt.Sprint("Error: Read timed out")
-}
-
 type InputRunner interface {
 	PluginRunner
 	InChan() chan *PipelinePack
