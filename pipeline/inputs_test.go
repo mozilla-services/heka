@@ -380,7 +380,7 @@ func InputsSpec(c gs.Context) {
 		c.Expect(err, gs.IsNil)
 
 		// Create pool of packs.
-		numLines := 100
+		numLines := 95 // # of lines in the log file we're parsing.
 		packs := make([]*PipelinePack, numLines)
 		ith.PackSupply = make(chan *PipelinePack, numLines)
 		for i := 0; i < numLines; i++ {
