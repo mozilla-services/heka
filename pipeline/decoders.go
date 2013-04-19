@@ -25,9 +25,16 @@ import (
 	"sync"
 )
 
+// Encapsulates access to a set of DecoderRunners.
 type DecoderSet interface {
+	// Returns running DecoderRunner registered under the specified name, or
+	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
+	// Returns running DecoderRunner registered for the specified Heka
+	// protocol encoding header.
 	ByEncoding(enc message.Header_MessageEncoding) (decoder DecoderRunner, ok bool)
+	// Returns the full set of running DecoderRunners, indexed by names under
+	// which the were registered.
 	AllByName() (decoders map[string]DecoderRunner)
 }
 
@@ -93,11 +100,20 @@ func (ds *decoderSet) AllByName() (decoders map[string]DecoderRunner) {
 	return ds.byName
 }
 
+// Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
+// so these runners handle a bit more than the others.
 type DecoderRunner interface {
 	PluginRunner
+	// Returns associated Decoder plugin object.
 	Decoder() Decoder
+	// Starts the DecoderRunner so it's listening for incoming PipelinePacks.
+	// Should decrement the wait group after shut down has completed.
 	Start(h PluginHelper, wg *sync.WaitGroup)
+	// Returns the channel into which incoming PipelinePacks to be decoded
+	// should be dropped.
 	InChan() chan *PipelinePack
+	// UUID to distinguish the duplicate instances of the same registered
+	// Decoder plugin type from each other.
 	UUID() string
 }
 
@@ -107,6 +123,8 @@ type dRunner struct {
 	uuid   string
 }
 
+// Creates and returns a new (but not yet started) DecoderRunner for the
+// provided Decoder plugin.
 func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
 	return &dRunner{
 		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
@@ -168,10 +186,14 @@ func (dr *dRunner) LogMessage(msg string) {
 	log.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
+// Heka Decoder plugin interface.
 type Decoder interface {
+	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
+	// and use it to populated pack.Message message object.
 	Decode(pack *PipelinePack) error
 }
 
+// Decoder for converting JSON strings into Message objects.
 type JsonDecoder struct{}
 
 func (self *JsonDecoder) Init(config interface{}) error {
@@ -182,6 +204,7 @@ func (self *JsonDecoder) Decode(pack *PipelinePack) error {
 	return json.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
+// Decoder for converting ProtocolBuffer data into Message objects.
 type ProtobufDecoder struct{}
 
 func (self *ProtobufDecoder) Init(config interface{}) error {
