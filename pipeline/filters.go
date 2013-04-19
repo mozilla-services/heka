@@ -30,8 +30,10 @@ type FilterRunner interface {
 	InChan() chan *PipelineCapture
 	// Associated Filter plugin object.
 	Filter() Filter
-	// Starts the FilterRunner / Filter pair so they're listening on the input
-	// channel for messages to be processed.
+	// Starts the Filter (so it's listening on the input channel for messages
+	// to be processed) in a separate goroutine and returns. Should decrement
+	// the wait group when the Filter has stopped and the goroutine has
+	// completed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	// Returns a ticker channel configured to send ticks at an interval
 	// specified by the plugin's ticker_interval config value, if provided.

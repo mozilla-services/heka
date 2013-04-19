@@ -31,11 +31,19 @@ import (
 	"sync"
 )
 
+// Heka PluginRunner for Input plugins.
 type InputRunner interface {
 	PluginRunner
+	// Input channel from which Inputs can get fresh PipelinePacks, ready to
+	// be populated.
 	InChan() chan *PipelinePack
+	// Associated Input plugin object.
 	Input() Input
+	// Starts Input in a separate goroutine and returns. Should decrement the
+	// plugin when the Input stops and the goroutine has completed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	// Injects PipelinePack into the Heka Router's input channel for delivery
+	// to all Filter and Output plugins with corresponding message_matchers.
 	Inject(pack *PipelinePack)
 }
 
@@ -45,6 +53,8 @@ type iRunner struct {
 	inChan chan *PipelinePack
 }
 
+// Creates and returns a new (not yet started) InputRunner associated w/ the
+// provided Input.
 func NewInputRunner(name string, input Input) (
 	ir InputRunner) {
 	return &iRunner{
@@ -55,6 +65,7 @@ func NewInputRunner(name string, input Input) (
 		input: input,
 	}
 }
+
 func (ir *iRunner) Input() Input {
 	return ir.input
 }
@@ -99,13 +110,19 @@ func (ir *iRunner) LogMessage(msg string) {
 	log.Printf("Input '%s': %s", ir.name, msg)
 }
 
-// Input plugin interface type
+// Input plugin interface type.
 type Input interface {
+	// Start listening for / gathering incoming data, populating
+	// PipelinePacks, and passing them along to a Decoder or the Router as
+	// appropriate.
 	Run(ir InputRunner, h PluginHelper) (err error)
+	// Called as a signal to the Input to stop listening for / gathering
+	// incoming data and to perform any necessary clean-up.
 	Stop()
 }
 
-// UdpInput
+// Input plugin implementation that listens for Heka protocol messages on a
+// specified UDP socket.
 type UdpInput struct {
 	listener net.Conn
 	name     string
@@ -113,8 +130,12 @@ type UdpInput struct {
 	config   *UdpInputConfig
 }
 
+// ConfigStruct for UdpInput plugin.
 type UdpInputConfig struct {
-	Address string            `toml:"address"`
+	// String representation of the address of the UDP connection on which
+	// the listener should be listening (e.g. "127.0.0.1:5565").
+	Address string `toml:"address"`
+	// Set of message signer objects, keyed by signer id string.
 	Signers map[string]Signer `toml:"signer"`
 }
 
@@ -197,8 +218,8 @@ func (self *UdpInput) Stop() {
 	self.listener.Close()
 }
 
-// TCP Input
-
+// Input plugin implementation that listens for Heka protocol messages on a
+// specified TCP socket. Creates a separate goroutine for each TCP connection.
 type TcpInput struct {
 	listener net.Listener
 	name     string
@@ -209,12 +230,17 @@ type TcpInput struct {
 	config   *TcpInputConfig
 }
 
+// Heka Message signer object.
 type Signer struct {
 	HmacKey string `toml:"hmac_key"`
 }
 
+// ConfigStruct for TcpInput plugin.
 type TcpInputConfig struct {
+	// String representation of the address of the TCP connection on which
+	// the listener should be listening (e.g. "127.0.0.1:5565").
 	Address string
+	// Set of message signer objects, keyed by signer id string.
 	Signers map[string]Signer `toml:"signer"`
 }
 
@@ -222,6 +248,7 @@ func (self *TcpInput) ConfigStruct() interface{} {
 	return new(TcpInputConfig)
 }
 
+// Decodes provided byte slice into a Heka protocol header object.
 func decodeHeader(buf []byte, header *Header) bool {
 	if buf[len(buf)-1] != UNIT_SEPARATOR {
 		log.Println("missing unit separator")
@@ -239,6 +266,10 @@ func decodeHeader(buf []byte, header *Header) bool {
 	return true
 }
 
+// Scans provided byte slice for the next record separator and tries to
+// populate provided header and message objects using the scanned data.
+// Returns new starting index into the passed buffer, or ok == false if no
+// message was able to be extracted.
 func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
 	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
 	if pos != -1 {
@@ -267,6 +298,8 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
+// Returns true is the provided message and header is confirmed to be signed
+// by one of the provided signers.
 func authenticateMessage(signers map[string]Signer, header *Header,
 	pack *PipelinePack) bool {
 	digest := header.GetHmac()
@@ -297,6 +330,9 @@ func authenticateMessage(signers map[string]Signer, header *Header,
 	return true
 }
 
+// Listen on the provided TCP connection, extracting Heka protocol messages
+// from the incoming data until the connection is closed or Stop is called on
+// the input.
 func (self *TcpInput) handleConnection(conn net.Conn) {
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
