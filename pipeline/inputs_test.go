@@ -25,7 +25,10 @@ import (
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
 	"net"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -215,9 +218,6 @@ func InputsSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
-		//ith.MockInputRunner.EXPECT().DecoderSource().Return(ith.MockDecoderSource)
-		//ith.MockDecoderSource.EXPECT().NewDecodersByEncoding().Return(ith.Decoders)
-
 		c.Specify("reads a message from its connection", func() {
 			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
 			pbcall.Return(mockDecoderRunner, true)
@@ -368,5 +368,48 @@ func InputsSpec(c gs.Context) {
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg) // no panic => success
 		wg.Wait()
+	})
+
+	c.Specify("A LogFileInput", func() {
+		lfInput := new(LogfileInput)
+		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+		lfiConfig.LogFiles = []string{"../testsupport/test.log"}
+		lfiConfig.DiscoverInterval = 1
+		lfiConfig.StatInterval = 1
+		err := lfInput.Init(lfiConfig)
+		c.Expect(err, gs.IsNil)
+
+		// Create pool of packs.
+		numLines := 100
+		packs := make([]*PipelinePack, numLines)
+		ith.PackSupply = make(chan *PipelinePack, numLines)
+		for i := 0; i < numLines; i++ {
+			packs[i] = NewPipelinePack(ith.PackSupply)
+			ith.PackSupply <- packs[i]
+		}
+
+		c.Specify("reads a log file", func() {
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
+			go func() {
+				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
+				c.Expect(err, gs.IsNil)
+			}()
+			for len(ith.PackSupply) > 0 {
+				// Free up the scheduler while we wait for the log file lines
+				// to be processed.
+				runtime.Gosched()
+			}
+			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles[0])
+			c.Expect(err, gs.IsNil)
+			fileStr := string(fileBytes)
+			lines := strings.Split(fileStr, "\n")
+			for i, line := range lines {
+				if line == "" {
+					continue
+				}
+				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
+			}
+		})
 	})
 }
