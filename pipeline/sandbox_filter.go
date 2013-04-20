@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
@@ -82,7 +83,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 	)
 
-	this.sb.InjectMessage(func(s string) int {
+	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
@@ -91,7 +92,13 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		}
 		pack.Message.SetType("heka.sandbox")
 		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetPayload(s)
+		pack.Message.SetPayload(payload)
+		ptype, _ := message.NewField("payload_type", payload_type,
+			message.Field_RAW)
+		pack.Message.AddField(ptype)
+		pname, _ := message.NewField("payload_name", payload_name,
+			message.Field_RAW)
+		pack.Message.AddField(pname)
 		if !fr.Inject(pack) {
 			return 1
 		}

@@ -575,19 +575,37 @@ int read_message(lua_State* lua)
 ////////////////////////////////////////////////////////////////////////////////
 int inject_message(lua_State* lua)
 {
+    static const char* default_type = "txt";
+    static const char* default_name = "";
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
         lua_pushstring(lua, "inject_message() invalid lightuserdata");
         lua_error(lua);
     }
-    if (lua_gettop(lua) != 0) {
-        lua_pushstring(lua, "inject_message() takes no arguments");
-        lua_error(lua);
-    }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
+    int n = lua_gettop(lua);
+    if (n > 2) {
+        lua_pushstring(lua, "inject_message() takes a maximum of 2 arguments");
+        lua_error(lua);
+    }
+
+    const char* type = default_type;
+    const char* name = default_name;
+    switch (n) {
+    case 2:
+        name = luaL_checkstring(lua, 2);
+        // fall thru
+    case 1:
+        type = luaL_checkstring(lua, 1);
+        break;
+    }
+
     if (lsb->m_output.m_pos != 0) {
-        int result = go_lua_inject_message(lsb->m_go, lsb->m_output.m_data);
+        int result = go_lua_inject_message(lsb->m_go, 
+                                           lsb->m_output.m_data,
+                                           (char*)type,
+                                           (char*)name);
         lsb->m_output.m_pos = 0;
         if (result != 0) {
             lua_pushstring(lua, "inject_message() exceeded MaxMsgLoops");

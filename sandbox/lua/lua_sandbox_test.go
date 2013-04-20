@@ -301,7 +301,7 @@ func TestAPIErrors(t *testing.T) {
 		"output limit exceeded"}
 
 	msgs := []string{
-		"process_message() inject_message() takes no arguments",
+		"process_message() inject_message() takes a maximum of 2 arguments",
 		"process_message() output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -446,8 +446,8 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	sb.InjectMessage(func(s string) int {
-		if s != "11" {
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != "11" {
 			t.Errorf("State was not restored")
 		}
 		return 0
@@ -550,7 +550,7 @@ func TestFailedMessageInjection(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	sb.InjectMessage(func(s string) int {
+	sb.InjectMessage(func(p, pt, pn string) int {
 		return 1
 	})
 	r := sb.ProcessMessage(msg, captures)
@@ -649,6 +649,8 @@ func TestCircularBuffer(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 32767
+	payload_type := "cbuf"
+	payload_name := "Method tests"
 
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
@@ -660,10 +662,16 @@ func TestCircularBuffer(t *testing.T) {
 		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
 		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
 	cnt := 0
-	sb.InjectMessage(func(s string) int {
-		if s != output[cnt] {
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != output[cnt] {
 			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], s)
+				output[cnt], p)
+		}
+		if pt != payload_type {
+			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
+		}
+		if pn != "Method tests" {
+			t.Errorf("cnt: %d name should be \"%s\", received \"%s\"", cnt, payload_name, pn)
 		}
 		cnt++
 		return 0
@@ -707,6 +715,7 @@ func TestCircularBufferRestore(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 32767
+	payload_type := "cbuf"
 
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
@@ -716,10 +725,16 @@ func TestCircularBufferRestore(t *testing.T) {
 		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
 		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"type\":\"count\"}]}\n7.1\n1000000\n"}
 	cnt := 0
-	sb.InjectMessage(func(s string) int {
-		if s != output[cnt] {
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != output[cnt] {
 			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], s)
+				output[cnt], p)
+		}
+		if pt != payload_type {
+			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
+		}
+		if cnt == 1 && len(pn) != 0 {
+			t.Errorf("cnt: %d name should be empty, received \"%s\"", cnt, pn)
 		}
 		cnt++
 		return 0
