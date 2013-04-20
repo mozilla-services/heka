@@ -13,6 +13,7 @@
 #include <lauxlib.h>
 #include <lualib.h>
 #include "lua_sandbox_private.h"
+#include "lua_circular_buffer.h"
 #include "_cgo_export.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +39,7 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
         // preservation.
         lua_newtable(lua);
         lua_setmetatable(lua, -2);
-        lua_pop(lua, -1); // Remove the library table from the stack.
+        lua_pop(lua, 1); // Remove the library table from the stack.
     }
 }
 
@@ -233,6 +234,22 @@ int serialize_data(lua_sandbox* lsb, int index, output_data* output)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+const char* userdata_type(lua_State* lua, void* ud, int index)
+{
+    const char* table = NULL;
+    if (ud == NULL) return table;
+
+    if (lua_getmetatable(lua, index)) {
+        lua_getfield(lua, LUA_REGISTRYINDEX, heka_circular_buffer);
+        if (lua_rawequal(lua, -1, -2)) {
+            table = heka_circular_buffer;
+        }
+    }
+    lua_pop(lua, 2); // metatable and field
+    return table;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
 {
     int kindex = -2, vindex = -1;
@@ -247,7 +264,6 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
         return 1;
     }
 
-    fprintf(data->m_fh, "%s = ", data->m_keys.m_data + pos);
     if (lua_type(lsb->m_lua, vindex) == LUA_TTABLE) {
         const void* ptr = lua_topointer(lsb->m_lua, vindex);
         table_ref* seen = find_table_ref(&data->m_tables, ptr);
@@ -255,7 +271,7 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
             seen = add_table_ref(&data->m_tables, ptr, pos);
             if (seen != NULL) {
                 data->m_keys.m_pos += 1;
-                fprintf(data->m_fh, "{}\n");
+                fprintf(data->m_fh, "%s = {}\n", data->m_keys.m_data + pos);
                 result = serialize_table(lsb, data, pos);
             } else {
                 snprintf(lsb->m_error_message, ERROR_SIZE,
@@ -263,10 +279,38 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
                 return 1;
             }
         } else {
+            fprintf(data->m_fh, "%s = ", data->m_keys.m_data + pos);
             data->m_keys.m_pos = pos;
             fprintf(data->m_fh, "%s\n", data->m_keys.m_data + seen->m_name_pos);
         }
+    } else if (lua_type(lsb->m_lua, vindex) == LUA_TUSERDATA) {
+        void* ud = lua_touserdata(lsb->m_lua, vindex);
+        if ((heka_circular_buffer == userdata_type(lsb->m_lua, ud, vindex))) {
+            table_ref* seen = find_table_ref(&data->m_tables, ud);
+            if (seen == NULL) {
+                seen = add_table_ref(&data->m_tables, ud, pos);
+                if (seen != NULL) {
+                    data->m_keys.m_pos += 1;
+                    result = serialize_circular_buffer(
+                      data->m_keys.m_data + pos,
+                      (circular_buffer*)ud, &lsb->m_output);
+                    if (result == 0) {
+                        fprintf(data->m_fh, "%s", lsb->m_output.m_data);
+                    }
+                } else {
+                    snprintf(lsb->m_error_message, ERROR_SIZE,
+                             "preserve table out of memory");
+                    result = 1;
+                }
+            } else {
+                fprintf(data->m_fh, "%s = ", data->m_keys.m_data + pos);
+                data->m_keys.m_pos = pos;
+                fprintf(data->m_fh, "%s\n", data->m_keys.m_data +
+                        seen->m_name_pos);
+            }
+        }
     } else {
+        fprintf(data->m_fh, "%s = ", data->m_keys.m_data + pos);
         data->m_keys.m_pos = pos;
         result = serialize_data(lsb, vindex, &lsb->m_output);
         if (result == 0) {
@@ -308,6 +352,7 @@ table_ref* add_table_ref(table_ref_array* tra, const void* ptr, size_t name_pos)
 ////////////////////////////////////////////////////////////////////////////////
 int ignore_value_type(lua_sandbox* lsb, serialization_data* data, int index)
 {
+    void* ud = NULL;
     switch (lua_type(lsb->m_lua, index)) {
     case LUA_TTABLE:
         if (lua_getmetatable(lsb->m_lua, index) != 0) {
@@ -318,8 +363,13 @@ int ignore_value_type(lua_sandbox* lsb, serialization_data* data, int index)
             return 1;
         }
         break;
-    case LUA_TNONE:
     case LUA_TUSERDATA:
+        ud = lua_touserdata(lsb->m_lua, index);
+        if ((heka_circular_buffer != userdata_type(lsb->m_lua, ud, index))) {
+            return 1;
+        }
+        break;
+    case LUA_TNONE:
     case LUA_TFUNCTION:
     case LUA_TTHREAD:
     case LUA_TLIGHTUSERDATA:
@@ -407,6 +457,7 @@ int output(lua_State* lua)
     }
 
     int result = 0;
+    void* ud = NULL;
     for (int i = 1; result == 0 && i <= n; ++i) {
         switch (lua_type(lua, i)) {
         case LUA_TNUMBER:
@@ -425,7 +476,15 @@ int output(lua_State* lua)
                 result = 1;
             }
             break;
-            // All other data types are ignored by the output.
+        case LUA_TUSERDATA:
+            ud = lua_touserdata(lua, i);
+            if ((heka_circular_buffer == userdata_type(lua, ud, i))) {
+                if (output_circular_buffer((circular_buffer*)ud,
+                                           &lsb->m_output)) {
+                    result = 1;
+                }
+            }
+            break;
         }
     }
     lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT] = lsb->m_output.m_pos;
@@ -499,7 +558,7 @@ int read_message(lua_State* lua)
                 || strncmp("Severity", field, 8) == 0) {
                 lua_pushinteger(lua, *((GoInt32*)gr.r1));
             } else {
-                lua_pushinteger(lua, *((GoInt*)gr.r1));
+                lua_pushnumber(lua, *((GoInt*)gr.r1));
             }
             break;
         case 3:

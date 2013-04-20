@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 execute_process(COMMAND go env GOGCCFLAGS OUTPUT_VARIABLE GOGCCFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
-add_library(sandbox SHARED lua/lua_sandbox.c lua/lua_sandbox_private.c)
+add_library(sandbox SHARED lua/lua_sandbox.c lua/lua_sandbox_private.c lua/lua_circular_buffer.c)
 
 if(CMAKE_HOST_UNIX)
 	set(CMAKE_C_FLAGS "${GOGCCFLAGS} -shared -std=gnu99")

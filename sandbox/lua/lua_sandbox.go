@@ -124,7 +124,7 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 				unsafe.Pointer(lsb.msg.Severity), 0
 		case "Pid":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.msg.Pid), 0
 		default:
 			l := len(fieldName)
 			if l > 0 && fieldName[l-1] == ']' {
