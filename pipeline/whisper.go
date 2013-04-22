@@ -38,6 +38,8 @@ type wRunner struct {
 	wg     *sync.WaitGroup
 }
 
+// Creates or opens the relevant whisper db file, and returns running
+// WhisperRunner that will write to that file.
 func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 	aggMethod whisper.AggregationMethod, wg *sync.WaitGroup) (
 	wr WhisperRunner, err error) {
@@ -98,6 +100,7 @@ type WhisperOutput struct {
 	dbs                map[string]WhisperRunner
 }
 
+// WhisperOutput config struct.
 type WhisperOutputConfig struct {
 	// Full file path to where the Whisper db files are stored.
 	BasePath string
