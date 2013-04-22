@@ -26,25 +26,29 @@ type metric struct {
 }
 
 type StatFilterConfig struct {
-	Metric map[string]metric
+	Metric          map[string]metric
+	StatsdInputName string
 }
 
 type StatFilter struct {
-	metrics map[string]metric
+	metrics   map[string]metric
+	inputName string
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
-	return new(StatFilterConfig)
+	return &StatFilterConfig{
+		StatsdInputName: "StatsdInput",
+	}
 }
 
 func (s *StatFilter) Init(config interface{}) (err error) {
 	conf := config.(*StatFilterConfig)
 	s.metrics = conf.Metric
+	s.inputName = conf.StatsdInputName
 	return
 }
 
 func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-
 	inChan := fr.InChan()
 
 	var (
@@ -56,13 +60,15 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	)
 
 	// Pull the statsd input out
-	ir, ok = h.PipelineConfig().InputRunners["StatsdInput"]
+	ir, ok = h.PipelineConfig().InputRunners[s.inputName]
 	if !ok {
-		return fmt.Errorf("Unable to locate StatsdInput, was it configured?")
+		return fmt.Errorf("Unable to locate StatsdInput '%s', was it configured?",
+			s.inputName)
 	}
 	statInput, ok := ir.Plugin().(*StatsdInput)
 	if !ok {
-		return fmt.Errorf("Unable to coerce input plugin to StatsdInput")
+		return fmt.Errorf("Unable to coerce '%s' input plugin to StatsdInput",
+			s.inputName)
 	}
 
 	for plc := range inChan {
