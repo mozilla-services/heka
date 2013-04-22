@@ -21,10 +21,12 @@ import (
 	"time"
 )
 
+// ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
-	SincedbFlush int
-	LogFiles     []string
-	Hostname     string
+	// Paths for all of the log files that this input should be reading.
+	LogFiles []string
+	// Hostname to use for the generated logfile message objects.
+	Hostname string
 	// Interval btn hd scans for existence of watched files, in milliseconds,
 	// default 5000 (i.e. 5 seconds).
 	DiscoverInterval int
@@ -33,20 +35,27 @@ type LogfileInputConfig struct {
 	StatInterval int
 }
 
+// Heka Input plugin that reads files from the filesystem, converts each line
+// into a fully decoded Message object with the line contents as the payload,
+// and passes the generated message on to the Router for delivery to any
+// matching Filter or Output plugins.
 type LogfileInput struct {
+	// Encapsulates actual file finding / listening / reading mechanics.
 	Monitor  *FileMonitor
 	hostname string
 	stopped  bool
 }
 
+// Represents a single line from a log file.
 type Logline struct {
+	// Path to the file from which the line was extracted.
 	Path string
+	// Log file line contents.
 	Line string
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
 	return &LogfileInputConfig{
-		SincedbFlush:     1,
 		DiscoverInterval: 5000,
 		StatInterval:     1,
 	}
@@ -92,8 +101,11 @@ func (lw *LogfileInput) Stop() {
 
 // FileMonitor, manages a group of FileTailers
 //
-// The FileMonitor
+// Handles the actual mechanics of finding, watching, and reading from file
+// system files.
 type FileMonitor struct {
+	// Channel onto which FileMonitor will place LogLine objects as the file
+	// is being read.
 	NewLines         chan Logline
 	stopChan         chan bool
 	seek             map[string]int64
@@ -104,6 +116,8 @@ type FileMonitor struct {
 	statInterval     time.Duration
 }
 
+// Tries to open specified file, adding file descriptor to the FileMonitor's
+// set of open descriptors.
 func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	// Attempt to open the file
 	fd, err := os.Open(fileName)
@@ -126,6 +140,9 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	return nil
 }
 
+// Runs in its own goroutine, listens for interval tickers which trigger it to
+// a) try to open any upopened files and b) read any new data from already
+// opened files.
 func (fm *FileMonitor) Watcher() {
 	discovery := time.Tick(fm.discoverInterval)
 	checkStat := time.Tick(fm.statInterval)
@@ -154,6 +171,8 @@ func (fm *FileMonitor) Watcher() {
 	}
 }
 
+// Reads all unread lines out of the specified file, creates a LogLine object
+// for each line, and puts it on the NewLine channel for processing.
 func (fm *FileMonitor) ReadLines(fileName string) {
 	fd, _ := fm.fds[fileName]
 

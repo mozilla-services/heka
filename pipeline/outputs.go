@@ -28,19 +28,34 @@ import (
 	"time"
 )
 
+// Heka PluginRunner for Output plugins.
 type OutputRunner interface {
 	PluginRunner
+	// Input channel where Output should be listening for incoming messages,
+	// along w/ any capture groups that may have been defined and matched in
+	// the Output's message_matcher.
 	InChan() chan *PipelineCapture
+	// Associated Output plugin instance.
 	Output() Output
+	// Starts the Output plugin listening on the input channel in a separate
+	// goroutine and returns. Wait group should be released when the Output
+	// plugin shuts down cleanly and the goroutine has completed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
+	// Returns a ticker channel configured to send ticks at an interval
+	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
+	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
+	// value) and drops it on the Output's input channel.
 	Deliver(pack *PipelinePack)
 }
 
+// Heka Output plugin type.
 type Output interface {
 	Run(or OutputRunner, h PluginHelper) (err error)
 }
 
+// Output plugin that writes message contents out using Go standard library's
+// `log` package.
 type LogOutput struct {
 	payloadOnly bool
 }
@@ -87,15 +102,14 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-// Create a protocol buffers stream for the given message, put it in the given
-// byte slice.
+// Create a protocol buffers stream for the given message, put it in the
+// provided byte slice.
 func createProtobufStream(pack *PipelinePack, outBytes *[]byte) (err error) {
 	enc := client.NewProtobufEncoder(nil)
 	err = enc.EncodeMessageStream(pack.Message, outBytes)
 	return
 }
 
-// FileWriter implementation
 var (
 	FILEFORMATS = map[string]bool{
 		"json":           true,
@@ -108,6 +122,7 @@ var (
 
 const NEWLINE byte = 10
 
+// Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
 	path          string
 	format        string
@@ -119,6 +134,7 @@ type FileOutput struct {
 	backChan      chan []byte
 }
 
+// ConfigStruct for FileOutput plugin.
 type FileOutputConfig struct {
 	// Full output file path.
 	Path string
@@ -173,6 +189,9 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
+// Runs in a separate goroutine, accepting incoming messages, buffering output
+// data until the ticker triggers the buffered data should be put onto the
+// committer channel.
 func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 	var plc *PipelineCapture
 	var e error
@@ -212,6 +231,8 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
+// Performs the actual task of extracting data from the pack and writing it
+// into the output buffer in the proper format.
 func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
 	if o.prefix_ts && o.format != "protobufstream" {
 		ts := time.Now().Format(TSFORMAT)
@@ -238,6 +259,9 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 	return
 }
 
+// Runs in a separate goroutine, waits for buffered data on the committer
+// channel, writes it out to the filesystem, and puts the now empty buffer on
+// the return channel for reuse.
 func (o *FileOutput) committer(wg *sync.WaitGroup) {
 	initBatch := make([]byte, 0, 10000)
 	o.backChan <- initBatch
@@ -280,13 +304,16 @@ func (o *FileOutput) committer(wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-// TcpOutput implementation
+// Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
 	address    string
 	connection net.Conn
 }
 
+// ConfigStruct for TcpOutput plugin.
 type TcpOutputConfig struct {
+	// String representation of the TCP address to which this output should be
+	// sending data.
 	Address string
 }
 
