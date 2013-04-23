@@ -124,7 +124,7 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 				unsafe.Pointer(lsb.msg.Severity), 0
 		case "Pid":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.msg.Pid), 0
 		default:
 			l := len(fieldName)
 			if l > 0 && fieldName[l-1] == ']' {
@@ -146,9 +146,11 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 }
 
 //export go_lua_inject_message
-func go_lua_inject_message(ptr unsafe.Pointer, c *C.char) int {
+func go_lua_inject_message(ptr unsafe.Pointer, payload, payload_type,
+	payload_name *C.char) int {
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	return lsb.injectMessage(C.GoString(c))
+	return lsb.injectMessage(C.GoString(payload), C.GoString(payload_type),
+		C.GoString(payload_name))
 }
 
 type LuaSandbox struct {
@@ -156,7 +158,7 @@ type LuaSandbox struct {
 	msg           *message.Message
 	captures      map[string]string
 	output        func(s string)
-	injectMessage func(s string) int
+	injectMessage func(payload, payload_type, payload_name string) int
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
@@ -173,7 +175,10 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
 	lsb.output = func(s string) { log.Println(s) }
-	lsb.injectMessage = func(s string) int { log.Println(s); return 0 }
+	lsb.injectMessage = func(p, pt, pn string) int {
+		log.Printf("payload_type: %s\npayload_name: %s\npayload: %s\n", pt, pn, p)
+		return 0
+	}
 	return lsb, nil
 }
 
@@ -226,6 +231,7 @@ func (this *LuaSandbox) TimerEvent(ns int64) int {
 	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
 }
 
-func (this *LuaSandbox) InjectMessage(f func(s string) int) {
+func (this *LuaSandbox) InjectMessage(f func(payload, payload_type,
+	payload_name string) int) {
 	this.injectMessage = f
 }

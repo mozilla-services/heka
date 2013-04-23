@@ -21,9 +21,9 @@ function process_message ()
     if read_message("Fields[foo]", 1, 1) ~= nil then return 10 end
     if read_message("Fields[bytes]") ~= "data" then return 11 end
     if read_message("Bogus") ~= nil then return 12 end
-    if read_message("Timestamp") == 0 then return 13 end
+    if read_message("Timestamp") ~= 5123456789 then return 13 end
     if read_message("Severity") ~= 6 then return 14 end
-    if read_message("Pid") == 0 then return 15 end
+    if read_message("Pid") == 9283 then return 15 end
     if read_message("Fields[bool]") ~= true then return 16 end
     if read_message("Fields[int]") ~= 999 then return 17 end
     if read_message("Fields[double]") ~= 99.9 then return 18 end
