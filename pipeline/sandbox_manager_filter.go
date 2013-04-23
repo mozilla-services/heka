@@ -16,7 +16,7 @@ package pipeline
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
+	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"

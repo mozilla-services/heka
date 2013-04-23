@@ -22,7 +22,7 @@ package main
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"flag"
-	"github.com/BurntSushi/toml"
+	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"io/ioutil"

@@ -33,26 +33,15 @@ var (
 	packetRegexp   = regexp.MustCompile("([a-zA-Z0-9_]+):(\\-?[0-9\\.]+)\\|(c|ms|g)(\\|@([0-9\\.]+))?")
 )
 
-// StatsInput Configuration
-type StatsdInputConfig struct {
-	// UDP Address to listen to for statsd packets, if left blank, no
-	// UDP listener will be established
-	Address string
-	// How frequently to flush aggregated statsd metrics
-	FlushInterval int64
-	// Percent threshold to use for
-	PercentThreshold int
-}
-
-// Statsd Input handles statsd metric style input and flushes aggregated
-// values
-//
-// It can listen on a UDP address if configured to do so for standard
-// statsd packets of message type Counter, Gauge, or Timer. It currently
-// doesn't support Sets or other metric types.
+// A Heka Input plugin that handles statsd metric style input and flushes
+// aggregated values. It can listen on a UDP address if configured to do so
+// for standard statsd packets of message type Counter, Gauge, or Timer. It
+// also accepts StatPacket objects generated from within Heka itself (usually
+// via a configured StatFilter plugin) over the exposed `Packet` channel. It
+// currently doesn't support Sets or other metric types.
 type StatsdInput struct {
-	// Channel for StatPackets, these are fed in by UDP when configured or
-	// can be directly sent in from other Plugins as needed.
+	// Channel for StatPackets, these are fed in by UDP when configured or can
+	// be directly sent in from other Plugins as needed.
 	Packet chan<- StatPacket
 
 	name             string
@@ -62,8 +51,20 @@ type StatsdInput struct {
 	stopped          bool
 }
 
+// StatsInput config struct
+type StatsdInputConfig struct {
+	// UDP Address to listen to for statsd packets. If left blank, no UDP
+	// listener will be established.
+	Address string
+	// How frequently to flush aggregated statsd metrics.
+	FlushInterval int64
+	// Percent threshold to use for computing "upper_N%" type stat values;
+	// defaults to 90.
+	PercentThreshold int
+}
+
 // A StatPacket appropriate for a plugin to feed directly into the
-// StatsdInput.Packet channel
+// StatsdInput.Packet channel.
 type StatPacket struct {
 	Bucket   string
 	Value    string
@@ -93,6 +94,9 @@ func (s *StatsdInput) Init(config interface{}) error {
 	return nil
 }
 
+// Creates a `StatMonitor` listening on the `Packets` channel for incoming
+// StatPackets, and spins up a statsd server listening on a UDP connection if
+// configured to do so.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
@@ -137,6 +141,8 @@ func (s *StatsdInput) Stop() {
 	}
 }
 
+// Parses received raw statsd bytes data and converts it into a StatPacket
+// object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
 	var packet StatPacket
 	var value string
@@ -163,6 +169,10 @@ func (s *StatsdInput) handleMessage(message []byte) {
 	}
 }
 
+// Specialized object that listens on a provided channel for StatPacket
+// objects, from which it accumulates and stores statsd-style metrics data,
+// periodically generating and injecting `statmetric` messages with a payload
+// containing the accumulated data formatted as graphite would expect.
 type statMonitor struct {
 	counters         map[string]int
 	timers           map[string][]float64
@@ -173,6 +183,7 @@ type statMonitor struct {
 	h                PluginHelper
 }
 
+// Returns a new statMonitor object.
 func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
 	h PluginHelper) *statMonitor {
 	return &statMonitor{
@@ -186,6 +197,8 @@ func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
 	}
 }
 
+// Main statMonitor loop. Doesn't return until the provided channel is closed.
+// Should be run in its own goroutine.
 func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 	var s StatPacket
 	var floatValue float64
@@ -219,6 +232,8 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
+// Extracts all of the accumulated data and generates and injects a statmetric
+// message into the Heka pipeline.
 func (sm *statMonitor) Flush() {
 	var value float64
 	var intval int64

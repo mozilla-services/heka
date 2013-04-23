@@ -23,13 +23,20 @@ import (
 	"sync/atomic"
 )
 
+// Public interface exposed by the Heka message router. The message router
+// accepts packs on its input channel and then runs them through the
+// message_matcher for every running Filter and Output plugin. For plugins
+// with a positive match, the pack (and any relevant match group captures)
+// will be placed on the plugin's input channel.
 type MessageRouter interface {
+	// Input channel from which the router gets messages to test against the
+	// registered plugin message_matchers.
 	InChan() chan *PipelinePack
+	// Channel holding a reference to all running message_matchers for easy
+	// access to the entire set.
 	MrChan() chan *MatchRunner
 }
 
-// Pushes the message onto the input channel for every filter and output
-// plugin that is a match
 type messageRouter struct {
 	inChan    chan *PipelinePack
 	mrChan    chan *MatchRunner
@@ -37,6 +44,7 @@ type messageRouter struct {
 	oMatchers []*MatchRunner
 }
 
+// Creates and returns a (not yet started) Heka message router.
 func NewMessageRouter() (router *messageRouter) {
 	router = new(messageRouter)
 	router.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
@@ -54,6 +62,10 @@ func (self *messageRouter) MrChan() chan *MatchRunner {
 	return self.mrChan
 }
 
+// Spawns a goroutine within which the router listens for messages on the
+// input channel and performs its routing magic. Spawned goroutine continues
+// until the router is shut down, triggered by closing the router's input
+// channel.
 func (self *messageRouter) Start() {
 	go func() {
 		var matcher *MatchRunner
@@ -115,12 +127,16 @@ func (self *messageRouter) Start() {
 	log.Println("MessageRouter started.")
 }
 
+// Encapsulates the mechanics of testing messages against a specific plugin's
+// message_matcher value.
 type MatchRunner struct {
 	spec   *message.MatcherSpecification
 	signer string
 	inChan chan *PipelinePack
 }
 
+// Creates and returns a new MatchRunner if possible, or a relevant error if
+// not.
 func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	var spec *message.MatcherSpecification
 	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
@@ -134,10 +150,16 @@ func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
 	return
 }
 
+// Returns the runner's MatcherSpecification object.
 func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
 	return mr.spec
 }
 
+// Starts the runner listening for messages on its input channel. Any message
+// that is a match will be embedded within a PipelineCapture and placed on the
+// provided matchChan (usually the input channel for a specific Filter or
+// Output plugin). Any messages that are not a match will be immediately
+// recycled.
 func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 	go func() {
 		defer func() {
