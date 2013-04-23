@@ -46,7 +46,7 @@ Prerequisites:
         make test
 
 You will now have a `hekad` binary in the `heka-build/bin` directory.
-Note that this will note work unless you also install the libsandbox
+Note that this will not work unless you also install the libsandbox
 library that is also created.
 
 .. note::
