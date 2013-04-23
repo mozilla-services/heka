@@ -17,7 +17,6 @@ package pipeline
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"log"
 	"regexp"
 	"strconv"
 	"time"
@@ -74,6 +73,8 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		captures map[string]string
 	)
 
+	errMsg := "Can't parse message UUID: %s ERROR: %s"
+
 	for plc := range inChan {
 		pack = plc.Pack
 		captures = plc.Captures
@@ -94,7 +95,7 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				// Otherwise, assume the severity located will be an int
 				sevInt, err := strconv.ParseInt(severityString, 10, 32)
 				if err != nil {
-					logError(err, pack)
+					fr.LogError(fmt.Errorf(errMsg, pack.Message.GetUuid(), err))
 					pack.Recycle()
 					newPack.Recycle()
 					continue
@@ -119,7 +120,7 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		err := t.updateMessage(newPack.Message, changeFields, captures)
 		if err != nil {
-			logError(err, pack)
+			fr.LogError(fmt.Errorf(errMsg, pack.Message.GetUuid(), err))
 			pack.Recycle()
 			newPack.Recycle()
 			continue
@@ -133,7 +134,7 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 }
 
-// Update a message based on the populated fields to use for altering it
+// Update a message based on the populated fields to use for altering it.
 func (t *TransformFilter) updateMessage(message *Message, changeFields,
 	matchParts MatchSet) error {
 	for field, formatRegexp := range changeFields {
@@ -183,7 +184,7 @@ func (t *TransformFilter) updateMessage(message *Message, changeFields,
 // variables that exist in matchParts
 //
 // Example input to a formatRegexp: Reported at @Hostname by @Reporter
-// Assuming there are entires in matchParts for 'Hostname' and 'Reporter', the
+// Assuming there are entries in matchParts for 'Hostname' and 'Reporter', the
 // returned string will then be: Reported at Somehost by Jonathon
 func InterpolateString(formatRegexp string, matchParts MatchSet) (newString string) {
 	return varMatcher.ReplaceAllStringFunc(formatRegexp,
@@ -195,11 +196,4 @@ func InterpolateString(formatRegexp string, matchParts MatchSet) (newString stri
 			}
 			return fmt.Sprintf("<%s>", m)
 		})
-}
-
-// Log an error in the pipeline pack during decoder processing
-func logError(err error, pipelinePack *PipelinePack) error {
-	log.Printf("Unable to properly parse message UUID: %s ERROR: %s",
-		pipelinePack.Message.GetUuid(), err)
-	return err
 }

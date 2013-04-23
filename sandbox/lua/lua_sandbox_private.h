@@ -143,6 +143,18 @@ int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent);
  */
 int serialize_data(lua_sandbox* lsb, int index, output_data* output);
 
+
+/** 
+ * Determines the name of the userdata type
+ * 
+ * @param lua Lua State
+ * @param ud Userdata pointer
+ * @param index Index on the stack where the userdata pointer resides
+ * 
+ * @return const char* NULL if not found
+ */
+const char* userdata_type(lua_State* lua, void* ud, int index);
+
 /** 
  * Serializes a table key value pair.
  * 

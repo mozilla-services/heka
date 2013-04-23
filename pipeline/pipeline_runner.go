@@ -105,6 +105,8 @@ func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
 }
 
+// This one struct provides the implementation of both FilterRunner and
+// OutputRunner interfaces.
 type foRunner struct {
 	pRunnerBase
 	matcher    *MatchRunner
@@ -114,6 +116,8 @@ type foRunner struct {
 	h          PluginHelper
 }
 
+// Creates and returns foRunner pointer for use as either a FilterRunner or an
+// OutputRunner.
 func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
 	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
 	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
@@ -202,21 +206,41 @@ func (foRunner *foRunner) Filter() Filter {
 	return foRunner.plugin.(Filter)
 }
 
+// Main Heka pipeline data structure containing raw message data, a Message
+// object, and other Heka related message metadata.
 type PipelinePack struct {
-	MsgBytes     []byte
-	Message      *message.Message
-	RecycleChan  chan *PipelinePack
-	Decoded      bool
-	RefCount     int32
-	Signer       string
+	// Used for storage of binary blob data that has yet to be decoded into a
+	// Message object.
+	MsgBytes []byte
+	// Main Heka message object.
+	Message *message.Message
+	// Specific channel on which this pack should be recycled when all
+	// processing has completed for a given message.
+	RecycleChan chan *PipelinePack
+	// Indicates whether or not this pack's Message object has been populated.
+	Decoded bool
+	// Reference count used to determine when it is safe to recycle a pack for
+	// reuse by the system.
+	RefCount int32
+	// String id of the verified signer of the accompanying Message object, if
+	// any.
+	Signer string
+	// Number of times the current message chain has generated new messages
+	// and inserted them into the pipeline.
 	MsgLoopCount uint
 }
 
+// Container data structure used on the input channel for Filters and Outputs.
 type PipelineCapture struct {
-	Pack     *PipelinePack
+	// Contains the message to be processed.
+	Pack *PipelinePack
+	// Contains any match group capture data that may have been obtained from
+	// message_matcher regular expression processing.
 	Captures map[string]string
 }
 
+// Returns a new PipelinePack pointer that will recycle itself onto the
+// provided channel when a message has completed processing.
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
@@ -231,6 +255,7 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	}
 }
 
+// Reset a pack to its zero state.
 func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
 	p.Decoded = false
@@ -243,6 +268,8 @@ func (p *PipelinePack) Zero() {
 	p.Message = new(message.Message)
 }
 
+// Decrement the ref count and, if ref count == zero, zero the pack and put it
+// on the appropriate recycle channel.
 func (p *PipelinePack) Recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
@@ -251,6 +278,9 @@ func (p *PipelinePack) Recycle() {
 	}
 }
 
+// Main function driving Heka execution. Loads config, initializes
+// PipelinePack pools, and starts all the runners. Then it listens for signals
+// and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
