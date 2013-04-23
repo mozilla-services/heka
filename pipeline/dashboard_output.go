@@ -30,7 +30,10 @@ type DashboardOutputConfig struct {
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
-	return new(DashboardOutputConfig)
+	return &DashboardOutputConfig{
+		Address:          ":4253",
+		WorkingDirectory: "./dashboard",
+	}
 }
 
 type DashboardOutput struct {
