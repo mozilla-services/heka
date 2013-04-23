@@ -63,26 +63,148 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
-**output(type0, type1, ...typeN)**
+**output(arg0, arg1, ...argN)**
     Appends data to the payload buffer, which cannot exceed the output_limit 
     configuration parameter.
 
     *Arguments*
-        - type (number, string, bool, nil)
+        - arg (number, string, bool, nil) Lua variable or literal to be appended the output buffer
 
     *Return*
         none
 
-**inject_message()**
+**inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
-    and then clears the buffer.
+    and then clears the buffer. Two pieces of optional metadata are allowed and
+    included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
+    Fields[payload_name] == 'Android Usage Statistics'.
 
     *Arguments*
-        none
+        - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
+        - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
 
     *Return*
         none
 
+Circular Buffer Library
+=======================
+The library is a sliding window time series data store and is implemented in
+the ``circular_buffer`` table.
+
+Constructor
+-----------
+circular_buffer.\ **new**\ (rows, columns, seconds_per_row)
+
+    *Arguments*
+        - rows (unsigned) The number of rows in the buffer (must be > 1)
+        - columns (unsigned)The number of columns in the buffer (must be > 0)
+        - seconds_per_row (unsigned) The number of seconds each row represents (must be > 0).
+
+    *Return*
+        A circular buffer object.
+
+Methods
+-------
+.. note::
+    All column arguments are 1 based. If the column is out of range for the 
+    configured circular buffer a fatal error is generated.
+
+double **add**\ (nanoseconds, column, value)
+
+    *Arguments*
+        - nanosecond (unsigned) The number of nanosecond since the UNIX epoch. The value is used to determine which row is being operated on.
+        - column (unsigned) The column within the specified row to perform an add operation on.
+        - value (double) The value to be added to the specified row/column.
+
+    *Return*
+        The value of the updated row/column or nil if the time was outside the range of the buffer.
+
+double **set**\ (nanoseconds, column, value)
+
+    *Arguments*
+        - nanosecond (unsigned) The number of nanosecond since the UNIX epoch. The value is used to determine which row is being operated on.
+        - column (unsigned) The column within the specified row to perform a set operation on.
+        - value (double) The value to be overwritten at the specified row/column.
+
+    *Return*
+        The value passed in or nil if the time was outside the range of the buffer.
+
+double **get**\ (nanoseconds, column)
+
+    *Arguments*
+        - nanosecond (unsigned) The number of nanosecond since the UNIX epoch. The value is used to determine which row is being operated on.
+        - column (unsigned) The column within the specified row to retrieve the data from.
+
+    *Return*
+        The value at the specifed row/column or nil if the time was outside the range of the buffer.
+
+
+int **set_header**\ (column, name, type)
+
+    *Arguments*
+        - column (unsigned) The column number where the header information will be applied.
+        - name (string) Descriptive name of the column (maximum 15 characters). Any non alpha numeric characters will be converted to underscores.
+        - type (string) The data type to aid with aggregation (count|min|max|avg|delta|percentage).
+
+    *Return*
+        The column number passed into the function.
+
+Output
+------
+The circular buffer can be passed to the output() function.  The output will
+consist newline delimited rows starting with a json header row followed by the
+data rows with tab delimited columns. The time in the header corresponds to the 
+time of the first data row, the time for the other rows is calculated using the
+seconds_per_row header value.
+
+.. code-block:: txt
+
+    {json header}
+    row1_col1\trow1_col2\n
+    .
+    .
+    .
+    rowN_col1\trowN_col2\n
+
+Sample Output
+-------------
+.. code-block:: txt
+
+    {"time":2,"rows":3,"columns":3,"seconds_per_row":60,"column_info":[{"name":"HTTP_200","type":"count"},{"name":"HTTP_400","type":"count"},{"name":"HTTP_500","type":"count"}]}
+    10002   0   0
+    11323   0   0
+    10685   0   0
+
+Example
+-------
+.. code-block:: lua
+
+    -- This Source Code Form is subject to the terms of the Mozilla Public
+    -- License, v. 2.0. If a copy of the MPL was not distributed with this
+    -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+    data = circular_buffer.new(1440, 3, 60) -- 1 day at 1 minute resolution
+    local HTTP_200 = data:set_header(1, "HTTP_200", "count")
+    local HTTP_400 = data:set_header(2, "HTTP_400", "count")
+    local HTTP_500 = data:set_header(3, "HTTP_500", "count")
+
+    function process_message()
+        local ts = read_message("Timestamp")
+        local sc = read_message("Fields[http_status_code]")
+        if sc == 200 then
+            data:add(ts, HTTP_200, 1)
+        elseif sc == 400 then
+            data:add(ts, HTTP_400, 1)
+        elseif sc == 500 then
+            data:add(ts, HTTP_500, 1)
+        end
+        return 0
+    end
+
+    function timer_event()
+        output(data)
+        inject_message()
+    end
 
 Tutorials
 =========
@@ -128,9 +250,7 @@ How to create a simple sandbox filter
     type = "SandboxFilter"
     message_matcher = "Type == 'demo'"
     ticker_interval = 60
-
-    [demo_counter.settings]
-    type = "lua"
+    script_type = "lua"
     filename = "counter.lua"
     preserve_data = true
     memory_limit = 32767

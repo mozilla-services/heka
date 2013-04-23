@@ -50,9 +50,7 @@ Example hekad.toml File
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
     output_timer = 1
-
-    [lua_sandbox.settings]
-    type = "lua"
+    script_type = "lua"
     preserve_data = true
     filename = "lua/sandbox.lua"
     memory_limit = 32767
