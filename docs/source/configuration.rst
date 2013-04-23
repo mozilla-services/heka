@@ -242,9 +242,10 @@ Example:
 Decoders
 ========
 
-A decoder may be specified for each encoding type defined in
-message.pb.go. By default the JsonDecoder and ProtobufDecoder will be
-configured as if you had included this portion.
+A decoder may be specified for each encoding type defined in message.pb.go.
+Unless you are using a custom decoder you probably won't need to specify these
+by hand, by default the JsonDecoder and ProtobufDecoder will be configured as
+if you had included the following configuration.
 
 Example:
 
@@ -256,11 +257,12 @@ Example:
     [ProtobufDecoder]
     encoding_name = "PROTOCOL_BUFFER"
 
-
-The JSON decoder converts JSON serialized Metlog client messages to
-hekad messages.  The PROTOCOL_BUFFER decoder converts protobuf
-serialized messages into hekad. The hekad message schema in defined in
-message.proto.
+The JsonDecoder converts JSON serialized Heka messages to `Message` struct
+objects. The `encoding_name` setting means that this decoder should be used
+for any Heka protocol messages that have the encoding header of JSON. The
+ProtobufDecoder converts protocol buffers serialized messages to `Message`
+struct objects. The hekad protocol buffers message schema in defined in the
+`message.proto` file in the `message` package.
 
 .. note::
 
@@ -268,7 +270,8 @@ message.proto.
     file for possible future use where a different Decoder may want to
     handle one of these encodings.
 
-.. seealso:: `Protocol Buffers - Google's data interchange format <http://code.google.com/p/protobuf/>`_
+.. seealso:: `Protocol Buffers - Google's data interchange format
+   <http://code.google.com/p/protobuf/>`_
 
 .. end-decoders
 
