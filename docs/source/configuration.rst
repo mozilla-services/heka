@@ -6,25 +6,44 @@ Configuring hekad
 
 .. start-hekad-config
 
-A hekad configuration file contains what inputs, decoders, filters, and
-outputs will be loaded. The configuration file is in TOML format, which
-is very similar to INI configuration formats. The config file is broken
-into sections, each section configures a single instance of a plugin.
+A hekad configuration file specifies what inputs, decoders, filters, and
+outputs will be loaded. The configuration file is in `TOML
+<https://github.com/mojombo/toml>`_ format. TOML looks is very similar to INI
+configuration formats, but with slightly more rich data structures and nesting
+support.
 
-Each section must either be named for the specific plugin it is
-configuring, or include the type which must designate the plugin being
-configured. When a section name and the type differs, the section name
-is considered the 'name' of that particular configured plugin. This is
-convenient when setting up multiple instances of the same plugin that
-have varying configurations.
+The config file is broken into sections, with each section representing a
+single instance of a plugin. The section name specifies the name of the
+plugin, and the "type" parameter specifies the plugin type; this must match
+one of the types registered via the `pipeline.RegisterPlugin` function. For
+example, the following section describes a plugin named "tcp:5565", an
+instance of Heka's plugin type "TcpInput":
 
-If the name of a section doesn't directly reference a plugin, then that
-section must include a `type` naming the plugin type being configured.
-Additional settings for the section are passed through to the plugin as
-its configuration values.
+.. code-block:: ini
 
-The JsonDecoder and ProtobufDecoder will be automatically setup if not
-specified explicitly in the configuration file.
+    [tcp:5565]
+    type = "TcpInput"
+    address = "127.0.0.1:5565"
+
+If you choose a plugin name that also happens to be a plugin type name, then
+you can omit the "type" parameter from the section and the specified name will
+be used as the type. Thus, the following section describes a plugin named
+"TcpInput", also of type "TcpInput":
+
+.. code-block:: ini
+
+    [TcpInput]
+    address = "127.0.0.1:5566"
+
+Note that it's fine to have more than one instance of the same plugin type, as
+long as their configurations don't interfere with each other.
+
+Any values other than "type" in a section, such as "address" in the above
+examples, will be passed through to the plugin for internal configuration (see
+:ref:`plugin_config`).
+
+A JsonDecoder and ProtobufDecoder will be automatically setup if not specified
+explicitly in the configuration file.
 
 .. end-hekad-config
 
@@ -35,17 +54,22 @@ Example hekad.toml File
 
 .. code-block:: ini
 
-    [tcp-5565]
+    # Listens for Heka protocol on TCP port 5565.
+    [TcpInput]
     address = "127.0.0.1:5565"
 
+    # Writes output from `CounterFilter`, `lua_sandbox`, and Heka's internal
+    # reports to stdout.
     [debug]
     type = "LogOutput"
+    message_matcher = "Type == 'heka.counter-output' || Type == 'heka.all-report' || Type == 'heka.sandbox-output'"
 
+    # Counts throughput of messages sent from a Heka load testing tool.
     [CounterFilter]
-    type = "CounterFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
     output_timer = 1
 
+    # Defines a sandboxed filter that will be written in Lua.
     [lua_sandbox]
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
@@ -59,14 +83,8 @@ Example hekad.toml File
 
 .. end-hekad-toml
 
-This example will accept TCP input on the specified address, decode
-messages that arrive serialized as JSON or Protobuf, pass the message
-to all filters that match the message, and then write the filter output
-to the debug log.
-
 Common Roles
 ============
-
 .. start-roles
 
 - **Agent** - Single default filter that passes all messages directly to
@@ -128,25 +146,21 @@ Command Line Options
 Inputs
 ======
 
-MessageGeneratorInput
----------------------
-
-Parameters: **None**
-
-Allows other plug-ins to generate messages. This input plug-in makes a
-channel available for other plug-ins that need to create messages at
-different points in time. Plug-ins requiring this input will indicate
-it as a prerequisite.
-
-Multiple plug-ins may use a single instance of the
-MessageGeneratorInput.
-
 UdpInput
 --------
 
+Listens on a specific UDP address and port for messages. If the message is
+signed it is verified against the signer name and specified key version. If
+the signature is not valid the message is discarded otherwise the signer name
+is added to the pipeline pack and can be use to accept messages using the
+message_signer configuration option.
+
 Parameters:
 
-- Address (string): An IP address:port.
+- address (string): An IP address:port.
+- signer: Optional TOML subsection. Section name consists of a signer name,
+          underscore, and numeric version of the key
+    - hmac_key (string): The hash key used to sign the message.
 
 Example:
 
@@ -155,18 +169,29 @@ Example:
     [UdpInput]
     address = "127.0.0.1:4880"
 
-Listens on a specific UDP address and port for messages.
+    [UdpInput.signer.ops_0]
+    hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+    [UdpInput.signer.ops_1]
+    hmac_key = "xdd908lfcgikauexdi8elogusridaxoalf"
+
+    [UdpInput.signer.dev_1]
+    hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
 TcpInput
 --------
 
+Listens on a specific TCP address and port for messages. If the message is
+signed it is verified against the signer name and specified key version. If
+the signature is not valid the message is discarded otherwise the signer name 
+is added to the pipeline pack and can be use to accept messages using the 
+message_signer configuration option.
+
 Parameters:
 
-- Address (string): An IP address:port.
-        [TcpInput.signer.test_0]
-        hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-- signer (object - optional): The TOML key name consists of a signer name, underscore, and numeric version of the key
-    - hmac_key: The hash key used to sign the message.
+- address (string): An IP address:port.
+- signer: Optional TOML subsection. Section name consists of a signer name,
+          underscore, and numeric version of the key
+    - hmac_key (string): The hash key used to sign the message.
 
 Example:
 
@@ -183,11 +208,32 @@ Example:
     [TcpInput.signer.dev_1]
     hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
-Listens on a specific TCP address and port for messages.  If the message is
-signed it is verified against the signer name and specified key version. If
-the signature is not valid the message is discarded otherwise the signer name 
-is added to the pipeline pack and can be use to accept messages using the 
-message_signer configuration option.
+StatsdInput
+-----------
+
+Exposes internal `StatMonitor` API into which other Heka plugins can insert
+numeric statistics, and optionally listens for `statsd protocol
+<https://github.com/b/statsd_spec>`_ `counter`, `timer`, or `gauge` messages
+on a UDP port. Generates Heka messages of type `statmetric`, with a string
+payload in the format that is accepted by the `carbon
+<http://graphite.wikidot.com/carbon>`_ portion of `graphite
+<http://graphite.wikidot.com/>`_.
+
+Parameters:
+
+- address (string, optional): An IP address:port.
+- flushinterval (int): Time interval (in seconds) between generated
+                       `statmetric` messages. Defaults to 10.
+- percentthreshold (int): Percent threshold to use for computing "upper_N%"
+                          type stat values. Defaults to 90.
+
+Example:
+
+.. code-block:: ini
+
+    [StatsdInput]
+    address = "127.0.0.1:8125"
+    flushinterval = 5
 
 .. end-inputs
 
