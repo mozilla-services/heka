@@ -8,6 +8,7 @@
 #ifndef lua_sandbox_h_
 #define lua_sandbox_h_
 
+#include <lua.h>
 #include "../sandbox.h"
 
 typedef struct lua_sandbox lua_sandbox; 

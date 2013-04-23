@@ -6,7 +6,7 @@ count = 0
 rate = 0.12345678
 rates = {99.1,98,97, key="val"}
 kvp = {a="foo", b="bar", r=rates}
-nested = {arg1=1, arg2=2, nested={n1="one",n2="two"}, empty = nil}
+nested = {arg1=1, arg2=2, nested={n1="one",n2="two"}, empty = nil, cb = circular_buffer.new(2,6,1)}
 _G["key with spaces"] = "kws"
 boolean = true
 empty = nil
@@ -32,6 +32,10 @@ cyclea = {type="cycle a"}
 cycleb = {type="cycle b"}
 cyclea["b"] = cycleb
 cycleb["a"] = cyclea
+
+data = circular_buffer.new(3,3,1)
+
+dataRef = data
 
 function process_message ()
     return 0

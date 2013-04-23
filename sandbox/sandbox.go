@@ -50,11 +50,11 @@ type Sandbox interface {
 	TimerEvent(ns int64) int
 
 	// Go callback
-	InjectMessage(f func(s string) int)
+	InjectMessage(f func(payload, payload_type, payload_name string) int)
 }
 
 type SandboxConfig struct {
-	ScriptType       string `toml:"type"`
+	ScriptType       string `toml:"script_type"`
 	ScriptFilename   string `toml:"filename"`
 	PreserveData     bool   `toml:"preserve_data"`
 	MemoryLimit      uint   `toml:"memory_limit"`
