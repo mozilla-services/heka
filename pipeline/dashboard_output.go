@@ -74,40 +74,51 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 
 func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
+	ticker := or.Ticker()
 
 	var (
+		ok   = true
+		plc  *PipelineCapture
 		pack *PipelinePack
 		msg  *message.Message
 	)
-	for plc := range inChan {
-		pack = plc.Pack
-		msg = pack.Message
-		switch msg.GetType() {
-		case "heka.all-report":
-			fn := path.Join(self.workingDirectory, "heka_report.json")
-			overwriteFile(fn, msg.GetPayload())
-		case "heka.sandbox-output":
-			tmp, ok := msg.GetFieldValue("payload_type")
-			if ok {
-				if pt, ok := tmp.(string); ok && pt == "cbuf" {
-					html := path.Join(self.workingDirectory, msg.GetLogger()+".html")
-					_, err := os.Stat(html)
-					if err != nil {
-						overwriteFile(html, fmt.Sprintf(getCbufTemplate(), msg.GetLogger(), msg.GetLogger()))
+	for ok {
+		select {
+		case plc, ok = <-inChan:
+			if !ok {
+				break
+			}
+			pack = plc.Pack
+			msg = pack.Message
+			switch msg.GetType() {
+			case "heka.all-report":
+				fn := path.Join(self.workingDirectory, "heka_report.json")
+				overwriteFile(fn, msg.GetPayload())
+			case "heka.sandbox-output":
+				tmp, ok := msg.GetFieldValue("payload_type")
+				if ok {
+					if pt, ok := tmp.(string); ok && pt == "cbuf" {
+						html := path.Join(self.workingDirectory, msg.GetLogger()+".html")
+						_, err := os.Stat(html)
+						if err != nil {
+							overwriteFile(html, fmt.Sprintf(getCbufTemplate(), msg.GetLogger(), msg.GetLogger()))
+						}
+						fn := path.Join(self.workingDirectory, msg.GetLogger()+"."+pt)
+						overwriteFile(fn, msg.GetPayload())
 					}
-					fn := path.Join(self.workingDirectory, msg.GetLogger()+"."+pt)
-					overwriteFile(fn, msg.GetPayload())
+				}
+			case "heka.sandbox-terminated":
+				fn := path.Join(self.workingDirectory, self.terminationFile)
+				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
+					line := fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9, msg.GetLogger(), msg.GetPayload())
+					file.WriteString(line)
+					file.Close()
 				}
 			}
-		case "heka.sandbox-terminated":
-			fn := path.Join(self.workingDirectory, self.terminationFile)
-			if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
-				line := fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9, msg.GetLogger(), msg.GetPayload())
-				file.WriteString(line)
-				file.Close()
-			}
+			plc.Pack.Recycle()
+		case <-ticker:
+			go h.PipelineConfig().allReportsMsg()
 		}
-		plc.Pack.Recycle()
 	}
 	return
 }
