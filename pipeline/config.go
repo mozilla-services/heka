@@ -522,4 +522,7 @@ func init() {
 	RegisterPlugin("SandboxManagerFilter", func() interface{} {
 		return new(SandboxManagerFilter)
 	})
+	RegisterPlugin("DashboardOutput", func() interface{} {
+		return new(DashboardOutput)
+	})
 }

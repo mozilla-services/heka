@@ -54,7 +54,7 @@ type Sandbox interface {
 }
 
 type SandboxConfig struct {
-	ScriptType       string `toml:"type"`
+	ScriptType       string `toml:"script_type"`
 	ScriptFilename   string `toml:"filename"`
 	PreserveData     bool   `toml:"preserve_data"`
 	MemoryLimit      uint   `toml:"memory_limit"`

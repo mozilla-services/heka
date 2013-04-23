@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"
 	"os"
 	"path"
@@ -26,13 +27,9 @@ import (
 	"time"
 )
 
-type SandboxManagerFilterSettings struct {
+type SandboxManagerFilterConfig struct {
 	MaxFilters       int    `toml:"max_filters"`
 	WorkingDirectory string `toml:"working_directory"`
-}
-
-type SandboxManagerFilterConfig struct {
-	SandboxManagerFilterSettings `toml:"settings"`
 }
 
 type SandboxManagerFilter struct {
@@ -52,14 +49,11 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	if err = os.MkdirAll(this.workingDirectory, 0700); err != nil {
 		return err
 	}
-	filename := path.Join(this.workingDirectory, "config.toml")
-	_, err = os.Stat(filename)
-	if err == nil {
-		var configFile ConfigFile
-		if _, err := toml.DecodeFile(filename, &configFile); err != nil {
-			return fmt.Errorf("Error decoding config file: %s", err)
-		}
-	}
+	return nil
+}
+
+func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
+	newIntField(msg, "RunningFilters", this.currentFilters)
 	return nil
 }
 
@@ -87,8 +81,8 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 		return nil, fmt.Errorf("Can't load config for '%s': %s", wrapper.name, err)
 	}
 	wrapper.configCreator = func() interface{} { return config }
-	conf := config.(*SandboxFilterConfig)
-	conf.Sbc.ScriptFilename = path.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.Sbc.ScriptType))
+	conf := config.(*sandbox.SandboxConfig)
+	conf.ScriptFilename = path.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
 
 	// Apply configuration to instantiated plugin.
 	configPlugin := func() (err error) {
@@ -170,11 +164,11 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 				if err != nil {
 					return
 				}
-				var sbfc SandboxFilterConfig
-				if err = toml.PrimitiveDecode(conf, &sbfc); err != nil {
+				var sbc sandbox.SandboxConfig
+				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
 					return fmt.Errorf("loadSandbox failed: %s\n", err)
 				}
-				scriptFile := path.Join(dir, fmt.Sprintf("%s.%s", name, sbfc.Sbc.ScriptType))
+				scriptFile := path.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
 				err = ioutil.WriteFile(scriptFile, []byte(msg.GetPayload()), 0600)
 				if err != nil {
 					removeAll(dir, fmt.Sprintf("%s.*", name))

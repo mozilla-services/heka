@@ -31,30 +31,26 @@ func fileExists(path string) bool {
 	return false
 }
 
-type SandboxFilterConfig struct {
-	Sbc sandbox.SandboxConfig `toml:"settings"`
-}
-
 type SandboxFilter struct {
 	sb               sandbox.Sandbox
-	sbc              sandbox.SandboxConfig
+	sbc              *sandbox.SandboxConfig
 	preservationFile string
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return new(SandboxFilterConfig)
+	return new(sandbox.SandboxConfig)
 }
 
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
 		return nil // no-op already initialized
 	}
-	conf := config.(*SandboxFilterConfig)
-	this.sbc = conf.Sbc
+	conf := config.(*sandbox.SandboxConfig)
+	this.sbc = conf
 
 	switch this.sbc.ScriptType {
 	case "lua":
-		this.sb, err = lua.CreateLuaSandbox(&this.sbc)
+		this.sb, err = lua.CreateLuaSandbox(this.sbc)
 		if err != nil {
 			return err
 		}
@@ -70,6 +66,18 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	}
 
 	return err
+}
+
+func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
+	newIntField(msg, "Memory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
+		sandbox.STAT_CURRENT)))
+	newIntField(msg, "MaxMemory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
+		sandbox.STAT_MAXIMUM)))
+	newIntField(msg, "MaxInstructions", int(this.sb.Usage(
+		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)))
+	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
+		sandbox.STAT_MAXIMUM)))
+	return nil
 }
 
 func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
@@ -90,7 +98,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				Globals().MaxMsgLoops))
 			return 1
 		}
-		pack.Message.SetType("heka.sandbox")
+		pack.Message.SetType("heka.sandbox-output")
 		pack.Message.SetLogger(fr.Name())
 		pack.Message.SetPayload(payload)
 		ptype, _ := message.NewField("payload_type", payload_type,
@@ -105,7 +113,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		return 0
 	})
 
-	for ok && !terminated {
+	for ok {
 		select {
 		case plc, ok = <-inChan:
 			if !ok {
@@ -114,23 +122,22 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			msgLoopCount = plc.Pack.MsgLoopCount
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
 			if retval != 0 {
-				fr.LogError(fmt.Errorf(
-					"Sandbox ProcessMessage error code: %d, error message: %s",
-					retval, this.sb.LastError()))
-				if this.sb.Status() == sandbox.STATUS_TERMINATED {
-					terminated = true
-				}
+				terminated = true
 			}
 			plc.Pack.Recycle()
 		case t := <-ticker:
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
-				fr.LogError(fmt.Errorf(
-					"Sandbox TimerEvent error code: %d, error message: %s",
-					retval, this.sb.LastError()))
-				if this.sb.Status() == sandbox.STATUS_TERMINATED {
-					terminated = true
-				}
+				terminated = true
 			}
+		}
+
+		if terminated {
+			pack := h.PipelinePack(0)
+			pack.Message.SetType("heka.sandbox-terminated")
+			pack.Message.SetLogger(fr.Name())
+			pack.Message.SetPayload(this.sb.LastError())
+			fr.Inject(pack)
+			break
 		}
 	}
 	if this.sbc.PreserveData {

@@ -88,13 +88,12 @@ end
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench'"
 ticker_interval = 1.0
-	[CounterSandbox%d.settings]
-    type = "lua"
-    filename = ""
-    preserve_data = true
-    memory_limit = 32767
-    instruction_limit = 1000
-    output_limit = 1024
+script_type = "lua"
+filename = ""
+preserve_data = true
+memory_limit = 32767
+instruction_limit = 1000
+output_limit = 1024
 `
 
 	var config SbmgrConfig
@@ -113,7 +112,7 @@ ticker_interval = 1.0
 	switch *action {
 	case "load":
 		for i := 0; i < *numItems; i++ {
-			conf := fmt.Sprintf(confFmt, i, i)
+			conf := fmt.Sprintf(confFmt, i)
 			msg := &message.Message{}
 			msg.SetType("heka.control.sandbox")
 			msg.SetTimestamp(time.Now().UnixNano())
@@ -136,7 +135,6 @@ ticker_interval = 1.0
 			msg.SetTimestamp(time.Now().UnixNano())
 			msg.SetUuid(uuid.NewRandom())
 			msg.SetHostname(hostname)
-			msg.SetPayload(string(code))
 			f, _ := message.NewField("name", fmt.Sprintf("CounterSandbox%d", i), message.Field_RAW)
 			msg.AddField(f)
 			f1, _ := message.NewField("action", *action, message.Field_RAW)

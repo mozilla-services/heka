@@ -60,15 +60,6 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
 		newIntField(msg, "InChanLength", len(dRunner.InChan()))
 	}
-
-	if msg.GetType() != "" {
-		var f *message.Field
-		f, err = message.NewField("Type", msg.GetType(), message.Field_RAW)
-		if err != nil {
-			return
-		}
-		msg.AddField(f)
-	}
 	msg.SetType("heka.plugin-report")
 	return
 }
@@ -159,31 +150,31 @@ func (pc *PipelineConfig) allReportsMsg() {
 	go pc.reports(reports)
 
 	MISSING := "MISSING"
+	sep := ""
+	payload = append(payload, "{\"reports\":[")
 	for pack := range reports {
 		if iName, ok = pack.Message.GetFieldValue("name"); !ok {
 			name = MISSING
 		} else if name, ok = iName.(string); !ok {
 			name = MISSING
 		}
-		line = fmt.Sprintf("%s:", name)
+		line = fmt.Sprintf("%s{\"Plugin\":\"%s\"", sep, name)
+		sep = ","
 		payload = append(payload, line)
 		for _, field := range pack.Message.Fields {
 			if field.GetName() == "name" {
 				continue
 			}
-			line = fmt.Sprintf("\t%s:\t%v", field.GetName(), field.GetValue())
+			line = fmt.Sprintf(",\"%s\":\"%v\"", field.GetName(), field.GetValue())
 			payload = append(payload, line)
 		}
-		if pack.Message.GetPayload() != "" {
-			line = fmt.Sprintf("\tPayload:\t%s", pack.Message.GetPayload())
-			payload = append(payload, line)
-		}
-		payload = append(payload, "")
+		payload = append(payload, "}")
 		pack.Recycle()
 	}
+	payload = append(payload, "]}")
 
 	pack := pc.PipelinePack(0)
 	pack.Message.SetType("heka.all-report")
-	pack.Message.SetPayload(strings.Join(payload, "\n"))
+	pack.Message.SetPayload(strings.Join(payload, ""))
 	pc.router.InChan() <- pack
 }

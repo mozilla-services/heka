@@ -63,22 +63,25 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
-**output(type0, type1, ...typeN)**
+**output(arg0, arg1, ...argN)**
     Appends data to the payload buffer, which cannot exceed the output_limit 
     configuration parameter.
 
     *Arguments*
-        - type (number, string, bool, nil)
+        - arg (number, string, bool, nil) Lua variable or literal to be appended the output buffer
 
     *Return*
         none
 
-**inject_message()**
+**inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
-    and then clears the buffer.
+    and then clears the buffer. Two pieces of optional metadata are allowed and
+    included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
+    Fields[payload_name] == 'Android Usage Statistics'.
 
     *Arguments*
-        none
+        - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
+        - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
 
     *Return*
         none
