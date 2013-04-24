@@ -9,9 +9,9 @@ message for further processing or to be output.
 
 Filter Parameters
 =================
-:ref:`common_filter_parameters`
+:ref:`config_common_parameters`
 
-.. _sandboxfilter_settings: 
+.. _sandboxfilter_settings:
 
 SandboxFilter Settings
 ======================

@@ -110,25 +110,16 @@ type WhisperOutputConfig struct {
 	DefaultAggMethod whisper.AggregationMethod
 
 	// Slice of 3-tuples, each 3-tuple describes a time interval's storage policy:
-	// [<# of secs per datapoint> <# of datapoints> <# of secs retention>]
-	DefaultArchiveInfo [][3]uint32
+	// [<offset> <# of secs per datapoint> <# of datapoints>]
+	DefaultArchiveInfo [][]uint32
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
 	basePath := path.Join("var", "run", "hekad", "whisper")
 
-	// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
-	// 15 minutes per datapoint, 8 datapoints = 2 hours of retention
-	// 1 hour per datapoint, 7 days of retention
-	// 12 hours per datapoint, 2 years of retention
-	defaultArchiveInfo := [][3]uint32{
-		{0, 60, 1440}, {0, 900, 8}, {0, 3600, 168}, {0, 43200, 1456},
-	}
-
 	return &WhisperOutputConfig{
-		BasePath:           basePath,
-		DefaultAggMethod:   whisper.AGGREGATION_AVERAGE,
-		DefaultArchiveInfo: defaultArchiveInfo,
+		BasePath:         basePath,
+		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
 	}
 }
 
@@ -136,8 +127,23 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
 	o.basePath = conf.BasePath
 	o.defaultAggMethod = conf.DefaultAggMethod
+
+	if conf.DefaultArchiveInfo == nil {
+		// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
+		// 15 minutes per datapoint, 8 datapoints = 2 hours of retention
+		// 1 hour per datapoint, 7 days of retention
+		// 12 hours per datapoint, 2 years of retention
+		conf.DefaultArchiveInfo = [][]uint32{
+			{0, 60, 1440}, {0, 900, 8}, {0, 3600, 168}, {0, 43200, 1456},
+		}
+	}
+
 	o.defaultArchiveInfo = make([]whisper.ArchiveInfo, len(conf.DefaultArchiveInfo))
 	for i, aiSpec := range conf.DefaultArchiveInfo {
+		if len(aiSpec) != 3 {
+			err = fmt.Errorf("All default archive info settings must have 3 values.")
+			return
+		}
 		o.defaultArchiveInfo[i] = whisper.ArchiveInfo{aiSpec[0], aiSpec[1], aiSpec[2]}
 	}
 	o.dbs = make(map[string]WhisperRunner)
