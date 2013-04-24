@@ -56,10 +56,11 @@ type StatsdInputConfig struct {
 	// UDP Address to listen to for statsd packets. If left blank, no UDP
 	// listener will be established.
 	Address string
-	// How frequently to flush aggregated statsd metrics.
+	// How frequently to flush aggregated statsd metrics in seconds. Defaults
+	// to 10.
 	FlushInterval int64
-	// Percent threshold to use for computing "upper_N%" type stat values;
-	// defaults to 90.
+	// Percent threshold to use for computing "upper_N%" type stat values.
+	// Defaults to 90.
 	PercentThreshold int
 }
 
