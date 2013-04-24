@@ -160,7 +160,7 @@ message_signer configuration option.
 Parameters:
 
 - address (string):
-    An IP address:port.
+    An IP address:port on which this plugin will listen.
 - signer:
     Optional TOML subsection. Section name consists of a signer name,
     underscore, and numeric version of the key.
@@ -198,7 +198,7 @@ message_signer configuration option.
 Parameters:
 
 - address (string):
-    An IP address:port.
+    An IP address:port on which this plugin will listen.
 - signer:
     Optional TOML subsection. Section name consists of a signer name,
     underscore, and numeric version of the key.
@@ -237,7 +237,7 @@ payload in the format that is accepted by the `carbon
 Parameters:
 
 - address (string, optional):
-    An IP address:port.
+    An IP address:port on which this plugin will expose a statsd server.
 - flushinterval (int):
     Time interval (in seconds) between generated `statmetric` messages.
     Defaults to 10.
@@ -293,20 +293,15 @@ struct objects. The hekad protocol buffers message schema in defined in the
 
 .. end-decoders
 
-.. start-filters
+.. _config_common_parameters:
 
-Filters
-=======
-
-.. _common_filter_parameters:
-
-Common Parameters
------------------
+Common Filter / Output Parameters
+=================================
 
 There are some configuration options that are universally available to all
-Heka filter plugins. These will be consumed by Heka itself when Heka
-initializes the plugin and do not need to be handled by the plugin-specific
-initialization code.
+Heka filter and output plugins. These will be consumed by Heka itself when
+Heka initializes the plugin and do not need to be handled by the plugin-
+specific initialization code.
 
 - message_matcher (string, optional):
     Boolean expression, when evaluated to true passes the message to the filter
@@ -317,6 +312,11 @@ initialization code.
 - ticker_interval (uint, optional):
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
+
+.. start-filters
+
+Filters
+=======
 
 .. _config_counter_filter:
 
@@ -448,26 +448,146 @@ a secure manner without stopping the Heka daemon.
 Outputs
 =======
 
-FileOutput
-----------
-
-Parameters:
-
-- Path (string): Path to the file to write.
-- Format (string): Output format for the message to be written.
-  Can be either `json` or `text`. Defaults to ``text``.
-- Prefix_ts (bool): Whether a timestamp should be prefixed to each
-  message line in the file. Defaults to ``false``.
-- Perm (int): File permission for writing. Defaults to ``0666``.
-
-Writes a message to the designated file in the format given (including
-a prefixed timestamp if configured).
+.. _config_log_output:
 
 LogOutput
 ---------
 
-Parameters: **None**
+Logs messages to stdout using Go's `log` package.
 
-Logs the message to stdout.
+Parameters:
+
+- payload_only (bool, optional):
+    If set to true, then only the message payload string will be output,
+    otherwise the entire `Message` struct will be output in JSON format.
+
+Example:
+
+.. code-block:: ini
+
+    [counter_output]
+    type = "LogOutput"
+    message_matcher = "Type == 'heka.counter-output'"
+    payload_only = true
+
+.. _config_file_output:
+
+FileOutput
+----------
+
+Writes message data out to a file system.
+
+Parameters:
+
+- path (string):
+    Full path to the output file.
+- format (string, optional):
+    Output format for the message to be written. Supports either `json`, which
+    will serialize the entire `Message` struct, or `text`, which will output
+    just the payload string. Defaults to ``text``.
+- prefix_ts (bool, optional): 
+    Whether a timestamp should be prefixed to each message line in the file.
+    Defaults to ``false``.
+- perm (int, optional):
+    File permission for writing. Defaults to ``0666``.
+
+Example:
+
+.. code-block:: ini
+
+    [counter_file]
+    type = "FileOutput"
+    message_matcher = "Type == 'heka.counter-output'"
+    path = "/var/log/heka/counter-output.log"
+    prefix_ts = true
+
+.. _config_tcp_output:
+
+TcpOutput
+---------
+
+Output plugin that serializes messages into the Heka protocol format and
+delivers them to a listening TCP connection. Can be used to deliver messages
+from a local running Heka agent to a remote Heka instance set up as an
+aggregator and/or router.
+
+Parameters:
+
+- address (string):
+    An IP address:port to which we will send our output data.
+
+Example:
+
+.. code-block:: ini
+
+    [aggregator_output]
+    type = "TcpOutput"
+    address = "heka-aggregator.mydomain.com:55"
+    message_matcher = "Type != 'logfile' && Type != 'heka.counter-output' && Type != 'heka.all-report'"
+
+.. _config_dashboard_output:
+
+DashboardOutput
+---------------
+
+Specialized output plugin that listens for certain Heka reporting message
+types and generates JSON data which is made available via HTTP for use in web
+based dashboards and health reports.
+
+Parameters:
+
+- ticker_interval (int):
+    Specifies how often, in seconds, the dashboard files should be updated.
+- address (string, optional):
+    An IP address:port on which we will serve output via HTTP. Defaults to
+    "0.0.0.0:4253".
+- workingdirectory (string, optional):
+    File system directory into which the plugin will write data files and from
+    which it will serve HTTP. The Heka process must have read / write access
+    to this directory. Defaults to "./dashboard".
+
+Example:
+
+.. code-block:: ini
+
+    [DashboardOutput]
+    ticker_interval = 60
+    message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
+
+.. _config_whisper_output:
+
+WhisperOutput
+-------------
+
+WhisperOutput plugins parse `statmetric` message types and write the extracted
+counter, timer, and gauge data out to a `graphite
+<http://graphite.wikidot.com/>`_ compatible `whisper database
+<http://graphite.wikidot.com/whisper>`_ file tree structure.
+
+Parameters:
+
+- basepath (string, optional):
+    Path to the base directory where the whisper file tree will be written. Defaults
+    to "/var/run/hekad/whisper".
+- defaultaggmethod (int, optional):
+    Default aggregation method to use for each whisper output file. Supports
+    the following values:
+
+    0. Unknown aggregation method.
+    1. Aggregate using averaging. (default)
+    2. Aggregate using summation.
+    3. Aggregate using last received value.
+    4. Aggregate using maximum value.
+    5. Aggregate using minimum value.
+
+- defaultarchiveinfo (??):
+    TODO: Here's where info would go about this.
+
+Example:
+
+.. code-block:: ini
+
+    [WhisperOutput]
+    message_matcher = "Type == 'statmetric'"
 
 .. end-outputs

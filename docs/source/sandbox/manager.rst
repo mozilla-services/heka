@@ -12,9 +12,9 @@ but it is highly recommended in order to restrict access to this functionality.
 
 Filter Parameters
 =================
-:ref:`common_filter_parameters`
+:ref:`config_common_parameters`
 
-.. _sandboxmanagerfilter_settings: 
+.. _sandboxmanagerfilter_settings:
 
 SandboxManagerFilter Settings
 =============================
