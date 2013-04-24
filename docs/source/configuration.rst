@@ -579,9 +579,23 @@ Parameters:
     3. Aggregate using last received value.
     4. Aggregate using maximum value.
     5. Aggregate using minimum value.
+- defaultarchiveinfo ([][]int, optional):
+    Default specification for new whisper db archives. Should be a sequence of
+    3-tuples, where each tuple describes a time interval's storage policy:
+    [<offset> <# of secs per datapoint> <# of datapoints>] (see `whisper docs
+    <graphite.readthedocs.org/en/latest/whisper.html>`_ for more info). Defaults
+    to:
 
-- defaultarchiveinfo (??):
-    TODO: Here's where info would go about this.
+    .. code-block:: ini
+
+        [ [0, 60, 1440], [0, 900, 8], [0, 3600, 168], [0, 43200, 1456]]
+
+    The above defines four archive sections. The first uses 60 seconds for
+    each of 1440 data points, which equals one day of retention. The second
+    uses 15 minutes for each of 8 data points, for two hours of retention. The
+    third uses one hour for each of 168 data points, or 7 days of retention.
+    Finally, the fourth uses 12 hours for each of 1456 data points,
+    representing two years of data.
 
 Example:
 
@@ -589,5 +603,7 @@ Example:
 
     [WhisperOutput]
     message_matcher = "Type == 'statmetric'"
+    defaultaggmethod = 3
+    defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
 
 .. end-outputs
