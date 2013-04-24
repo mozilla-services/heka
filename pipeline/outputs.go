@@ -171,7 +171,7 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	}
 	o.flushInterval = conf.FlushInterval
 	o.batchChan = make(chan []byte)
-	o.backChan = make(chan []byte, 1) // Don't block on the hand-back
+	o.backChan = make(chan []byte, 2) // Never block on the hand-back
 	return
 }
 
