@@ -230,11 +230,11 @@ type ConfigFile PluginConfig
 // Heka itself for runner configuration before the config is passed to the
 // Plugin.Init method.
 type PluginGlobals struct {
-	Typ      string  `toml:"type"`
-	Ticker   float64 `toml:"ticker_interval"`
-	Encoding string  `toml:"encoding_name"`
-	Matcher  string  `toml:"message_matcher"`
-	Signer   string  `toml:"message_signer"`
+	Typ      string `toml:"type"`
+	Ticker   uint   `toml:"ticker_interval"`
+	Encoding string `toml:"encoding_name"`
+	Matcher  string `toml:"message_matcher"`
+	Signer   string `toml:"message_signer"`
 }
 
 // Default Decoders configuration.
@@ -440,14 +440,9 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// Filters and outputs have a few more config settings.
 	runner := NewFORunner(wrapper.name, plugin.(Plugin))
 	runner.name = wrapper.name
-	var tickLength uint
-	if pluginGlobals.Ticker != 0 {
-		sec := pluginGlobals.Ticker
-		tickLength = uint(sec)
-	}
 
-	if tickLength != 0 {
-		runner.tickLength = time.Duration(tickLength) * time.Second
+	if pluginGlobals.Ticker != 0 {
+		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
 	}
 
 	var matcher *MatchRunner

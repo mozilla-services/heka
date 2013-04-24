@@ -537,7 +537,7 @@ based dashboards and health reports.
 
 Parameters:
 
-- ticker_interval (int):
+- ticker_interval (uint):
     Specifies how often, in seconds, the dashboard files should be updated.
 - address (string, optional):
     An IP address:port on which we will serve output via HTTP. Defaults to
