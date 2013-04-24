@@ -25,13 +25,17 @@ import (
 )
 
 type DashboardOutputConfig struct {
-	Address          string `toml:"address"`
+	// IP address of the Dashboard HTTP interface (defaults to all interfaces on
+	// port 4352 (HEKA))
+	Address string `toml:"address"`
+	// Working directory where the Dashboard output is written to; it also
+	// serves as the root for the HTTP fileserver.
 	WorkingDirectory string `toml:"working_directory"`
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
-		Address:          ":4253",
+		Address:          ":4352",
 		WorkingDirectory: "./dashboard",
 	}
 }
