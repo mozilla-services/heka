@@ -31,6 +31,10 @@ func fileExists(path string) bool {
 	return false
 }
 
+// Heka Filter plugin that acts as a wrapper for sandboxed filter scripts.
+// Each sanboxed filter (whether statically defined in the config or
+// dynamically loaded through the sandbox manager) maps to exactly one
+// SandboxFilter instance.
 type SandboxFilter struct {
 	sb               sandbox.Sandbox
 	sbc              *sandbox.SandboxConfig
@@ -41,6 +45,7 @@ func (this *SandboxFilter) ConfigStruct() interface{} {
 	return new(sandbox.SandboxConfig)
 }
 
+// Determines the script type and creates interpreter sandbox.
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
 		return nil // no-op already initialized
@@ -68,6 +73,8 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	return err
 }
 
+// Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
+// information to the Heka report and dashboard.
 func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "Memory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
 		sandbox.STAT_CURRENT)))

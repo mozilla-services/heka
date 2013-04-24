@@ -27,15 +27,23 @@ import (
 	"time"
 )
 
-type SandboxManagerFilterConfig struct {
-	MaxFilters       int    `toml:"max_filters"`
-	WorkingDirectory string `toml:"working_directory"`
-}
-
+// Heka Filter plugin that listens for (signed) control messages and
+// dynamically creates, manages, and destroys sandboxed filter scripts as
+// instructed.
 type SandboxManagerFilter struct {
 	maxFilters       int
 	currentFilters   int
 	workingDirectory string
+}
+
+// Config struct for `SandboxManagerFilter`.
+type SandboxManagerFilterConfig struct {
+	// Maximum number of sandboxed filters this instance will be allowed to
+	// manage.
+	MaxFilters int `toml:"max_filters"`
+	// Path to file system directory the sandbox manager can use for storing
+	// dynamic filter scripts and data.
+	WorkingDirectory string `toml:"working_directory"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
@@ -52,6 +60,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	return nil
 }
 
+// Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "RunningFilters", this.currentFilters)
 	return nil
