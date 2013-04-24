@@ -27,21 +27,31 @@ import (
 	"time"
 )
 
-type SandboxManagerFilterConfig struct {
-	MaxFilters       int    `toml:"max_filters"`
-	WorkingDirectory string `toml:"working_directory"`
-}
-
+// Heka Filter plugin that listens for (signed) control messages and
+// dynamically creates, manages, and destroys sandboxed filter scripts as
+// instructed.
 type SandboxManagerFilter struct {
 	maxFilters       int
 	currentFilters   int
 	workingDirectory string
 }
 
+// Config struct for `SandboxManagerFilter`.
+type SandboxManagerFilterConfig struct {
+	// Maximum number of sandboxed filters this instance will be allowed to
+	// manage.
+	MaxFilters int `toml:"max_filters"`
+	// Path to file system directory the sandbox manager can use for storing
+	// dynamic filter scripts and data.
+	WorkingDirectory string `toml:"working_directory"`
+}
+
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 	return new(SandboxManagerFilterConfig)
 }
 
+// Creates the working directory to store the submitted scripts,
+// configurations, and data preservation files.
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
@@ -52,11 +62,13 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	return nil
 }
 
+// Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "RunningFilters", this.currentFilters)
 	return nil
 }
 
+// Creates a FilterRunner for the specified sandbox name and configuration
 func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner, error) {
 	var err error
 	var pluginGlobals PluginGlobals
@@ -124,18 +136,24 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	return runner, nil
 }
 
+// Replaces all non word characters with an underscore and returns the
+// normalized string
 func getNormalizedName(name string) (normalized string) {
 	re, _ := regexp.Compile("\\W")
 	normalized = re.ReplaceAllString(name, "_")
 	return
 }
 
+// Combines the sandbox manager and filter name to create a unique namespace
+// for each manager. i.e., Multiple managers can run a filter named 'Counter'
+// even when sharing the same working directory.
 func getSandboxName(managerName, sandboxName string) (name string) {
 	name = fmt.Sprintf("%s-%s", getNormalizedName(managerName),
 		getNormalizedName(sandboxName))
 	return
 }
 
+// Cleans up the script and configuration files on unload or load failure.
 func removeAll(dir, glob string) {
 	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
@@ -144,6 +162,8 @@ func removeAll(dir, glob string) {
 	}
 }
 
+// Parses a Heka message and extracts the information necessary to start a new
+// SandboxFilter
 func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 	h PluginHelper, dir string, msg *message.Message) (err error) {
 	fv, _ := msg.GetFieldValue("config")
@@ -191,6 +211,9 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 	return
 }
 
+// On Heka restarts this function reloads all previously running SandboxFilters
+// using the script, configuration, and preservation files in the working
+// directory.
 func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelper, dir string) {
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
 	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
