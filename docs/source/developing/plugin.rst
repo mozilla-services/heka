@@ -26,7 +26,6 @@ You should be familiar with the :ref:`glossary` terminology before proceeding.
 
 .. _extending_overview:
 
-========
 Overview
 ========
 

@@ -183,20 +183,28 @@ Example
     -- License, v. 2.0. If a copy of the MPL was not distributed with this
     -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-    data = circular_buffer.new(1440, 3, 60) -- 1 day at 1 minute resolution
-    local HTTP_200 = data:set_header(1, "HTTP_200", "count")
-    local HTTP_400 = data:set_header(2, "HTTP_400", "count")
-    local HTTP_500 = data:set_header(3, "HTTP_500", "count")
+    data = circular_buffer.new(1440, 5, 60) -- 1 day at 1 minute resolution
+    local HTTP_200      = data:set_header(1, "HTTP_200"     , "count")
+    local HTTP_300      = data:set_header(2, "HTTP_300"     , "count")
+    local HTTP_400      = data:set_header(3, "HTTP_400"     , "count")
+    local HTTP_500      = data:set_header(4, "HTTP_500"     , "count")
+    local HTTP_UNKNOWN  = data:set_header(5, "HTTP_UNKNOWN" , "count")
 
     function process_message()
         local ts = read_message("Timestamp")
         local sc = read_message("Fields[http_status_code]")
-        if sc == 200 then
+        if sc == nil then return 0 end
+
+        if sc >= 200 and sc < 300 then
             data:add(ts, HTTP_200, 1)
-        elseif sc == 400 then
+        elseif sc >= 300 and sc < 400 then
+            data:add(ts, HTTP_300, 1)
+        elseif sc >= 400 and sc < 500 then
             data:add(ts, HTTP_400, 1)
-        elseif sc == 500 then
+        elseif sc >= 500 and sc < 600 then
             data:add(ts, HTTP_500, 1)
+        else 
+            data:add(ts, HTTP_UNKNOWN, 1)
         end
         return 0
     end

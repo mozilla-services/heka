@@ -25,7 +25,7 @@ message_matcher = "Type != 'heka.sandbox-output' && Type != 'hekabench'"
 [Dashboard]
 type = "DashboardOutput"
 address = "127.0.0.1:4352"
-ticker_interval = 60.0
+ticker_interval = 60
 working_directory = "./dashboard"
 message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || (Type == 'heka.sandbox-output' && Fields[payload_type] == 'cbuf')"
 
@@ -39,7 +39,7 @@ max_filters = 100
 [StaticSandbox]
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-ticker_interval = 1.0
+ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = true
@@ -50,7 +50,7 @@ output_limit = 1024
 [HekabenchCbufCounter]
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench'"
-ticker_interval = 1.0
+ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/hekabench_cbuf_counter.lua"
 preserve_data = true
@@ -61,7 +61,7 @@ output_limit = 64000
 [LoopToSelf]
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench' || (Logger == 'LoopToSelf' && Type != 'heka.sandbox-terminated')"
-ticker_interval = 1.0
+ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/loop.lua"
 preserve_data = true
@@ -72,7 +72,7 @@ output_limit = 1024
 [LoopToOtherA]
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench' && EnvVersion == '0.8' || Logger == 'LoopToOtherB'"
-ticker_interval = 1.0
+ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
@@ -83,7 +83,7 @@ output_limit = 1024
 [LoopToOtherB]
 type = "SandboxFilter"
 message_matcher = "Logger == 'LoopToOtherA'"
-ticker_interval = 1.0
+ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
@@ -94,4 +94,4 @@ output_limit = 1024
 [Counter]
 type = "CounterFilter"
 message_matcher = "Type == 'hekabench'"
-ticker_interval = 1.0
+ticker_interval = 1
