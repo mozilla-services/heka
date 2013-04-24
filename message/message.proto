@@ -28,10 +28,27 @@ message Field {
   }
   enum ValueFormat {
     RAW				= 0;
-	DATE_RFC3339 	= 1;
+
+	// http://json-schema.org/latest/json-schema-validation.html#anchor104
+	DATE_TIME 	 	= 1; // RFC 3339 Section 5.6
+	EMAIL			= 2; // RFC 5322 Section 3.4.1
+	HOSTNAME		= 3; // RFC 1034 Section 3.1
+	IPV4			= 4; // RFC 2673 Section 3.2
+	IPV6			= 5; // RFC 2373 Section 2.2
+	URI				= 6; // RFC 3986
+
+	// alternate date/time representations
 	// number of <time units> since midnight, 00:00 of January 1, 1970 UTC
-	UTC_SECONDS		= 2; 
-	UTC_NANOSECONDS	= 3;
+	UTC_SECONDS		= 7; // time_t
+	UTC_NANOSECONDS	= 8; // Heka timestamp
+
+	// numeric representations
+	COUNT			= 9;
+	MIN				= 10;
+	MAX				= 11;
+	AVG				= 12;
+	DELTA			= 13;
+	PERCENTAGE		= 14;
   }
   required string		name			= 1;
   optional ValueType	value_type		= 2 [default = STRING];
