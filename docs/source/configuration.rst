@@ -146,6 +146,8 @@ Command Line Options
 Inputs
 ======
 
+.. _config_udp_input:
+
 UdpInput
 --------
 
@@ -157,10 +159,14 @@ message_signer configuration option.
 
 Parameters:
 
-- address (string): An IP address:port.
-- signer: Optional TOML subsection. Section name consists of a signer name,
-          underscore, and numeric version of the key
-    - hmac_key (string): The hash key used to sign the message.
+- address (string):
+    An IP address:port.
+- signer:
+    Optional TOML subsection. Section name consists of a signer name,
+    underscore, and numeric version of the key.
+
+    - hmac_key (string):
+        The hash key used to sign the message.
 
 Example:
 
@@ -177,6 +183,9 @@ Example:
     [UdpInput.signer.dev_1]
     hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
+
+.. _config_tcp_input:
+
 TcpInput
 --------
 
@@ -188,10 +197,14 @@ message_signer configuration option.
 
 Parameters:
 
-- address (string): An IP address:port.
-- signer: Optional TOML subsection. Section name consists of a signer name,
-          underscore, and numeric version of the key
-    - hmac_key (string): The hash key used to sign the message.
+- address (string):
+    An IP address:port.
+- signer:
+    Optional TOML subsection. Section name consists of a signer name,
+    underscore, and numeric version of the key.
+
+    - hmac_key (string):
+        The hash key used to sign the message.
 
 Example:
 
@@ -208,6 +221,8 @@ Example:
     [TcpInput.signer.dev_1]
     hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
+.. _config_statsd_input:
+
 StatsdInput
 -----------
 
@@ -221,11 +236,14 @@ payload in the format that is accepted by the `carbon
 
 Parameters:
 
-- address (string, optional): An IP address:port.
-- flushinterval (int): Time interval (in seconds) between generated
-                       `statmetric` messages. Defaults to 10.
-- percentthreshold (int): Percent threshold to use for computing "upper_N%"
-                          type stat values. Defaults to 90.
+- address (string, optional):
+    An IP address:port.
+- flushinterval (int):
+    Time interval (in seconds) between generated `statmetric` messages.
+    Defaults to 10.
+- percentthreshold (int):
+    Percent threshold to use for computing "upper_N%" type stat values.
+    Defaults to 90.
 
 Example:
 
@@ -285,23 +303,136 @@ Filters
 Common Parameters
 -----------------
 
-- message_matcher (string): Boolean expression, when evaluated to true passes the message to the filter for processing. See: :ref:`message_matcher`
-- message_signer (string - optional): The name of the message signer.  If specified only messages with this signer are passed to the filter for processing.
-- ticker_interval (uint):  Frequency in seconds that a timer event will be sent to the filter
+There are some configuration options that are universally available to all
+Heka filter plugins. These will be consumed by Heka itself when Heka
+initializes the plugin and do not need to be handled by the plugin-specific
+initialization code.
 
+- message_matcher (string, optional):
+    Boolean expression, when evaluated to true passes the message to the filter
+    for processing. Defaults to matching nothing. See: :ref:`message_matcher`
+- message_signer (string, optional):
+    The name of the message signer.  If  specified only messages with this
+    signer  are passed to the filter for processing.
+- ticker_interval (uint, optional):
+    Frequency (in seconds) that a timer event will be sent to the filter.
+    Defaults to not sending timer events.
+
+.. _config_counter_filter:
 
 CounterFilter
-----------------
+-------------
+
+Once a second a `CounterFilter` will generate a message of type `heka.counter-
+output`. The payload will contain text indicating the number of messages that
+matched the filter's `message_matcher` value during that second (i.e. it
+counts the messages the plugin received). Every ten seconds an extra message
+(also of type `heka.counter-output`) goes out, containing an aggregate count
+and average per second throughput of messages received.
+
 Parameters: **None**
 
-Once a second the count of every message that was matched is output and  every
-ten seconds an aggregate count with an average per second is output.
+Example:
+
+.. code-block:: ini
+
+    [CounterFilter]
+    message_matcher = "Type != 'heka.counter-output'"
+
+.. _config_transform_filter:
+
+TransformFilter
+---------------
+
+Heka filter plugin that accepts messages of a specified form and generates new
+outgoing messages from extracted data, effectively transforming one message
+format into another. Can be combined w/ `message_matcher` capture groups (see
+:ref:`matcher_capture_groups`) to extract unstructured information from
+message payloads and use it to populate `Message` struct attributes and fields
+in a more structured manner.
+
+Parameters:
+
+- severitymap (map[string]int):
+    ???
+- messagefields (map[string]string):
+    ???
+- timestamplayout (string):
+    ???
+
+Example:
+
+.. code-block:: ini
+
+    [apache_transform_filter]
+    type = "TransformFilter"
+    message_matcher = "Type == 'logfile' && Logger == '/var/log/httpd.log'"
+    severitymap = ???
+    messagefields = ???
+    timestamplayout = ???
+
+.. _config_stat_filter:
+
+StatFilter
+----------
+
+Filter plugin that accepts messages of a specfied form and uses extracted
+message data to generate statsd-style numerical metrics. Can be combined w/
+`message_matcher` capture groups (see :ref:`matcher_capture_groups`) to parse
+message payloads and generate counter and timer data from extracted content.
+
+Parameters:
+
+- Metric:
+    Subsection defining a single metric to be generated
+
+    - type (string):
+        Metric type, supports "Counter", "Timer", "Gauge".
+    - name (string):
+        Metric name, must be unique.
+    - value (string):
+        Expression representing the (possibly dynamic) value that the
+        `StatFilter` should emit for each received message.
+
+- StatsdInputName (string, optional):
+    Configured `name` value for a running `StatsdInput` plugin into which
+    stats can be fed. Defaults to `StatsdInput`.
+
+Example:
+
+.. code-block:: ini
+
+    [LogfileInput]
+    LogFiles = ["/var/log/system.log"]
+    Hostname = "lars"
+
+    [StatsdInput]
+    address = "127.0.0.1:29301"
+    flushInterval = 5
+
+    [Hits]
+    type = "StatFilter"
+    message_matcher = 'Logger == "/var/log/system.log" && Payload =~ /%TIMESTAMP% \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+
+    [Hits.Metric.1]
+    type = "Counter"
+    name = "@Hostname.@Reporter"
+    value = "1"
+
+    [Hits.Metric.2]
+    type = "Counter"
+    name = "@Hostname.@Logger"
+    value = "@Remaining"
+
+.. _config_sandbox_filter:
 
 SandboxFilter
 -------------
 The sandbox filter provides an isolated execution environment for data analysis.
 
 :ref:`sandboxfilter_settings`
+
+.. _config_sandbox_manager_filter:
 
 SandboxManagerFilter
 --------------------
