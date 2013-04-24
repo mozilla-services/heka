@@ -23,7 +23,7 @@ instance of Heka's plugin type "TcpInput":
 
     [tcp:5565]
     type = "TcpInput"
-    address = "127.0.0.1:5565"
+    address = ":5565"
 
 If you choose a plugin name that also happens to be a plugin type name, then
 you can omit the "type" parameter from the section and the specified name will
@@ -33,7 +33,7 @@ be used as the type. Thus, the following section describes a plugin named
 .. code-block:: ini
 
     [TcpInput]
-    address = "127.0.0.1:5566"
+    address = ":5566"
 
 Note that it's fine to have more than one instance of the same plugin type, as
 long as their configurations don't interfere with each other.
@@ -56,7 +56,7 @@ Example hekad.toml File
 
     # Listens for Heka protocol on TCP port 5565.
     [TcpInput]
-    address = "127.0.0.1:5565"
+    address = ":5565"
 
     # Writes output from `CounterFilter`, `lua_sandbox`, and Heka's internal
     # reports to stdout.
@@ -211,7 +211,7 @@ Example:
 .. code-block:: ini
 
     [TcpInput]
-    address = "127.0.0.1:5565"
+    address = ":5565"
 
     [TcpInput.signer.ops_0]
     hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
@@ -250,7 +250,7 @@ Example:
 .. code-block:: ini
 
     [StatsdInput]
-    address = "127.0.0.1:8125"
+    address = ":8125"
     flushinterval = 5
 
 .. end-inputs
