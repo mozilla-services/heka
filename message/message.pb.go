@@ -134,22 +134,55 @@ type Field_ValueFormat int32
 
 const (
 	Field_RAW             Field_ValueFormat = 0
-	Field_DATE_RFC3339    Field_ValueFormat = 1
-	Field_UTC_SECONDS     Field_ValueFormat = 2
-	Field_UTC_NANOSECONDS Field_ValueFormat = 3
+	Field_DATE_TIME       Field_ValueFormat = 1
+	Field_EMAIL           Field_ValueFormat = 2
+	Field_HOSTNAME        Field_ValueFormat = 3
+	Field_IPV4            Field_ValueFormat = 4
+	Field_IPV6            Field_ValueFormat = 5
+	Field_URI             Field_ValueFormat = 6
+	Field_UTC_SECONDS     Field_ValueFormat = 7
+	Field_UTC_NANOSECONDS Field_ValueFormat = 8
+	Field_COUNT           Field_ValueFormat = 9
+	Field_MIN             Field_ValueFormat = 10
+	Field_MAX             Field_ValueFormat = 11
+	Field_AVG             Field_ValueFormat = 12
+	Field_DELTA           Field_ValueFormat = 13
+	Field_PERCENTAGE      Field_ValueFormat = 14
 )
 
 var Field_ValueFormat_name = map[int32]string{
-	0: "RAW",
-	1: "DATE_RFC3339",
-	2: "UTC_SECONDS",
-	3: "UTC_NANOSECONDS",
+	0:  "RAW",
+	1:  "DATE_TIME",
+	2:  "EMAIL",
+	3:  "HOSTNAME",
+	4:  "IPV4",
+	5:  "IPV6",
+	6:  "URI",
+	7:  "UTC_SECONDS",
+	8:  "UTC_NANOSECONDS",
+	9:  "COUNT",
+	10: "MIN",
+	11: "MAX",
+	12: "AVG",
+	13: "DELTA",
+	14: "PERCENTAGE",
 }
 var Field_ValueFormat_value = map[string]int32{
 	"RAW":             0,
-	"DATE_RFC3339":    1,
-	"UTC_SECONDS":     2,
-	"UTC_NANOSECONDS": 3,
+	"DATE_TIME":       1,
+	"EMAIL":           2,
+	"HOSTNAME":        3,
+	"IPV4":            4,
+	"IPV6":            5,
+	"URI":             6,
+	"UTC_SECONDS":     7,
+	"UTC_NANOSECONDS": 8,
+	"COUNT":           9,
+	"MIN":             10,
+	"MAX":             11,
+	"AVG":             12,
+	"DELTA":           13,
+	"PERCENTAGE":      14,
 }
 
 func (x Field_ValueFormat) Enum() *Field_ValueFormat {
