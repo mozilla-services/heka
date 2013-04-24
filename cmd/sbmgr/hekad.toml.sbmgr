@@ -25,6 +25,7 @@ message_matcher = "Type != 'heka.sandbox-output' && Type != 'hekabench'"
 [Dashboard]
 type = "DashboardOutput"
 address = "127.0.0.1:4352"
+ticker_interval = 60.0
 working_directory = "./dashboard"
 message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || (Type == 'heka.sandbox-output' && Fields[payload_type] == 'cbuf')"
 
