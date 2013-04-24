@@ -9,17 +9,23 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 /*
 
-Implementation and specification for Plugins, Inputs, Decoders,
-Filters, Outputs, and the routing.
+The `pipeline` package implements the `hekad` daemon's main message processing
+pipeline. It defines interface specifications for plugins in general, and for
+all of the various specific plugin types (i.e. Input, Decoder, Filter, and
+Output), as well as implementations of a number of plugins of each type. It
+also defines and provides a variety of interfaces through which plugins can
+interact with the Heka environment.
 
-Inputs, Decoders, Filters, and Outputs all implement the Plugin
-interface as well as adding their own API necessary to be valid for
-that type of Plugin.
+For more information about Heka please see the following resources:
 
+- Heka project documentation: http://heka-docs.readthedocs.org/
+- `hekad` daemon documenation: http://hekad.readthedocs.org/
+- `hekad` github project: https://github.com/mozilla-services/heka
 */
 package pipeline
