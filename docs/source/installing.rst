@@ -61,12 +61,13 @@ Building `hekad` with External Plugins
 ======================================
 
 It is possible to extend `hekad` by writing input, decoder, filter, or output
-plugins in Go. Because Go only supports static linking of Go code, your
-plugins must be included with and registered into Heka at compile time. `heka
-build`_ supports the use of a `{heka-build-root}/etc/plugin_packages.json`
-file to specify which packages you'd like to include in your build. The JSON
-should be an object with a single `plugin_packages` attribute, with the value
-an array of package paths. For example:
+plugins in Go (see :ref:`plugins`). Because Go only supports static linking of
+Go code, your plugins must be included with and registered into Heka at
+compile time. `heka build`_ supports the use of a `{heka-build-
+root}/etc/plugin_packages.json` file to specify which packages you'd like to
+include in your build. The JSON should be an object with a single
+`plugin_packages` attribute, with the value an array of package paths. For
+example:
 
     .. code-block:: json
 
