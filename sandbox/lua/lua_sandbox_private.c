@@ -285,7 +285,7 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
         }
     } else if (lua_type(lsb->m_lua, vindex) == LUA_TUSERDATA) {
         void* ud = lua_touserdata(lsb->m_lua, vindex);
-        if ((heka_circular_buffer == userdata_type(lsb->m_lua, ud, vindex))) {
+        if (heka_circular_buffer == userdata_type(lsb->m_lua, ud, vindex)) {
             table_ref* seen = find_table_ref(&data->m_tables, ud);
             if (seen == NULL) {
                 seen = add_table_ref(&data->m_tables, ud, pos);
@@ -478,7 +478,7 @@ int output(lua_State* lua)
             break;
         case LUA_TUSERDATA:
             ud = lua_touserdata(lua, i);
-            if ((heka_circular_buffer == userdata_type(lua, ud, i))) {
+            if (heka_circular_buffer == userdata_type(lua, ud, i)) {
                 if (output_circular_buffer((circular_buffer*)ud,
                                            &lsb->m_output)) {
                     result = 1;
