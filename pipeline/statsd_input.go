@@ -209,9 +209,8 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, st
 	ok := true
 	for ok {
 		select {
-		case <-stopChan:
+		case _, ok = <-stopChan:
 			sm.Flush()
-			ok = false
 		case <-t:
 			sm.Flush()
 		case s = <-packets:
