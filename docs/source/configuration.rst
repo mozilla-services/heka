@@ -433,12 +433,12 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
     [Hits.Metric.bandwidth]
     type = "Counter"
-    name = "httpd.%Hostname%.Bytes"
+    name = "httpd.bytes.%Hostname%"
     value = "%Bytes%"
 
     [Hits.Metric.method_counts]
     type = "Counter"
-    name = "httpd.%Hostname%.%Method%"
+    name = "httpd.hits.%Method%.%Hostname%"
     value = "1"
 
 .. note::
