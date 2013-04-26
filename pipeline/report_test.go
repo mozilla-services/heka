@@ -80,6 +80,10 @@ func ReportSpec(c gs.Context) {
 	fName := "counter"
 	filter := new(CounterFilter)
 	fRunner := NewFORunner(fName, filter)
+	var err error
+	fRunner.matcher, err = NewMatchRunner("Type == ''", "")
+	c.Assume(err, gs.IsNil)
+	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
 
 	iName := "udp"
 	input := new(UdpInput)
@@ -126,6 +130,7 @@ func ReportSpec(c gs.Context) {
 		for i := 0; i < Globals().PoolSize; i++ {
 			pc.injectRecycleChan <- NewPipelinePack(pc.injectRecycleChan)
 		}
+
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
 		pc.DecoderSets = nil
