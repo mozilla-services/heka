@@ -419,13 +419,9 @@ Parameters:
     Configured `name` value for a running `StatsdInput` plugin into which
     stats can be fed. Defaults to `StatsdInput`.
 
-Example:
+Example (Assuming you had TransformFilter inserting messages as above):
 
 .. code-block:: ini
-
-    [LogfileInput]
-    LogFiles = ["/var/log/system.log"]
-    Hostname = "lars"
 
     [StatsdInput]
     address = "127.0.0.1:29301"
@@ -433,17 +429,21 @@ Example:
 
     [Hits]
     type = "StatFilter"
-    message_matcher = 'Logger == "/var/log/system.log" && Payload =~ /%TIMESTAMP% \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+    message_matcher = 'Type == "ApacheLogfile"'
 
-    [Hits.Metric.1]
+    [Hits.Metric.bandwidth]
     type = "Counter"
-    name = "@Hostname.@Reporter"
+    name = "httpd.%Hostname%.Bytes"
+    value = "%Bytes%"
+
+    [Hits.Metric.method_counts]
+    type = "Counter"
+    name = "httpd.%Hostname%.%Method%"
     value = "1"
 
-    [Hits.Metric.2]
-    type = "Counter"
-    name = "@Hostname.@Logger"
-    value = "@Remaining"
+.. note::
+
+    StatFilter requires the StatsdInput to be running.
 
 .. _config_sandbox_filter:
 
