@@ -17,7 +17,9 @@ package pipeline
 
 import (
 	"bufio"
+	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -97,6 +99,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 func (lw *LogfileInput) Stop() {
 	close(lw.Monitor.stopChan) // stops the monitor's watcher
+	close(lw.Monitor.NewLines)
 }
 
 // FileMonitor, manages a group of FileTailers
@@ -147,11 +150,18 @@ func (fm *FileMonitor) Watcher() {
 	discovery := time.Tick(fm.discoverInterval)
 	checkStat := time.Tick(fm.statInterval)
 
-	for {
+	ok := true
+
+	for ok {
 		select {
+		case _, ok = <-fm.stopChan:
+			break
 		case <-checkStat:
 			for fileName, _ := range fm.fds {
-				fm.ReadLines(fileName)
+				ok = fm.ReadLines(fileName)
+				if !ok {
+					break
+				}
 			}
 		case <-discovery:
 			// Check to see if the files exist now, start reading them
@@ -161,19 +171,29 @@ func (fm *FileMonitor) Watcher() {
 					delete(fm.discover, fileName)
 				}
 			}
-		case <-fm.stopChan:
-			for _, fd := range fm.fds {
-				fd.Close()
-			}
-			close(fm.NewLines)
-			return
 		}
+	}
+	for _, fd := range fm.fds {
+		fd.Close()
 	}
 }
 
 // Reads all unread lines out of the specified file, creates a LogLine object
 // for each line, and puts it on the NewLine channel for processing.
-func (fm *FileMonitor) ReadLines(fileName string) {
+func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
+	ok = true
+	defer func() {
+		// Capture send on close chan as this is a shut-down
+		if r := recover(); r != nil {
+			rStr := fmt.Sprintf("%s", r)
+			if strings.Contains(rStr, "send on closed channel") {
+				ok = false
+			} else {
+				panic(rStr)
+			}
+		}
+	}()
+
 	fd, _ := fm.fds[fileName]
 
 	// Determine if we're farther into the file than possible (truncate)
@@ -190,8 +210,8 @@ func (fm *FileMonitor) ReadLines(fileName string) {
 	readLine, err := reader.ReadString('\n')
 	for err == nil {
 		line := Logline{Path: fileName, Line: readLine}
-		fm.seek[fileName] += int64(len(readLine))
 		fm.NewLines <- line
+		fm.seek[fileName] += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
 	}
 	fm.seek[fileName] += int64(len(readLine))

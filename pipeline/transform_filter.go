@@ -22,8 +22,12 @@ import (
 	"time"
 )
 
+// Populated by the Transformfilter Init, this regex matches the MessageFields
+// values to interpolate variables from capture groups or other parts of the
+// existing message
 var varMatcher *regexp.Regexp
 
+// Common type used to store the basic hash
 type MatchSet map[string]string
 
 type TransformFilterConfig struct {
@@ -33,10 +37,19 @@ type TransformFilterConfig struct {
 }
 
 type TransformFilter struct {
-	SeverityMap     map[string]int32
-	MessageFields   MatchSet
+	// Maps severity strings to their int version
+	SeverityMap map[string]int32
+	// Maps parsed message parts to their new location in the message field.
+	// Keyed to the message field that should be filled in, the value will be
+	// interpolated so it can use capture parts from the message match.
+	MessageFields MatchSet
+	// User specified timestamp layout string, used for parsing a timestamp
+	// string into an actual time object. If not specified or it fails to
+	// match, all the default time layout's will be tried.
 	TimestampLayout string
-	basicFields     []string
+	// Internal mapping of the 'basic' fields of a message that are not
+	// custom fields
+	basicFields []string
 }
 
 func (t *TransformFilter) ConfigStruct() interface{} {
@@ -105,7 +118,8 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 		}
 
-		// Only copy basic fields into the changeFields
+		// Copy any basic fields based on their name out of captured parts
+		// if possible, falling back to user-specified
 	basicFieldMatch:
 		for _, matchField := range t.basicFields {
 			// Does it exist in our captured parts?
@@ -118,6 +132,8 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 		}
 
+		// Update the new message fields based on the fields we should
+		// change and the capture parts
 		err := t.updateMessage(newPack.Message, changeFields, captures)
 		if err != nil {
 			fr.LogError(fmt.Errorf(errMsg, pack.Message.GetUuid(), err))
@@ -134,7 +150,12 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 }
 
-// Update a message based on the populated fields to use for altering it.
+// Update a message based on the user-specified fields to change and mapping
+// in any field names found in the captures
+//
+// changeFields is a mapping of what fields in the message should be changed
+// and the un-interpolated value to change it to
+// matchParts is a mapping of values to use for interpolation
 func (t *TransformFilter) updateMessage(message *Message, changeFields,
 	matchParts MatchSet) error {
 	for field, formatRegexp := range changeFields {
@@ -183,17 +204,22 @@ func (t *TransformFilter) updateMessage(message *Message, changeFields,
 // Given a regular expression, return the string resulting from interpolating
 // variables that exist in matchParts
 //
-// Example input to a formatRegexp: Reported at @Hostname by @Reporter
+// Example input to a formatRegexp: Reported at %Hostname% by %Reporter%
 // Assuming there are entries in matchParts for 'Hostname' and 'Reporter', the
 // returned string will then be: Reported at Somehost by Jonathon
 func InterpolateString(formatRegexp string, matchParts MatchSet) (newString string) {
 	return varMatcher.ReplaceAllStringFunc(formatRegexp,
 		func(matchWord string) string {
-			// Remove the preceeding @
-			m := matchWord[1:]
+			// Remove the preceding and trailing %
+			m := matchWord[1 : len(matchWord)-1]
 			if repl, ok := matchParts[m]; ok {
 				return repl
 			}
 			return fmt.Sprintf("<%s>", m)
 		})
+}
+
+// Initialize the varMatcher for use in InterpolateString
+func init() {
+	varMatcher, _ = regexp.Compile("%[A-Za-z]+%")
 }
