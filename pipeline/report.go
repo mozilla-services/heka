@@ -69,6 +69,8 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 	if fRunner, ok := pr.(FilterRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(fRunner.InChan()))
 		newIntField(msg, "InChanLength", len(fRunner.InChan()))
+		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan))
+		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan))
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
 		newIntField(msg, "InChanLength", len(dRunner.InChan()))
