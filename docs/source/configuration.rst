@@ -360,7 +360,18 @@ Parameters:
 
 - MessageFields:
     Subsection defining message fields to populate and the interpolated values
-    that should be used.
+    that should be used. Valid interpolated values are any captured in a regex
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_filter.MessageFields]
+        Type = "%Type%Transformed"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Transformed` appended.
 
 - TimestampLayout (string):
     A formatting string instructing hekad how to turn a time string into the
