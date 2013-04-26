@@ -118,18 +118,36 @@ func (t *TransformFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 		}
 
-		// Copy any basic fields based on their name out of captured parts
-		// if possible, falling back to user-specified
-	basicFieldMatch:
-		for _, matchField := range t.basicFields {
-			// Does it exist in our captured parts?
-			value := captures[matchField]
-			if value == "" {
-				continue basicFieldMatch
+		// Load the rest of the existing message fields into captures for
+		// use in interpolation
+		for _, name := range t.basicFields {
+			// Captures already has this name
+			if _, ok := captures[name]; ok {
+				continue
 			}
-			if _, present := t.MessageFields[matchField]; !present {
-				changeFields[matchField] = value
+
+			switch name {
+			case "Logger":
+				captures[name] = pack.Message.GetLogger()
+			case "Type":
+				captures[name] = pack.Message.GetType()
+			case "Payload":
+				captures[name] = pack.Message.GetPayload()
+			case "Hostname":
+				captures[name] = pack.Message.GetHostname()
+			case "Pid":
+				captures[name] = fmt.Sprintf("%s", pack.Message.GetPid())
+			case "Uuid":
+				captures[name] = fmt.Sprintf("%s", pack.Message.GetUuid())
 			}
+		}
+		// Copy out custom fields
+		for _, field := range pack.Message.Fields {
+			name := field.GetName()
+			if _, ok := captures[name]; ok {
+				continue
+			}
+			captures[name] = fmt.Sprintf("%s", field.GetValue())
 		}
 
 		// Update the new message fields based on the fields we should
