@@ -191,8 +191,8 @@ TcpInput
 
 Listens on a specific TCP address and port for messages. If the message is
 signed it is verified against the signer name and specified key version. If
-the signature is not valid the message is discarded otherwise the signer name 
-is added to the pipeline pack and can be use to accept messages using the 
+the signature is not valid the message is discarded otherwise the signer name
+is added to the pipeline pack and can be use to accept messages using the
 message_signer configuration option.
 
 Parameters:
@@ -353,23 +353,55 @@ in a more structured manner.
 
 Parameters:
 
-- severitymap (map[string]int):
-    ???
-- messagefields (map[string]string):
-    ???
-- timestamplayout (string):
-    ???
+- SeverityMap:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
 
-Example:
+- MessageFields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in a regex
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_filter.MessageFields]
+        Type = "%Type%Transformed"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Transformed` appended.
+
+- TimestampLayout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
+
+Example (Parsing Apache Combined Log Format):
 
 .. code-block:: ini
 
     [apache_transform_filter]
     type = "TransformFilter"
-    message_matcher = "Type == 'logfile' && Logger == '/var/log/httpd.log'"
-    severitymap = ???
-    messagefields = ???
-    timestamplayout = ???
+    message_matcher = 'Type == "logfile" && Logger == "/var/log/httpd.log" && Payload ~= /^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    timestamplayout = "02/Jan/2006:15:04:05 +0100"
+
+    [apache_transform_filter.SeverityMap]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [apache_transform_filter.MessageFields]
+    Type = "ApacheLogfile"
+    Logger = "apache"
+    Url = "%Url%"
+    Method = "%Method%"
+    Status = "%Status%"
+    Bytes = "%Bytes%"
+    Referer = "%Referer%"
+    Browser = "%Browser%"
+
 
 .. _config_stat_filter:
 
@@ -398,13 +430,9 @@ Parameters:
     Configured `name` value for a running `StatsdInput` plugin into which
     stats can be fed. Defaults to `StatsdInput`.
 
-Example:
+Example (Assuming you had TransformFilter inserting messages as above):
 
 .. code-block:: ini
-
-    [LogfileInput]
-    LogFiles = ["/var/log/system.log"]
-    Hostname = "lars"
 
     [StatsdInput]
     address = "127.0.0.1:29301"
@@ -412,17 +440,21 @@ Example:
 
     [Hits]
     type = "StatFilter"
-    message_matcher = 'Logger == "/var/log/system.log" && Payload =~ /%TIMESTAMP% \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+    message_matcher = 'Type == "ApacheLogfile"'
 
-    [Hits.Metric.1]
+    [Hits.Metric.bandwidth]
     type = "Counter"
-    name = "@Hostname.@Reporter"
+    name = "httpd.bytes.%Hostname%"
+    value = "%Bytes%"
+
+    [Hits.Metric.method_counts]
+    type = "Counter"
+    name = "httpd.hits.%Method%.%Hostname%"
     value = "1"
 
-    [Hits.Metric.2]
-    type = "Counter"
-    name = "@Hostname.@Logger"
-    value = "@Remaining"
+.. note::
+
+    StatFilter requires the StatsdInput to be running.
 
 .. _config_sandbox_filter:
 

@@ -49,6 +49,7 @@ type StatsdInput struct {
 	percentThreshold int
 	flushInterval    int64
 	stopped          bool
+	stopChan         chan bool
 }
 
 // StatsInput config struct
@@ -101,10 +102,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packets := make(chan StatPacket, 5000)
 	s.Packet = packets
+	s.stopChan = make(chan bool)
 	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir, h)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go sm.Monitor(packets, &wg)
+	go sm.Monitor(packets, &wg, s.stopChan)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
@@ -128,7 +130,6 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 				go s.handleMessage(message[:n])
 			}
 		}
-		close(packets) // shut down the StatMonitor
 	}
 	wg.Wait()
 	return
@@ -137,9 +138,8 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 func (s *StatsdInput) Stop() {
 	if s.listener != nil {
 		s.stopped = true
-	} else {
-		close(s.Packet)
 	}
+	close(s.stopChan)
 }
 
 // Parses received raw statsd bytes data and converts it into a StatPacket
@@ -200,7 +200,7 @@ func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
 
 // Main statMonitor loop. Doesn't return until the provided channel is closed.
 // Should be run in its own goroutine.
-func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
+func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, stopChan <-chan bool) {
 	var s StatPacket
 	var floatValue float64
 	var intValue int
@@ -209,13 +209,11 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup) {
 	ok := true
 	for ok {
 		select {
+		case _, ok = <-stopChan:
+			sm.Flush()
 		case <-t:
 			sm.Flush()
-		case s, ok = <-packets:
-			if !ok {
-				sm.Flush()
-				break
-			}
+		case s = <-packets:
 			switch s.Modifier {
 			case "ms":
 				floatValue, _ = strconv.ParseFloat(s.Value, 64)

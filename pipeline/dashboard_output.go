@@ -155,6 +155,8 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
                 'Plugin',
                 'InChanCapacity',
                 'InChanLength',
+                'MatchChanCapacity',
+                'MatchChanLength',
                 'Memory',
                 'MaxMemory',
                 'MaxInstructions',
@@ -167,6 +169,8 @@ var table = new Y.DataTable({
     columns: [{key: 'Plugin', sortable:true, formatter: '<a href="{value}.html">{value}</a>', allowHTML: true},
               {key: 'InChanCapacity', sortable:true},
               {key: 'InChanLength', sortable:true},
+              {key: 'MatchChanCapacity', sortable:true},
+              {key: 'MatchChanLength', sortable:true},
               {label: 'Sandbox (memory and output in bytes)', children: [
                 {key:'Memory', sortable:true},
                 {key:'MaxMemory', sortable:true},
