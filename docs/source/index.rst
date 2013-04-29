@@ -34,4 +34,4 @@ Indices and tables
 * :ref:`search`
 * :ref:`glossary`
 
-.. _heka project: https://heka-docs.readthedocs.org
+.. _heka project: http://heka-docs.readthedocs.org
