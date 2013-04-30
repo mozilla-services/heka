@@ -8,16 +8,6 @@
 #ifndef sandbox_h_
 #define sandbox_h_
 
-#ifdef _WIN32
-    #if defined(sandbox_EXPORTS)
-        #define SANDBOX_EXPORT __declspec(dllexport)
-    #else
-        #define SANDBOX_EXPORT __declspec(dllimport)
-    #endif
-#else
-    #define SANDBOX_EXPORT
-#endif
-
 typedef enum {
     STATUS_UNKNOWN      = 0,
     STATUS_RUNNING      = 1,
