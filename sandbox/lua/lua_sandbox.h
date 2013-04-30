@@ -11,7 +11,7 @@
 #include <lua.h>
 #include "../sandbox.h"
 
-typedef struct lua_sandbox lua_sandbox; 
+typedef struct lua_sandbox lua_sandbox;
 
 /**
  * Allocates and initializes the structure around the Lua sandbox.
@@ -27,11 +27,11 @@ typedef struct lua_sandbox lua_sandbox;
  * 
  * @return lua_sandbox Sandbox pointer or NULL on failure.
  */
-SANDBOX_EXPORT lua_sandbox* lua_sandbox_create(void* go,
-                                               const char* lua_file,
-                                               unsigned memory_limit,
-                                               unsigned instruction_limit,
-                                               unsigned output_limit);
+lua_sandbox* lua_sandbox_create(void* go,
+                                const char* lua_file,
+                                unsigned memory_limit,
+                                unsigned instruction_limit,
+                                unsigned output_limit);
 
 /**
  * Frees the memory associated with the sandbox.
@@ -43,8 +43,8 @@ SANDBOX_EXPORT lua_sandbox* lua_sandbox_create(void* go,
  * @return NULL on success, pointer to an error message on failure that MUST BE
  * FREED by the caller.
  */
-SANDBOX_EXPORT char* lua_sandbox_destroy(lua_sandbox* lsb,
-                                         const char* state_file);
+char* lua_sandbox_destroy(lua_sandbox* lsb,
+                          const char* state_file);
 
 /** 
  * Initializes the Lua sandbox and loads/runs the Lua script that was specified 
@@ -56,7 +56,7 @@ SANDBOX_EXPORT char* lua_sandbox_destroy(lua_sandbox* lsb,
  * 
  * @return int Zero on success, non-zero on failure.
  */
-SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
+int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
 
 /** 
  * Retrieve the sandbox usage statistics.
@@ -67,9 +67,9 @@ SANDBOX_EXPORT int lua_sandbox_init(lua_sandbox* lsb, const char* state_file);
  * 
  * @return unsigned Count or number of bytes depending on the statistic.
  */
-SANDBOX_EXPORT unsigned lua_sandbox_usage(lua_sandbox* lsb,
-                                          sandbox_usage_type utype,
-                                          sandbox_usage_stat ustat);
+unsigned lua_sandbox_usage(lua_sandbox* lsb,
+                           sandbox_usage_type utype,
+                           sandbox_usage_stat ustat);
 /**
  * Retrieve the current sandbox status.
  * 
@@ -77,7 +77,7 @@ SANDBOX_EXPORT unsigned lua_sandbox_usage(lua_sandbox* lsb,
  * 
  * @return sandbox_status code
  */
-SANDBOX_EXPORT sandbox_status lua_sandbox_status(lua_sandbox* lsb);
+sandbox_status lua_sandbox_status(lua_sandbox* lsb);
 
 /** 
  * Return the last error in human readable form.
@@ -86,7 +86,7 @@ SANDBOX_EXPORT sandbox_status lua_sandbox_status(lua_sandbox* lsb);
  * 
  * @return const char* error message
  */
-SANDBOX_EXPORT const char* lua_sandbox_last_error(lua_sandbox* lsb);
+const char* lua_sandbox_last_error(lua_sandbox* lsb);
 
 /**
  * Passes a Heka message down to the sandbox for processing. The instruction 
@@ -96,7 +96,7 @@ SANDBOX_EXPORT const char* lua_sandbox_last_error(lua_sandbox* lsb);
  * 
  * @return int Zero on success, non-zero on failure.
  */
-SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb);
+int lua_sandbox_process_message(lua_sandbox* lsb);
 
 /**
  * Called when the plugin timer expires (the garbage collector is run after 
@@ -107,6 +107,6 @@ SANDBOX_EXPORT int lua_sandbox_process_message(lua_sandbox* lsb);
  * @return int Zero on success, non-zero on failure.
  * 
  */
-SANDBOX_EXPORT int lua_sandbox_timer_event(lua_sandbox* lsb, long long ns);
+int lua_sandbox_timer_event(lua_sandbox* lsb, long long ns);
 
 #endif

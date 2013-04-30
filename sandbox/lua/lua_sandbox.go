@@ -15,7 +15,7 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I ../../../../../../release/external/include
-#cgo LDFLAGS: -LHEKABUILDPATH -lsandbox -lm
+#cgo LDFLAGS: HEKABUILDPATH/release/external/lib/liblua.a -lm
 #include <stdlib.h>
 #include "lua_sandbox.h"
 */
