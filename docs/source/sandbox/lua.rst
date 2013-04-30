@@ -211,8 +211,13 @@ Example
 
     function timer_event()
         output(data)
-        inject_message()
+        inject_message("cbuf", "HTTP Status Code Statistics")
     end
+
+Setting the inject_message payload_type to "cbuf" will cause the 
+:ref:`config_dashboard_output` to automatically generate an HTML page 
+containing a graphical view of the data.
+
 
 Tutorials
 =========
