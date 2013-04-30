@@ -4,6 +4,15 @@
 Installing
 ==========
 
+.. _from_binaries:
+
+Binaries
+========
+
+`hekad` releases are available on the Mozilla Services website.
+Binaries are available for Linux and OSX, with packages for Debian and
+RPM based distributions.
+
 .. _from_source:
 
 From Source
