@@ -59,7 +59,7 @@ type Logline struct {
 func (lw *LogfileInput) ConfigStruct() interface{} {
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
-		StatInterval:     1,
+		StatInterval:     500,
 	}
 }
 
