@@ -95,11 +95,11 @@ Example
 
 .. _sandbox_manager_tutorial:
 
-Tutorial
-========
+Tutorial - How to use the dynamic sandboxes
+===========================================
 
-How to use the dynamic sandboxes
---------------------------------
+SandboxManager/Heka Setup
+-------------------------
 
 1. The SandboxManagerFilters are defined in the hekad configuration file and 
 are created when hekad starts. The manager provides a location/namespace for 
@@ -138,7 +138,7 @@ of new keys.
         [TCP:5565.signer.PlatformDevs_1]
         hmac_key = "Platform devs signing key"
 
-3. Configure the sanbox manager utility (sbmgr).  The signer information must 
+3. Configure the sandbox manager utility (sbmgr).  The signer information must 
 exactly match the values in the input configuration above otherwise the 
 messages will be discarded. Save the file as PlatformDevs.toml.
 
@@ -151,7 +151,10 @@ messages will be discarded. Save the file as PlatformDevs.toml.
         hmac_key     = "Platform devs signing key"
         version      = 1
 
-4. Create a SandboxFilter script and save it as "example.lua". See :ref:`lua_tutorials` for more detail
+SandboxFilter Setup
+-------------------
+
+1. Create a SandboxFilter script and save it as "example.lua". See :ref:`lua_tutorials` for more detail.
 
 .. code-block:: lua
 
@@ -168,7 +171,7 @@ messages will be discarded. Save the file as PlatformDevs.toml.
         inject_message("cbuf")
     end
 
-5. Create the SandboxFilter configuration and save it as "example.toml".
+2. Create the SandboxFilter configuration and save it as "example.toml".
 
 The only difference between a static and dynamic SandboxFilter configuration is
 the filename.  In the dynamic configuration it can be left blank or left out
@@ -188,7 +191,7 @@ this case, "PlatformDevs-Example".
     instruction_limit = 100
     output_limit = 64000
 
-6. Load the filter using sbmgr.
+3. Load the filter using sbmgr.
 
 ::
 
@@ -210,9 +213,9 @@ Otherwise
     The state is not preserved in this case for two reasons (in the future we 
     hope to remedy this):
         1. During the unload/load process some data can be missed creating a small gap in the analysis causing anomalies and confusion.
-        2. The internal data representation may have change and restoration may be problematic.
+        2. The internal data representation may have changed and restoration may be problematic.
 
-7. Unload the filter using sbmgr 
+4. Unload the filter using sbmgr 
 
 ::
 
