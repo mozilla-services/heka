@@ -219,6 +219,8 @@ Setting the inject_message payload_type to "cbuf" will cause the
 containing a graphical view of the data.
 
 
+.. _lua_tutorials:
+
 Tutorials
 =========
 
