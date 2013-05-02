@@ -221,6 +221,43 @@ Example:
     [TcpInput.signer.dev_1]
     hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
+
+.. _config_logfile_input:
+
+LogfileInput
+------------
+
+Tails logfiles, creating a message for each line in each logfile being
+monitored. Logfiles are read in their entirety, and watched for
+changes. This input gracefully handles log rotation via the file moving
+but may lose a few log lines of using the truncation method of log
+rotation. It's recommended to use log rotation schemes that move the
+logfile to another location to avoid possible loss of log lines.
+
+In the event the logfile does not currently exist, it will be placed in
+an internal discover list, and checked for existence every
+`discoverInterval` milliseconds (5000ms or 5s) by default.
+
+Parameters:
+
+- logfiles (list of strings):
+    A list of logfiles that should be read, must be absolute paths.
+- hostname (string):
+    The hostname to use for the messages, by default this will be the
+    machines qualified hostname. This can be set explicitly to ensure
+    its the correct name in the event the machine has multiple
+    interfaces/hostnames.
+- discoverInterval (int):
+    During logfile rotation, or if the logfile is not originally
+    present on the system, this interval is how often the existence of
+    the logfile will be checked for. The default of 5 seconds is
+    usually fine. This interval is in milliseconds.
+- statInterval (int):
+    How often the file descriptors for each file should be checked to
+    see if new log data has been written. Defaults to 500 milliseconds.
+    This interval is in milliseconds.
+
+
 .. _config_statsd_input:
 
 StatsdInput
