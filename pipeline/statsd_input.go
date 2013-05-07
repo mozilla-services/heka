@@ -42,7 +42,7 @@ var (
 type StatsdInput struct {
 	// Channel for StatPackets, these are fed in by UDP when configured or can
 	// be directly sent in from other Plugins as needed.
-	Packet chan<- StatPacket
+	Packet chan StatPacket
 
 	name             string
 	listener         *net.UDPConn
@@ -82,6 +82,7 @@ func (s *StatsdInput) Init(config interface{}) error {
 	conf := config.(*StatsdInputConfig)
 	s.flushInterval = conf.FlushInterval
 	s.percentThreshold = conf.PercentThreshold
+	s.Packet = make(chan StatPacket, 5000)
 
 	if conf.Address != "" {
 		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
@@ -100,13 +101,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 // StatPackets, and spins up a statsd server listening on a UDP connection if
 // configured to do so.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	packets := make(chan StatPacket, 5000)
-	s.Packet = packets
 	s.stopChan = make(chan bool)
 	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir, h)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go sm.Monitor(packets, &wg, s.stopChan)
+	go sm.Monitor(s.Packet, &wg, s.stopChan)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
