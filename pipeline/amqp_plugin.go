@@ -196,7 +196,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 			false, false, amqpMsg)
 		if err != nil {
-			return
+			break
 		}
 		pack.Recycle()
 	}
