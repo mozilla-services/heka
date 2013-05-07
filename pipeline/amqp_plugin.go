@@ -76,12 +76,22 @@ func NewAMQPConfig() *AMQPConfig {
 	}
 }
 
+type AMQPConnectionTracker struct {
+	conn  *amqp.Connection
+	inuse int
+}
+
+// Basic hub that manages AMQP Connections
 //
+// Since multiple channels should be utilized for a single connection,
+// this hub manages the connections, dispensing channels per broker
+// config.
 type AMQPConnectionHub struct {
-	connections map[string]*amqp.Connection
+	connections map[string]*AMQPConnectionTracker
 	mutex       *sync.Mutex
 }
 
+// The global AMQP Connection Hub
 var amqpHub *AMQPConnectionHub
 
 // Returns a connection for the specified AMQPBroker, if the existing
@@ -90,14 +100,15 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel, err error
 	ah.mutex.Lock()
 	defer ah.mutex.Unlock()
 	var ok bool
+	var trk *AMQPConnectionTracker
 	var conn *amqp.Connection
-	if conn, ok = ah.connections[url]; !ok {
+	if trk, ok = ah.connections[url]; !ok {
 		// Create the connection
 		conn, err = amqp.Dial(url)
 		if err != nil {
 			return
 		}
-		ah.connections[url] = conn
+		ah.connections[url] = &AMQPConnectionTracker{conn, 1}
 
 		// Register our listener to remove this connection if its closed
 		errChan := make(chan *amqp.Error)
@@ -109,8 +120,26 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel, err error
 				delete(ah.connections, url)
 			}
 		}(conn.NotifyClose(errChan))
+	} else {
+		trk.inuse += 1
+		conn = trk.conn
 	}
 	ch, err = conn.Channel()
+	return
+}
+
+// Closes the connection as long as no on else is using it
+func (ah *AMQPConnectionHub) CloseConnection(url string) {
+	ah.mutex.Lock()
+	defer ah.mutex.Unlock()
+	trk, ok := ah.connections[url]
+	if !ok {
+		return
+	}
+	trk.inuse -= 1
+	if trk.inuse == 0 {
+		trk.conn.Close()
+	}
 	return
 }
 
@@ -172,6 +201,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack.Recycle()
 	}
 	err = ao.ch.Close()
+	amqpHub.CloseConnection(ao.config.URL)
 	return
 }
 
@@ -216,7 +246,6 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
-	ticker := time.NewTicker(time.Duration(500) * time.Millisecond)
 	conf := ai.config
 	stream, err := ai.ch.Consume(conf.Queue, "", false, conf.QueueExclusive,
 		false, false, nil)
@@ -237,9 +266,6 @@ readLoop:
 			pack.Message.SetType("amqp")
 			ir.Inject(pack)
 			msg.Ack(false)
-		case <-ticker.C:
-			pack.Recycle()
-			continue
 		}
 	}
 	return
@@ -247,10 +273,11 @@ readLoop:
 
 func (ai *AMQPInput) Stop() {
 	ai.ch.Close()
+	amqpHub.CloseConnection(ai.config.URL)
 }
 
 func init() {
 	amqpHub = new(AMQPConnectionHub)
-	amqpHub.connections = make(map[string]*amqp.Connection)
+	amqpHub.connections = make(map[string]*AMQPConnectionTracker)
 	amqpHub.mutex = new(sync.Mutex)
 }
