@@ -93,6 +93,9 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	for plc := range inChan {
 		pack = plc.Pack
 		captures = plc.Captures
+		if captures == nil {
+			captures = make(map[string]string)
+		}
 
 		// Load existing fields into the set for replacement
 		captures["Logger"] = pack.Message.GetLogger()
