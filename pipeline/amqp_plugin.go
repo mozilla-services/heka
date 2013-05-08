@@ -173,6 +173,11 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 	conf := ao.config
 
+	defer func() {
+		err = ao.ch.Close()
+		amqpHub.CloseConnection(ao.config.URL)
+	}()
+
 	var (
 		pack    *PipelinePack
 		msg     *message.Message
@@ -200,8 +205,10 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 		pack.Recycle()
 	}
-	err = ao.ch.Close()
-	amqpHub.CloseConnection(ao.config.URL)
+	return
+}
+
+func (ao *AMQPOutput) Cleanup() {
 	return
 }
 
