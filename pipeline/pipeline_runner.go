@@ -16,10 +16,13 @@
 package pipeline
 
 import (
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
+	"math/big"
 	"os"
 	"os/signal"
 	"sync"
@@ -130,46 +133,80 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
 
-	globals := Globals()
-
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Only recovers from panics in the main `Run` method
-				// goroutine, but better than nothing.
-				foRunner.LogError(fmt.Errorf("PANIC: %s", r))
-			}
-			wg.Done()
-		}()
-
-		for !globals.Stopping {
-			if foRunner.matcher != nil {
-				foRunner.matcher.Start(foRunner.inChan)
-			}
-
-			// `Run` method only returns if there's an error or we're shutting
-			// down.
-			if filter, ok := foRunner.plugin.(Filter); ok {
-				err = filter.Run(foRunner, h)
-				h.PipelineConfig().RemoveFilterRunner(foRunner.name)
-			} else if output, ok := foRunner.plugin.(Output); ok {
-				err = output.Run(foRunner, h)
-			}
-			if err != nil {
-				foRunner.LogError(err)
-			} else {
-				foRunner.LogMessage("stopped")
-			}
-
-			// We stop and let this quit if its not a restarting plugin
-			if recon, ok := foRunner.plugin.(Restarting); ok {
-				recon.Cleanup()
-			} else {
-				break
-			}
-		}
-	}()
+	go foRunner.Starter(h, wg)
 	return
+}
+
+func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+	var (
+		pluginType string
+		err        error
+	)
+	globals := Globals()
+	defer func() {
+		if r := recover(); r != nil {
+			// Only recovers from panics in the main `Run` method
+			// goroutine, but better than nothing.
+			foRunner.LogError(fmt.Errorf("PANIC: %s", r))
+		}
+		wg.Done()
+	}()
+
+	for !globals.Stopping {
+		if foRunner.matcher != nil {
+			foRunner.matcher.Start(foRunner.inChan)
+		}
+
+		// `Run` method only returns if there's an error or we're shutting
+		// down.
+		if filter, ok := foRunner.plugin.(Filter); ok {
+			pluginType = "filter"
+			err = filter.Run(foRunner, h)
+			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
+		} else if output, ok := foRunner.plugin.(Output); ok {
+			pluginType = "output"
+			err = output.Run(foRunner, h)
+		} else {
+			foRunner.LogError(errors.New(
+				"Unable to assert this is an Output or Filter"))
+			return
+		}
+		if err != nil {
+			foRunner.LogError(err)
+		} else {
+			foRunner.LogMessage("stopped")
+		}
+
+		// Are we supposed to stop? Save ourselves some time by exiting now
+		if globals.Stopping {
+			return
+		}
+
+		// We stop and let this quit if its not a restarting plugin
+		if recon, ok := foRunner.plugin.(Restarting); ok {
+			recon.Cleanup()
+		} else {
+			return
+		}
+
+		// Sleep a random period up to 1 second before retrying
+		val, _ := rand.Int(rand.Reader, big.NewInt(1000))
+		timer := time.NewTimer(time.Duration(val.Int64()))
+		select {
+		case <-timer.C:
+			break
+		}
+
+		// Re-initialize our plugin using its wrapper
+		var pw *PluginWrapper
+		pc := h.PipelineConfig()
+		if pluginType == "filter" {
+			pw = pc.FilterWrappers[foRunner.Name()]
+		} else {
+			pw = pc.OutputWrappers[foRunner.Name()]
+		}
+		foRunner.plugin = pw.Create().(Plugin)
+	}
 }
 
 func (foRunner *foRunner) Deliver(pack *PipelinePack) {
