@@ -18,87 +18,8 @@ package pipeline
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"regexp"
 	"strconv"
-	"time"
 )
-
-// Populated by the init function, this regex matches the MessageFields values
-// to interpolate variables from capture groups or other parts of the existing
-// message.
-var varMatcher *regexp.Regexp
-
-// Common type used to specify a set of values with which to populate a
-// message object. The keys represent message fields, the values can be
-// interpolated w/ capture parts from a message matcher.
-type MessageTemplate map[string]string
-
-// Applies this message template's values to the provided message object,
-// interpolating the provided substitutions into the values in the process.
-func (mt MessageTemplate) PopulateMessage(msg *Message, subs map[string]string,
-	timeFormat string) error {
-
-	var val string
-	for field, rawVal := range mt {
-		if field == "Timestamp" {
-			val, err := ForgivingTimeParse(timeFormat, rawVal)
-			if err != nil {
-				return err
-			}
-			// Did we get a year?
-			if val.Year() == 0 {
-				val = val.AddDate(time.Now().Year(), 0, 0)
-			}
-			msg.SetTimestamp(val.UnixNano())
-			continue
-		}
-
-		val = InterpolateString(rawVal, subs)
-		switch field {
-		case "Logger":
-			msg.SetLogger(val)
-		case "Type":
-			msg.SetType(val)
-		case "Payload":
-			msg.SetPayload(val)
-		case "Hostname":
-			msg.SetHostname(val)
-		case "Pid":
-			pid, err := strconv.ParseInt(val, 10, 32)
-			if err != nil {
-				return err
-			}
-			msg.SetPid(int32(pid))
-		case "Uuid":
-			msg.SetUuid([]byte(val))
-		default:
-			field, err := NewField(field, val, Field_RAW)
-			msg.AddField(field)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Given a regular expression, return the string resulting from interpolating
-// variables that exist in matchParts
-//
-// Example input to a formatRegexp: Reported at %Hostname% by %Reporter%
-// Assuming there are entries in matchParts for 'Hostname' and 'Reporter', the
-// returned string will then be: Reported at Somehost by Jonathon
-func InterpolateString(formatRegexp string, subs map[string]string) (newString string) {
-	return varMatcher.ReplaceAllStringFunc(formatRegexp,
-		func(matchWord string) string {
-			// Remove the preceding and trailing %
-			m := matchWord[1 : len(matchWord)-1]
-			if repl, ok := subs[m]; ok {
-				return repl
-			}
-			return fmt.Sprintf("<%s>", m)
-		})
-}
 
 type LoglineDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
@@ -178,9 +99,4 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
 	return ld.MessageFields.PopulateMessage(pack.Message, captures, ld.TimestampLayout)
-}
-
-// Initialize the varMatcher for use in InterpolateString
-func init() {
-	varMatcher, _ = regexp.Compile("%[A-Za-z]+%")
 }
