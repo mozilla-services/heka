@@ -83,18 +83,33 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
+// Indicates a plug-in can handle being restart should it exit before
+// heka is shut-down.
+type Restarting interface {
+	// Is called anytime the plug-in returns during the main Run loop to
+	// clean up the plug-in state since its Stop (if its an Input) will not
+	// be called.
+	Cleanup()
+}
+
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	// All running InputRunners, by name.
 	InputRunners map[string]InputRunner
+	// PluginWrappers that can create Input plugin objects.
+	InputWrappers map[string]*PluginWrapper
 	// PluginWrappers that can create Decoder plugin objects.
 	DecoderWrappers map[string]*PluginWrapper
 	// All available running DecoderSets
 	DecoderSets []DecoderSet
 	// All running FilterRunners, by name.
 	FilterRunners map[string]FilterRunner
+	// PluginWrappers that can create Filter plugin objects.
+	FilterWrappers map[string]*PluginWrapper
 	// All running OutputRunners, by name.
 	OutputRunners map[string]OutputRunner
+	// PluginWrappers that can create Output plugin objects.
+	OutputWrappers map[string]*PluginWrapper
 	// Heka message router instance.
 	router *messageRouter
 	// PipelinePack supply for Input plugins.
@@ -131,10 +146,13 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 		return globals
 	}
 	config.InputRunners = make(map[string]InputRunner)
+	config.InputWrappers = make(map[string]*PluginWrapper)
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
 	config.DecoderSets = make([]DecoderSet, globals.DecoderPoolSize)
 	config.FilterRunners = make(map[string]FilterRunner)
+	config.FilterWrappers = make(map[string]*PluginWrapper)
 	config.OutputRunners = make(map[string]OutputRunner)
+	config.OutputWrappers = make(map[string]*PluginWrapper)
 	config.router = NewMessageRouter()
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
@@ -434,6 +452,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
 		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		self.InputWrappers[wrapper.name] = wrapper
 		return
 	}
 
@@ -463,11 +482,13 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
+		self.FilterWrappers[runner.name] = wrapper
 	case "Output":
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
 		self.OutputRunners[runner.name] = runner
+		self.OutputWrappers[runner.name] = wrapper
 	}
 
 	return
