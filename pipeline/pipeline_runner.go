@@ -201,11 +201,12 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		var pw *PluginWrapper
 		pc := h.PipelineConfig()
 		if pluginType == "filter" {
-			pw = pc.FilterWrappers[foRunner.Name()]
+			pw = pc.FilterWrappers[foRunner.name]
 		} else {
-			pw = pc.OutputWrappers[foRunner.Name()]
+			pw = pc.OutputWrappers[foRunner.name]
 		}
 		foRunner.plugin = pw.Create().(Plugin)
+		foRunner.LogMessage("exited, now restarting.")
 	}
 }
 
