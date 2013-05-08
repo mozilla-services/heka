@@ -189,14 +189,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
-		// Sleep a random period up to 1 second before retrying
-		val, _ := rand.Int(rand.Reader, big.NewInt(1000))
-		timer := time.NewTimer(time.Duration(val.Int64()))
-		select {
-		case <-timer.C:
-			break
-		}
-
 		// Re-initialize our plugin using its wrapper
 		var pw *PluginWrapper
 		pc := h.PipelineConfig()
@@ -205,7 +197,25 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		} else {
 			pw = pc.OutputWrappers[foRunner.name]
 		}
-		foRunner.plugin = pw.Create().(Plugin)
+		// Attempt to recreate the plugin until it works without error
+		// or until we were told to stop
+	createLoop:
+		for !globals.Stopping {
+			// Sleep a random period up to 1 second before retrying
+			val, _ := rand.Int(rand.Reader, big.NewInt(1000))
+			timer := time.NewTimer(time.Duration(val.Int64()))
+			select {
+			case <-timer.C:
+				break
+			}
+			p, err := pw.CreateWithError()
+			if err != nil {
+				foRunner.LogError(err)
+				continue
+			}
+			foRunner.plugin = p.(Plugin)
+			break createLoop
+		}
 		foRunner.LogMessage("exited, now restarting.")
 	}
 }
