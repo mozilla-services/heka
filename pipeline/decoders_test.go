@@ -19,8 +19,11 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -105,6 +108,55 @@ func DecodersSpec(c gospec.Context) {
 		dRunner.InChan() <- pack // No panic ==> success
 		wg.Wait()
 		Globals().Stopping = false
+	})
+
+	c.Specify("A LoglineDecoder", func() {
+		decoder := new(LoglineDecoder)
+		conf := decoder.ConfigStruct().(*LoglineDecoderConfig)
+		conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>\d\d?\/[A-Z][a-z]+\/\d{4}:\d{2}:\d{2}:\d{2} -?\d*)] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
+		conf.MessageFields = MessageTemplate{
+			"hostname": "%Hostname%",
+			"ip":       "%Ip%",
+			"response": "%Response%",
+		}
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+		filePath := "../testsupport/test.log"
+		fileBytes, err := ioutil.ReadFile(filePath)
+		c.Assume(err, gs.IsNil)
+		fileStr := string(fileBytes)
+		lines := strings.Split(fileStr, "\n")
+
+		containsFieldValue := func(str, fieldName string, msg *message.Message) bool {
+			raw, ok := msg.GetFieldValue(fieldName)
+			if !ok {
+				return false
+			}
+			value := raw.(string)
+			return strings.Contains(str, value)
+		}
+
+		c.Specify("extracts capture data and puts it in the message fields", func() {
+			var misses int
+			for _, line := range lines {
+				if strings.TrimSpace(line) == "" {
+					continue
+				}
+				pack.Message.SetPayload(line)
+				err = decoder.Decode(pack)
+				if err != nil {
+					misses++
+					continue
+				}
+				c.Expect(containsFieldValue(line, "hostname", pack.Message), gs.IsTrue)
+				c.Expect(containsFieldValue(line, "ip", pack.Message), gs.IsTrue)
+				c.Expect(containsFieldValue(line, "response", pack.Message), gs.IsTrue)
+				pack.Zero()
+			}
+			c.Expect(misses, gs.Equals, 3)
+		})
 	})
 }
 
