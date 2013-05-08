@@ -563,8 +563,8 @@ func init() {
 	RegisterPlugin("SandboxFilter", func() interface{} {
 		return new(SandboxFilter)
 	})
-	RegisterPlugin("TransformFilter", func() interface{} {
-		return new(TransformFilter)
+	RegisterPlugin("LoglineDecoder", func() interface{} {
+		return new(LoglineDecoder)
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)

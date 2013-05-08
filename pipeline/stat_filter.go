@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 )
 
 // Simple struct representing a single statsd-style metric value.
@@ -102,6 +103,12 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		captures["Hostname"] = pack.Message.GetHostname()
 		captures["Type"] = pack.Message.GetType()
 		captures["Payload"] = pack.Message.GetPayload()
+
+		for _, field := range pack.Message.Fields {
+			if field.GetValueType() == message.Field_STRING && len(field.ValueString) > 0 {
+				captures[field.GetName()] = field.ValueString[0]
+			}
+		}
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
