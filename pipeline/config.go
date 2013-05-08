@@ -83,6 +83,15 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
+// Indicates a plug-in can handle being restart should it exit before
+// heka is shut-down.
+type Restarting interface {
+	// Is called anytime the plug-in returns during the main Run loop to
+	// clean up the plug-in state since its Stop (if its an Input) will not
+	// be called.
+	Cleanup()
+}
+
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	// All running InputRunners, by name.

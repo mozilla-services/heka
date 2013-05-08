@@ -130,6 +130,8 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
 
+	globals := Globals()
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -140,22 +142,31 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 			wg.Done()
 		}()
 
-		if foRunner.matcher != nil {
-			foRunner.matcher.Start(foRunner.inChan)
-		}
+		for !globals.Stopping {
+			if foRunner.matcher != nil {
+				foRunner.matcher.Start(foRunner.inChan)
+			}
 
-		// `Run` method only returns if there's an error or we're shutting
-		// down.
-		if filter, ok := foRunner.plugin.(Filter); ok {
-			err = filter.Run(foRunner, h)
-			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
-		} else if output, ok := foRunner.plugin.(Output); ok {
-			err = output.Run(foRunner, h)
-		}
-		if err != nil {
-			err = fmt.Errorf("Plugin '%s' error: %s", foRunner.name, err)
-		} else {
-			foRunner.LogMessage("stopped")
+			// `Run` method only returns if there's an error or we're shutting
+			// down.
+			if filter, ok := foRunner.plugin.(Filter); ok {
+				err = filter.Run(foRunner, h)
+				h.PipelineConfig().RemoveFilterRunner(foRunner.name)
+			} else if output, ok := foRunner.plugin.(Output); ok {
+				err = output.Run(foRunner, h)
+			}
+			if err != nil {
+				foRunner.LogError(err)
+			} else {
+				foRunner.LogMessage("stopped")
+			}
+
+			// We stop and let this quit if its not a restarting plugin
+			if recon, ok := foRunner.plugin.(Restarting); ok {
+				recon.Cleanup()
+			} else {
+				break
+			}
 		}
 	}()
 	return
