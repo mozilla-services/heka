@@ -379,6 +379,11 @@ func InputsSpec(c gs.Context) {
 		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
+		dName := "decoder-name"
+		lfInput.decoderNames = []string{dName}
+		mockDecoderRunner := NewMockDecoderRunner(ctrl)
+		mockDecoder := NewMockDecoder(ctrl)
+
 		// Create pool of packs.
 		numLines := 95 // # of lines in the log file we're parsing.
 		packs := make([]*PipelinePack, numLines)
@@ -389,8 +394,18 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a log file", func() {
+			// Expect InputRunner calls to get InChan and inject outgoing msgs
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
+			// Expect calls to get decoder and decode each message. Since the
+			// decoding is a no-op, the message payload will be the log file
+			// line, unchanged.
+			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall.Return(mockDecoderRunner, true)
+			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
+			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
+			decodeCall.Return(nil)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
