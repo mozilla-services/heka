@@ -14,6 +14,8 @@
 #include <lualib.h>
 
 #include "lua_circular_buffer.h"
+const char* heka_circular_buffer = "Heka.circular_buffer";
+const char* heka_circular_buffer_table = "circular_buffer";
 
 #define COLUMN_NAME_SIZE 16
 

@@ -15,7 +15,7 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
-#cgo LDFLAGS: -L @LUA_LIB_PATH@ -llua -lm
+#cgo LDFLAGS: -L@LUA_LIB_PATH@ -llua -lm
 #include <stdlib.h>
 #include "lua_sandbox.h"
 */
