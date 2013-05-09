@@ -135,13 +135,13 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 			pack.Recycle()
 		}
 	}
-	for i, dSet := range pc.DecoderSets {
-		for name, runner := range dSet.AllByName() {
-			pack = getReport(runner)
-			setNameField(pack.Message, fmt.Sprintf("%s-%d", name, i))
-			reportChan <- pack
-		}
+
+	for _, runner := range pc.allDecoders {
+		pack = getReport(runner)
+		setNameField(pack.Message, runner.Name())
+		reportChan <- pack
 	}
+
 	for name, runner := range pc.FilterRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)
