@@ -19,16 +19,19 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"log"
+	"math/big"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Heka PluginRunner for Input plugins.
@@ -77,25 +80,69 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
 	ir.inChan = h.PipelineConfig().inputRecycleChan
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Panics in separate goroutines that are spun up by the input
-				// will still bring the process down, but this protects us at
-				// least a little bit. :P
-				ir.LogError(fmt.Errorf("PANIC: %s", r))
-			}
-			wg.Done()
-		}()
+	go ir.Starter(h, wg)
+	return
+}
 
+func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Panics in separate goroutines that are spun up by the input
+			// will still bring the process down, but this protects us at
+			// least a little bit. :P
+			ir.LogError(fmt.Errorf("PANIC: %s", r))
+		}
+		wg.Done()
+	}()
+
+	globals := Globals()
+
+	for !globals.Stopping {
 		// ir.Input().Run() shouldn't return unless error or shutdown
-		if err = ir.Input().Run(ir, h); err != nil {
-			err = fmt.Errorf("Input '%s' error: %s", ir.name, err)
+		if err := ir.Input().Run(ir, h); err != nil {
+			ir.LogError(err)
+			log.Println("Got error HERE")
 		} else {
 			ir.LogMessage("stopped")
 		}
-	}()
-	return
+
+		// Are we supposed to stop? Save ourselves some time by exiting now
+		if globals.Stopping {
+			return
+		}
+
+		// We stop and let this quit if its not a restarting plugin
+		if recon, ok := ir.plugin.(Restarting); ok {
+			recon.Cleanup()
+		} else {
+			return
+		}
+
+		// Re-initialize our plugin using its wrapper
+		pw := h.PipelineConfig().InputWrappers[ir.name]
+
+		// Attempt to recreate the plugin until it works without error
+		// or until we were told to stop
+	createLoop:
+		for !globals.Stopping {
+			// Sleep a random period up to 1 second before retrying
+			val, _ := rand.Int(rand.Reader, big.NewInt(500))
+			fval := val.Int64() + 500
+			timer := time.NewTimer(time.Duration(fval) * time.Millisecond)
+			select {
+			case <-timer.C:
+				break
+			}
+			p, err := pw.CreateWithError()
+			if err != nil {
+				ir.LogError(err)
+				continue
+			}
+			ir.input = p.(Input)
+			break createLoop
+		}
+		ir.LogMessage("exited, now restarting.")
+	}
 }
 
 func (ir *iRunner) Inject(pack *PipelinePack) {
