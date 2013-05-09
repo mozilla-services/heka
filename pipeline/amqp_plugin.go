@@ -77,8 +77,9 @@ func NewAMQPConfig() *AMQPConfig {
 }
 
 type AMQPConnectionTracker struct {
-	conn   *amqp.Connection
-	connWg *sync.WaitGroup
+	conn    *amqp.Connection
+	usageWg *sync.WaitGroup
+	connWg  *sync.WaitGroup
 }
 
 // Basic hub that manages AMQP Connections
@@ -99,7 +100,7 @@ var amqpHub *AMQPConnectionHub
 // The caller may then wait for the connectionWg to get notified when the
 // connection has been torn down.
 func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
-	connectionWg *sync.WaitGroup, err error) {
+	usageWg, connectionWg *sync.WaitGroup, err error) {
 	ah.mutex.Lock()
 	defer ah.mutex.Unlock()
 
@@ -116,7 +117,8 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
 		}
 		connectionWg = new(sync.WaitGroup)
 		connectionWg.Add(1)
-		ah.connections[url] = &AMQPConnectionTracker{conn, connectionWg}
+		usageWg = new(sync.WaitGroup)
+		ah.connections[url] = &AMQPConnectionTracker{conn, usageWg, connectionWg}
 
 		// Register our listener to remove this connection if its closed
 		// after all the channels using it have been closed
@@ -125,6 +127,7 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
 			select {
 			case <-c:
 				ah.mutex.Lock()
+				usageWg.Wait()
 				defer func() {
 					ah.mutex.Unlock()
 					connectionWg.Done()
@@ -135,8 +138,12 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
 	} else {
 		conn = trk.conn
 		connectionWg = trk.connWg
+		usageWg = trk.usageWg
 	}
 	ch, err = conn.Channel()
+	if err == nil {
+		usageWg.Add(1)
+	}
 	return
 }
 
@@ -165,6 +172,7 @@ type AMQPOutput struct {
 	// closeChan gets sent an error should the channel close so that
 	// we can immediately exit the output
 	closeChan chan *amqp.Error
+	usageWg   *sync.WaitGroup
 	// connWg tracks whether the connection is no longer in use
 	// and is used as a barrier to ensure all users of the connection
 	// are done before we finish
@@ -178,17 +186,19 @@ func (ao *AMQPOutput) ConfigStruct() interface{} {
 func (ao *AMQPOutput) Init(config interface{}) (err error) {
 	conf := config.(*AMQPConfig)
 	ao.config = conf
-	ch, connectionWg, err := amqpHub.GetChannel(conf.URL)
+	ch, usageWg, connectionWg, err := amqpHub.GetChannel(conf.URL)
 	if err != nil {
 		return
 	}
 	ao.connWg = connectionWg
+	ao.usageWg = usageWg
 	closeChan := make(chan *amqp.Error)
 	ao.closeChan = ch.NotifyClose(closeChan)
 	err = ch.ExchangeDeclare(conf.Exchange, conf.ExchangeType,
 		conf.ExchangeDurability, conf.ExchangeAutoDelete, false, false,
 		nil)
 	if err != nil {
+		usageWg.Done()
 		return
 	}
 	ao.ch = ch
@@ -237,20 +247,23 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			}
 		}
 	}
+	ao.usageWg.Done()
 	amqpHub.Close(conf.URL, ao.connWg)
 	ao.connWg.Wait()
 	return
 }
 
 func (ao *AMQPOutput) Cleanup() {
+	amqpHub.Close(ao.config.URL, ao.connWg)
 	ao.connWg.Wait()
 	return
 }
 
 type AMQPInput struct {
-	config *AMQPConfig
-	ch     *amqp.Channel
-	connWg *sync.WaitGroup
+	config  *AMQPConfig
+	ch      *amqp.Channel
+	usageWg *sync.WaitGroup
+	connWg  *sync.WaitGroup
 }
 
 func (ai *AMQPInput) ConfigStruct() interface{} {
@@ -260,11 +273,17 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 func (ai *AMQPInput) Init(config interface{}) (err error) {
 	conf := config.(*AMQPConfig)
 	ai.config = conf
-	ch, connWg, err := amqpHub.GetChannel(conf.URL)
+	ch, usageWg, connWg, err := amqpHub.GetChannel(conf.URL)
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			usageWg.Done()
+		}
+	}()
 	ai.connWg = connWg
+	ai.usageWg = usageWg
 	err = ch.ExchangeDeclare(conf.Exchange, conf.ExchangeType,
 		conf.ExchangeDurability, conf.ExchangeAutoDelete, false, false,
 		nil)
@@ -290,6 +309,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var pack *PipelinePack
+	defer ai.usageWg.Done()
 	conf := ai.config
 	stream, err := ai.ch.Consume(conf.Queue, "", false, conf.QueueExclusive,
 		false, false, nil)
@@ -302,7 +322,6 @@ readLoop:
 		select {
 		case msg, ok := <-stream:
 			if !ok {
-				ir.Inject(pack)
 				break readLoop
 			}
 			pack.Decoded = true
@@ -322,6 +341,7 @@ func (ai *AMQPInput) Cleanup() {
 }
 
 func (ai *AMQPInput) Stop() {
+	ai.ch.Close()
 	amqpHub.Close(ai.config.URL, ai.connWg)
 	ai.connWg.Wait()
 }
