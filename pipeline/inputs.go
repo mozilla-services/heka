@@ -70,7 +70,7 @@ func NewInputRunner(name string, input Input) (
 }
 
 func (ir *iRunner) Input() Input {
-	return ir.input
+	return ir.plugin.(Input)
 }
 
 func (ir *iRunner) InChan() chan *PipelinePack {
@@ -138,7 +138,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 				ir.LogError(err)
 				continue
 			}
-			ir.input = p.(Input)
+			ir.plugin = p.(Plugin)
 			break createLoop
 		}
 		ir.LogMessage("exited, now restarting.")
