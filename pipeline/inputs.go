@@ -127,7 +127,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		for !globals.Stopping {
 			// Sleep a random period up to 1 second before retrying
 			val, _ := rand.Int(rand.Reader, big.NewInt(500))
-			fval := val.Int64() + 500
+			fval := val.Int64() + 1000
 			timer := time.NewTimer(time.Duration(fval) * time.Millisecond)
 			select {
 			case <-timer.C:
