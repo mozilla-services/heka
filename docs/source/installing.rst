@@ -16,8 +16,8 @@ RPM based distributions.
 
 .. _from_source:
 
-From Source
-===========
+From Source (*nix)
+==================
 
 `hekad` requires a Go work environment to be setup for the binary to be
 built. This task has been automated in the `heka build`_ repository. To
@@ -62,6 +62,38 @@ You will now have a `hekad` binary in the `heka-build/bin` directory.
     Building hekad requires a specific Go tip version that has been
     verified to work. This will be checked out and built in the
     `heka-build` directory.
+
+From Source (Windows)
+=====================
+
+Prerequisites (manual setup):
+
+- Go 1.1 http://code.google.com/p/go/downloads/list
+- Cmake 2.8+ http://www.cmake.org/cmake/resources/software.html
+- Git http://code.google.com/p/msysgit/downloads/list
+- Mercurial http://mercurial.selenic.com/downloads/
+- MinGW http://sourceforge.net/projects/tdm-gcc/
+
+1. From a Git shell check out the `heka build`_ repository:
+
+    .. code-block:: bash
+
+        git clone https://github.com/mozilla-services/heka-build.git
+
+2. From a MinGW shell run `build.bat` in the heka-build directory:
+
+    .. code-block:: bash
+
+        cd heka-build
+        build
+
+3. (Optional) Run the tests to ensure a functioning `hekad`:
+
+    .. code-block:: bash
+
+        mingw32-make test
+
+You will now have a `hekad` binary in the `release/heka-0_2_0_w(32|64)/bin` directory.
 
 .. _build_include_externals:
 
