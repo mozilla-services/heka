@@ -47,7 +47,7 @@ type GlobalConfigStruct struct {
 func DefaultGlobals() (globals *GlobalConfigStruct) {
 	return &GlobalConfigStruct{
 		PoolSize:        100,
-		DecoderPoolSize: 4,
+		DecoderPoolSize: 2,
 		PluginChanSize:  50,
 		MaxMsgLoops:     4,
 	}
@@ -368,6 +368,10 @@ func Run(config *PipelineConfig) {
 	inputsWg.Wait()
 
 	log.Println("Waiting for decoders shutdown")
+	for _, decoder := range config.allDecoders {
+		close(decoder.InChan())
+		log.Printf("Stop message sent to decoder '%s'", decoder.Name())
+	}
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
