@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	VERSION = "0.2.0b2"
+	VERSION = "0.3.0"
 )
 
 func main() {
