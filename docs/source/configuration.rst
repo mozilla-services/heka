@@ -45,6 +45,15 @@ examples, will be passed through to the plugin for internal configuration (see
 A JsonDecoder and ProtobufDecoder will be automatically setup if not specified
 explicitly in the configuration file.
 
+If a plugin fails to load during startup, hekad will exit at startup.
+When hekad is running, if a plugin should fail (due to connection loss,
+inability to write a file, etc.) then hekad will either shut down or
+restart the plugin if the plugin supports restarting. When a plugin is
+restarting, hekad will likely stop accepting messages until the plugin
+resumes operation (this applies only to filters/output plugins).
+
+Plugins that support restarting behavior will note that.
+
 .. end-hekad-config
 
 Example hekad.toml File
