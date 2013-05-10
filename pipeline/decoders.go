@@ -20,7 +20,6 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"log"
 	"regexp"
 	"strconv"
@@ -33,74 +32,64 @@ type DecoderSet interface {
 	// Returns running DecoderRunner registered under the specified name, or
 	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
-	// Returns running DecoderRunner registered for the specified Heka
-	// protocol encoding header.
-	ByEncoding(enc message.Header_MessageEncoding) (decoder DecoderRunner, ok bool)
-	// Returns the full set of running DecoderRunners, indexed by names under
-	// which the were registered.
-	AllByName() (decoders map[string]DecoderRunner)
+	// Returns slice of running DecoderRunners, indexed by the Heka protocol
+	// encoding headers for which they're registered. Only returns the
+	// decoders that have been registered for a specific header.
+	ByEncodings() (decoders []DecoderRunner, err error)
 }
 
 type decoderSet struct {
-	byName     map[string]DecoderRunner
-	byEncoding []DecoderRunner
+	chansByName map[string]chan DecoderRunner
+	byName      map[string]DecoderRunner
+	byEncoding  []DecoderRunner
 }
 
-func newDecoderSet(wrappers map[string]*PluginWrapper) (ds *decoderSet, err error) {
-	length := int32(topHeaderMessageEncoding) + 1
+// Creates and returns a decoderSet that exposes an API to access the
+// DecoderRunners in the provided channels. Expects that the channels are
+// fully populated with all available DecoderRunners before being passed to
+// this function.
+func newDecoderSet(decoderChans map[string]chan DecoderRunner) (ds *decoderSet, err error) {
 	ds = &decoderSet{
-		byName:     make(map[string]DecoderRunner),
-		byEncoding: make([]DecoderRunner, length),
-	}
-	var (
-		d       Decoder
-		dInt    interface{}
-		dRunner DecoderRunner
-		enc     message.Header_MessageEncoding
-		name    string
-		w       *PluginWrapper
-		ok      bool
-	)
-	for name, w = range wrappers {
-		if dInt, err = w.CreateWithError(); err != nil {
-			return nil, fmt.Errorf("Failed creating decoder %s: %s", name, err)
-		}
-		if d, ok = dInt.(Decoder); !ok {
-			return nil, fmt.Errorf("Not Decoder type: %s", name)
-		}
-		dRunner = NewDecoderRunner(name, d)
-		ds.byName[name] = dRunner
-	}
-	for enc, name = range DecodersByEncoding {
-		if dRunner, ok = ds.byName[name]; !ok {
-			return nil, fmt.Errorf("Encoding registered decoder doesn't exist: %s",
-				name)
-		}
-		ds.byEncoding[enc] = dRunner
+		chansByName: decoderChans,
+		byName:      make(map[string]DecoderRunner),
 	}
 	return
 }
 
 func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
-	decoder, ok = ds.byName[name]
-	return
-}
-
-func (ds *decoderSet) ByEncoding(enc message.Header_MessageEncoding) (
-	decoder DecoderRunner, ok bool) {
-
-	iEnc := int(enc)
-	if !(iEnc >= 0 && iEnc < len(ds.byEncoding)) {
+	if decoder, ok = ds.byName[name]; ok {
+		// We've already got it, return it.
 		return
 	}
-	if decoder = ds.byEncoding[enc]; decoder != nil {
-		ok = true
+	var dChan chan DecoderRunner
+	if dChan, ok = ds.chansByName[name]; ok {
+		decoder = <-dChan
+		dChan <- decoder
+		ds.byName[name] = decoder
 	}
 	return
 }
 
-func (ds *decoderSet) AllByName() (decoders map[string]DecoderRunner) {
-	return ds.byName
+func (ds *decoderSet) ByEncodings() (decoders []DecoderRunner, err error) {
+	if ds.byEncoding != nil {
+		return ds.byEncoding, nil
+	}
+	var (
+		dRunner DecoderRunner
+		ok      bool
+	)
+	length := int32(topHeaderMessageEncoding) + 1
+	decoders = make([]DecoderRunner, length)
+	for enc, name := range DecodersByEncoding {
+		if dRunner, ok = ds.ByName(name); !ok {
+			err = fmt.Errorf("Decoder '%s' registered for encoding '%s' not configured",
+				name, enc.String())
+			return
+		}
+		decoders[enc] = dRunner
+	}
+	ds.byEncoding = decoders
+	return
 }
 
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,

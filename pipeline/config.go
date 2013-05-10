@@ -89,8 +89,6 @@ type PipelineConfig struct {
 	InputRunners map[string]InputRunner
 	// PluginWrappers that can create Decoder plugin objects.
 	DecoderWrappers map[string]*PluginWrapper
-	// All available running DecoderSets
-	DecoderSets []DecoderSet
 	// All running FilterRunners, by name.
 	FilterRunners map[string]FilterRunner
 	// All running OutputRunners, by name.
@@ -111,8 +109,10 @@ type PipelineConfig struct {
 	filtersWg sync.WaitGroup
 	// Is freed when all DecoderRunners have stopped.
 	decodersWg sync.WaitGroup
-	// Channel providing round-robin access to the initialized DecoderSets.
-	decodersChan chan DecoderSet
+	// Channels from which running DecoderRunners can be fetched.
+	decoderChannels map[string]chan DecoderRunner
+	// Slice providing access to all running DecoderRunners.
+	allDecoders []DecoderRunner
 	// Name of host on which Heka is running.
 	hostname string
 	// Heka process id.
@@ -132,14 +132,14 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	}
 	config.InputRunners = make(map[string]InputRunner)
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
-	config.DecoderSets = make([]DecoderSet, globals.DecoderPoolSize)
 	config.FilterRunners = make(map[string]FilterRunner)
 	config.OutputRunners = make(map[string]OutputRunner)
 	config.router = NewMessageRouter()
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.logMsgs = make([]string, 0, 4)
-	config.decodersChan = make(chan DecoderSet, globals.DecoderPoolSize)
+	config.decoderChannels = make(map[string]chan DecoderRunner)
+	config.allDecoders = make([]DecoderRunner, 0, 10)
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
 
@@ -175,12 +175,10 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 	return self
 }
 
-// Returns a running DecoderSet instance, round-robin cycling through all
-// created DecoderSets.
+// Returns a DecoderSet which exposes an API for accessing running decoders.
 func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
-	ch := <-self.decodersChan
-	self.decodersChan <- ch
-	return ch
+	ds, _ = newDecoderSet(self.decoderChannels)
+	return
 }
 
 // Returns a FilterRunner with the given name, or nil and ok == false if no
@@ -235,6 +233,7 @@ type PluginGlobals struct {
 	Encoding string `toml:"encoding_name"`
 	Matcher  string `toml:"message_matcher"`
 	Signer   string `toml:"message_signer"`
+	PoolSize uint   `toml:"pool_size"`
 }
 
 // Default Decoders configuration.
@@ -344,10 +343,10 @@ func (self *PipelineConfig) log(msg string) {
 }
 
 // loadSection must be passed a plugin name and the config for that plugin. It
-// will create a PluginWrapper (i.e. a factory). For decoders the
-// PluginWrappers are stored and used later to create the DecoderSet pool. For
-// the other plugin types, we create the plugin, configure it, then create the
-// appropriate plugin runner.
+// will create a PluginWrapper (i.e. a factory). For decoders we store the
+// PluginWrappers and create pools of DecoderRunners for each type, stored in
+// our decoder channels. For the other plugin types, we create the plugin,
+// configure it, then create the appropriate plugin runner.
 func (self *PipelineConfig) loadSection(sectionName string,
 	configSection toml.Primitive) (errcnt uint) {
 	var ok bool
@@ -428,6 +427,29 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			}
 		}
 		self.DecoderWrappers[wrapper.name] = wrapper
+
+		if pluginGlobals.PoolSize == 0 {
+			pluginGlobals.PoolSize = uint(Globals().DecoderPoolSize)
+		}
+		// Creates/starts a DecoderRunner wrapped around the decoder and puts
+		// it on the channel.
+		makeDRunner := func(name string, decoder Decoder, dChan chan DecoderRunner) {
+			dRunner := NewDecoderRunner(name, decoder)
+			self.decodersWg.Add(1)
+			dRunner.Start(self, &self.decodersWg)
+			self.allDecoders = append(self.allDecoders, dRunner)
+			dChan <- dRunner
+		}
+		// First use the decoder we've already created.
+		decoderChan := make(chan DecoderRunner, pluginGlobals.PoolSize)
+		makeDRunner(fmt.Sprintf("%s-0", wrapper.name), plugin.(Decoder), decoderChan)
+		// Then create any add'l ones as needed to get to the specified pool
+		// size.
+		for i := 1; i < int(pluginGlobals.PoolSize); i++ {
+			decoder := wrapper.Create().(Decoder)
+			makeDRunner(fmt.Sprintf("%s-%d", wrapper.name, i), decoder, decoderChan)
+		}
+		self.decoderChannels[wrapper.name] = decoderChan
 		return
 	}
 
@@ -504,19 +526,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
 		log.Println("Loading: ProtobufDecoder")
 		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
-	}
-
-	// Create / prep the DecoderSet pool
-	var dRunner DecoderRunner
-	for i := 0; i < Globals().DecoderPoolSize; i++ {
-		if self.DecoderSets[i], err = newDecoderSet(dWrappers); err != nil {
-			log.Println(err)
-			errcnt += 1
-		}
-		for _, dRunner = range self.DecoderSets[i].AllByName() {
-			dRunner.Start(self, &self.decodersWg)
-		}
-		self.decodersChan <- self.DecoderSets[i]
 	}
 
 	if errcnt != 0 {

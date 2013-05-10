@@ -41,22 +41,24 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the decoders are loaded for the right encoding headers
-			dSet := pipeConfig.DecoderSets[0]
-			dRunner, ok := dSet.ByEncoding(message.Header_JSON)
+			dSet := pipeConfig.DecoderSet()
+			byEncodings, err := dSet.ByEncodings()
+			c.Assume(err, gs.IsNil)
+			dRunner := byEncodings[message.Header_JSON]
 			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(ok, gs.IsTrue)
-			c.Expect(dRunner.Name(), gs.Equals, "JsonDecoder")
+			c.Expect(dRunner.Name(), gs.Equals, "JsonDecoder-0")
 
-			dRunner, ok = dSet.ByEncoding(message.Header_PROTOCOL_BUFFER)
+			dRunner = byEncodings[message.Header_PROTOCOL_BUFFER]
 			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(ok, gs.IsTrue)
-			c.Expect(dRunner.Name(), gs.Equals, "ProtobufDecoder")
+			c.Expect(dRunner.Name(), gs.Equals, "ProtobufDecoder-0")
 
-			// decoders channel is full
-			c.Expect(len(pipeConfig.decodersChan), gs.Equals, Globals().DecoderPoolSize)
+			// decoder channels are full
+			for _, dChan := range pipeConfig.decoderChannels {
+				c.Expect(len(dChan), gs.Equals, Globals().DecoderPoolSize)
+			}
 
 			// and the inputs section loads properly with a custom name
-			_, ok = pipeConfig.InputRunners["UdpInput"]
+			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load

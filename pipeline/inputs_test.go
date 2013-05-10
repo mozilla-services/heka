@@ -121,10 +121,10 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
+		encCall.Return(ith.Decoders, nil)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			encCall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_JSON)
-			encCall.Return(mockDecoderRunner, true)
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
 			readCall.Return(buflen, nil)
@@ -140,8 +140,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a MD5 signed message from its connection", func() {
-			encCall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_JSON)
-			encCall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_MD5)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))
@@ -217,10 +215,10 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+		enccall := ith.MockDecoderSet.EXPECT().ByEncodings()
+		enccall.Return(ith.Decoders, nil)
 
 		c.Specify("reads a message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
 			readCall.Return(buflen, err)
@@ -235,8 +233,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a MD5 signed message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_MD5)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))
@@ -268,8 +264,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a SHA1 signed message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_SHA1)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))

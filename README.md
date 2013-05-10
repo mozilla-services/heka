@@ -1,4 +1,6 @@
-Heka - Data Acquisition and Processing Made Easy
+# Heka
+
+Data Acquisition and Processing Made Easy
 
 Heka is a tool for collecting and collating data from a number of different
 sources, performing "in-flight" processing of collected data, and delivering
