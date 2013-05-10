@@ -11,8 +11,8 @@
 #include <lua.h>
 #include "lua_sandbox_private.h"
 
-static const char* heka_circular_buffer = "Heka.circular_buffer";
-static const char* heka_circular_buffer_table = "circular_buffer";
+extern const char* heka_circular_buffer;
+extern const char* heka_circular_buffer_table;
 typedef struct circular_buffer circular_buffer;
 
 /**
