@@ -44,6 +44,7 @@ type GlobalConfigStruct struct {
 	PluginChanSize  int
 	MaxMsgLoops     uint
 	Stopping        bool
+	sigChan         chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -54,6 +55,17 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		PluginChanSize:  50,
 		MaxMsgLoops:     4,
 	}
+}
+
+// Initiates a shutdown of heka
+//
+// This method returns immediately by spawning a goroutine to do to
+// work so that the caller won't end up blocking part of the shutdown
+// sequence
+func (g *GlobalConfigStruct) ShutDown() {
+	go func() {
+		g.sigChan <- syscall.SIGINT
+	}()
 }
 
 // Returns global pipeline config values. This function is overwritten by the
@@ -186,6 +198,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		if recon, ok := foRunner.plugin.(Restarting); ok {
 			recon.Cleanup()
 		} else {
+			globals.ShutDown()
 			return
 		}
 
@@ -353,6 +366,10 @@ func Run(config *PipelineConfig) {
 	var outputsWg sync.WaitGroup
 	var err error
 
+	globals := Globals()
+	sigChan := make(chan os.Signal)
+	globals.sigChan = sigChan
+
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
 		if err = output.Start(config, &outputsWg); err != nil {
@@ -392,10 +409,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	globals := Globals()
 	for !globals.Stopping {
 		select {
 		case sig := <-sigChan:
