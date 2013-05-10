@@ -194,6 +194,11 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
+		// If its a lua sandbox, we let it shut down
+		if _, ok := foRunner.plugin.(SandboxFilter); ok {
+			return
+		}
+
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := foRunner.plugin.(Restarting); ok {
 			recon.Cleanup()
