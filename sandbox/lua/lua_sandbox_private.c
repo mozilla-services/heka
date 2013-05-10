@@ -24,7 +24,7 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
     lua_pushstring(lua, table);
     lua_call(lua, 1, 0);
 
-    if (strnlen(table, 1) == 0) { // Handle the special "" base table.
+    if (strlen(table) == 0) { // Handle the special "" base table.
         for (int i = 0; disable[i] != NULL; ++i) {
             lua_pushnil(lua);
             lua_setfield(lua, LUA_GLOBALSINDEX, disable[i]);
