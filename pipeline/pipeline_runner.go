@@ -174,7 +174,12 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
 		return false
 	}
-	foRunner.h.PipelineConfig().router.InChan() <- pack
+	// Do the actual injection in a separate goroutine so we free up the
+	// caller; this prevents deadlocks when the caller's InChan is backed up,
+	// backing up the router, which would block us here.
+	go func() {
+		foRunner.h.PipelineConfig().router.InChan() <- pack
+	}()
 	return true
 }
 
