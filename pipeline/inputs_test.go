@@ -367,7 +367,7 @@ func InputsSpec(c gs.Context) {
 	c.Specify("A LogFileInput", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFiles = []string{"../testsupport/test.log"}
+		lfiConfig.LogFiles = []string{"../testsupport/test-zeus.log"}
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
 		err := lfInput.Init(lfiConfig)

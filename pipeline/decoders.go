@@ -20,6 +20,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"regexp"
 	"strconv"
@@ -147,6 +148,9 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 			}
 		}()
 
+		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
+			wanter.SetDecoderRunner(dr)
+		}
 		var err error
 		for pack = range dr.inChan {
 			if err = dr.Decoder().Decode(pack); err != nil {
@@ -176,6 +180,12 @@ func (dr *dRunner) LogError(err error) {
 
 func (dr *dRunner) LogMessage(msg string) {
 	log.Printf("Decoder '%s': %s", dr.name, msg)
+}
+
+// Any decoder that needs access to its DecoderRunner  can implement this
+// interface and it will be provided at DecoderRunner start time.
+type WantsDecoderRunner interface {
+	SetDecoderRunner(dr DecoderRunner)
 }
 
 // Heka Decoder plugin interface.

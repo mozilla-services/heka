@@ -41,6 +41,7 @@ type LoglineDecoder struct {
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
+	dRunner         DecoderRunner
 }
 
 func (ld *LoglineDecoder) ConfigStruct() interface{} {
@@ -71,6 +72,11 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	return
 }
 
+// Heka will call this to give us access to the runner.
+func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
+	ld.dRunner = dr
+}
+
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
@@ -82,17 +88,18 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 
 	// Was a severity string captured?
-	if severityString, ok := captures["Severity"]; ok {
+	if sevStr, ok := captures["Severity"]; ok {
 		// If so, see if we have a mapping for this severity.
-		if sevInt, ok := ld.SeverityMap[severityString]; ok {
+		if sevInt, ok := ld.SeverityMap[sevStr]; ok {
 			pack.Message.SetSeverity(sevInt)
 		} else {
 			// No mapping => severity value should be an int.
-			sevInt, err := strconv.ParseInt(severityString, 10, 32)
+			sevInt, err := strconv.ParseInt(sevStr, 10, 32)
 			if err != nil {
-				return fmt.Errorf("Can't parse `Severity`")
+				ld.dRunner.LogError(fmt.Errorf("Don't recognize severity: '%s'", sevStr))
+			} else {
+				pack.Message.SetSeverity(int32(sevInt))
 			}
-			pack.Message.SetSeverity(int32(sevInt))
 		}
 	}
 
