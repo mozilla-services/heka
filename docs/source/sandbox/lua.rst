@@ -77,7 +77,10 @@ Heka functions that are exposed to the Lua sandbox
     Creates a new Heka message using the contents of the output payload buffer
     and then clears the buffer. Two pieces of optional metadata are allowed and
     included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
-    Fields[payload_name] == 'Android Usage Statistics'.
+    Fields[payload_name] == 'Android Usage Statistics'.  The number of messages
+    that may be injected by the process_message or timer_event functions are 
+    globally controlled by the hekad :ref:`hekad_command_line_options`; if
+    these values are exceeded the sandbox will be terminated.
 
     *Arguments*
         - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
