@@ -148,23 +148,29 @@ In the event that your plugin fails to initialize properly at startup,
 hekad will exit. However, once hekad is running, if a plugin should
 fail (perhaps because a network connection dropped, a file became
 unavailable, etc), then hekad will shutdown. This shutdown can be
-avoided if your plugin supports being restarted.
+avoided if your plugin supports being restarted or would prefer hekad
+to continue running even though the plugin has stopped.
 
-To add restart support to your plugin, the `Restarting` interace
+To add restart support to your plugin, the `Restarting` interface
 defined in the `config.go
 <https://github.com/mozilla-services/heka/blob/master/pipeline/config.go>`_
 file::
 
     type Restarting interface {
-        Cleanup()
+        RestartCheck() (restart bool)
     }
 
 A plugin that implements this interface will not trigger shutdown
-should it fail while hekad is running. The `Cleanup` method will be
-called when the plugins' main run method exits, a single time. Then the
-runner will repeatedly call the plugins Init method until it
-initializes successfully. It will then resume running it unless it
-exits again at which point the restart process will begin anew.
+should it fail while hekad is running. The `RestartCheck` method will
+be called every time the plugins' main run method exits. If it returns
+`true` than the plugin will be restarted, otherwise it will be allowed
+to shutdown while hekad remains running. Any cleanup that needs to be
+performed should be done in this method.
+
+If the plugin should be restarted, the runner will repeatedly call the
+plugins `Init` method until it initializes successfully. It will then
+resume running it unless it exits again at which point the restart
+process will begin anew.
 
 .. _custom_plugin_config:
 
