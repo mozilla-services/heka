@@ -52,6 +52,31 @@ func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	panic("PANICOUTPUT")
 }
 
+type StoppingOutput struct {
+	times int
+}
+
+func (s *StoppingOutput) Init(config interface{}) (err error) {
+	return
+}
+
+func (s *StoppingOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	return
+}
+
+func (s *StoppingOutput) RestartCheck() (restart bool) {
+	if s.times > 0 {
+		return true
+	} else {
+		s.times += 1
+		return false
+	}
+}
+
+func (s *StoppingOutput) Stop() {
+	return
+}
+
 func OutputsSpec(c gs.Context) {
 	t := new(ts.SimpleT)
 	ctrl := gomock.NewController(t)
@@ -307,4 +332,15 @@ func OutputsSpec(c gs.Context) {
 		oRunner.Start(oth.MockHelper, &wg) // no panic => success
 		wg.Wait()
 	})
+
+	c.Specify("Runner restarts a plugin on the first time only", func() {
+		output := new(StoppingOutput)
+		oRunner := NewFORunner("stopping", output)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		oRunner.Start(oth.MockHelper, &wg) // no panic => success
+		wg.Wait()
+		c.Expect(output.times, gs.Equals, 1)
+	})
+
 }

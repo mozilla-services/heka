@@ -101,7 +101,6 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		// ir.Input().Run() shouldn't return unless error or shutdown
 		if err := ir.Input().Run(ir, h); err != nil {
 			ir.LogError(err)
-			log.Println("Got error HERE")
 		} else {
 			ir.LogMessage("stopped")
 		}
@@ -113,7 +112,10 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := ir.plugin.(Restarting); ok {
-			recon.Cleanup()
+			if !recon.RestartCheck() {
+				ir.LogMessage("has stopped, and indicated hekad should continue")
+				return
+			}
 		} else {
 			globals.ShutDown()
 			return

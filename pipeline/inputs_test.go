@@ -60,6 +60,31 @@ func (p *PanicInput) Stop() {
 	panic("PANICINPUT")
 }
 
+type StoppingInput struct {
+	times int
+}
+
+func (s *StoppingInput) Init(config interface{}) (err error) {
+	return
+}
+
+func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	return
+}
+
+func (s *StoppingInput) RestartCheck() (restart bool) {
+	if s.times > 0 {
+		return true
+	} else {
+		s.times += 1
+		return false
+	}
+}
+
+func (s *StoppingInput) Stop() {
+	return
+}
+
 func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	return func(msgBytes []byte) {
 		msgBytes[0] = message.RECORD_SEPARATOR
@@ -357,6 +382,18 @@ func InputsSpec(c gs.Context) {
 				c.Expect(t, gs.IsTrue)
 			}
 		})
+	})
+
+	c.Specify("Runner restarts a plugin on the first time only", func() {
+		input := new(StoppingInput)
+		iRunner := NewInputRunner("stopping", input)
+		var wg sync.WaitGroup
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
+		cfgCall.Return(config)
+		wg.Add(1)
+		iRunner.Start(ith.MockHelper, &wg)
+		wg.Wait()
+		c.Expect(input.times, gs.Equals, 1)
 	})
 
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {

@@ -201,7 +201,10 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := foRunner.plugin.(Restarting); ok {
-			recon.Cleanup()
+			if !recon.RestartCheck() {
+				foRunner.LogMessage("has stopped, and indicated hekad should continue")
+				return
+			}
 		} else {
 			globals.ShutDown()
 			return
