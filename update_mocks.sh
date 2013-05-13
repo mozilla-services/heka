@@ -37,6 +37,12 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline InputRunner
 
+# pipeline.FilterRunner
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_filterrunner_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline FilterRunner
+
 # pipeline.OutputRunner
 $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_outputrunner_test.go \
