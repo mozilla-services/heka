@@ -36,20 +36,24 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
-	PoolSize        int
-	DecoderPoolSize int
-	PluginChanSize  int
-	MaxMsgLoops     uint
-	Stopping        bool
+	PoolSize            int
+	DecoderPoolSize     int
+	PluginChanSize      int
+	MaxMsgLoops         uint
+	MaxMsgProcessInject uint
+	MaxMsgTimerInject   uint
+	Stopping            bool
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
 	return &GlobalConfigStruct{
-		PoolSize:        100,
-		DecoderPoolSize: 2,
-		PluginChanSize:  50,
-		MaxMsgLoops:     4,
+		PoolSize:            100,
+		DecoderPoolSize:     2,
+		PluginChanSize:      50,
+		MaxMsgLoops:         4,
+		MaxMsgProcessInject: 1,
+		MaxMsgTimerInject:   10,
 	}
 }
 
@@ -287,7 +291,7 @@ func (p *PipelinePack) Recycle() {
 // PipelinePack pools, and starts all the runners. Then it listens for signals
 // and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
-        SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
+	SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
