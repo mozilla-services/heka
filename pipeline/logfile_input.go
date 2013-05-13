@@ -35,6 +35,8 @@ type LogfileInputConfig struct {
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
 	StatInterval int
+	// Names of configured `LoglineDecoder` instances.
+	Decoders []string
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -43,9 +45,10 @@ type LogfileInputConfig struct {
 // matching Filter or Output plugins.
 type LogfileInput struct {
 	// Encapsulates actual file finding / listening / reading mechanics.
-	Monitor  *FileMonitor
-	hostname string
-	stopped  bool
+	Monitor      *FileMonitor
+	hostname     string
+	stopped      bool
+	decoderNames []string
 }
 
 // Represents a single line from a log file.
@@ -78,12 +81,27 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		conf.StatInterval); err != nil {
 		return err
 	}
+	lw.decoderNames = conf.Decoders
 	return nil
 }
 
 func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var pack *PipelinePack
+	var (
+		pack    *PipelinePack
+		dRunner DecoderRunner
+		e       error
+		ok      bool
+	)
 	packSupply := ir.InChan()
+
+	dSet := h.DecoderSet()
+	decoders := make([]Decoder, len(lw.decoderNames))
+	for i, name := range lw.decoderNames {
+		if dRunner, ok = dSet.ByName(name); !ok {
+			return fmt.Errorf("Decoder not found: %s", name)
+		}
+		decoders[i] = dRunner.Decoder()
+	}
 
 	for logline := range lw.Monitor.NewLines {
 		pack = <-packSupply
@@ -91,8 +109,17 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetLogger(logline.Path)
 		pack.Message.SetHostname(lw.hostname)
-		pack.Decoded = true
-		ir.Inject(pack)
+		for _, decoder := range decoders {
+			if e = decoder.Decode(pack); e == nil {
+				break
+			}
+		}
+		if e == nil {
+			ir.Inject(pack)
+		} else {
+			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", logline))
+			pack.Recycle()
+		}
 	}
 	return
 }
