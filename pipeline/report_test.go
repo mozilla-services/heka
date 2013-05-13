@@ -133,7 +133,6 @@ func ReportSpec(c gs.Context) {
 
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
-		pc.DecoderSets = nil
 
 		c.Specify("returns full set of accurate reports", func() {
 			reportChan := make(chan *PipelinePack)

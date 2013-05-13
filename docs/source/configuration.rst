@@ -109,6 +109,8 @@ Common Roles
 
 .. end-roles
 
+.. _hekad_command_line_options:
+
 Command Line Options
 ====================
 
@@ -122,6 +124,19 @@ Command Line Options
 
 ``-cpuprof`` `output_file`
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
+
+``-max_message_loops`` `uint`
+    The maximum number of times a message can be re-injected into the system.
+    This is used to prevent infinite message loops from filter to filter; 
+    the default is 4.
+
+``-max_process_inject`` `uint`
+    The maximum number of messages that a sandbox filter's ProcessMessage
+    function can inject in a single call; the default is 1.
+
+``-max_timer_inject`` `uint`
+    The maximum number of messages that a sandbox filter's TimerEvent
+    function can inject in a single call; the default is 10.
 
 ``-maxprocs`` `int`
     Enable multi-core usage; the default is 1 core. More cores will generally

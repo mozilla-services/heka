@@ -39,21 +39,25 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
-	PoolSize        int
-	DecoderPoolSize int
-	PluginChanSize  int
-	MaxMsgLoops     uint
-	Stopping        bool
-	sigChan         chan os.Signal
+	PoolSize            int
+	DecoderPoolSize     int
+	PluginChanSize      int
+	MaxMsgLoops         uint
+	MaxMsgProcessInject uint
+	MaxMsgTimerInject   uint
+	Stopping            bool
+	sigChan             chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
 	return &GlobalConfigStruct{
-		PoolSize:        100,
-		DecoderPoolSize: 4,
-		PluginChanSize:  50,
-		MaxMsgLoops:     4,
+		PoolSize:            100,
+		DecoderPoolSize:     2,
+		PluginChanSize:      50,
+		MaxMsgLoops:         4,
+		MaxMsgProcessInject: 1,
+		MaxMsgTimerInject:   10,
 	}
 }
 
@@ -368,6 +372,7 @@ func (p *PipelinePack) Recycle() {
 // PipelinePack pools, and starts all the runners. Then it listens for signals
 // and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
+	SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
@@ -431,7 +436,7 @@ func Run(config *PipelineConfig) {
 			case syscall.SIGINT:
 				log.Println("Shutdown initiated.")
 				globals.Stopping = true
-			case syscall.SIGUSR1:
+			case SIGUSR1:
 				log.Println("Queue report initiated.")
 				go config.allReportsMsg()
 			}
@@ -450,6 +455,10 @@ func Run(config *PipelineConfig) {
 	inputsWg.Wait()
 
 	log.Println("Waiting for decoders shutdown")
+	for _, decoder := range config.allDecoders {
+		close(decoder.InChan())
+		log.Printf("Stop message sent to decoder '%s'", decoder.Name())
+	}
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 

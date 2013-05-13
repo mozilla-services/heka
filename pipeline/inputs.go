@@ -224,14 +224,21 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	var decoders []DecoderRunner
+	if decoders, err = h.DecoderSet().ByEncodings(); err != nil {
+		return
+	}
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
-	decoders := h.DecoderSet()
 
-	var e error
-	var n int
-	var pack *PipelinePack
-	var msgOk bool
+	var (
+		e        error
+		n        int
+		pack     *PipelinePack
+		msgOk    bool
+		decoder  DecoderRunner
+		encoding Header_MessageEncoding
+	)
 	for !self.stopped {
 		pack = <-ir.InChan()
 		if n, e = self.listener.Read(buf); e != nil {
@@ -244,10 +251,12 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
 		if msgOk {
 			if authenticateMessage(self.config.Signers, header, pack) {
-				encoding := header.GetMessageEncoding()
-				if decoder, ok := decoders.ByEncoding(encoding); ok {
+				encoding = header.GetMessageEncoding()
+				if decoder = decoders[encoding]; decoder != nil {
 					decoder.InChan() <- pack
 				} else {
+					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
+						encoding.String()))
 					pack.Recycle()
 				}
 			} else {
@@ -396,7 +405,10 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	)
 
 	packSupply := self.ir.InChan()
-	decoders := self.h.DecoderSet()
+	decoders, err := self.h.DecoderSet().ByEncodings()
+	if err != nil {
+		self.ir.LogError(fmt.Errorf("Error getting decoders: %s", err))
+	}
 
 	for !stopped {
 		select {
@@ -421,9 +433,12 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 					if ok {
 						if authenticateMessage(self.config.Signers, header, pack) {
 							encoding = header.GetMessageEncoding()
-							if decoder, ok = decoders.ByEncoding(encoding); ok {
+							if decoder = decoders[encoding]; decoder != nil {
 								decoder.InChan() <- pack
 							} else {
+								err := fmt.Errorf("No decoder registered for encoding: %s",
+									encoding.String())
+								self.ir.LogError(err)
 								pack.Recycle()
 							}
 						} else {

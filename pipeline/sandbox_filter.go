@@ -96,9 +96,15 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		plc            *PipelineCapture
 		retval         int
 		msgLoopCount   uint
+		injectionCount uint
 	)
 
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
+		if injectionCount == 0 {
+			fr.LogError(fmt.Errorf("exceeded InjectMessage count"))
+			return 1
+		}
+		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
@@ -126,6 +132,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
+			injectionCount = Globals().MaxMsgProcessInject
 			msgLoopCount = plc.Pack.MsgLoopCount
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
 			if retval != 0 {
@@ -133,6 +140,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			plc.Pack.Recycle()
 		case t := <-ticker:
+			injectionCount = Globals().MaxMsgTimerInject
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
 			}
