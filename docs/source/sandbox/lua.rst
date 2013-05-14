@@ -141,16 +141,26 @@ double **get**\ (nanoseconds, column)
     *Return*
         The value at the specifed row/column or nil if the time was outside the range of the buffer.
 
-
 int **set_header**\ (column, name, type)
 
     *Arguments*
-        - column (unsigned) The column number where the header information will be applied.
+        - column (unsigned) The column number where the header information is applied.
         - name (string) Descriptive name of the column (maximum 15 characters). Any non alpha numeric characters will be converted to underscores.
         - type (string) The data type to aid with aggregation (count|min|max|avg|delta|percentage).
 
     *Return*
         The column number passed into the function.
+
+double **compute**\ (function, column, start, end)
+
+    *Arguments*
+        - function (string) The name of the compute function (sum|avg|sd|min|max).
+        - column (unsigned) The column that the computation is performed against.
+        - start (optional - unsigned) The number of nanosecond since the UNIX epoch. Sets the start time of the computation range; if nil the buffer's start time is used.
+        - end (optional- unsigned) The number of nanosecond since the UNIX epoch. Sets the end time of the computation range (inclusive); if nil the buffer's end time is used. The end time must be greater than or equal to the start time.
+
+    *Return*
+        The result of the computation for the specifed column over the given range or nil if the range fell outside of the buffer.
 
 Output
 ------
