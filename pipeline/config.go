@@ -242,6 +242,18 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 
 type ConfigFile PluginConfig
 
+// This struct provides a structure for the available retry options for
+// a plugin that supports being restarted
+type RetryOptions struct {
+	// Maximum time in seconds between restart attempts. Defaults to 30 seconds.
+	MaxDelay uint `toml:"max_delay"`
+	// Starting delay in milliseconds between restart attempts. Defaults to
+	// 250 milliseconds.
+	Delay uint
+	// How many times to attempt starting the plugin before failing
+	MaxRetries uint `toml:"max_retries"`
+}
+
 // The TOML spec for plugin configuration options that will be pulled out  by
 // Heka itself for runner configuration before the config is passed to the
 // Plugin.Init method.
@@ -252,6 +264,7 @@ type PluginGlobals struct {
 	Matcher  string `toml:"message_matcher"`
 	Signer   string `toml:"message_signer"`
 	PoolSize uint   `toml:"pool_size"`
+	Retries  RetryOptions
 }
 
 // Default Decoders configuration.
