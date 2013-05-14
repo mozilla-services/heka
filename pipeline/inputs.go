@@ -119,7 +119,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Re-initialize our plugin using its wrapper
-		pw := h.PipelineConfig().InputWrappers[ir.name]
+		pw := h.PipelineConfig().inputWrappers[ir.name]
 
 		// Attempt to recreate the plugin until it works without error
 		// or until we were told to stop

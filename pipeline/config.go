@@ -97,17 +97,17 @@ type PipelineConfig struct {
 	// All running InputRunners, by name.
 	InputRunners map[string]InputRunner
 	// PluginWrappers that can create Input plugin objects.
-	InputWrappers map[string]*PluginWrapper
+	inputWrappers map[string]*PluginWrapper
 	// PluginWrappers that can create Decoder plugin objects.
 	DecoderWrappers map[string]*PluginWrapper
 	// All running FilterRunners, by name.
 	FilterRunners map[string]FilterRunner
 	// PluginWrappers that can create Filter plugin objects.
-	FilterWrappers map[string]*PluginWrapper
+	filterWrappers map[string]*PluginWrapper
 	// All running OutputRunners, by name.
 	OutputRunners map[string]OutputRunner
 	// PluginWrappers that can create Output plugin objects.
-	OutputWrappers map[string]*PluginWrapper
+	outputWrappers map[string]*PluginWrapper
 	// Heka message router instance.
 	router *messageRouter
 	// PipelinePack supply for Input plugins.
@@ -146,12 +146,12 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 		return globals
 	}
 	config.InputRunners = make(map[string]InputRunner)
-	config.InputWrappers = make(map[string]*PluginWrapper)
+	config.inputWrappers = make(map[string]*PluginWrapper)
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
 	config.FilterRunners = make(map[string]FilterRunner)
-	config.FilterWrappers = make(map[string]*PluginWrapper)
+	config.filterWrappers = make(map[string]*PluginWrapper)
 	config.OutputRunners = make(map[string]OutputRunner)
-	config.OutputWrappers = make(map[string]*PluginWrapper)
+	config.outputWrappers = make(map[string]*PluginWrapper)
 	config.router = NewMessageRouter()
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
@@ -487,7 +487,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
 		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
-		self.InputWrappers[wrapper.name] = wrapper
+		self.inputWrappers[wrapper.name] = wrapper
 		return
 	}
 
@@ -517,13 +517,13 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
-		self.FilterWrappers[runner.name] = wrapper
+		self.filterWrappers[runner.name] = wrapper
 	case "Output":
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
 		self.OutputRunners[runner.name] = runner
-		self.OutputWrappers[runner.name] = wrapper
+		self.outputWrappers[runner.name] = wrapper
 	}
 
 	return
