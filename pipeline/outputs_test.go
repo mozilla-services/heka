@@ -65,7 +65,7 @@ func (s *StoppingOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 }
 
 func (s *StoppingOutput) Cleanup() {
-		s.times += 1
+	s.times += 1
 }
 
 func (s *StoppingOutput) Stop() {

@@ -73,7 +73,7 @@ func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (s *StoppingInput) Cleanup() {
-		s.times += 1
+	s.times += 1
 }
 
 func (s *StoppingInput) Stop() {
