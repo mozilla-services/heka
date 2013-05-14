@@ -589,7 +589,11 @@ func TestCircularBufferErrors(t *testing.T) {
 		"set() non numeric value",
 		"set() incorrect # args",
 		"add() incorrect # args",
-		"get() incorrect # args"}
+		"get() incorrect # args",
+		"compute() incorrect # args",
+		"compute() incorrect function",
+		"compute() incorrect column",
+		"compute() start > end"}
 
 	msgs := []string{
 		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #-1 to 'new' (incorrect number of arguments)",
@@ -609,7 +613,12 @@ func TestCircularBufferErrors(t *testing.T) {
 		"process_message() ./testsupport/circular_buffer_errors.lua:44: bad argument #3 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:47: bad argument #-1 to 'set' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:50: bad argument #-1 to 'add' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:53: bad argument #-1 to 'get' (incorrect number of arguments)"}
+		"process_message() ./testsupport/circular_buffer_errors.lua:53: bad argument #-1 to 'get' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:56: bad argument #-1 to 'compute' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:59: bad argument #1 to 'compute' (invalid option 'func')",
+		"process_message() ./testsupport/circular_buffer_errors.lua:62: bad argument #2 to 'compute' (column out of range)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:65: bad argument #4 to 'compute' (end must be >= start)",
+	}
 
 	var sbc SandboxConfig
 	var captures map[string]string
@@ -706,6 +715,10 @@ func TestCircularBuffer(t *testing.T) {
 	}
 	sb.TimerEvent(0)
 	sb.TimerEvent(1)
+	r = sb.TimerEvent(3)
+	if r != 0 {
+		t.Errorf("TimerEvent failed: %s", sb.LastError())
+	}
 	sb.Destroy("/tmp/circular_buffer.lua.data")
 }
 
