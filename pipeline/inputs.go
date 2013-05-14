@@ -58,12 +58,13 @@ type iRunner struct {
 
 // Creates and returns a new (not yet started) InputRunner associated w/ the
 // provided Input.
-func NewInputRunner(name string, input Input) (
+func NewInputRunner(name string, input Input, pluginGlobals *PluginGlobals) (
 	ir InputRunner) {
 	return &iRunner{
 		pRunnerBase: pRunnerBase{
-			name:   name,
-			plugin: input.(Plugin),
+			name:          name,
+			plugin:        input.(Plugin),
+			pluginGlobals: pluginGlobals,
 		},
 		input: input,
 	}

@@ -103,13 +103,18 @@ type PluginRunner interface {
 	// Plugins should call `LogMessage` on their runner to write to the log
 	// rather than doing so directly.
 	LogMessage(msg string)
+
+	// Plugin Globals, these are the globals accepted for the plugin in the
+	// config file
+	PluginGlobals() *PluginGlobals
 }
 
 // Base struct for the specialized PluginRunners
 type pRunnerBase struct {
-	name   string
-	plugin Plugin
-	h      PluginHelper
+	name          string
+	plugin        Plugin
+	pluginGlobals *PluginGlobals
+	h             PluginHelper
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -122,6 +127,10 @@ func (pr *pRunnerBase) SetName(name string) {
 
 func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
+}
+
+func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
+	return pr.pluginGlobals
 }
 
 // This one struct provides the implementation of both FilterRunner and
@@ -138,8 +147,15 @@ type foRunner struct {
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
 // OutputRunner.
-func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
-	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
+func NewFORunner(name string, plugin Plugin,
+	pluginGlobals *PluginGlobals) (runner *foRunner) {
+	runner = &foRunner{
+		pRunnerBase: pRunnerBase{
+			name:          name,
+			plugin:        plugin,
+			pluginGlobals: pluginGlobals,
+		},
+	}
 	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
 	return
 }

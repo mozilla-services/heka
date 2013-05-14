@@ -245,12 +245,13 @@ type ConfigFile PluginConfig
 // This struct provides a structure for the available retry options for
 // a plugin that supports being restarted
 type RetryOptions struct {
-	// Maximum time in seconds between restart attempts. Defaults to 30 seconds.
-	MaxDelay uint `toml:"max_delay"`
+	// Maximum time in seconds between restart attempts. Defaults to 30s.
+	MaxDelay string `toml:"max_delay"`
 	// Starting delay in milliseconds between restart attempts. Defaults to
-	// 250 milliseconds.
-	Delay uint
-	// How many times to attempt starting the plugin before failing
+	// 250ms.
+	Delay string
+	// How many times to attempt starting the plugin before failing. Defaults
+	// to -1 (retry forever).
 	MaxRetries uint `toml:"max_retries"`
 }
 
@@ -465,7 +466,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		// Creates/starts a DecoderRunner wrapped around the decoder and puts
 		// it on the channel.
 		makeDRunner := func(name string, decoder Decoder, dChan chan DecoderRunner) {
-			dRunner := NewDecoderRunner(name, decoder)
+			dRunner := NewDecoderRunner(name, decoder, &pluginGlobals)
 			self.decodersWg.Add(1)
 			dRunner.Start(self, &self.decodersWg)
 			self.allDecoders = append(self.allDecoders, dRunner)
@@ -486,13 +487,14 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name,
+			plugin.(Input), &pluginGlobals)
 		self.inputWrappers[wrapper.name] = wrapper
 		return
 	}
 
 	// Filters and outputs have a few more config settings.
-	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
 
 	if pluginGlobals.Ticker != 0 {
