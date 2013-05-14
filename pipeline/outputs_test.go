@@ -64,13 +64,8 @@ func (s *StoppingOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func (s *StoppingOutput) RestartCheck() (restart bool) {
-	if s.times > 0 {
-		return true
-	} else {
+func (s *StoppingOutput) Cleanup() {
 		s.times += 1
-		return false
-	}
 }
 
 func (s *StoppingOutput) Stop() {

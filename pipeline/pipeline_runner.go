@@ -179,7 +179,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		if filter, ok := foRunner.plugin.(Filter); ok {
 			pluginType = "filter"
 			err = filter.Run(foRunner, h)
-			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
 		} else if output, ok := foRunner.plugin.(Output); ok {
 			pluginType = "output"
 			err = output.Run(foRunner, h)
@@ -206,10 +205,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := foRunner.plugin.(Restarting); ok {
-			if !recon.RestartCheck() {
-				foRunner.LogMessage("has stopped, and indicated hekad should continue")
-				return
-			}
+			recon.Cleanup()
 		} else {
 			globals.ShutDown()
 			return

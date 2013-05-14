@@ -112,10 +112,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := ir.plugin.(Restarting); ok {
-			if !recon.RestartCheck() {
-				ir.LogMessage("has stopped, and indicated hekad should continue")
-				return
-			}
+			recon.Cleanup()
 		} else {
 			globals.ShutDown()
 			return

@@ -72,13 +72,8 @@ func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func (s *StoppingInput) RestartCheck() (restart bool) {
-	if s.times > 0 {
-		return true
-	} else {
+func (s *StoppingInput) Cleanup() {
 		s.times += 1
-		return false
-	}
 }
 
 func (s *StoppingInput) Stop() {
