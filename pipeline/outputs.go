@@ -47,6 +47,10 @@ type OutputRunner interface {
 	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
 	// value) and drops it on the Output's input channel.
 	Deliver(pack *PipelinePack)
+	// Retains a pack for future delivery to the plugin when a plugin needs
+	// to shut down and wants to retain the pack for the next time its
+	// running properly
+	RetainPack(pack *PipelineCapture)
 }
 
 // Heka Output plugin type.

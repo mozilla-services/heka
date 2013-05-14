@@ -133,6 +133,7 @@ type foRunner struct {
 	ticker     <-chan time.Time
 	inChan     chan *PipelineCapture
 	h          PluginHelper
+	retainPack *PipelineCapture
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -280,7 +281,20 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
 }
 
+func (foRunner *foRunner) RetainPack(pack *PipelineCapture) {
+	foRunner.retainPack = pack
+}
+
 func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
+	if foRunner.retainPack != nil {
+		retainChan := make(chan *PipelineCapture)
+		go func() {
+			retainChan <- foRunner.retainPack
+			foRunner.retainPack = nil
+			close(retainChan)
+		}()
+		return retainChan
+	}
 	return foRunner.inChan
 }
 

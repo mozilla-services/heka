@@ -114,6 +114,14 @@ func (_mr *_MockFilterRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
 }
 
+func (_m *MockFilterRunner) RetainPack(_param0 *PipelineCapture) {
+	_m.ctrl.Call(_m, "RetainPack", _param0)
+}
+
+func (_mr *_MockFilterRunnerRecorder) RetainPack(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetainPack", arg0)
+}
+
 func (_m *MockFilterRunner) SetName(_param0 string) {
 	_m.ctrl.Call(_m, "SetName", _param0)
 }
