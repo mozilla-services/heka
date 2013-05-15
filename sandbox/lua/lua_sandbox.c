@@ -72,9 +72,9 @@ char* lua_sandbox_destroy(lua_sandbox* lsb, const char* data_file)
     char* err = NULL;
     if (lsb == NULL) return err;
 
-    if (lsb->m_lua != NULL && data_file != NULL && strnlen(data_file, 1) > 0) {
+    if (lsb->m_lua != NULL && data_file != NULL && strlen(data_file) > 0) {
         if (preserve_global_data(lsb, data_file) != 0) {
-            size_t len = strnlen(lsb->m_error_message, ERROR_SIZE);
+            size_t len = strlen(lsb->m_error_message);
             err = malloc(len + 1);
             if (err != NULL) {
                 strcpy(err, lsb->m_error_message);
@@ -249,7 +249,7 @@ int lua_sandbox_init(lua_sandbox* lsb, const char* data_file)
               lsb->m_usage[USAGE_TYPE_INSTRUCTION][USAGE_STAT_CURRENT];
         }
         lsb->m_status = STATUS_RUNNING;
-        if (data_file != NULL && strnlen(data_file, 1) > 0) {
+        if (data_file != NULL && strlen(data_file) > 0) {
             return restore_global_data(lsb, data_file);
         }
     }
