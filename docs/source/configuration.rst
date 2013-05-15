@@ -491,7 +491,7 @@ Example (Parsing Apache Combined Log Format):
 
     [apache_transform_filter]
     type = "TransformFilter"
-    message_matcher = 'Type == "logfile" && Logger == "/var/log/httpd.log" && Payload ~= /^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    message_matcher =~ 'Type == "logfile" && Logger == "/var/log/httpd.log" && Payload ~= /^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 +0100"
 
     [apache_transform_filter.SeverityMap]
