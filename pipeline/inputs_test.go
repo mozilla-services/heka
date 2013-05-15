@@ -60,11 +60,14 @@ func (p *PanicInput) Stop() {
 	panic("PANICINPUT")
 }
 
-type StoppingInput struct {
-	times int
-}
+var stopinputTimes int
+
+type StoppingInput struct{}
 
 func (s *StoppingInput) Init(config interface{}) (err error) {
+	if stopinputTimes > 1 {
+		err = errors.New("Stopped enough, done")
+	}
 	return
 }
 
@@ -73,7 +76,7 @@ func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (s *StoppingInput) CleanupForRestart() {
-	s.times += 1
+	stopinputTimes += 1
 }
 
 func (s *StoppingInput) Stop() {
@@ -377,7 +380,7 @@ func InputsSpec(c gs.Context) {
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
 			MaxDelay:   "1ms",
-			Delay:      "10ms",
+			Delay:      "1ms",
 			MaxRetries: 1,
 		}
 		pc := new(PipelineConfig)
@@ -393,12 +396,12 @@ func InputsSpec(c gs.Context) {
 		input := new(StoppingInput)
 		iRunner := NewInputRunner("stopping", input, &pluginGlobals)
 		var wg sync.WaitGroup
-		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(2)
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(3)
 		cfgCall.Return(pc)
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg)
 		wg.Wait()
-		c.Expect(input.times, gs.Equals, 1)
+		c.Expect(stopinputTimes, gs.Equals, 2)
 	})
 
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {

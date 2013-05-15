@@ -171,7 +171,7 @@ func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
 //
 // If the max retries has been exceeded, an error will be returned
 func (r *RetryHelper) Wait() error {
-	if r.retries != -1 && r.times < r.retries {
+	if r.retries != -1 && r.times >= r.retries {
 		return errors.New("Max retries exceeded")
 	}
 	jitter, _ := rand.Int(rand.Reader, big.NewInt(500))

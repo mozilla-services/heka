@@ -20,6 +20,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
+	"errors"
 	"fmt"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -52,11 +53,14 @@ func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	panic("PANICOUTPUT")
 }
 
-type StoppingOutput struct {
-	times int
-}
+var stopoutputTimes int
+
+type StoppingOutput struct{}
 
 func (s *StoppingOutput) Init(config interface{}) (err error) {
+	if stopoutputTimes > 1 {
+		err = errors.New("exiting now")
+	}
 	return
 }
 
@@ -65,10 +69,54 @@ func (s *StoppingOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 }
 
 func (s *StoppingOutput) CleanupForRestart() {
-	s.times += 1
+	stopoutputTimes += 1
 }
 
 func (s *StoppingOutput) Stop() {
+	return
+}
+
+var (
+	stopresumeHolder   []string         = make([]string, 0, 10)
+	plc                *PipelineCapture = new(PipelineCapture)
+	stopresumerunTimes int
+)
+
+type StopResumeOutput struct{}
+
+func (s *StopResumeOutput) Init(config interface{}) (err error) {
+	if stopresumerunTimes > 2 {
+		err = errors.New("Aborting")
+	}
+	return
+}
+
+func (s *StopResumeOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	if stopresumerunTimes == 0 {
+		or.RetainPack(plc)
+	} else if stopresumerunTimes == 1 {
+		inChan := or.InChan()
+		pk := <-inChan
+		if pk == plc {
+			stopresumeHolder = append(stopresumeHolder, "success")
+		}
+	} else if stopresumerunTimes > 1 {
+		inChan := or.InChan()
+		select {
+		case <-inChan:
+			stopresumeHolder = append(stopresumeHolder, "oye")
+		default:
+			stopresumeHolder = append(stopresumeHolder, "woot")
+		}
+	}
+	stopresumerunTimes += 1
+	return
+}
+
+func (s *StopResumeOutput) CleanupForRestart() {
+}
+
+func (s *StopResumeOutput) Stop() {
 	return
 }
 
@@ -332,9 +380,9 @@ func OutputsSpec(c gs.Context) {
 		pc := new(PipelineConfig)
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "30s",
+			MaxDelay:   "3ms",
 			Delay:      "10ms",
-			MaxRetries: 4,
+			MaxRetries: 1,
 		}
 		pw := &PluginWrapper{
 			name:          "stoppingOutput",
@@ -351,7 +399,35 @@ func OutputsSpec(c gs.Context) {
 		wg.Add(1)
 		oRunner.Start(oth.MockHelper, &wg) // no panic => success
 		wg.Wait()
-		c.Expect(output.times, gs.Equals, 1)
+		c.Expect(stopoutputTimes, gs.Equals, 2)
 	})
 
+	c.Specify("Runner restarts plugin and resumes feeding it", func() {
+		pc := new(PipelineConfig)
+		var pluginGlobals PluginGlobals
+		pluginGlobals.Retries = RetryOptions{
+			MaxDelay:   "3ms",
+			Delay:      "1ms",
+			MaxRetries: 4,
+		}
+		pw := &PluginWrapper{
+			name:          "stoppingresumeOutput",
+			configCreator: func() interface{} { return nil },
+			pluginCreator: func() interface{} { return new(StopResumeOutput) },
+		}
+		output := new(StopResumeOutput)
+		pc.outputWrappers = make(map[string]*PluginWrapper)
+		pc.outputWrappers["stoppingresumeOutput"] = pw
+		oRunner := NewFORunner("stoppingresumeOutput", output, &pluginGlobals)
+		var wg sync.WaitGroup
+		cfgCall := oth.MockHelper.EXPECT().PipelineConfig()
+		cfgCall.Return(pc)
+		wg.Add(1)
+		oRunner.Start(oth.MockHelper, &wg) // no panic => success
+		wg.Wait()
+		c.Expect(stopresumerunTimes, gs.Equals, 3)
+		c.Expect(len(stopresumeHolder), gs.Equals, 2)
+		c.Expect(stopresumeHolder[1], gs.Equals, "woot")
+		c.Expect(oRunner.retainPack, gs.IsNil)
+	})
 }
