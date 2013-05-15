@@ -51,8 +51,20 @@ function process_message ()
     elseif msg == "get() incorrect # args" then
         local cb = circular_buffer.new(2, 1, 1)
         cb:get(0)
+    elseif msg == "compute() incorrect # args" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:compute(0)
+    elseif msg == "compute() incorrect function" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:compute("func", 1)
+    elseif msg == "compute() incorrect column" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:compute("sum", 0)
+    elseif msg == "compute() start > end" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:compute("sum", 1, 2e9, 1e9)
     end
-    return 0
+return 0
 end
 
 function timer_event()
