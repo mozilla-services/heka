@@ -174,7 +174,7 @@ Command Line Options
 Configuring Restarting Behavior
 ===============================
 
-Plugins that support being restarted have a set of options that governs
+Plugins that support being restarted have a set of options that govern
 how the restart is handled. If preferred, the plugin can be configured
 to not restart at which point hekad will exit, or it could be restarted
 only 100 times, or restart attempts can proceed forever.
