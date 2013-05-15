@@ -94,6 +94,16 @@ func (_mr *_MockOutputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
 }
 
+func (_m *MockOutputRunner) PluginGlobals() *PluginGlobals {
+	ret := _m.ctrl.Call(_m, "PluginGlobals")
+	ret0, _ := ret[0].(*PluginGlobals)
+	return ret0
+}
+
+func (_mr *_MockOutputRunnerRecorder) PluginGlobals() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
+}
+
 func (_m *MockOutputRunner) RetainPack(_param0 *PipelineCapture) {
 	_m.ctrl.Call(_m, "RetainPack", _param0)
 }

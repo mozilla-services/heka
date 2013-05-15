@@ -252,7 +252,7 @@ type RetryOptions struct {
 	Delay string
 	// How many times to attempt starting the plugin before failing. Defaults
 	// to -1 (retry forever).
-	MaxRetries uint `toml:"max_retries"`
+	MaxRetries int `toml:"max_retries"`
 }
 
 // The TOML spec for plugin configuration options that will be pulled out  by
@@ -388,6 +388,13 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	wrapper := new(PluginWrapper)
 	wrapper.name = sectionName
+
+	// Setup default retry policy
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		self.log(fmt.Sprintf("Unable to decode config for plugin: %s, error: %s",

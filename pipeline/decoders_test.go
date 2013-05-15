@@ -106,7 +106,7 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("Recovers from a panic in `Decode()`", func() {
 		decoder := new(PanicDecoder)
-		dRunner := NewDecoderRunner("panic", decoder)
+		dRunner := NewDecoderRunner("panic", decoder, nil)
 		pack := NewPipelinePack(config.inputRecycleChan)
 		var wg sync.WaitGroup
 		wg.Add(1)

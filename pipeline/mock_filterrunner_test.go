@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 	time "time"
 )
 
@@ -112,6 +112,16 @@ func (_m *MockFilterRunner) Plugin() Plugin {
 
 func (_mr *_MockFilterRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockFilterRunner) PluginGlobals() *PluginGlobals {
+	ret := _m.ctrl.Call(_m, "PluginGlobals")
+	ret0, _ := ret[0].(*PluginGlobals)
+	return ret0
+}
+
+func (_mr *_MockFilterRunnerRecorder) PluginGlobals() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
 }
 
 func (_m *MockFilterRunner) RetainPack(_param0 *PipelineCapture) {

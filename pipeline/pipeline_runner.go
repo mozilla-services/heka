@@ -133,6 +133,67 @@ func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
 	return pr.pluginGlobals
 }
 
+// Retry helper, created with a RetryOptions struct
+//
+// Everytime Wait is called, the times this has been used is incremented.
+// Calling Reset will reset the time counter indicating the operation that
+// was being retried succeeded.
+type RetryHelper struct {
+	maxDelay time.Duration
+	delay    time.Duration
+	curDelay time.Duration
+	retries  int
+	times    int
+}
+
+// Creates and returns a RetryHelper pointer to be used when retrying
+// plugin restarts or other parts that require exponential backoff
+func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
+	delay, err := time.ParseDuration(opts.Delay)
+	if err != nil {
+		return
+	}
+	maxDelay, err := time.ParseDuration(opts.MaxDelay)
+	if err != nil {
+		return
+	}
+	helper = &RetryHelper{
+		maxDelay: maxDelay,
+		delay:    delay,
+		curDelay: delay,
+		retries:  opts.MaxRetries,
+		times:    0,
+	}
+	return
+}
+
+// Wait for a retry
+//
+// If the max retries has been exceeded, an error will be returned
+func (r *RetryHelper) Wait() error {
+	if r.retries != -1 && r.times < r.retries {
+		return errors.New("Max retries exceeded")
+	}
+	jitter, _ := rand.Int(rand.Reader, big.NewInt(500))
+	jitterWait := time.Duration(jitter.Int64()) * time.Millisecond
+	timer := time.NewTimer(r.curDelay + jitterWait)
+	select {
+	case <-timer.C:
+		break
+	}
+	r.curDelay *= 2
+	r.times += 1
+	if r.curDelay > r.maxDelay {
+		r.curDelay = r.maxDelay
+	}
+	return nil
+}
+
+// Reset the retry counter
+func (r *RetryHelper) Reset() {
+	r.times = 0
+}
+
 // This one struct provides the implementation of both FilterRunner and
 // OutputRunner interfaces.
 type foRunner struct {
@@ -185,6 +246,16 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		wg.Done()
 	}()
 
+	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
+	if err != nil {
+		foRunner.LogError(err)
+		globals.ShutDown()
+		return
+	}
+
+	var pw *PluginWrapper
+	pc := h.PipelineConfig()
+
 	for !globals.Stopping {
 		if foRunner.matcher != nil {
 			foRunner.matcher.Start(foRunner.inChan)
@@ -228,8 +299,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Re-initialize our plugin using its wrapper
-		var pw *PluginWrapper
-		pc := h.PipelineConfig()
 		if pluginType == "filter" {
 			pw = pc.filterWrappers[foRunner.name]
 		} else {
@@ -239,13 +308,11 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		// or until we were told to stop
 	createLoop:
 		for !globals.Stopping {
-			// Sleep a random period up to 1 second before retrying
-			val, _ := rand.Int(rand.Reader, big.NewInt(500))
-			fval := val.Int64() + 1000
-			timer := time.NewTimer(time.Duration(fval) * time.Millisecond)
-			select {
-			case <-timer.C:
-				break
+			err = rh.Wait()
+			if err != nil {
+				foRunner.LogError(err)
+				globals.ShutDown()
+				return
 			}
 			p, err := pw.CreateWithError()
 			if err != nil {
@@ -253,6 +320,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 				continue
 			}
 			foRunner.plugin = p.(Plugin)
+			rh.Reset()
 			break createLoop
 		}
 		foRunner.LogMessage("exited, now restarting.")

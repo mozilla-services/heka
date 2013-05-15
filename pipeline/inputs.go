@@ -19,19 +19,16 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
-	"crypto/rand"
 	"crypto/sha1"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"log"
-	"math/big"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // Heka PluginRunner for Input plugins.
@@ -97,6 +94,12 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	}()
 
 	globals := Globals()
+	rh, err := NewRetryHelper(ir.pluginGlobals.Retries)
+	if err != nil {
+		ir.LogError(err)
+		globals.ShutDown()
+		return
+	}
 
 	for !globals.Stopping {
 		// ir.Input().Run() shouldn't return unless error or shutdown
@@ -126,13 +129,11 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		// or until we were told to stop
 	createLoop:
 		for !globals.Stopping {
-			// Sleep a random period up to 1 second before retrying
-			val, _ := rand.Int(rand.Reader, big.NewInt(500))
-			fval := val.Int64() + 1000
-			timer := time.NewTimer(time.Duration(fval) * time.Millisecond)
-			select {
-			case <-timer.C:
-				break
+			err := rh.Wait()
+			if err != nil {
+				ir.LogError(err)
+				globals.ShutDown()
+				return
 			}
 			p, err := pw.CreateWithError()
 			if err != nil {
@@ -140,6 +141,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 				continue
 			}
 			ir.plugin = p.(Plugin)
+			rh.Reset()
 			break createLoop
 		}
 		ir.LogMessage("exited, now restarting.")

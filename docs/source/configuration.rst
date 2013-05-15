@@ -54,7 +54,9 @@ restarting, hekad will likely stop accepting messages until the plugin
 resumes operation (this applies only to filters/output plugins).
 
 Plugins specify that they support restarting by implementing the
-Restarting interface (see :ref:`restarting_plugins`).
+Restarting interface (see :ref:`restarting_plugins`). Plugins
+supporting Restarting can have :ref:`their restarting behavior
+configured <configuring_restarting>`.
 
 .. end-hekad-config
 
@@ -166,6 +168,48 @@ Command Line Options
     performance.
 
 .. end-options
+
+.. _configuring_restarting:
+
+Configuring Restarting Behavior
+===============================
+
+Plugins that support being restarted have a set of options that governs
+how the restart is handled. If preferred, the plugin can be configured
+to not restart at which point hekad will exit, or it could be restarted
+only 100 times, or restart attempts can proceed forever.
+
+Adding the restarting configuration is done by adding a config section
+to the plugins' config called `retries`. A small amount of jitter will
+be added to the delay between restart attempts.
+
+Parameters:
+
+- max_delay (string):
+    The longest delay between attempts to restart the plugin. Defaults to
+    30s (30 seconds).
+- delay (string):
+    The starting delay between restart attempts. This value will be the
+    initial starting delay for the exponential back-off, and capped to
+    be no larger than the `max_delay`. Defaults to 250ms.
+- max_retries (int):
+    Maximum amount of times to attempt restarting the plugin before giving
+    up and shutting down hekad. Use 0 for no retry attempt, and -1 to
+    continue trying forever (note that this will cause hekad to halt
+    possibly forever if the plugin cannot be restarted).
+
+Example (UdpInput does not actually support nor need restarting,
+illustrative purposes only):
+
+.. code-block:: ini
+
+    [UdpInput]
+    address = "127.0.0.1:4880"
+
+    [UdpInput.retries]
+    max_delay = 30s
+    delay = 250ms
+    max_retries = 5
 
 .. start-inputs
 

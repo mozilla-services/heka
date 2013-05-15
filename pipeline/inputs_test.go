@@ -374,11 +374,27 @@ func InputsSpec(c gs.Context) {
 	})
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {
+		var pluginGlobals PluginGlobals
+		pluginGlobals.Retries = RetryOptions{
+			MaxDelay:   "1ms",
+			Delay:      "10ms",
+			MaxRetries: 1,
+		}
+		pc := new(PipelineConfig)
+		pc.inputWrappers = make(map[string]*PluginWrapper)
+
+		pw := &PluginWrapper{
+			name:          "stopping",
+			configCreator: func() interface{} { return nil },
+			pluginCreator: func() interface{} { return new(StoppingInput) },
+		}
+		pc.inputWrappers["stopping"] = pw
+
 		input := new(StoppingInput)
-		iRunner := NewInputRunner("stopping", input)
+		iRunner := NewInputRunner("stopping", input, &pluginGlobals)
 		var wg sync.WaitGroup
-		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
-		cfgCall.Return(config)
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(2)
+		cfgCall.Return(pc)
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg)
 		wg.Wait()
@@ -387,7 +403,7 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
 		input := new(PanicInput)
-		iRunner := NewInputRunner("panic", input)
+		iRunner := NewInputRunner("panic", input, nil)
 		var wg sync.WaitGroup
 		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(config)

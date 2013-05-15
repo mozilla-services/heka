@@ -321,7 +321,7 @@ func OutputsSpec(c gs.Context) {
 
 	c.Specify("Runner recovers from panic in output's `Run()` method", func() {
 		output := new(PanicOutput)
-		oRunner := NewFORunner("panic", output)
+		oRunner := NewFORunner("panic", output, nil)
 		var wg sync.WaitGroup
 		wg.Add(1)
 		oRunner.Start(oth.MockHelper, &wg) // no panic => success
@@ -329,9 +329,25 @@ func OutputsSpec(c gs.Context) {
 	})
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {
+		pc := new(PipelineConfig)
+		var pluginGlobals PluginGlobals
+		pluginGlobals.Retries = RetryOptions{
+			MaxDelay:   "30s",
+			Delay:      "10ms",
+			MaxRetries: 4,
+		}
+		pw := &PluginWrapper{
+			name:          "stoppingOutput",
+			configCreator: func() interface{} { return nil },
+			pluginCreator: func() interface{} { return new(StoppingOutput) },
+		}
 		output := new(StoppingOutput)
-		oRunner := NewFORunner("stopping", output)
+		pc.outputWrappers = make(map[string]*PluginWrapper)
+		pc.outputWrappers["stoppingOutput"] = pw
+		oRunner := NewFORunner("stoppingOutput", output, &pluginGlobals)
 		var wg sync.WaitGroup
+		cfgCall := oth.MockHelper.EXPECT().PipelineConfig()
+		cfgCall.Return(pc)
 		wg.Add(1)
 		oRunner.Start(oth.MockHelper, &wg) // no panic => success
 		wg.Wait()
