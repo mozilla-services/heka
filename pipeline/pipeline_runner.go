@@ -294,6 +294,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		if recon, ok := foRunner.plugin.(Restarting); ok {
 			recon.CleanupForRestart()
 		} else {
+			foRunner.LogMessage("has stopped, shutting down.")
 			globals.ShutDown()
 			return
 		}

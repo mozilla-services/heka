@@ -118,6 +118,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		if recon, ok := ir.plugin.(Restarting); ok {
 			recon.CleanupForRestart()
 		} else {
+			ir.LogMessage("has stopped, shutting down.")
 			globals.ShutDown()
 			return
 		}
