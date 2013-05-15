@@ -292,7 +292,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// We stop and let this quit if its not a restarting plugin
 		if recon, ok := foRunner.plugin.(Restarting); ok {
-			recon.Cleanup()
+			recon.CleanupForRestart()
 		} else {
 			globals.ShutDown()
 			return

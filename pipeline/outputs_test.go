@@ -64,7 +64,7 @@ func (s *StoppingOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func (s *StoppingOutput) Cleanup() {
+func (s *StoppingOutput) CleanupForRestart() {
 	s.times += 1
 }
 

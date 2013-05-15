@@ -89,7 +89,7 @@ type Restarting interface {
 	// Is called anytime the plug-in returns during the main Run loop to
 	// clean up the plug-in state and determine whether the plugin should
 	// be restarted or not.
-	Cleanup()
+	CleanupForRestart()
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.

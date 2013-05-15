@@ -72,7 +72,7 @@ func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func (s *StoppingInput) Cleanup() {
+func (s *StoppingInput) CleanupForRestart() {
 	s.times += 1
 }
 

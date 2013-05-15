@@ -156,13 +156,13 @@ defined in the `config.go
 file::
 
     type Restarting interface {
-        Cleanup()
+        CleanupForRestart()
     }
 
 A plugin that implements this interface will not trigger shutdown
-should it fail while hekad is running. The `Cleanup` method will be
-called when the plugins' main run method exits, a single time. Then the
-runner will repeatedly call the plugins Init method until it
+should it fail while hekad is running. The `CleanupForRestart` method
+will be called when the plugins' main run method exits, a single time.
+Then the runner will repeatedly call the plugins Init method until it
 initializes successfully. It will then resume running it unless it
 exits again at which point the restart process will begin anew.
 
