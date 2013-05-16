@@ -118,11 +118,16 @@ type dRunner struct {
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
 // provided Decoder plugin.
-func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
+func NewDecoderRunner(name string, decoder Decoder,
+	pluginGlobals *PluginGlobals) DecoderRunner {
 	return &dRunner{
-		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
-		uuid:        uuid.NewRandom().String(),
-		inChan:      make(chan *PipelinePack, Globals().PluginChanSize),
+		pRunnerBase: pRunnerBase{
+			name:          name,
+			plugin:        decoder.(Plugin),
+			pluginGlobals: pluginGlobals,
+		},
+		uuid:   uuid.NewRandom().String(),
+		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 }
 

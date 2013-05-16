@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of InputRunner interface
@@ -91,6 +91,16 @@ func (_m *MockInputRunner) Plugin() Plugin {
 
 func (_mr *_MockInputRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockInputRunner) PluginGlobals() *PluginGlobals {
+	ret := _m.ctrl.Call(_m, "PluginGlobals")
+	ret0, _ := ret[0].(*PluginGlobals)
+	return ret0
+}
+
+func (_mr *_MockInputRunnerRecorder) PluginGlobals() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
 }
 
 func (_m *MockInputRunner) SetName(_param0 string) {

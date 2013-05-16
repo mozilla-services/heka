@@ -104,7 +104,7 @@ func FiltersSpec(c gs.Context) {
 
 	c.Specify("Runner recovers from panic in filter's `Run()` method", func() {
 		filter := new(PanicFilter)
-		fRunner := NewFORunner("panic", filter)
+		fRunner := NewFORunner("panic", filter, nil)
 		var wg sync.WaitGroup
 		wg.Add(1)
 		fRunner.Start(fth.MockHelper, &wg) // no panic => success

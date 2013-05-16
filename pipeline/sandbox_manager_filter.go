@@ -111,7 +111,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), nil)
 	runner.name = wrapper.name
 	var tickLength uint
 	if pluginGlobals.Ticker != 0 {

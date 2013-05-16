@@ -48,6 +48,10 @@ type FilterRunner interface {
 	Inject(pack *PipelinePack) bool
 	// Parsing engine for this Filter's message_matcher.
 	MatchRunner() *MatchRunner
+	// Retains a pack for future delivery to the plugin when a plugin needs
+	// to shut down and wants to retain the pack for the next time its
+	// running properly
+	RetainPack(pack *PipelineCapture)
 }
 
 // Heka Filter plugin type.
