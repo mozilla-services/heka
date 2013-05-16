@@ -22,8 +22,8 @@ import (
 	"time"
 )
 
-// Base AMQP config struct used for Input/Output AMQP Plugins
-type AMQPBaseConfig struct {
+// AMQP Input config struct
+type AMQPInputConfig struct {
 	// AMQP URL. Spec: http://www.rabbitmq.com/uri-spec.html
 	// Ex: amqp://USERNAME:PASSWORD@HOSTNAME:PORT/
 	URL string
@@ -41,11 +41,6 @@ type AMQPBaseConfig struct {
 	// the routing key to bind the queue to the exchange with
 	// Defaults to empty string
 	RoutingKey string
-}
-
-// AMQP Input config struct
-type AMQPInputConfig struct {
-	AMQPBaseConfig
 	// Names of configured `LoglineDecoder` instances used to decode this
 	//  message off the input. The message will be de-serialized per its
 	// content-type before this decoder is run.
@@ -71,7 +66,23 @@ type AMQPInputConfig struct {
 
 // AMQP Output config struct
 type AMQPOutputConfig struct {
-	AMQPBaseConfig
+	// AMQP URL. Spec: http://www.rabbitmq.com/uri-spec.html
+	// Ex: amqp://USERNAME:PASSWORD@HOSTNAME:PORT/
+	URL string
+	// Exchange name
+	Exchange string
+	// Type of exchange, options are: fanout, direct, topic, headers
+	ExchangeType string
+	// Whether the exchange should be durable or not
+	// Defaults to non-durable
+	ExchangeDurability bool
+	// Whether the exchange is deleted when all queues have finished
+	// Defaults to auto-delete
+	ExchangeAutoDelete bool
+	// Routing key for the message to send, or when used for consumer
+	// the routing key to bind the queue to the exchange with
+	// Defaults to empty string
+	RoutingKey string
 	// Whether messages published should be marked as persistent or
 	// transient. Defaults to non-persistent.
 	Persistent bool
@@ -182,12 +193,10 @@ type AMQPOutput struct {
 
 func (ao *AMQPOutput) ConfigStruct() interface{} {
 	return &AMQPOutputConfig{
-		AMQPBaseConfig: AMQPBaseConfig{
-			ExchangeDurability: false,
-			ExchangeAutoDelete: true,
-			RoutingKey:         "",
-		},
-		Persistent: false,
+		ExchangeDurability: false,
+		ExchangeAutoDelete: true,
+		RoutingKey:         "",
+		Persistent:         false,
 	}
 }
 
@@ -261,7 +270,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func (ao *AMQPOutput) Cleanup() {
+func (ao *AMQPOutput) CleanupForRestart() {
 	amqpHub.Close(ao.config.URL, ao.connWg)
 	ao.connWg.Wait()
 	return
@@ -276,16 +285,14 @@ type AMQPInput struct {
 
 func (ai *AMQPInput) ConfigStruct() interface{} {
 	return &AMQPInputConfig{
-		AMQPBaseConfig: AMQPBaseConfig{
-			ExchangeDurability: false,
-			ExchangeAutoDelete: true,
-			RoutingKey:         "",
-		},
-		PrefetchCount:   2,
-		Queue:           "",
-		QueueDurability: false,
-		QueueExclusive:  false,
-		QueueAutoDelete: true,
+		ExchangeDurability: false,
+		ExchangeAutoDelete: true,
+		RoutingKey:         "",
+		PrefetchCount:      2,
+		Queue:              "",
+		QueueDurability:    false,
+		QueueExclusive:     false,
+		QueueAutoDelete:    true,
 	}
 }
 
@@ -328,8 +335,10 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
-		pack *PipelinePack
-		e    error
+		dRunner DecoderRunner
+		pack    *PipelinePack
+		e       error
+		ok      bool
 	)
 	defer ai.usageWg.Done()
 	packSupply := ir.InChan()
@@ -337,7 +346,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	conf := ai.config
 	dSet := h.DecoderSet()
 	decoders := make([]Decoder, len(conf.Decoders))
-	for i, name := range lw.decoderNames {
+	for i, name := range conf.Decoders {
 		if dRunner, ok = dSet.ByName(name); !ok {
 			return fmt.Errorf("Decoder not found: %s", name)
 		}
@@ -365,19 +374,21 @@ readLoop:
 					break
 				}
 			}
+			pack.Decoded = true
 			if e == nil {
 				ir.Inject(pack)
 			} else {
 				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg))
 				pack.Recycle()
 			}
+			e = nil
 			msg.Ack(false)
 		}
 	}
 	return
 }
 
-func (ai *AMQPInput) Cleanup() {
+func (ai *AMQPInput) CleanupForRestart() {
 	amqpHub.Close(ai.config.URL, ai.connWg)
 	ai.connWg.Wait()
 }
