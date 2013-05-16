@@ -346,6 +346,8 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		} else if n != len(outBytes) {
 			or.LogError(fmt.Errorf("truncated output to: %s", t.address))
 		}
+		
+		plc.Pack.Recycle()
 	}
 
 	t.connection.Close()
