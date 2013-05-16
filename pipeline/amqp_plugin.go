@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"fmt"
+	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"github.com/streadway/amqp"
 	"sync"
@@ -86,6 +87,10 @@ type AMQPOutputConfig struct {
 	// Whether messages published should be marked as persistent or
 	// transient. Defaults to non-persistent.
 	Persistent bool
+	// Whether messages published should be fully serialized when
+	// published. The AMQP input will automatically detect these
+	// messages and deserialize them. Defaults to true.
+	Serialize bool
 }
 
 type AMQPConnectionTracker struct {
@@ -197,6 +202,7 @@ func (ao *AMQPOutput) ConfigStruct() interface{} {
 		ExchangeAutoDelete: true,
 		RoutingKey:         "",
 		Persistent:         false,
+		Serialize:          true,
 	}
 }
 
@@ -232,12 +238,16 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		msg     *message.Message
 		persist uint8
 		ok      bool = true
+		amqpMsg amqp.Publishing
+		encoder client.Encoder
+		msgBody []byte = make([]byte, 0, 500)
 	)
 	if conf.Persistent {
 		persist = uint8(1)
 	} else {
 		persist = uint8(0)
 	}
+	encoder = client.NewProtobufEncoder(nil)
 
 	for ok {
 		select {
@@ -249,11 +259,26 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			}
 			pack = plc.Pack
 			msg = pack.Message
-			amqpMsg := amqp.Publishing{
-				DeliveryMode: persist,
-				Timestamp:    time.Now(),
-				ContentType:  "text/plain",
-				Body:         []byte(msg.GetPayload()),
+			if conf.Serialize {
+				if err = encoder.EncodeMessageStream(msg, &msgBody); err != nil {
+					or.LogError(err)
+					err = nil
+					pack.Recycle()
+					continue
+				}
+				amqpMsg = amqp.Publishing{
+					DeliveryMode: persist,
+					Timestamp:    time.Now(),
+					ContentType:  "application/hekad",
+					Body:         msgBody,
+				}
+			} else {
+				amqpMsg = amqp.Publishing{
+					DeliveryMode: persist,
+					Timestamp:    time.Now(),
+					ContentType:  "text/plain",
+					Body:         []byte(msg.GetPayload()),
+				}
 			}
 			err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 				false, false, amqpMsg)
@@ -262,6 +287,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			} else {
 				pack.Recycle()
 			}
+			msgBody = msgBody[:0]
 		}
 	}
 	ao.usageWg.Done()
@@ -344,6 +370,8 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packSupply := ir.InChan()
 
 	conf := ai.config
+
+	// Setup decoder sets for use with non-serialized messages
 	dSet := h.DecoderSet()
 	decoders := make([]Decoder, len(conf.Decoders))
 	for i, name := range conf.Decoders {
@@ -352,6 +380,19 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 		decoders[i] = dRunner.Decoder()
 	}
+
+	// Setup decoders for serialized messages
+	var (
+		dRunners []DecoderRunner
+		msgOk    bool
+		decoder  DecoderRunner
+		encoding message.Header_MessageEncoding
+	)
+
+	if dRunners, err = h.DecoderSet().ByEncodings(); err != nil {
+		return
+	}
+	header := &message.Header{}
 
 	stream, err := ai.ch.Consume(conf.Queue, "", false, conf.QueueExclusive,
 		false, false, nil)
@@ -366,22 +407,40 @@ readLoop:
 			if !ok {
 				break readLoop
 			}
-			pack.Message.SetType("amqp")
-			pack.Message.SetPayload(string(msg.Body))
-			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			for _, decoder := range decoders {
-				if e = decoder.Decode(pack); e == nil {
-					break
+			if msg.ContentType == "application/hekad" {
+				ir.LogMessage("Got an encoded message")
+				_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
+				if msgOk {
+					encoding = header.GetMessageEncoding()
+					if decoder = dRunners[encoding]; decoder != nil {
+						decoder.InChan() <- pack
+					} else {
+						ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
+							encoding.String()))
+						pack.Recycle()
+					}
+				} else {
+					pack.Recycle()
 				}
-			}
-			pack.Decoded = true
-			if e == nil {
-				ir.Inject(pack)
+				header.Reset()
 			} else {
-				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg))
-				pack.Recycle()
+				pack.Message.SetType("amqp")
+				pack.Message.SetPayload(string(msg.Body))
+				pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
+				for _, decoder := range decoders {
+					if e = decoder.Decode(pack); e == nil {
+						break
+					}
+				}
+				pack.Decoded = true
+				if e == nil {
+					ir.Inject(pack)
+				} else {
+					ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
+					pack.Recycle()
+				}
+				e = nil
 			}
-			e = nil
 			msg.Ack(false)
 		}
 	}
