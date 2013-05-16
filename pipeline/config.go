@@ -627,4 +627,7 @@ func init() {
 	RegisterPlugin("DashboardOutput", func() interface{} {
 		return new(DashboardOutput)
 	})
+	RegisterPlugin("NagiosOutput", func() interface{} {
+		return new(NagiosOutput)
+	})
 }
