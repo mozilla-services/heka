@@ -23,14 +23,14 @@ import (
 
 type NagiosOutputConfig struct {
 	// URL to the Nagios cmd.cgi
-	Url string `toml:"url"`
+	Url string
 	// Nagios username
-	Username string `toml:"username"`
+	Username string
 	// Nagios password
-	Password string `toml:"password"`
+	Password string
 }
 
-func (self *NagiosOutput) ConfigStruct() interface{} {
+func (n *NagiosOutput) ConfigStruct() interface{} {
 	return &NagiosOutputConfig{
 		Url: "http://localhost/cgi-bin/cmd.cgi",
 	}
@@ -41,13 +41,13 @@ type NagiosOutput struct {
 	client *http.Client
 }
 
-func (self *NagiosOutput) Init(config interface{}) (err error) {
-	self.conf = config.(*NagiosOutputConfig)
-	self.client = new(http.Client)
+func (n *NagiosOutput) Init(config interface{}) (err error) {
+	n.conf = config.(*NagiosOutputConfig)
+	n.client = new(http.Client)
 	return
 }
 
-func (self *NagiosOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+func (n *NagiosOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 
 	var (
@@ -82,11 +82,11 @@ func (self *NagiosOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			"plugin_state":     {state},
 			"plugin_output":    {payload[pos+1:]},
 			"performance_data": {""}}
-		req, err := http.NewRequest("POST", self.conf.Url,
+		req, err := http.NewRequest("POST", n.conf.Url,
 			strings.NewReader(data.Encode()))
 		if err == nil {
-			req.SetBasicAuth(self.conf.Username, self.conf.Password)
-			if resp, err := self.client.Do(req); err == nil {
+			req.SetBasicAuth(n.conf.Username, n.conf.Password)
+			if resp, err := n.client.Do(req); err == nil {
 				resp.Body.Close()
 			} else {
 				or.LogError(err)
