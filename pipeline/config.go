@@ -83,16 +83,31 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
+// Indicates a plug-in can handle being restart should it exit before
+// heka is shut-down.
+type Restarting interface {
+	// Is called anytime the plug-in returns during the main Run loop to
+	// clean up the plug-in state and determine whether the plugin should
+	// be restarted or not.
+	CleanupForRestart()
+}
+
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	// All running InputRunners, by name.
 	InputRunners map[string]InputRunner
+	// PluginWrappers that can create Input plugin objects.
+	inputWrappers map[string]*PluginWrapper
 	// PluginWrappers that can create Decoder plugin objects.
 	DecoderWrappers map[string]*PluginWrapper
 	// All running FilterRunners, by name.
 	FilterRunners map[string]FilterRunner
+	// PluginWrappers that can create Filter plugin objects.
+	filterWrappers map[string]*PluginWrapper
 	// All running OutputRunners, by name.
 	OutputRunners map[string]OutputRunner
+	// PluginWrappers that can create Output plugin objects.
+	outputWrappers map[string]*PluginWrapper
 	// Heka message router instance.
 	router *messageRouter
 	// PipelinePack supply for Input plugins.
@@ -131,9 +146,12 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 		return globals
 	}
 	config.InputRunners = make(map[string]InputRunner)
+	config.inputWrappers = make(map[string]*PluginWrapper)
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
 	config.FilterRunners = make(map[string]FilterRunner)
+	config.filterWrappers = make(map[string]*PluginWrapper)
 	config.OutputRunners = make(map[string]OutputRunner)
+	config.outputWrappers = make(map[string]*PluginWrapper)
 	config.router = NewMessageRouter()
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
@@ -224,6 +242,19 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 
 type ConfigFile PluginConfig
 
+// This struct provides a structure for the available retry options for
+// a plugin that supports being restarted
+type RetryOptions struct {
+	// Maximum time in seconds between restart attempts. Defaults to 30s.
+	MaxDelay string `toml:"max_delay"`
+	// Starting delay in milliseconds between restart attempts. Defaults to
+	// 250ms.
+	Delay string
+	// How many times to attempt starting the plugin before failing. Defaults
+	// to -1 (retry forever).
+	MaxRetries int `toml:"max_retries"`
+}
+
 // The TOML spec for plugin configuration options that will be pulled out  by
 // Heka itself for runner configuration before the config is passed to the
 // Plugin.Init method.
@@ -234,6 +265,7 @@ type PluginGlobals struct {
 	Matcher  string `toml:"message_matcher"`
 	Signer   string `toml:"message_signer"`
 	PoolSize uint   `toml:"pool_size"`
+	Retries  RetryOptions
 }
 
 // Default Decoders configuration.
@@ -357,6 +389,13 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	wrapper := new(PluginWrapper)
 	wrapper.name = sectionName
 
+	// Setup default retry policy
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
+
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		self.log(fmt.Sprintf("Unable to decode config for plugin: %s, error: %s",
 			wrapper.name, err.Error()))
@@ -434,7 +473,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		// Creates/starts a DecoderRunner wrapped around the decoder and puts
 		// it on the channel.
 		makeDRunner := func(name string, decoder Decoder, dChan chan DecoderRunner) {
-			dRunner := NewDecoderRunner(name, decoder)
+			dRunner := NewDecoderRunner(name, decoder, &pluginGlobals)
 			self.decodersWg.Add(1)
 			dRunner.Start(self, &self.decodersWg)
 			self.allDecoders = append(self.allDecoders, dRunner)
@@ -455,12 +494,14 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name, plugin.(Input))
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name,
+			plugin.(Input), &pluginGlobals)
+		self.inputWrappers[wrapper.name] = wrapper
 		return
 	}
 
 	// Filters and outputs have a few more config settings.
-	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
 
 	if pluginGlobals.Ticker != 0 {
@@ -485,11 +526,13 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
+		self.filterWrappers[runner.name] = wrapper
 	case "Output":
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
 		self.OutputRunners[runner.name] = runner
+		self.outputWrappers[runner.name] = wrapper
 	}
 
 	return

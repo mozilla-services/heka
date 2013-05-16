@@ -64,6 +64,16 @@ func (_mr *_MockPluginRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
 }
 
+func (_m *MockPluginRunner) PluginGlobals() *PluginGlobals {
+	ret := _m.ctrl.Call(_m, "PluginGlobals")
+	ret0, _ := ret[0].(*PluginGlobals)
+	return ret0
+}
+
+func (_mr *_MockPluginRunnerRecorder) PluginGlobals() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
+}
+
 func (_m *MockPluginRunner) SetName(_param0 string) {
 	_m.ctrl.Call(_m, "SetName", _param0)
 }
