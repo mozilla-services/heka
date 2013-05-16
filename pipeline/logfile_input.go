@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bufio"
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"os"
 	"strings"
@@ -105,9 +106,14 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	for logline := range lw.Monitor.NewLines {
 		pack = <-packSupply
+		pack.Message.SetUuid(uuid.NewRandom())
+		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetType("logfile")
-		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetLogger(logline.Path)
+		pack.Message.SetSeverity(int32(0))
+		pack.Message.SetEnvVersion("0.2")
+		pack.Message.SetPid(0)
+		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
 			if e = decoder.Decode(pack); e == nil {
