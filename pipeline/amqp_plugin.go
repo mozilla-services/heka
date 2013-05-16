@@ -26,6 +26,10 @@ type AMQPConfig struct {
 	// AMQP URL. Spec: http://www.rabbitmq.com/uri-spec.html
 	// Ex: amqp://USERNAME:PASSWORD@HOSTNAME:PORT/
 	URL string
+	// Names of configured `LoglineDecoder` instances used to decode this
+	//  message off the input. The message will be de-serialized per its
+	// content-type before this decoder is run.
+	Decoders []string
 	// Exchange name
 	Exchange string
 	// Type of exchange, options are: fanout, direct, topic, headers
