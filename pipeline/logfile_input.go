@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -144,6 +145,22 @@ type FileMonitor struct {
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
+}
+
+// Serialize to JSON
+func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
+	var tmp = map[string]interface{}{
+		"seek":             fm.seek,
+		"discover":         fm.discover,
+		"discoverInterval": fm.discoverInterval,
+		"statInterval":     fm.statInterval,
+	}
+
+	result, err := json.Marshal(tmp)
+	if err != nil {
+		return nil, err
+	}
+	return result, err
 }
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's

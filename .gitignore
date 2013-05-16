@@ -1,3 +1,5 @@
 cmd/hekad/plugin_loader.go
 docs/build
 sandbox/lua/lua_sandbox.go
+*.swo
+*.swp
