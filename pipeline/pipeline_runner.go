@@ -192,6 +192,7 @@ func (r *RetryHelper) Wait() error {
 // Reset the retry counter
 func (r *RetryHelper) Reset() {
 	r.times = 0
+	r.curDelay = r.delay
 }
 
 // This one struct provides the implementation of both FilterRunner and
