@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -156,11 +157,39 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 		"statInterval":     fm.statInterval,
 	}
 
+	// TODO: encode the pinfo for stat data to see if logfiles have
+	// rolled over
 	result, err := json.Marshal(tmp)
 	if err != nil {
 		return nil, err
 	}
 	return result, err
+}
+
+func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
+	// Reset the FileMonitor before we do anything
+	fm.InitStructs()
+
+	var dec = json.NewDecoder(bytes.NewReader(data))
+	var m map[string]interface{}
+
+	dec.Decode(&m)
+
+	var seek_map = m["seek"].(map[string]interface{})
+	for k, v := range seek_map {
+		fm.seek[k] = int64(v.(float64))
+	}
+
+	var discover_map = m["discover"].(map[string]interface{})
+	for k, v := range discover_map {
+		fm.discover[k] = v.(bool)
+	}
+
+	fm.discoverInterval = time.Duration(m["discoverInterval"].(float64))
+	fm.statInterval = time.Duration(m["statInterval"].(float64))
+
+	return nil
+
 }
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's
@@ -272,14 +301,21 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
-func (fm *FileMonitor) Init(files []string, discoverInterval int,
-	statInterval int) (err error) {
-
+/* Just initialize all the FileMonitor data structures
+ */
+func (fm *FileMonitor) InitStructs() {
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
+}
+
+func (fm *FileMonitor) Init(files []string, discoverInterval int,
+	statInterval int) (err error) {
+
+	fm.InitStructs()
+
 	for _, fileName := range files {
 		fm.discover[fileName] = true
 	}

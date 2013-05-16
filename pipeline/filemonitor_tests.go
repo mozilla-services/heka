@@ -15,7 +15,6 @@
 package pipeline
 
 import (
-    "fmt"
 	"encoding/json"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
@@ -34,7 +33,12 @@ func FileMonitorSpec(c gs.Context) {
 			// Serialize to JSON
 			fbytes, _ := json.Marshal(fm)
 
-			fmt.Printf("Encoded data : " + string(fbytes))
+			newFM := new(FileMonitor)
+			newFM.InitStructs()
+			json.Unmarshal(fbytes, &newFM)
+			c.Expect(len(newFM.seek), gs.Equals, len(fm.seek))
+			c.Expect(newFM.seek["/tmp/foo.txt"], gs.Equals, fm.seek["/tmp/foo.txt"])
+			c.Expect(newFM.seek["/tmp/bar.txt"], gs.Equals, fm.seek["/tmp/bar.txt"])
 		})
 	})
 }
