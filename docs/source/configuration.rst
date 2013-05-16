@@ -169,6 +169,8 @@ Command Line Options
 
 .. end-options
 
+.. start-restarting
+
 .. _configuring_restarting:
 
 Configuring Restarting Behavior
@@ -210,6 +212,8 @@ illustrative purposes only):
     max_delay = 30s
     delay = 250ms
     max_retries = 5
+
+.. end-restarting
 
 .. start-inputs
 
