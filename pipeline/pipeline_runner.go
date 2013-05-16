@@ -517,7 +517,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
 
 	for !globals.Stopping {
 		select {
