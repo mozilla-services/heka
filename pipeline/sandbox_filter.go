@@ -159,13 +159,8 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	if terminated {
 		h.PipelineConfig().RemoveFilterRunner(fr.Name())
 		// recycle any messages until the matcher is torn down
-		for ok {
-			select {
-			case plc, ok = <-inChan:
-				if ok {
-					plc.Pack.Recycle()
-				}
-			}
+   	for plc = range inChan {
+			plc.Pack.Recycle()
 		}
 	}
 
