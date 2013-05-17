@@ -31,6 +31,11 @@ Roles
 A single `hekad` daemon could act as all the roles in smaller
 deployments.
 
+.. include:: /configuration.rst
+    :start-after: start-restarting
+    :end-before: end-restarting
+
+
 See Also
 ========
 

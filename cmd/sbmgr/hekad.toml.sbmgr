@@ -95,3 +95,20 @@ output_limit = 1024
 type = "CounterFilter"
 message_matcher = "Type == 'hekabench'"
 ticker_interval = 1
+
+[NagiosOutput]
+url = "http://localhost/nagios/cgi-bin/cmd.cgi"
+username = "nagiosadmin"
+password = "4bob"
+message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT'"
+
+[nagios-sandbox]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 10
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/nagios.lua"
+preserve_data = false
+memory_limit = 32767
+instruction_limit = 1000
+output_limit = 1024

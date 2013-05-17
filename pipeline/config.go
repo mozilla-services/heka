@@ -632,5 +632,7 @@ func init() {
 	})
 	RegisterPlugin("AMQPInput", func() interface{} {
 		return new(AMQPInput)
+	RegisterPlugin("NagiosOutput", func() interface{} {
+		return new(NagiosOutput)
 	})
 }

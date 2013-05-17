@@ -288,6 +288,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// If its a lua sandbox, we let it shut down
 		if _, ok := foRunner.plugin.(*SandboxFilter); ok {
+			pc.RemoveFilterRunner(foRunner.name)
 			return
 		}
 
@@ -518,7 +519,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
 
 	for !globals.Stopping {
 		select {
