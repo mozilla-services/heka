@@ -338,6 +338,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		if e = createProtobufStream(plc.Pack, &outBytes); e != nil {
 			or.LogError(e)
+			plc.Pack.Recycle()
 			continue
 		}
 
