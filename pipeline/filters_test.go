@@ -73,8 +73,9 @@ func FiltersSpec(c gs.Context) {
 			var timer <-chan time.Time
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(2)
+			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(3)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(2)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(2)
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("exceeded InjectMessage count"))
 
@@ -82,6 +83,7 @@ func FiltersSpec(c gs.Context) {
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
 			inChan <- plc
+			close(inChan)
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
 
@@ -90,14 +92,19 @@ func FiltersSpec(c gs.Context) {
 			timer = time.Tick(time.Duration(1) * time.Millisecond)
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(11)
+			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(12)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(11)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(11)
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("exceeded InjectMessage count"))
 
 			config.ScriptFilename = "../sandbox/lua/testsupport/timerinject.lua"
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
+			go func() {
+				time.Sleep(time.Duration(250) * time.Millisecond)
+				close(inChan)
+			}()
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
 	})
