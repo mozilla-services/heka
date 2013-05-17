@@ -330,7 +330,9 @@ Parameters:
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
-
+- decoders (list of strings):
+    List of logline decoder names used to transform the log line into
+    a structured hekad message.
 
 .. _config_statsd_input:
 
@@ -402,6 +404,69 @@ struct objects. The hekad protocol buffers message schema in defined in the
 .. seealso:: `Protocol Buffers - Google's data interchange format
    <http://code.google.com/p/protobuf/>`_
 
+.. _config_logline_decoder:
+
+LoglineDecoder
+--------------
+
+Decoder plugin that accepts messages of a specified form and generates new
+outgoing messages from extracted data, effectively transforming one message
+format into another. Can be combined w/ `message_matcher` capture groups (see
+:ref:`matcher_capture_groups`) to extract unstructured information from
+message payloads and use it to populate `Message` struct attributes and fields
+in a more structured manner.
+
+Parameters:
+
+- matchRegex:
+    Regular expression that must match for the decoder to process the message.
+- SeverityMap:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
+- MessageFields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in a regex
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_decoder.MessageFields]
+        Type = "%Type%Decoded"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Decoded` appended.
+- timestampLayout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
+
+Example (Parsing Apache Combined Log Format):
+
+.. code-block:: ini
+
+    [apache_transform_decoder]
+    type = "LoglineDecoder"
+    matchRegex = `/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    timestamplayout = "02/Jan/2006:15:04:05 +0100"
+
+    [apache_transform_decoder.SeverityMap]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [apache_transform_decoder.MessageFields]
+    Type = "ApacheLogfile"
+    Logger = "apache"
+    Url = "%Url%"
+    Method = "%Method%"
+    Status = "%Status%"
+    Bytes = "%Bytes%"
+    Referer = "%Referer%"
+    Browser = "%Browser%"
+
 .. end-decoders
 
 .. _config_common_parameters:
@@ -449,70 +514,6 @@ Example:
 
     [CounterFilter]
     message_matcher = "Type != 'heka.counter-output'"
-
-.. _config_transform_filter:
-
-TransformFilter
----------------
-
-Heka filter plugin that accepts messages of a specified form and generates new
-outgoing messages from extracted data, effectively transforming one message
-format into another. Can be combined w/ `message_matcher` capture groups (see
-:ref:`matcher_capture_groups`) to extract unstructured information from
-message payloads and use it to populate `Message` struct attributes and fields
-in a more structured manner.
-
-Parameters:
-
-- SeverityMap:
-    Subsection defining severity strings and the numerical value they should
-    be translated to. hekad uses numerical severity codes, so a severity of
-    `WARNING` can be translated to `3` by settings in this section.
-
-- MessageFields:
-    Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in a regex
-    in the message_matcher, and any other field that exists in the message. In
-    the event that a captured name overlaps with a message field, the captured
-    name's value will be used.
-
-    Interpolated values should be surrounded with `%` signs, for example::
-
-        [my_filter.MessageFields]
-        Type = "%Type%Transformed"
-
-    This will result in the new message's Type being set to the old messages
-    Type with `Transformed` appended.
-
-- TimestampLayout (string):
-    A formatting string instructing hekad how to turn a time string into the
-    actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
-
-Example (Parsing Apache Combined Log Format):
-
-.. code-block:: ini
-
-    [apache_transform_filter]
-    type = "TransformFilter"
-    message_matcher =~ 'Type == "logfile" && Logger == "/var/log/httpd.log" && Payload ~= /^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
-    timestamplayout = "02/Jan/2006:15:04:05 +0100"
-
-    [apache_transform_filter.SeverityMap]
-    DEBUG = 1
-    WARNING = 2
-    INFO = 3
-
-    [apache_transform_filter.MessageFields]
-    Type = "ApacheLogfile"
-    Logger = "apache"
-    Url = "%Url%"
-    Method = "%Method%"
-    Status = "%Status%"
-    Bytes = "%Bytes%"
-    Referer = "%Referer%"
-    Browser = "%Browser%"
-
 
 .. _config_stat_filter:
 
@@ -755,12 +756,12 @@ NagiosOutput
 ---------------
 
 Specialized output plugin that listens for Nagios external command message types
-and generates an HTTP request against the Nagios cmd.cgi API. Currently the 
-output will only send passive service check results.  The message payload must 
+and generates an HTTP request against the Nagios cmd.cgi API. Currently the
+output will only send passive service check results.  The message payload must
 consist of a state followed by a colon and then the message i.e.,
 "OK:Service is functioning properly". The valid states are:
 OK|WARNING|CRITICAL|UNKNOWN.  Nagios must be configured with a service name that
-matches the Heka plugin instance name and the hostname where the plugin is 
+matches the Heka plugin instance name and the hostname where the plugin is
 running.
 
 Parameters:
