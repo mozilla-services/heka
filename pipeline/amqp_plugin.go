@@ -23,6 +23,41 @@ import (
 	"time"
 )
 
+type AMQPConnection interface {
+	Channel() (*amqp.Channel, error)
+	Close() error
+	NotifyClose(c chan *amqp.Error) chan *amqp.Error
+}
+
+type AMQPChannel interface {
+	Cancel(consumer string, noWait bool) error
+	Close() error
+	Confirm(noWait bool) error
+	Consume(queue, consumer string, autoAck, exclusive, noLocal, noWait bool, args amqp.Table) (<-chan amqp.Delivery, error)
+	ExchangeBind(destination, key, source string, noWait bool, args amqp.Table) error
+	ExchangeDeclare(name, kind string, durable, autoDelete, internal, noWait bool, args amqp.Table) error
+	ExchangeDelete(name string, ifUnused, noWait bool) error
+	ExchangeUnbind(destination, key, source string, noWait bool, args amqp.Table) error
+	Flow(active bool) error
+	Get(queue string, autoAck bool) (msg amqp.Delivery, ok bool, err error)
+	NotifyClose(c chan *amqp.Error) chan *amqp.Error
+	NotifyConfirm(ack, nack chan uint64) (chan uint64, chan uint64)
+	NotifyFlow(c chan bool) chan bool
+	NotifyReturn(c chan amqp.Return) chan amqp.Return
+	Publish(exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
+	Qos(prefetchCount, prefetchSize int, global bool) error
+	QueueBind(name, key, exchange string, noWait bool, args amqp.Table) error
+	QueueDeclare(name string, durable, autoDelete, exclusive, noWait bool, args amqp.Table) (amqp.Queue, error)
+	QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error)
+	QueueInspect(name string) (amqp.Queue, error)
+	QueuePurge(name string, noWait bool) (int, error)
+	QueueUnbind(name, key, exchange string, args amqp.Table) error
+	Recover(requeue bool) error
+	Tx() error
+	TxCommit() error
+	TxRollback() error
+}
+
 // AMQP Input config struct
 type AMQPInputConfig struct {
 	// AMQP URL. Spec: http://www.rabbitmq.com/uri-spec.html
@@ -93,8 +128,12 @@ type AMQPOutputConfig struct {
 	Serialize bool
 }
 
+// Connection tracker that stores the actual AMQP Connection object along
+// with its usage waitgroup (tracks if channels are still in use) along with
+// a connection waitgroup (for users to wait on so the connection closing
+// can be synchronized)
 type AMQPConnectionTracker struct {
-	conn    *amqp.Connection
+	conn    AMQPConnection
 	usageWg *sync.WaitGroup
 	connWg  *sync.WaitGroup
 }
@@ -104,19 +143,25 @@ type AMQPConnectionTracker struct {
 // Since multiple channels should be utilized for a single connection,
 // this hub manages the connections, dispensing channels per broker
 // config.
-type AMQPConnectionHub struct {
+type AMQPConnectionHub interface {
+	GetChannel(url string) (ch AMQPChannel, usageWg, connectionWg *sync.WaitGroup, err error)
+	Close(url string, connWg *sync.WaitGroup)
+}
+
+// Default AMQP connection hub implementation
+type amqpConnectionHub struct {
 	connections map[string]*AMQPConnectionTracker
 	mutex       *sync.Mutex
 }
 
 // The global AMQP Connection Hub
-var amqpHub *AMQPConnectionHub
+var amqpHub AMQPConnectionHub
 
 // Returns a channel for the specified AMQPBroker
 //
 // The caller may then wait for the connectionWg to get notified when the
 // connection has been torn down.
-func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
+func (ah *amqpConnectionHub) GetChannel(url string) (ch AMQPChannel,
 	usageWg, connectionWg *sync.WaitGroup, err error) {
 	ah.mutex.Lock()
 	defer ah.mutex.Unlock()
@@ -124,7 +169,7 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
 	var (
 		ok   bool
 		trk  *AMQPConnectionTracker
-		conn *amqp.Connection
+		conn AMQPConnection
 	)
 	if trk, ok = ah.connections[url]; !ok {
 		// Create the connection
@@ -170,7 +215,7 @@ func (ah *AMQPConnectionHub) GetChannel(url string) (ch *amqp.Channel,
 // in does not match the one created with this connection, at which point
 // the call will be ignored as its for an older connection that has
 // already been removed
-func (ah *AMQPConnectionHub) Close(url string, connWg *sync.WaitGroup) {
+func (ah *amqpConnectionHub) Close(url string, connWg *sync.WaitGroup) {
 	trk, ok := ah.connections[url]
 	if !ok {
 		return
@@ -185,7 +230,7 @@ type AMQPOutput struct {
 	// Hold a copy of the config used
 	config *AMQPOutputConfig
 	// The AMQP Channel created upon Init
-	ch *amqp.Channel
+	ch AMQPChannel
 	// closeChan gets sent an error should the channel close so that
 	// we can immediately exit the output
 	closeChan chan *amqp.Error
@@ -304,7 +349,7 @@ func (ao *AMQPOutput) CleanupForRestart() {
 
 type AMQPInput struct {
 	config  *AMQPInputConfig
-	ch      *amqp.Channel
+	ch      AMQPChannel
 	usageWg *sync.WaitGroup
 	connWg  *sync.WaitGroup
 }
@@ -459,7 +504,8 @@ func (ai *AMQPInput) Stop() {
 }
 
 func init() {
-	amqpHub = new(AMQPConnectionHub)
-	amqpHub.connections = make(map[string]*AMQPConnectionTracker)
-	amqpHub.mutex = new(sync.Mutex)
+	ach := new(amqpConnectionHub)
+	ach.connections = make(map[string]*AMQPConnectionTracker)
+	ach.mutex = new(sync.Mutex)
+	amqpHub = ach
 }
