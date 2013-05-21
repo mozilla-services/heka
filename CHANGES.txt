@@ -1,0 +1,29 @@
+0.2.0rc1
+========
+
+* Use non-https links in docs to prevent bad rendering due to mixed http/https
+  content.
+
+* A number of documentation tweaks and updates.
+
+* Static linking of cgo wrapped Lua environment.
+
+* Added LICENSE.txt and CHANGES.txt for better project hygiene.
+
+* Changed default interval for log file reading from 1ms to 500ms so we don't
+  churn the machine in default configuration.
+
+* Moved StatPacket channel setup into StatsdInput's Init method (from Run) to
+  avoid race conditions.
+
+* Added support for mingw-based Windows build.
+
+* Perform message injection in a goroutine to prevent blocking the router when
+  the plugin that is doing the injection has a full in channel.
+
+* Added required pack recycling to TcpOutput.
+
+0.2.0b1 (2013-04-30)
+====================
+
+* Initial public release
