@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -173,22 +174,29 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
 
-	// TODO: we can at least save the last modification time and the
-	// total filesize to see if the file changed at all.
-	var mtimes map[string]time.Time
-	mtimes = make(map[string]time.Time)
+	var btimes map[string]int64
+	btimes = make(map[string]int64)
 
 	var tmp = map[string]interface{}{
-		"seek":   fm.seek,
-		"mtimes": mtimes,
+		"seek":        fm.seek,
+		"birth_times": btimes,
 	}
 
 	for filename, _ := range fm.seek {
 		info, err := os.Stat(filename)
 		if err != nil {
-			// TODO: handle errors here
+			return nil, fmt.Errorf("Can't get stat() info for [%s]", filename)
 		}
-		mtimes[filename] = info.ModTime()
+		sys_info, _ := info.Sys().(*syscall.Stat_t)
+		ctime := sys_info.Ctimespec.Nano()
+		btime := sys_info.Birthtimespec.Nano()
+
+		// Assume that if ctime and btime are the same, then
+		// the underlying filesystem doesn't really support
+		// birthtime
+		if ctime != btime {
+			btimes[filename] = btime
+		}
 	}
 
 	result, err := json.Marshal(tmp)
@@ -217,6 +225,36 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	var btime_map = m["birth_times"].(map[string]interface{})
+	for k, v := range btime_map {
+		// Just do a linear scan to match seek positions to actual
+		// logfiles.  This only happens at startup anyway
+		for logfile, _ := range fm.discover {
+			if logfile == k {
+				last_btime := int64(v.(float64))
+
+				info, err := os.Stat(logfile)
+				if err != nil {
+					return fmt.Errorf("Can't get stat() info for [%s]", logfile)
+				}
+				sys_info, _ := info.Sys().(*syscall.Stat_t)
+
+				ctime := sys_info.Ctimespec.Nano()
+				btime := sys_info.Birthtimespec.Nano()
+				// Assume that if ctime and btime are the same, then
+				// the underlying filesystem doesn't really support
+				// birthtime
+				if btime != ctime {
+					if btime != last_btime {
+						fmt.Printf("Last birthtime didn't match.  Set the seek to 0\n")
+						fm.seek[logfile] = 0
+					} else {
+						fmt.Printf("Matched birthtime, not resetting the seek to 0\n")
+					}
+				}
+			}
+		}
+	}
 	return nil
 
 }
@@ -311,21 +349,18 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
+	var bytes_read int64
 	for err == nil {
 		line := Logline{Path: fileName, Line: readLine}
 		fm.NewLines <- line
-		fm.seek[fileName] += int64(len(readLine))
+		bytes_read = int64(len(readLine))
+		fm.seek[fileName] += bytes_read
+		fm.updateJournal(bytes_read)
 		readLine, err = reader.ReadString('\n')
 	}
-	fm.seek[fileName] += int64(len(readLine))
-
-	var filemon_bytes []byte
-
-	// TODO: do something with marshalling error
-	filemon_bytes, _ = json.Marshal(fm)
-
-	fm.seekWriter.Write([]byte(string(filemon_bytes) + "\n"))
-	fm.seekWriter.Flush()
+	bytes_read = int64(len(readLine))
+	fm.seek[fileName] += bytes_read
+	fm.updateJournal(bytes_read)
 
 	// Check that we haven't been rotated, if we have, put this back on
 	// discover
@@ -337,6 +372,17 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		fm.discover[fileName] = true
 	}
 	return
+}
+
+func (fm *FileMonitor) updateJournal(bytes_read int64) {
+	if bytes_read == 0 {
+		return
+	}
+	var filemon_bytes []byte
+	filemon_bytes, _ = json.Marshal(fm)
+
+	fm.seekWriter.Write([]byte(string(filemon_bytes) + "\n"))
+	fm.seekWriter.Flush()
 }
 
 /* Just initialize all the FileMonitor data structures
