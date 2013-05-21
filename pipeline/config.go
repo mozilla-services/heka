@@ -250,6 +250,8 @@ type RetryOptions struct {
 	// Starting delay in milliseconds between restart attempts. Defaults to
 	// 250ms.
 	Delay string
+	// Maximum jitter added to every retry attempt. Defaults to 500ms.
+	MaxJitter string `toml:"max_jitter"`
 	// How many times to attempt starting the plugin before failing. Defaults
 	// to -1 (retry forever).
 	MaxRetries int `toml:"max_retries"`
