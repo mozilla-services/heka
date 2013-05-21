@@ -189,11 +189,8 @@ func (r *RetryHelper) Wait() error {
 	if r.retries != -1 && r.times >= r.retries {
 		return errors.New("Max retries exceeded")
 	}
-	jitter, _ := rand.Int(rand.Reader, big.NewInt(500))
-	jitterWait := time.Duration(jitter.Int64()) * time.Millisecond
-	if jitterWait > r.maxJitter {
-		jitterWait = r.maxJitter
-	}
+	jitter, _ := rand.Int(rand.Reader, big.NewInt(r.maxJitter.Nanoseconds()))
+	jitterWait := time.Duration(jitter.Int64()) * time.Nanosecond
 	timer := time.NewTimer(r.curDelay + jitterWait)
 	select {
 	case <-timer.C:
