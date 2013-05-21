@@ -294,27 +294,23 @@ func TestAPIErrors(t *testing.T) {
 		"no return",
 		"read_message() incorrect number of args",
 		"read_message() incorrect field name type",
-		"read_message() incorrect field index type",
-		"read_message() incorrect array index type",
 		"read_message() negative field index",
 		"read_message() negative array index",
 		"output limit exceeded"}
 
 	msgs := []string{
-		"process_message() inject_message() takes a maximum of 2 arguments",
-		"process_message() output() must have at least one argument",
+		"process_message() ./testsupport/errors.lua:11: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
 		"process_message() ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
 		"process_message() must return a single numeric value",
-		"process_message() read_message() incorrect number of arguments",
+		"process_message() ./testsupport/errors.lua:28: read_message() incorrect number of arguments",
 		"process_message() ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
-		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (number expected, got nil)",
-		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (number expected, got nil)",
-		"process_message() read_message() field index must be >= 0",
-		"process_message() read_message() array index must be >= 0",
-		"process_message() output_limit exceeded"}
+		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (field index must be >= 0)",
+		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (array index must be >= 0)",
+		"process_message() ./testsupport/errors.lua:37: output_limit exceeded"}
 
 	var sbc SandboxConfig
 	var captures map[string]string
@@ -562,7 +558,7 @@ func TestFailedMessageInjection(t *testing.T) {
 			STATUS_TERMINATED, sb.Status())
 	}
 	s := sb.LastError()
-	errMsg := "process_message() inject_message() exceeded MaxMsgLoops"
+	errMsg := "process_message() ./testsupport/loop.lua:7: inject_message() exceeded MaxMsgLoops"
 	if s != errMsg {
 		t.Errorf("error should be \"%s\", received \"%s\"", errMsg, s)
 	}

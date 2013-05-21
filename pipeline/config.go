@@ -222,8 +222,9 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 	return nil
 }
 
-// Removes the specified FilterRunner from the configuration, returns false if
-// no such name is registered.
+// Removes the specified FilterRunner from the configuration and the
+// MessageRouter which signals the filter to shutdown by closing the input
+// channel. Returns true if the filter was removed.
 func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	if Globals().Stopping {
 		return false
@@ -233,7 +234,6 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	defer self.filtersLock.Unlock()
 	if fRunner, ok := self.FilterRunners[name]; ok {
 		self.router.MrChan() <- fRunner.MatchRunner()
-		close(fRunner.InChan())
 		delete(self.FilterRunners, name)
 		return true
 	}
@@ -250,6 +250,8 @@ type RetryOptions struct {
 	// Starting delay in milliseconds between restart attempts. Defaults to
 	// 250ms.
 	Delay string
+	// Maximum jitter added to every retry attempt. Defaults to 500ms.
+	MaxJitter string `toml:"max_jitter"`
 	// How many times to attempt starting the plugin before failing. Defaults
 	// to -1 (retry forever).
 	MaxRetries int `toml:"max_retries"`
@@ -526,7 +528,11 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
-		self.filterWrappers[runner.name] = wrapper
+		// Wrapper everything but a SandboxFilter, they aren't restarted
+		if _, ok := runner.plugin.(*SandboxFilter); !ok {
+			self.filterWrappers[runner.name] = wrapper
+		}
+
 	case "Output":
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)

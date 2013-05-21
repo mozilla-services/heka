@@ -261,6 +261,7 @@ func getCbufTemplate() string {
         document.body.appendChild(div);
         document.body.appendChild(document.createElement('br'));
         var ldv = cbuf.header.column_info.length * 200 + 150;
+   	 if (ldv > 1024) ldv = 1024;
         var options = {labels: labels, labelsDivWidth: ldv, labelsDivStyles:{ 'textAlign': 'right'}};
         document.body.appendChild(checkboxes);
         graph = new Dygraph(div, cbuf.data, options);
