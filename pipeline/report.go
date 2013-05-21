@@ -40,6 +40,14 @@ func newIntField(msg *message.Message, name string, val int) {
 	}
 }
 
+// Convenience function for creating a new int64 field on a message object.
+func newInt64Field(msg *message.Message, name string, val int64) {
+	f, err := message.NewField(name, val, message.Field_RAW)
+	if err == nil {
+		msg.AddField(f)
+	}
+}
+
 // Convenience function for creating and setting a string field called "name"
 // on a message object.
 func setNameField(msg *message.Message, name string) {

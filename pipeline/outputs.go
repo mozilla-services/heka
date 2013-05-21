@@ -51,6 +51,8 @@ type OutputRunner interface {
 	// to shut down and wants to retain the pack for the next time its
 	// running properly
 	RetainPack(pack *PipelineCapture)
+	// Parsing engine for this Output's message_matcher.
+	MatchRunner() *MatchRunner
 }
 
 // Heka Output plugin type.

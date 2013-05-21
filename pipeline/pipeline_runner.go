@@ -302,7 +302,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		// If its a lua sandbox, we let it shut down
 		if _, ok := foRunner.plugin.(*SandboxFilter); ok {
-			pc.RemoveFilterRunner(foRunner.name)
 			return
 		}
 
@@ -575,14 +574,19 @@ func Run(config *PipelineConfig) {
 
 	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
-		close(filter.InChan())
+		// needed for a clean shutdown without deadlocking or orphaning messages
+		// 1. removes the matcher from the router
+		// 2. closes the matcher input channel and lets it drain
+		// 3. closes the filter input channel and lets it drain
+		// 4. exits the filter
+		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
-		close(output.InChan())
+		config.router.RemoveOutputMatcher() <- output.MatchRunner()
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
