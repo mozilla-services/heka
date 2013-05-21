@@ -564,14 +564,14 @@ func Run(config *PipelineConfig) {
 		// 2. closes the matcher input channel and lets it drain
 		// 3. closes the filter input channel and lets it drain
 		// 4. exits the filter
-		config.router.FilterMrChan() <- filter.MatchRunner()
+		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
-		config.router.OutputMrChan() <- output.MatchRunner()
+		config.router.RemoveOutputMatcher() <- output.MatchRunner()
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
