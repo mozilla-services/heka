@@ -187,6 +187,10 @@ be added to the delay between restart attempts.
 
 Parameters:
 
+- max_jitter (string):
+    The longest jitter duration to add to the delay between restarts. Jitter
+    up to 500ms by default is added to every delay to ensure more even
+    restart attempts over time.
 - max_delay (string):
     The longest delay between attempts to restart the plugin. Defaults to
     30s (30 seconds).

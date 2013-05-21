@@ -139,16 +139,26 @@ func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
 // Calling Reset will reset the time counter indicating the operation that
 // was being retried succeeded.
 type RetryHelper struct {
-	maxDelay time.Duration
-	delay    time.Duration
-	curDelay time.Duration
-	retries  int
-	times    int
+	maxDelay  time.Duration
+	delay     time.Duration
+	curDelay  time.Duration
+	maxJitter time.Duration
+	retries   int
+	times     int
 }
 
 // Creates and returns a RetryHelper pointer to be used when retrying
 // plugin restarts or other parts that require exponential backoff
 func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
+	if opts.Delay == "" {
+		opts.Delay = "250ms"
+	}
+	if opts.MaxDelay == "" {
+		opts.MaxDelay = "30s"
+	}
+	if opts.MaxJitter == "" {
+		opts.MaxJitter = "500ms"
+	}
 	delay, err := time.ParseDuration(opts.Delay)
 	if err != nil {
 		return
@@ -157,12 +167,17 @@ func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
 	if err != nil {
 		return
 	}
+	maxJitter, err := time.ParseDuration(opts.MaxJitter)
+	if err != nil {
+		return
+	}
 	helper = &RetryHelper{
-		maxDelay: maxDelay,
-		delay:    delay,
-		curDelay: delay,
-		retries:  opts.MaxRetries,
-		times:    0,
+		maxDelay:  maxDelay,
+		delay:     delay,
+		curDelay:  delay,
+		retries:   opts.MaxRetries,
+		maxJitter: maxJitter,
+		times:     0,
 	}
 	return
 }
@@ -176,6 +191,9 @@ func (r *RetryHelper) Wait() error {
 	}
 	jitter, _ := rand.Int(rand.Reader, big.NewInt(500))
 	jitterWait := time.Duration(jitter.Int64()) * time.Millisecond
+	if jitterWait > r.maxJitter {
+		jitterWait = r.maxJitter
+	}
 	timer := time.NewTimer(r.curDelay + jitterWait)
 	select {
 	case <-timer.C:

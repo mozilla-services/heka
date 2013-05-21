@@ -380,8 +380,9 @@ func OutputsSpec(c gs.Context) {
 		pc := new(PipelineConfig)
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "3ms",
-			Delay:      "10ms",
+			MaxDelay:   "1us",
+			Delay:      "1us",
+			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
 		pw := &PluginWrapper{
@@ -406,8 +407,9 @@ func OutputsSpec(c gs.Context) {
 		pc := new(PipelineConfig)
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "3ms",
-			Delay:      "1ms",
+			MaxDelay:   "1us",
+			Delay:      "1us",
+			MaxJitter:  "1us",
 			MaxRetries: 4,
 		}
 		pw := &PluginWrapper{
