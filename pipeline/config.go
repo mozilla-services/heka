@@ -217,7 +217,7 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 		return fmt.Errorf("AddFilterRunner '%s' failed to start: %s",
 			fRunner.Name(), err)
 	} else {
-		self.router.MrChan() <- fRunner.MatchRunner()
+		self.router.FilterMrChan() <- fRunner.MatchRunner()
 	}
 	return nil
 }
@@ -233,7 +233,7 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	self.filtersLock.Lock()
 	defer self.filtersLock.Unlock()
 	if fRunner, ok := self.FilterRunners[name]; ok {
-		self.router.MrChan() <- fRunner.MatchRunner()
+		self.router.FilterMrChan() <- fRunner.MatchRunner()
 		delete(self.FilterRunners, name)
 		return true
 	}

@@ -32,14 +32,16 @@ type MessageRouter interface {
 	// Input channel from which the router gets messages to test against the
 	// registered plugin message_matchers.
 	InChan() chan *PipelinePack
-	// Channel holding a reference to all running message_matchers for easy
-	// access to the entire set.
-	MrChan() chan *MatchRunner
+	// Channel to facilitate adding/removing a FilterRunner
+	FilterMrChan() chan *MatchRunner
+	// Channel to facilitate removing an OutputRunner
+	OutputMrChan() chan *MatchRunner
 }
 
 type messageRouter struct {
 	inChan    chan *PipelinePack
-	mrChan    chan *MatchRunner
+	fmrChan   chan *MatchRunner
+	omrChan   chan *MatchRunner
 	fMatchers []*MatchRunner
 	oMatchers []*MatchRunner
 }
@@ -48,7 +50,8 @@ type messageRouter struct {
 func NewMessageRouter() (router *messageRouter) {
 	router = new(messageRouter)
 	router.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
-	router.mrChan = make(chan *MatchRunner, 0)
+	router.fmrChan = make(chan *MatchRunner, 0)
+	router.omrChan = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
@@ -58,8 +61,12 @@ func (self *messageRouter) InChan() chan *PipelinePack {
 	return self.inChan
 }
 
-func (self *messageRouter) MrChan() chan *MatchRunner {
-	return self.mrChan
+func (self *messageRouter) FilterMrChan() chan *MatchRunner {
+	return self.fmrChan
+}
+
+func (self *messageRouter) OutputMrChan() chan *MatchRunner {
+	return self.omrChan
 }
 
 // Spawns a goroutine within which the router listens for messages on the
@@ -74,7 +81,7 @@ func (self *messageRouter) Start() {
 		for ok {
 			runtime.Gosched()
 			select {
-			case matcher = <-self.mrChan:
+			case matcher = <-self.fmrChan:
 				if matcher != nil {
 					removed := false
 					available := -1
@@ -84,7 +91,6 @@ func (self *messageRouter) Start() {
 						}
 						if matcher == m {
 							close(m.inChan)
-							close(m.matchChan)
 							self.fMatchers[i] = nil
 							removed = true
 							break
@@ -95,6 +101,16 @@ func (self *messageRouter) Start() {
 							self.fMatchers[available] = matcher
 						} else {
 							self.fMatchers = append(self.fMatchers, matcher)
+						}
+					}
+				}
+			case matcher = <-self.omrChan:
+				if matcher != nil {
+					for i, m := range self.oMatchers {
+						if matcher == m {
+							close(m.inChan)
+							self.oMatchers[i] = nil
+							break
 						}
 					}
 				}
@@ -131,10 +147,9 @@ func (self *messageRouter) Start() {
 // Encapsulates the mechanics of testing messages against a specific plugin's
 // message_matcher value.
 type MatchRunner struct {
-	spec      *message.MatcherSpecification
-	signer    string
-	inChan    chan *PipelinePack
-	matchChan chan *PipelineCapture
+	spec   *message.MatcherSpecification
+	signer string
+	inChan chan *PipelinePack
 }
 
 // Creates and returns a new MatchRunner if possible, or a relevant error if
@@ -163,7 +178,6 @@ func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
 // Output plugin). Any messages that are not a match will be immediately
 // recycled.
 func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
-	mr.matchChan = matchChan
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -186,10 +200,11 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			match, captures := mr.spec.Match(pack.Message)
 			if match {
 				plc := &PipelineCapture{Pack: pack, Captures: captures}
-				mr.matchChan <- plc
+				matchChan <- plc
 			} else {
 				pack.Recycle()
 			}
 		}
+		close(matchChan)
 	}()
 }
