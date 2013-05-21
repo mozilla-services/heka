@@ -175,8 +175,20 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 
 	// TODO: we can at least save the last modification time and the
 	// total filesize to see if the file changed at all.
+	var mtimes map[string]time.Time
+	mtimes = make(map[string]time.Time)
+
 	var tmp = map[string]interface{}{
-		"seek": fm.seek,
+		"seek":   fm.seek,
+		"mtimes": mtimes,
+	}
+
+	for filename, _ := range fm.seek {
+		info, err := os.Stat(filename)
+		if err != nil {
+			// TODO: handle errors here
+		}
+		mtimes[filename] = info.ModTime()
 	}
 
 	result, err := json.Marshal(tmp)
@@ -340,7 +352,8 @@ func (fm *FileMonitor) InitStructs() {
 
 func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	statInterval int, seekJournalPath string) (err error) {
-	var seek_err error
+
+	var file_err error
 
 	fm.InitStructs()
 
@@ -348,14 +361,14 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 		fm.discover[fileName] = true
 	}
 
-	if seek_err = fm.recoverSeekPosition(seekJournalPath); seek_err != nil {
-		return seek_err
+	if file_err = fm.recoverSeekPosition(seekJournalPath); file_err != nil {
+		return file_err
 	}
 
-	if fm.seekJournal, seek_err = os.OpenFile(seekJournalPath,
-		os.O_RDWR|os.O_APPEND,
-		0660); seek_err != nil {
-		return seek_err
+	if fm.seekJournal, file_err = os.OpenFile(seekJournalPath,
+		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		0660); file_err != nil {
+		return file_err
 	}
 	fm.seekWriter = bufio.NewWriter(fm.seekJournal)
 
@@ -367,6 +380,21 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 
 func (fm *FileMonitor) recoverSeekPosition(seekJournalPath string) error {
 	var seek_err error
+
+	// Check if the file exists first,
+
+	var f *os.File
+	var err error
+
+	f, err = os.Open(seekJournalPath)
+	if err != nil {
+		// The logfile doesn't exist, nothing special to do
+		if os.IsNotExist(err) {
+			fmt.Println("File doesn't exist!")
+			return nil
+		}
+	}
+	f.Close()
 
 	// First try to restore the line position
 	if fm.seekJournal, seek_err = os.OpenFile(seekJournalPath,
@@ -381,4 +409,5 @@ func (fm *FileMonitor) recoverSeekPosition(seekJournalPath string) error {
 
 	json.Unmarshal([]byte(blob), &fm)
 	fm.seekJournal.Close()
+	return nil
 }
