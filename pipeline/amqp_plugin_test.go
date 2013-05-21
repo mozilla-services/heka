@@ -47,15 +47,20 @@ func AMQPPluginSpec(c gs.Context) {
 	c.Specify("An amqp input", func() {
 		// Setup the mock channel
 		mch := NewMockAMQPChannel(ctrl)
-		closeChan := make(chan *amqp.Error)
-		mch.EXPECT().NotifyClose(nil).Return(closeChan)
-		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false, nil).Return(nil)
+
+		// Setup all the mock calls for Init
+		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false,
+			gomock.Any()).Return(nil)
+		mch.EXPECT().QueueDeclare("", false, true, false, false,
+			gomock.Any()).Return(amqp.Queue{}, nil)
+		mch.EXPECT().QueueBind("", "test", "", false, gomock.Any()).Return(nil)
+		mch.EXPECT().Qos(2, 0, false).Return(nil)
 
 		// Our two user/conn waitgroups
 		ug := new(sync.WaitGroup)
 		cg := new(sync.WaitGroup)
 
-		// Setup the mock amqpHub
+		// Setup the mock amqpHub with the mock chan return
 		aqh := NewMockAMQPConnectionHub(ctrl)
 		aqh.EXPECT().GetChannel("").Return(mch, ug, cg, nil)
 		var oldHub AMQPConnectionHub
@@ -65,13 +70,13 @@ func AMQPPluginSpec(c gs.Context) {
 			amqpHub = oldHub
 		}()
 
-		amqpInput := AMQPInput{}
-		err := amqpInput.Init(&AMQPInputConfig{
-			URL:          "",
-			Exchange:     "",
-			ExchangeType: "",
-			RoutingKey:   "test",
-		})
+		amqpInput := new(AMQPInput)
+		defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
+		defaultConfig.URL = ""
+		defaultConfig.Exchange = ""
+		defaultConfig.ExchangeType = ""
+		defaultConfig.RoutingKey = "test"
+		err := amqpInput.Init(defaultConfig)
 		c.Assume(err, gs.IsNil)
 		c.Expect(amqpInput.ch, gs.Equals, mch)
 
