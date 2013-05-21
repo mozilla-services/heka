@@ -15,8 +15,10 @@
 package pipeline
 
 import (
+	"bufio"
 	"encoding/json"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"os"
 )
 
 func FileMonitorSpec(c gs.Context) {
@@ -24,7 +26,7 @@ func FileMonitorSpec(c gs.Context) {
 	c.Specify("A FileMonitor", func() {
 		c.Specify("serializes to JSON", func() {
 			fm := new(FileMonitor)
-			fm.Init([]string{"/tmp/foo.txt", "/tmp/bar.txt"}, 10, 10)
+			fm.Init([]string{"/tmp/foo.txt", "/tmp/bar.txt"}, 10, 10, "")
 			fm.seek["/tmp/foo.txt"] = 200
 			fm.seek["/tmp/bar.txt"] = 300
 
@@ -39,6 +41,18 @@ func FileMonitorSpec(c gs.Context) {
 			c.Expect(len(newFM.seek), gs.Equals, len(fm.seek))
 			c.Expect(newFM.seek["/tmp/foo.txt"], gs.Equals, fm.seek["/tmp/foo.txt"])
 			c.Expect(newFM.seek["/tmp/bar.txt"], gs.Equals, fm.seek["/tmp/bar.txt"])
+		})
+	})
+
+	c.Specify("os.stat", func() {
+		c.Specify("is serializable", func() {
+			// Setup a goroutine to accept messages to write and flush
+			// to disk
+			fo, _ := os.Create("/tmp/filemonitor_test.txt")
+			w := bufio.NewWriter(fo)
+			w.WriteString("blah")
+			w.Flush()
+
 		})
 	})
 }

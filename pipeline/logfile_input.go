@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -29,16 +30,23 @@ import (
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
 	LogFiles []string
+
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
+
 	// Interval btn hd scans for existence of watched files, in milliseconds,
 	// default 5000 (i.e. 5 seconds).
 	DiscoverInterval int
+
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
 	StatInterval int
+
 	// Names of configured `LoglineDecoder` instances.
 	Decoders []string
+
+	// Name of the seek journal
+	SeekJournal string
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -62,9 +70,15 @@ type Logline struct {
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
+	pwd, err := os.Getwd()
+	if err != nil {
+		pwd = ""
+	}
+
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
 		StatInterval:     500,
+		SeekJournal:      filepath.Join(pwd, "seekjournal.json.log"),
 	}
 }
 
@@ -80,9 +94,10 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
-		conf.StatInterval); err != nil {
+		conf.StatInterval, conf.SeekJournal); err != nil {
 		return err
 	}
+
 	lw.decoderNames = conf.Decoders
 	return nil
 }
@@ -138,7 +153,11 @@ func (lw *LogfileInput) Stop() {
 type FileMonitor struct {
 	// Channel onto which FileMonitor will place LogLine objects as the file
 	// is being read.
-	NewLines         chan Logline
+	NewLines chan Logline
+
+	seekJournal *os.File
+	seekWriter  *bufio.Writer
+
 	stopChan         chan bool
 	seek             map[string]int64
 	discover         map[string]bool
@@ -150,15 +169,16 @@ type FileMonitor struct {
 
 // Serialize to JSON
 func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
+	// Note: We can't serialize the stat.pinfo in a cross platform way.
+	// If you check the os.SameFile api, it only works on pinfo
+	// objects created by os itself.
+
+	// TODO: we can at least save the last modification time and the
+	// total filesize to see if the file changed at all.
 	var tmp = map[string]interface{}{
-		"seek":             fm.seek,
-		"discover":         fm.discover,
-		"discoverInterval": fm.discoverInterval,
-		"statInterval":     fm.statInterval,
+		"seek": fm.seek,
 	}
 
-	// TODO: encode the pinfo for stat data to see if logfiles have
-	// rolled over
 	result, err := json.Marshal(tmp)
 	if err != nil {
 		return nil, err
@@ -167,9 +187,6 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 }
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
-	// Reset the FileMonitor before we do anything
-	fm.InitStructs()
-
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
 
@@ -177,16 +194,16 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 
 	var seek_map = m["seek"].(map[string]interface{})
 	for k, v := range seek_map {
-		fm.seek[k] = int64(v.(float64))
+		// Just do a linear scan to match seek positions to actual
+		// logfiles.  This only happens at startup anyway
+		for logfile, _ := range fm.discover {
+			if logfile == k {
+				fm.seek[k] = int64(v.(float64))
+				fmt.Printf("Setting seek position to: %s %d\n", k, int64(v.(float64)))
+				break
+			}
+		}
 	}
-
-	var discover_map = m["discover"].(map[string]interface{})
-	for k, v := range discover_map {
-		fm.discover[k] = v.(bool)
-	}
-
-	fm.discoverInterval = time.Duration(m["discoverInterval"].(float64))
-	fm.statInterval = time.Duration(m["statInterval"].(float64))
 
 	return nil
 
@@ -254,6 +271,7 @@ func (fm *FileMonitor) Watcher() {
 // Reads all unread lines out of the specified file, creates a LogLine object
 // for each line, and puts it on the NewLine channel for processing.
 func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
+
 	ok = true
 	defer func() {
 		// Capture send on close chan as this is a shut-down
@@ -289,6 +307,14 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	}
 	fm.seek[fileName] += int64(len(readLine))
 
+	var filemon_bytes []byte
+
+	// TODO: do something with marshalling error
+	filemon_bytes, _ = json.Marshal(fm)
+
+	fm.seekWriter.Write([]byte(string(filemon_bytes) + "\n"))
+	fm.seekWriter.Flush()
+
 	// Check that we haven't been rotated, if we have, put this back on
 	// discover
 	pinfo, err := os.Stat(fileName)
@@ -309,18 +335,50 @@ func (fm *FileMonitor) InitStructs() {
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
+
 }
 
 func (fm *FileMonitor) Init(files []string, discoverInterval int,
-	statInterval int) (err error) {
+	statInterval int, seekJournalPath string) (err error) {
+	var seek_err error
 
 	fm.InitStructs()
 
 	for _, fileName := range files {
 		fm.discover[fileName] = true
 	}
+
+	if seek_err = fm.recoverSeekPosition(seekJournalPath); seek_err != nil {
+		return seek_err
+	}
+
+	if fm.seekJournal, seek_err = os.OpenFile(seekJournalPath,
+		os.O_RDWR|os.O_APPEND,
+		0660); seek_err != nil {
+		return seek_err
+	}
+	fm.seekWriter = bufio.NewWriter(fm.seekJournal)
+
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	go fm.Watcher()
 	return
+}
+
+func (fm *FileMonitor) recoverSeekPosition(seekJournalPath string) error {
+	var seek_err error
+
+	// First try to restore the line position
+	if fm.seekJournal, seek_err = os.OpenFile(seekJournalPath,
+		os.O_RDWR, 0660); seek_err != nil {
+		return seek_err
+	}
+	var scanner = bufio.NewScanner(fm.seekJournal)
+	var blob string
+	for scanner.Scan() {
+		blob = scanner.Text() // Println will add back the final '\n'
+	}
+
+	json.Unmarshal([]byte(blob), &fm)
+	fm.seekJournal.Close()
 }
