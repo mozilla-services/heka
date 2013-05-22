@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -215,7 +217,7 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		for logfile, _ := range fm.discover {
 			if logfile == k {
 				fm.seek[k] = int64(v.(float64))
-				fmt.Printf("Setting seek position to: %s %d\n", k, int64(v.(float64)))
+				log.Printf("Setting seek position to: %s %d\n", k, int64(v.(float64)))
 				break
 			}
 		}
@@ -372,7 +374,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 	var seekJournal *os.File
 	var file_err error
 
-	if bytes_read == 0 || fm.seekJournalPath == "" {
+	if bytes_read == 0 || fm.seekJournalPath == "." {
 		return
 	}
 
@@ -406,7 +408,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
-	fm.seekJournalPath = seekJournalPath
+	fm.seekJournalPath = path.Clean(seekJournalPath)
 
 	if err = fm.recoverSeekPosition(); err != nil {
 		fmt.Printf("Error recovering seek position in logfiles: %s", err.Error())
@@ -424,10 +426,10 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 	var f *os.File
 	var err error
 
-	if fm.seekJournalPath == "" {
+	if fm.seekJournalPath == "." {
 		return nil
 	}
-	fmt.Printf("trying to open [%s]\n", fm.seekJournalPath)
+	log.Printf("Recovering from logfile journal [%s]\n", fm.seekJournalPath)
 	f, err = os.Open(fm.seekJournalPath)
 	defer f.Close()
 
