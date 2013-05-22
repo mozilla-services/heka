@@ -409,6 +409,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.seekJournalPath = seekJournalPath
 
 	if err = fm.recoverSeekPosition(); err != nil {
+		fmt.Printf("Error recovering seek position in logfiles: %s", err.Error())
 		return fmt.Errorf("Error recovering seek position in logfiles: %s", err.Error())
 	}
 
@@ -423,6 +424,10 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 	var f *os.File
 	var err error
 
+	if fm.seekJournalPath == "" {
+		return nil
+	}
+	fmt.Printf("trying to open [%s]\n", fm.seekJournalPath)
 	f, err = os.Open(fm.seekJournalPath)
 	defer f.Close()
 
