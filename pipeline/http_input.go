@@ -32,7 +32,7 @@ func (self *HttpInput) Init(conf interface{}) error {
     return nil
 }
 
-func (self *HttpInput) Run(ir InputRunner, h PluginRunner) (err error) {
+func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
     go self.hm.Monitor()
 
     packSupply := ir.InChan()
