@@ -36,7 +36,11 @@ func FileMonitorSpec(c gs.Context) {
 			fbytes, _ := json.Marshal(fm)
 
 			newFM := new(FileMonitor)
-			newFM.Init([]string{}, 0, 0, "")
+			// Any entries in fm.seek must already be in fm.discover
+			// or else they won't get restored.
+			newFM.Init([]string{"/tmp/foo.txt", "/tmp/bar.txt"}, 5, 5, "")
+			c.Expect(newFM.discover["/tmp/foo.txt"], gs.Equals, true)
+			c.Expect(newFM.discover["/tmp/bar.txt"], gs.Equals, true)
 			json.Unmarshal(fbytes, &newFM)
 			c.Expect(len(newFM.seek), gs.Equals, len(fm.seek))
 			c.Expect(newFM.seek["/tmp/foo.txt"], gs.Equals, fm.seek["/tmp/foo.txt"])

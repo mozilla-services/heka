@@ -180,7 +180,10 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	for filename, _ := range fm.seek {
 		info, err := os.Stat(filename)
 		if err != nil {
-			return nil, fmt.Errorf("Can't get stat() info for [%s]", filename)
+			// Can't stat it, but meh.  Just don't serialize.
+			// This should be a warning, not an error
+			log.Printf("Can't get stat() info for [%s]\n", filename)
+			continue
 		}
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
 		ctime := sys_info.Ctimespec.Nano()
@@ -194,11 +197,7 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	result, err := json.Marshal(tmp)
-	if err != nil {
-		return nil, err
-	}
-	return result, err
+	return json.Marshal(tmp)
 }
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
@@ -244,7 +243,7 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 				// birthtime
 				if btime != ctime {
 					if btime != last_btime {
-						fmt.Printf("Change in birthtime of [%s].  Set the seek to 0\n", logfile)
+						log.Printf("Change in birthtime of [%s].  Set the seek to 0\n", logfile)
 						fm.seek[logfile] = 0
 					}
 				}
@@ -381,7 +380,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
 		0660); file_err != nil {
-		fmt.Printf("Error opening seek recovery log for append: %s", file_err.Error())
+		log.Printf("Error opening seek recovery log for append: %s", file_err.Error())
 		return
 	}
 	defer seekJournal.Close()
@@ -411,7 +410,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.seekJournalPath = path.Clean(seekJournalPath)
 
 	if err = fm.recoverSeekPosition(); err != nil {
-		fmt.Printf("Error recovering seek position in logfiles: %s", err.Error())
+		log.Printf("Error recovering seek position in logfiles: %s", err.Error())
 		return fmt.Errorf("Error recovering seek position in logfiles: %s", err.Error())
 	}
 
