@@ -22,6 +22,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
 	"sync"
+	"time"
 )
 
 func AMQPPluginSpec(c gs.Context) {
@@ -70,15 +71,46 @@ func AMQPPluginSpec(c gs.Context) {
 			amqpHub = oldHub
 		}()
 
-		amqpInput := new(AMQPInput)
-		defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
-		defaultConfig.URL = ""
-		defaultConfig.Exchange = ""
-		defaultConfig.ExchangeType = ""
-		defaultConfig.RoutingKey = "test"
-		err := amqpInput.Init(defaultConfig)
-		c.Assume(err, gs.IsNil)
-		c.Expect(amqpInput.ch, gs.Equals, mch)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockHelper.EXPECT().DecoderSet().Times(2).Return(ith.MockDecoderSet)
+		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
+		encCall.Return(ith.Decoders, nil)
+
+		c.Specify("with a valid setup and no decoders", func() {
+			amqpInput := new(AMQPInput)
+			defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
+			defaultConfig.URL = ""
+			defaultConfig.Exchange = ""
+			defaultConfig.ExchangeType = ""
+			defaultConfig.RoutingKey = "test"
+			err := amqpInput.Init(defaultConfig)
+			c.Assume(err, gs.IsNil)
+			c.Expect(amqpInput.ch, gs.Equals, mch)
+
+			c.Specify("consumes a message", func() {
+				// Create a channel to send data to the input
+				// Drop a message on there and close the channel
+				streamChan := make(chan amqp.Delivery, 1)
+				streamChan <- amqp.Delivery{
+					ContentType: "text/plain",
+					Body:        []byte("This is a message"),
+					Timestamp:   time.Now(),
+				}
+				mch.EXPECT().Consume("", "", false, false, false, false,
+					gomock.Any()).Return(streamChan, nil)
+
+				// Expect the injected packet
+				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
+
+				ith.PackSupply <- ith.Pack
+				go func() {
+					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				ith.PackSupply <- ith.Pack
+				close(streamChan)
+			})
+
+		})
 
 	})
 }
