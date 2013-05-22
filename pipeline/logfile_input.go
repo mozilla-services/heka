@@ -23,7 +23,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -409,10 +408,6 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	fm.seekJournalPath = path.Clean(seekJournalPath)
-
-	if fm.seekJournalPath != "." {
-		fm.seekJournalPath, _ = filepath.Abs(path.Clean(seekJournalPath))
-	}
 	log.Printf("Set the seekJournalPath in FM to [%s]\n", fm.seekJournalPath)
 
 	err = fm.recoverSeekPosition()
@@ -422,7 +417,6 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 		log.Printf("No error from recoverSeekPosition")
 	}
 
-	log.Printf("Spawning watcher")
 	go fm.Watcher()
 	return
 }
@@ -451,7 +445,7 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 			return err
 		}
 	}
-    defer f.Close()
+	defer f.Close()
 
 	var seek_err error
 	var seekJournal *os.File
