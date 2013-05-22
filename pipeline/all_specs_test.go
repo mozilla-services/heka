@@ -39,6 +39,7 @@ func mockOutputCreator() map[string]Output {
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
+    /*
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
 	r.AddSpec(FiltersSpec)
@@ -47,6 +48,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(WhisperRunnerSpec)
 	r.AddSpec(WhisperOutputSpec)
 	r.AddSpec(ReportSpec)
+    */
 	r.AddSpec(FileMonitorSpec)
 	gospec.MainGoTest(r, t)
 }

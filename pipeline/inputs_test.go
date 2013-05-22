@@ -421,7 +421,7 @@ func InputsSpec(c gs.Context) {
 		lfiConfig.LogFiles = []string{"../testsupport/test-zeus.log"}
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-        lfiConfig.SeekJournal = ""
+		lfiConfig.SeekJournal = ""
 
 		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)

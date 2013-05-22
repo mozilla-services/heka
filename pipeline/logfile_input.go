@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -409,11 +410,19 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	fm.seekJournalPath = path.Clean(seekJournalPath)
 
-	if err = fm.recoverSeekPosition(); err != nil {
-		log.Printf("Error recovering seek position in logfiles: %s", err.Error())
-		return fmt.Errorf("Error recovering seek position in logfiles: %s", err.Error())
+	if fm.seekJournalPath != "." {
+		fm.seekJournalPath, _ = filepath.Abs(path.Clean(seekJournalPath))
+	}
+	log.Printf("Set the seekJournalPath in FM to [%s]\n", fm.seekJournalPath)
+
+	err = fm.recoverSeekPosition()
+	if err != nil {
+		return err
+	} else {
+		log.Printf("No error from recoverSeekPosition")
 	}
 
+	log.Printf("Spawning watcher")
 	go fm.Watcher()
 	return
 }
@@ -422,25 +431,27 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 
 	// Check if the file exists first,
 
+	if fm.seekJournalPath == "." {
+		log.Printf("FM recover got a seekJournalPath of [%s]\n", fm.seekJournalPath)
+		return nil
+	}
+
 	var f *os.File
 	var err error
 
-	if fm.seekJournalPath == "." {
-		return nil
-	}
 	log.Printf("Recovering from logfile journal [%s]\n", fm.seekJournalPath)
-	f, err = os.Open(fm.seekJournalPath)
-	defer f.Close()
-
-	if err != nil {
+	if f, err = os.Open(fm.seekJournalPath); err != nil {
+		log.Printf("Got an error: %s\n", err.Error())
 		// The logfile doesn't exist, nothing special to do
 		if os.IsNotExist(err) {
 			// file doesn't exist, but that's ok, not a real error
+			log.Printf("ignoring error: %s\n", err.Error())
 			return nil
 		} else {
 			return err
 		}
 	}
+    defer f.Close()
 
 	var seek_err error
 	var seekJournal *os.File
