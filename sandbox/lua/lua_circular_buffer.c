@@ -419,8 +419,8 @@ int output_circular_buffer(circular_buffer* cb, output_data* output)
 {
     // output header
     if (dynamic_snprintf(output,
-                         "{\"time\":%d,\"rows\":%d,\"columns\":%d,\"seconds_per_row\":%d,\"column_info\":[",
-                         get_start_time(cb),
+                         "{\"time\":%lld,\"rows\":%d,\"columns\":%d,\"seconds_per_row\":%d,\"column_info\":[",
+                         (long long)get_start_time(cb),
                          cb->m_rows,
                          cb->m_columns,
                          cb->m_seconds_per_row)) {
@@ -486,7 +486,7 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
 
     if (dynamic_snprintf(output, "%s:fromstring(\"%lld %d",
                          key,
-                         cb->m_current_time,
+                         (long long)cb->m_current_time,
                          cb->m_current_row)) {
         return 1;
     }

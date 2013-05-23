@@ -537,7 +537,7 @@ int read_message(lua_State* lua)
                 || strncmp("Severity", field, 8) == 0) {
                 lua_pushinteger(lua, *((GoInt32*)gr.r1));
             } else {
-                lua_pushnumber(lua, *((GoInt*)gr.r1));
+                lua_pushnumber(lua, *((GoInt64*)gr.r1));
             }
             break;
         case 3:
