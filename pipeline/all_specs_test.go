@@ -41,6 +41,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
+	r.AddSpec(LogfileSpec)
 	r.AddSpec(FiltersSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
