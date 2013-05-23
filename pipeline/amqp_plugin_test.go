@@ -16,7 +16,9 @@
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/gomock/gomock"
+	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -111,10 +113,56 @@ func AMQPPluginSpec(c gs.Context) {
 					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				}()
 				ith.PackSupply <- ith.Pack
+				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
+				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
 				close(streamChan)
 			})
 
-		})
+			c.Specify("consumes a serialized message", func() {
+				encoder := client.NewProtobufEncoder(nil)
+				streamChan := make(chan amqp.Delivery, 1)
 
+				msg := new(message.Message)
+				msg.SetUuid(uuid.NewRandom())
+				msg.SetTimestamp(time.Now().UnixNano())
+				msg.SetType("logfile")
+				msg.SetLogger("/a/nice/path")
+				msg.SetSeverity(int32(0))
+				msg.SetEnvVersion("0.2")
+				msg.SetPid(0)
+				msg.SetPayload("This is a message")
+				msg.SetHostname("TestHost")
+
+				msgBody := make([]byte, 0, 500)
+				_ = encoder.EncodeMessageStream(msg, &msgBody)
+
+				streamChan <- amqp.Delivery{
+					ContentType: "application/hekad",
+					Body:        msgBody,
+					Timestamp:   time.Now(),
+					ConsumerTag: "TESTING",
+				}
+				mch.EXPECT().Consume("", "", false, false, false, false,
+					gomock.Any()).Return(streamChan, nil)
+
+				// Expect the decoded pack
+				mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+				mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+
+				// Increase the usage since Run decrements it on close
+				ug.Add(1)
+
+				ith.PackSupply <- ith.Pack
+				go func() {
+					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				// Ignore leading 5 bytes of encoded message as thats the header
+				c.Expect(string(packRef.MsgBytes), gs.Equals, string(msgBody[5:]))
+				ith.PackSupply <- ith.Pack
+				close(streamChan)
+			})
+		})
 	})
 }
