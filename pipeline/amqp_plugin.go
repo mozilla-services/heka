@@ -453,7 +453,6 @@ readLoop:
 				break readLoop
 			}
 			if msg.ContentType == "application/hekad" {
-				ir.LogMessage("Got an encoded message")
 				_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
 				if msgOk {
 					encoding = header.GetMessageEncoding()
