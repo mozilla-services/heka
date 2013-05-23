@@ -19,10 +19,31 @@ import (
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io"
 	"io/ioutil"
+	"os"
 	"runtime"
 	"strings"
 )
+
+func cp(dst, src string) error {
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	// no need to check errors on read only file, we already got everything
+	// we need from the filesystem, so nothing can go wrong now.
+	defer s.Close()
+	d, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(d, s); err != nil {
+		d.Close()
+		return err
+	}
+	return d.Close()
+}
 
 func LogfileSpec(c gs.Context) {
 	t := &ts.SimpleT{}
@@ -106,5 +127,10 @@ func LogfileSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
 			}
 		})
+
+		c.Specify("reads a logfile from the start seek is past EOF", func() {
+			// TODO
+		})
+
 	})
 }

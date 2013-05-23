@@ -242,7 +242,6 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 				log.Println("Loaded birthtime: ", last_btime)
 
 				if btime != last_btime {
-					log.Printf("Change in birthtime of [%s].  Set the seek to 0\n", logfile)
 					fm.seek[logfile] = 0
 				}
 			}
@@ -406,13 +405,10 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	fm.seekJournalPath = path.Clean(seekJournalPath)
-	log.Printf("Set the seekJournalPath in FM to [%s]\n", fm.seekJournalPath)
 
 	err = fm.recoverSeekPosition()
 	if err != nil {
 		return err
-	} else {
-		log.Printf("No error from recoverSeekPosition")
 	}
 
 	go fm.Watcher()
@@ -424,20 +420,16 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 	// Check if the file exists first,
 
 	if fm.seekJournalPath == "." {
-		log.Printf("FM recover got a seekJournalPath of [%s]\n", fm.seekJournalPath)
 		return nil
 	}
 
 	var f *os.File
 	var err error
 
-	log.Printf("Recovering from logfile journal [%s]\n", fm.seekJournalPath)
 	if f, err = os.Open(fm.seekJournalPath); err != nil {
-		log.Printf("Got an error: %s\n", err.Error())
 		// The logfile doesn't exist, nothing special to do
 		if os.IsNotExist(err) {
 			// file doesn't exist, but that's ok, not a real error
-			log.Printf("ignoring error: %s\n", err.Error())
 			return nil
 		} else {
 			return err
