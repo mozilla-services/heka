@@ -1,5 +1,6 @@
 cmd/hekad/plugin_loader.go
 docs/build
 sandbox/lua/lua_sandbox.go
+testsupport/test-zeus.journal
 *.swo
 *.swp
