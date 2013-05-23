@@ -20,13 +20,13 @@ import (
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
 	"os"
 	"path"
 	"runtime"
 )
 
-func createLogfileInput() (*LogfileInput, *LogfileInputConfig) {
-	journal_name := "../testsupport/test-zeus.journal"
+func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig) {
 	logfile_name := "../testsupport/test-zeus.log"
 
 	lfInput := new(LogfileInput)
@@ -41,7 +41,10 @@ func createLogfileInput() (*LogfileInput, *LogfileInputConfig) {
 }
 
 func FileMonitorSpec(c gs.Context) {
-	journal_name := "../testsupport/test-zeus.journal"
+	tmp_file, tmp_err := ioutil.TempFile("", "")
+	c.Expect(tmp_err, gs.Equals, nil)
+	journal_name := tmp_file.Name()
+	tmp_file.Close()
 	logfile_name := "../testsupport/test-zeus.log"
 
 	t := &ts.SimpleT{}
@@ -96,7 +99,7 @@ func FileMonitorSpec(c gs.Context) {
 
 		c.Specify("without a previous journal", func() {
 
-			lfInput, lfiConfig := createLogfileInput()
+			lfInput, lfiConfig := createLogfileInput(journal_name)
 
 			// Initialize the input test helper
 			err := lfInput.Init(lfiConfig)
@@ -146,7 +149,7 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("with a previous journal initializes with a seek value", func() {
-			lfInput, lfiConfig := createLogfileInput()
+			lfInput, lfiConfig := createLogfileInput(journal_name)
 			journal_data := `{"birth_times":{},"seek":{"../testsupport/test-zeus.log":28950}}`
 			journal, journal_err := os.OpenFile(journal_name,
 				os.O_CREATE|os.O_RDWR, 0660)
@@ -163,7 +166,7 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("resets last read position to 0 if birthtime doesn't match", func() {
-			lfInput, lfiConfig := createLogfileInput()
+			lfInput, lfiConfig := createLogfileInput(journal_name)
 			journal_data := `{"birth_times":{"../testsupport/test-zeus.log":84328423},"seek":{"../testsupport/test-zeus.log":28950}}`
 			journal, journal_err := os.OpenFile(journal_name,
 				os.O_CREATE|os.O_RDWR, 0660)

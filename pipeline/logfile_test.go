@@ -45,7 +45,22 @@ func cp(dst, src string) error {
 	return d.Close()
 }
 
+func swap(dst, src string) error {
+	tmp, err := ioutil.TempFile("", "")
+	if err != nil {
+		return err
+	}
+	tmp.Close()
+	cp(dst, tmp.Name())
+	cp(src, dst)
+	cp(tmp.Name(), dst)
+	return nil
+}
+
 func LogfileSpec(c gs.Context) {
+	logfile_name := "../testsupport/test-zeus.log"
+	//shortlog_name := "../testsupport/test-zeus.short.log"
+
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -54,10 +69,6 @@ func LogfileSpec(c gs.Context) {
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
 	ith.Pack = NewPipelinePack(config.inputRecycleChan)
-
-	// Specify localhost, but we're not really going to use the network
-	ith.AddrStr = "localhost:55565"
-	ith.ResolvedAddrStr = "127.0.0.1:55565"
 
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = NewMockPluginHelper(ctrl)
@@ -72,7 +83,7 @@ func LogfileSpec(c gs.Context) {
 	c.Specify("A LogFileInput", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFiles = []string{"../testsupport/test-zeus.log"}
+		lfiConfig.LogFiles = []string{logfile_name}
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
 		lfiConfig.SeekJournal = ""
@@ -129,8 +140,12 @@ func LogfileSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a logfile from the start seek is past EOF", func() {
-			// TODO
+			//swap(logfile_name, shortlog_name)
+			//defer swap(logfile_name, shortlog_name)
 		})
+
+		c.Specify("handles log rotation", func() {
+        })
 
 	})
 }
