@@ -161,15 +161,24 @@ func FileMonitorSpec(c gs.Context) {
 			// # bytes should be set to what's in the journal data
 			c.Expect(lfInput.Monitor.seek[logfile_name], gs.Equals, int64(28950))
 		})
+
+		c.Specify("resets last read position to 0 if birthtime doesn't match", func() {
+			lfInput, lfiConfig := createLogfileInput()
+			journal_data := `{"birth_times":{"../testsupport/test-zeus.log":84328423},"seek":{"../testsupport/test-zeus.log":28950}}`
+			journal, journal_err := os.OpenFile(journal_name,
+				os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journal_err, gs.Equals, nil)
+
+			journal.WriteString(journal_data)
+			journal.Close()
+
+			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.IsNil)
+
+			// # bytes should be set to what's in the journal data
+			c.Expect(lfInput.Monitor.seek[logfile_name], gs.Equals, int64(0))
+		})
+
 	})
+
 }
-
-///////////
-
-/*
-	c.Specify("overrides last read position if birthtime doesn't match", func() {
-	})
-
-	c.Specify("starts with no journal file", func() {
-	})
-*/

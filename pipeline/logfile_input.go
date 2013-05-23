@@ -236,16 +236,14 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 				}
 				sys_info := info.Sys().(*syscall.Stat_t)
 
-				ctime := sys_info.Ctimespec.Nano()
 				btime := sys_info.Birthtimespec.Nano()
-				// Assume that if ctime and btime are the same, then
-				// the underlying filesystem doesn't really support
-				// birthtime
-				if btime != ctime {
-					if btime != last_btime {
-						log.Printf("Change in birthtime of [%s].  Set the seek to 0\n", logfile)
-						fm.seek[logfile] = 0
-					}
+
+				log.Println("Stat() got birthtime: ", btime)
+				log.Println("Loaded birthtime: ", last_btime)
+
+				if btime != last_btime {
+					log.Printf("Change in birthtime of [%s].  Set the seek to 0\n", logfile)
+					fm.seek[logfile] = 0
 				}
 			}
 		}
