@@ -445,49 +445,47 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 readLoop:
 	for {
 		pack = <-packSupply
-		select {
-		case msg, ok := <-stream:
-			if !ok {
-				break readLoop
-			}
-			if msg.ContentType == "application/hekad" {
-				_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
-				if msgOk {
-					encoding = header.GetMessageEncoding()
-					if decoder = dRunners[encoding]; decoder != nil {
-						decoder.InChan() <- pack
-					} else {
-						ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
-							encoding.String()))
-						pack.Recycle()
-					}
+		msg, ok := <-stream
+		if !ok {
+			break readLoop
+		}
+		if msg.ContentType == "application/hekad" {
+			_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
+			if msgOk {
+				encoding = header.GetMessageEncoding()
+				if decoder = dRunners[encoding]; decoder != nil {
+					decoder.InChan() <- pack
 				} else {
+					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
+						encoding.String()))
 					pack.Recycle()
 				}
-				header.Reset()
 			} else {
-				pack.Message.SetType("amqp")
-				pack.Message.SetPayload(string(msg.Body))
-				pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-				for _, decoder := range decoders {
-					if e = decoder.Decode(pack); e == nil {
-						break
-					}
-				}
-				pack.Decoded = true
-				if e == nil {
-					ir.Inject(pack)
-				} else {
-					ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
-					pack.Recycle()
-				}
-				e = nil
+				pack.Recycle()
 			}
-			// FIXME:: Gross hack because amqp library is horrible to mock
-			// and test. So we only ack messages when not testing.
-			if msg.ConsumerTag != "TESTING" {
-				msg.Ack(false)
+			header.Reset()
+		} else {
+			pack.Message.SetType("amqp")
+			pack.Message.SetPayload(string(msg.Body))
+			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
+			for _, decoder := range decoders {
+				if e = decoder.Decode(pack); e == nil {
+					break
+				}
 			}
+			pack.Decoded = true
+			if e == nil {
+				ir.Inject(pack)
+			} else {
+				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
+				pack.Recycle()
+			}
+			e = nil
+		}
+		// FIXME:: Gross hack because amqp library is horrible to mock
+		// and test. So we only ack messages when not testing.
+		if msg.ConsumerTag != "TESTING" {
+			msg.Ack(false)
 		}
 	}
 	return
