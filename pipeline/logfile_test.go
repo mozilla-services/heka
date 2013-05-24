@@ -19,43 +19,10 @@ import (
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
 	"io/ioutil"
-	"os"
 	"runtime"
 	"strings"
 )
-
-func cp(dst, src string) error {
-	s, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	// no need to check errors on read only file, we already got everything
-	// we need from the filesystem, so nothing can go wrong now.
-	defer s.Close()
-	d, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(d, s); err != nil {
-		d.Close()
-		return err
-	}
-	return d.Close()
-}
-
-func swap(dst, src string) error {
-	tmp, err := ioutil.TempFile("", "")
-	if err != nil {
-		return err
-	}
-	tmp.Close()
-	cp(dst, tmp.Name())
-	cp(src, dst)
-	cp(tmp.Name(), dst)
-	return nil
-}
 
 func LogfileSpec(c gs.Context) {
 	logfile_name := "../testsupport/test-zeus.log"
@@ -139,13 +106,13 @@ func LogfileSpec(c gs.Context) {
 			}
 		})
 
-		c.Specify("reads a logfile from the start seek is past EOF", func() {
-			//swap(logfile_name, shortlog_name)
-			//defer swap(logfile_name, shortlog_name)
-		})
+		/* These tests need to restructure the testcode as the input test helper can't be reused easily.
 
-		c.Specify("handles log rotation", func() {
-        })
+		   c.Specify("reads a logfile from the start seek is past EOF", func() {
+		   })
 
+		   c.Specify("handles log rotation", func() {
+		   })
+		*/
 	})
 }
