@@ -186,16 +186,14 @@ func (ah *amqpConnectionHub) GetChannel(url string) (ch AMQPChannel,
 		// after all the channels using it have been closed
 		errChan := make(chan *amqp.Error)
 		go func(c <-chan *amqp.Error) {
-			select {
-			case <-c:
-				ah.mutex.Lock()
-				usageWg.Wait()
-				defer func() {
-					ah.mutex.Unlock()
-					connectionWg.Done()
-				}()
-				delete(ah.connections, url)
-			}
+			<-c
+			ah.mutex.Lock()
+			usageWg.Wait()
+			defer func() {
+				ah.mutex.Unlock()
+				connectionWg.Done()
+			}()
+			delete(ah.connections, url)
 		}(conn.NotifyClose(errChan))
 	} else {
 		conn = trk.conn
