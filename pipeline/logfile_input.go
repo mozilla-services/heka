@@ -111,7 +111,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack.Message.SetType("logfile")
 		pack.Message.SetLogger(logline.Path)
 		pack.Message.SetSeverity(int32(0))
-		pack.Message.SetEnvVersion("0.2")
+		pack.Message.SetEnvVersion("0.8")
 		pack.Message.SetPid(0)
 		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetHostname(lw.hostname)
