@@ -20,13 +20,24 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 )
+
+type FileMonitorMessage struct {
+	msg string
+	err bool
+}
+
+func new_msg(msg string) *FileMonitorMessage {
+	return &FileMonitorMessage{msg: msg, err: false}
+}
+func new_err(msg string) *FileMonitorMessage {
+	return &FileMonitorMessage{msg: msg, err: true}
+}
 
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
@@ -61,6 +72,9 @@ type LogfileInput struct {
 	hostname     string
 	stopped      bool
 	decoderNames []string
+
+	// Messages emitted from the FileMonitor
+	msgChan chan *FileMonitorMessage
 }
 
 // Represents a single line from a log file.
@@ -81,6 +95,9 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
+
+	lw.msgChan = make(chan *FileMonitorMessage, 100)
+
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
 	if val == "" {
@@ -91,12 +108,31 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
-		conf.StatInterval, conf.SeekJournal); err != nil {
+		conf.StatInterval, conf.SeekJournal, lw.msgChan); err != nil {
 		return err
 	}
 
 	lw.decoderNames = conf.Decoders
 	return nil
+}
+
+func (lw *LogfileInput) processMonitorErrors(ir InputRunner) {
+
+	var msg *FileMonitorMessage
+	ok := true
+
+	for ok {
+		select {
+		case msg, ok = <-lw.msgChan:
+			if ok {
+				if msg.err {
+					ir.LogError(fmt.Errorf(msg.msg))
+				} else {
+					ir.LogMessage(msg.msg)
+				}
+			}
+		}
+	}
 }
 
 func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
@@ -107,6 +143,8 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		ok      bool
 	)
 	packSupply := ir.InChan()
+
+	go lw.processMonitorErrors(ir)
 
 	dSet := h.DecoderSet()
 	decoders := make([]Decoder, len(lw.decoderNames))
@@ -141,6 +179,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 func (lw *LogfileInput) Stop() {
 	close(lw.Monitor.stopChan) // stops the monitor's watcher
 	close(lw.Monitor.NewLines)
+	close(lw.msgChan)
 }
 
 // FileMonitor, manages a group of FileTailers
@@ -161,6 +200,8 @@ type FileMonitor struct {
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
+
+	msgChan chan *FileMonitorMessage
 }
 
 // Serialize to JSON
@@ -169,10 +210,9 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
 
-	var btimes map[string]int64
-	btimes = make(map[string]int64)
+	btimes := make(map[string]int64)
 
-	var tmp = map[string]interface{}{
+	tmp := map[string]interface{}{
 		"seek":        fm.seek,
 		"birth_times": btimes,
 	}
@@ -182,7 +222,7 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			// Can't stat it, but meh.  Just don't serialize.
 			// This should be a warning, not an error
-			log.Printf("Can't get stat() info for [%s]\n", filename)
+			fm.msgChan <- new_err(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
 			continue
 		}
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
@@ -216,7 +256,7 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		for logfile, _ := range fm.discover {
 			if logfile == k {
 				fm.seek[k] = int64(v.(float64))
-				log.Printf("Setting seek position to: %s %d\n", k, int64(v.(float64)))
+				fm.msgChan <- new_msg(fmt.Sprintf("Setting seek position to: %s %d\n", k, int64(v.(float64))))
 				break
 			}
 		}
@@ -238,8 +278,8 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 
 				btime := sys_info.Birthtimespec.Nano()
 
-				log.Println("Stat() got birthtime: ", btime)
-				log.Println("Loaded birthtime: ", last_btime)
+				fm.msgChan <- new_msg(fmt.Sprintf("Stat() got birthtime: %d", btime))
+				fm.msgChan <- new_msg(fmt.Sprintf("Loaded birthtime: %d", last_btime))
 
 				if btime != last_btime {
 					fm.seek[logfile] = 0
@@ -377,7 +417,9 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
 		0660); file_err != nil {
-		log.Printf("Error opening seek recovery log for append: %s", file_err.Error())
+		var msg string
+		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
+		fm.msgChan <- new_err(msg)
 		return
 	}
 	defer seekJournal.Close()
@@ -390,13 +432,14 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 }
 
 func (fm *FileMonitor) Init(files []string, discoverInterval int,
-	statInterval int, seekJournalPath string) (err error) {
+	statInterval int, seekJournalPath string, msgChan chan *FileMonitorMessage) (err error) {
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
+	fm.msgChan = msgChan
 
 	for _, fileName := range files {
 		fm.discover[fileName] = true

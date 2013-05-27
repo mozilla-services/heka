@@ -41,6 +41,7 @@ func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig
 }
 
 func FileMonitorSpec(c gs.Context) {
+
 	tmp_file, tmp_err := ioutil.TempFile("", "")
 	c.Expect(tmp_err, gs.Equals, nil)
 	journal_name := tmp_file.Name()
@@ -72,6 +73,7 @@ func FileMonitorSpec(c gs.Context) {
 
 	c.Specify("A FileMonitor", func() {
 		c.Specify("serializes to JSON", func() {
+			msgChan := make(chan *FileMonitorMessage, 100)
 			var tmp_err error
 			var tmp_file *os.File
 
@@ -86,7 +88,7 @@ func FileMonitorSpec(c gs.Context) {
 			file2 := tmp_file.Name()
 			tmp_file.Close()
 
-			fm.Init([]string{file1, file2}, 10, 10, "")
+			fm.Init([]string{file1, file2}, 10, 10, "", msgChan)
 			fm.seek[file1] = 200
 			fm.seek[file2] = 300
 
@@ -98,7 +100,7 @@ func FileMonitorSpec(c gs.Context) {
 			newFM := new(FileMonitor)
 			// Any entries in fm.seek must already be in fm.discover
 			// or else they won't get restored.
-			newFM.Init([]string{file1, file2}, 5, 5, "")
+			newFM.Init([]string{file1, file2}, 5, 5, "", msgChan)
 			c.Expect(newFM.discover[file1], gs.Equals, true)
 			c.Expect(newFM.discover[file2], gs.Equals, true)
 			json.Unmarshal(fbytes, &newFM)
@@ -111,6 +113,7 @@ func FileMonitorSpec(c gs.Context) {
 	c.Specify("saved last read position", func() {
 
 		c.Specify("without a previous journal", func() {
+			msgChan := make(chan *FileMonitorMessage, 100)
 
 			lfInput, lfiConfig := createLogfileInput(journal_name)
 
@@ -155,7 +158,8 @@ func FileMonitorSpec(c gs.Context) {
 			}
 
 			newFM := new(FileMonitor)
-			newFM.Init([]string{logfile_name}, 5, 5, journal_name)
+			newFM.Init([]string{logfile_name}, 5, 5, journal_name,
+				msgChan)
 			fbytes, _ := json.Marshal(newFM)
 			json.Unmarshal(fbytes, &newFM)
 			c.Expect(newFM.seek[logfile_name], gs.Equals, int64(28950))
