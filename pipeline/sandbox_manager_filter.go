@@ -76,6 +76,12 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	wrapper := new(PluginWrapper)
 	wrapper.name = name
 
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
+
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		return nil, fmt.Errorf("Unable to decode config for plugin: %s, error: %s",
 			wrapper.name, err.Error())
@@ -111,16 +117,11 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := NewFORunner(wrapper.name, plugin.(Plugin), nil)
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
-	var tickLength uint
-	if pluginGlobals.Ticker != 0 {
-		sec := pluginGlobals.Ticker
-		tickLength = uint(sec)
-	}
 
-	if tickLength != 0 {
-		runner.tickLength = time.Duration(tickLength) * time.Second
+	if pluginGlobals.Ticker != 0 {
+		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
 	}
 
 	var matcher *MatchRunner

@@ -226,25 +226,20 @@ static int circular_buffer_set(lua_State* lua)
 ////////////////////////////////////////////////////////////////////////////////
 static int circular_buffer_set_header(lua_State* lua)
 {
-    circular_buffer* cb = check_circular_buffer(lua, 4);
-    int column          = check_column(lua, cb, 2);
-    const char* name    = luaL_checkstring(lua, 3);
-    const char* type    = luaL_checkstring(lua, 4);
+    circular_buffer* cb             = check_circular_buffer(lua, 4);
+    int column                      = check_column(lua, cb, 2);
+    const char* name                = luaL_checkstring(lua, 3);
+    cb->m_headers[column].m_type    = luaL_checkoption(lua, 4, NULL, 
+                                                       column_type_names);
 
     strncpy(cb->m_headers[column].m_name, name, COLUMN_NAME_SIZE - 1);
-    for (int i = 0; i < MAX_TYPE; ++i) {
-        if (strcmp(type, column_type_names[i]) == 0) {
-            cb->m_headers[column].m_type = i;
-
-            char* n = cb->m_headers[column].m_name;
-            for (int j = 0; n[j] != 0; ++j) {
-                if (!isalnum(n[j])) {
-                    n[j] = '_';
-                }
-            }
-            break;
+    char* n = cb->m_headers[column].m_name;
+    for (int j = 0; n[j] != 0; ++j) {
+        if (!isalnum(n[j])) {
+            n[j] = '_';
         }
     }
+
     lua_pushinteger(lua, column + 1); // return the 1 based Lua column
     return 1;
 }
@@ -286,7 +281,7 @@ static double compute_avg(circular_buffer* cb, int column, int start_row,
 
 ////////////////////////////////////////////////////////////////////////////////
 static double compute_sd(circular_buffer* cb, int column, int start_row,
-                          int end_row)
+                         int end_row)
 {
     double avg = compute_avg(cb, column, start_row, end_row);
     double sum_squares = 0;
@@ -400,7 +395,6 @@ static int circular_buffer_fromstring(lua_State* lua)
     if (!sscanf(values, "%lld %d%n", &t, &cb->m_current_row, &n)) {
         lua_pushstring(lua, "fromstring() invalid time/row");
         lua_error(lua);
-        return 0;
     }
     cb->m_current_time = t;
     int offset = n, pos = 0;
@@ -425,8 +419,8 @@ int output_circular_buffer(circular_buffer* cb, output_data* output)
 {
     // output header
     if (dynamic_snprintf(output,
-                         "{\"time\":%d,\"rows\":%d,\"columns\":%d,\"seconds_per_row\":%d,\"column_info\":[",
-                         get_start_time(cb),
+                         "{\"time\":%lld,\"rows\":%d,\"columns\":%d,\"seconds_per_row\":%d,\"column_info\":[",
+                         (long long)get_start_time(cb),
                          cb->m_rows,
                          cb->m_columns,
                          cb->m_seconds_per_row)) {
@@ -492,7 +486,7 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
 
     if (dynamic_snprintf(output, "%s:fromstring(\"%lld %d",
                          key,
-                         cb->m_current_time,
+                         (long long)cb->m_current_time,
                          cb->m_current_row)) {
         return 1;
     }

@@ -28,10 +28,6 @@ function process_message ()
         read_message("Type", 1, 1, 1)
     elseif msg == "read_message() incorrect field name type" then
         read_message(nil)
-    elseif msg == "read_message() incorrect field index type" then
-        read_message("Type", nil)
-    elseif msg == "read_message() incorrect array index type" then
-        read_message("Type", 0, nil)
     elseif msg == "read_message() negative field index" then
         read_message("Type", -1, 0)
     elseif msg == "read_message() negative array index" then

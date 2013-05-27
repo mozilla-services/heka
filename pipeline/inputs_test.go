@@ -379,8 +379,9 @@ func InputsSpec(c gs.Context) {
 	c.Specify("Runner restarts a plugin on the first time only", func() {
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "1ms",
-			Delay:      "1ms",
+			MaxDelay:   "1us",
+			Delay:      "1us",
+			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
 		pc := new(PipelineConfig)

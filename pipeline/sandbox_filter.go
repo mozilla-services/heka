@@ -21,6 +21,7 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
+	"time"
 )
 
 func fileExists(path string) bool {
@@ -36,9 +37,14 @@ func fileExists(path string) bool {
 // dynamically loaded through the sandbox manager) maps to exactly one
 // SandboxFilter instance.
 type SandboxFilter struct {
-	sb               sandbox.Sandbox
-	sbc              *sandbox.SandboxConfig
-	preservationFile string
+	sb                     sandbox.Sandbox
+	sbc                    *sandbox.SandboxConfig
+	preservationFile       string
+	processMessageCount    int64
+	processMessageSamples  int64
+	processMessageDuration time.Duration
+	timerEventSamples      int64
+	timerEventDuration     time.Duration
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -84,6 +90,20 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)))
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
 		sandbox.STAT_MAXIMUM)))
+	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
+
+	var tmp int64 = 0
+	if this.processMessageSamples > 0 {
+		tmp = this.processMessageDuration.Nanoseconds() / this.processMessageSamples
+	}
+	newInt64Field(msg, "ProcessMessageAvgDuration", tmp)
+
+	tmp = 0
+	if this.timerEventSamples > 0 {
+		tmp = this.timerEventDuration.Nanoseconds() / this.timerEventSamples
+	}
+	newInt64Field(msg, "TimerEventAvgDuration", tmp)
+
 	return nil
 }
 
@@ -92,11 +112,18 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	ticker := fr.Ticker()
 
 	var (
-		ok, terminated = true, false
+		ok             = true
+		terminated     = false
+		sample         = true
+		blocking       = false
+		backpressure   = false
 		plc            *PipelineCapture
 		retval         int
 		msgLoopCount   uint
 		injectionCount uint
+		startTime      time.Time
+		slowDuration   int64 = 50000 // duration in nanoseconds (20K msg/sec)
+		capacity             = cap(inChan) - 1
 	)
 
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -132,29 +159,67 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
+			this.processMessageCount++
 			injectionCount = Globals().MaxMsgProcessInject
 			msgLoopCount = plc.Pack.MsgLoopCount
+
+			backpressure = len(inChan) >= capacity
+			if sample || backpressure {
+				this.processMessageSamples++
+				startTime = time.Now()
+			}
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
 			if retval != 0 {
 				terminated = true
 			}
 			plc.Pack.Recycle()
+
+			if !terminated && (sample || backpressure) {
+				this.processMessageDuration += time.Since(startTime)
+				if backpressure &&
+					this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration {
+					terminated = true
+					blocking = true
+				}
+				sample = false
+			}
 		case t := <-ticker:
+			this.timerEventSamples++
+			sample = true // if things are behaving well just sample after every output
 			injectionCount = Globals().MaxMsgTimerInject
+			startTime = time.Now()
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
 			}
+			this.timerEventDuration += time.Since(startTime)
 		}
 
 		if terminated {
 			pack := h.PipelinePack(0)
 			pack.Message.SetType("heka.sandbox-terminated")
 			pack.Message.SetLogger(fr.Name())
-			pack.Message.SetPayload(this.sb.LastError())
+			if blocking {
+				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
+				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount)
+				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
+					this.processMessageDuration.Nanoseconds()/this.processMessageSamples)
+				newIntField(pack.Message, "InChanLength", len(inChan))
+			} else {
+				pack.Message.SetPayload(this.sb.LastError())
+			}
 			fr.Inject(pack)
 			break
 		}
 	}
+
+	if terminated {
+		go h.PipelineConfig().RemoveFilterRunner(fr.Name())
+		// recycle any messages until the matcher is torn down
+		for plc = range inChan {
+			plc.Pack.Recycle()
+		}
+	}
+
 	if this.sbc.PreserveData {
 		this.sb.Destroy(this.preservationFile)
 	} else {

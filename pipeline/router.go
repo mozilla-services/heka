@@ -32,23 +32,35 @@ type MessageRouter interface {
 	// Input channel from which the router gets messages to test against the
 	// registered plugin message_matchers.
 	InChan() chan *PipelinePack
-	// Channel holding a reference to all running message_matchers for easy
-	// access to the entire set.
-	MrChan() chan *MatchRunner
+	// Channel to facilitate adding a matcher to the router which starts the
+	// message flow to the associated filter.
+	AddFilterMatcher() chan *MatchRunner
+	// Channel to facilitate removing a Filter.  If the matcher exists it will
+	// be removed from the router, the matcher channel closed and drained, the
+	// filter channel closed and drained, and the filter exited.
+	RemoveFilterMatcher() chan *MatchRunner
+	// Channel to facilitate removing an Output.  If the matcher exists it will
+	// be removed from the router, the matcher channel closed and drained, the
+	// output channel closed and drained, and the output exited.
+	RemoveOutputMatcher() chan *MatchRunner
 }
 
 type messageRouter struct {
-	inChan    chan *PipelinePack
-	mrChan    chan *MatchRunner
-	fMatchers []*MatchRunner
-	oMatchers []*MatchRunner
+	inChan              chan *PipelinePack
+	addFilterMatcher    chan *MatchRunner
+	removeFilterMatcher chan *MatchRunner
+	removeOutputMatcher chan *MatchRunner
+	fMatchers           []*MatchRunner
+	oMatchers           []*MatchRunner
 }
 
 // Creates and returns a (not yet started) Heka message router.
 func NewMessageRouter() (router *messageRouter) {
 	router = new(messageRouter)
 	router.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
-	router.mrChan = make(chan *MatchRunner, 0)
+	router.addFilterMatcher = make(chan *MatchRunner, 0)
+	router.removeFilterMatcher = make(chan *MatchRunner, 0)
+	router.removeOutputMatcher = make(chan *MatchRunner, 0)
 	router.fMatchers = make([]*MatchRunner, 0, 10)
 	router.oMatchers = make([]*MatchRunner, 0, 10)
 	return router
@@ -58,8 +70,16 @@ func (self *messageRouter) InChan() chan *PipelinePack {
 	return self.inChan
 }
 
-func (self *messageRouter) MrChan() chan *MatchRunner {
-	return self.mrChan
+func (self *messageRouter) AddFilterMatcher() chan *MatchRunner {
+	return self.addFilterMatcher
+}
+
+func (self *messageRouter) RemoveFilterMatcher() chan *MatchRunner {
+	return self.removeFilterMatcher
+}
+
+func (self *messageRouter) RemoveOutputMatcher() chan *MatchRunner {
+	return self.removeOutputMatcher
 }
 
 // Spawns a goroutine within which the router listens for messages on the
@@ -74,26 +94,44 @@ func (self *messageRouter) Start() {
 		for ok {
 			runtime.Gosched()
 			select {
-			case matcher = <-self.mrChan:
+			case matcher = <-self.addFilterMatcher:
 				if matcher != nil {
-					removed := false
+					exists := false
 					available := -1
 					for i, m := range self.fMatchers {
 						if m == nil {
 							available = i
 						}
 						if matcher == m {
-							close(m.inChan)
-							self.fMatchers[i] = nil
-							removed = true
+							exists = true
 							break
 						}
 					}
-					if !removed {
+					if !exists {
 						if available != -1 {
 							self.fMatchers[available] = matcher
 						} else {
 							self.fMatchers = append(self.fMatchers, matcher)
+						}
+					}
+				}
+			case matcher = <-self.removeFilterMatcher:
+				if matcher != nil {
+					for i, m := range self.fMatchers {
+						if matcher == m {
+							close(m.inChan)
+							self.fMatchers[i] = nil
+							break
+						}
+					}
+				}
+			case matcher = <-self.removeOutputMatcher:
+				if matcher != nil {
+					for i, m := range self.oMatchers {
+						if matcher == m {
+							close(m.inChan)
+							self.oMatchers[i] = nil
+							break
 						}
 					}
 				}
@@ -108,8 +146,10 @@ func (self *messageRouter) Start() {
 					}
 				}
 				for _, matcher = range self.oMatchers {
-					atomic.AddInt32(&pack.RefCount, 1)
-					matcher.inChan <- pack
+					if matcher != nil {
+						atomic.AddInt32(&pack.RefCount, 1)
+						matcher.inChan <- pack
+					}
 				}
 				pack.Recycle()
 			}
@@ -188,5 +228,6 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 				pack.Recycle()
 			}
 		}
+		close(matchChan)
 	}()
 }

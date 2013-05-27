@@ -160,7 +160,10 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
                 'Memory',
                 'MaxMemory',
                 'MaxInstructions',
-                'MaxOutput'
+                'MaxOutput',
+   			 'ProcessMessageCount',
+   			 'ProcessMessageAvgDuration',
+   			 'TimerEventAvgDuration'
             ]
         }}
     });
@@ -171,11 +174,14 @@ var table = new Y.DataTable({
               {key: 'InChanLength', sortable:true},
               {key: 'MatchChanCapacity', sortable:true},
               {key: 'MatchChanLength', sortable:true},
-              {label: 'Sandbox (memory and output in bytes)', children: [
-                {key:'Memory', sortable:true},
-                {key:'MaxMemory', sortable:true},
+              {label: 'Sandbox Metrics', children: [
+                {key:'Memory', sortable:true, label: 'Memory (B)'},
+                {key:'MaxMemory', sortable:true, label: 'MaxMemory (B)'},
+                {key:'MaxOutput', sortable:true, label: 'MaxOutput (B)'},
                 {key:'MaxInstructions', sortable:true},
-                {key:'MaxOutput', sortable:true}
+                {key:'ProcessMessageCount', sortable:true, label: 'Messages'},
+                {key:'ProcessMessageAvgDuration', sortable:true, label: 'AvgProcess (ns)'},
+                {key:'TimerEventAvgDuration', sortable:true, label: 'AvgOutput (ns)'}
               ]}],
     caption: 'Heka Plugin Report<br/>(cannot find it? see: <a href="heka_sandbox_termination.html">Heka Sandbox Termination Report</a>)'
 });
@@ -261,6 +267,7 @@ func getCbufTemplate() string {
         document.body.appendChild(div);
         document.body.appendChild(document.createElement('br'));
         var ldv = cbuf.header.column_info.length * 200 + 150;
+   	 if (ldv > 1024) ldv = 1024;
         var options = {labels: labels, labelsDivWidth: ldv, labelsDivStyles:{ 'textAlign': 'right'}};
         document.body.appendChild(checkboxes);
         graph = new Dygraph(div, cbuf.data, options);

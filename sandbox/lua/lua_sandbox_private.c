@@ -76,8 +76,7 @@ void* memory_manager(void* ud, void* ptr, size_t osize, size_t nsize)
 void instruction_manager(lua_State* lua, lua_Debug* ar)
 {
     if (LUA_HOOKCOUNT == ar->event) {
-        lua_pushstring(lua, "instruction_limit exceeded");
-        lua_error(lua);
+        luaL_error(lua, "instruction_limit exceeded");
     }
 }
 
@@ -445,15 +444,13 @@ int output(lua_State* lua)
 {
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        lua_pushstring(lua, "output() invalid lightuserdata");
-        lua_error(lua);
+        luaL_error(lua, "output() invalid lightuserdata");
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
     int n = lua_gettop(lua);
     if (n == 0) {
-        lua_pushstring(lua, "output() must have at least one argument");
-        lua_error(lua);
+        luaL_error(lua, "output() must have at least one argument");
     }
 
     int result = 0;
@@ -496,8 +493,7 @@ int output(lua_State* lua)
     if (result != 0
         || lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
         > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
-        lua_pushstring(lua, "output_limit exceeded");
-        lua_error(lua);
+        luaL_error(lua, "output_limit exceeded");
     }
     return 0;
 }
@@ -507,36 +503,19 @@ int read_message(lua_State* lua)
 {
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        lua_pushstring(lua, "read_message() invalid lightuserdata");
-        lua_error(lua);
+        luaL_error(lua, "read_message() invalid lightuserdata");
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
-    const char* field;
-    int fi = 0, ai = 0;
-    switch (lua_gettop(lua)) {
-    case 3:
-        ai = luaL_checkint(lua, 3);
-        if (ai < 0) {
-            lua_pushstring(lua, "read_message() array index must be >= 0");
-            lua_error(lua);
-        }
-        // fall-thru
-    case 2:
-        fi = luaL_checkint(lua, 2);
-        if (fi < 0) {
-            lua_pushstring(lua, "read_message() field index must be >= 0");
-            lua_error(lua);
-        }
-        // fall-thru
-    case 1:
-        field = luaL_checkstring(lua, 1);
-        break;
-    default:
-        lua_pushstring(lua, "read_message() incorrect number of arguments");
-        lua_error(lua);
-        break;
+    int n = lua_gettop(lua);
+    if (n < 1 || n > 3) {
+        luaL_error(lua, "read_message() incorrect number of arguments");
     }
+    const char* field = luaL_checkstring(lua, 1);
+    int fi = luaL_optinteger(lua, 2, 0);
+    luaL_argcheck(lua, fi >= 0, 2, "field index must be >= 0");
+    int ai = luaL_optinteger(lua, 3, 0);
+    luaL_argcheck(lua, ai >= 0, 3, "array index must be >= 0");
 
     struct go_lua_read_message_return gr;
     // Cast away constness of the Lua string, the value is not modified
@@ -558,7 +537,7 @@ int read_message(lua_State* lua)
                 || strncmp("Severity", field, 8) == 0) {
                 lua_pushinteger(lua, *((GoInt32*)gr.r1));
             } else {
-                lua_pushnumber(lua, *((GoInt*)gr.r1));
+                lua_pushnumber(lua, *((GoInt64*)gr.r1));
             }
             break;
         case 3:
@@ -579,15 +558,13 @@ int inject_message(lua_State* lua)
     static const char* default_name = "";
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        lua_pushstring(lua, "inject_message() invalid lightuserdata");
-        lua_error(lua);
+        luaL_error(lua, "inject_message() invalid lightuserdata");
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
     int n = lua_gettop(lua);
     if (n > 2) {
-        lua_pushstring(lua, "inject_message() takes a maximum of 2 arguments");
-        lua_error(lua);
+        luaL_error(lua, "inject_message() takes a maximum of 2 arguments");
     }
 
     const char* type = default_type;
@@ -608,8 +585,7 @@ int inject_message(lua_State* lua)
                                            (char*)name);
         lsb->m_output.m_pos = 0;
         if (result != 0) {
-            lua_pushstring(lua, "inject_message() exceeded MaxMsgLoops");
-            lua_error(lua);
+            luaL_error(lua, "inject_message() exceeded MaxMsgLoops");
         }
     }
     return 0;
