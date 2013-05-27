@@ -96,7 +96,7 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 
-	lw.msgChan = make(chan *FileMonitorMessage, 100)
+	lw.msgChan = make(chan *FileMonitorMessage, 10)
 
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
