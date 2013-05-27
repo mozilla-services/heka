@@ -419,7 +419,11 @@ func InputsSpec(c gs.Context) {
 	c.Specify("A LogFileInput", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFiles = []string{"../testsupport/test-zeus.log"}
+		lfiConfig.LogFiles = make(map[string](map[string]([]string)))
+
+		lfiConfig.LogFiles["zeus"] = make(map[string]([]string))
+		lfiConfig.LogFiles["zeus"]["logfiles"] = []string{"../testsupport/test-zeus.log"}
+
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
 		err := lfInput.Init(lfiConfig)
@@ -461,7 +465,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles[0])
+			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles["zeus"]["logfiles"][0])
 			c.Expect(err, gs.IsNil)
 			fileStr := string(fileBytes)
 			lines := strings.Split(fileStr, "\n")

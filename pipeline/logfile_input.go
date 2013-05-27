@@ -18,6 +18,7 @@ package pipeline
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -26,7 +27,9 @@ import (
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
-	LogFiles []string
+
+	LogFiles map[string]map[string][]string
+
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
 	// Interval btn hd scans for existence of watched files, in milliseconds,
@@ -57,6 +60,9 @@ type Logline struct {
 	Path string
 	// Log file line contents.
 	Line string
+
+	// Name of the logger we're using
+	Logger string
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
@@ -67,6 +73,8 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
+	log.Println("LogfileInput Init called")
+
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
@@ -77,6 +85,8 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
+
+	log.Println("initializing LW Monitors with ", conf.LogFiles)
 	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
 		conf.StatInterval); err != nil {
 		return err
@@ -107,7 +117,10 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack = <-packSupply
 		pack.Message.SetType("logfile")
 		pack.Message.SetPayload(logline.Line)
+
+		// TODO: change this to use the identifier
 		pack.Message.SetLogger(logline.Path)
+
 		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
 			if e = decoder.Decode(pack); e == nil {
@@ -140,6 +153,7 @@ type FileMonitor struct {
 	stopChan         chan bool
 	seek             map[string]int64
 	discover         map[string]bool
+	ident_map        map[string]string
 	fds              map[string]*os.File
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
@@ -236,7 +250,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
 	for err == nil {
-		line := Logline{Path: fileName, Line: readLine}
+		line := Logline{Path: fileName, Line: readLine, Logger: fm.ident_map[fileName]}
 		fm.NewLines <- line
 		fm.seek[fileName] += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
@@ -255,7 +269,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
-func (fm *FileMonitor) Init(files []string, discoverInterval int,
+func (fm *FileMonitor) Init(files map[string](map[string]([]string)), discoverInterval int,
 	statInterval int) (err error) {
 
 	fm.NewLines = make(chan Logline)
@@ -263,9 +277,14 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	for _, fileName := range files {
-		fm.discover[fileName] = true
+	fm.ident_map = make(map[string]string)
+
+	for _, fileMap := range files {
+		for _, fileName := range fileMap["logfiles"] {
+			fm.discover[fileName] = true
+		}
 	}
+
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	go fm.Watcher()
