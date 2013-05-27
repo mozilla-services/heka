@@ -72,10 +72,23 @@ func FileMonitorSpec(c gs.Context) {
 
 	c.Specify("A FileMonitor", func() {
 		c.Specify("serializes to JSON", func() {
+			var tmp_err error
+			var tmp_file *os.File
+
 			fm := new(FileMonitor)
-			fm.Init([]string{"/tmp/foo.txt", "/tmp/bar.txt"}, 10, 10, "")
-			fm.seek["/tmp/foo.txt"] = 200
-			fm.seek["/tmp/bar.txt"] = 300
+
+			tmp_file, tmp_err = ioutil.TempFile("", "foo.txt")
+			c.Expect(tmp_err, gs.Equals, nil)
+			file1 := tmp_file.Name()
+			tmp_file.Close()
+			tmp_file, tmp_err = ioutil.TempFile("", "bar.txt")
+			c.Expect(tmp_err, gs.Equals, nil)
+			file2 := tmp_file.Name()
+			tmp_file.Close()
+
+			fm.Init([]string{file1, file2}, 10, 10, "")
+			fm.seek[file1] = 200
+			fm.seek[file2] = 300
 
 			c.Expect(fm, gs.Not(gs.Equals), nil)
 
@@ -85,13 +98,13 @@ func FileMonitorSpec(c gs.Context) {
 			newFM := new(FileMonitor)
 			// Any entries in fm.seek must already be in fm.discover
 			// or else they won't get restored.
-			newFM.Init([]string{"/tmp/foo.txt", "/tmp/bar.txt"}, 5, 5, "")
-			c.Expect(newFM.discover["/tmp/foo.txt"], gs.Equals, true)
-			c.Expect(newFM.discover["/tmp/bar.txt"], gs.Equals, true)
+			newFM.Init([]string{file1, file2}, 5, 5, "")
+			c.Expect(newFM.discover[file1], gs.Equals, true)
+			c.Expect(newFM.discover[file2], gs.Equals, true)
 			json.Unmarshal(fbytes, &newFM)
 			c.Expect(len(newFM.seek), gs.Equals, len(fm.seek))
-			c.Expect(newFM.seek["/tmp/foo.txt"], gs.Equals, fm.seek["/tmp/foo.txt"])
-			c.Expect(newFM.seek["/tmp/bar.txt"], gs.Equals, fm.seek["/tmp/bar.txt"])
+			c.Expect(newFM.seek[file1], gs.Equals, fm.seek[file1])
+			c.Expect(newFM.seek[file2], gs.Equals, fm.seek[file2])
 		})
 	})
 
