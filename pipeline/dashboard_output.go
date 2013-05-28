@@ -143,7 +143,7 @@ func getReportHtml() string {
     <script src="http://yui.yahooapis.com/3.9.1/build/yui/yui-min.js">
     </script>
 </head>
-<body class="yui3-skin-sam">
+<body class="yui3-skin-sam" style="font-size:.7em">
     <div id="report"></div>
 <script>
 YUI().use("datatable-base", "datasource", "datasource-jsonschema", "datatable-datasource", "datatable-sort", function (Y) {
@@ -157,13 +157,15 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
                 'InChanLength',
                 'MatchChanCapacity',
                 'MatchChanLength',
+                'MatcherAvgDuration',
+                'ProcessMessageCount',
+                'InjectMessageCount',
                 'Memory',
                 'MaxMemory',
                 'MaxInstructions',
                 'MaxOutput',
-   			 'ProcessMessageCount',
-   			 'ProcessMessageAvgDuration',
-   			 'TimerEventAvgDuration'
+                'ProcessMessageAvgDuration',
+                'TimerEventAvgDuration'
             ]
         }}
     });
@@ -174,12 +176,14 @@ var table = new Y.DataTable({
               {key: 'InChanLength', sortable:true},
               {key: 'MatchChanCapacity', sortable:true},
               {key: 'MatchChanLength', sortable:true},
+              {key: 'MatcherAvgDuration', sortable:true, label: 'MatcherAvgDuration (ns)'},
+              {key:'ProcessMessageCount', sortable:true, label: 'ProcessedMsgs'},
+              {key:'InjectMessageCount', sortable:true, label: 'InjectedMsgs'},
               {label: 'Sandbox Metrics', children: [
-                {key:'Memory', sortable:true, label: 'Memory (B)'},
-                {key:'MaxMemory', sortable:true, label: 'MaxMemory (B)'},
+                {key:'Memory', sortable:true, label: 'Mem (B)'},
+                {key:'MaxMemory', sortable:true, label: 'MaxMem (B)'},
                 {key:'MaxOutput', sortable:true, label: 'MaxOutput (B)'},
                 {key:'MaxInstructions', sortable:true},
-                {key:'ProcessMessageCount', sortable:true, label: 'Messages'},
                 {key:'ProcessMessageAvgDuration', sortable:true, label: 'AvgProcess (ns)'},
                 {key:'TimerEventAvgDuration', sortable:true, label: 'AvgOutput (ns)'}
               ]}],
