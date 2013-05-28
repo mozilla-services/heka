@@ -79,6 +79,12 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 		newIntField(msg, "InChanLength", len(fRunner.InChan()))
 		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan))
 		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan))
+		var tmp int64 = 0
+		if fRunner.MatchRunner().matchSamples > 0 {
+			tmp = fRunner.MatchRunner().matchDuration.Nanoseconds() /
+				fRunner.MatchRunner().matchSamples
+		}
+		newInt64Field(msg, "MatcherAvgDuration", tmp)
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
 		newIntField(msg, "InChanLength", len(dRunner.InChan()))
@@ -117,6 +123,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()))
 	newIntField(msg, "InChanLength", len(pc.router.InChan()))
+	newInt64Field(msg, "ProcessMessageCount", pc.router.processMessageCount)
 	msg.SetType("heka.router-report")
 	setNameField(msg, "Router")
 	reportChan <- pack

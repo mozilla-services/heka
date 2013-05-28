@@ -62,6 +62,24 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline WhisperRunner
 
+# pipeline.AMQPConnection
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_amqpconnection_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline AMQPConnection
+
+# pipeline.AMQPChannel
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_amqpchannel_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline AMQPChannel
+
+# pipeline.AMQPConnectionHub
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_amqpconnectionhub_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline AMQPConnectionHub
+
 # ...and a second spelling for mocks of interfaces that are from external packages.
 
 # net.Conn

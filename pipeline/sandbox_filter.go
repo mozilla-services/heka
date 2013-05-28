@@ -41,6 +41,7 @@ type SandboxFilter struct {
 	sbc                    *sandbox.SandboxConfig
 	preservationFile       string
 	processMessageCount    int64
+	injectMessageCount     int64
 	processMessageSamples  int64
 	processMessageDuration time.Duration
 	timerEventSamples      int64
@@ -91,6 +92,7 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
 		sandbox.STAT_MAXIMUM)))
 	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
+	newInt64Field(msg, "InjectMessageCount", this.injectMessageCount)
 
 	var tmp int64 = 0
 	if this.processMessageSamples > 0 {
@@ -150,6 +152,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		if !fr.Inject(pack) {
 			return 1
 		}
+		this.injectMessageCount++
 		return 0
 	})
 
@@ -163,7 +166,11 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			injectionCount = Globals().MaxMsgProcessInject
 			msgLoopCount = plc.Pack.MsgLoopCount
 
-			backpressure = len(inChan) >= capacity
+			// reading a channel length is generally fast ~1ns
+			// we need to check the entire chain back to the router
+			backpressure = len(inChan) >= capacity ||
+				len(fr.MatchRunner().inChan) >= capacity ||
+				len(h.PipelineConfig().router.InChan()) >= capacity
 			if sample || backpressure {
 				this.processMessageSamples++
 				startTime = time.Now()
@@ -174,10 +181,12 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			plc.Pack.Recycle()
 
+			// performing the timing expensive ~40ns so we just sample when we can
 			if !terminated && (sample || backpressure) {
 				this.processMessageDuration += time.Since(startTime)
 				if backpressure &&
-					this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration {
+					(this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration ||
+						fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples > slowDuration/5) {
 					terminated = true
 					blocking = true
 				}
