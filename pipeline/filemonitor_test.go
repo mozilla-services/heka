@@ -73,7 +73,6 @@ func FileMonitorSpec(c gs.Context) {
 
 	c.Specify("A FileMonitor", func() {
 		c.Specify("serializes to JSON", func() {
-			msgChan := make(chan *FileMonitorMessage, 100)
 			var tmp_err error
 			var tmp_file *os.File
 
@@ -88,7 +87,7 @@ func FileMonitorSpec(c gs.Context) {
 			file2 := tmp_file.Name()
 			tmp_file.Close()
 
-			fm.Init([]string{file1, file2}, 10, 10, "", msgChan)
+			fm.Init([]string{file1, file2}, 10, 10, "")
 			fm.seek[file1] = 200
 			fm.seek[file2] = 300
 
@@ -100,7 +99,7 @@ func FileMonitorSpec(c gs.Context) {
 			newFM := new(FileMonitor)
 			// Any entries in fm.seek must already be in fm.discover
 			// or else they won't get restored.
-			newFM.Init([]string{file1, file2}, 5, 5, "", msgChan)
+			newFM.Init([]string{file1, file2}, 5, 5, "")
 			c.Expect(newFM.discover[file1], gs.Equals, true)
 			c.Expect(newFM.discover[file2], gs.Equals, true)
 			json.Unmarshal(fbytes, &newFM)
@@ -113,8 +112,6 @@ func FileMonitorSpec(c gs.Context) {
 	c.Specify("saved last read position", func() {
 
 		c.Specify("without a previous journal", func() {
-			msgChan := make(chan *FileMonitorMessage, 100)
-
 			lfInput, lfiConfig := createLogfileInput(journal_name)
 
 			// Initialize the input test helper
@@ -158,8 +155,10 @@ func FileMonitorSpec(c gs.Context) {
 			}
 
 			newFM := new(FileMonitor)
-			newFM.Init([]string{logfile_name}, 5, 5, journal_name,
-				msgChan)
+			newFM.Init([]string{logfile_name}, 5, 5, journal_name)
+			err = newFM.setupJournalling()
+			c.Expect(err, gs.Equals, nil)
+
 			fbytes, _ := json.Marshal(newFM)
 			json.Unmarshal(fbytes, &newFM)
 			c.Expect(newFM.seek[logfile_name], gs.Equals, int64(28950))
@@ -176,6 +175,9 @@ func FileMonitorSpec(c gs.Context) {
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.IsNil)
+
+			err = lfInput.Monitor.setupJournalling()
 			c.Expect(err, gs.IsNil)
 
 			// # bytes should be set to what's in the journal data

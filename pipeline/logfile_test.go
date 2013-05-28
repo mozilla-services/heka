@@ -50,12 +50,18 @@ func LogfileSpec(c gs.Context) {
 	c.Specify("A LogFileInput", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+
 		lfiConfig.LogFiles = []string{logfile_name}
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		lfiConfig.SeekJournal = ""
 
-		err := lfInput.Init(lfiConfig)
+		// setup the seekjournal
+		tmpfile, err := ioutil.TempFile("", "")
+		c.Expect(err, gs.Equals, nil)
+		lfiConfig.SeekJournal = tmpfile.Name()
+		tmpfile.Close()
+
+		err = lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
 		dName := "decoder-name"

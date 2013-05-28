@@ -407,6 +407,15 @@ an internal discover list, and checked for existence every
 
 Parameters:
 
+- seekjournal (string):
+  Full filesystem path to a journal file that will be used to keep
+  track of the last read position. This enables Heka to continue
+  reading from the last known position between process restarts.
+
+  By default, the write path will be:
+
+  /var/run/hekad/seekjournals/<logfileinput_name>.log
+
 - logfiles (list of strings):
     A list of logfiles that should be read, must be absolute paths.
 - hostname (string):

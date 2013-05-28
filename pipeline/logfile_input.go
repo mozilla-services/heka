@@ -21,24 +21,13 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"strings"
 	"syscall"
 	"time"
 )
-
-type FileMonitorMessage struct {
-	msg string
-	err bool
-}
-
-func new_msg(msg string) *FileMonitorMessage {
-	return &FileMonitorMessage{msg: msg, err: false}
-}
-func new_err(msg string) *FileMonitorMessage {
-	return &FileMonitorMessage{msg: msg, err: true}
-}
 
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
@@ -73,9 +62,6 @@ type LogfileInput struct {
 	hostname     string
 	stopped      bool
 	decoderNames []string
-
-	// Messages emitted from the FileMonitor
-	msgChan chan *FileMonitorMessage
 }
 
 // Represents a single line from a log file.
@@ -97,8 +83,6 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 
-	lw.msgChan = make(chan *FileMonitorMessage, 10)
-
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
 	if val == "" {
@@ -109,7 +93,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
-		conf.StatInterval, conf.SeekJournal, lw.msgChan); err != nil {
+		conf.StatInterval, conf.SeekJournal); err != nil {
 		return err
 	}
 
@@ -117,23 +101,46 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	return nil
 }
 
-func (lw *LogfileInput) processMonitorErrors(ir InputRunner) {
+func (fm *FileMonitor) setupJournalling() (err error) {
+	var dirInfo os.FileInfo
 
-	var msg *FileMonitorMessage
-	ok := true
+	log.Printf("In setupJournalling [%s]\n", fm.seekJournalPath)
+	// if the seekJournalPath is empty, write out the default
+	if fm.seekJournalPath == "" {
+		log.Printf("resetting journalPath to default\n")
 
-	for ok {
-		select {
-		case msg, ok = <-lw.msgChan:
-			if ok {
-				if msg.err {
-					ir.LogError(fmt.Errorf(msg.msg))
-				} else {
-					ir.LogMessage(msg.msg)
-				}
-			}
-		}
+		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
+
+		log.Printf("resetting journalPath to : [%s]\n", defaultPath)
+		fm.seekJournalPath = defaultPath
+
 	}
+	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
+	log.Printf("Final seekJournalPath [%s]\n", fm.seekJournalPath)
+
+	// Check that the directory to seekJournalPath actually exists
+	journalDir := path.Dir(fm.seekJournalPath)
+	log.Printf("journalDir: [%s]\n", journalDir)
+
+	log.Println("Checking stat() on journalDir")
+	if dirInfo, err = os.Stat(journalDir); err != nil {
+		log.Printf("Got an error! [%s]\n", err.Error())
+		return err
+	}
+
+	log.Println("Checking dir status() on journalDir")
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
+	}
+
+	log.Println("recovering seek position")
+	if err = fm.recoverSeekPosition(); err != nil {
+		return err
+	}
+
+	go fm.Watcher()
+
+	return nil
 }
 
 func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
@@ -145,7 +152,24 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	)
 	packSupply := ir.InChan()
 
-	go lw.processMonitorErrors(ir)
+	lw.Monitor.ir = ir
+
+	if err = lw.Monitor.setupJournalling(); err != nil {
+		ir.LogError(err)
+		return err
+	}
+
+	/////////////////////
+
+	for _, msg := range lw.Monitor.pendingMessages {
+		lw.Monitor.LogMessage(msg)
+	}
+	lw.Monitor.pendingMessages = make([]string, 0)
+
+	for _, msg := range lw.Monitor.pendingErrors {
+		lw.Monitor.LogError(msg)
+	}
+	lw.Monitor.pendingErrors = make([]string, 0)
 
 	dSet := h.DecoderSet()
 	decoders := make([]Decoder, len(lw.decoderNames))
@@ -185,7 +209,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 func (lw *LogfileInput) Stop() {
 	close(lw.Monitor.stopChan) // stops the monitor's watcher
 	close(lw.Monitor.NewLines)
-	close(lw.msgChan)
 }
 
 // FileMonitor, manages a group of FileTailers
@@ -207,7 +230,9 @@ type FileMonitor struct {
 	discoverInterval time.Duration
 	statInterval     time.Duration
 
-	msgChan chan *FileMonitorMessage
+	ir              InputRunner
+	pendingMessages []string
+	pendingErrors   []string
 }
 
 // Serialize to JSON
@@ -227,8 +252,8 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 		info, err := os.Stat(filename)
 		if err != nil {
 			// Can't stat it, but meh.  Just don't serialize.
-			// This should be a warning, not an error
-			fm.msgChan <- new_err(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
+
+			fm.LogError(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
 			continue
 		}
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
@@ -262,7 +287,7 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		for logfile, _ := range fm.discover {
 			if logfile == k {
 				fm.seek[k] = int64(v.(float64))
-				fm.msgChan <- new_msg(fmt.Sprintf("Setting seek position to: %s %d\n", k, int64(v.(float64))))
+				fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", k, int64(v.(float64))))
 				break
 			}
 		}
@@ -284,8 +309,8 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 
 				btime := sys_info.Birthtimespec.Nano()
 
-				fm.msgChan <- new_msg(fmt.Sprintf("Stat() got birthtime: %d", btime))
-				fm.msgChan <- new_msg(fmt.Sprintf("Loaded birthtime: %d", last_btime))
+				fm.LogMessage(fmt.Sprintf("Stat() got birthtime: %d", btime))
+				fm.LogMessage(fmt.Sprintf("Loaded birthtime: %d", last_btime))
 
 				if btime != last_btime {
 					fm.seek[logfile] = 0
@@ -398,7 +423,10 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	}
 	bytes_read += int64(len(readLine))
 	fm.seek[fileName] += bytes_read
-	fm.updateJournal(bytes_read)
+
+	if ok = fm.updateJournal(bytes_read); ok == false {
+		return false
+	}
 
 	// Check that we haven't been rotated, if we have, put this back on
 	// discover
@@ -412,12 +440,28 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
-func (fm *FileMonitor) updateJournal(bytes_read int64) {
+func (fm *FileMonitor) LogError(msg string) {
+	if fm.ir == nil {
+		fm.pendingErrors = append(fm.pendingErrors, msg)
+	} else {
+		fm.ir.LogError(fmt.Errorf(msg))
+	}
+}
+
+func (fm *FileMonitor) LogMessage(msg string) {
+	if fm.ir == nil {
+		fm.pendingMessages = append(fm.pendingMessages, msg)
+	} else {
+		fm.ir.LogMessage(msg)
+	}
+}
+
+func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	var seekJournal *os.File
 	var file_err error
 
 	if bytes_read == 0 || fm.seekJournalPath == "." {
-		return
+		return true
 	}
 
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
@@ -425,8 +469,8 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 		0660); file_err != nil {
 		var msg string
 		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
-		fm.msgChan <- new_err(msg)
-		return
+		fm.LogError(msg)
+		return false
 	}
 	defer seekJournal.Close()
 	seekJournal.Seek(0, os.SEEK_END)
@@ -435,17 +479,21 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) {
 	filemon_bytes, _ = json.Marshal(fm)
 
 	seekJournal.WriteString(string(filemon_bytes) + "\n")
+	return true
 }
 
 func (fm *FileMonitor) Init(files []string, discoverInterval int,
-	statInterval int, seekJournalPath string, msgChan chan *FileMonitorMessage) (err error) {
+	statInterval int, seekJournalPath string) (err error) {
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	fm.msgChan = msgChan
+
+	fm.pendingMessages = make([]string, 0)
+	fm.pendingErrors = make([]string, 0)
+	fm.seekJournalPath = seekJournalPath
 
 	for _, fileName := range files {
 		fm.discover[fileName] = true
@@ -453,14 +501,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
-	fm.seekJournalPath = path.Clean(seekJournalPath)
 
-	err = fm.recoverSeekPosition()
-	if err != nil {
-		return err
-	}
-
-	go fm.Watcher()
 	return
 }
 
