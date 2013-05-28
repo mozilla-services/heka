@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -117,9 +118,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack = <-packSupply
 		pack.Message.SetType("logfile")
 		pack.Message.SetPayload(logline.Line)
-
-		// TODO: change this to use the identifier
-		pack.Message.SetLogger(logline.Path)
+		pack.Message.SetLogger(logline.Logger)
 
 		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
@@ -279,9 +278,10 @@ func (fm *FileMonitor) Init(files map[string](map[string]([]string)), discoverIn
 	fm.discover = make(map[string]bool)
 	fm.ident_map = make(map[string]string)
 
-	for _, fileMap := range files {
+	for file_ident, fileMap := range files {
 		for _, fileName := range fileMap["logfiles"] {
 			fm.discover[fileName] = true
+			fm.ident_map[fileName] = file_ident
 		}
 	}
 

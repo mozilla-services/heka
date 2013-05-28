@@ -474,6 +474,8 @@ func InputsSpec(c gs.Context) {
 					continue
 				}
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
+
+				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
 		})
 	})
