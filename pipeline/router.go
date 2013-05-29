@@ -223,11 +223,11 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 
 		var (
 			startTime time.Time
-			random    int = rand.Intn(1000) + 1000000 // don't have everyone sample at the same time
-			// sample every ~1M messages. We always start with a sample so there
-			// will be a ballpark figure immediately. We could use a ticker to
-			// sample at a regular interval but that seems like overkill at this
-			// point.
+			random    int = rand.Intn(1000) + DURATION_SAMPLE_DENOMINATOR
+			// Don't have everyone sample at the same time. We always start with
+			// a sample so there will be a ballpark figure immediately. We could
+			// use a ticker to sample at a regular interval but that seems like
+			// overkill at this  point.
 			counter  int = random
 			match    bool
 			captures map[string]string

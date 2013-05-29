@@ -193,7 +193,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 					terminated = true
 					blocking = true
 				}
-				sample = 0 == rand.Intn(1e6)
+				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
 			} else {
 				terminated = true
 			}
