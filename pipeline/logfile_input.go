@@ -21,6 +21,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -149,8 +150,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		return err
 	}
 
-	/////////////////////
-
 	for _, msg := range lw.Monitor.pendingMessages {
 		lw.Monitor.LogMessage(msg)
 	}
@@ -260,54 +259,52 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(tmp)
 }
+func current_btime(filename string) (result int64, err error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+
+	return sys_info.Birthtimespec.Nano(), nil
+}
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
+	var cur_btime int64
 
 	err := dec.Decode(&m)
 	if err != nil {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
 
+	var btime_map = m["birth_times"].(map[string]interface{})
 	var seek_map = m["seek"].(map[string]interface{})
-	for k, v := range seek_map {
+	for seek_filename, seek_pos := range seek_map {
 		// Just do a linear scan to match seek positions to actual
-		// logfiles.  This only happens at startup anyway
-		for logfile, _ := range fm.discover {
-			if logfile == k {
-				fm.seek[k] = int64(v.(float64))
-				fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", k, int64(v.(float64))))
+		// logfiles.  This only happens at startup
+		for discover_logfile, _ := range fm.discover {
+			if discover_logfile == seek_filename {
+				if btime_map[discover_logfile] == nil {
+					continue
+				}
+				lst_btime := int64(btime_map[discover_logfile].(float64))
+				if cur_btime, err = current_btime(discover_logfile); err != nil {
+					return err
+				}
+				if cur_btime == lst_btime {
+					fm.seek[seek_filename] = int64(seek_pos.(float64))
+					fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", seek_filename, fm.seek[seek_filename]))
+				} else {
+					msg := fmt.Sprintf("Skipping setting seek position as birthtime doesn't match. [%s] [%d] [%d]", discover_logfile, lst_btime, cur_btime)
+					fm.LogMessage(msg)
+				}
 				break
 			}
 		}
 	}
 
-	var btime_map = m["birth_times"].(map[string]interface{})
-	for k, v := range btime_map {
-		// Just do a linear scan to match seek positions to actual
-		// logfiles.  This only happens at startup anyway
-		for logfile, _ := range fm.discover {
-			if logfile == k {
-				last_btime := int64(v.(float64))
-
-				info, err := os.Stat(logfile)
-				if err != nil {
-					return fmt.Errorf("Can't get stat() info for [%s]", logfile)
-				}
-				sys_info := info.Sys().(*syscall.Stat_t)
-
-				btime := sys_info.Birthtimespec.Nano()
-
-				fm.LogMessage(fmt.Sprintf("Stat() got birthtime: %d", btime))
-				fm.LogMessage(fmt.Sprintf("Loaded birthtime: %d", last_btime))
-
-				if btime != last_btime {
-					fm.seek[logfile] = 0
-				}
-			}
-		}
-	}
 	return nil
 
 }
@@ -468,7 +465,9 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	var filemon_bytes []byte
 	filemon_bytes, _ = json.Marshal(fm)
 
-	seekJournal.WriteString(string(filemon_bytes) + "\n")
+	msg := string(filemon_bytes) + "\n"
+	log.Printf("serializing: [%s]\n", msg)
+	seekJournal.WriteString(msg)
 	return true
 }
 
