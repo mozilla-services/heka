@@ -7,7 +7,7 @@ import (
 )
 
 type HttpInput struct {
-    dataChan chan string
+    dataChan chan []byte
     hm HttpMonitor
     loop bool
 }
@@ -24,7 +24,7 @@ func (self *HttpInput) ConfigStruct() interface{} {
 func (self *HttpInput) Init(conf interface{}) error {
     config := conf.(*HttpInputConfig)
 
-    self.dataChan = make(chan string)
+    self.dataChan = make(chan []byte)
     self.hm = HttpMonitor{config.url, config.interval, self.dataChan}
 
     self.loop = true
@@ -36,11 +36,10 @@ func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
     go self.hm.Monitor()
 
     packSupply := ir.InChan()
-    var pack *PipelinePack
 
     for self.loop {
-        json := <- self.dataChan
-        pack = <- packSupply
+        json := <-self.dataChan
+        pack := <-packSupply
 
         copy(pack.MsgBytes, json)
 
@@ -57,7 +56,7 @@ func (self *HttpInput) Stop() {
 type HttpMonitor struct {
     url string
     interval int64
-    dataChan chan string
+    dataChan chan []byte
 }
 
 func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan string) {
@@ -68,6 +67,8 @@ func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan string) {
 
 func (hm *HttpMonitor) Monitor() {
     for {
+        time.Sleep(time.Duration(hm.interval) * time.Millisecond)
+
         resp, err := http.Get(hm.url)
 
         if err != nil {            
@@ -80,8 +81,6 @@ func (hm *HttpMonitor) Monitor() {
             continue
         }
 
-        hm.dataChan <- string(body)
-
-        time.Sleep(time.Duration(hm.interval) * time.Millisecond)
+        hm.dataChan <- body
     }
 }
