@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -171,30 +172,35 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			backpressure = len(inChan) >= capacity ||
 				len(fr.MatchRunner().inChan) >= capacity ||
 				len(h.PipelineConfig().router.InChan()) >= capacity
-			if sample || backpressure {
+
+			// performing the timing is expensive ~40ns but if we are
+			// backpressured we need a decent sample set before triggering
+			// termination
+			if sample || (backpressure && this.processMessageSamples < int64(capacity)) {
 				this.processMessageSamples++
 				startTime = time.Now()
+				sample = true
 			}
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
-			if retval != 0 {
-				terminated = true
-			}
-			plc.Pack.Recycle()
-
-			// performing the timing expensive ~40ns so we just sample when we can
-			if !terminated && (sample || backpressure) {
+			if sample {
 				this.processMessageDuration += time.Since(startTime)
+			}
+			if retval == 0 {
 				if backpressure &&
+					this.processMessageSamples >= int64(capacity) &&
 					(this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration ||
 						fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples > slowDuration/5) {
 					terminated = true
 					blocking = true
 				}
-				sample = false
+				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
+			} else {
+				terminated = true
 			}
+			plc.Pack.Recycle()
+
 		case t := <-ticker:
 			this.timerEventSamples++
-			sample = true // if things are behaving well just sample after every output
 			injectionCount = Globals().MaxMsgTimerInject
 			startTime = time.Now()
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
@@ -210,9 +216,15 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount)
+				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples)
 				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration.Nanoseconds()/this.processMessageSamples)
-				newIntField(pack.Message, "InChanLength", len(inChan))
+				newInt64Field(pack.Message, "MatchSamples", fr.MatchRunner().matchSamples)
+				newInt64Field(pack.Message, "MatchAvgDuration",
+					fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples)
+				newIntField(pack.Message, "FilterChanLength", len(inChan))
+				newIntField(pack.Message, "MatchChanLength", len(fr.MatchRunner().inChan))
+				newIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().router.InChan()))
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}

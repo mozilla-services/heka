@@ -30,6 +30,9 @@ import (
 // Cap size of our decoder set arrays
 const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
 
+// Set a sample rate for match and message processing timing i.e. 1 in a million
+const DURATION_SAMPLE_DENOMINATOR = 1e6 
+
 var (
 	AvailablePlugins         = make(map[string]func() interface{})
 	DecodersByEncoding       = make(map[Header_MessageEncoding]string)
