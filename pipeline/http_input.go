@@ -3,6 +3,7 @@ package pipeline
 import (
     "net/http"
     "io/ioutil"
+    "time"
     "fmt"
 )
 
@@ -13,8 +14,8 @@ type HttpInput struct {
 }
 
 type HttpInputConfig struct {
-    url string
-    interval int64
+    Url string `toml:"url"`
+    Interval int64 `tom:"interval"`
 }
 
 func (self *HttpInput) ConfigStruct() interface{} {
@@ -27,7 +28,7 @@ func (self *HttpInput) Init(conf interface{}) error {
     self.dataChan = make(chan []byte)
     self.stopChan = make(chan bool)
 
-    self.hm = HttpMonitor{config.url, config.interval, self.dataChan}
+    self.hm = HttpMonitor{config.Url, config.Interval, self.dataChan}
 
     return nil
 }
@@ -79,26 +80,31 @@ func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan []byte) {
 func (hm *HttpMonitor) Monitor(ir InputRunner) {
     ir.LogMessage("[HttpMonitor] Monitoring...")
 
-    ir.LogMessage(fmt.Sprintf("[HttpMonitor] GET %s", hm.url))
+    for {
+        func() {
+            defer time.Sleep(time.Duration(hm.interval) * time.Millisecond)
 
-    resp, err := http.Get(hm.url)
+            ir.LogMessage(fmt.Sprintf("[HttpMonitor] GET %s", hm.url))
 
-    if err != nil {    
-        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))        
-        return
+            resp, err := http.Get(hm.url)
+            defer resp.Body.Close()
+
+            if err != nil {    
+                ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))        
+                return
+            }
+
+            ir.LogMessage("[HttpMonitor] Reading...")
+            body, err := ioutil.ReadAll(resp.Body)
+
+            if err != nil {
+                ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))   
+                return
+            }        
+
+            ir.LogMessage("[HttpMonitor] Sending...")
+
+            hm.dataChan <- body
+        }()
     }
-
-    ir.LogMessage("[HttpMonitor] Reading...")
-    body, err := ioutil.ReadAll(resp.Body)
-
-    if err != nil {
-        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))   
-        return
-    }        
-
-    ir.LogMessage("[HttpMonitor] Sending...")
-
-    hm.dataChan <- body
-
-    resp.Body.Close()
 }
