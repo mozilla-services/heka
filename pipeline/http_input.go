@@ -11,6 +11,10 @@ type HttpInput struct {
     dataChan chan []byte
     stopChan chan bool
     hm HttpMonitor
+
+    ir InputRunner
+    h PluginHelper
+    packSupply chan *PipelinePack
 }
 
 type HttpInputConfig struct {
@@ -34,23 +38,20 @@ func (self *HttpInput) Init(conf interface{}) error {
 }
 
 func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+    self.ir = ir
+    self.h = h
+
     ir.LogMessage("[HttpInput] Running...")
     ir.LogMessage(fmt.Sprintf("%s (%d)", self.hm.url, self.hm.interval))
 
-    go self.hm.Monitor(ir)
+    go self.hm.Monitor(self.ir)
 
-    packSupply := ir.InChan()
+    self.packSupply = self.ir.InChan()
 
     for {
         select {
-        case json := <-self.dataChan:
-            pack := <-packSupply
-
-            ir.LogMessage(fmt.Sprintf("[HttpInput] Received packet: %s", json))
-
-            copy(pack.MsgBytes, json)
-
-            ir.Inject(pack)
+        case data := <-self.dataChan:
+            go self.handleMessage(string(data))
 
         case <-self.stopChan:
             ir.LogMessage("[HttpInput] Stop")
@@ -63,6 +64,19 @@ func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 func (self *HttpInput) Stop() {
     self.stopChan <- true
+}
+
+func (self *HttpInput) handleMessage(data string) {
+    self.ir.LogMessage(fmt.Sprintf("[HttpInput] Received packet: %s", data))
+
+    pack := <-self.packSupply
+    copy(pack.MsgBytes, data)
+    pack.Message.SetType("httpdata")
+    pack.Message.SetHostname(self.h.PipelineConfig().hostname)
+    pack.Message.SetPayload(data)
+    pack.Decoded = false
+
+    self.ir.Inject(pack)
 }
 
 type HttpMonitor struct {
