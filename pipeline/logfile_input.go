@@ -21,7 +21,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -104,36 +103,27 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 func (fm *FileMonitor) setupJournalling() (err error) {
 	var dirInfo os.FileInfo
 
-	log.Printf("In setupJournalling [%s]\n", fm.seekJournalPath)
 	// if the seekJournalPath is empty, write out the default
 	if fm.seekJournalPath == "" {
-		log.Printf("resetting journalPath to default\n")
 
 		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
 
-		log.Printf("resetting journalPath to : [%s]\n", defaultPath)
 		fm.seekJournalPath = defaultPath
 
 	}
 	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
-	log.Printf("Final seekJournalPath [%s]\n", fm.seekJournalPath)
 
 	// Check that the directory to seekJournalPath actually exists
 	journalDir := path.Dir(fm.seekJournalPath)
-	log.Printf("journalDir: [%s]\n", journalDir)
 
-	log.Println("Checking stat() on journalDir")
 	if dirInfo, err = os.Stat(journalDir); err != nil {
-		log.Printf("Got an error! [%s]\n", err.Error())
 		return err
 	}
 
-	log.Println("Checking dir status() on journalDir")
 	if !dirInfo.IsDir() {
 		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
 	}
 
-	log.Println("recovering seek position")
 	if err = fm.recoverSeekPosition(); err != nil {
 		return err
 	}
