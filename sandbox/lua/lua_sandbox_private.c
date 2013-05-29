@@ -335,7 +335,7 @@ table_ref* add_table_ref(table_ref_array* tra, const void* ptr, size_t name_pos)
 {
     if (tra->m_pos == tra->m_size) {
         size_t newsize =  tra->m_size * 2;
-        void* p = realloc(tra->m_array, newsize);
+        void* p = realloc(tra->m_array, newsize * sizeof(table_ref));
         if (p != NULL) {
             tra->m_array = p;
             tra->m_size = newsize;
