@@ -59,7 +59,7 @@ type HttpMonitor struct {
     dataChan chan []byte
 }
 
-func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan string) {
+func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan []byte) {
     hm.url = url
     hm.interval = interval
     hm.dataChan = dataChan
