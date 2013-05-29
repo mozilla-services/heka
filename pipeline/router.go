@@ -233,6 +233,7 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			captures map[string]string
 		)
 
+		var capacity int64 = int64(cap(mr.inChan))
 		for pack := range mr.inChan {
 			if len(mr.signer) != 0 && mr.signer != pack.Signer {
 				pack.Recycle()
@@ -249,7 +250,11 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 				match, captures = mr.spec.Match(pack.Message)
 
 				mr.matchDuration += time.Since(startTime)
-				counter = 0
+				if mr.matchSamples > capacity {
+					// the timings can vary greatly, so we need to establish a
+					// decent baseline before we start sampling
+					counter = 0
+				}
 			} else {
 				match, captures = mr.spec.Match(pack.Message)
 				counter++
