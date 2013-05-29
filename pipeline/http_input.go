@@ -1,104 +1,120 @@
 package pipeline
 
 import (
-    "net/http"
-    "io/ioutil"
-    "fmt"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
 )
 
 type HttpInput struct {
-    dataChan chan []byte
-    stopChan chan bool
-    hm HttpMonitor
+	dataChan chan []byte
+	stopChan chan bool
+	hm       HttpMonitor
 }
 
 type HttpInputConfig struct {
-    url string
-    interval int64
+	Url      string
+	Interval int64
 }
 
-func (self *HttpInput) ConfigStruct() interface{} {
-    return new(HttpInputConfig)
+func (hi *HttpInput) ConfigStruct() interface{} {
+	return new(HttpInputConfig)
 }
 
-func (self *HttpInput) Init(conf interface{}) error {
-    config := conf.(*HttpInputConfig)
+func (hi *HttpInput) Init(conf interface{}) error {
+	config := conf.(*HttpInputConfig)
 
-    self.dataChan = make(chan []byte)
-    self.stopChan = make(chan bool)
+	hi.dataChan = make(chan []byte)
+	hi.stopChan = make(chan bool)
 
-    self.hm = HttpMonitor{config.url, config.interval, self.dataChan}
+	hi.hm = HttpMonitor{config.Url, config.Interval, hi.dataChan}
 
-    return nil
+	return nil
 }
 
-func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-    ir.LogMessage("[HttpInput] Running...")
-    ir.LogMessage(fmt.Sprintf("%s (%d)", self.hm.url, self.hm.interval))
+func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	ir.LogMessage("[HttpInput] Running...")
+	ir.LogMessage(fmt.Sprintf("%s (%d)", hi.hm.url, hi.hm.interval))
 
-    go self.hm.Monitor(ir)
+	go hi.hm.Monitor(ir)
 
-    packSupply := ir.InChan()
+	hostname := h.PipelineConfig().hostname
+	packSupply := ir.InChan()
 
-    for {
-        select {
-        case json := <-self.dataChan:
-            pack := <-packSupply
+	for {
+		select {
+		case data := <-hi.dataChan:
+			pack := <-packSupply
+			copy(pack.MsgBytes, data)
+			pack.Message.SetType("httpdata")
+			pack.Message.SetHostname(hostname)
+			pack.Message.SetPayload(data)
+			pack.Decoded = false
 
-            ir.LogMessage(fmt.Sprintf("[HttpInput] Received packet: %s", json))
+			ir.Inject(pack)
 
-            copy(pack.MsgBytes, json)
+		case <-hi.stopChan:
+			hi.hm.Stop()
+			ir.LogMessage("[HttpInput] Stop")
+			return nil
+		}
+	}
 
-            ir.Inject(pack)
-
-        case <-self.stopChan:
-            ir.LogMessage("[HttpInput] Stop")
-            return
-        }
-    }
-
-    return nil
+	return nil
 }
 
-func (self *HttpInput) Stop() {
-    self.stopChan <- true
+func (hi *HttpInput) Stop() {
+	hi.stopChan <- true
 }
 
 type HttpMonitor struct {
-    url string
-    interval int64
-    dataChan chan []byte
+	url      string
+	interval int64
+	dataChan chan []byte
+	stopChan chan bool
 }
 
 func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan []byte) {
-    hm.url = url
-    hm.interval = interval
-    hm.dataChan = dataChan
+	hm.url = url
+	hm.interval = interval
+	hm.dataChan = dataChan
+	hm.stopChan = make(chan bool)
 }
 
 func (hm *HttpMonitor) Monitor(ir InputRunner) {
-    ir.LogMessage("[HttpMonitor] Monitoring...")
+	ir.LogMessage("[HttpMonitor] Monitoring...")
 
-    ir.LogMessage(fmt.Sprintf("[HttpMonitor] GET %s", hm.url))
+	for {
+		select {
+		case <-time.After(hm.interval * time.Millisecond):
+			// Fetch URL
+			resp, err := http.Get(hm.url)
+			defer resp.Body.Close()
 
-    resp, err := http.Get(hm.url)
+			if err != nil {
+				ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))
+				return
+			}
 
-    if err != nil {    
-        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))        
-        return
-    }
+			// Read content
+			body, err := ioutil.ReadAll(resp.Body)
 
-    ir.LogMessage("[HttpMonitor] Reading...")
-    body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))
+				return
+			}
 
-    if err != nil {
-        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))   
-        return
-    }        
+			// Send it on the channel
+			hm.dataChan <- body
 
-    ir.LogMessage("[HttpMonitor] Sending...")
+		case <-hm.stopChannel:
+			ir.LogMessage("[HttpMonitor] Stop")
+			return
+		}
+	}
+}
 
-    hm.dataChan <- body
-
-    resp.Body.Close()
+func (hm *HttpMonitor) Stop() {
+	hm.stopChan <- true
 }
