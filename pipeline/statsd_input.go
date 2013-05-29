@@ -48,7 +48,6 @@ type StatsdInput struct {
 	listener         *net.UDPConn
 	percentThreshold int
 	flushInterval    int64
-	stopped          bool
 	stopChan         chan bool
 }
 
@@ -109,21 +108,32 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
-		var n int
-		var e error
+		var (
+			n       int
+			e       error
+			stopped bool
+		)
 		defer s.listener.Close()
 		timeout := time.Duration(time.Millisecond * 100)
 
-		for !s.stopped {
+		for !stopped {
 			message := make([]byte, 512)
 			s.listener.SetReadDeadline(time.Now().Add(timeout))
 			n, _, e = s.listener.ReadFromUDP(message)
+
+			select {
+			case <-s.stopChan:
+				stopped = true
+			default:
+			}
+
 			if e != nil || n == 0 {
 				continue
 			}
-			if s.stopped {
+
+			if stopped {
 				// If we're stopping, use synchronous call so we don't
-				// close the channel too soon.
+				// close the Packet channel too soon.
 				s.handleMessage(message[:n])
 			} else {
 				go s.handleMessage(message[:n])
@@ -135,9 +145,6 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (s *StatsdInput) Stop() {
-	if s.listener != nil {
-		s.stopped = true
-	}
 	close(s.stopChan)
 }
 
