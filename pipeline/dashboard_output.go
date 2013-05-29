@@ -114,7 +114,31 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			case "heka.sandbox-terminated":
 				fn := path.Join(self.workingDirectory, self.terminationFile)
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
-					line := fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9, msg.GetLogger(), msg.GetPayload())
+					var line string
+					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {
+						line = fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9, msg.GetLogger(), msg.GetPayload())
+					} else {
+						pmc, _ := msg.GetFieldValue("ProcessMessageCount")
+						pms, _ := msg.GetFieldValue("ProcessMessageSamples")
+						pmd, _ := msg.GetFieldValue("ProcessMessageAvgDuration")
+						ms, _ := msg.GetFieldValue("MatchSamples")
+						mad, _ := msg.GetFieldValue("MatchAvgDuration")
+						fcl, _ := msg.GetFieldValue("FilterChanLength")
+						mcl, _ := msg.GetFieldValue("MatchChanLength")
+						rcl, _ := msg.GetFieldValue("RouterChanLength")
+						line = fmt.Sprintf("%d\t%s\t%v"+
+							" ProcessMessageCount:%v"+
+							" ProcessMessageSamples:%v"+
+							" ProcessMessageAvgDuration:%v"+
+							" MatchSamples:%v"+
+							" MatchAvgDuration:%v"+
+							" FilterChanLength:%v"+
+							" MatchChanLength:%v"+
+							" RouterChanLength:%v\n",
+							msg.GetTimestamp()/1e9,
+							msg.GetLogger(), msg.GetPayload(), pmc, pms, pmd,
+							ms, mad, fcl, mcl, rcl)
+					}
 					file.WriteString(line)
 					file.Close()
 				}
@@ -157,7 +181,7 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
                 'InChanLength',
                 'MatchChanCapacity',
                 'MatchChanLength',
-                'MatcherAvgDuration',
+                'MatchAvgDuration',
                 'ProcessMessageCount',
                 'InjectMessageCount',
                 'Memory',
@@ -176,7 +200,7 @@ var table = new Y.DataTable({
               {key: 'InChanLength', sortable:true},
               {key: 'MatchChanCapacity', sortable:true},
               {key: 'MatchChanLength', sortable:true},
-              {key: 'MatcherAvgDuration', sortable:true, label: 'MatcherAvgDuration (ns)'},
+              {key: 'MatchAvgDuration', sortable:true, label: 'MatchAvgDuration (ns)'},
               {key:'ProcessMessageCount', sortable:true, label: 'ProcessedMsgs'},
               {key:'InjectMessageCount', sortable:true, label: 'InjectedMsgs'},
               {label: 'Sandbox Metrics', children: [

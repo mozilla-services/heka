@@ -223,16 +223,17 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 
 		var (
 			startTime time.Time
-			random    int = rand.Intn(1000) + 1000000 // don't have everyone sample at the same time
-			// sample every ~1M messages. We always start with a sample so there
-			// will be a ballpark figure immediately. We could use a ticker to
-			// sample at a regular interval but that seems like overkill at this
-			// point.
+			random    int = rand.Intn(1000) + DURATION_SAMPLE_DENOMINATOR
+			// Don't have everyone sample at the same time. We always start with
+			// a sample so there will be a ballpark figure immediately. We could
+			// use a ticker to sample at a regular interval but that seems like
+			// overkill at this  point.
 			counter  int = random
 			match    bool
 			captures map[string]string
 		)
 
+		var capacity int64 = int64(cap(mr.inChan))
 		for pack := range mr.inChan {
 			if len(mr.signer) != 0 && mr.signer != pack.Signer {
 				pack.Recycle()
@@ -249,7 +250,11 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 				match, captures = mr.spec.Match(pack.Message)
 
 				mr.matchDuration += time.Since(startTime)
-				counter = 0
+				if mr.matchSamples > capacity {
+					// the timings can vary greatly, so we need to establish a
+					// decent baseline before we start sampling
+					counter = 0
+				}
 			} else {
 				match, captures = mr.spec.Match(pack.Message)
 				counter++

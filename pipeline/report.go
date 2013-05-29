@@ -84,7 +84,7 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 			tmp = fRunner.MatchRunner().matchDuration.Nanoseconds() /
 				fRunner.MatchRunner().matchSamples
 		}
-		newInt64Field(msg, "MatcherAvgDuration", tmp)
+		newInt64Field(msg, "MatchAvgDuration", tmp)
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
 		newIntField(msg, "InChanLength", len(dRunner.InChan()))
