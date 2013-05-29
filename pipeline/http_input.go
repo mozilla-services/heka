@@ -3,13 +3,13 @@ package pipeline
 import (
     "net/http"
     "io/ioutil"
-    "time"
+    "fmt"
 )
 
 type HttpInput struct {
     dataChan chan []byte
+    stopChan chan bool
     hm HttpMonitor
-    loop bool
 }
 
 type HttpInputConfig struct {
@@ -25,32 +25,43 @@ func (self *HttpInput) Init(conf interface{}) error {
     config := conf.(*HttpInputConfig)
 
     self.dataChan = make(chan []byte)
-    self.hm = HttpMonitor{config.url, config.interval, self.dataChan}
+    self.stopChan = make(chan bool)
 
-    self.loop = true
+    self.hm = HttpMonitor{config.url, config.interval, self.dataChan}
 
     return nil
 }
 
 func (self *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-    go self.hm.Monitor()
+    ir.LogMessage("[HttpInput] Running...")
+    ir.LogMessage(fmt.Sprintf("%s (%d)", self.hm.url, self.hm.interval))
+
+    go self.hm.Monitor(ir)
 
     packSupply := ir.InChan()
 
-    for self.loop {
-        json := <-self.dataChan
-        pack := <-packSupply
+    for {
+        select {
+        case json := <-self.dataChan:
+            pack := <-packSupply
 
-        copy(pack.MsgBytes, json)
+            ir.LogMessage(fmt.Sprintf("[HttpInput] Received packet: %s", json))
 
-        ir.Inject(pack)
+            copy(pack.MsgBytes, json)
+
+            ir.Inject(pack)
+
+        case <-self.stopChan:
+            ir.LogMessage("[HttpInput] Stop")
+            return
+        }
     }
 
     return nil
 }
 
 func (self *HttpInput) Stop() {
-    self.loop = false
+    self.stopChan <- true
 }
 
 type HttpMonitor struct {
@@ -65,22 +76,29 @@ func (hm *HttpMonitor) Init(url string, interval int64, dataChan chan []byte) {
     hm.dataChan = dataChan
 }
 
-func (hm *HttpMonitor) Monitor() {
-    for {
-        time.Sleep(time.Duration(hm.interval) * time.Millisecond)
+func (hm *HttpMonitor) Monitor(ir InputRunner) {
+    ir.LogMessage("[HttpMonitor] Monitoring...")
 
-        resp, err := http.Get(hm.url)
+    ir.LogMessage(fmt.Sprintf("[HttpMonitor] GET %s", hm.url))
 
-        if err != nil {            
-            continue
-        }
+    resp, err := http.Get(hm.url)
 
-        body, err := ioutil.ReadAll(resp.Body)
-
-        if err != nil {
-            continue
-        }
-
-        hm.dataChan <- body
+    if err != nil {    
+        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))        
+        return
     }
+
+    ir.LogMessage("[HttpMonitor] Reading...")
+    body, err := ioutil.ReadAll(resp.Body)
+
+    if err != nil {
+        ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))   
+        return
+    }        
+
+    ir.LogMessage("[HttpMonitor] Sending...")
+
+    hm.dataChan <- body
+
+    resp.Body.Close()
 }
