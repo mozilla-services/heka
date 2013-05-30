@@ -416,6 +416,13 @@ Parameters:
 
   /var/run/hekad/seekjournals/<logfileinput_name>.log
 
+  Filesystems which properly support birthtime will resume reading
+  from the last known position if the logfile has not been rolled
+  over.  To do this, the file birthtime is checked.  Filesystems which
+  are known to support this feature include ext4 and HFS+. Filesystems
+  which do not support birthtime will resume reading from the start of
+  the file.
+
 - logfiles (list of strings):
     A list of logfiles that should be read, must be absolute paths.
 - hostname (string):
