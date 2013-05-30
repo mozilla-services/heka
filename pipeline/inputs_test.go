@@ -419,10 +419,8 @@ func InputsSpec(c gs.Context) {
 	c.Specify("A LogFileInput", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFiles = make(map[string](map[string]([]string)))
-
-		lfiConfig.LogFiles["zeus"] = make(map[string]([]string))
-		lfiConfig.LogFiles["zeus"]["logfiles"] = []string{"../testsupport/test-zeus.log"}
+		lfiConfig.LogFile = "../testsupport/test-zeus.log"
+		lfiConfig.Logger = "zeus"
 
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
@@ -465,7 +463,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles["zeus"]["logfiles"][0])
+			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
 			fileStr := string(fileBytes)
 			lines := strings.Split(fileStr, "\n")
@@ -474,9 +472,22 @@ func InputsSpec(c gs.Context) {
 					continue
 				}
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
-
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
+		})
+
+		c.Specify("uses the filename as the default logger name", func() {
+			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+			lfiConfig.LogFile = "../testsupport/test-zeus.log"
+
+			lfiConfig.DiscoverInterval = 1
+			lfiConfig.StatInterval = 1
+			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.Equals, nil)
+
+			c.Expect(lfInput.Monitor.ident_map[lfiConfig.LogFile], 
+            gs.Equals, 
+            lfiConfig.LogFile)
 		})
 	})
 }

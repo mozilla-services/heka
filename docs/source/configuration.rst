@@ -318,14 +318,8 @@ an internal discover list, and checked for existence every
 
 Parameters:
 
-- logfiles (dictionary of file lists)
-    Each LogfileInput can list multiple logfiles to monitor.
-    The last part of the section name is used to tag the message for
-    any error message that Heka may generate during log processing.
-    In the below example, the two tags are specified, 'opendirectoryd'
-    and 'appfirewall'.
-    Each subsection must contain a list of logfiles that should be
-    read, must be absolute paths.
+- logfile (string):
+    Each LogfileInput can have a single logfile to monitor.
 - discoverInterval (int):
     During logfile rotation, or if the logfile is not originally
     present on the system, this interval is how often the existence of
@@ -338,6 +332,10 @@ Parameters:
 - decoders (list of strings):
     List of logline decoder names used to transform the log line into
     a structured hekad message.
+- logger (string):
+    Each LogfileInput may specify a logger name to use in the case an
+    error occurs during processing of a particular line of logging
+    text.  By default, the logger name is set to the logfile name.
 
 .. code-block:: ini
 

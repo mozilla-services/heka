@@ -19,7 +19,6 @@ package pipeline
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -29,7 +28,7 @@ import (
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
 
-	LogFiles map[string]map[string][]string
+	LogFile string
 
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
@@ -41,6 +40,8 @@ type LogfileInputConfig struct {
 	StatInterval int
 	// Names of configured `LoglineDecoder` instances.
 	Decoders []string
+
+	Logger string
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -74,8 +75,6 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
-	log.Println("LogfileInput Init called")
-
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
@@ -87,9 +86,8 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 
-	log.Println("initializing LW Monitors with ", conf.LogFiles)
-	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
-		conf.StatInterval); err != nil {
+	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
+		conf.StatInterval, conf.Logger); err != nil {
 		return err
 	}
 	lw.decoderNames = conf.Decoders
@@ -268,8 +266,8 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
-func (fm *FileMonitor) Init(files map[string](map[string]([]string)), discoverInterval int,
-	statInterval int) (err error) {
+func (fm *FileMonitor) Init(file string, discoverInterval int,
+	statInterval int, logger string) (err error) {
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
@@ -278,11 +276,11 @@ func (fm *FileMonitor) Init(files map[string](map[string]([]string)), discoverIn
 	fm.discover = make(map[string]bool)
 	fm.ident_map = make(map[string]string)
 
-	for file_ident, fileMap := range files {
-		for _, fileName := range fileMap["logfiles"] {
-			fm.discover[fileName] = true
-			fm.ident_map[fileName] = file_ident
-		}
+	fm.discover[file] = true
+	if logger != "" {
+		fm.ident_map[file] = logger
+	} else {
+		fm.ident_map[file] = file
 	}
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
