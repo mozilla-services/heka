@@ -21,7 +21,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -106,11 +105,8 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 
 	// if the seekJournalPath is empty, write out the default
 	if fm.seekJournalPath == "" {
-
 		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
-
 		fm.seekJournalPath = defaultPath
-
 	}
 	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
 
@@ -246,6 +242,7 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 			continue
 		}
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
+
 		ctime := sys_info.Ctimespec.Nano()
 		btime := sys_info.Birthtimespec.Nano()
 
@@ -259,6 +256,17 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(tmp)
 }
+
+func current_ctime(filename string) (result int64, err error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+
+	return sys_info.Ctimespec.Nano(), nil
+}
+
 func current_btime(filename string) (result int64, err error) {
 	info, err := os.Stat(filename)
 	if err != nil {
@@ -444,6 +452,7 @@ func (fm *FileMonitor) LogMessage(msg string) {
 }
 
 func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
+	var msg string
 	var seekJournal *os.File
 	var file_err error
 
@@ -454,7 +463,6 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
 		os.O_CREATE|os.O_RDWR|os.O_APPEND,
 		0660); file_err != nil {
-		var msg string
 		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
 		fm.LogError(msg)
 		return false
@@ -465,9 +473,9 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	var filemon_bytes []byte
 	filemon_bytes, _ = json.Marshal(fm)
 
-	msg := string(filemon_bytes) + "\n"
-	log.Printf("serializing: [%s]\n", msg)
+	msg = string(filemon_bytes) + "\n"
 	seekJournal.WriteString(msg)
+
 	return true
 }
 
@@ -495,9 +503,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 }
 
 func (fm *FileMonitor) recoverSeekPosition() error {
-
 	// Check if the file exists first,
-
 	if fm.seekJournalPath == "." {
 		return nil
 	}

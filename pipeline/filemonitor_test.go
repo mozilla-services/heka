@@ -17,16 +17,47 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"runtime"
+	"time"
 )
 
-func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig) {
+func fix_ctime(logfile_name string) bool {
+	// Truncate a file by 0 bytes to just update the ctime
+	var tmpfile *os.File
+	var err error
+	var offset int64
+	var ctime, btime int64
+	ctime, _ = current_ctime(logfile_name)
+	btime, _ = current_btime(logfile_name)
+
+	if ctime == btime {
+		time.Sleep(10 * time.Millisecond)
+		if tmpfile, err = os.OpenFile(logfile_name, os.O_RDWR|os.O_APPEND,
+			0660); err != nil {
+			log.Println(err.Error())
+			return false
+		}
+		offset, err = tmpfile.Seek(0, os.SEEK_END)
+		tmpfile.Truncate(offset)
+		tmpfile.Close()
+
+		ctime, _ = current_ctime(logfile_name)
+		btime, _ = current_btime(logfile_name)
+		log.Printf("Final btime/ctime: [%d][%d]\n", btime, ctime)
+		return btime != ctime
+	}
+	return true
+}
+
+func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig, bool) {
 	logfile_name := "../testsupport/test-zeus.log"
 
 	lfInput := new(LogfileInput)
@@ -37,7 +68,11 @@ func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig
 	lfiConfig.SeekJournal = journal_name
 	// Remove any journal that may exist
 	os.Remove(path.Clean(journal_name))
-	return lfInput, lfiConfig
+
+	if !fix_ctime(logfile_name) {
+		return nil, nil, false
+	}
+	return lfInput, lfiConfig, true
 }
 
 func FileMonitorSpec(c gs.Context) {
@@ -71,48 +106,14 @@ func FileMonitorSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
-	c.Specify("A FileMonitor", func() {
-		c.Specify("serializes to JSON", func() {
-			var tmp_err error
-			var tmp_file *os.File
-
-			fm := new(FileMonitor)
-
-			tmp_file, tmp_err = ioutil.TempFile("", "foo.txt")
-			c.Expect(tmp_err, gs.Equals, nil)
-			file1 := tmp_file.Name()
-			tmp_file.Close()
-			tmp_file, tmp_err = ioutil.TempFile("", "bar.txt")
-			c.Expect(tmp_err, gs.Equals, nil)
-			file2 := tmp_file.Name()
-			tmp_file.Close()
-
-			fm.Init([]string{file1, file2}, 10, 10, "")
-			fm.seek[file1] = 200
-			fm.seek[file2] = 300
-
-			c.Expect(fm, gs.Not(gs.Equals), nil)
-
-			// Serialize to JSON
-			fbytes, _ := json.Marshal(fm)
-
-			newFM := new(FileMonitor)
-			// Any entries in fm.seek must already be in fm.discover
-			// or else they won't get restored.
-			newFM.Init([]string{file1, file2}, 5, 5, "")
-			c.Expect(newFM.discover[file1], gs.Equals, true)
-			c.Expect(newFM.discover[file2], gs.Equals, true)
-			json.Unmarshal(fbytes, &newFM)
-			c.Expect(len(newFM.seek), gs.Equals, len(fm.seek))
-			c.Expect(newFM.seek[file1], gs.Equals, fm.seek[file1])
-			c.Expect(newFM.seek[file2], gs.Equals, fm.seek[file2])
-		})
-	})
-
 	c.Specify("saved last read position", func() {
 
 		c.Specify("without a previous journal", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig, ok := createLogfileInput(journal_name)
+
+			// This will fail if btime/ctime is implemented the same
+			// way by the underlying OS
+			c.Expect(ok, gs.Equals, true)
 
 			// Initialize the input test helper
 			err := lfInput.Init(lfiConfig)
@@ -165,8 +166,16 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("with a previous journal initializes with a seek value", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
-			journal_data := `{"birth_times":{},"seek":{"../testsupport/test-zeus.log":28950}}`
+			lfInput, lfiConfig, ok := createLogfileInput(journal_name)
+
+			// This will fail if btime/ctime is implemented the same
+			//way by the underlying OS
+			c.Expect(ok, gs.Equals, true)
+
+			journal_data := `{"birth_times":{"../testsupport/test-zeus.log":%d},"seek":{"../testsupport/test-zeus.log":28950}}`
+			btime, _ := current_btime("../testsupport/test-zeus.log")
+			journal_data = fmt.Sprintf(journal_data, btime)
+
 			journal, journal_err := os.OpenFile(journal_name,
 				os.O_CREATE|os.O_RDWR, 0660)
 			c.Expect(journal_err, gs.Equals, nil)
@@ -185,7 +194,8 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("resets last read position to 0 if birthtime doesn't match", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig, ok := createLogfileInput(journal_name)
+			c.Expect(ok, gs.Equals, true)
 			journal_data := `{"birth_times":{"../testsupport/test-zeus.log":84328423},"seek":{"../testsupport/test-zeus.log":28950}}`
 			journal, journal_err := os.OpenFile(journal_name,
 				os.O_CREATE|os.O_RDWR, 0660)

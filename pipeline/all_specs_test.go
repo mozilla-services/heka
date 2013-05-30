@@ -48,8 +48,8 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(WhisperRunnerSpec)
 	r.AddSpec(WhisperOutputSpec)
 	r.AddSpec(ReportSpec)
-	r.AddSpec(FileMonitorSpec)
 	r.AddSpec(AMQPPluginSpec)
+	r.AddSpec(FileMonitorSpec)
 	gospec.MainGoTest(r, t)
 }
 
