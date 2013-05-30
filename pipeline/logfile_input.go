@@ -27,7 +27,7 @@ import (
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
-	LogFiles []string
+	LogFile string
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
 	// Interval btn hd scans for existence of watched files, in milliseconds,
@@ -78,7 +78,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
-	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
+	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
 		conf.StatInterval); err != nil {
 		return err
 	}
@@ -261,7 +261,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
-func (fm *FileMonitor) Init(files []string, discoverInterval int,
+func (fm *FileMonitor) Init(file string, discoverInterval int,
 	statInterval int) (err error) {
 
 	fm.NewLines = make(chan Logline)
@@ -269,9 +269,7 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
-	for _, fileName := range files {
-		fm.discover[fileName] = true
-	}
+	fm.discover[file] = true
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 	go fm.Watcher()
