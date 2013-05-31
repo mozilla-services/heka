@@ -434,13 +434,8 @@ Parameters:
 .. code-block:: ini
 
     [LogfileInput]
-
-    [LogfileInput.LogFiles.opendirectoryd]
-    logfiles = ["/var/log/opendirectoryd.log"]
-
-    [LogfileInput.LogFiles.appfirewall]
-    logfiles = ["/var/log/appfirewall.log"]
-
+    logfile = "/var/log/opendirectoryd.log"
+    logger = "opendirectoryd"
 
 .. code-block:: ini
 
