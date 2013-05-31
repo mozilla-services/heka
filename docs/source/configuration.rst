@@ -423,8 +423,8 @@ Parameters:
   which do not support birthtime will resume reading from the start of
   the file.
 
-- logfiles (list of strings):
-    A list of logfiles that should be read, must be absolute paths.
+- logfile (string):
+    Each LogfileInput can have a single logfile to monitor.
 - hostname (string):
     The hostname to use for the messages, by default this will be the
     machines qualified hostname. This can be set explicitly to ensure
@@ -442,6 +442,11 @@ Parameters:
 - decoders (list of strings):
     List of logline decoder names used to transform the log line into
     a structured hekad message.
+
+.. code-block:: ini
+
+    [LogfileInput]
+    logfile = "/var/log/opendirectoryd.log"
 
 .. _config_statsd_input:
 

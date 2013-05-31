@@ -31,7 +31,7 @@ import (
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
-	LogFiles []string
+	LogFile string
 
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
@@ -91,7 +91,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
-	if err = lw.Monitor.Init(conf.LogFiles, conf.DiscoverInterval,
+	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
 		conf.StatInterval, conf.SeekJournal); err != nil {
 		return err
 	}
@@ -479,7 +479,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	return true
 }
 
-func (fm *FileMonitor) Init(files []string, discoverInterval int,
+func (fm *FileMonitor) Init(file string, discoverInterval int,
 	statInterval int, seekJournalPath string) (err error) {
 
 	fm.NewLines = make(chan Logline)
@@ -487,14 +487,11 @@ func (fm *FileMonitor) Init(files []string, discoverInterval int,
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
+	fm.discover[file] = true
 
 	fm.pendingMessages = make([]string, 0)
 	fm.pendingErrors = make([]string, 0)
 	fm.seekJournalPath = seekJournalPath
-
-	for _, fileName := range files {
-		fm.discover[fileName] = true
-	}
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)

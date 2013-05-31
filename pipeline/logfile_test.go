@@ -51,7 +51,7 @@ func LogfileSpec(c gs.Context) {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 
-		lfiConfig.LogFiles = []string{logfile_name}
+		lfiConfig.LogFile = logfile_name
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
 
@@ -100,7 +100,7 @@ func LogfileSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles[0])
+			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
 			fileStr := string(fileBytes)
 			lines := strings.Split(fileStr, "\n")

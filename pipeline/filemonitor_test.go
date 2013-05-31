@@ -62,7 +62,7 @@ func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig
 
 	lfInput := new(LogfileInput)
 	lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-	lfiConfig.LogFiles = []string{logfile_name}
+	lfiConfig.LogFile = logfile_name
 	lfiConfig.DiscoverInterval = 1
 	lfiConfig.StatInterval = 1
 	lfiConfig.SeekJournal = journal_name
@@ -156,7 +156,7 @@ func FileMonitorSpec(c gs.Context) {
 			}
 
 			newFM := new(FileMonitor)
-			newFM.Init([]string{logfile_name}, 5, 5, journal_name)
+			newFM.Init(logfile_name, 5, 5, journal_name)
 			err = newFM.setupJournalling()
 			c.Expect(err, gs.Equals, nil)
 
