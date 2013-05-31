@@ -156,7 +156,7 @@ type FileMonitor struct {
 	discover     bool
 	logger_ident string
 
-	fds              map[string]*os.File
+	fds              *os.File
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
@@ -170,7 +170,7 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	if err != nil {
 		return
 	}
-	fm.fds[fileName] = fd
+	fm.fds = fd
 
 	// Seek as needed
 	begin := 0
@@ -200,8 +200,8 @@ func (fm *FileMonitor) Watcher() {
 		case _, ok = <-fm.stopChan:
 			break
 		case <-checkStat:
-			for fileName, _ := range fm.fds {
-				ok = fm.ReadLines(fileName)
+			if fm.fds != nil {
+				ok = fm.ReadLines(fm.logfile)
 				if !ok {
 					break
 				}
@@ -214,8 +214,9 @@ func (fm *FileMonitor) Watcher() {
 			}
 		}
 	}
-	for _, fd := range fm.fds {
-		fd.Close()
+	if fm.fds != nil {
+		fm.fds.Close()
+		fm.fds = nil
 	}
 }
 
@@ -235,7 +236,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		}
 	}()
 
-	fd, _ := fm.fds[fileName]
+	fd := fm.fds
 
 	// Determine if we're farther into the file than possible (truncate)
 	finfo, err := fd.Stat()
@@ -262,7 +263,11 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	pinfo, err := os.Stat(fileName)
 	if err != nil || !os.SameFile(pinfo, finfo) {
 		fd.Close()
-		delete(fm.fds, fileName)
+
+		if fm.fds != nil {
+			fm.fds = nil
+		}
+
 		fm.seek = 0
 		fm.discover = true
 	}
@@ -275,7 +280,7 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
 	fm.seek = 0
-	fm.fds = make(map[string]*os.File)
+	fm.fds = nil
 
 	fm.logfile = file
 	fm.discover = true
