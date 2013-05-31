@@ -35,8 +35,7 @@ func fix_ctime(logfile_name string) bool {
 	var err error
 	var offset int64
 	var ctime, btime int64
-	ctime, _ = current_ctime(logfile_name)
-	btime, _ = current_btime(logfile_name)
+	ctime, btime, _ = ctime_btime(logfile_name)
 
 	if ctime == btime {
 		time.Sleep(10 * time.Millisecond)
@@ -49,8 +48,7 @@ func fix_ctime(logfile_name string) bool {
 		tmpfile.Truncate(offset)
 		tmpfile.Close()
 
-		ctime, _ = current_ctime(logfile_name)
-		btime, _ = current_btime(logfile_name)
+		ctime, btime, _ = ctime_btime(logfile_name)
 		log.Printf("Final btime/ctime: [%d][%d]\n", btime, ctime)
 		return btime != ctime
 	}
@@ -173,7 +171,7 @@ func FileMonitorSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 
 			journal_data := `{"birth_times":{"../testsupport/test-zeus.log":%d},"seek":{"../testsupport/test-zeus.log":28950}}`
-			btime, _ := current_btime("../testsupport/test-zeus.log")
+			_, btime, _ := ctime_btime("../testsupport/test-zeus.log")
 			journal_data = fmt.Sprintf(journal_data, btime)
 
 			journal, journal_err := os.OpenFile(journal_name,

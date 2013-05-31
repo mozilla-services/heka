@@ -256,24 +256,14 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	return json.Marshal(tmp)
 }
 
-func current_ctime(filename string) (result int64, err error) {
+func ctime_btime(filename string) (ctim int64, btim int64, err error) {
 	info, err := os.Stat(filename)
 	if err != nil {
-		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+		return 0, 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
 	}
-	sys_info := info.Sys().(*syscall.Stat_t)
-
-	return sys_info.Ctimespec.Nano(), nil
-}
-
-func current_btime(filename string) (result int64, err error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
-	}
-	sys_info := info.Sys().(*syscall.Stat_t)
-
-	return sys_info.Birthtimespec.Nano(), nil
+	stat_t := info.Sys().(*syscall.Stat_t)
+	ctime, btime := compute_times(stat_t)
+	return ctime, btime, nil
 }
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
@@ -297,9 +287,11 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 					continue
 				}
 				lst_btime := int64(btime_map[discover_logfile].(float64))
-				if cur_btime, err = current_btime(discover_logfile); err != nil {
+
+				if _, cur_btime, err = ctime_btime(discover_logfile); err != nil {
 					return err
 				}
+
 				if cur_btime == lst_btime {
 					fm.seek[seek_filename] = int64(seek_pos.(float64))
 					fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", seek_filename, fm.seek[seek_filename]))
