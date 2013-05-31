@@ -148,11 +148,14 @@ func (lw *LogfileInput) Stop() {
 type FileMonitor struct {
 	// Channel onto which FileMonitor will place LogLine objects as the file
 	// is being read.
-	NewLines         chan Logline
-	stopChan         chan bool
-	seek             map[string]int64
-	discover         map[string]bool
-	ident_map        map[string]string
+	NewLines chan Logline
+	stopChan chan bool
+	seek     map[string]int64
+
+	logfile   string
+	discover  bool
+	ident_map map[string]string
+
 	fds              map[string]*os.File
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
@@ -206,10 +209,8 @@ func (fm *FileMonitor) Watcher() {
 		case <-discovery:
 			// Check to see if the files exist now, start reading them
 			// if we can, and watch them
-			for fileName, _ := range fm.discover {
-				if fm.OpenFile(fileName) == nil {
-					delete(fm.discover, fileName)
-				}
+			if fm.OpenFile(fm.logfile) == nil {
+				fm.discover = false
 			}
 		}
 	}
@@ -263,7 +264,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		fd.Close()
 		delete(fm.fds, fileName)
 		delete(fm.seek, fileName)
-		fm.discover[fileName] = true
+		fm.discover = true
 	}
 	return
 }
@@ -275,10 +276,11 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 	fm.stopChan = make(chan bool)
 	fm.seek = make(map[string]int64)
 	fm.fds = make(map[string]*os.File)
-	fm.discover = make(map[string]bool)
+
+	fm.logfile = file
+	fm.discover = true
 	fm.ident_map = make(map[string]string)
 
-	fm.discover[file] = true
 	if logger != "" {
 		fm.ident_map[file] = logger
 	} else {
