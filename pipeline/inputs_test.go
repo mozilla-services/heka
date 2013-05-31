@@ -485,7 +485,7 @@ func InputsSpec(c gs.Context) {
 			err := lfInput.Init(lfiConfig)
 			c.Expect(err, gs.Equals, nil)
 
-			c.Expect(lfInput.Monitor.ident_map[lfiConfig.LogFile],
+			c.Expect(lfInput.Monitor.logger_ident,
 				gs.Equals,
 				lfiConfig.LogFile)
 		})

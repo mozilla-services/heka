@@ -152,9 +152,9 @@ type FileMonitor struct {
 	stopChan chan bool
 	seek     int64
 
-	logfile   string
-	discover  bool
-	ident_map map[string]string
+	logfile      string
+	discover     bool
+	logger_ident string
 
 	fds              map[string]*os.File
 	checkStat        <-chan time.Time
@@ -250,7 +250,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
 	for err == nil {
-		line := Logline{Path: fileName, Line: readLine, Logger: fm.ident_map[fileName]}
+		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		fm.seek += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
@@ -279,12 +279,11 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 
 	fm.logfile = file
 	fm.discover = true
-	fm.ident_map = make(map[string]string)
 
 	if logger != "" {
-		fm.ident_map[file] = logger
+		fm.logger_ident = logger
 	} else {
-		fm.ident_map[file] = file
+		fm.logger_ident = file
 	}
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
