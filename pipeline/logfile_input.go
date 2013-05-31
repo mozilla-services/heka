@@ -242,9 +242,16 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 			continue
 		}
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
+		stat_t_attr := attributes(sys_info)
 
-		ctime := sys_info.Ctimespec.Nano()
-		btime := sys_info.Birthtimespec.Nano()
+        // This may break under windows
+		if _, ok := stat_t_attr["Ctimespec"]; ok == true {
+			ctime := sys_info.Ctimespec.Nano()
+			btime := sys_info.Birthtimespec.Nano()
+		} else if _, ok := stat_t_attr["Ctim"]; ok == true {
+			ctime := sys_info.Ctim.Nano()
+			btime := sys_info.Btim.Nano()
+		}
 
 		// Assume that if ctime and btime are the same, then
 		// the underlying filesystem doesn't really support
@@ -479,6 +486,35 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	return true
 }
 
+/*
+ * Compute the attributes of a struct and return it as a map
+ */
+func attributes(m interface{}) map[string]reflect.Type {
+	typ := reflect.TypeOf(m)
+	// if a pointer to a struct is passed, get the type of the dereferenced object
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
+	// create an attribute data structure as a map of types keyed by a string.
+	attrs := make(map[string]reflect.Type)
+	// Only structs are supported so return an empty result if the passed object
+	// isn't a struct
+	if typ.Kind() != reflect.Struct {
+		fmt.Printf("%v type can't have attributes inspected\n", typ.Kind())
+		return attrs
+	}
+
+	// loop through the struct's fields and set the map
+	for i := 0; i < typ.NumField(); i++ {
+		p := typ.Field(i)
+		if !p.Anonymous {
+			attrs[p.Name] = p.Type
+		}
+	}
+
+	return attrs
+}
 func (fm *FileMonitor) Init(file string, discoverInterval int,
 	statInterval int, seekJournalPath string) (err error) {
 
