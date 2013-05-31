@@ -31,12 +31,15 @@ type DashboardOutputConfig struct {
 	// Working directory where the Dashboard output is written to; it also
 	// serves as the root for the HTTP fileserver.
 	WorkingDirectory string `toml:"working_directory"`
+	// Default interval at which dashboard will update is 5 seconds.
+	TickerInterval uint `toml:"ticker_interval"`
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
 		WorkingDirectory: "./dashboard",
+		TickerInterval:   uint(5),
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
+	"reflect"
 	"regexp"
 	"sync"
 	"time"
@@ -31,7 +32,7 @@ import (
 const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
 
 // Set a sample rate for match and message processing timing i.e. 1 in a million
-const DURATION_SAMPLE_DENOMINATOR = 1e6 
+const DURATION_SAMPLE_DENOMINATOR = 1e6
 
 var (
 	AvailablePlugins         = make(map[string]func() interface{})
@@ -345,6 +346,25 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	return
 }
 
+// Uses reflection to extract an attribute value from an arbitrary struct type
+// that may or may not actually have the attribute, returning a provided
+// default if the provided object is not a struct or if the attribute doesn't
+// exist.
+func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}) {
+	ret = default_
+	obVal := reflect.ValueOf(ob)
+	obVal = reflect.Indirect(obVal) // Dereference if it's a pointer.
+	if obVal.Kind().String() != "struct" {
+		// `FieldByName` will panic if we're not a struct.
+		return
+	}
+	attrVal := obVal.FieldByName(attr)
+	if !attrVal.IsValid() {
+		return
+	}
+	return attrVal.Interface()
+}
+
 // Registers a the specified decoder to be used for messages with the
 // specified Heka protocol encoding header.
 func regDecoderForHeader(decoderName string, encodingName string) (err error) {
@@ -509,8 +529,22 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
 
+	// If no ticker_interval value was specified in the TOML, we check to see
+	// if a default TickerInterval value is specified on the config struct.
+	if pluginGlobals.Ticker == 0 {
+		tickerVal := getAttr(config, "TickerInterval", uint(0))
+		pluginGlobals.Ticker = tickerVal.(uint)
+	}
+
 	if pluginGlobals.Ticker != 0 {
 		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
+	}
+
+	// Similarly, if no message_matcher was specified in the TOML we look for
+	// a default value on the config struct as a MessageMatcher attribute.
+	if pluginGlobals.Matcher == "" {
+		matcherVal := getAttr(config, "MessageMatcher", "")
+		pluginGlobals.Matcher = matcherVal.(string)
 	}
 
 	var matcher *MatchRunner
