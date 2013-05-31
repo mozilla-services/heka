@@ -24,10 +24,44 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+    "syscall"
 	"path"
 	"runtime"
 	"time"
 )
+
+func current_ctime(filename string) (result int64, err error) {
+    var ctim int64
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+	stat_t_attr := attributes(sys_info)
+
+	if ctim, ok = stat_t_attr["Ctimespec"]; ok == true {
+		return stat_t_attr["Ctimespec"].Nano(), nil
+	} else {
+		return stat_t_attr["Ctim"].Nano(), nil
+	}
+
+}
+
+func current_btime(filename string) (result int64, err error) {
+    var ctim int64
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+	stat_t_attr := attributes(sys_info)
+
+	if ctim, ok = stat_t_attr["Btimespec"]; ok == true {
+		return stat_t_attr["Btimespec"].Nano(), nil
+	} else {
+		return stat_t_attr["Btim"].Nano(), nil
+	}
+}
 
 func fix_ctime(logfile_name string) bool {
 	// Truncate a file by 0 bytes to just update the ctime

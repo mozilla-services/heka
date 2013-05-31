@@ -18,6 +18,7 @@ package pipeline
 import (
 	"bufio"
 	"bytes"
+    "reflect"
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	"fmt"
@@ -244,14 +245,18 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 		sys_info, _ := info.Sys().(*syscall.Stat_t)
 		stat_t_attr := attributes(sys_info)
 
-        // This may break under windows
-		if _, ok := stat_t_attr["Ctimespec"]; ok == true {
-			ctime := sys_info.Ctimespec.Nano()
-			btime := sys_info.Birthtimespec.Nano()
-		} else if _, ok := stat_t_attr["Ctim"]; ok == true {
-			ctime := sys_info.Ctim.Nano()
-			btime := sys_info.Btim.Nano()
+		// This may break under windows
+		var ctim syscall.Timespec
+		var btim syscall.Timespec
+		var ok bool
+
+		if ctim, ok = stat_t_attr["Ctimespec"]; ok == true {
+			btim := stat_t_attr["Btimespec"]
+		} else if ctim, ok = stat_t_attr["Ctim"]; ok == true {
+			btim := stat_t_attr["Btim"]
 		}
+		ctime := ctim.Nano()
+		btime := btim.Nano()
 
 		// Assume that if ctime and btime are the same, then
 		// the underlying filesystem doesn't really support
@@ -264,25 +269,6 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	return json.Marshal(tmp)
 }
 
-func current_ctime(filename string) (result int64, err error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
-	}
-	sys_info := info.Sys().(*syscall.Stat_t)
-
-	return sys_info.Ctimespec.Nano(), nil
-}
-
-func current_btime(filename string) (result int64, err error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
-	}
-	sys_info := info.Sys().(*syscall.Stat_t)
-
-	return sys_info.Birthtimespec.Nano(), nil
-}
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	var dec = json.NewDecoder(bytes.NewReader(data))
