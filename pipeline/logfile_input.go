@@ -150,7 +150,7 @@ type FileMonitor struct {
 	// is being read.
 	NewLines chan Logline
 	stopChan chan bool
-	seek     map[string]int64
+	seek     int64
 
 	logfile   string
 	discover  bool
@@ -174,11 +174,11 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 
 	// Seek as needed
 	begin := 0
-	offset := fm.seek[fileName]
+	offset := fm.seek
 	_, err = fd.Seek(offset, begin)
 	if err != nil {
 		// Unable to seek in, start at beginning
-		fm.seek[fileName] = 0
+		fm.seek = 0
 		if _, err = fd.Seek(0, 0); err != nil {
 			return
 		}
@@ -240,9 +240,9 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Determine if we're farther into the file than possible (truncate)
 	finfo, err := fd.Stat()
 	if err == nil {
-		if finfo.Size() < fm.seek[fileName] {
+		if finfo.Size() < fm.seek {
 			fd.Seek(0, 0)
-			fm.seek[fileName] = 0
+			fm.seek = 0
 		}
 	}
 
@@ -252,10 +252,10 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	for err == nil {
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.ident_map[fileName]}
 		fm.NewLines <- line
-		fm.seek[fileName] += int64(len(readLine))
+		fm.seek += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
 	}
-	fm.seek[fileName] += int64(len(readLine))
+	fm.seek += int64(len(readLine))
 
 	// Check that we haven't been rotated, if we have, put this back on
 	// discover
@@ -263,7 +263,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	if err != nil || !os.SameFile(pinfo, finfo) {
 		fd.Close()
 		delete(fm.fds, fileName)
-		delete(fm.seek, fileName)
+		fm.seek = 0
 		fm.discover = true
 	}
 	return
@@ -274,7 +274,7 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
-	fm.seek = make(map[string]int64)
+	fm.seek = 0
 	fm.fds = make(map[string]*os.File)
 
 	fm.logfile = file
