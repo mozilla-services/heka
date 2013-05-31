@@ -17,10 +17,14 @@ package pipeline
 
 import (
 	"bufio"
+	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -28,16 +32,23 @@ import (
 type LogfileInputConfig struct {
 	// Paths for all of the log files that this input should be reading.
 	LogFile string
+
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
+
 	// Interval btn hd scans for existence of watched files, in milliseconds,
 	// default 5000 (i.e. 5 seconds).
 	DiscoverInterval int
+
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
 	StatInterval int
+
 	// Names of configured `LoglineDecoder` instances.
 	Decoders []string
+
+	// Name of the seek journal
+	SeekJournal string
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -64,11 +75,13 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
 		StatInterval:     500,
+		SeekJournal:      "",
 	}
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
+
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
 	if val == "" {
@@ -79,10 +92,41 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
-		conf.StatInterval); err != nil {
+		conf.StatInterval, conf.SeekJournal); err != nil {
 		return err
 	}
+
 	lw.decoderNames = conf.Decoders
+	return nil
+}
+
+func (fm *FileMonitor) setupJournalling() (err error) {
+	var dirInfo os.FileInfo
+
+	// if the seekJournalPath is empty, write out the default
+	if fm.seekJournalPath == "" {
+		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
+		fm.seekJournalPath = defaultPath
+	}
+	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
+
+	// Check that the directory to seekJournalPath actually exists
+	journalDir := path.Dir(fm.seekJournalPath)
+
+	if dirInfo, err = os.Stat(journalDir); err != nil {
+		return err
+	}
+
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
+	}
+
+	if err = fm.recoverSeekPosition(); err != nil {
+		return err
+	}
+
+	go fm.Watcher()
+
 	return nil
 }
 
@@ -94,6 +138,23 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		ok      bool
 	)
 	packSupply := ir.InChan()
+
+	lw.Monitor.ir = ir
+
+	if err = lw.Monitor.setupJournalling(); err != nil {
+		ir.LogError(err)
+		return err
+	}
+
+	for _, msg := range lw.Monitor.pendingMessages {
+		lw.Monitor.LogMessage(msg)
+	}
+	lw.Monitor.pendingMessages = make([]string, 0)
+
+	for _, msg := range lw.Monitor.pendingErrors {
+		lw.Monitor.LogError(msg)
+	}
+	lw.Monitor.pendingErrors = make([]string, 0)
 
 	dSet := h.DecoderSet()
 	decoders := make([]Decoder, len(lw.decoderNames))
@@ -142,7 +203,10 @@ func (lw *LogfileInput) Stop() {
 type FileMonitor struct {
 	// Channel onto which FileMonitor will place LogLine objects as the file
 	// is being read.
-	NewLines         chan Logline
+	NewLines chan Logline
+
+	seekJournalPath string
+
 	stopChan         chan bool
 	seek             map[string]int64
 	discover         map[string]bool
@@ -150,6 +214,107 @@ type FileMonitor struct {
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
+
+	ir              InputRunner
+	pendingMessages []string
+	pendingErrors   []string
+}
+
+// Serialize to JSON
+func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
+	// Note: We can't serialize the stat.pinfo in a cross platform way.
+	// If you check the os.SameFile api, it only works on pinfo
+	// objects created by os itself.
+
+	btimes := make(map[string]int64)
+
+	tmp := map[string]interface{}{
+		"seek":        fm.seek,
+		"birth_times": btimes,
+	}
+
+	for filename, _ := range fm.seek {
+		info, err := os.Stat(filename)
+		if err != nil {
+			// Can't stat it, but meh.  Just don't serialize.
+
+			fm.LogError(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
+			continue
+		}
+		sys_info, _ := info.Sys().(*syscall.Stat_t)
+
+		ctime := sys_info.Ctimespec.Nano()
+		btime := sys_info.Birthtimespec.Nano()
+
+		// Assume that if ctime and btime are the same, then
+		// the underlying filesystem doesn't really support
+		// birthtime
+		if ctime != btime {
+			btimes[filename] = btime
+		}
+	}
+
+	return json.Marshal(tmp)
+}
+
+func current_ctime(filename string) (result int64, err error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+
+	return sys_info.Ctimespec.Nano(), nil
+}
+
+func current_btime(filename string) (result int64, err error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
+	}
+	sys_info := info.Sys().(*syscall.Stat_t)
+
+	return sys_info.Birthtimespec.Nano(), nil
+}
+
+func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
+	var dec = json.NewDecoder(bytes.NewReader(data))
+	var m map[string]interface{}
+	var cur_btime int64
+
+	err := dec.Decode(&m)
+	if err != nil {
+		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
+	}
+
+	var btime_map = m["birth_times"].(map[string]interface{})
+	var seek_map = m["seek"].(map[string]interface{})
+	for seek_filename, seek_pos := range seek_map {
+		// Just do a linear scan to match seek positions to actual
+		// logfiles.  This only happens at startup
+		for discover_logfile, _ := range fm.discover {
+			if discover_logfile == seek_filename {
+				if btime_map[discover_logfile] == nil {
+					continue
+				}
+				lst_btime := int64(btime_map[discover_logfile].(float64))
+				if cur_btime, err = current_btime(discover_logfile); err != nil {
+					return err
+				}
+				if cur_btime == lst_btime {
+					fm.seek[seek_filename] = int64(seek_pos.(float64))
+					fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", seek_filename, fm.seek[seek_filename]))
+				} else {
+					msg := fmt.Sprintf("Skipping setting seek position as birthtime doesn't match. [%s] [%d] [%d]", discover_logfile, lst_btime, cur_btime)
+					fm.LogMessage(msg)
+				}
+				break
+			}
+		}
+	}
+
+	return nil
+
 }
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's
@@ -206,6 +371,7 @@ func (fm *FileMonitor) Watcher() {
 			}
 		}
 	}
+
 	for _, fd := range fm.fds {
 		fd.Close()
 	}
@@ -214,6 +380,7 @@ func (fm *FileMonitor) Watcher() {
 // Reads all unread lines out of the specified file, creates a LogLine object
 // for each line, and puts it on the NewLine channel for processing.
 func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
+
 	ok = true
 	defer func() {
 		// Capture send on close chan as this is a shut-down
@@ -241,13 +408,20 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
+	var bytes_read int64
+	bytes_read = 0
 	for err == nil {
 		line := Logline{Path: fileName, Line: readLine}
 		fm.NewLines <- line
-		fm.seek[fileName] += int64(len(readLine))
+		bytes_read += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
 	}
-	fm.seek[fileName] += int64(len(readLine))
+	bytes_read += int64(len(readLine))
+	fm.seek[fileName] += bytes_read
+
+	if ok = fm.updateJournal(bytes_read); ok == false {
+		return false
+	}
 
 	// Check that we haven't been rotated, if we have, put this back on
 	// discover
@@ -261,8 +435,52 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	return
 }
 
+func (fm *FileMonitor) LogError(msg string) {
+	if fm.ir == nil {
+		fm.pendingErrors = append(fm.pendingErrors, msg)
+	} else {
+		fm.ir.LogError(fmt.Errorf(msg))
+	}
+}
+
+func (fm *FileMonitor) LogMessage(msg string) {
+	if fm.ir == nil {
+		fm.pendingMessages = append(fm.pendingMessages, msg)
+	} else {
+		fm.ir.LogMessage(msg)
+	}
+}
+
+func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
+	var msg string
+	var seekJournal *os.File
+	var file_err error
+
+	if bytes_read == 0 || fm.seekJournalPath == "." {
+		return true
+	}
+
+	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
+		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		0660); file_err != nil {
+		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
+		fm.LogError(msg)
+		return false
+	}
+	defer seekJournal.Close()
+	seekJournal.Seek(0, os.SEEK_END)
+
+	var filemon_bytes []byte
+	filemon_bytes, _ = json.Marshal(fm)
+
+	msg = string(filemon_bytes) + "\n"
+	seekJournal.WriteString(msg)
+
+	return true
+}
+
 func (fm *FileMonitor) Init(file string, discoverInterval int,
-	statInterval int) (err error) {
+	statInterval int, seekJournalPath string) (err error) {
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
@@ -270,8 +488,54 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 	fm.fds = make(map[string]*os.File)
 	fm.discover = make(map[string]bool)
 	fm.discover[file] = true
+
+	fm.pendingMessages = make([]string, 0)
+	fm.pendingErrors = make([]string, 0)
+	fm.seekJournalPath = seekJournalPath
+
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
-	go fm.Watcher()
+
 	return
+}
+
+func (fm *FileMonitor) recoverSeekPosition() error {
+	// Check if the file exists first,
+	if fm.seekJournalPath == "." {
+		return nil
+	}
+
+	var f *os.File
+	var err error
+
+	if f, err = os.Open(fm.seekJournalPath); err != nil {
+		// The logfile doesn't exist, nothing special to do
+		if os.IsNotExist(err) {
+			// file doesn't exist, but that's ok, not a real error
+			return nil
+		} else {
+			return err
+		}
+	}
+	defer f.Close()
+
+	var seek_err error
+	var seekJournal *os.File
+	// First try to restore the line position
+	if seekJournal, seek_err = os.OpenFile(fm.seekJournalPath,
+		os.O_RDWR, 0660); seek_err != nil {
+		return seek_err
+	}
+	defer seekJournal.Close()
+
+	var scanner = bufio.NewScanner(seekJournal)
+	var tmp string
+	for scanner.Scan() {
+		tmp = scanner.Text() // Println will add back the final '\n'
+	}
+	if len(tmp) > 0 {
+		json.Unmarshal([]byte(tmp), &fm)
+	}
+
+	return nil
 }
