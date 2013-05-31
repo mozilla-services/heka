@@ -241,10 +241,9 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 			fm.LogError(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
 			continue
 		}
-		sys_info, _ := info.Sys().(*syscall.Stat_t)
 
-		ctime := sys_info.Ctimespec.Nano()
-		btime := sys_info.Birthtimespec.Nano()
+		stat_t, _ := info.Sys().(*syscall.Stat_t)
+		ctime, btime := compute_times(stat_t)
 
 		// Assume that if ctime and btime are the same, then
 		// the underlying filesystem doesn't really support
