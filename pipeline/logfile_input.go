@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	"bufio"
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"os"
 	"strings"
@@ -26,10 +27,8 @@ import (
 
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
-	// Paths for all of the log files that this input should be reading.
-
+	// Paths for the log file that this input should be reading.
 	LogFile string
-
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
 	// Interval btn hd scans for existence of watched files, in milliseconds,
@@ -85,7 +84,6 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
-
 	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
 		conf.StatInterval, conf.Logger); err != nil {
 		return err
@@ -114,10 +112,14 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	for logline := range lw.Monitor.NewLines {
 		pack = <-packSupply
+		pack.Message.SetUuid(uuid.NewRandom())
+		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetType("logfile")
-		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetLogger(logline.Logger)
-
+		pack.Message.SetSeverity(int32(0))
+		pack.Message.SetEnvVersion("0.8")
+		pack.Message.SetPid(0)
+		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
 			if e = decoder.Decode(pack); e == nil {

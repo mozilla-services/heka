@@ -31,9 +31,10 @@ import (
 // dynamically creates, manages, and destroys sandboxed filter scripts as
 // instructed.
 type SandboxManagerFilter struct {
-	maxFilters       int
-	currentFilters   int
-	workingDirectory string
+	maxFilters          int
+	currentFilters      int
+	workingDirectory    string
+	processMessageCount int64
 }
 
 // Config struct for `SandboxManagerFilter`.
@@ -65,6 +66,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "RunningFilters", this.currentFilters)
+	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
 	return nil
 }
 
@@ -259,6 +261,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 			if !ok {
 				break
 			}
+			this.processMessageCount++
 			action, _ := plc.Pack.Message.GetFieldValue("action")
 			switch action {
 			case "load":

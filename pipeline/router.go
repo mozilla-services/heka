@@ -18,9 +18,11 @@ package pipeline
 import (
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"math/rand"
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 // Public interface exposed by the Heka message router. The message router
@@ -52,6 +54,7 @@ type messageRouter struct {
 	removeOutputMatcher chan *MatchRunner
 	fMatchers           []*MatchRunner
 	oMatchers           []*MatchRunner
+	processMessageCount int64
 }
 
 // Creates and returns a (not yet started) Heka message router.
@@ -139,6 +142,7 @@ func (self *messageRouter) Start() {
 				if !ok {
 					break
 				}
+				self.processMessageCount++
 				for _, matcher = range self.fMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
@@ -170,9 +174,11 @@ func (self *messageRouter) Start() {
 // Encapsulates the mechanics of testing messages against a specific plugin's
 // message_matcher value.
 type MatchRunner struct {
-	spec   *message.MatcherSpecification
-	signer string
-	inChan chan *PipelinePack
+	spec          *message.MatcherSpecification
+	signer        string
+	inChan        chan *PipelinePack
+	matchSamples  int64
+	matchDuration time.Duration
 }
 
 // Creates and returns a new MatchRunner if possible, or a relevant error if
@@ -215,12 +221,45 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			}
 		}()
 
+		var (
+			startTime time.Time
+			random    int = rand.Intn(1000) + DURATION_SAMPLE_DENOMINATOR
+			// Don't have everyone sample at the same time. We always start with
+			// a sample so there will be a ballpark figure immediately. We could
+			// use a ticker to sample at a regular interval but that seems like
+			// overkill at this  point.
+			counter  int = random
+			match    bool
+			captures map[string]string
+		)
+
+		var capacity int64 = int64(cap(mr.inChan))
 		for pack := range mr.inChan {
 			if len(mr.signer) != 0 && mr.signer != pack.Signer {
 				pack.Recycle()
 				continue
 			}
-			match, captures := mr.spec.Match(pack.Message)
+			// We may want to keep separate samples for match/nomatch conditions.
+			// In most cases the random sampling will capture the most common
+			// condition which is usesful for the overall system health but not
+			// matcher tuning.  Capturing the duration adds ~40ns
+			if counter == random {
+				mr.matchSamples++
+				startTime = time.Now()
+
+				match, captures = mr.spec.Match(pack.Message)
+
+				mr.matchDuration += time.Since(startTime)
+				if mr.matchSamples > capacity {
+					// the timings can vary greatly, so we need to establish a
+					// decent baseline before we start sampling
+					counter = 0
+				}
+			} else {
+				match, captures = mr.spec.Match(pack.Message)
+				counter++
+			}
+
 			if match {
 				plc := &PipelineCapture{Pack: pack, Captures: captures}
 				matchChan <- plc

@@ -187,15 +187,6 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			}
 		})
 
-		c.Specify("positive matcher tests", func() {
-			for _, v := range positive {
-				ms, err := CreateMatcherSpecification(v)
-				c.Expect(err, gs.IsNil)
-				match, _ := ms.Match(msg)
-				c.Expect(match, gs.IsTrue)
-			}
-		})
-
 		c.Specify("positive matcher tests with capture", func() {
 			for _, v := range capture {
 				ms, err := CreateMatcherSpecification(v.spec)

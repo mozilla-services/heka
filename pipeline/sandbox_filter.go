@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
+	"math/rand"
 	"os"
 	"time"
 )
@@ -41,6 +42,7 @@ type SandboxFilter struct {
 	sbc                    *sandbox.SandboxConfig
 	preservationFile       string
 	processMessageCount    int64
+	injectMessageCount     int64
 	processMessageSamples  int64
 	processMessageDuration time.Duration
 	timerEventSamples      int64
@@ -91,6 +93,7 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
 		sandbox.STAT_MAXIMUM)))
 	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
+	newInt64Field(msg, "InjectMessageCount", this.injectMessageCount)
 
 	var tmp int64 = 0
 	if this.processMessageSamples > 0 {
@@ -150,6 +153,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		if !fr.Inject(pack) {
 			return 1
 		}
+		this.injectMessageCount++
 		return 0
 	})
 
@@ -163,29 +167,40 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			injectionCount = Globals().MaxMsgProcessInject
 			msgLoopCount = plc.Pack.MsgLoopCount
 
-			backpressure = len(inChan) >= capacity
-			if sample || backpressure {
+			// reading a channel length is generally fast ~1ns
+			// we need to check the entire chain back to the router
+			backpressure = len(inChan) >= capacity ||
+				len(fr.MatchRunner().inChan) >= capacity ||
+				len(h.PipelineConfig().router.InChan()) >= capacity
+
+			// performing the timing is expensive ~40ns but if we are
+			// backpressured we need a decent sample set before triggering
+			// termination
+			if sample || (backpressure && this.processMessageSamples < int64(capacity)) {
 				this.processMessageSamples++
 				startTime = time.Now()
+				sample = true
 			}
 			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
-			if retval != 0 {
+			if sample {
+				this.processMessageDuration += time.Since(startTime)
+			}
+			if retval == 0 {
+				if backpressure &&
+					this.processMessageSamples >= int64(capacity) &&
+					(this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration ||
+						fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples > slowDuration/5) {
+					terminated = true
+					blocking = true
+				}
+				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
+			} else {
 				terminated = true
 			}
 			plc.Pack.Recycle()
 
-			if !terminated && (sample || backpressure) {
-				this.processMessageDuration += time.Since(startTime)
-				if backpressure &&
-					this.processMessageDuration.Nanoseconds()/this.processMessageSamples > slowDuration {
-					terminated = true
-					blocking = true
-				}
-				sample = false
-			}
 		case t := <-ticker:
 			this.timerEventSamples++
-			sample = true // if things are behaving well just sample after every output
 			injectionCount = Globals().MaxMsgTimerInject
 			startTime = time.Now()
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
@@ -201,9 +216,15 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount)
+				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples)
 				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration.Nanoseconds()/this.processMessageSamples)
-				newIntField(pack.Message, "InChanLength", len(inChan))
+				newInt64Field(pack.Message, "MatchSamples", fr.MatchRunner().matchSamples)
+				newInt64Field(pack.Message, "MatchAvgDuration",
+					fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples)
+				newIntField(pack.Message, "FilterChanLength", len(inChan))
+				newIntField(pack.Message, "MatchChanLength", len(fr.MatchRunner().inChan))
+				newIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().router.InChan()))
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}
