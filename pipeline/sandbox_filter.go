@@ -85,27 +85,27 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 // information to the Heka report and dashboard.
 func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "Memory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_CURRENT)))
+		sandbox.STAT_CURRENT)), "B")
 	newIntField(msg, "MaxMemory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_MAXIMUM)))
+		sandbox.STAT_MAXIMUM)), "B")
 	newIntField(msg, "MaxInstructions", int(this.sb.Usage(
-		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)))
+		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)), "count")
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
-		sandbox.STAT_MAXIMUM)))
-	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
-	newInt64Field(msg, "InjectMessageCount", this.injectMessageCount)
+		sandbox.STAT_MAXIMUM)), "B")
+	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount, "count")
+	newInt64Field(msg, "InjectMessageCount", this.injectMessageCount, "count")
 
 	var tmp int64 = 0
 	if this.processMessageSamples > 0 {
 		tmp = this.processMessageDuration.Nanoseconds() / this.processMessageSamples
 	}
-	newInt64Field(msg, "ProcessMessageAvgDuration", tmp)
+	newInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
 
 	tmp = 0
 	if this.timerEventSamples > 0 {
 		tmp = this.timerEventDuration.Nanoseconds() / this.timerEventSamples
 	}
-	newInt64Field(msg, "TimerEventAvgDuration", tmp)
+	newInt64Field(msg, "TimerEventAvgDuration", tmp, "ns")
 
 	return nil
 }
@@ -144,11 +144,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		pack.Message.SetType("heka.sandbox-output")
 		pack.Message.SetLogger(fr.Name())
 		pack.Message.SetPayload(payload)
-		ptype, _ := message.NewField("payload_type", payload_type,
-			message.Field_RAW)
+		ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
 		pack.Message.AddField(ptype)
-		pname, _ := message.NewField("payload_name", payload_name,
-			message.Field_RAW)
+		pname, _ := message.NewField("payload_name", payload_name, "")
 		pack.Message.AddField(pname)
 		if !fr.Inject(pack) {
 			return 1
@@ -215,16 +213,16 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			pack.Message.SetLogger(fr.Name())
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
-				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount)
-				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples)
+				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
+				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
 				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
-					this.processMessageDuration.Nanoseconds()/this.processMessageSamples)
-				newInt64Field(pack.Message, "MatchSamples", fr.MatchRunner().matchSamples)
+					this.processMessageDuration.Nanoseconds()/this.processMessageSamples, "ns")
+				newInt64Field(pack.Message, "MatchSamples", fr.MatchRunner().matchSamples, "count")
 				newInt64Field(pack.Message, "MatchAvgDuration",
-					fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples)
-				newIntField(pack.Message, "FilterChanLength", len(inChan))
-				newIntField(pack.Message, "MatchChanLength", len(fr.MatchRunner().inChan))
-				newIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().router.InChan()))
+					fr.MatchRunner().matchDuration.Nanoseconds()/fr.MatchRunner().matchSamples, "ns")
+				newIntField(pack.Message, "FilterChanLength", len(inChan), "count")
+				newIntField(pack.Message, "MatchChanLength", len(fr.MatchRunner().inChan), "count")
+				newIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().router.InChan()), "count")
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}

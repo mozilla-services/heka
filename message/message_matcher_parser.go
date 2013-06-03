@@ -136,7 +136,6 @@ const yyErrCode = 2
 const yyMaxDepth = 200
 
 //line message_matcher_parser.y:177
-
 type MatcherSpecificationParser struct {
 	spec     string
 	sym      string

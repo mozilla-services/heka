@@ -271,7 +271,7 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 		case "Uuid":
 			msg.SetUuid([]byte(val))
 		default:
-			field, err := message.NewField(field, val, message.Field_RAW)
+			field, err := message.NewField(field, val, "")
 			msg.AddField(field)
 			if err != nil {
 				return err
