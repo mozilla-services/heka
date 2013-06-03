@@ -82,6 +82,11 @@ $GOPATH/bin/mockgen -package=pipeline \
 
 # ...and a second spelling for mocks of interfaces that are from external packages.
 
+# amqp.Acknowledger
+$GOPATH/bin/mockgen -package=testsupport \
+                    -destination=testsupport/mock_amqp_acknowledger.go \
+                    github.com/streadway/amqp Acknowledger
+
 # net.Conn
 $GOPATH/bin/mockgen -package=testsupport \
                     -destination=testsupport/mock_net_conn.go \
