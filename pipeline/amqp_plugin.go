@@ -482,11 +482,7 @@ readLoop:
 			}
 			e = nil
 		}
-		// FIXME:: Gross hack because amqp library is horrible to mock
-		// and test. So we only ack messages when not testing.
-		if msg.ConsumerTag != "TESTING" {
-			msg.Ack(false)
-		}
+		msg.Ack(false)
 	}
 	return
 }
