@@ -426,6 +426,16 @@ Parameters:
 - decoders (list of strings):
     List of logline decoder names used to transform the log line into
     a structured hekad message.
+- logger (string):
+    Each LogfileInput may specify a logger name to use in the case an
+    error occurs during processing of a particular line of logging
+    text.  By default, the logger name is set to the logfile name.
+
+.. code-block:: ini
+
+    [LogfileInput]
+    logfile = "/var/log/opendirectoryd.log"
+    logger = "opendirectoryd"
 
 .. code-block:: ini
 
