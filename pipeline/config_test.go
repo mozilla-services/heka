@@ -20,14 +20,49 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
+type DefaultsTestOutput struct{}
+
+type DefaultsTestOutputConfig struct {
+	MessageMatcher string
+	TickerInterval uint
+}
+
+const messageMatchStr string = "Type == 'heka.counter-output'"
+
+func (o *DefaultsTestOutput) ConfigStruct() interface{} {
+	return &DefaultsTestOutputConfig{
+		MessageMatcher: messageMatchStr,
+		TickerInterval: 5,
+	}
+}
+
+func (o *DefaultsTestOutput) Init(config interface{}) error {
+	return nil
+}
+
+func (o *DefaultsTestOutput) Run(fr FilterRunner, h PluginHelper) (err error) {
+	return
+}
+
 func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
 		origGlobals := Globals
-		origDecodersByEncoding := DecodersByEncoding
+
+		origDecodersByEncoding := make(map[message.Header_MessageEncoding]string)
+		for k, v := range DecodersByEncoding {
+			origDecodersByEncoding[k] = v
+		}
+
+		origAvailablePlugins := make(map[string]func() interface{})
+		for k, v := range AvailablePlugins {
+			origAvailablePlugins[k] = v
+		}
+
 		pipeConfig := NewPipelineConfig(nil)
 		defer func() {
 			Globals = origGlobals
 			DecodersByEncoding = origDecodersByEncoding
+			AvailablePlugins = origAvailablePlugins
 		}()
 
 		c.Assume(pipeConfig, gs.Not(gs.IsNil))
@@ -113,6 +148,20 @@ func LoadFromConfigSpec(c gs.Context) {
 			})
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.toml")
 			c.Expect(err, gs.Not(gs.IsNil))
+		})
+
+		c.Specify("for a DefaultsTestOutput", func() {
+			RegisterPlugin("DefaultsTestOutput", func() interface{} {
+				return new(DefaultsTestOutput)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults2.toml")
+			c.Expect(err, gs.IsNil)
+			runner, ok := pipeConfig.OutputRunners["DefaultsTestOutput"]
+			c.Expect(ok, gs.IsTrue)
+			ticker := runner.Ticker()
+			c.Expect(ticker, gs.Not(gs.IsNil))
+			matcher := runner.MatchRunner().MatcherSpecification().String()
+			c.Expect(matcher, gs.Equals, messageMatchStr)
 		})
 	})
 }

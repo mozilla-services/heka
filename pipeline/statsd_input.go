@@ -247,7 +247,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, st
 				sm.timers[s.Bucket] = append(sm.timers[s.Bucket], floatValue)
 			case "g":
 				intValue, _ = strconv.Atoi(s.Value)
-				sm.gauges[s.Bucket] += intValue
+				sm.gauges[s.Bucket] = intValue
 			default:
 				floatValue, _ = strconv.ParseFloat(s.Value, 32)
 				sm.counters[s.Bucket] += int(float32(floatValue) * (1 / s.Sampling))

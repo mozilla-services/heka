@@ -96,11 +96,13 @@ func AMQPPluginSpec(c gs.Context) {
 				// Create a channel to send data to the input
 				// Drop a message on there and close the channel
 				streamChan := make(chan amqp.Delivery, 1)
+				ack := ts.NewMockAcknowledger(ctrl)
+				ack.EXPECT().Ack(gomock.Any(), false)
 				streamChan <- amqp.Delivery{
-					ContentType: "text/plain",
-					Body:        []byte("This is a message"),
-					Timestamp:   time.Now(),
-					ConsumerTag: "TESTING",
+					ContentType:  "text/plain",
+					Body:         []byte("This is a message"),
+					Timestamp:    time.Now(),
+					Acknowledger: ack,
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
@@ -139,11 +141,14 @@ func AMQPPluginSpec(c gs.Context) {
 				msgBody := make([]byte, 0, 500)
 				_ = encoder.EncodeMessageStream(msg, &msgBody)
 
+				ack := ts.NewMockAcknowledger(ctrl)
+				ack.EXPECT().Ack(gomock.Any(), false)
+
 				streamChan <- amqp.Delivery{
-					ContentType: "application/hekad",
-					Body:        msgBody,
-					Timestamp:   time.Now(),
-					ConsumerTag: "TESTING",
+					ContentType:  "application/hekad",
+					Body:         msgBody,
+					Timestamp:    time.Now(),
+					Acknowledger: ack,
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
@@ -184,11 +189,13 @@ func AMQPPluginSpec(c gs.Context) {
 				// Create a channel to send data to the input
 				// Drop a message on there and close the channel
 				streamChan := make(chan amqp.Delivery, 1)
+				ack := ts.NewMockAcknowledger(ctrl)
+				ack.EXPECT().Ack(gomock.Any(), false)
 				streamChan <- amqp.Delivery{
-					ContentType: "text/plain",
-					Body:        []byte("This is a message"),
-					Timestamp:   time.Now(),
-					ConsumerTag: "TESTING",
+					ContentType:  "text/plain",
+					Body:         []byte("This is a message"),
+					Timestamp:    time.Now(),
+					Acknowledger: ack,
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)

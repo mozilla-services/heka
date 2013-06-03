@@ -75,6 +75,23 @@ type CounterFilter struct {
 	rates     []float64
 }
 
+// CounterFilter config struct, used only for specifying default ticker
+// interval and message matcher values.
+type CounterFilterConfig struct {
+	// Defaults to counting everything except the counter's own output
+	// messages.
+	MessageMatcher string `toml:"message_matcher"`
+	// Defaults to 5 second intervals.
+	TickerInterval uint `toml:"ticker_interval"`
+}
+
+func (this *CounterFilter) ConfigStruct() interface{} {
+	return &CounterFilterConfig{
+		MessageMatcher: "Type != 'heka.counter-output'",
+		TickerInterval: uint(5),
+	}
+}
+
 func (this *CounterFilter) Init(config interface{}) error {
 	return nil
 }
