@@ -518,6 +518,7 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 	journalDir := path.Dir(fm.seekJournalPath)
 
 	if dirInfo, err = os.Stat(journalDir); err != nil {
+		fm.LogMessage(fmt.Sprintf("%s parent dir doesn't exist", fm.seekJournalPath))
 		return err
 	}
 
