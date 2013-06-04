@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"os"
 	"sync"
 	"time"
 )
@@ -107,6 +108,40 @@ func FiltersSpec(c gs.Context) {
 			}()
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
+	})
+
+	c.Specify("A SandboxManagerFilter", func() {
+		sbmFilter := new(SandboxManagerFilter)
+		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
+		config.MaxFilters = 1
+		config.WorkingDirectory = os.TempDir()
+
+		msg := getTestMessage()
+		pack := NewPipelinePack(pConfig.inputRecycleChan)
+		pack.Message = msg
+		pack.Decoded = true
+		plc := &PipelineCapture{Pack: pack}
+
+		c.Specify("Control message in the past", func() {
+			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
+			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: 5 seconds skew"))
+			inChan <- plc
+			close(inChan)
+			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+		})
+
+		c.Specify("Control message in the future", func() {
+			pack.Message.SetTimestamp(time.Now().UnixNano() + 5.9e9)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
+			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: -5 seconds skew"))
+			inChan <- plc
+			close(inChan)
+			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+		})
+
 	})
 
 	c.Specify("Runner recovers from panic in filter's `Run()` method", func() {
