@@ -430,8 +430,14 @@ Parameters:
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
     text.  By default, the logger name is set to the logfile name.
+- seekjournal (string)
+    Heka will write out a journal to keep track of the last known read
+    position of a logfile.  By default, this will default to writing
+    in /var/run/hekad/seekjournals/.  The journal name will be the
+    logger name with path separators and periods replaced with
+    underscores.
 - resumeFromStart(bool)
-    On hekad restart, if a logfile cannot safely resume reading from
+    When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
     default, hekad will resume reading from the start of file.

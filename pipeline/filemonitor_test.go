@@ -195,4 +195,19 @@ func FileMonitorSpec(c gs.Context) {
 
 	})
 
+	c.Specify("filemonitor can generate journal paths", func() {
+		lfInput := new(LogfileInput)
+		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+		lfiConfig.LogFile = "../testsupport/test-zeus.log"
+		lfiConfig.DiscoverInterval = 5
+		lfiConfig.StatInterval = 5
+
+		err := lfInput.Init(lfiConfig)
+		c.Expect(err, gs.Equals, nil)
+		lfInput.Monitor.cleanJournalPath()
+		c.Expect(lfInput.Monitor.seekJournalPath,
+			gs.Equals,
+			"/var/run/hekad/seekjournals/___testsupport_test-zeus_log")
+	})
+
 }

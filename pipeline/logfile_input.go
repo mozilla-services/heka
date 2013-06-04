@@ -512,12 +512,7 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 func (fm *FileMonitor) setupJournalling() (err error) {
 	var dirInfo os.FileInfo
 
-	// if the seekJournalPath is empty, write out the default
-	if fm.seekJournalPath == "" {
-		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
-		fm.seekJournalPath = defaultPath
-	}
-	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
+	fm.cleanJournalPath()
 
 	// Check that the directory to seekJournalPath actually exists
 	journalDir := path.Dir(fm.seekJournalPath)
@@ -538,4 +533,15 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 	go fm.Watcher()
 
 	return nil
+}
+
+func (fm *FileMonitor) cleanJournalPath() {
+	// if the seekJournalPath is empty, write out the default
+	if fm.seekJournalPath == "" {
+		r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
+		journal_name := r.Replace(fm.logger_ident)
+		defaultPath := path.Join("/var/run/hekad/seekjournals", journal_name)
+		fm.seekJournalPath = defaultPath
+	}
+	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
 }
