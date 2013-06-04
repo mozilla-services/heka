@@ -390,13 +390,13 @@ static int circular_buffer_fromstring(lua_State* lua)
     const char* values  = luaL_checkstring(lua, 2);
 
     int n = 0;
-    int t;
+    long long t;
     double value;
-    if (!sscanf(values, "%d %d%n", &t, &cb->m_current_row, &n)) {
+    if (!sscanf(values, "%lld %d%n", &t, &cb->m_current_row, &n)) {
         lua_pushstring(lua, "fromstring() invalid time/row");
         lua_error(lua);
     }
-    cb->m_current_time = (time_t)t;
+    cb->m_current_time = t;
     int offset = n, pos = 0;
     size_t len = cb->m_rows * cb->m_columns;
     while (sscanf(&values[offset], "%lg%n", &value, &n) == 1) {
@@ -484,7 +484,7 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
         }
     }
 
-    if (dynamic_snprintf(output, "%s:fromstring(\"%d %d",
+    if (dynamic_snprintf(output, "%s:fromstring(\"%lld %d",
                          key,
                          (long long)cb->m_current_time,
                          cb->m_current_row)) {
