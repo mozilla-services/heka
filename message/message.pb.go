@@ -130,81 +130,6 @@ func (x *Field_ValueType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type Field_ValueFormat int32
-
-const (
-	Field_RAW             Field_ValueFormat = 0
-	Field_DATE_TIME       Field_ValueFormat = 1
-	Field_EMAIL           Field_ValueFormat = 2
-	Field_HOSTNAME        Field_ValueFormat = 3
-	Field_IPV4            Field_ValueFormat = 4
-	Field_IPV6            Field_ValueFormat = 5
-	Field_URI             Field_ValueFormat = 6
-	Field_UTC_SECONDS     Field_ValueFormat = 7
-	Field_UTC_NANOSECONDS Field_ValueFormat = 8
-	Field_COUNT           Field_ValueFormat = 9
-	Field_MIN             Field_ValueFormat = 10
-	Field_MAX             Field_ValueFormat = 11
-	Field_AVG             Field_ValueFormat = 12
-	Field_DELTA           Field_ValueFormat = 13
-	Field_PERCENTAGE      Field_ValueFormat = 14
-)
-
-var Field_ValueFormat_name = map[int32]string{
-	0:  "RAW",
-	1:  "DATE_TIME",
-	2:  "EMAIL",
-	3:  "HOSTNAME",
-	4:  "IPV4",
-	5:  "IPV6",
-	6:  "URI",
-	7:  "UTC_SECONDS",
-	8:  "UTC_NANOSECONDS",
-	9:  "COUNT",
-	10: "MIN",
-	11: "MAX",
-	12: "AVG",
-	13: "DELTA",
-	14: "PERCENTAGE",
-}
-var Field_ValueFormat_value = map[string]int32{
-	"RAW":             0,
-	"DATE_TIME":       1,
-	"EMAIL":           2,
-	"HOSTNAME":        3,
-	"IPV4":            4,
-	"IPV6":            5,
-	"URI":             6,
-	"UTC_SECONDS":     7,
-	"UTC_NANOSECONDS": 8,
-	"COUNT":           9,
-	"MIN":             10,
-	"MAX":             11,
-	"AVG":             12,
-	"DELTA":           13,
-	"PERCENTAGE":      14,
-}
-
-func (x Field_ValueFormat) Enum() *Field_ValueFormat {
-	p := new(Field_ValueFormat)
-	*p = x
-	return p
-}
-func (x Field_ValueFormat) String() string {
-	return proto.EnumName(Field_ValueFormat_name, int32(x))
-}
-func (x Field_ValueFormat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
-func (x *Field_ValueFormat) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(Field_ValueFormat_value, data, "Field_ValueFormat")
-	if err != nil {
-		return err
-	}
-	*x = Field_ValueFormat(value)
-	return nil
-}
-
 type Header struct {
 	MessageLength    *uint32                  `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
 	MessageEncoding  *Header_MessageEncoding  `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
@@ -265,15 +190,15 @@ func (this *Header) GetHmac() []byte {
 }
 
 type Field struct {
-	Name             *string            `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
-	ValueType        *Field_ValueType   `protobuf:"varint,2,opt,name=value_type,enum=message.Field_ValueType,def=0" json:"value_type,omitempty"`
-	ValueFormat      *Field_ValueFormat `protobuf:"varint,3,opt,name=value_format,enum=message.Field_ValueFormat,def=0" json:"value_format,omitempty"`
-	ValueString      []string           `protobuf:"bytes,4,rep,name=value_string" json:"value_string,omitempty"`
-	ValueBytes       [][]byte           `protobuf:"bytes,5,rep,name=value_bytes" json:"value_bytes,omitempty"`
-	ValueInteger     []int64            `protobuf:"varint,6,rep,packed,name=value_integer" json:"value_integer,omitempty"`
-	ValueDouble      []float64          `protobuf:"fixed64,7,rep,packed,name=value_double" json:"value_double,omitempty"`
-	ValueBool        []bool             `protobuf:"varint,8,rep,packed,name=value_bool" json:"value_bool,omitempty"`
-	XXX_unrecognized []byte             `json:"-"`
+	Name             *string          `protobuf:"bytes,1,req,name=name" json:"name,omitempty"`
+	ValueType        *Field_ValueType `protobuf:"varint,2,opt,name=value_type,enum=message.Field_ValueType,def=0" json:"value_type,omitempty"`
+	Representation   *string          `protobuf:"bytes,3,opt,name=representation" json:"representation,omitempty"`
+	ValueString      []string         `protobuf:"bytes,4,rep,name=value_string" json:"value_string,omitempty"`
+	ValueBytes       [][]byte         `protobuf:"bytes,5,rep,name=value_bytes" json:"value_bytes,omitempty"`
+	ValueInteger     []int64          `protobuf:"varint,6,rep,packed,name=value_integer" json:"value_integer,omitempty"`
+	ValueDouble      []float64        `protobuf:"fixed64,7,rep,packed,name=value_double" json:"value_double,omitempty"`
+	ValueBool        []bool           `protobuf:"varint,8,rep,packed,name=value_bool" json:"value_bool,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (this *Field) Reset()         { *this = Field{} }
@@ -281,7 +206,6 @@ func (this *Field) String() string { return proto.CompactTextString(this) }
 func (*Field) ProtoMessage()       {}
 
 const Default_Field_ValueType Field_ValueType = Field_STRING
-const Default_Field_ValueFormat Field_ValueFormat = Field_RAW
 
 func (this *Field) GetName() string {
 	if this != nil && this.Name != nil {
@@ -297,11 +221,11 @@ func (this *Field) GetValueType() Field_ValueType {
 	return Default_Field_ValueType
 }
 
-func (this *Field) GetValueFormat() Field_ValueFormat {
-	if this != nil && this.ValueFormat != nil {
-		return *this.ValueFormat
+func (this *Field) GetRepresentation() string {
+	if this != nil && this.Representation != nil {
+		return *this.Representation
 	}
-	return Default_Field_ValueFormat
+	return ""
 }
 
 type Message struct {
@@ -389,5 +313,4 @@ func init() {
 	proto.RegisterEnum("message.Header_MessageEncoding", Header_MessageEncoding_name, Header_MessageEncoding_value)
 	proto.RegisterEnum("message.Header_HmacHashFunction", Header_HmacHashFunction_name, Header_HmacHashFunction_value)
 	proto.RegisterEnum("message.Field_ValueType", Field_ValueType_name, Field_ValueType_value)
-	proto.RegisterEnum("message.Field_ValueFormat", Field_ValueFormat_name, Field_ValueFormat_value)
 }

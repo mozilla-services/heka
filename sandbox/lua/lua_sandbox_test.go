@@ -254,7 +254,7 @@ func TestMissingTimeEvent(t *testing.T) {
 
 func getTestMessage() *message.Message {
 	hostname, _ := os.Hostname()
-	field, _ := message.NewField("foo", "bar", message.Field_RAW)
+	field, _ := message.NewField("foo", "bar", "")
 	msg := &message.Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(5123456789)
@@ -268,12 +268,12 @@ func getTestMessage() *message.Message {
 	msg.AddField(field)
 
 	data := []byte("data")
-	field1, _ := message.NewField("bytes", data, message.Field_RAW)
-	field2, _ := message.NewField("int", int64(999), message.Field_RAW)
+	field1, _ := message.NewField("bytes", data, "")
+	field2, _ := message.NewField("int", int64(999), "")
 	field2.AddValue(int64(1024))
-	field3, _ := message.NewField("double", float64(99.9), message.Field_RAW)
-	field4, _ := message.NewField("bool", true, message.Field_RAW)
-	field5, _ := message.NewField("foo", "alternate", message.Field_RAW)
+	field3, _ := message.NewField("double", float64(99.9), "")
+	field4, _ := message.NewField("bool", true, "")
+	field5, _ := message.NewField("foo", "alternate", "")
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
@@ -662,10 +662,10 @@ func TestCircularBuffer(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	output := []string{
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n0\t0\t0\n",
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n1\t1\t1\n2\t1\t2\n3\t1\t3\n",
-		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
+		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n0\t0\t0\n",
+		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n1\t1\t1\n2\t1\t2\n3\t1\t3\n",
+		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
+		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
 	cnt := 0
 	sb.InjectMessage(func(p, pt, pn string) int {
 		if p != output[cnt] {
@@ -731,8 +731,8 @@ func TestCircularBufferRestore(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	output := []string{
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
-		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"type\":\"count\"}]}\n7.1\n1000000\n"}
+		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
+		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n7.1\n1000000\n"}
 	cnt := 0
 	sb.InjectMessage(func(p, pt, pn string) int {
 		if p != output[cnt] {

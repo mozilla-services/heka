@@ -76,16 +76,16 @@ func main() {
 			log.Printf("Error reading scriptConfig: %s\n", err.Error())
 			return
 		}
-		f, _ := message.NewField("config", string(conf), message.Field_RAW)
+		f, _ := message.NewField("config", string(conf), "toml")
 		msg.AddField(f)
 	case "unload":
-		f, _ := message.NewField("name", *filterName, message.Field_RAW)
+		f, _ := message.NewField("name", *filterName, "")
 		msg.AddField(f)
 	default:
 		log.Printf("Invalid action: %s", *action)
 	}
 
-	f1, _ := message.NewField("action", *action, message.Field_RAW)
+	f1, _ := message.NewField("action", *action, "")
 	msg.AddField(f1)
 	err = manager.SendMessage(msg)
 	if err != nil {
