@@ -16,11 +16,17 @@
 package pipeline
 
 import (
+	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
+	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +49,10 @@ func (d *MockDecoder) Init(config interface{}) (err error) {
 }
 
 func DecodersSpec(c gospec.Context) {
+	t := &ts.SimpleT{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	msg := getTestMessage()
 	config := NewPipelineConfig(nil)
 
@@ -96,7 +106,7 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("Recovers from a panic in `Decode()`", func() {
 		decoder := new(PanicDecoder)
-		dRunner := NewDecoderRunner("panic", decoder)
+		dRunner := NewDecoderRunner("panic", decoder, nil)
 		pack := NewPipelinePack(config.inputRecycleChan)
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -105,6 +115,107 @@ func DecodersSpec(c gospec.Context) {
 		dRunner.InChan() <- pack // No panic ==> success
 		wg.Wait()
 		Globals().Stopping = false
+	})
+
+	c.Specify("A LoglineDecoder", func() {
+		decoder := new(LoglineDecoder)
+		conf := decoder.ConfigStruct().(*LoglineDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("reading test-zeus.log", func() {
+			conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>\d\d?\/[A-Z][a-z]+\/\d{4}:\d{2}:\d{2}:\d{2} -?\d*)] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
+			conf.MessageFields = MessageTemplate{
+				"hostname": "%Hostname%",
+				"ip":       "%Ip%",
+				"response": "%Response%",
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			filePath := "../testsupport/test-zeus.log"
+			fileBytes, err := ioutil.ReadFile(filePath)
+			c.Assume(err, gs.IsNil)
+			fileStr := string(fileBytes)
+			lines := strings.Split(fileStr, "\n")
+
+			containsFieldValue := func(str, fieldName string, msg *message.Message) bool {
+				raw, ok := msg.GetFieldValue(fieldName)
+				if !ok {
+					return false
+				}
+				value := raw.(string)
+				return strings.Contains(str, value)
+			}
+
+			c.Specify("extracts capture data and puts it in the message fields", func() {
+				var misses int
+				for _, line := range lines {
+					if strings.TrimSpace(line) == "" {
+						continue
+					}
+					pack.Message.SetPayload(line)
+					err = decoder.Decode(pack)
+					if err != nil {
+						misses++
+						continue
+					}
+					c.Expect(containsFieldValue(line, "hostname", pack.Message), gs.IsTrue)
+					c.Expect(containsFieldValue(line, "ip", pack.Message), gs.IsTrue)
+					c.Expect(containsFieldValue(line, "response", pack.Message), gs.IsTrue)
+					pack.Zero()
+				}
+				c.Expect(misses, gs.Equals, 3)
+			})
+		})
+
+		c.Specify("reading test-severity.log", func() {
+			conf.MatchRegex = `/severity\: (?P<Severity>[a-zA-Z]+)/`
+			conf.SeverityMap = map[string]int32{
+				"emergency": 0,
+				"alert":     1,
+				"critical":  2,
+				"error":     3,
+				"warning":   4,
+				"notice":    5,
+				"info":      6,
+				"debug":     7,
+			}
+			reverseMap := make(map[int32]string)
+			for str, i := range conf.SeverityMap {
+				reverseMap[i] = str
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+
+			filePath := "../testsupport/test-severity.log"
+			fileBytes, err := ioutil.ReadFile(filePath)
+			c.Assume(err, gs.IsNil)
+			fileStr := string(fileBytes)
+			lines := strings.Split(fileStr, "\n")
+
+			c.Specify("sets message severity based on SeverityMap", func() {
+				err := errors.New("Don't recognize severity: 'BOGUS'")
+				dRunner.EXPECT().LogError(err)
+				for _, line := range lines {
+					if strings.TrimSpace(line) == "" {
+						continue
+					}
+					pack.Message.SetPayload(line)
+					err = decoder.Decode(pack)
+					if err != nil {
+						fmt.Println(line)
+					}
+					c.Expect(err, gs.IsNil)
+					if strings.Contains(line, "BOGUS") {
+						continue
+					}
+					strVal := reverseMap[pack.Message.GetSeverity()]
+					c.Expect(strings.Contains(line, strVal), gs.IsTrue)
+				}
+			})
+		})
 	})
 }
 

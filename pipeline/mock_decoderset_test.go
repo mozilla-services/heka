@@ -5,7 +5,6 @@ package pipeline
 
 import (
 	gomock "code.google.com/p/gomock/gomock"
-	message "github.com/mozilla-services/heka/message"
 )
 
 // Mock of DecoderSet interface
@@ -29,25 +28,15 @@ func (_m *MockDecoderSet) EXPECT() *_MockDecoderSetRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDecoderSet) AllByName() map[string]DecoderRunner {
-	ret := _m.ctrl.Call(_m, "AllByName")
-	ret0, _ := ret[0].(map[string]DecoderRunner)
-	return ret0
-}
-
-func (_mr *_MockDecoderSetRecorder) AllByName() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "AllByName")
-}
-
-func (_m *MockDecoderSet) ByEncoding(_param0 message.Header_MessageEncoding) (DecoderRunner, bool) {
-	ret := _m.ctrl.Call(_m, "ByEncoding", _param0)
-	ret0, _ := ret[0].(DecoderRunner)
-	ret1, _ := ret[1].(bool)
+func (_m *MockDecoderSet) ByEncodings() ([]DecoderRunner, error) {
+	ret := _m.ctrl.Call(_m, "ByEncodings")
+	ret0, _ := ret[0].([]DecoderRunner)
+	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDecoderSetRecorder) ByEncoding(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ByEncoding", arg0)
+func (_mr *_MockDecoderSetRecorder) ByEncodings() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ByEncodings")
 }
 
 func (_m *MockDecoderSet) ByName(_param0 string) (DecoderRunner, bool) {

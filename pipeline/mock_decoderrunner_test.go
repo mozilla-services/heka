@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	sync "sync"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of DecoderRunner interface
@@ -83,6 +83,16 @@ func (_m *MockDecoderRunner) Plugin() Plugin {
 
 func (_mr *_MockDecoderRunnerRecorder) Plugin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Plugin")
+}
+
+func (_m *MockDecoderRunner) PluginGlobals() *PluginGlobals {
+	ret := _m.ctrl.Call(_m, "PluginGlobals")
+	ret0, _ := ret[0].(*PluginGlobals)
+	return ret0
+}
+
+func (_mr *_MockDecoderRunnerRecorder) PluginGlobals() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
 }
 
 func (_m *MockDecoderRunner) SetName(_param0 string) {

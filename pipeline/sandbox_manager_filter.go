@@ -31,9 +31,10 @@ import (
 // dynamically creates, manages, and destroys sandboxed filter scripts as
 // instructed.
 type SandboxManagerFilter struct {
-	maxFilters       int
-	currentFilters   int
-	workingDirectory string
+	maxFilters          int
+	currentFilters      int
+	workingDirectory    string
+	processMessageCount int64
 }
 
 // Config struct for `SandboxManagerFilter`.
@@ -65,6 +66,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "RunningFilters", this.currentFilters)
+	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
 	return nil
 }
 
@@ -75,6 +77,12 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 
 	wrapper := new(PluginWrapper)
 	wrapper.name = name
+
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		return nil, fmt.Errorf("Unable to decode config for plugin: %s, error: %s",
@@ -111,16 +119,11 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
-	var tickLength uint
-	if pluginGlobals.Ticker != 0 {
-		sec := pluginGlobals.Ticker
-		tickLength = uint(sec)
-	}
 
-	if tickLength != 0 {
-		runner.tickLength = time.Duration(tickLength) * time.Second
+	if pluginGlobals.Ticker != 0 {
+		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
 	}
 
 	var matcher *MatchRunner
@@ -258,6 +261,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 			if !ok {
 				break
 			}
+			this.processMessageCount++
 			action, _ := plc.Pack.Message.GetFieldValue("action")
 			switch action {
 			case "load":

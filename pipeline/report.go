@@ -40,6 +40,14 @@ func newIntField(msg *message.Message, name string, val int) {
 	}
 }
 
+// Convenience function for creating a new int64 field on a message object.
+func newInt64Field(msg *message.Message, name string, val int64) {
+	f, err := message.NewField(name, val, message.Field_RAW)
+	if err == nil {
+		msg.AddField(f)
+	}
+}
+
 // Convenience function for creating and setting a string field called "name"
 // on a message object.
 func setNameField(msg *message.Message, name string) {
@@ -71,6 +79,12 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 		newIntField(msg, "InChanLength", len(fRunner.InChan()))
 		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan))
 		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan))
+		var tmp int64 = 0
+		if fRunner.MatchRunner().matchSamples > 0 {
+			tmp = fRunner.MatchRunner().matchDuration.Nanoseconds() /
+				fRunner.MatchRunner().matchSamples
+		}
+		newInt64Field(msg, "MatchAvgDuration", tmp)
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
 		newIntField(msg, "InChanLength", len(dRunner.InChan()))
@@ -109,6 +123,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()))
 	newIntField(msg, "InChanLength", len(pc.router.InChan()))
+	newInt64Field(msg, "ProcessMessageCount", pc.router.processMessageCount)
 	msg.SetType("heka.router-report")
 	setNameField(msg, "Router")
 	reportChan <- pack
@@ -135,13 +150,23 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 			pack.Recycle()
 		}
 	}
-	for i, dSet := range pc.DecoderSets {
-		for name, runner := range dSet.AllByName() {
-			pack = getReport(runner)
-			setNameField(pack.Message, fmt.Sprintf("%s-%d", name, i))
-			reportChan <- pack
-		}
+
+	for _, runner := range pc.allDecoders {
+		pack = getReport(runner)
+		setNameField(pack.Message, runner.Name())
+		reportChan <- pack
 	}
+
+	for name, dChan := range pc.decoderChannels {
+		pack = pc.PipelinePack(0)
+		msg = pack.Message
+		msg.SetType("heka.decoder-pool-report")
+		setNameField(msg, fmt.Sprintf("DecoderPool-%s", name))
+		newIntField(msg, "InChanCapacity", cap(dChan))
+		newIntField(msg, "InChanLength", len(dChan))
+		reportChan <- pack
+	}
+
 	for name, runner := range pc.FilterRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)

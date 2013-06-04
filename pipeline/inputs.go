@@ -55,19 +55,20 @@ type iRunner struct {
 
 // Creates and returns a new (not yet started) InputRunner associated w/ the
 // provided Input.
-func NewInputRunner(name string, input Input) (
+func NewInputRunner(name string, input Input, pluginGlobals *PluginGlobals) (
 	ir InputRunner) {
 	return &iRunner{
 		pRunnerBase: pRunnerBase{
-			name:   name,
-			plugin: input.(Plugin),
+			name:          name,
+			plugin:        input.(Plugin),
+			pluginGlobals: pluginGlobals,
 		},
 		input: input,
 	}
 }
 
 func (ir *iRunner) Input() Input {
-	return ir.input
+	return ir.plugin.(Input)
 }
 
 func (ir *iRunner) InChan() chan *PipelinePack {
@@ -77,25 +78,75 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
 	ir.inChan = h.PipelineConfig().inputRecycleChan
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Panics in separate goroutines that are spun up by the input
-				// will still bring the process down, but this protects us at
-				// least a little bit. :P
-				ir.LogError(fmt.Errorf("PANIC: %s", r))
-			}
-			wg.Done()
-		}()
+	go ir.Starter(h, wg)
+	return
+}
 
+func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Panics in separate goroutines that are spun up by the input
+			// will still bring the process down, but this protects us at
+			// least a little bit. :P
+			ir.LogError(fmt.Errorf("PANIC: %s", r))
+		}
+		wg.Done()
+	}()
+
+	globals := Globals()
+	rh, err := NewRetryHelper(ir.pluginGlobals.Retries)
+	if err != nil {
+		ir.LogError(err)
+		globals.ShutDown()
+		return
+	}
+
+	for !globals.Stopping {
 		// ir.Input().Run() shouldn't return unless error or shutdown
-		if err = ir.Input().Run(ir, h); err != nil {
-			err = fmt.Errorf("Input '%s' error: %s", ir.name, err)
+		if err := ir.Input().Run(ir, h); err != nil {
+			ir.LogError(err)
 		} else {
 			ir.LogMessage("stopped")
 		}
-	}()
-	return
+
+		// Are we supposed to stop? Save ourselves some time by exiting now
+		if globals.Stopping {
+			return
+		}
+
+		// We stop and let this quit if its not a restarting plugin
+		if recon, ok := ir.plugin.(Restarting); ok {
+			recon.CleanupForRestart()
+		} else {
+			ir.LogMessage("has stopped, shutting down.")
+			globals.ShutDown()
+			return
+		}
+
+		// Re-initialize our plugin using its wrapper
+		pw := h.PipelineConfig().inputWrappers[ir.name]
+
+		// Attempt to recreate the plugin until it works without error
+		// or until we were told to stop
+	createLoop:
+		for !globals.Stopping {
+			err := rh.Wait()
+			if err != nil {
+				ir.LogError(err)
+				globals.ShutDown()
+				return
+			}
+			p, err := pw.CreateWithError()
+			if err != nil {
+				ir.LogError(err)
+				continue
+			}
+			ir.plugin = p.(Plugin)
+			rh.Reset()
+			break createLoop
+		}
+		ir.LogMessage("exited, now restarting.")
+	}
 }
 
 func (ir *iRunner) Inject(pack *PipelinePack) {
@@ -174,14 +225,21 @@ func (self *UdpInput) Init(config interface{}) error {
 }
 
 func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	var decoders []DecoderRunner
+	if decoders, err = h.DecoderSet().ByEncodings(); err != nil {
+		return
+	}
 	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
 	header := &Header{}
-	decoders := h.DecoderSet()
 
-	var e error
-	var n int
-	var pack *PipelinePack
-	var msgOk bool
+	var (
+		e        error
+		n        int
+		pack     *PipelinePack
+		msgOk    bool
+		decoder  DecoderRunner
+		encoding Header_MessageEncoding
+	)
 	for !self.stopped {
 		pack = <-ir.InChan()
 		if n, e = self.listener.Read(buf); e != nil {
@@ -194,10 +252,12 @@ func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
 		if msgOk {
 			if authenticateMessage(self.config.Signers, header, pack) {
-				encoding := header.GetMessageEncoding()
-				if decoder, ok := decoders.ByEncoding(encoding); ok {
+				encoding = header.GetMessageEncoding()
+				if decoder = decoders[encoding]; decoder != nil {
 					decoder.InChan() <- pack
 				} else {
+					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
+						encoding.String()))
 					pack.Recycle()
 				}
 			} else {
@@ -346,7 +406,10 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	)
 
 	packSupply := self.ir.InChan()
-	decoders := self.h.DecoderSet()
+	decoders, err := self.h.DecoderSet().ByEncodings()
+	if err != nil {
+		self.ir.LogError(fmt.Errorf("Error getting decoders: %s", err))
+	}
 
 	for !stopped {
 		select {
@@ -371,9 +434,12 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 					if ok {
 						if authenticateMessage(self.config.Signers, header, pack) {
 							encoding = header.GetMessageEncoding()
-							if decoder, ok = decoders.ByEncoding(encoding); ok {
+							if decoder = decoders[encoding]; decoder != nil {
 								decoder.InChan() <- pack
 							} else {
+								err := fmt.Errorf("No decoder registered for encoding: %s",
+									encoding.String())
+								self.ir.LogError(err)
 								pack.Recycle()
 							}
 						} else {

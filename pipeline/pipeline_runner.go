@@ -16,10 +16,13 @@
 package pipeline
 
 import (
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
+	"math/big"
 	"os"
 	"os/signal"
 	"sync"
@@ -36,21 +39,37 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
-	PoolSize        int
-	DecoderPoolSize int
-	PluginChanSize  int
-	MaxMsgLoops     uint
-	Stopping        bool
+	PoolSize            int
+	DecoderPoolSize     int
+	PluginChanSize      int
+	MaxMsgLoops         uint
+	MaxMsgProcessInject uint
+	MaxMsgTimerInject   uint
+	Stopping            bool
+	sigChan             chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
 	return &GlobalConfigStruct{
-		PoolSize:        100,
-		DecoderPoolSize: 4,
-		PluginChanSize:  50,
-		MaxMsgLoops:     4,
+		PoolSize:            100,
+		DecoderPoolSize:     2,
+		PluginChanSize:      50,
+		MaxMsgLoops:         4,
+		MaxMsgProcessInject: 1,
+		MaxMsgTimerInject:   10,
 	}
+}
+
+// Initiates a shutdown of heka
+//
+// This method returns immediately by spawning a goroutine to do to
+// work so that the caller won't end up blocking part of the shutdown
+// sequence
+func (g *GlobalConfigStruct) ShutDown() {
+	go func() {
+		g.sigChan <- syscall.SIGINT
+	}()
 }
 
 // Returns global pipeline config values. This function is overwritten by the
@@ -84,13 +103,18 @@ type PluginRunner interface {
 	// Plugins should call `LogMessage` on their runner to write to the log
 	// rather than doing so directly.
 	LogMessage(msg string)
+
+	// Plugin Globals, these are the globals accepted for the plugin in the
+	// config file
+	PluginGlobals() *PluginGlobals
 }
 
 // Base struct for the specialized PluginRunners
 type pRunnerBase struct {
-	name   string
-	plugin Plugin
-	h      PluginHelper
+	name          string
+	plugin        Plugin
+	pluginGlobals *PluginGlobals
+	h             PluginHelper
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -105,6 +129,87 @@ func (pr *pRunnerBase) Plugin() Plugin {
 	return pr.plugin
 }
 
+func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
+	return pr.pluginGlobals
+}
+
+// Retry helper, created with a RetryOptions struct
+//
+// Everytime Wait is called, the times this has been used is incremented.
+// Calling Reset will reset the time counter indicating the operation that
+// was being retried succeeded.
+type RetryHelper struct {
+	maxDelay  time.Duration
+	delay     time.Duration
+	curDelay  time.Duration
+	maxJitter time.Duration
+	retries   int
+	times     int
+}
+
+// Creates and returns a RetryHelper pointer to be used when retrying
+// plugin restarts or other parts that require exponential backoff
+func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
+	if opts.Delay == "" {
+		opts.Delay = "250ms"
+	}
+	if opts.MaxDelay == "" {
+		opts.MaxDelay = "30s"
+	}
+	if opts.MaxJitter == "" {
+		opts.MaxJitter = "500ms"
+	}
+	delay, err := time.ParseDuration(opts.Delay)
+	if err != nil {
+		return
+	}
+	maxDelay, err := time.ParseDuration(opts.MaxDelay)
+	if err != nil {
+		return
+	}
+	maxJitter, err := time.ParseDuration(opts.MaxJitter)
+	if err != nil {
+		return
+	}
+	helper = &RetryHelper{
+		maxDelay:  maxDelay,
+		delay:     delay,
+		curDelay:  delay,
+		retries:   opts.MaxRetries,
+		maxJitter: maxJitter,
+		times:     0,
+	}
+	return
+}
+
+// Wait for a retry
+//
+// If the max retries has been exceeded, an error will be returned
+func (r *RetryHelper) Wait() error {
+	if r.retries != -1 && r.times >= r.retries {
+		return errors.New("Max retries exceeded")
+	}
+	jitter, _ := rand.Int(rand.Reader, big.NewInt(r.maxJitter.Nanoseconds()))
+	jitterWait := time.Duration(jitter.Int64()) * time.Nanosecond
+	timer := time.NewTimer(r.curDelay + jitterWait)
+	select {
+	case <-timer.C:
+		break
+	}
+	r.curDelay *= 2
+	r.times += 1
+	if r.curDelay > r.maxDelay {
+		r.curDelay = r.maxDelay
+	}
+	return nil
+}
+
+// Reset the retry counter
+func (r *RetryHelper) Reset() {
+	r.times = 0
+	r.curDelay = r.delay
+}
+
 // This one struct provides the implementation of both FilterRunner and
 // OutputRunner interfaces.
 type foRunner struct {
@@ -114,12 +219,20 @@ type foRunner struct {
 	ticker     <-chan time.Time
 	inChan     chan *PipelineCapture
 	h          PluginHelper
+	retainPack *PipelineCapture
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
 // OutputRunner.
-func NewFORunner(name string, plugin Plugin) (runner *foRunner) {
-	runner = &foRunner{pRunnerBase: pRunnerBase{name: name, plugin: plugin}}
+func NewFORunner(name string, plugin Plugin,
+	pluginGlobals *PluginGlobals) (runner *foRunner) {
+	runner = &foRunner{
+		pRunnerBase: pRunnerBase{
+			name:          name,
+			plugin:        plugin,
+			pluginGlobals: pluginGlobals,
+		},
+	}
 	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
 	return
 }
@@ -130,16 +243,36 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
 
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				// Only recovers from panics in the main `Run` method
-				// goroutine, but better than nothing.
-				foRunner.LogError(fmt.Errorf("PANIC: %s", r))
-			}
-			wg.Done()
-		}()
+	go foRunner.Starter(h, wg)
+	return
+}
 
+func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+	var (
+		pluginType string
+		err        error
+	)
+	globals := Globals()
+	defer func() {
+		if r := recover(); r != nil {
+			// Only recovers from panics in the main `Run` method
+			// goroutine, but better than nothing.
+			foRunner.LogError(fmt.Errorf("PANIC: %s", r))
+		}
+		wg.Done()
+	}()
+
+	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
+	if err != nil {
+		foRunner.LogError(err)
+		globals.ShutDown()
+		return
+	}
+
+	var pw *PluginWrapper
+	pc := h.PipelineConfig()
+
+	for !globals.Stopping {
 		if foRunner.matcher != nil {
 			foRunner.matcher.Start(foRunner.inChan)
 		}
@@ -147,18 +280,68 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
 		if filter, ok := foRunner.plugin.(Filter); ok {
+			pluginType = "filter"
 			err = filter.Run(foRunner, h)
-			h.PipelineConfig().RemoveFilterRunner(foRunner.name)
 		} else if output, ok := foRunner.plugin.(Output); ok {
+			pluginType = "output"
 			err = output.Run(foRunner, h)
+		} else {
+			foRunner.LogError(errors.New(
+				"Unable to assert this is an Output or Filter"))
+			return
 		}
 		if err != nil {
-			err = fmt.Errorf("Plugin '%s' error: %s", foRunner.name, err)
+			foRunner.LogError(err)
 		} else {
 			foRunner.LogMessage("stopped")
 		}
-	}()
-	return
+
+		// Are we supposed to stop? Save ourselves some time by exiting now
+		if globals.Stopping {
+			return
+		}
+
+		// If its a lua sandbox, we let it shut down
+		if _, ok := foRunner.plugin.(*SandboxFilter); ok {
+			return
+		}
+
+		// We stop and let this quit if its not a restarting plugin
+		if recon, ok := foRunner.plugin.(Restarting); ok {
+			recon.CleanupForRestart()
+		} else {
+			foRunner.LogMessage("has stopped, shutting down.")
+			globals.ShutDown()
+			return
+		}
+
+		// Re-initialize our plugin using its wrapper
+		if pluginType == "filter" {
+			pw = pc.filterWrappers[foRunner.name]
+		} else {
+			pw = pc.outputWrappers[foRunner.name]
+		}
+		// Attempt to recreate the plugin until it works without error
+		// or until we were told to stop
+	createLoop:
+		for !globals.Stopping {
+			err = rh.Wait()
+			if err != nil {
+				foRunner.LogError(err)
+				globals.ShutDown()
+				return
+			}
+			p, err := pw.CreateWithError()
+			if err != nil {
+				foRunner.LogError(err)
+				continue
+			}
+			foRunner.plugin = p.(Plugin)
+			rh.Reset()
+			break createLoop
+		}
+		foRunner.LogMessage("exited, now restarting.")
+	}
 }
 
 func (foRunner *foRunner) Deliver(pack *PipelinePack) {
@@ -195,7 +378,20 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
 }
 
+func (foRunner *foRunner) RetainPack(pack *PipelineCapture) {
+	foRunner.retainPack = pack
+}
+
 func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
+	if foRunner.retainPack != nil {
+		retainChan := make(chan *PipelineCapture)
+		go func() {
+			retainChan <- foRunner.retainPack
+			foRunner.retainPack = nil
+			close(retainChan)
+		}()
+		return retainChan
+	}
 	return foRunner.inChan
 }
 
@@ -287,12 +483,16 @@ func (p *PipelinePack) Recycle() {
 // PipelinePack pools, and starts all the runners. Then it listens for signals
 // and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
-        SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
+	SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
+
+	globals := Globals()
+	sigChan := make(chan os.Signal)
+	globals.sigChan = sigChan
 
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
@@ -333,10 +533,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
 
-	globals := Globals()
 	for !globals.Stopping {
 		select {
 		case sig := <-sigChan:
@@ -368,19 +566,28 @@ func Run(config *PipelineConfig) {
 	inputsWg.Wait()
 
 	log.Println("Waiting for decoders shutdown")
+	for _, decoder := range config.allDecoders {
+		close(decoder.InChan())
+		log.Printf("Stop message sent to decoder '%s'", decoder.Name())
+	}
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
 	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
-		close(filter.InChan())
+		// needed for a clean shutdown without deadlocking or orphaning messages
+		// 1. removes the matcher from the router
+		// 2. closes the matcher input channel and lets it drain
+		// 3. closes the filter input channel and lets it drain
+		// 4. exits the filter
+		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
-		close(output.InChan())
+		config.router.RemoveOutputMatcher() <- output.MatchRunner()
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()

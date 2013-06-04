@@ -77,7 +77,10 @@ Heka functions that are exposed to the Lua sandbox
     Creates a new Heka message using the contents of the output payload buffer
     and then clears the buffer. Two pieces of optional metadata are allowed and
     included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
-    Fields[payload_name] == 'Android Usage Statistics'.
+    Fields[payload_name] == 'Android Usage Statistics'.  The number of messages
+    that may be injected by the process_message or timer_event functions are 
+    globally controlled by the hekad :ref:`hekad_command_line_options`; if
+    these values are exceeded the sandbox will be terminated.
 
     *Arguments*
         - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
@@ -138,16 +141,26 @@ double **get**\ (nanoseconds, column)
     *Return*
         The value at the specifed row/column or nil if the time was outside the range of the buffer.
 
-
 int **set_header**\ (column, name, type)
 
     *Arguments*
-        - column (unsigned) The column number where the header information will be applied.
+        - column (unsigned) The column number where the header information is applied.
         - name (string) Descriptive name of the column (maximum 15 characters). Any non alpha numeric characters will be converted to underscores.
         - type (string) The data type to aid with aggregation (count|min|max|avg|delta|percentage).
 
     *Return*
         The column number passed into the function.
+
+double **compute**\ (function, column, start, end)
+
+    *Arguments*
+        - function (string) The name of the compute function (sum|avg|sd|min|max).
+        - column (unsigned) The column that the computation is performed against.
+        - start (optional - unsigned) The number of nanosecond since the UNIX epoch. Sets the start time of the computation range; if nil the buffer's start time is used.
+        - end (optional- unsigned) The number of nanosecond since the UNIX epoch. Sets the end time of the computation range (inclusive); if nil the buffer's end time is used. The end time must be greater than or equal to the start time.
+
+    *Return*
+        The result of the computation for the specifed column over the given range or nil if the range fell outside of the buffer.
 
 Output
 ------

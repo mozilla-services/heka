@@ -41,11 +41,13 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 	r.AddSpec(DecodersSpec)
 	r.AddSpec(InputsSpec)
+	r.AddSpec(FiltersSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
 	r.AddSpec(WhisperRunnerSpec)
 	r.AddSpec(WhisperOutputSpec)
 	r.AddSpec(ReportSpec)
+	r.AddSpec(AMQPPluginSpec)
 	gospec.MainGoTest(r, t)
 }
 
