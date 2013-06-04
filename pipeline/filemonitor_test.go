@@ -22,7 +22,6 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
-	//"log"
 	"os"
 	"path"
 	"runtime"
@@ -144,33 +143,59 @@ func FileMonitorSpec(c gs.Context) {
 			err := lfInput.Init(lfiConfig)
 			c.Expect(err, gs.IsNil)
 
+			// This normally gets called by Run()
 			err = lfInput.Monitor.setupJournalling()
 			c.Expect(err, gs.IsNil)
 
 			// # bytes should be set to what's in the journal data
 			c.Expect(lfInput.Monitor.seek, gs.Equals, int64(28950))
 		})
-		/*
 
-			c.Specify("resets last read position to 0 if birthtime doesn't match", func() {
-				lfInput, lfiConfig, ok := createLogfileInput(journal_name)
-				c.Expect(ok, gs.Equals, true)
-				journal_data := `{"birth_times":{"../testsupport/test-zeus.log":84328423},"seek":{"../testsupport/test-zeus.log":28950}}`
-				journal, journal_err := os.OpenFile(journal_name,
-					os.O_CREATE|os.O_RDWR, 0660)
-				c.Expect(journal_err, gs.Equals, nil)
+		c.Specify("resets last read position to 0 if hash doesn't match", func() {
+			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfiConfig.ResumeFromStart = true
 
-				journal.WriteString(journal_data)
-				journal.Close()
+			journal_data := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
 
-				err := lfInput.Init(lfiConfig)
-				c.Expect(err, gs.IsNil)
+			journal, journal_err := os.OpenFile(journal_name,
+				os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journal_err, gs.Equals, nil)
 
-				// # bytes should be set to what's in the journal data
-				c.Expect(lfInput.Monitor.seek[logfile_name], gs.Equals, int64(0))
-			})
+			journal.WriteString(journal_data)
+			journal.Close()
 
-		*/
+			err := lfInput.Init(lfiConfig)
+			// This normally gets called by Run()
+			lfInput.Monitor.setupJournalling()
+			c.Expect(err, gs.IsNil)
+
+			// # bytes should be set to what's in the journal data
+			c.Expect(lfInput.Monitor.seek, gs.Equals, int64(0))
+		})
+
+		c.Specify("resets last read position to end of file if hash doesn't match", func() {
+			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfiConfig.ResumeFromStart = false
+
+			journal_data := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+
+			journal, journal_err := os.OpenFile(journal_name,
+				os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journal_err, gs.Equals, nil)
+
+			journal.WriteString(journal_data)
+			journal.Close()
+
+			err := lfInput.Init(lfiConfig)
+			// This normally gets called by Run()
+			lfInput.Monitor.setupJournalling()
+
+			c.Expect(err, gs.IsNil)
+
+			// # bytes should be set to what's in the journal data
+			c.Expect(lfInput.Monitor.seek, gs.Equals, int64(28950))
+		})
+
 	})
 
 }
