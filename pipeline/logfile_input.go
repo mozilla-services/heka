@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -19,36 +20,40 @@ import (
 	"bufio"
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
-	"syscall"
 	"time"
 )
 
 // ConfigStruct for LogfileInput plugin.
 type LogfileInputConfig struct {
-	// Paths for all of the log files that this input should be reading.
+	// Paths for the log file that this input should be reading.
 	LogFile string
-
 	// Hostname to use for the generated logfile message objects.
 	Hostname string
-
 	// Interval btn hd scans for existence of watched files, in milliseconds,
 	// default 5000 (i.e. 5 seconds).
 	DiscoverInterval int
-
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
 	StatInterval int
-
 	// Names of configured `LoglineDecoder` instances.
 	Decoders []string
 
 	// Name of the seek journal
 	SeekJournal string
+
+	Logger string
+
+	// On failure to resume from last known position, LogfileInput
+	// will resume reading from either the start of file or the end of
+	// file.
+	ResumeFromStart bool
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -69,6 +74,9 @@ type Logline struct {
 	Path string
 	// Log file line contents.
 	Line string
+
+	// Name of the logger we're using
+	Logger string
 }
 
 func (lw *LogfileInput) ConfigStruct() interface{} {
@@ -81,7 +89,6 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
-
 	lw.Monitor = new(FileMonitor)
 	val := conf.Hostname
 	if val == "" {
@@ -92,41 +99,10 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	}
 	lw.hostname = val
 	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
-		conf.StatInterval, conf.SeekJournal); err != nil {
+		conf.StatInterval, conf.Logger, conf.SeekJournal); err != nil {
 		return err
 	}
-
 	lw.decoderNames = conf.Decoders
-	return nil
-}
-
-func (fm *FileMonitor) setupJournalling() (err error) {
-	var dirInfo os.FileInfo
-
-	// if the seekJournalPath is empty, write out the default
-	if fm.seekJournalPath == "" {
-		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
-		fm.seekJournalPath = defaultPath
-	}
-	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
-
-	// Check that the directory to seekJournalPath actually exists
-	journalDir := path.Dir(fm.seekJournalPath)
-
-	if dirInfo, err = os.Stat(journalDir); err != nil {
-		return err
-	}
-
-	if !dirInfo.IsDir() {
-		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
-	}
-
-	if err = fm.recoverSeekPosition(); err != nil {
-		return err
-	}
-
-	go fm.Watcher()
-
 	return nil
 }
 
@@ -149,11 +125,13 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	for _, msg := range lw.Monitor.pendingMessages {
 		lw.Monitor.LogMessage(msg)
 	}
-	lw.Monitor.pendingMessages = make([]string, 0)
 
 	for _, msg := range lw.Monitor.pendingErrors {
 		lw.Monitor.LogError(msg)
 	}
+
+	// Clear out all the errors
+	lw.Monitor.pendingMessages = make([]string, 0)
 	lw.Monitor.pendingErrors = make([]string, 0)
 
 	dSet := h.DecoderSet()
@@ -170,7 +148,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		pack.Message.SetUuid(uuid.NewRandom())
 		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetType("logfile")
-		pack.Message.SetLogger(logline.Path)
+		pack.Message.SetLogger(logline.Logger)
 		pack.Message.SetSeverity(int32(0))
 		pack.Message.SetEnvVersion("0.8")
 		pack.Message.SetPid(0)
@@ -204,13 +182,15 @@ type FileMonitor struct {
 	// Channel onto which FileMonitor will place LogLine objects as the file
 	// is being read.
 	NewLines chan Logline
+	stopChan chan bool
+	seek     int64
 
+	logfile         string
 	seekJournalPath string
+	discover        bool
+	logger_ident    string
 
-	stopChan         chan bool
-	seek             map[string]int64
-	discover         map[string]bool
-	fds              map[string]*os.File
+	fd               *os.File
 	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
@@ -218,6 +198,8 @@ type FileMonitor struct {
 	ir              InputRunner
 	pendingMessages []string
 	pendingErrors   []string
+
+	last_logline string
 }
 
 // Serialize to JSON
@@ -226,86 +208,60 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
 
-	btimes := make(map[string]int64)
-
+	h := sha1.New()
+	io.WriteString(h, fm.last_logline)
 	tmp := map[string]interface{}{
-		"seek":        fm.seek,
-		"birth_times": btimes,
-	}
-
-	for filename, _ := range fm.seek {
-		info, err := os.Stat(filename)
-		if err != nil {
-			// Can't stat it, but meh.  Just don't serialize.
-
-			fm.LogError(fmt.Sprintf("Can't get stat() info for [%s]\n", filename))
-			continue
-		}
-
-		stat_t, _ := info.Sys().(*syscall.Stat_t)
-		ctime, btime := compute_times(stat_t)
-
-		// Assume that if ctime and btime are the same, then
-		// the underlying filesystem doesn't really support
-		// birthtime
-		if ctime != btime {
-			btimes[filename] = btime
-		}
+		"seek":      fm.seek,
+		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
 	}
 
 	return json.Marshal(tmp)
 }
 
-func ctime_btime(filename string) (ctim int64, btim int64, err error) {
-	info, err := os.Stat(filename)
-	if err != nil {
-		return 0, 0, fmt.Errorf("Can't get stat() info for [%s]", filename)
-	}
-	stat_t := info.Sys().(*syscall.Stat_t)
-	ctime, btime := compute_times(stat_t)
-	return ctime, btime, nil
+func sha1_hexdigest(data string) (result string) {
+	h := sha1.New()
+	io.WriteString(h, data)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
-	var cur_btime int64
+	var seek int64
 
 	err := dec.Decode(&m)
 	if err != nil {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
 
-	var btime_map = m["birth_times"].(map[string]interface{})
-	var seek_map = m["seek"].(map[string]interface{})
-	for seek_filename, seek_pos := range seek_map {
-		// Just do a linear scan to match seek positions to actual
-		// logfiles.  This only happens at startup
-		for discover_logfile, _ := range fm.discover {
-			if discover_logfile == seek_filename {
-				if btime_map[discover_logfile] == nil {
-					continue
-				}
-				lst_btime := int64(btime_map[discover_logfile].(float64))
+	var seek_pos = m["seek"].(int64)
+	var last_hash = m["last_hash"].(string)
 
-				if _, cur_btime, err = ctime_btime(discover_logfile); err != nil {
-					return err
-				}
-
-				if cur_btime == lst_btime {
-					fm.seek[seek_filename] = int64(seek_pos.(float64))
-					fm.LogMessage(fmt.Sprintf("Setting seek position to: %s %d\n", seek_filename, fm.seek[seek_filename]))
-				} else {
-					msg := fmt.Sprintf("Skipping setting seek position as birthtime doesn't match. [%s] [%d] [%d]", discover_logfile, lst_btime, cur_btime)
-					fm.LogMessage(msg)
-				}
-				break
-			}
-		}
+	// TODO: hack this to check the hash code
+	// Attempt to read lines from where we are
+	fd, err := os.Open(fm.logfile)
+	if err != nil {
+		return err
 	}
 
+	reader := bufio.NewReader(fd)
+	readLine, err := reader.ReadString('\n')
+	seek = 0
+	for err == nil {
+		seek += int64(len(readLine))
+		if seek == seek_pos {
+			if sha1_hexdigest(readLine) == last_hash {
+				// assume we're all good and just return
+				return nil
+			} else {
+				// TODO: this is a bad log file, reset to seek=0 or
+				// end of file
+				return nil
+			}
+		}
+		readLine, err = reader.ReadString('\n')
+	}
 	return nil
-
 }
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's
@@ -316,15 +272,15 @@ func (fm *FileMonitor) OpenFile(fileName string) (err error) {
 	if err != nil {
 		return
 	}
-	fm.fds[fileName] = fd
+	fm.fd = fd
 
 	// Seek as needed
 	begin := 0
-	offset := fm.seek[fileName]
+	offset := fm.seek
 	_, err = fd.Seek(offset, begin)
 	if err != nil {
 		// Unable to seek in, start at beginning
-		fm.seek[fileName] = 0
+		fm.seek = 0
 		if _, err = fd.Seek(0, 0); err != nil {
 			return
 		}
@@ -346,8 +302,8 @@ func (fm *FileMonitor) Watcher() {
 		case _, ok = <-fm.stopChan:
 			break
 		case <-checkStat:
-			for fileName, _ := range fm.fds {
-				ok = fm.ReadLines(fileName)
+			if fm.fd != nil {
+				ok = fm.ReadLines(fm.logfile)
 				if !ok {
 					break
 				}
@@ -355,99 +311,23 @@ func (fm *FileMonitor) Watcher() {
 		case <-discovery:
 			// Check to see if the files exist now, start reading them
 			// if we can, and watch them
-			for fileName, _ := range fm.discover {
-				if fm.OpenFile(fileName) == nil {
-					delete(fm.discover, fileName)
-				}
+			if fm.OpenFile(fm.logfile) == nil {
+				fm.discover = false
 			}
 		}
 	}
-
-	for _, fd := range fm.fds {
-		fd.Close()
+	if fm.fd != nil {
+		fm.fd.Close()
+		fm.fd = nil
 	}
 }
 
-// Reads all unread lines out of the specified file, creates a LogLine object
-// for each line, and puts it on the NewLine channel for processing.
-func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
-
-	ok = true
-	defer func() {
-		// Capture send on close chan as this is a shut-down
-		if r := recover(); r != nil {
-			rStr := fmt.Sprintf("%s", r)
-			if strings.Contains(rStr, "send on closed channel") {
-				ok = false
-			} else {
-				panic(rStr)
-			}
-		}
-	}()
-
-	fd, _ := fm.fds[fileName]
-
-	// Determine if we're farther into the file than possible (truncate)
-	finfo, err := fd.Stat()
-	if err == nil {
-		if finfo.Size() < fm.seek[fileName] {
-			fd.Seek(0, 0)
-			fm.seek[fileName] = 0
-		}
-	}
-
-	// Attempt to read lines from where we are
-	reader := bufio.NewReader(fd)
-	readLine, err := reader.ReadString('\n')
-	var bytes_read int64
-	bytes_read = 0
-	for err == nil {
-		line := Logline{Path: fileName, Line: readLine}
-		fm.NewLines <- line
-		bytes_read += int64(len(readLine))
-		readLine, err = reader.ReadString('\n')
-	}
-	bytes_read += int64(len(readLine))
-	fm.seek[fileName] += bytes_read
-
-	if ok = fm.updateJournal(bytes_read); ok == false {
-		return false
-	}
-
-	// Check that we haven't been rotated, if we have, put this back on
-	// discover
-	pinfo, err := os.Stat(fileName)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		fd.Close()
-		delete(fm.fds, fileName)
-		delete(fm.seek, fileName)
-		fm.discover[fileName] = true
-	}
-	return
-}
-
-func (fm *FileMonitor) LogError(msg string) {
-	if fm.ir == nil {
-		fm.pendingErrors = append(fm.pendingErrors, msg)
-	} else {
-		fm.ir.LogError(fmt.Errorf(msg))
-	}
-}
-
-func (fm *FileMonitor) LogMessage(msg string) {
-	if fm.ir == nil {
-		fm.pendingMessages = append(fm.pendingMessages, msg)
-	} else {
-		fm.ir.LogMessage(msg)
-	}
-}
-
-func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
+func (fm *FileMonitor) updateJournal() (ok bool) {
 	var msg string
 	var seekJournal *os.File
 	var file_err error
 
-	if bytes_read == 0 || fm.seekJournalPath == "." {
+	if fm.seek == 0 || fm.seekJournalPath == "." {
 		return true
 	}
 
@@ -470,19 +350,101 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	return true
 }
 
+// Reads all unread lines out of the specified file, creates a LogLine object
+// for each line, and puts it on the NewLine channel for processing.
+func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
+	ok = true
+	defer func() {
+		// Capture send on close chan as this is a shut-down
+		if r := recover(); r != nil {
+			rStr := fmt.Sprintf("%s", r)
+			if strings.Contains(rStr, "send on closed channel") {
+				ok = false
+			} else {
+				panic(rStr)
+			}
+		}
+	}()
+
+	fd := fm.fd
+
+	// Determine if we're farther into the file than possible (truncate)
+	finfo, err := fd.Stat()
+	if err == nil {
+		if finfo.Size() < fm.seek {
+			fd.Seek(0, 0)
+			fm.seek = 0
+		}
+	}
+
+	// Attempt to read lines from where we are
+	reader := bufio.NewReader(fd)
+	readLine, err := reader.ReadString('\n')
+	for err == nil {
+		fm.last_logline = readLine
+		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
+		fm.NewLines <- line
+		fm.seek += int64(len(readLine))
+		readLine, err = reader.ReadString('\n')
+	}
+	fm.seek += int64(len(readLine))
+
+	if ok = fm.updateJournal(); ok == false {
+		return false
+	}
+
+	// Check that we haven't been rotated, if we have, put this back on
+	// discover
+	pinfo, err := os.Stat(fileName)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		fd.Close()
+
+		if fm.fd != nil {
+			fm.fd = nil
+		}
+
+		fm.seek = 0
+		fm.discover = true
+	}
+	return
+}
+
+func (fm *FileMonitor) LogError(msg string) {
+	if fm.ir == nil {
+		fm.pendingErrors = append(fm.pendingErrors, msg)
+	} else {
+		fm.ir.LogError(fmt.Errorf(msg))
+	}
+}
+
+func (fm *FileMonitor) LogMessage(msg string) {
+	if fm.ir == nil {
+		fm.pendingMessages = append(fm.pendingMessages, msg)
+	} else {
+		fm.ir.LogMessage(msg)
+	}
+}
+
 func (fm *FileMonitor) Init(file string, discoverInterval int,
-	statInterval int, seekJournalPath string) (err error) {
+	statInterval int, logger string, seekJournalPath string) (err error) {
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
-	fm.seek = make(map[string]int64)
-	fm.fds = make(map[string]*os.File)
-	fm.discover = make(map[string]bool)
-	fm.discover[file] = true
+	fm.seek = 0
+	fm.fd = nil
+
+	fm.logfile = file
+	fm.discover = true
 
 	fm.pendingMessages = make([]string, 0)
 	fm.pendingErrors = make([]string, 0)
 	fm.seekJournalPath = seekJournalPath
+
+	if logger != "" {
+		fm.logger_ident = logger
+	} else {
+		fm.logger_ident = file
+	}
 
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
@@ -527,6 +489,36 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 	if len(tmp) > 0 {
 		json.Unmarshal([]byte(tmp), &fm)
 	}
+
+	return nil
+}
+
+func (fm *FileMonitor) setupJournalling() (err error) {
+	var dirInfo os.FileInfo
+
+	// if the seekJournalPath is empty, write out the default
+	if fm.seekJournalPath == "" {
+		defaultPath := path.Join("/var/run/hekad/seekjournals", fmt.Sprintf("%s.log", "DummyName"))
+		fm.seekJournalPath = defaultPath
+	}
+	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
+
+	// Check that the directory to seekJournalPath actually exists
+	journalDir := path.Dir(fm.seekJournalPath)
+
+	if dirInfo, err = os.Stat(journalDir); err != nil {
+		return err
+	}
+
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
+	}
+
+	if err = fm.recoverSeekPosition(); err != nil {
+		return err
+	}
+
+	go fm.Watcher()
 
 	return nil
 }

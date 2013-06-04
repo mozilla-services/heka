@@ -15,12 +15,16 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -29,37 +33,40 @@ type DashboardOutputConfig struct {
 	// port 4352 (HEKA))
 	Address string `toml:"address"`
 	// Working directory where the Dashboard output is written to; it also
-	// serves as the root for the HTTP fileserver.
+	// serves as the root for the HTTP fileserver.  This directory is created
+	// if necessary and if it exists the previous output is wiped clean.
+	// *DO NOT* store any user created content here.
 	WorkingDirectory string `toml:"working_directory"`
+	// Default interval at which dashboard will update is 5 seconds.
+	TickerInterval uint `toml:"ticker_interval"`
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
 		WorkingDirectory: "./dashboard",
+		TickerInterval:   uint(5),
 	}
 }
 
 type DashboardOutput struct {
 	workingDirectory string
-	terminationFile  string
 	server           *http.Server
 }
 
 func (self *DashboardOutput) Init(config interface{}) (err error) {
 	conf := config.(*DashboardOutputConfig)
 	self.workingDirectory, _ = filepath.Abs(conf.WorkingDirectory)
-	self.terminationFile = "heka_sandbox_termination.tsv"
 	if err = os.MkdirAll(self.workingDirectory, 0700); err != nil {
 		return
 	}
-	// remove the HTML files so they will be regenerated
-	if matches, err := filepath.Glob(path.Join(self.workingDirectory, "*.html")); err == nil {
+
+	// delete all previous output
+	if matches, err := filepath.Glob(path.Join(self.workingDirectory, "*.*")); err == nil {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
 	}
-	os.Remove(path.Join(self.workingDirectory, self.terminationFile))
 	overwriteFile(path.Join(self.workingDirectory, "heka_report.html"), getReportHtml())
 	overwriteFile(path.Join(self.workingDirectory, "heka_sandbox_termination.html"), getSandboxTerminationHtml())
 
@@ -86,6 +93,8 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack *PipelinePack
 		msg  *message.Message
 	)
+
+	reNotWord, _ := regexp.Compile("\\W")
 	for ok {
 		select {
 		case plc, ok = <-inChan:
@@ -97,22 +106,43 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			switch msg.GetType() {
 			case "heka.all-report":
 				fn := path.Join(self.workingDirectory, "heka_report.json")
+				createPluginPages(self.workingDirectory, msg.GetPayload())
 				overwriteFile(fn, msg.GetPayload())
 			case "heka.sandbox-output":
-				tmp, ok := msg.GetFieldValue("payload_type")
-				if ok {
-					if pt, ok := tmp.(string); ok && pt == "cbuf" {
-						html := path.Join(self.workingDirectory, msg.GetLogger()+".html")
-						_, err := os.Stat(html)
+				tmp, _ := msg.GetFieldValue("payload_type")
+				if payloadType, ok := tmp.(string); ok {
+					var payloadName, nameExt string
+					tmp, _ := msg.GetFieldValue("payload_name")
+					if payloadName, ok = tmp.(string); ok {
+						nameExt = reNotWord.ReplaceAllString(payloadName, "")
+					}
+					if len(nameExt) > 64 {
+						nameExt = nameExt[:64]
+					}
+					nameExt = "." + nameExt
+
+					payloadType = reNotWord.ReplaceAllString(payloadType, "")
+					fn := msg.GetLogger() + nameExt + "." + payloadType
+					ofn := path.Join(self.workingDirectory, fn)
+					if payloadType == "cbuf" {
+						html := msg.GetLogger() + nameExt + ".html"
+						ohtml := path.Join(self.workingDirectory, html)
+						_, err := os.Stat(ohtml)
 						if err != nil {
-							overwriteFile(html, fmt.Sprintf(getCbufTemplate(), msg.GetLogger(), msg.GetLogger()))
+							overwriteFile(ohtml, fmt.Sprintf(getCbufTemplate(),
+								msg.GetLogger(),
+								payloadName,
+								fn))
 						}
-						fn := path.Join(self.workingDirectory, msg.GetLogger()+"."+pt)
-						overwriteFile(fn, msg.GetPayload())
+						overwriteFile(ofn, msg.GetPayload())
+						updatePluginMetadata(self.workingDirectory, msg.GetLogger(), html, payloadName)
+					} else {
+						overwriteFile(ofn, msg.GetPayload())
+						updatePluginMetadata(self.workingDirectory, msg.GetLogger(), fn, payloadName)
 					}
 				}
 			case "heka.sandbox-terminated":
-				fn := path.Join(self.workingDirectory, self.terminationFile)
+				fn := path.Join(self.workingDirectory, "heka_sandbox_termination.tsv")
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
 					var line string
 					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {
@@ -158,6 +188,122 @@ func overwriteFile(filename, s string) {
 	}
 }
 
+type PluginOutput struct {
+	Filename string
+	Name     string
+}
+
+type PluginMetadata struct {
+	Outputs []PluginOutput
+}
+
+func getPluginMetadataPath(dir, logger string) string {
+	return path.Join(dir, logger+".json")
+}
+
+func updatePluginMetadata(dir, logger, fn, name string) {
+	pimd := getPluginMetadata(dir, logger)
+	if pimd == nil {
+		pimd = new(PluginMetadata)
+	}
+	found := false
+	for _, v := range pimd.Outputs {
+		if v.Filename == fn {
+			found = true
+			break
+		}
+	}
+	if !found {
+		pout := PluginOutput{Filename: fn, Name: name}
+		pimd.Outputs = append(pimd.Outputs, pout)
+		writePluginMetadata(dir, logger, pimd)
+	}
+}
+
+func writePluginMetadata(dir, logger string, pimd *PluginMetadata) {
+	fn := getPluginMetadataPath(dir, logger)
+	if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+		enc := json.NewEncoder(file)
+		enc.Encode(pimd)
+		file.Close()
+	}
+}
+
+func getPluginMetadata(dir, logger string) *PluginMetadata {
+	var pimd *PluginMetadata
+	fn := getPluginMetadataPath(dir, logger)
+	if file, err := os.Open(fn); err == nil {
+		pimd = new(PluginMetadata)
+		dec := json.NewDecoder(file)
+		dec.Decode(pimd)
+		file.Close()
+	}
+	return pimd
+}
+
+func createOutputTable(dir, logger string) (table string) {
+	pimd := getPluginMetadata(dir, logger)
+	if pimd == nil {
+		return
+	}
+
+	outputs := make([]string, 0, 1)
+	for _, v := range pimd.Outputs {
+		if len(v.Name) == 0 {
+			v.Name = "- none -"
+		}
+		outputs = append(outputs, fmt.Sprintf("<tr><td><a href=\"%s\">%s</a></td><td>%s</td></tr>",
+			v.Filename,
+			v.Name,
+			path.Ext(v.Filename)))
+	}
+	sort.Strings(outputs)
+	table = fmt.Sprintf("<table class=\"outputs\"><caption>Plugin Outputs</caption>"+
+		"<thead><tr><th>Name</th><th>Type</th></tr></thead>"+
+		"<tbody>\n%s\n</tbody></table>",
+		strings.Join(outputs, "\n"))
+	return
+}
+
+func createPluginPages(dir, payload string) {
+	var (
+		f      interface{}
+		r      []interface{}
+		m, p   map[string]interface{}
+		ok     bool
+		logger string
+	)
+	if err := json.Unmarshal([]byte(payload), &f); err != nil {
+		return
+	}
+	if m, ok = f.(map[string]interface{}); !ok {
+		return
+	}
+	if r, ok = m["reports"].([]interface{}); !ok {
+		return
+	}
+	for _, plugin := range r {
+		if p, ok = plugin.(map[string]interface{}); !ok {
+			continue
+		}
+		if logger, ok = p["Plugin"].(string); !ok {
+			continue
+		}
+		fn := path.Join(dir, logger+".html")
+		props := make([]string, 0, 5)
+		for k, v := range p {
+			props = append(props, fmt.Sprintf("<tr><td>%s</td><td>%v</td></tr>", k, v))
+		}
+		sort.Strings(props)
+		ptable := fmt.Sprintf("<table class=\"properties\"><caption>Properties</caption>"+
+			"<thead><tr><th>Name</th><th>Value</th></tr></thead>"+
+			"<tbody>\n%s\n</tbody></table>",
+			strings.Join(props, "\n"))
+		otable := createOutputTable(dir, logger)
+		overwriteFile(fn, fmt.Sprintf(getPluginTemplate(), logger, ptable, otable))
+	}
+}
+
 // TODO make the JS libraries part of the local deployment the HTML has them wired up to public web sites
 func getReportHtml() string {
 	return `<!DOCTYPE html>
@@ -167,7 +313,7 @@ func getReportHtml() string {
     <script src="http://yui.yahooapis.com/3.9.1/build/yui/yui-min.js">
     </script>
 </head>
-<body class="yui3-skin-sam" style="font-size:.7em">
+<body class="yui3-skin-sam" style="font-size:.8em">
     <div id="report"></div>
 <script>
 YUI().use("datatable-base", "datasource", "datasource-jsonschema", "datatable-datasource", "datatable-sort", function (Y) {
@@ -279,7 +425,7 @@ func getCbufTemplate() string {
         if ((cbuf.header.seconds_per_row * cbuf.header.rows) / 3600 > 1) {
             plural = "s";
         }
-        document.getElementById('title').innerHTML = "%s" + " - "
+        document.getElementById('title').innerHTML = "%s [%s]<br/>"
             + cbuf.header.seconds_per_row + " second aggregation for the last "
             + String((cbuf.header.seconds_per_row * cbuf.header.rows) / 3600) + " hour" + plural;
         var labels = ['Date'];
@@ -295,7 +441,7 @@ func getCbufTemplate() string {
         document.body.appendChild(div);
         document.body.appendChild(document.createElement('br'));
         var ldv = cbuf.header.column_info.length * 200 + 150;
-   	 if (ldv > 1024) ldv = 1024;
+        if (ldv > 1024) ldv = 1024;
         var options = {labels: labels, labelsDivWidth: ldv, labelsDivStyles:{ 'textAlign': 'right'}};
         document.body.appendChild(checkboxes);
         graph = new Dygraph(div, cbuf.data, options);
@@ -310,9 +456,36 @@ func getCbufTemplate() string {
     }
     </script>
 </head>
-<body onload="heka_load_cbuf('%s.cbuf', load_complete);">
+<body onload="heka_load_cbuf('%s', load_complete);">
 <p id="title" style="text-align: center">
 </p>
+</body>
+</html>`
+}
+
+func getPluginTemplate() string {
+	return `<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {}
+table {border: 1px solid black; float:left; margin-right:50px}
+td, th {padding:1px}
+#table_container {width:90%%; margin:0 auto}
+.outputs {width:250px}
+th { background-color: #eee; }
+tr:nth-child(even) { background-color:#EDF5FF; }
+tr:nth-child(odd) { background-color:#fff; }
+</style>
+</head>
+<body>
+<a href="heka_report.html">Dashboard</a>
+<p id="title" style="text-align: center; font-weight:bold">%s</p>
+<hr/>
+<div id="table_container">
+<div id="properties">%s</div>
+<div id="outputs">%s</div>
+</div>
 </body>
 </html>`
 }

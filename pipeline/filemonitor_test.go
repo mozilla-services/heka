@@ -29,32 +29,6 @@ import (
 	"time"
 )
 
-func fix_ctime(logfile_name string) bool {
-	// Truncate a file by 0 bytes to just update the ctime
-	var tmpfile *os.File
-	var err error
-	var offset int64
-	var ctime, btime int64
-	ctime, btime, _ = ctime_btime(logfile_name)
-
-	if ctime == btime {
-		time.Sleep(10 * time.Millisecond)
-		if tmpfile, err = os.OpenFile(logfile_name, os.O_RDWR|os.O_APPEND,
-			0660); err != nil {
-			log.Println(err.Error())
-			return false
-		}
-		offset, err = tmpfile.Seek(0, os.SEEK_END)
-		tmpfile.Truncate(offset)
-		tmpfile.Close()
-
-		ctime, btime, _ = ctime_btime(logfile_name)
-		log.Printf("Final btime/ctime: [%d][%d]\n", btime, ctime)
-		return btime != ctime
-	}
-	return true
-}
-
 func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig, bool) {
 	logfile_name := "../testsupport/test-zeus.log"
 
@@ -67,9 +41,10 @@ func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig
 	// Remove any journal that may exist
 	os.Remove(path.Clean(journal_name))
 
-	if !fix_ctime(logfile_name) {
-		return nil, nil, false
-	}
+    // TODO: fix ctime doesn't matter, need     
+	//if !fix_ctime(logfile_name) {
+	//	return nil, nil, false
+	//}
 	return lfInput, lfiConfig, true
 }
 

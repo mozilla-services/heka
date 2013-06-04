@@ -226,6 +226,15 @@ destination. The initialization code might look as follows::
         return
     }
 
+In addition to specifying configuration options that are specific to your
+plugin, it is also possible to use the config struct to specify default values
+for the `ticker_interval` and `message_matcher` values that are available to
+all Filter and Output plugins. If a config struct contains a uint attribute
+called `TickerInterval`, that will be used as a default ticker interval value
+(in seconds) if none is supplied in the TOML. Similarly, if a config struct
+contains a string attribute called `MessageMatcher`, that will be used as the
+default message routing rule if none is specified in the configuration file.
+
 .. _inputs:
 
 Inputs
