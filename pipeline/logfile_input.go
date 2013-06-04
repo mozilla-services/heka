@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -211,16 +210,12 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	// objects created by os itself.
 
 	h := sha1.New()
-	fmt.Println("in marshalling : Using last line to : [%s]", fm.last_logline)
 	io.WriteString(h, fm.last_logline)
 	tmp := map[string]interface{}{
 		"seek":      fm.seek,
 		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
 		"last_line": fm.last_logline,
 	}
-
-	bdata, _ := json.Marshal(tmp)
-	fmt.Printf("Wrote out: [%s]\n", string(bdata))
 
 	return json.Marshal(tmp)
 }
@@ -232,23 +227,18 @@ func sha1_hexdigest(data string) (result string) {
 }
 
 func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
-	log.Printf("Decoding byte data : [%s]\n", string(data))
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
 	var seek int64
 
 	err := dec.Decode(&m)
-	log.Printf("Decoded map: [%s]\n", m)
 	if err != nil {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
 
 	var seek_pos = int64(m["seek"].(float64))
 	var last_hash = m["last_hash"].(string)
-	var last_line = m["last_line"].(string)
 
-	log.Println("Restoring from : " + fm.seekJournalPath)
-	log.Println("Checking hash from : " + fm.logfile)
 	fd, err := os.Open(fm.logfile)
 	if err != nil {
 		return err
@@ -260,22 +250,16 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	for err == nil {
 		seek += int64(len(readLine))
 		if seek == seek_pos {
-			fmt.Printf("Actual hash : [%s]\n", sha1_hexdigest(readLine))
-			fmt.Printf("Saved  hash : [%s]\n", last_hash)
-			fmt.Printf("Actual line : [%s]\n", readLine)
-			fmt.Printf("Saved  line : [%s]\n", last_line)
 			if sha1_hexdigest(readLine) == last_hash {
 				// woot.  same log file
 				fm.seek = seek_pos
 				msg := fmt.Sprintf("Line matches, continuing from byte pos : %d", seek_pos)
 				fm.LogMessage(msg)
-				log.Println(msg)
 				return nil
 			} else if fm.resumeFromStart {
 				fm.seek = 0
 				msg := "Line mismatch.  Restarting from start of file."
 				fm.LogMessage(msg)
-				log.Println(msg)
 				return nil
 			}
 		}
@@ -283,7 +267,6 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	}
 	fm.seek = seek
 	msg := fmt.Sprintf("Line mismatch.  Restarting from end of file [%d].", seek)
-	log.Println(msg)
 	fm.LogMessage(msg)
 	return nil
 }
@@ -366,7 +349,6 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	seekJournal.Seek(0, os.SEEK_END)
 
 	var filemon_bytes []byte
-	fmt.Println("pre marshallig : Using last line to : [%s]", fm.last_logline)
 	filemon_bytes, _ = json.Marshal(fm)
 
 	msg = string(filemon_bytes) + "\n"
@@ -419,7 +401,6 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	bytes_read += int64(len(readLine))
 	fm.seek += bytes_read
 
-	fmt.Println("Serializing journal.  Using last line to : [%s]", fm.last_logline)
 	if ok = fm.updateJournal(bytes_read); ok == false {
 		return false
 	}

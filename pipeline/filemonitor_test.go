@@ -17,7 +17,6 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -50,8 +49,6 @@ func FileMonitorSpec(c gs.Context) {
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-
-	fmt.Printf("Journalling to: %s\n", journal_name)
 
 	config := NewPipelineConfig(nil)
 	ith := new(InputTestHelper)
