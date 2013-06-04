@@ -84,6 +84,7 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 		DiscoverInterval: 5000,
 		StatInterval:     500,
 		SeekJournal:      "",
+		ResumeFromStart:  true,
 	}
 }
 
@@ -98,8 +99,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		}
 	}
 	lw.hostname = val
-	if err = lw.Monitor.Init(conf.LogFile, conf.DiscoverInterval,
-		conf.StatInterval, conf.Logger, conf.SeekJournal); err != nil {
+	if err = lw.Monitor.Init(conf); err != nil {
 		return err
 	}
 	lw.decoderNames = conf.Decoders
@@ -199,7 +199,8 @@ type FileMonitor struct {
 	pendingMessages []string
 	pendingErrors   []string
 
-	last_logline string
+	last_logline    string
+	resumeFromStart bool
 }
 
 // Serialize to JSON
@@ -234,11 +235,9 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
 
-	var seek_pos = m["seek"].(int64)
+	var seek_pos = int64(m["seek"].(float64))
 	var last_hash = m["last_hash"].(string)
 
-	// TODO: hack this to check the hash code
-	// Attempt to read lines from where we are
 	fd, err := os.Open(fm.logfile)
 	if err != nil {
 		return err
@@ -251,16 +250,21 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 		seek += int64(len(readLine))
 		if seek == seek_pos {
 			if sha1_hexdigest(readLine) == last_hash {
-				// assume we're all good and just return
+				// woot.  same log file
+				fm.seek = seek_pos
+				msg := fmt.Sprintf("SHA1 hash matches, continuing from byte pos : %d", seek_pos)
+				fm.LogMessage(msg)
 				return nil
-			} else {
-				// TODO: this is a bad log file, reset to seek=0 or
-				// end of file
+			} else if fm.resumeFromStart {
+				fm.seek = 0
+				fm.LogMessage("SHA1 hash mismatch.  Restarting from start of file.")
 				return nil
 			}
 		}
 		readLine, err = reader.ReadString('\n')
 	}
+	fm.seek = seek
+	fm.LogMessage(fmt.Sprintf("SHA1 hash mismatch.  Restarting from end of file [%d].", seek))
 	return nil
 }
 
@@ -428,8 +432,13 @@ func (fm *FileMonitor) LogMessage(msg string) {
 	}
 }
 
-func (fm *FileMonitor) Init(file string, discoverInterval int,
-	statInterval int, logger string, seekJournalPath string) (err error) {
+func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
+	file := conf.LogFile
+	discoverInterval := conf.DiscoverInterval
+	statInterval := conf.StatInterval
+	logger := conf.Logger
+
+	fm.resumeFromStart = conf.ResumeFromStart
 
 	fm.NewLines = make(chan Logline)
 	fm.stopChan = make(chan bool)
@@ -441,7 +450,7 @@ func (fm *FileMonitor) Init(file string, discoverInterval int,
 
 	fm.pendingMessages = make([]string, 0)
 	fm.pendingErrors = make([]string, 0)
-	fm.seekJournalPath = seekJournalPath
+	fm.seekJournalPath = conf.SeekJournal
 
 	if logger != "" {
 		fm.logger_ident = logger
@@ -477,7 +486,6 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 
 	var seek_err error
 	var seekJournal *os.File
-	// First try to restore the line position
 	if seekJournal, seek_err = os.OpenFile(fm.seekJournalPath,
 		os.O_RDWR, 0660); seek_err != nil {
 		return seek_err
@@ -487,7 +495,7 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 	var scanner = bufio.NewScanner(seekJournal)
 	var tmp string
 	for scanner.Scan() {
-		tmp = scanner.Text() // Println will add back the final '\n'
+		tmp = scanner.Text()
 	}
 	if len(tmp) > 0 {
 		json.Unmarshal([]byte(tmp), &fm)
