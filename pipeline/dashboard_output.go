@@ -292,11 +292,18 @@ func createPluginPages(dir, payload string) {
 		fn := path.Join(dir, logger+".html")
 		props := make([]string, 0, 5)
 		for k, v := range p {
-			props = append(props, fmt.Sprintf("<tr><td>%s</td><td>%v</td></tr>", k, v))
+			mv, ok := v.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			props = append(props, fmt.Sprintf("<tr><td>%s</td><td>%v</td><td>%v</td></tr>",
+				k,
+				mv["value"],
+				mv["representation"]))
 		}
 		sort.Strings(props)
 		ptable := fmt.Sprintf("<table class=\"properties\"><caption>Properties</caption>"+
-			"<thead><tr><th>Name</th><th>Value</th></tr></thead>"+
+			"<thead><tr><th>Name</th><th>Value</th><th>Representation</th></tr></thead>"+
 			"<tbody>\n%s\n</tbody></table>",
 			strings.Join(props, "\n"))
 		otable := createOutputTable(dir, logger)
@@ -323,19 +330,19 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
             resultListLocator: 'reports',
             resultFields: [
                 'Plugin',
-                'InChanCapacity',
-                'InChanLength',
-                'MatchChanCapacity',
-                'MatchChanLength',
-                'MatchAvgDuration',
-                'ProcessMessageCount',
-                'InjectMessageCount',
-                'Memory',
-                'MaxMemory',
-                'MaxInstructions',
-                'MaxOutput',
-                'ProcessMessageAvgDuration',
-                'TimerEventAvgDuration'
+                {key:'InChanCapacity',locator:'InChanCapacity.value'},
+                {key:'InChanLength',locator:'InChanLength.value'},
+                {key:'MatchChanCapacity',locator:'MatchChanCapacity.value'},
+                {key:'MatchChanLength',locator:'MatchChanLength.value'},
+                {key:'MatchAvgDuration',locator:'MatchAvgDuration.value'},
+                {key:'ProcessMessageCount',locator:'ProcessMessageCount.value'},
+                {key:'InjectMessageCount',locator:'InjectMessageCount.value'},
+                {key:'Memory',locator:'Memory.value'},
+                {key:'MaxMemory',locator:'MaxMemory.value'},
+                {key:'MaxInstructions',locator:'MaxInstructions.value'},
+                {key:'MaxOutput',locator:'MaxOutput.value'},
+                {key:'ProcessMessageAvgDuration',locator:'ProcessMessageAvgDuration.value'},
+                {key:'TimerEventAvgDuration',locator:'TimerEventAvgDuration.value'}
             ]
         }}
     });
@@ -430,7 +437,7 @@ func getCbufTemplate() string {
             + String((cbuf.header.seconds_per_row * cbuf.header.rows) / 3600) + " hour" + plural;
         var labels = ['Date'];
         for (var i = 0; i < cbuf.header.columns; i++) {
-            labels.push(cbuf.header.column_info[i].name + " (" + cbuf.header.column_info[i].type + ")");
+            labels.push(cbuf.header.column_info[i].name + " (" + cbuf.header.column_info[i].unit + ")");
         }
 
         var checkboxes = document.createElement('div');

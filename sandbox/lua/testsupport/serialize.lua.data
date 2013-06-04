@@ -20,9 +20,9 @@ _G["cycleb"]["a"]["b"] = _G["cycleb"]
 _G["cycleb"]["a"]["type"] = "cycle a"
 _G["cycleb"]["type"] = "cycle b"
 if _G["dataRef"] == nil then _G["dataRef"] = circular_buffer.new(3, 3, 1) end
-_G["dataRef"]:set_header(1, "Column_1", "count")
-_G["dataRef"]:set_header(2, "Column_2", "count")
-_G["dataRef"]:set_header(3, "Column_3", "count")
+_G["dataRef"]:set_header(1, "Column_1", "count", "sum")
+_G["dataRef"]:set_header(2, "Column_2", "count", "sum")
+_G["dataRef"]:set_header(3, "Column_3", "count", "sum")
 _G["dataRef"]:fromstring("2 2 0 0 0 0 0 0 0 0 0")
 _G["data"] = _G["dataRef"]
 _G["cyclea"] = _G["cycleb"]["a"]
@@ -54,12 +54,12 @@ _G["nested"]["nested"]["n2"] = "two"
 _G["nested"]["nested"]["n1"] = "one"
 _G["nested"]["arg1"] = 1
 if _G["nested"]["cb"] == nil then _G["nested"]["cb"] = circular_buffer.new(2, 6, 1) end
-_G["nested"]["cb"]:set_header(1, "Column_1", "count")
-_G["nested"]["cb"]:set_header(2, "Column_2", "count")
-_G["nested"]["cb"]:set_header(3, "Column_3", "count")
-_G["nested"]["cb"]:set_header(4, "Column_4", "count")
-_G["nested"]["cb"]:set_header(5, "Column_5", "count")
-_G["nested"]["cb"]:set_header(6, "Column_6", "count")
+_G["nested"]["cb"]:set_header(1, "Column_1", "count", "sum")
+_G["nested"]["cb"]:set_header(2, "Column_2", "count", "sum")
+_G["nested"]["cb"]:set_header(3, "Column_3", "count", "sum")
+_G["nested"]["cb"]:set_header(4, "Column_4", "count", "sum")
+_G["nested"]["cb"]:set_header(5, "Column_5", "count", "sum")
+_G["nested"]["cb"]:set_header(6, "Column_6", "count", "sum")
 _G["nested"]["cb"]:fromstring("1 1 0 0 0 0 0 0 0 0 0 0 0 0")
 _G["_VERSION"] = "Lua 5.1"
 _G["rates"] = _G["kvp"]["r"]

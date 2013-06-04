@@ -65,8 +65,8 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
-	newIntField(msg, "RunningFilters", this.currentFilters)
-	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount)
+	newIntField(msg, "RunningFilters", this.currentFilters, "count")
+	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount, "count")
 	return nil
 }
 

@@ -3,9 +3,9 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 data = circular_buffer.new(3, 3, 1)
-local ADD_COL = data:set_header(1, "Add column", "count")
+local ADD_COL = data:set_header(1, "Add column")
 local SET_COL = data:set_header(2, "Set column", "count")
-local GET_COL = data:set_header(3, "Get column", "count")
+local GET_COL = data:set_header(3, "Get column", "count", "sum")
 
 function process_message()
     local ts = read_message("Timestamp")

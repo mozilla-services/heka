@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	f0, _ = message.NewField("test0", 0, message.Field_RAW)
-	f1, _ = message.NewField("test1", "one", message.Field_RAW)
+	f0, _ = message.NewField("test0", 0, "")
+	f1, _ = message.NewField("test1", "one", "")
 )
 
 func (f *CounterFilter) ReportMsg(msg *message.Message) (err error) {

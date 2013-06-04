@@ -114,33 +114,33 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 		msg.SetHostname(hostname)
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
-			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), message.Field_RAW)
+			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), "")
 			msg.AddField(field)
 		}
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
 			b := byte(c)
-			field, _ := message.NewField(fmt.Sprintf("bytes%d", c), []byte{b, b, b, b, b, b, b, b}, message.Field_RAW)
+			field, _ := message.NewField(fmt.Sprintf("bytes%d", c), []byte{b, b, b, b, b, b, b, b}, "")
 			msg.AddField(field)
 		}
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
-			field, _ := message.NewField(fmt.Sprintf("int%d", c), c, message.Field_RAW)
+			field, _ := message.NewField(fmt.Sprintf("int%d", c), c, "")
 			msg.AddField(field)
 		}
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
-			field, _ := message.NewField(fmt.Sprintf("double%d", c), float64(c), message.Field_RAW)
+			field, _ := message.NewField(fmt.Sprintf("double%d", c), float64(c), "")
 			msg.AddField(field)
 		}
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
-			field, _ := message.NewField(fmt.Sprintf("bool%d", c), true, message.Field_RAW)
+			field, _ := message.NewField(fmt.Sprintf("bool%d", c), true, "")
 			msg.AddField(field)
 		}
 		cnt = (rand.Int() % 63) * 1024
 		buf := make([]byte, cnt)
-		field, _ := message.NewField("filler", buf, message.Field_RAW)
+		field, _ := message.NewField("filler", buf, "")
 		msg.AddField(field)
 
 		var stream []byte

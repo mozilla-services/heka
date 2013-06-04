@@ -53,7 +53,7 @@ func TestAllSpecs(t *testing.T) {
 
 func getTestMessage() *Message {
 	hostname, _ := os.Hostname()
-	field, _ := NewField("foo", "bar", Field_RAW)
+	field, _ := NewField("foo", "bar", "")
 	msg := &Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(time.Now().UnixNano())
