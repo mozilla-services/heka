@@ -1,3 +1,10 @@
+0.2.0rc2 (2013-05-23)
+=====================
+
+* Fix Lua sandbox C code to work on 32 bit systems.
+
+* Trivial release documentation ReST formatting fix.
+
 0.2.0rc1 (2013-05-21)
 =====================
 
