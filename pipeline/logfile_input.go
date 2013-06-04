@@ -322,12 +322,12 @@ func (fm *FileMonitor) Watcher() {
 	}
 }
 
-func (fm *FileMonitor) updateJournal() (ok bool) {
+func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	var msg string
 	var seekJournal *os.File
 	var file_err error
 
-	if fm.seek == 0 || fm.seekJournalPath == "." {
+	if bytes_read == 0 || fm.seekJournalPath == "." {
 		return true
 	}
 
@@ -380,16 +380,19 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
+	var bytes_read int64
+	bytes_read = 0
 	for err == nil {
 		fm.last_logline = readLine
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
-		fm.seek += int64(len(readLine))
+		bytes_read += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
 	}
-	fm.seek += int64(len(readLine))
+	bytes_read += int64(len(readLine))
+	fm.seek += bytes_read
 
-	if ok = fm.updateJournal(); ok == false {
+	if ok = fm.updateJournal(bytes_read); ok == false {
 		return false
 	}
 
