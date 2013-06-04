@@ -927,6 +927,9 @@ Parameters:
     Username used to authenticate with the Nagios web interface. Defaults to "".
 - password (string, optional):
     Password used to authenticate with the Nagios web interface. Defaults to "".
+- responseheadertimeout (uint, optional):
+    Specifies the amount of time, in seconds, to wait for a server's response 
+    headers after fully writing the request. Defaults to 2.
 
 Example configuration to output alerts from SandboxFilter plugins:
 
