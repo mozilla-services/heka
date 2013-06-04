@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -254,6 +255,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 
 	var ok = true
 	var plc *PipelineCapture
+	var delta int64
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
 		select {
@@ -262,6 +264,12 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 				break
 			}
 			this.processMessageCount++
+			delta = time.Now().UnixNano() - plc.Pack.Message.GetTimestamp()
+			if math.Abs(float64(delta)) >= 5e9 {
+				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew", delta/1e9))
+				plc.Pack.Recycle()
+				break
+			}
 			action, _ := plc.Pack.Message.GetFieldValue("action")
 			switch action {
 			case "load":
