@@ -402,7 +402,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	fm.seek += bytes_read
 
 	if ok = fm.updateJournal(bytes_read); ok == false {
-		return false
+		return
 	}
 
 	// Check that we haven't been rotated, if we have, put this back on
@@ -425,7 +425,7 @@ func (fm *FileMonitor) LogError(msg string) {
 	if fm.ir == nil {
 		fm.pendingErrors = append(fm.pendingErrors, msg)
 	} else {
-		//fm.ir.LogError(fmt.Errorf(msg))
+		fm.ir.LogError(fmt.Errorf(msg))
 	}
 }
 
@@ -469,14 +469,13 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 	return
 }
 
-func (fm *FileMonitor) recoverSeekPosition() error {
+func (fm *FileMonitor) recoverSeekPosition() (err error) {
 	// Check if the file exists first,
 	if fm.seekJournalPath == "." {
-		return nil
+		return
 	}
 
 	var f *os.File
-	var err error
 
 	if f, err = os.Open(fm.seekJournalPath); err != nil {
 		// The logfile doesn't exist, nothing special to do
@@ -484,16 +483,15 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 			// file doesn't exist, but that's ok, not a real error
 			return nil
 		} else {
-			return err
+			return
 		}
 	}
 	defer f.Close()
 
-	var seek_err error
 	var seekJournal *os.File
-	if seekJournal, seek_err = os.OpenFile(fm.seekJournalPath,
-		os.O_RDWR, 0660); seek_err != nil {
-		return seek_err
+	if seekJournal, err = os.OpenFile(fm.seekJournalPath,
+		os.O_RDWR, 0660); err != nil {
+		return
 	}
 	defer seekJournal.Close()
 
@@ -506,7 +504,7 @@ func (fm *FileMonitor) recoverSeekPosition() error {
 		json.Unmarshal([]byte(tmp), &fm)
 	}
 
-	return nil
+	return
 }
 
 func (fm *FileMonitor) setupJournalling() (err error) {
@@ -519,7 +517,7 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 
 	if dirInfo, err = os.Stat(journalDir); err != nil {
 		fm.LogMessage(fmt.Sprintf("%s parent dir doesn't exist", fm.seekJournalPath))
-		return err
+		return
 	}
 
 	if !dirInfo.IsDir() {
@@ -527,12 +525,11 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 	}
 
 	if err = fm.recoverSeekPosition(); err != nil {
-		return err
+		return
 	}
 
 	go fm.Watcher()
-
-	return nil
+	return
 }
 
 func (fm *FileMonitor) cleanJournalPath() {
