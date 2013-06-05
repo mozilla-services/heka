@@ -477,6 +477,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
+
 			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
 			fileStr := string(fileBytes)
@@ -488,11 +489,13 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
+			close(lfInput.Monitor.stopChan)
 		})
 
 		c.Specify("uses the filename as the default logger name", func() {
 			var err error
 
+            lfInput := new(LogfileInput)
 			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 			lfiConfig.SeekJournal, err = createJournal()
 			c.Expect(err, gs.Equals, nil)
