@@ -103,6 +103,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 		return err
 	}
 	lw.decoderNames = conf.Decoders
+
 	return nil
 }
 
@@ -116,11 +117,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	packSupply := ir.InChan()
 
 	lw.Monitor.ir = ir
-
-	if err = lw.Monitor.setupJournalling(); err != nil {
-		ir.LogError(err)
-		return err
-	}
 
 	for _, msg := range lw.Monitor.pendingMessages {
 		lw.Monitor.LogMessage(msg)
@@ -467,6 +463,12 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 
+	if err = fm.setupJournalling(); err != nil {
+		return
+	}
+
+	go fm.Watcher()
+
 	return
 }
 
@@ -529,7 +531,6 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 		return
 	}
 
-	go fm.Watcher()
 	return
 }
 
