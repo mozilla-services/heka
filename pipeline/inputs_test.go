@@ -27,6 +27,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -92,6 +93,14 @@ func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 		msgBytes[pos] = message.UNIT_SEPARATOR
 		copy(msgBytes[pos+1:], mbytes)
 	}
+}
+
+func createJournal() (journal string, err error) {
+	var tmp_file *os.File
+	tmp_file, err = ioutil.TempFile("", "")
+	journal = tmp_file.Name()
+	tmp_file.Close()
+	return
 }
 
 func InputsSpec(c gs.Context) {
@@ -417,14 +426,17 @@ func InputsSpec(c gs.Context) {
 	})
 
 	c.Specify("A LogFileInput", func() {
+		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+		lfiConfig.SeekJournal, err = createJournal()
+		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
 
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err := lfInput.Init(lfiConfig)
+		err = lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
 		dName := "decoder-name"
@@ -443,6 +455,8 @@ func InputsSpec(c gs.Context) {
 
 		c.Specify("reads a log file", func() {
 			// Expect InputRunner calls to get InChan and inject outgoing msgs
+			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
@@ -477,12 +491,16 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("uses the filename as the default logger name", func() {
+			var err error
+
 			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+			lfiConfig.SeekJournal, err = createJournal()
+			c.Expect(err, gs.Equals, nil)
 			lfiConfig.LogFile = "../testsupport/test-zeus.log"
 
 			lfiConfig.DiscoverInterval = 1
 			lfiConfig.StatInterval = 1
-			err := lfInput.Init(lfiConfig)
+			err = lfInput.Init(lfiConfig)
 			c.Expect(err, gs.Equals, nil)
 
 			c.Expect(lfInput.Monitor.logger_ident,
