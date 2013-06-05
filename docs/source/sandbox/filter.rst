@@ -21,6 +21,7 @@ SandboxFilter Settings
  - memory_limit (uint): The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB).
  - instruction_limit (uint): The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M).
  - output_limit (uint): The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB).
+ - profile (bool): When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
 
 Example
 
@@ -36,3 +37,4 @@ Example
     memory_limit = 32767
     instruction_limit = 1000
     output_limit = 1024
+    profile = false

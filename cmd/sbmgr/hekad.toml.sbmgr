@@ -27,7 +27,6 @@ type = "DashboardOutput"
 address = "127.0.0.1:4352"
 ticker_interval = 5
 working_directory = "./dashboard"
-message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
@@ -57,6 +56,7 @@ preserve_data = true
 memory_limit = 256000
 instruction_limit = 1000
 output_limit = 64000
+profile = true
 
 [SlowMatcher]
 type = "SandboxFilter"

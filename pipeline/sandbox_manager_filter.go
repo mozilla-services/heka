@@ -25,6 +25,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sync/atomic"
 	"time"
 )
 
@@ -67,7 +68,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "RunningFilters", this.currentFilters, "count")
-	newInt64Field(msg, "ProcessMessageCount", this.processMessageCount, "count")
+	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
 	return nil
 }
 
@@ -263,7 +264,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 			if !ok {
 				break
 			}
-			this.processMessageCount++
+			atomic.AddInt64(&this.processMessageCount, 1)
 			delta = time.Now().UnixNano() - plc.Pack.Message.GetTimestamp()
 			if math.Abs(float64(delta)) >= 5e9 {
 				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew", delta/1e9))

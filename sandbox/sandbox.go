@@ -60,4 +60,5 @@ type SandboxConfig struct {
 	MemoryLimit      uint   `toml:"memory_limit"`
 	InstructionLimit uint   `toml:"instruction_limit"`
 	OutputLimit      uint   `toml:"output_limit"`
+	Profile          bool
 }
