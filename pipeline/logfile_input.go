@@ -226,12 +226,12 @@ func sha1_hexdigest(data string) (result string) {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
+func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
 	var seek int64
 
-	err := dec.Decode(&m)
+	err = dec.Decode(&m)
 	if err != nil {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
@@ -239,10 +239,11 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) error {
 	var seek_pos = int64(m["seek"].(float64))
 	var last_hash = m["last_hash"].(string)
 
-	fd, err := os.Open(fm.logfile)
-	if err != nil {
-		return err
+	var fd *os.File
+	if fd, err = os.Open(fm.logfile); err != nil {
+		return
 	}
+	defer fd.Close()
 
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')

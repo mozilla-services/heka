@@ -100,7 +100,7 @@ func createJournal() (journal string, err error) {
 	tmp_file, err = ioutil.TempFile("", "")
 	journal = tmp_file.Name()
 	tmp_file.Close()
-	return
+	return journal, nil
 }
 
 func InputsSpec(c gs.Context) {
