@@ -47,9 +47,10 @@ type StatsdInput struct {
 	Packet chan StatPacket
 
 	name     string
-	listener *net.UDPConn
+	listener net.Conn
 	stopChan chan bool
 	config   *StatsdInputConfig
+	sm       *statMonitor
 }
 
 // StatsInput config struct
@@ -117,11 +118,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 // configured to do so.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	s.stopChan = make(chan bool)
-	sm := NewStatMonitor(s.config.PercentThreshold, s.config.FlushInterval, ir, h,
+	s.sm = NewStatMonitor(s.config.PercentThreshold, s.config.FlushInterval, ir, h,
 		s.config.EmitInPayload, s.config.EmitInFields)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go sm.Monitor(s.Packet, &wg, s.stopChan)
+	go s.sm.Monitor(s.Packet, &wg, s.stopChan)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
@@ -136,7 +137,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		for !stopped {
 			message := make([]byte, 512)
 			s.listener.SetReadDeadline(time.Now().Add(timeout))
-			n, _, e = s.listener.ReadFromUDP(message)
+			n, e = s.listener.Read(message)
 
 			select {
 			case <-s.stopChan:
@@ -157,6 +158,8 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			}
 		}
 	}
+
+	close(s.sm.stopChan)
 	wg.Wait()
 	return
 }
@@ -207,6 +210,7 @@ type statMonitor struct {
 	h                PluginHelper
 	emitInPayload    bool
 	emitInFields     bool
+	stopChan         chan bool
 }
 
 // Returns a new statMonitor object.
@@ -222,6 +226,7 @@ func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
 		h:                h,
 		emitInPayload:    emitInPayload,
 		emitInFields:     emitInFields,
+		stopChan:         make(chan bool),
 	}
 }
 
@@ -236,7 +241,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, st
 	ok := true
 	for ok {
 		select {
-		case _, ok = <-stopChan:
+		case _, ok = <-sm.stopChan:
 			sm.Flush()
 		case <-t:
 			sm.Flush()
@@ -295,7 +300,7 @@ func (sm *statMonitor) Flush() {
 			fmt.Fprintf(buffer, "%s %d %d\n", scName, c, nowUnix)
 		}
 		if sm.emitInFields {
-			newField(sName, value)
+			newField(sName, int(value))
 			newField(scName, c)
 		}
 		sm.counters[s] = 0
