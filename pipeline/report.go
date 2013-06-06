@@ -231,7 +231,7 @@ func (pc *PipelineConfig) allReportsMsg() {
 	pc.router.InChan() <- pack
 }
 
-func (pc *PipelineConfig) reportStdOut(report_type, payload string) {
+func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {
 
 	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
 
@@ -262,4 +262,6 @@ func (pc *PipelineConfig) reportStdOut(report_type, payload string) {
 		strings.Join(report, "\n"))
 
 	pc.log(stdout_report)
+
+	return stdout_report
 }

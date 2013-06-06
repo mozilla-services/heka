@@ -163,5 +163,42 @@ func LoadFromConfigSpec(c gs.Context) {
 			matcher := runner.MatchRunner().MatcherSpecification().String()
 			c.Expect(matcher, gs.Equals, messageMatchStr)
 		})
+
+		c.Specify("for a DefaultsTestOutput", func() {
+			RegisterPlugin("DefaultsTestOutput", func() interface{} {
+				return new(DefaultsTestOutput)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults2.toml")
+			c.Expect(err, gs.IsNil)
+
+			data := `{"reports":[{"Plugin":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Plugin":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Plugin":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}},{"Plugin":"JsonDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"DecoderPool-JsonDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"DecoderPool-ProtobufDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Plugin":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}},{"Plugin":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Plugin":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
+
+			report := pipeConfig.reportStdOut("foo", data)
+
+			expected := `========[foo]========
+InChanCapacity|InChanLength|MatchChanCapacity|MatchChanLength|MatchAvgDuration|ProcessMessageCount|InjectMessageCount|Memory|MaxMemory|MaxInstructions|MaxOutput|ProcessMessageAvgDuration|TimerEventAvgDuration
+100|99|||||||||||
+100|98|||||||||||
+50|0||||26|||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+50|0|||||||||||
+4|4|||||||||||
+4|4|||||||||||
+50|0|50|0|0|0|||||||
+50|0|50|0|445|0|0|20644|20644|18|0|0|78532
+50|0|50|0|406||||||||
+50|0|50|0|336||||||||
+========
+`
+			c.Expect(report, gs.Equals, expected)
+
+		})
+
 	})
 }
