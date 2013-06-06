@@ -164,7 +164,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(matcher, gs.Equals, messageMatchStr)
 		})
 
-		c.Specify("for a DefaultsTestOutput", func() {
+		c.Specify("can render JSON reports as pipe delimited data", func() {
 			RegisterPlugin("DefaultsTestOutput", func() interface{} {
 				return new(DefaultsTestOutput)
 			})
