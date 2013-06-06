@@ -39,8 +39,8 @@ func mockOutputCreator() map[string]Output {
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
+
 	r.AddSpec(DecodersSpec)
-	r.AddSpec(InputsSpec)
 	r.AddSpec(FiltersSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
@@ -49,12 +49,14 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(ReportSpec)
 	r.AddSpec(AMQPPluginSpec)
 	r.AddSpec(StatsdInputSpec)
+	r.AddSpec(InputsSpec)
+	r.AddSpec(FileMonitorSpec)
 	gospec.MainGoTest(r, t)
 }
 
 func getTestMessage() *Message {
 	hostname, _ := os.Hostname()
-	field, _ := NewField("foo", "bar", Field_RAW)
+	field, _ := NewField("foo", "bar", "")
 	msg := &Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(time.Now().UnixNano())

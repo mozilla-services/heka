@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type NagiosOutputConfig struct {
@@ -28,22 +29,29 @@ type NagiosOutputConfig struct {
 	Username string
 	// Nagios password
 	Password string
+	// Http ResponseHeaderTimeout in seconds
+	ResponseHeaderTimeout uint
 }
 
 func (n *NagiosOutput) ConfigStruct() interface{} {
 	return &NagiosOutputConfig{
 		Url: "http://localhost/cgi-bin/cmd.cgi",
+		ResponseHeaderTimeout: 2,
 	}
 }
 
 type NagiosOutput struct {
-	conf   *NagiosOutputConfig
-	client *http.Client
+	conf      *NagiosOutputConfig
+	client    *http.Client
+	transport *http.Transport
 }
 
 func (n *NagiosOutput) Init(config interface{}) (err error) {
 	n.conf = config.(*NagiosOutputConfig)
-	n.client = new(http.Client)
+	n.transport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		ResponseHeaderTimeout: time.Duration(n.conf.ResponseHeaderTimeout) * time.Second}
+	n.client = &http.Client{Transport: n.transport}
 	return
 }
 

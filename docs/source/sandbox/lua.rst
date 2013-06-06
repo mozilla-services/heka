@@ -141,12 +141,18 @@ double **get**\ (nanoseconds, column)
     *Return*
         The value at the specifed row/column or nil if the time was outside the range of the buffer.
 
-int **set_header**\ (column, name, type)
+int **set_header**\ (column, name, unit, aggregation_method)
 
     *Arguments*
         - column (unsigned) The column number where the header information is applied.
-        - name (string) Descriptive name of the column (maximum 15 characters). Any non alpha numeric characters will be converted to underscores.
-        - type (string) The data type to aid with aggregation (count|min|max|avg|delta|percentage).
+        - name (string) Descriptive name of the column (maximum 15 characters). Any non alpha numeric characters will be converted to underscores. (default: Column_N)
+        - unit (string - optional) The unit of measure (maximum 7 characters). Alpha numeric, '/', and '*' characters are allowed everything else will be converted to underscores. i.e. KiB, Hz, m/s (default: count)
+        - aggregation_method (string - optional) Controls how the column data is aggregated when combining multiple circular buffers.
+            - **sum** The total is computed for the time/column (default).
+            - **min** The smallest value is retained for the time/column.
+            - **max** The largest value is retained for the time/column.
+            - **avg** The average is computed for the time/column.
+            - **none** No aggregation will be performed the column.
 
     *Return*
         The column number passed into the function.
@@ -183,7 +189,7 @@ Sample Output
 -------------
 .. code-block:: txt
 
-    {"time":2,"rows":3,"columns":3,"seconds_per_row":60,"column_info":[{"name":"HTTP_200","type":"count"},{"name":"HTTP_400","type":"count"},{"name":"HTTP_500","type":"count"}]}
+    {"time":2,"rows":3,"columns":3,"seconds_per_row":60,"column_info":[{"name":"HTTP_200","unit":"count","aggregation":"sum"},{"name":"HTTP_400","unit":"count","aggregation":"sum"},{"name":"HTTP_500","unit":"count","aggregation":"sum"}]}
     10002   0   0
     11323   0   0
     10685   0   0

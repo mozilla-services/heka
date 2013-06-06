@@ -29,6 +29,7 @@ import (
 // channel and write the values out to a single whisper db file as they do.
 type WhisperRunner interface {
 	InChan() chan *whisper.Point
+	Close() error
 }
 
 type wRunner struct {
@@ -83,7 +84,14 @@ func (wr *wRunner) start() {
 			}
 		}
 		wr.wg.Done()
+		if err = wr.Close(); err != nil {
+			log.Printf("Error closing whisper db file: %s\n", err.Error())
+		}
 	}()
+}
+
+func (wr *wRunner) Close() error {
+	return wr.db.Close()
 }
 
 func (wr *wRunner) InChan() chan *whisper.Point {

@@ -280,7 +280,7 @@ func (sm *statMonitor) Flush() {
 	pack := <-sm.ir.InChan()
 
 	newField := func(name string, value interface{}) {
-		if field, err = message.NewField(name, value, message.Field_RAW); err == nil {
+		if field, err = message.NewField(name, value, ""); err == nil {
 			pack.Message.AddField(field)
 		} else {
 			sm.ir.LogError(fmt.Errorf("Can't add field: %s", name))

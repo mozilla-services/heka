@@ -119,9 +119,9 @@ output_limit = 1024
 			msg.SetUuid(uuid.NewRandom())
 			msg.SetHostname(hostname)
 			msg.SetPayload(code)
-			f, _ := message.NewField("config", conf, message.Field_RAW)
+			f, _ := message.NewField("config", conf, "toml")
 			msg.AddField(f)
-			f1, _ := message.NewField("action", *action, message.Field_RAW)
+			f1, _ := message.NewField("action", *action, "")
 			msg.AddField(f1)
 			err = manager.SendMessage(msg)
 			if err != nil {
@@ -135,9 +135,9 @@ output_limit = 1024
 			msg.SetTimestamp(time.Now().UnixNano())
 			msg.SetUuid(uuid.NewRandom())
 			msg.SetHostname(hostname)
-			f, _ := message.NewField("name", fmt.Sprintf("CounterSandbox%d", i), message.Field_RAW)
+			f, _ := message.NewField("name", fmt.Sprintf("CounterSandbox%d", i), "")
 			msg.AddField(f)
-			f1, _ := message.NewField("action", *action, message.Field_RAW)
+			f1, _ := message.NewField("action", *action, "")
 			msg.AddField(f1)
 			err = manager.SendMessage(msg)
 			if err != nil {

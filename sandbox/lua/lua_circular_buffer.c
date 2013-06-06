@@ -21,29 +21,31 @@ const char* heka_circular_buffer = "Heka.circular_buffer";
 const char* heka_circular_buffer_table = "circular_buffer";
 
 #define COLUMN_NAME_SIZE 16
+#define UNIT_LABEL_SIZE 8
 
 static const time_t seconds_in_minute = 60;
 static const time_t seconds_in_hour = 60 * 60;
 static const time_t seconds_in_day = 60 * 60 * 24;
 
-static const char* column_type_names[] = { "count", "min", "max", "avg",
-    "delta", "percentage", NULL };
+static const char* column_aggregation_methods[] = { "sum", "min", "max", "avg",
+    "none", NULL };
+static const char* default_unit = "count";
 
 typedef enum {
-    TYPE_COUNT      = 0,
-    TYPE_MIN        = 1,
-    TYPE_MAX        = 2,
-    TYPE_AVG        = 3,
-    TYPE_DELTA      = 4,
-    TYPE_PERCENTAGE = 5,
+    AGGREGATION_SUM     = 0,
+    AGGREGATION_MIN     = 1,
+    AGGREGATION_MAX     = 2,
+    AGGREGATION_AVG     = 3,
+    AGGREGATION_NONE    = 4,
 
-    MAX_TYPE
-} COLUMN_TYPE;
+    MAX_AGGREGATION
+} COLUMN_AGGREGATION;
 
 typedef struct
 {
-    char        m_name[COLUMN_NAME_SIZE];
-    COLUMN_TYPE m_type;
+    char                m_name[COLUMN_NAME_SIZE];
+    char                m_unit[UNIT_LABEL_SIZE];
+    COLUMN_AGGREGATION  m_aggregation;
 } header_info;
 
 struct circular_buffer
@@ -120,6 +122,8 @@ static int circular_buffer_new(lua_State* lua)
     for (unsigned column_idx = 0; column_idx < cb->m_columns; ++column_idx) {
         snprintf(cb->m_headers[column_idx].m_name, COLUMN_NAME_SIZE,
                  "Column_%d", column_idx + 1);
+        strncpy(cb->m_headers[column_idx].m_unit, default_unit,
+                UNIT_LABEL_SIZE - 1);
     }
     return 1;
 }
@@ -226,16 +230,24 @@ static int circular_buffer_set(lua_State* lua)
 ////////////////////////////////////////////////////////////////////////////////
 static int circular_buffer_set_header(lua_State* lua)
 {
-    circular_buffer* cb             = check_circular_buffer(lua, 4);
-    int column                      = check_column(lua, cb, 2);
-    const char* name                = luaL_checkstring(lua, 3);
-    cb->m_headers[column].m_type    = luaL_checkoption(lua, 4, NULL, 
-                                                       column_type_names);
+    circular_buffer* cb                 = check_circular_buffer(lua, 3);
+    int column                          = check_column(lua, cb, 2);
+    const char* name                    = luaL_checkstring(lua, 3);
+    const char* unit                    = luaL_optstring(lua, 4, default_unit);
+    cb->m_headers[column].m_aggregation = luaL_checkoption(lua, 5, "sum",
+                                                           column_aggregation_methods);
 
     strncpy(cb->m_headers[column].m_name, name, COLUMN_NAME_SIZE - 1);
     char* n = cb->m_headers[column].m_name;
     for (int j = 0; n[j] != 0; ++j) {
         if (!isalnum(n[j])) {
+            n[j] = '_';
+        }
+    }
+    strncpy(cb->m_headers[column].m_unit, unit, UNIT_LABEL_SIZE - 1);
+    n = cb->m_headers[column].m_unit;
+    for (int j = 0; n[j] != 0; ++j) {
+        if (n[j] != '/' && n[j] != '*' && !isalnum(n[j])) {
             n[j] = '_';
         }
     }
@@ -390,13 +402,13 @@ static int circular_buffer_fromstring(lua_State* lua)
     const char* values  = luaL_checkstring(lua, 2);
 
     int n = 0;
-    int t;
+    long long t;
     double value;
-    if (!sscanf(values, "%d %d%n", &t, &cb->m_current_row, &n)) {
+    if (!sscanf(values, "%lld %d%n", &t, &cb->m_current_row, &n)) {
         lua_pushstring(lua, "fromstring() invalid time/row");
         lua_error(lua);
     }
-    cb->m_current_time = (time_t)t;
+    cb->m_current_time = t;
     int offset = n, pos = 0;
     size_t len = cb->m_rows * cb->m_columns;
     while (sscanf(&values[offset], "%lg%n", &value, &n) == 1) {
@@ -432,9 +444,10 @@ int output_circular_buffer(circular_buffer* cb, output_data* output)
         if (column_idx != 0) {
             if (dynamic_snprintf(output, ",")) return 1;
         }
-        if (dynamic_snprintf(output, "{\"name\":\"%s\",\"type\":\"%s\"}",
+        if (dynamic_snprintf(output, "{\"name\":\"%s\",\"unit\":\"%s\",\"aggregation\":\"%s\"}",
                              cb->m_headers[column_idx].m_name,
-                             column_type_names[cb->m_headers[column_idx].m_type])) {
+                             cb->m_headers[column_idx].m_unit,
+                             column_aggregation_methods[cb->m_headers[column_idx].m_aggregation])) {
             return 1;
         }
     }
@@ -475,16 +488,17 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
 
     unsigned column_idx;
     for (column_idx = 0; column_idx < cb->m_columns; ++column_idx) {
-        if (dynamic_snprintf(output, "%s:set_header(%d, \"%s\", \"%s\")\n",
+        if (dynamic_snprintf(output, "%s:set_header(%d, \"%s\", \"%s\", \"%s\")\n",
                              key,
                              column_idx + 1,
                              cb->m_headers[column_idx].m_name,
-                             column_type_names[cb->m_headers[column_idx].m_type])) {
+                             cb->m_headers[column_idx].m_unit,
+                             column_aggregation_methods[cb->m_headers[column_idx].m_aggregation])) {
             return 1;
         }
     }
 
-    if (dynamic_snprintf(output, "%s:fromstring(\"%d %d",
+    if (dynamic_snprintf(output, "%s:fromstring(\"%lld %d",
                          key,
                          (long long)cb->m_current_time,
                          cb->m_current_row)) {
