@@ -29,6 +29,16 @@ func (_m *MockWhisperRunner) EXPECT() *_MockWhisperRunnerRecorder {
 	return _m.recorder
 }
 
+func (_m *MockWhisperRunner) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockWhisperRunnerRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
 func (_m *MockWhisperRunner) InChan() chan *whisper.Point {
 	ret := _m.ctrl.Call(_m, "InChan")
 	ret0, _ := ret[0].(chan *whisper.Point)
