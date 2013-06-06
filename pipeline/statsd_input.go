@@ -18,7 +18,9 @@ package pipeline
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"net"
 	"regexp"
@@ -44,11 +46,11 @@ type StatsdInput struct {
 	// be directly sent in from other Plugins as needed.
 	Packet chan StatPacket
 
-	name             string
-	listener         *net.UDPConn
-	percentThreshold int
-	flushInterval    int64
-	stopChan         chan bool
+	name     string
+	listener net.Conn
+	stopChan chan bool
+	config   *StatsdInputConfig
+	sm       *statMonitor
 }
 
 // StatsInput config struct
@@ -62,6 +64,13 @@ type StatsdInputConfig struct {
 	// Percent threshold to use for computing "upper_N%" type stat values.
 	// Defaults to 90.
 	PercentThreshold int
+	// Specifies whether or not `statmetric` messages should have the
+	// statistics information embedded in the payload string, in the format
+	// expected graphite's carbon server.
+	EmitInPayload bool
+	// Specifies whether or not `statmetric` messages should have the
+	// statistics information embedded in the dynamic message fields.
+	EmitInFields bool
 }
 
 // A StatPacket appropriate for a plugin to feed directly into the
@@ -74,17 +83,25 @@ type StatPacket struct {
 }
 
 func (s *StatsdInput) ConfigStruct() interface{} {
-	return &StatsdInputConfig{FlushInterval: 10, PercentThreshold: 90}
+	return &StatsdInputConfig{
+		FlushInterval:    10,
+		PercentThreshold: 90,
+		EmitInPayload:    true,
+		EmitInFields:     true,
+	}
 }
 
 func (s *StatsdInput) Init(config interface{}) error {
-	conf := config.(*StatsdInputConfig)
-	s.flushInterval = conf.FlushInterval
-	s.percentThreshold = conf.PercentThreshold
+	s.config = config.(*StatsdInputConfig)
+	if !s.config.EmitInPayload && !s.config.EmitInFields {
+		return errors.New(
+			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
+		)
+	}
 	s.Packet = make(chan StatPacket, 5000)
 
-	if conf.Address != "" {
-		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+	if s.config.Address != "" {
+		udpAddr, err := net.ResolveUDPAddr("udp", s.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
@@ -101,10 +118,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 // configured to do so.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	s.stopChan = make(chan bool)
-	sm := NewStatMonitor(s.percentThreshold, s.flushInterval, ir, h)
+	s.sm = NewStatMonitor(s.config.PercentThreshold, s.config.FlushInterval, ir, h,
+		s.config.EmitInPayload, s.config.EmitInFields)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go sm.Monitor(s.Packet, &wg, s.stopChan)
+	go s.sm.Monitor(s.Packet, &wg, s.stopChan)
 
 	// Spin up the UDP listener if it was configured
 	if s.listener != nil {
@@ -119,7 +137,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		for !stopped {
 			message := make([]byte, 512)
 			s.listener.SetReadDeadline(time.Now().Add(timeout))
-			n, _, e = s.listener.ReadFromUDP(message)
+			n, e = s.listener.Read(message)
 
 			select {
 			case <-s.stopChan:
@@ -140,6 +158,8 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			}
 		}
 	}
+
+	close(s.sm.stopChan)
 	wg.Wait()
 	return
 }
@@ -188,11 +208,14 @@ type statMonitor struct {
 	flushInterval    int64
 	ir               InputRunner
 	h                PluginHelper
+	emitInPayload    bool
+	emitInFields     bool
+	stopChan         chan bool
 }
 
 // Returns a new statMonitor object.
 func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
-	h PluginHelper) *statMonitor {
+	h PluginHelper, emitInPayload, emitInFields bool) *statMonitor {
 	return &statMonitor{
 		counters:         make(map[string]int),
 		timers:           make(map[string][]float64),
@@ -201,6 +224,9 @@ func NewStatMonitor(percentThreshold int, flushInterval int64, ir InputRunner,
 		flushInterval:    flushInterval,
 		ir:               ir,
 		h:                h,
+		emitInPayload:    emitInPayload,
+		emitInFields:     emitInFields,
+		stopChan:         make(chan bool),
 	}
 }
 
@@ -215,7 +241,7 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, st
 	ok := true
 	for ok {
 		select {
-		case _, ok = <-stopChan:
+		case _, ok = <-sm.stopChan:
 			sm.Flush()
 		case <-t:
 			sm.Flush()
@@ -240,27 +266,64 @@ func (sm *statMonitor) Monitor(packets <-chan StatPacket, wg *sync.WaitGroup, st
 // Extracts all of the accumulated data and generates and injects a statmetric
 // message into the Heka pipeline.
 func (sm *statMonitor) Flush() {
-	var value float64
-	var intval int64
+	var (
+		value         float64
+		intval        int64
+		field         *message.Field
+		err           error
+		sName, scName string
+	)
 	numStats := 0
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
 	buffer := bytes.NewBufferString("")
+	pack := <-sm.ir.InChan()
+
+	newField := func(name string, value interface{}) {
+		if field, err = message.NewField(name, value, ""); err == nil {
+			pack.Message.AddField(field)
+		} else {
+			sm.ir.LogError(fmt.Errorf("Can't add field: %s", name))
+		}
+	}
+
+	if sm.emitInFields {
+		newField("timestamp", nowUnix)
+	}
+
 	for s, c := range sm.counters {
 		value = float64(c) / ((float64(sm.flushInterval) * float64(time.Second)) / float64(1e3))
-		fmt.Fprintf(buffer, "stats.%s %f %d\n", s, value, nowUnix)
-		fmt.Fprintf(buffer, "stats_counts.%s %d %d\n", s, c, nowUnix)
+		sName = fmt.Sprintf("stats.%s", s)
+		scName = fmt.Sprintf("stats_counts.%s", s)
+		if sm.emitInPayload {
+			fmt.Fprintf(buffer, "%s %f %d\n", sName, value, nowUnix)
+			fmt.Fprintf(buffer, "%s %d %d\n", scName, c, nowUnix)
+		}
+		if sm.emitInFields {
+			newField(sName, int(value))
+			newField(scName, c)
+		}
 		sm.counters[s] = 0
 		numStats++
 	}
 	for i, g := range sm.gauges {
 		intval = int64(g)
-		fmt.Fprintf(buffer, "stats.%s %d %d\n", i, intval, nowUnix)
+		sName = fmt.Sprintf("stats.%s", i)
+		if sm.emitInPayload {
+			fmt.Fprintf(buffer, "%s %d %d\n", sName, intval, nowUnix)
+		}
+		if sm.emitInFields {
+			newField(sName, intval)
+		}
 		numStats++
 	}
-	var min, max, mean, maxAtThreshold, sum float64
-	var count, thresholdIndex, numInThreshold, i int
-	var values []float64
+
+	var (
+		min, max, mean, maxAtThreshold, sum      float64
+		count, thresholdIndex, numInThreshold, i int
+		values                                   []float64
+	)
+
 	for u, t := range sm.timers {
 		if len(t) > 0 {
 			sort.Float64s(t)
@@ -282,25 +345,45 @@ func (sm *statMonitor) Flush() {
 			}
 			sm.timers[u] = t[:0]
 
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
-				sm.percentThreshold, maxAtThreshold, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
+			if sm.emitInPayload {
+				fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
+					sm.percentThreshold, maxAtThreshold, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
+			}
+
+			if sm.emitInFields {
+				newField(fmt.Sprintf("stats.timers.%s.mean", u), mean)
+				newField(fmt.Sprintf("stats.timers.%s.upper", u), max)
+				newField(fmt.Sprintf("stats.timers.%s.upper_%d", u, sm.percentThreshold),
+					maxAtThreshold)
+				newField(fmt.Sprintf("stats.timers.%s.lower", u), min)
+				newField(fmt.Sprintf("stats.timers.%s.count", u), count)
+			}
 		} else {
-			// Need to still submit timers as zero
-			fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
-				sm.percentThreshold, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
-			fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
+			if sm.emitInPayload {
+				// Need to still submit timers as zero
+				fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
+					sm.percentThreshold, 0, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
+				fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
+			}
+			if sm.emitInFields {
+				newField(fmt.Sprintf("stats.timers.%s.mean", u), 0)
+				newField(fmt.Sprintf("stats.timers.%s.upper", u), 0)
+				newField(fmt.Sprintf("stats.timers.%s.upper_%d", u, sm.percentThreshold),
+					0)
+				newField(fmt.Sprintf("stats.timers.%s.lower", u), 0)
+				newField(fmt.Sprintf("stats.timers.%s.count", u), 0)
+			}
 		}
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
-	pack := <-sm.ir.InChan()
 	pack.Message.SetType("statmetric")
 	pack.Message.SetTimestamp(now.UnixNano())
 	pack.Message.SetUuid(uuid.NewRandom())
