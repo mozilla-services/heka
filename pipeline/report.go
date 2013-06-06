@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"strings"
@@ -219,7 +220,46 @@ func (pc *PipelineConfig) allReportsMsg() {
 	payload = append(payload, "]}")
 
 	pack := pc.PipelinePack(0)
-	pack.Message.SetType("heka.all-report")
-	pack.Message.SetPayload(strings.Join(payload, ""))
+	report_type := "heka.all-report"
+	pack.Message.SetType(report_type)
+
+	msg_payload := strings.Join(payload, "")
+	pack.Message.SetPayload(msg_payload)
+
+	pc.reportStdOut(report_type, msg_payload)
+
 	pc.router.InChan() <- pack
+}
+
+func (pc *PipelineConfig) reportStdOut(report_type, payload string) {
+
+	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
+
+	m := make(map[string]interface{})
+	json.Unmarshal([]byte(payload), &m)
+
+	report := make([]string, 0)
+
+	report = append(report, strings.Join(header, "|"))
+	for _, row := range m["reports"].([]interface{}) {
+
+		rowdata := make([]string, 0)
+		for _, colname := range header {
+			data := row.(map[string]interface{})[colname]
+			if data != nil {
+				rowdata = append(rowdata,
+					fmt.Sprintf("%s", data.(map[string]interface{})["value"]))
+			} else {
+				rowdata = append(rowdata, "")
+			}
+		}
+
+		report = append(report, strings.Join(rowdata, "|"))
+	}
+
+	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",
+		report_type,
+		strings.Join(report, "\n"))
+
+	pc.log(stdout_report)
 }
