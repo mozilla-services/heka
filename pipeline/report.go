@@ -226,7 +226,9 @@ func (pc *PipelineConfig) allReportsMsg() {
 	msg_payload := strings.Join(payload, "")
 	pack.Message.SetPayload(msg_payload)
 
-	pc.reportStdOut(report_type, msg_payload)
+	if Globals().StdoutReport {
+		pc.reportStdOut(report_type, msg_payload)
+	}
 
 	pc.router.InChan() <- pack
 }

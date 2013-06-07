@@ -167,6 +167,10 @@ Command Line Options
     plugins. Defaults to 50, which is usually sufficient and of optimal
     performance.
 
+``-stdout_report`` `bool`
+    Specify whether internal hekad reports should also be emitted to
+    stdout as well as the dashboard.
+
 .. end-options
 
 .. start-restarting
@@ -844,6 +848,11 @@ DashboardOutput
 Specialized output plugin that listens for certain Heka reporting message
 types and generates JSON data which is made available via HTTP for use in web
 based dashboards and health reports.
+
+You can force the dashboard to update by sending SIGUSR1 to the hekad
+process on UNIX.  Windows doesn't support user defined signals, so you
+will need to wait until the ticker interval has passed for the
+dashboard to update.
 
 Parameters:
 
