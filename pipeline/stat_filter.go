@@ -17,7 +17,6 @@
 package pipeline
 
 import (
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 )
 
@@ -70,26 +69,13 @@ func (s *StatFilter) Init(config interface{}) (err error) {
 // by the hostname from the received message.
 func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	inChan := fr.InChan()
+	statChan := h.StatMonitor().StatChan()
 
 	var (
 		pack     *PipelinePack
-		sp       StatPacket
+		stat     Stat
 		captures map[string]string
-		ir       InputRunner
-		ok       bool
 	)
-
-	// Pull the statsd input out
-	ir, ok = h.PipelineConfig().InputRunners[s.inputName]
-	if !ok {
-		return fmt.Errorf("Unable to locate StatsdInput '%s', was it configured?",
-			s.inputName)
-	}
-	statInput, ok := ir.Plugin().(*StatsdInput)
-	if !ok {
-		return fmt.Errorf("Unable to coerce '%s' input plugin to StatsdInput",
-			s.inputName)
-	}
 
 	for plc := range inChan {
 		pack = plc.Pack
@@ -112,17 +98,17 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
-			sp.Bucket = InterpolateString(met.Name, captures)
+			stat.Bucket = InterpolateString(met.Name, captures)
 			switch met.Type_ {
 			case "Counter":
-				sp.Modifier = ""
+				stat.Modifier = ""
 			case "Timer":
-				sp.Modifier = "ms"
+				stat.Modifier = "ms"
 			case "Gauge":
-				sp.Modifier = "g"
+				stat.Modifier = "g"
 			}
-			sp.Value = InterpolateString(met.Value, captures)
-			statInput.Packet <- sp
+			stat.Value = InterpolateString(met.Value, captures)
+			statChan <- stat
 		}
 		pack.Recycle()
 	}
