@@ -122,9 +122,22 @@ func DecodersSpec(c gospec.Context) {
 		conf := decoder.ConfigStruct().(*LoglineDecoderConfig)
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
+		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
+
+		c.Specify("reading an apache timestamp", func() {
+			conf.MatchRegex = `/\[(?P<Timestamp>[^\]]+)\]/`
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[18/Apr/2013:14:00:28 -0700]")
+			err = decoder.Decode(pack)
+			c.Expect(pack.Message.GetTimestamp() == 1366318828000000000, gs.IsTrue)
+			pack.Zero()
+		})
 
 		c.Specify("reading test-zeus.log", func() {
-			conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>\d\d?\/[A-Z][a-z]+\/\d{4}:\d{2}:\d{2}:\d{2} -?\d*)] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
+			conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>[^\]]+)\] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
 			conf.MessageFields = MessageTemplate{
 				"hostname": "%Hostname%",
 				"ip":       "%Ip%",

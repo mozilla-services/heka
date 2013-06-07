@@ -19,6 +19,7 @@ import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"strconv"
+	"time"
 )
 
 type LoglineDecoderConfig struct {
@@ -87,8 +88,17 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 		return fmt.Errorf("No match")
 	}
 
-	// Was a severity string captured?
-	if sevStr, ok := captures["Severity"]; ok {
+	if timeStamp, ok := captures["Timestamp"]; ok {
+		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp)
+		if err != nil {
+			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
+		}
+		// Did we get a year?
+		if val.Year() == 0 {
+			val = val.AddDate(time.Now().Year(), 0, 0)
+		}
+		pack.Message.SetTimestamp(val.UnixNano())
+	} else if sevStr, ok := captures["Severity"]; ok {
 		// If so, see if we have a mapping for this severity.
 		if sevInt, ok := ld.SeverityMap[sevStr]; ok {
 			pack.Message.SetSeverity(sevInt)
@@ -102,8 +112,7 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 			}
 		}
 	}
-
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	return ld.MessageFields.PopulateMessage(pack.Message, captures, ld.TimestampLayout)
+	return ld.MessageFields.PopulateMessage(pack.Message, captures)
 }
