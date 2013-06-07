@@ -48,7 +48,6 @@ func main() {
 	maxMsgLoops := flag.Uint("max_message_loops", 4, "Maximum number of times a message can pass thru the system")
 	maxMsgProcessInject := flag.Uint("max_process_inject", 1, "Maximum number of messages that ProcessMessage can inject in a single call")
 	maxMsgTimerInject := flag.Uint("max_timer_inject", 10, "Maximum number of messages that TimerEvent can inject in a single call")
-	stdout_report := flag.Bool("stdout_report", false, "Send reports to stdout in pipe-delimited format")
 	flag.Parse()
 
 	if *version {
@@ -84,7 +83,6 @@ func main() {
 	globals.DecoderPoolSize = *decoderPoolSize
 	globals.PluginChanSize = *chanSize
 	globals.MaxMsgLoops = *maxMsgLoops
-	globals.StdoutReport = *stdout_report
 	if globals.MaxMsgLoops == 0 {
 		globals.MaxMsgLoops = 1
 	}

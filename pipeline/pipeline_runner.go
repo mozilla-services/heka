@@ -46,7 +46,6 @@ type GlobalConfigStruct struct {
 	MaxMsgProcessInject uint
 	MaxMsgTimerInject   uint
 	Stopping            bool
-    StdoutReport        bool
 	sigChan             chan os.Signal
 }
 
@@ -59,7 +58,6 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgLoops:         4,
 		MaxMsgProcessInject: 1,
 		MaxMsgTimerInject:   10,
-        StdoutReport:false,
 	}
 }
 
@@ -550,7 +548,7 @@ func Run(config *PipelineConfig) {
 				globals.Stopping = true
 			case SIGUSR1:
 				log.Println("Queue report initiated.")
-				go config.allReportsMsg()
+				go config.allReportsStdout()
 			}
 		}
 	}

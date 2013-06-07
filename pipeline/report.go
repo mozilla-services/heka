@@ -184,7 +184,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 // Generates a single message with a payload that is a string representation
 // of the fields data and payload extracted from each running plugin's report
 // message and hands the message to the router for delivery.
-func (pc *PipelineConfig) allReportsMsg() {
+func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 	payload := make([]string, 0, 10)
 	var iName interface{}
 	var name, line string
@@ -219,18 +219,26 @@ func (pc *PipelineConfig) allReportsMsg() {
 	}
 	payload = append(payload, "]}")
 
+	report_type = "heka.all-report"
+	msg_payload = strings.Join(payload, "")
+	return
+}
+
+// Generates a single message with a payload that is a string representation
+// of the fields data and payload extracted from each running plugin's report
+// message and hands the message to the router for delivery.
+func (pc *PipelineConfig) allReportsMsg() {
+	report_type, msg_payload := pc.allReportsData()
+
 	pack := pc.PipelinePack(0)
-	report_type := "heka.all-report"
 	pack.Message.SetType(report_type)
-
-	msg_payload := strings.Join(payload, "")
 	pack.Message.SetPayload(msg_payload)
-
-	if Globals().StdoutReport {
-		pc.reportStdOut(report_type, msg_payload)
-	}
-
 	pc.router.InChan() <- pack
+}
+
+func (pc *PipelineConfig) allReportsStdout() {
+	report_type, msg_payload := pc.allReportsData()
+	pc.reportStdOut(report_type, msg_payload)
 }
 
 func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {

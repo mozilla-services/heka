@@ -19,9 +19,9 @@ import (
 	"syscall"
 )
 
-// Define it since it is not defined for Windows,
-// Note that this won't actually allow heka to respond to SIGUSR1 as
-// signals are all system defined, but we will at least be able to
-// compile.
+// Define it since it is not defined for Windows.
 
-const SIGUSR1 = syscall.Signal(math.MaxInt32)
+// Note that you will need to manually send signal 10 to hekad as
+// SIGUSR1 isn't defined on Windows.
+
+const SIGUSR1 = syscall.Signal(0xa)
