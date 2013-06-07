@@ -39,6 +39,8 @@ type DashboardOutputConfig struct {
 	WorkingDirectory string `toml:"working_directory"`
 	// Default interval at which dashboard will update is 5 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
+	// Default message matcher
+	MessageMatcher string
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
@@ -46,6 +48,7 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 		Address:          ":4352",
 		WorkingDirectory: "./dashboard",
 		TickerInterval:   uint(5),
+		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
 	}
 }
 
@@ -464,6 +467,7 @@ func getCbufTemplate() string {
     </script>
 </head>
 <body onload="heka_load_cbuf('%s', load_complete);">
+<a href="heka_report.html">Dashboard</a>
 <p id="title" style="text-align: center">
 </p>
 </body>

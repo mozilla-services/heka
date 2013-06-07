@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -142,7 +143,7 @@ func (self *messageRouter) Start() {
 				if !ok {
 					break
 				}
-				self.processMessageCount++
+				atomic.AddInt64(&self.processMessageCount, 1)
 				for _, matcher = range self.fMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
@@ -178,7 +179,8 @@ type MatchRunner struct {
 	signer        string
 	inChan        chan *PipelinePack
 	matchSamples  int64
-	matchDuration time.Duration
+	matchDuration int64
+	reportLock    sync.Mutex
 }
 
 // Creates and returns a new MatchRunner if possible, or a relevant error if
@@ -244,12 +246,14 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			// condition which is usesful for the overall system health but not
 			// matcher tuning.  Capturing the duration adds ~40ns
 			if counter == random {
-				mr.matchSamples++
 				startTime = time.Now()
 
 				match, captures = mr.spec.Match(pack.Message)
 
-				mr.matchDuration += time.Since(startTime)
+				mr.reportLock.Lock()
+				mr.matchDuration += time.Since(startTime).Nanoseconds()
+				mr.matchSamples++
+				mr.reportLock.Unlock()
 				if mr.matchSamples > capacity {
 					// the timings can vary greatly, so we need to establish a
 					// decent baseline before we start sampling
