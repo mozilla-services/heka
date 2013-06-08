@@ -148,16 +148,16 @@ timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
 [SyncProxyDecoder.MessageFields]
 Type = "SyncProxyLog"
-RemoteIP = "%RemoteIP%"
+RemoteIP|ipv4 = "%RemoteIP%"
 User = "%User%"
 Method = "%Method%"
-Url = "%Url%"
+Url|uri = "%Url%"
 StatusCode = "%StatusCode%"
-RequestSize = "%RequestSize%"
+RequestSize|B= "%RequestSize%"
 Referer = "%Referer%"
 Browser = "%Browser%"
-ResponseTime = "%ResponseTime%"
-ResponseSize = "%ResponseSize%"
+ResponseTime|s = "%ResponseTime%"
+ResponseSize|B = "%ResponseSize%"
 Payload = ""
 
 [SyncProxyFilter]
