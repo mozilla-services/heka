@@ -548,7 +548,12 @@ Parameters:
     that should be used. Valid interpolated values are any captured in a regex
     in the message_matcher, and any other field that exists in the message. In
     the event that a captured name overlaps with a message field, the captured
-    name's value will be used.
+    name's value will be used. Optional representation metadata can be added at 
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
+    bytes.  Adding a representation string to a standard message header name
+    will cause it to be added as a user defined field i.e., Payload|json will
+    create Fields[Payload] with a json representation.
 
     Interpolated values should be surrounded with `%` signs, for example::
 
@@ -568,8 +573,8 @@ Example (Parsing Apache Combined Log Format):
 
     [apache_transform_decoder]
     type = "LoglineDecoder"
-    matchRegex = `/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
-    timestamplayout = "02/Jan/2006:15:04:05 +0100"
+    matchRegex = `/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
     [apache_transform_decoder.SeverityMap]
     DEBUG = 1
@@ -579,10 +584,10 @@ Example (Parsing Apache Combined Log Format):
     [apache_transform_decoder.MessageFields]
     Type = "ApacheLogfile"
     Logger = "apache"
-    Url = "%Url%"
+    Url|uri = "%Url%"
     Method = "%Method%"
     Status = "%Status%"
-    Bytes = "%Bytes%"
+    RequestSize|B = "%RequestSize%"
     Referer = "%Referer%"
     Browser = "%Browser%"
 
