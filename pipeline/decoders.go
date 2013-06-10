@@ -24,6 +24,7 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -255,8 +256,12 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 		case "Uuid":
 			msg.SetUuid([]byte(val))
 		default:
-			field, err := message.NewField(field, val, "")
-			msg.AddField(field)
+			fi := strings.SplitN(field, "|", 2)
+			if len(fi) < 2 {
+				fi = append(fi, "")
+			}
+			f, err := message.NewField(fi[0], val, fi[1])
+			msg.AddField(f)
 			if err != nil {
 				return err
 			}
