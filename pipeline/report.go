@@ -241,35 +241,40 @@ func (pc *PipelineConfig) allReportsStdout() {
 	pc.reportStdOut(report_type, msg_payload)
 }
 
+/*
+
+*/
 func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {
 
 	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
 
+	///////////
+
 	m := make(map[string]interface{})
 	json.Unmarshal([]byte(payload), &m)
 
-	report := make([]string, 0)
+	//fmt.Printf("%s\n", "Plugin|"+strings.Join(header, "|"))
 
-	report = append(report, strings.Join(header, "|"))
+	fullReport := make([]string, 0)
 	for _, row := range m["reports"].([]interface{}) {
-
-		rowdata := make([]string, 0)
+		pluginReport := make([]string, 0)
+		pluginReport = append(pluginReport, fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
 		for _, colname := range header {
 			data := row.(map[string]interface{})[colname]
 			if data != nil {
-				rowdata = append(rowdata,
-					fmt.Sprintf("%s", data.(map[string]interface{})["value"]))
-			} else {
-				rowdata = append(rowdata, "")
+				pluginReport = append(pluginReport,
+					fmt.Sprintf("    %s: %s",
+						colname,
+						data.(map[string]interface{})["value"]))
 			}
 		}
 
-		report = append(report, strings.Join(rowdata, "|"))
+		fullReport = append(fullReport, strings.Join(pluginReport, "\n"))
 	}
 
 	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",
 		report_type,
-		strings.Join(report, "\n"))
+		strings.Join(fullReport, "\n"))
 
 	pc.log(stdout_report)
 
