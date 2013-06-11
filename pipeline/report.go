@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"strings"
+	"sync/atomic"
 )
 
 // Interface for Heka plugins that will provide reporting data. Plugins can
@@ -80,10 +81,11 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan), "count")
 		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan), "count")
 		var tmp int64 = 0
+		fRunner.MatchRunner().reportLock.Lock()
 		if fRunner.MatchRunner().matchSamples > 0 {
-			tmp = fRunner.MatchRunner().matchDuration.Nanoseconds() /
-				fRunner.MatchRunner().matchSamples
+			tmp = fRunner.MatchRunner().matchDuration / fRunner.MatchRunner().matchSamples
 		}
+		fRunner.MatchRunner().reportLock.Unlock()
 		newInt64Field(msg, "MatchAvgDuration", tmp, "ns")
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
 		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()), "count")
@@ -123,7 +125,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
 	newIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
-	newInt64Field(msg, "ProcessMessageCount", pc.router.processMessageCount, "count")
+	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&pc.router.processMessageCount), "count")
 	msg.SetType("heka.router-report")
 	setNameField(msg, "Router")
 	reportChan <- pack
@@ -143,12 +145,8 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
-		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
-			setNameField(pack.Message, name)
-			reportChan <- pack
-		} else {
-			pack.Recycle()
-		}
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
 
 	for _, runner := range pc.allDecoders {

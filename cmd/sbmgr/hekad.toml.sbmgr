@@ -20,14 +20,13 @@ encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
-message_matcher = "Type != 'heka.sandbox-output' && Type != 'hekabench'"
+message_matcher = "Type == 'heka.report'"
 
 [Dashboard]
 type = "DashboardOutput"
 address = "127.0.0.1:4352"
 ticker_interval = 5
 working_directory = "./dashboard"
-message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
@@ -57,6 +56,7 @@ preserve_data = true
 memory_limit = 256000
 instruction_limit = 1000
 output_limit = 64000
+profile = true
 
 [SlowMatcher]
 type = "SandboxFilter"
@@ -134,3 +134,39 @@ preserve_data = false
 memory_limit = 32767
 instruction_limit = 1000000
 output_limit = 1024
+
+[SyncProxyInput]
+type = "LogfileInput"
+logfile = "./sync-proxy.log"
+decoders = ["SyncProxyDecoder"]
+seekjournal = "./seekjournal"
+
+[SyncProxyDecoder]
+type = "LoglineDecoder"
+matchRegex = '/^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)/'
+timestamplayout = "02/Jan/2006:15:04:05 -0700"
+
+[SyncProxyDecoder.MessageFields]
+Type = "SyncProxyLog"
+RemoteIP|ipv4 = "%RemoteIP%"
+User = "%User%"
+Method = "%Method%"
+Url|uri = "%Url%"
+StatusCode = "%StatusCode%"
+RequestSize|B= "%RequestSize%"
+Referer = "%Referer%"
+Browser = "%Browser%"
+ResponseTime|s = "%ResponseTime%"
+ResponseSize|B = "%ResponseSize%"
+Payload = ""
+
+[SyncProxyFilter]
+type = "SandboxFilter"
+message_matcher = "Type == 'SyncProxyLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/sync_proxy.lua"
+preserve_data = false
+memory_limit = 1000000
+instruction_limit = 100000
+output_limit = 64000

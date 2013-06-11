@@ -24,8 +24,8 @@ import (
 	"log"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
-	"time"
 )
 
 // Encapsulates access to a set of DecoderRunners.
@@ -234,24 +234,9 @@ type MessageTemplate map[string]string
 
 // Applies this message template's values to the provided message object,
 // interpolating the provided substitutions into the values in the process.
-func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string,
-	timeFormat string) error {
-
+func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string) error {
 	var val string
 	for field, rawVal := range mt {
-		if field == "Timestamp" {
-			val, err := message.ForgivingTimeParse(timeFormat, rawVal)
-			if err != nil {
-				return err
-			}
-			// Did we get a year?
-			if val.Year() == 0 {
-				val = val.AddDate(time.Now().Year(), 0, 0)
-			}
-			msg.SetTimestamp(val.UnixNano())
-			continue
-		}
-
 		val = InterpolateString(rawVal, subs)
 		switch field {
 		case "Logger":
@@ -271,8 +256,12 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 		case "Uuid":
 			msg.SetUuid([]byte(val))
 		default:
-			field, err := message.NewField(field, val, "")
-			msg.AddField(field)
+			fi := strings.SplitN(field, "|", 2)
+			if len(fi) < 2 {
+				fi = append(fi, "")
+			}
+			f, err := message.NewField(fi[0], val, fi[1])
+			msg.AddField(f)
 			if err != nil {
 				return err
 			}

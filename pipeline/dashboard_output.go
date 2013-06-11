@@ -39,6 +39,8 @@ type DashboardOutputConfig struct {
 	WorkingDirectory string `toml:"working_directory"`
 	// Default interval at which dashboard will update is 5 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
+	// Default message matcher
+	MessageMatcher string
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
@@ -46,6 +48,7 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 		Address:          ":4352",
 		WorkingDirectory: "./dashboard",
 		TickerInterval:   uint(5),
+		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
 	}
 }
 
@@ -323,47 +326,34 @@ func getReportHtml() string {
 <body class="yui3-skin-sam" style="font-size:.8em">
     <div id="report"></div>
 <script>
-YUI().use("datatable-base", "datasource", "datasource-jsonschema", "datatable-datasource", "datatable-sort", function (Y) {
+YUI().use("datatable-base", "datasource", "datasource-jsonschema", "datatable-datasource", "datatable-sort", "datatype", function (Y) {
 var dataSource = new Y.DataSource.IO({source:"heka_report.json"});
 dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
         schema: {
             resultListLocator: 'reports',
             resultFields: [
                 'Plugin',
-                {key:'InChanCapacity',locator:'InChanCapacity.value'},
-                {key:'InChanLength',locator:'InChanLength.value'},
-                {key:'MatchChanCapacity',locator:'MatchChanCapacity.value'},
-                {key:'MatchChanLength',locator:'MatchChanLength.value'},
-                {key:'MatchAvgDuration',locator:'MatchAvgDuration.value'},
-                {key:'ProcessMessageCount',locator:'ProcessMessageCount.value'},
-                {key:'InjectMessageCount',locator:'InjectMessageCount.value'},
-                {key:'Memory',locator:'Memory.value'},
-                {key:'MaxMemory',locator:'MaxMemory.value'},
-                {key:'MaxInstructions',locator:'MaxInstructions.value'},
-                {key:'MaxOutput',locator:'MaxOutput.value'},
-                {key:'ProcessMessageAvgDuration',locator:'ProcessMessageAvgDuration.value'},
-                {key:'TimerEventAvgDuration',locator:'TimerEventAvgDuration.value'}
+                {key:'InChanCapacity',locator:'InChanCapacity.value',parser:'number'},
+                {key:'InChanLength',locator:'InChanLength.value',parser:'number'},
+                {key:'MatchChanCapacity',locator:'MatchChanCapacity.value',parser:'number'},
+                {key:'MatchChanLength',locator:'MatchChanLength.value',parser:'number'},
+                {key:'MatchAvgDuration',locator:'MatchAvgDuration.value',parser:'number'},
+                {key:'ProcessMessageCount',locator:'ProcessMessageCount.value',parser:'number'},
+                {key:'InjectMessageCount',locator:'InjectMessageCount.value',parser:'number'}
             ]
         }}
     });
 
 var table = new Y.DataTable({
-    columns: [{key: 'Plugin', sortable:true, formatter: '<a href="{value}.html">{value}</a>', allowHTML: true},
+    columns: [{key: 'Plugin', sortable:true, formatter: '<a href="/{value}.html">{value}</a>', allowHTML: false},
               {key: 'InChanCapacity', sortable:true},
               {key: 'InChanLength', sortable:true},
               {key: 'MatchChanCapacity', sortable:true},
               {key: 'MatchChanLength', sortable:true},
               {key: 'MatchAvgDuration', sortable:true, label: 'MatchAvgDuration (ns)'},
               {key:'ProcessMessageCount', sortable:true, label: 'ProcessedMsgs'},
-              {key:'InjectMessageCount', sortable:true, label: 'InjectedMsgs'},
-              {label: 'Sandbox Metrics', children: [
-                {key:'Memory', sortable:true, label: 'Mem (B)'},
-                {key:'MaxMemory', sortable:true, label: 'MaxMem (B)'},
-                {key:'MaxOutput', sortable:true, label: 'MaxOutput (B)'},
-                {key:'MaxInstructions', sortable:true},
-                {key:'ProcessMessageAvgDuration', sortable:true, label: 'AvgProcess (ns)'},
-                {key:'TimerEventAvgDuration', sortable:true, label: 'AvgOutput (ns)'}
-              ]}],
+              {key:'InjectMessageCount', sortable:true, label: 'InjectedMsgs'}
+              ],
     caption: 'Heka Plugin Report<br/>(cannot find it? see: <a href="heka_sandbox_termination.html">Heka Sandbox Termination Report</a>)'
 });
 table.plug(Y.Plugin.DataTableDataSource, {datasource: dataSource})
@@ -464,6 +454,7 @@ func getCbufTemplate() string {
     </script>
 </head>
 <body onload="heka_load_cbuf('%s', load_complete);">
+<a href="heka_report.html">Dashboard</a>
 <p id="title" style="text-align: center">
 </p>
 </body>
