@@ -210,6 +210,7 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	tmp := map[string]interface{}{
 		"seek":      fm.seek,
 		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
+		"last_line": fm.last_logline,
 	}
 
 	return json.Marshal(tmp)
@@ -380,20 +381,6 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		}
 	}
 
-	// Check that we haven't been rotated, if we have, put this back on
-	// discover
-	isRotated := false
-	pinfo, err := os.Stat(fileName)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		isRotated = true
-		defer func() {
-			fd.Close()
-			fm.fd = nil
-			fm.seek = 0
-			fm.discover = true
-		}()
-	}
-
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
@@ -406,22 +393,45 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		bytes_read += int64(len(readLine))
-
-		// Note that in case we hit EOF before the \n delimiter,
-		// reader.ReadString will return both the incomplete line in
-		// readLine as well as the EOF error.
 		readLine, err = reader.ReadString('\n')
 	}
 
-	if err == io.EOF && len(readLine) > 0 {
-		if isRotated {
-			fm.LogMessage(fmt.Sprintf("discard last line: [%s]", readLine))
-		} else {
-			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+	fm.seek += bytes_read
+
+	if err == io.EOF {
+		if len(readLine) > 0 {
+			// End of file has been reached, but we didn't get a newline delimiter
+			// so there is some chunk of data in readLine.
+
+			// First do a stat to see if we didn't get the delimiter
+			// because of file rotation
+			pinfo, _ := os.Stat(fileName)
+			if os.SameFile(pinfo, finfo) {
+				// Case 1) We haven't rotated, so data may still be
+				// inbound.
+			} else {
+				// Case 2) we've been rotated
+
+				// Pass the last line read along and close off the file
+				// handles and reset the seek position and push the file
+				// back onto the discover pile.
+				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
+				fm.NewLines <- line
+
+				fd.Close()
+				if fm.fd != nil {
+					fm.fd = nil
+				}
+				fm.seek = 0
+				fm.discover = true
+			}
+		} else { // len(readLine) == 0
+			// This is the normal case where EOF is reached and no new
+			// data is available. Don't actually close the file here,
+			// we'll let file rotation detection do that.
 		}
 	}
 
-	fm.seek += bytes_read
 	if ok = fm.updateJournal(bytes_read); ok == false {
 		return
 	}
