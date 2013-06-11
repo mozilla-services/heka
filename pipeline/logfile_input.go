@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"strings"
@@ -211,7 +210,6 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	tmp := map[string]interface{}{
 		"seek":      fm.seek,
 		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
-		"last_line": fm.last_logline,
 	}
 
 	return json.Marshal(tmp)
@@ -408,12 +406,16 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		bytes_read += int64(len(readLine))
+
+		// Note that in case we hit EOF before the \n delimiter,
+		// reader.ReadString will return both the incomplete line in
+		// readLine as well as the EOF error.
 		readLine, err = reader.ReadString('\n')
 	}
 
 	if err == io.EOF && len(readLine) > 0 {
 		if isRotated {
-			log.Printf("discard last line: %s\n", readLine)
+			fm.LogMessage(fmt.Sprintf("discard last line: [%s]", readLine))
 		} else {
 			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
 		}
