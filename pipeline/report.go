@@ -145,12 +145,8 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
-		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
-			setNameField(pack.Message, name)
-			reportChan <- pack
-		} else {
-			pack.Recycle()
-		}
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
 
 	for _, runner := range pc.allDecoders {
