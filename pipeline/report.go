@@ -238,13 +238,10 @@ func (pc *PipelineConfig) allReportsMsg() {
 
 func (pc *PipelineConfig) allReportsStdout() {
 	report_type, msg_payload := pc.allReportsData()
-	pc.reportStdOut(report_type, msg_payload)
+	pc.log(pc.formatTextReport(report_type, msg_payload))
 }
 
-/*
-
-*/
-func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {
+func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
 
 	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
 
@@ -252,8 +249,6 @@ func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {
 
 	m := make(map[string]interface{})
 	json.Unmarshal([]byte(payload), &m)
-
-	//fmt.Printf("%s\n", "Plugin|"+strings.Join(header, "|"))
 
 	fullReport := make([]string, 0)
 	for _, row := range m["reports"].([]interface{}) {
@@ -275,8 +270,6 @@ func (pc *PipelineConfig) reportStdOut(report_type, payload string) string {
 	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",
 		report_type,
 		strings.Join(fullReport, "\n"))
-
-	pc.log(stdout_report)
 
 	return stdout_report
 }

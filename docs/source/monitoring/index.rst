@@ -7,11 +7,11 @@ Monitoring Internal State
 Heka can emit metrics about it's internal state to either an outgoing
 Heka message (and, through the DashboardOutput, to a web dashboard) or
 to stdout.
-Sending SIGUSR1 to hekad on a UNIX will send a pipe
-delimited format to stdout. On Windows, you will need to send signal
+Sending SIGUSR1 to hekad on a UNIX will send a plain text report
+tostdout. On Windows, you will need to send signal
 10 to the hekad process using Powershell.
 
-Sample pipe delimited report output ::
+Sample text output ::
 
     ========[heka.all-report]========
     inputRecycleChan:
