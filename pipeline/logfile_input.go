@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -381,6 +382,20 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		}
 	}
 
+	// Check that we haven't been rotated, if we have, put this back on
+	// discover
+	isRotated := false
+	pinfo, err := os.Stat(fileName)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		isRotated = true
+		defer func() {
+			fd.Close()
+			fm.fd = nil
+			fm.seek = 0
+			fm.discover = true
+		}()
+	}
+
 	// Attempt to read lines from where we are
 	reader := bufio.NewReader(fd)
 	readLine, err := reader.ReadString('\n')
@@ -395,26 +410,20 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		bytes_read += int64(len(readLine))
 		readLine, err = reader.ReadString('\n')
 	}
-	bytes_read += int64(len(readLine))
-	fm.seek += bytes_read
 
+	if err == io.EOF && len(readLine) > 0 {
+		if isRotated {
+			log.Printf("discard last line: %s\n", readLine)
+		} else {
+			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+		}
+	}
+
+	fm.seek += bytes_read
 	if ok = fm.updateJournal(bytes_read); ok == false {
 		return
 	}
 
-	// Check that we haven't been rotated, if we have, put this back on
-	// discover
-	pinfo, err := os.Stat(fileName)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		fd.Close()
-
-		if fm.fd != nil {
-			fm.fd = nil
-		}
-
-		fm.seek = 0
-		fm.discover = true
-	}
 	return
 }
 
