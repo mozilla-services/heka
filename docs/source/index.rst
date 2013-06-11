@@ -21,6 +21,7 @@ Contents:
 
    installing
    configuration
+   monitoring/index
    developing/plugin
    message_matcher.rst
    sandbox/index
