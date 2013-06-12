@@ -17,6 +17,7 @@
 package pipeline
 
 import (
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 )
 
@@ -33,8 +34,8 @@ type metric struct {
 // StatsdInput exactly as if a statsd message has come from a networked statsd
 // client.
 type StatFilter struct {
-	metrics   map[string]metric
-	inputName string
+	metrics       map[string]metric
+	statAccumName string
 }
 
 // StatFilter config struct.
@@ -42,21 +43,21 @@ type StatFilterConfig struct {
 	// Set of metric templates this filter should use, keyed by arbitrary
 	// metric id.
 	Metric map[string]metric
-	// Configured name of StatsdInput plugin to which this filter should
-	// be delivering its output. Defaults to "StatsdInput".
-	StatsdInputName string
+	// Configured name of StatAccumInput plugin to which this filter should be
+	// delivering its stats. Defaults to "StatsAccumInput".
+	StatAccumName string
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
 	return &StatFilterConfig{
-		StatsdInputName: "StatsdInput",
+		StatAccumName: "StatAccumInput",
 	}
 }
 
 func (s *StatFilter) Init(config interface{}) (err error) {
 	conf := config.(*StatFilterConfig)
 	s.metrics = conf.Metric
-	s.inputName = conf.StatsdInputName
+	s.statAccumName = conf.StatAccumName
 	return
 }
 
@@ -68,15 +69,25 @@ func (s *StatFilter) Init(config interface{}) (err error) {
 // the name "@Hostname.404s" would become a stat with the "@Hostname" replaced
 // by the hostname from the received message.
 func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-	inChan := fr.InChan()
-	statChan := h.StatMonitor().StatChan()
+	var (
+		statAccumInput InputRunner
+		statAccum      StatAccumulator
+		ok             bool
+	)
+	if statAccumInput, ok = h.PipelineConfig().InputRunners[s.statAccumName]; !ok {
+		return fmt.Errorf("No Input named: '%s'", s.statAccumName)
+	}
+	if statAccum, ok = statAccumInput.(StatAccumulator); !ok {
+		return fmt.Errorf("Input '%s' is not a StatAccumulator", s.statAccumName)
+	}
 
 	var (
 		pack     *PipelinePack
-		stat     Stat
 		captures map[string]string
+		stat     Stat
 	)
 
+	inChan := fr.InChan()
 	for plc := range inChan {
 		pack = plc.Pack
 		captures = plc.Captures
@@ -108,7 +119,9 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				stat.Modifier = "g"
 			}
 			stat.Value = InterpolateString(met.Value, captures)
-			statChan <- stat
+			if !statAccum.DropStat(stat) {
+				fr.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+			}
 		}
 		pack.Recycle()
 	}

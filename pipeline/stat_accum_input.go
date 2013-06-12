@@ -24,11 +24,10 @@ import (
 	"log"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 )
 
-// Represents a single stat value in the format expected by the StatMonitor.
+// Represents a single stat value in the format expected by the StatAccumInput.
 type Stat struct {
 	Bucket   string
 	Value    string
@@ -40,46 +39,46 @@ type Stat struct {
 // objects, from which it accumulates and stores statsd-style metrics data,
 // periodically generating and injecting `statmetric` messages with a payload
 // containing the accumulated data formatted as graphite would expect.
-type StatMonitor interface {
-	StatChan() chan<- Stat
+type StatAccumulator interface {
+	DropStat(stat Stat) (sent bool)
 }
 
-type statMonitor struct {
+type StatAccumInput struct {
 	statChan chan Stat
 	counters map[string]int
 	timers   map[string][]float64
 	gauges   map[string]int
 	pConfig  *PipelineConfig
-	config   *StatMonitorConfig
+	config   *StatAccumInputConfig
+	ir       InputRunner
+	stopChan chan bool
 }
 
-type StatMonitorConfig struct {
+type StatAccumInputConfig struct {
 	EmitInPayload    bool
 	EmitInFields     bool
 	PercentThreshold int
 	FlushInterval    int64
+	MessageType      string
 }
 
-func (sm *statMonitor) ConfigStruct() interface{} {
-	return &StatMonitorConfig{
+func (sm *StatAccumInput) ConfigStruct() interface{} {
+	return &StatAccumInputConfig{
 		EmitInFields:     true,
 		PercentThreshold: 90,
 		FlushInterval:    10,
+		MessageType:      "heka.statmetric",
 	}
 }
 
-// Returns a new statMonitor object.
-func newStatMonitor(pConfig *PipelineConfig) *statMonitor {
-	return &statMonitor{
-		counters: make(map[string]int),
-		timers:   make(map[string][]float64),
-		gauges:   make(map[string]int),
-		pConfig:  pConfig,
-	}
-}
+func (sm *StatAccumInput) Init(config interface{}) error {
+	sm.counters = make(map[string]int)
+	sm.timers = make(map[string][]float64)
+	sm.gauges = make(map[string]int)
+	sm.statChan = make(chan Stat, Globals().PoolSize)
+	sm.stopChan = make(chan bool, 1)
 
-func (sm *statMonitor) Init(config interface{}) error {
-	sm.config = config.(*StatMonitorConfig)
+	sm.config = config.(*StatAccumInputConfig)
 	if !sm.config.EmitInPayload && !sm.config.EmitInFields {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
@@ -88,16 +87,16 @@ func (sm *statMonitor) Init(config interface{}) error {
 	return nil
 }
 
-func (sm *statMonitor) StatChan() chan<- Stat {
-	return sm.statChan
-}
+// Listens on the Stat channel for stats generated internally by Heka.
+func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	var (
+		stat       Stat
+		floatValue float64
+		intValue   int
+	)
 
-// Main statMonitor loop. Doesn't return until statChan is closed.
-func (sm *statMonitor) Monitor(wg *sync.WaitGroup) {
-	var stat Stat
-	var floatValue float64
-	var intValue int
-
+	sm.pConfig = h.PipelineConfig()
+	sm.ir = ir
 	t := time.Tick(time.Duration(sm.config.FlushInterval) * time.Second)
 	ok := true
 	for ok {
@@ -122,13 +121,36 @@ func (sm *statMonitor) Monitor(wg *sync.WaitGroup) {
 			}
 		}
 	}
-	log.Println("StatMonitor stopped")
-	wg.Done()
+
+	return
 }
 
-// Extracts all of the accumulated data and generates and injects a statmetric
-// message into the Heka pipeline.
-func (sm *statMonitor) Flush() {
+func (sm *StatAccumInput) Stop() {
+	// Sending a value over the stopChan signals to close the statChan.
+	sm.stopChan <- true
+	// Closing the stopChan implies statChan has been closed.
+	close(sm.stopChan)
+}
+
+// Drops a Stat pointer onto the input's stat channel for processing. Returns
+// true if the stat was processed, false if the input was already closing and
+// couldn't process the stat.
+func (sm *StatAccumInput) DropStat(stat Stat) (sent bool) {
+	select {
+	case _, ok := <-sm.stopChan:
+		if ok {
+			close(sm.statChan)
+		}
+	default:
+		sm.statChan <- stat
+		sent = true
+	}
+	return
+}
+
+// Extracts all of the accumulated data and generates and injects a message
+// into the Heka pipeline.
+func (sm *StatAccumInput) Flush() {
 	var (
 		value         float64
 		intval        int64
@@ -140,13 +162,13 @@ func (sm *statMonitor) Flush() {
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
 	buffer := bytes.NewBufferString("")
-	pack := sm.pConfig.PipelinePack(0)
+	pack := <-sm.ir.InChan()
 
 	newField := func(name string, value interface{}) {
 		if field, err = message.NewField(name, value, ""); err == nil {
 			pack.Message.AddField(field)
 		} else {
-			log.Println("StatMonitor can't add field: ", name)
+			log.Println("StatAccumInput can't add field: ", name)
 		}
 	}
 
@@ -247,12 +269,12 @@ func (sm *statMonitor) Flush() {
 		numStats++
 	}
 	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
-	pack.Message.SetType("statmetric")
+
+	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetHostname(sm.pConfig.hostname)
 	pack.Message.SetPid(sm.pConfig.pid)
 	pack.Message.SetPayload(buffer.String())
-	sm.pConfig.router.inChan <- pack
-	return
+	sm.ir.Inject(pack)
 }

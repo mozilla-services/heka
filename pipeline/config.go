@@ -77,9 +77,6 @@ type PluginHelper interface {
 	// Heka pipeline. Returns `nil` if the loop count value provided is
 	// greater than the maximum allowed by the Heka instance.
 	PipelinePack(msgLoopCount uint) *PipelinePack
-
-	// Returns Heka's StatMonitor instance for aggregating statistics.
-	StatMonitor() StatMonitor
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -139,8 +136,6 @@ type PipelineConfig struct {
 	hostname string
 	// Heka process id.
 	pid int32
-	// StatMonitor instance
-	statMonitor *statMonitor
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -169,14 +164,8 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.allDecoders = make([]DecoderRunner, 0, 10)
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
-	config.statMonitor = newStatMonitor(config)
-	config.statMonitor.Init(config.statMonitor.ConfigStruct())
 
 	return config
-}
-
-func (self *PipelineConfig) StatMonitor() StatMonitor {
-	return self.statMonitor
 }
 
 // Callers should pass in the msgLoopCount value from any relevant Message

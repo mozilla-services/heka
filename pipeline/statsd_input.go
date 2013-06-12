@@ -35,75 +35,92 @@ var (
 // via a configured StatFilter plugin) over the exposed `Packet` channel. It
 // currently doesn't support Sets or other metric types.
 type StatsdInput struct {
-	name     string
-	listener net.Conn
-	stopChan chan bool
-	statChan chan<- Stat
+	name          string
+	listener      net.Conn
+	stopChan      chan bool
+	statChan      chan<- Stat
+	statAccumName string
+	statAccum     StatAccumulator
+	ir            InputRunner
 }
 
 // StatsInput config struct
 type StatsdInputConfig struct {
-	// UDP Address to listen to for statsd packets. If left blank, no UDP
-	// listener will be established.
+	// UDP Address to listen to for statsd packets. Defaults to
+	// "127.0.0.1:8125".
 	Address string
+	// Configured name of StatAccumInput plugin to which this filter should be
+	// delivering its stats. Defaults to "StatsAccumInput".
+	StatAccumName string
 }
 
 func (s *StatsdInput) ConfigStruct() interface{} {
-	return new(StatsdInputConfig)
+	return &StatsdInputConfig{
+		Address:       "127.0.0.1:8125",
+		StatAccumName: "StatAccumInput",
+	}
 }
 
 func (s *StatsdInput) Init(config interface{}) error {
 	conf := config.(*StatsdInputConfig)
-	if conf.Address != "" {
-		udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
-		if err != nil {
-			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
-		}
-		s.listener, err = net.ListenUDP("udp", udpAddr)
-		if err != nil {
-			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
-		}
+	udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
+	if err != nil {
+		return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 	}
+	s.listener, err = net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+	}
+	s.statAccumName = conf.StatAccumName
 	return nil
 }
 
 // Spins up a statsd server listening on a UDP connection.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	s.stopChan = make(chan bool)
-	s.statChan = h.StatMonitor().StatChan()
+	s.ir = ir
 
-	// Spin up the UDP listener if it was configured
-	if s.listener != nil {
-		var (
-			n       int
-			e       error
-			stopped bool
-		)
-		defer s.listener.Close()
-		timeout := time.Duration(time.Millisecond * 100)
+	var (
+		statAccumInput InputRunner
+		ok             bool
+	)
+	if statAccumInput, ok = h.PipelineConfig().InputRunners[s.statAccumName]; !ok {
+		return fmt.Errorf("No Input named: '%s'", s.statAccumName)
+	}
+	if s.statAccum, ok = statAccumInput.(StatAccumulator); !ok {
+		return fmt.Errorf("Input '%s' is not a StatAccumulator", s.statAccumName)
+	}
 
-		for !stopped {
-			message := make([]byte, 512)
-			s.listener.SetReadDeadline(time.Now().Add(timeout))
-			n, e = s.listener.Read(message)
+	// Spin up the UDP listener.
+	var (
+		n       int
+		e       error
+		stopped bool
+	)
+	defer s.listener.Close()
+	timeout := time.Duration(time.Millisecond * 100)
 
-			select {
-			case <-s.stopChan:
-				stopped = true
-			default:
-			}
+	for !stopped {
+		message := make([]byte, 512)
+		s.listener.SetReadDeadline(time.Now().Add(timeout))
+		n, e = s.listener.Read(message)
 
-			if e != nil || n == 0 {
-				continue
-			}
+		select {
+		case <-s.stopChan:
+			stopped = true
+		default:
+		}
 
-			if stopped {
-				// If we're stopping, use synchronous call so we don't
-				// close the Packet channel too soon.
-				s.handleMessage(message[:n])
-			} else {
-				go s.handleMessage(message[:n])
-			}
+		if e != nil || n == 0 {
+			continue
+		}
+
+		if stopped {
+			// If we're stopping, use synchronous call so we don't
+			// close the Packet channel too soon.
+			s.handleMessage(message[:n])
+		} else {
+			go s.handleMessage(message[:n])
 		}
 	}
 
@@ -117,8 +134,10 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	var stat Stat
-	var value string
+	var (
+		value string
+		stat  Stat
+	)
 	st := sanitizeRegexp.ReplaceAllString(string(message), "")
 	for _, item := range packetRegexp.FindAllStringSubmatch(st, -1) {
 		value = item[2]
@@ -138,6 +157,8 @@ func (s *StatsdInput) handleMessage(message []byte) {
 		stat.Value = value
 		stat.Modifier = item[3]
 		stat.Sampling = float32(sampleRate)
-		s.statChan <- stat
+		if !s.statAccum.DropStat(stat) {
+			s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+		}
 	}
 }
