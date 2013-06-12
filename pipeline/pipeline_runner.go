@@ -244,6 +244,9 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
 
+	if foRunner.srcWg != nil {
+		foRunner.srcWg.Add(1)
+	}
 	go foRunner.Starter(h, wg)
 	return
 }
@@ -261,6 +264,9 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			foRunner.LogError(fmt.Errorf("PANIC: %s", r))
 		}
 		wg.Done()
+		if foRunner.srcWg != nil {
+			foRunner.srcWg.Done()
+		}
 	}()
 
 	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
@@ -406,6 +412,10 @@ func (foRunner *foRunner) Output() Output {
 
 func (foRunner *foRunner) Filter() Filter {
 	return foRunner.plugin.(Filter)
+}
+
+func (foRunner *foRunner) SourceWg() *sync.WaitGroup {
+	return foRunner.srcWg
 }
 
 // Main Heka pipeline data structure containing raw message data, a Message
@@ -573,16 +583,70 @@ func Run(config *PipelineConfig) {
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
-	config.filtersLock.Lock()
-	for _, filter := range config.FilterRunners {
-		// needed for a clean shutdown without deadlocking or orphaning messages
-		// 1. removes the matcher from the router
-		// 2. closes the matcher input channel and lets it drain
-		// 3. closes the filter input channel and lets it drain
-		// 4. exits the filter
-		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
-		log.Printf("Stop message sent to filter '%s'", filter.Name())
+	// Function returning the set of running filters that should be shut down
+	// after at least one other filter.
+	getDelayedFilters := func() (delayed map[string]int) {
+		delayed = make(map[string]int)
+		for _, dependents := range config.filterDeps {
+			for _, dependent := range dependents {
+				if _, ok := config.FilterRunners[dependent]; ok {
+					delayed[dependent] += 1
+				}
+			}
+		}
+		return
 	}
+
+	// Closing the filters requires care. Clean shutdown of a filter w/o
+	// deadlocking or orphaning messages requires the following steps:
+
+	// 1. remove the matcher from the router
+	// 2. close the matcher input channel and let it drain
+	// 3. close the filter input channel and let it drain
+	// 4. exit the filter
+
+	// These steps are triggered by putting the matcher on the removal channel
+	// returned by `config.router.RemoveFilterMatcher()`.
+
+	config.filtersLock.Lock()
+
+	// First we send a stop message to all filters that don't need to wait for
+	// an upstream filter (i.e. they specified no `source_filters` in the
+	// config).
+	delayed := getDelayedFilters()
+	for fName, filter := range config.FilterRunners {
+		if delayed[fName] != 0 {
+			continue
+		}
+		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
+		config.log("Stop message sent to filter '%s'", filter.Name())
+	}
+
+	// Then we have to repeat until all the delayed filters are closed. Will
+	// be an infinite loop if filters have a circular dependency.
+	for len(delayed) > 0 {
+		// In here we iterate through the source filters. If a source isn't
+		// delayed, we can safely wait for it to stop. Once it's stopped, we
+		// can decrement the delayed count for each dependent filter and send
+		// a stop signal to any where delayed count has become zero.
+		for src, dependents := range config.filterDeps {
+			if delayed[src] > 0 {
+				continue
+			}
+			srcRunner := config.FilterRunners[src]
+			srcRunner.SourceWg().Wait()
+			for _, dependent := range dependents {
+				delayed[dependent] -= 1
+				if delayed[dependent] <= 0 {
+					depRunner := config.FilterRunners[dependent]
+					config.router.RemoveFilterMatcher() <- depRunner.MatchRunner()
+					config.log("Stop message sent to filter '%s'", depRunner.Name())
+					delete(delayed, dependent)
+				}
+			}
+		}
+	}
+
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 

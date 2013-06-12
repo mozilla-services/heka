@@ -541,6 +541,10 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// Filters and outputs have a few more config settings.
 	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
+	if _, ok := self.filterDeps[runner.name]; ok {
+		// This is a source filter for someone else.
+		runner.srcWg = new(sync.WaitGroup)
+	}
 
 	// If no ticker_interval value was specified in the TOML, we check to see
 	// if a default TickerInterval value is specified on the config struct.
@@ -584,9 +588,10 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		}
 
 		for _, srcFilter := range pluginGlobals.SourceFilters {
-			deps := self.filterDeps[srcFilter]
-			self.filterDeps[srcFilter] = append(deps, wrapper.name)
-			runner.srcWg = new(sync.WaitGroup)
+			self.filterDeps[srcFilter] = append(self.filterDeps[srcFilter], wrapper.name)
+			if srcRunner, ok := self.FilterRunners[srcFilter]; ok {
+				srcRunner.(*foRunner).srcWg = new(sync.WaitGroup)
+			}
 		}
 
 	case "Output":

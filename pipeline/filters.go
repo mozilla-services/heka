@@ -52,6 +52,11 @@ type FilterRunner interface {
 	// to shut down and wants to retain the pack for the next time its
 	// running properly
 	RetainPack(pack *PipelineCapture)
+	// If this filter has been specified as a source for another filter, this
+	// will return a WaitGroup pointer that will be decremented when this
+	// filter has stopped. If this filter has not been specified as a source,
+	// this will return nil.
+	SourceWg() *sync.WaitGroup
 }
 
 // Heka Filter plugin type.

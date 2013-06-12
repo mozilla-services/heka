@@ -125,10 +125,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			}
 
 			// and the srcWg is set on the filter runner only when needed
-			defaultRunner := pipeConfig.FilterRunners["default"].(*foRunner)
-			c.Expect(defaultRunner.srcWg, gs.IsNil)
-			sampleRunner := pipeConfig.FilterRunners["sample"].(*foRunner)
-			c.Expect(sampleRunner.srcWg, gs.Not(gs.IsNil))
+			defaultRunner := pipeConfig.FilterRunners["default"]
+			c.Expect(defaultRunner.SourceWg(), gs.Not(gs.IsNil))
+			sampleRunner := pipeConfig.FilterRunners["sample"]
+			c.Expect(sampleRunner.SourceWg(), gs.IsNil)
 		})
 
 		c.Specify("works w/ decoder defaults", func() {

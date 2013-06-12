@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	sync "sync"
 	time "time"
+	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
 )
 
@@ -138,6 +138,16 @@ func (_m *MockFilterRunner) SetName(_param0 string) {
 
 func (_mr *_MockFilterRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
+}
+
+func (_m *MockFilterRunner) SourceWg() *sync.WaitGroup {
+	ret := _m.ctrl.Call(_m, "SourceWg")
+	ret0, _ := ret[0].(*sync.WaitGroup)
+	return ret0
+}
+
+func (_mr *_MockFilterRunnerRecorder) SourceWg() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SourceWg")
 }
 
 func (_m *MockFilterRunner) Start(_param0 PluginHelper, _param1 *sync.WaitGroup) error {
