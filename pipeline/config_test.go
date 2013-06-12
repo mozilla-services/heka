@@ -94,21 +94,41 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// and the inputs section loads properly with a custom name
 			_, ok := pipeConfig.InputRunners["UdpInput"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.IsTrue)
 
 			// and the decoders sections load
 			_, ok = pipeConfig.DecoderWrappers["JsonDecoder"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.IsTrue)
 			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.IsTrue)
 
 			// and the outputs section loads
 			_, ok = pipeConfig.OutputRunners["LogOutput"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.IsTrue)
 
 			// and the filters sections loads
+			_, ok = pipeConfig.FilterRunners["default"]
+			c.Expect(ok, gs.IsTrue)
 			_, ok = pipeConfig.FilterRunners["sample"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.IsTrue)
+
+			// and the filterDeps values get populated
+			expected := map[string][]string{"default": []string{"sample"}}
+			c.Expect(len(pipeConfig.filterDeps), gs.Equals, len(expected))
+			for k, vs := range pipeConfig.filterDeps {
+				_, ok = expected[k]
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(len(vs), gs.Equals, len(expected[k]))
+				for i, v := range vs {
+					c.Expect(v, gs.Equals, expected[k][i])
+				}
+			}
+
+			// and the srcWg is set on the filter runner only when needed
+			defaultRunner := pipeConfig.FilterRunners["default"].(*foRunner)
+			c.Expect(defaultRunner.srcWg, gs.IsNil)
+			sampleRunner := pipeConfig.FilterRunners["sample"].(*foRunner)
+			c.Expect(sampleRunner.srcWg, gs.Not(gs.IsNil))
 		})
 
 		c.Specify("works w/ decoder defaults", func() {

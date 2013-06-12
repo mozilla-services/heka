@@ -220,6 +220,7 @@ type foRunner struct {
 	inChan     chan *PipelineCapture
 	h          PluginHelper
 	retainPack *PipelineCapture
+	srcWg      *sync.WaitGroup
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an

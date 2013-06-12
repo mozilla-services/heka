@@ -20,3 +20,4 @@ outputs = ["LogOutput"]
 type = "StatFilter"
 message_filter = "Type == \"counter\" || Type == \"gauge\""
 outputs =["LogOutput"]
+source_filters = ["default"]

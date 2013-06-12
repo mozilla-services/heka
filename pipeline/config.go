@@ -136,6 +136,8 @@ type PipelineConfig struct {
 	hostname string
 	// Heka process id.
 	pid int32
+	// Stores Filter plugin shutdown order dependencies.
+	filterDeps map[string][]string
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -164,6 +166,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.allDecoders = make([]DecoderRunner, 0, 10)
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
+	config.filterDeps = make(map[string][]string)
 
 	return config
 }
@@ -265,13 +268,14 @@ type RetryOptions struct {
 // Heka itself for runner configuration before the config is passed to the
 // Plugin.Init method.
 type PluginGlobals struct {
-	Typ      string `toml:"type"`
-	Ticker   uint   `toml:"ticker_interval"`
-	Encoding string `toml:"encoding_name"`
-	Matcher  string `toml:"message_matcher"`
-	Signer   string `toml:"message_signer"`
-	PoolSize uint   `toml:"pool_size"`
-	Retries  RetryOptions
+	Typ           string `toml:"type"`
+	Ticker        uint   `toml:"ticker_interval"`
+	Encoding      string `toml:"encoding_name"`
+	Matcher       string `toml:"message_matcher"`
+	Signer        string `toml:"message_signer"`
+	PoolSize      uint   `toml:"pool_size"`
+	Retries       RetryOptions
+	SourceFilters []string `toml:"source_filters"`
 }
 
 // Default Decoders configuration.
@@ -568,6 +572,12 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		// Wrapper everything but a SandboxFilter, they aren't restarted
 		if _, ok := runner.plugin.(*SandboxFilter); !ok {
 			self.filterWrappers[runner.name] = wrapper
+		}
+
+		for _, srcFilter := range pluginGlobals.SourceFilters {
+			deps := self.filterDeps[srcFilter]
+			self.filterDeps[srcFilter] = append(deps, wrapper.name)
+			runner.srcWg = new(sync.WaitGroup)
 		}
 
 	case "Output":
