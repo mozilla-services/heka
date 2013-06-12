@@ -145,7 +145,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "2 errors loading plugins")
-			c.Expect(pipeConfig.logMsgs, gs.ContainsAny, gs.Values("No such plugin: CounterOutput"))
+			c.Expect(pipeConfig.cfgMsgs, gs.ContainsAny, gs.Values("No such plugin: CounterOutput"))
 		})
 
 		c.Specify("handles missing config file correctly", func() {
@@ -158,7 +158,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_outputs.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
-			msg := pipeConfig.logMsgs[0]
+			msg := pipeConfig.cfgMsgs[0]
 			c.Expect(msg, ts.StringContains, "No such plugin")
 		})
 
