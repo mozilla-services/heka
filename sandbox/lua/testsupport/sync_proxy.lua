@@ -61,9 +61,9 @@ function timer_event(ns)
     -- request:add(ns, 1, 0)
 
     output(status)
-    inject_message("cbuf", "Sync Proxy Response Status")
+    inject_message("cbuf", "HTTP Status")
 
     output(request)
-    inject_message("cbuf", "Sync Proxy Request Statistics")
+    inject_message("cbuf", "Request Statistics")
 end
 
