@@ -70,8 +70,8 @@ func LogfileInputSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
-	c.Specify("saved last read position", func() {
-		c.Specify("of a complete logline", func() {
+	c.Specify("LogfileInput", func() {
+		c.Specify("save the seek position of the last complete logline", func() {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			lfInput, lfiConfig := createIncompleteLogfileInput(journal_name)
 
