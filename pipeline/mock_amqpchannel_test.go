@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	amqp "github.com/streadway/amqp"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of AMQPChannel interface

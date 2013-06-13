@@ -69,16 +69,9 @@ func (s *StatFilter) Init(config interface{}) (err error) {
 // the name "@Hostname.404s" would become a stat with the "@Hostname" replaced
 // by the hostname from the received message.
 func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-	var (
-		statAccumInput InputRunner
-		statAccum      StatAccumulator
-		ok             bool
-	)
-	if statAccumInput, ok = h.PipelineConfig().InputRunners[s.statAccumName]; !ok {
-		return fmt.Errorf("No Input named: '%s'", s.statAccumName)
-	}
-	if statAccum, ok = statAccumInput.(StatAccumulator); !ok {
-		return fmt.Errorf("Input '%s' is not a StatAccumulator", s.statAccumName)
+	var statAccum StatAccumulator
+	if statAccum, err = h.StatAccumulator(s.statAccumName); err != nil {
+		return
 	}
 
 	var (

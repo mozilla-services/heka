@@ -1,7 +1,7 @@
 # We use one spelling of the mockgen command for mocks of interfaces in our own
 # packages...
 
-# pipeline.MockPluginHelper
+# pipeline.PluginHelper
 $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_pluginhelper_test.go \
                     -self_package=github.com/mozilla-services/heka/pipeline \
@@ -79,6 +79,12 @@ $GOPATH/bin/mockgen -package=pipeline \
                     -destination=pipeline/mock_amqpconnectionhub_test.go \
                     -self_package=github.com/mozilla-services/heka/pipeline \
                     github.com/mozilla-services/heka/pipeline AMQPConnectionHub
+
+# pipeline.StatAccumulator
+$GOPATH/bin/mockgen -package=pipeline \
+                    -destination=pipeline/mock_stataccumulator_test.go \
+                    -self_package=github.com/mozilla-services/heka/pipeline \
+                    github.com/mozilla-services/heka/pipeline StatAccumulator
 
 # ...and a second spelling for mocks of interfaces that are from external packages.
 

@@ -77,6 +77,11 @@ type PluginHelper interface {
 	// Heka pipeline. Returns `nil` if the loop count value provided is
 	// greater than the maximum allowed by the Heka instance.
 	PipelinePack(msgLoopCount uint) *PipelinePack
+
+	// Returns an input plugin of the given name that provides the
+	// StatAccumulator interface, or an error value if such a plugin
+	// can't be found.
+	StatAccumulator(name string) (statAccum StatAccumulator, err error)
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -207,6 +212,21 @@ func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
 // such name is registered.
 func (self *PipelineConfig) Filter(name string) (fRunner FilterRunner, ok bool) {
 	fRunner, ok = self.FilterRunners[name]
+	return
+}
+
+func (self *PipelineConfig) StatAccumulator(name string) (statAccum StatAccumulator,
+	err error) {
+
+	iRunner, ok := self.InputRunners[name]
+	if !ok {
+		err = fmt.Errorf("No Input named '%s", name)
+		return
+	}
+	input := iRunner.Input()
+	if statAccum, ok = input.(StatAccumulator); !ok {
+		err = fmt.Errorf("Input '%s' is not a StatAccumulator", name)
+	}
 	return
 }
 

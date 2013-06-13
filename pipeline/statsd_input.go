@@ -80,15 +80,8 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	s.stopChan = make(chan bool)
 	s.ir = ir
 
-	var (
-		statAccumInput InputRunner
-		ok             bool
-	)
-	if statAccumInput, ok = h.PipelineConfig().InputRunners[s.statAccumName]; !ok {
-		return fmt.Errorf("No Input named: '%s'", s.statAccumName)
-	}
-	if s.statAccum, ok = statAccumInput.Input().(StatAccumulator); !ok {
-		return fmt.Errorf("Input '%s' is not a StatAccumulator", s.statAccumName)
+	if s.statAccum, err = h.StatAccumulator(s.statAccumName); err != nil {
+		return
 	}
 
 	// Spin up the UDP listener.
