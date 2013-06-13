@@ -210,7 +210,6 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	tmp := map[string]interface{}{
 		"seek":      fm.seek,
 		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
-		"last_line": fm.last_logline,
 	}
 
 	return json.Marshal(tmp)
@@ -356,6 +355,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 
 // Reads all unread lines out of the specified file, creates a LogLine object
 // for each line, and puts it on the NewLine channel for processing.
+// Returning false from ReadLines will kill the watcher
 func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	ok = true
 	defer func() {
@@ -370,19 +370,33 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		}
 	}()
 
-	fd := fm.fd
-
 	// Determine if we're farther into the file than possible (truncate)
-	finfo, err := fd.Stat()
+	finfo, err := fm.fd.Stat()
 	if err == nil {
 		if finfo.Size() < fm.seek {
-			fd.Seek(0, 0)
+			fm.fd.Seek(0, 0)
 			fm.seek = 0
 		}
 	}
 
-	// Attempt to read lines from where we are
-	reader := bufio.NewReader(fd)
+	// Check that we haven't been rotated, if we have, put this
+	// back on discover
+	isRotated := false
+	pinfo, err := os.Stat(fileName)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		isRotated = true
+		defer func() {
+			if fm.fd != nil {
+				fm.fd.Close()
+			}
+			fm.fd = nil
+			fm.seek = 0
+			fm.discover = true
+		}()
+	}
+
+	// Attempt to read lines from where we are.
+	reader := bufio.NewReader(fm.fd)
 	readLine, err := reader.ReadString('\n')
 	var bytes_read int64
 	bytes_read = 0
@@ -393,29 +407,40 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		bytes_read += int64(len(readLine))
+
+		// If file rotation happens after the last
+		// reader.ReadString() in this loop, the remaining logfile
+		// data will be picked up the next time that ReadLines() is
+		// invoked
 		readLine, err = reader.ReadString('\n')
 	}
-	bytes_read += int64(len(readLine))
-	fm.seek += bytes_read
 
-	if ok = fm.updateJournal(bytes_read); ok == false {
-		return
-	}
-
-	// Check that we haven't been rotated, if we have, put this back on
-	// discover
-	pinfo, err := os.Stat(fileName)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		fd.Close()
-
+	if err == io.EOF {
+		if isRotated {
+			if len(readLine) > 0 {
+				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
+				fm.NewLines <- line
+				fm.last_logline = readLine
+				bytes_read += int64(len(readLine))
+			}
+		} else {
+			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+		}
+	} else {
+		// Some unexpected error, reset everything
+		// but don't kill the watcher
+		fm.LogError(err.Error())
+		fm.fd.Close()
 		if fm.fd != nil {
 			fm.fd = nil
 		}
-
 		fm.seek = 0
 		fm.discover = true
+		return true
 	}
-	return
+
+	fm.seek += bytes_read
+	return fm.updateJournal(bytes_read)
 }
 
 func (fm *FileMonitor) LogError(msg string) {
