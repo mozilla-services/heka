@@ -414,10 +414,29 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	if err == io.EOF {
 		pinfo, stat_err := os.Stat(fileName)
 		if stat_err != nil || !os.SameFile(pinfo, finfo) {
+			// Logfile rotation or a Stat() error has occured on the
+			// new filename - in either case, we need to finish off
+			// the current file right now.
+			// Roll back the file descriptor position and try one more
+			// time to read to the end of file, then shutdown this
+			// file read operation
+			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+			readLine, err = reader.ReadString('\n')
+			for err == nil {
+				if readLine != "" {
+					fm.last_logline = readLine
+				}
+				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
+				fm.NewLines <- line
+				bytes_read += int64(len(readLine))
+				readLine, err = reader.ReadString('\n')
+			}
 
+			// Process a partial line if it exists
 			if len(readLine) > 0 {
 				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 				fm.NewLines <- line
+				bytes_read += int64(len(readLine))
 			}
 
 			fd.Close()
