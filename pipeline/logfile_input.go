@@ -355,6 +355,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 
 // Reads all unread lines out of the specified file, creates a LogLine object
 // for each line, and puts it on the NewLine channel for processing.
+// Returning false from ReadLines will kill the watcher
 func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	ok = true
 	defer func() {
@@ -369,19 +370,33 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		}
 	}()
 
-	fd := fm.fd
-
 	// Determine if we're farther into the file than possible (truncate)
-	finfo, err := fd.Stat()
+	finfo, err := fm.fd.Stat()
 	if err == nil {
 		if finfo.Size() < fm.seek {
-			fd.Seek(0, 0)
+			fm.fd.Seek(0, 0)
 			fm.seek = 0
 		}
 	}
 
-	// Attempt to read lines from where we are
-	reader := bufio.NewReader(fd)
+	// Check that we haven't been rotated, if we have, put this
+	// back on discover
+	isRotated := false
+	pinfo, err := os.Stat(fileName)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		isRotated = true
+		defer func() {
+			if fm.fd != nil {
+				fm.fd.Close()
+			}
+			fm.fd = nil
+			fm.seek = 0
+			fm.discover = true
+		}()
+	}
+
+	// Attempt to read lines from where we are.
+	reader := bufio.NewReader(fm.fd)
 	readLine, err := reader.ReadString('\n')
 	var bytes_read int64
 	bytes_read = 0
@@ -392,80 +407,40 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		bytes_read += int64(len(readLine))
+
+		// If file rotation happens after the last
+		// reader.ReadString() in this loop, the remaining logfile
+		// data will be picked up the next time that ReadLines() is
+		// invoked
 		readLine, err = reader.ReadString('\n')
 	}
 
-	// The final time that ReadString() is called and an error is
-	// returned, the readLine may contain data if no new line delimiter
-	// was found before the EOF.
-	//
-	// We need to be able to detect if this happened because of
-	// logfile rotation, or if the log writer simply stalled.
-	//
-	// If a Stat() check against the file indicates that the file has
-	// been rotated since the start of the ReadString loop, then we
-	// pass the final incomplete line of data to the FileMonitor,
-	// close the file handle and reset the seek positions. We do the
-	// same if the Stat() throws an error.
-	//
-	// For any other non-error condition, we assume that the logfile
-	// is still the 'current' file to be read.
-
-	if err == io.EOF {
-		pinfo, stat_err := os.Stat(fileName)
-		if stat_err != nil || !os.SameFile(pinfo, finfo) {
-			// Logfile rotation or a Stat() error has occured on the
-			// new filename - in either case, we need to finish off
-			// the current file right now.
-			// Roll back the file descriptor position and try one more
-			// time to read to the end of file, then shutdown this
-			// file read operation
-			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
-			readLine, err = reader.ReadString('\n')
-			for err == nil {
-				if readLine != "" {
-					fm.last_logline = readLine
-				}
-				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
-				fm.NewLines <- line
-				bytes_read += int64(len(readLine))
-				readLine, err = reader.ReadString('\n')
-			}
-
-			// Process a partial line if it exists
+	if err == io.EOF && len(readLine) > 0 {
+		if isRotated {
 			if len(readLine) > 0 {
 				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 				fm.NewLines <- line
-				bytes_read += int64(len(readLine))
+				fm.last_logline = readLine
+				bytes_read += len(readLine)
 			}
-
-			fd.Close()
-			if fm.fd != nil {
-				fm.fd = nil
-			}
-			fm.seek = 0
-			fm.discover = true
-		} else if stat_err == nil && os.SameFile(pinfo, finfo) {
-			// no error and no file rotation, just rollback the seek
-			// on the file descriptor.
-			fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+		} else {
+			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
 		}
 	} else {
 		// Some unexpected error, reset everything
+		// but don't kill the watcher
 		fm.LogError(err.Error())
-		fd.Close()
+		fm.fd.Close()
 		if fm.fd != nil {
 			fm.fd = nil
 		}
 		fm.seek = 0
 		fm.discover = true
-		return false
+		return true
 	}
 
 	fm.seek += bytes_read
-	ok = fm.updateJournal(bytes_read)
-
-	return
+	return fm.updateJournal(bytes_read)
 }
 
 func (fm *FileMonitor) LogError(msg string) {
