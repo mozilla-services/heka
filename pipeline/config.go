@@ -215,6 +215,8 @@ func (self *PipelineConfig) Filter(name string) (fRunner FilterRunner, ok bool) 
 	return
 }
 
+// Returns the specified StatAccumulator input plugin, or an error if it can't
+// be found.
 func (self *PipelineConfig) StatAccumulator(name string) (statAccum StatAccumulator,
 	err error) {
 
