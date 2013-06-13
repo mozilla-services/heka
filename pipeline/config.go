@@ -638,6 +638,9 @@ func init() {
 	RegisterPlugin("StatsdInput", func() interface{} {
 		return new(StatsdInput)
 	})
+	RegisterPlugin("StatAccumInput", func() interface{} {
+		return new(StatAccumInput)
+	})
 	RegisterPlugin("LogOutput", func() interface{} {
 		return new(LogOutput)
 	})
