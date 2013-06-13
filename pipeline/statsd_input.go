@@ -87,7 +87,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	if statAccumInput, ok = h.PipelineConfig().InputRunners[s.statAccumName]; !ok {
 		return fmt.Errorf("No Input named: '%s'", s.statAccumName)
 	}
-	if s.statAccum, ok = statAccumInput.(StatAccumulator); !ok {
+	if s.statAccum, ok = statAccumInput.Input().(StatAccumulator); !ok {
 		return fmt.Errorf("Input '%s' is not a StatAccumulator", s.statAccumName)
 	}
 
