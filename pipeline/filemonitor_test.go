@@ -117,7 +117,6 @@ func FileMonitorSpec(c gs.Context) {
 
 			newFM := new(FileMonitor)
 			newFM.Init(lfiConfig)
-			//err = newFM.setupJournalling()
 			c.Expect(err, gs.Equals, nil)
 
 			fbytes, _ := json.Marshal(lfInput.Monitor)
@@ -140,8 +139,6 @@ func FileMonitorSpec(c gs.Context) {
 			err := lfInput.Init(lfiConfig)
 			c.Expect(err, gs.IsNil)
 
-			// This normally gets called by Run()
-			//err = lfInput.Monitor.setupJournalling()
 			c.Expect(err, gs.IsNil)
 
 			// # bytes should be set to what's in the journal data
@@ -162,8 +159,6 @@ func FileMonitorSpec(c gs.Context) {
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
-			// This normally gets called by Run()
-			//lfInput.Monitor.setupJournalling()
 			c.Expect(err, gs.IsNil)
 
 			// # bytes should be set to what's in the journal data
@@ -184,8 +179,6 @@ func FileMonitorSpec(c gs.Context) {
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
-			// This normally gets called by Run()
-			//lfInput.Monitor.setupJournalling()
 
 			c.Expect(err, gs.IsNil)
 
