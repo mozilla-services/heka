@@ -415,13 +415,13 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		readLine, err = reader.ReadString('\n')
 	}
 
-	if err == io.EOF && len(readLine) > 0 {
+	if err == io.EOF {
 		if isRotated {
 			if len(readLine) > 0 {
 				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 				fm.NewLines <- line
 				fm.last_logline = readLine
-				bytes_read += len(readLine)
+				bytes_read += int64(len(readLine))
 			}
 		} else {
 			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
