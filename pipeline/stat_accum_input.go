@@ -35,10 +35,10 @@ type Stat struct {
 	Sampling float32
 }
 
-// Specialized object that listens on a provided channel for StatPacket
-// objects, from which it accumulates and stores statsd-style metrics data,
-// periodically generating and injecting `statmetric` messages with a payload
-// containing the accumulated data formatted as graphite would expect.
+// Specialized Input that listens on a provided channel for Stat objects, from
+// which it accumulates and stores statsd-style metrics data, periodically
+// generating and injecting messages with accumulated stats date embedded in
+// either the payload, the message fields, or both.
 type StatAccumulator interface {
 	DropStat(stat Stat) (sent bool)
 }
@@ -55,11 +55,11 @@ type StatAccumInput struct {
 }
 
 type StatAccumInputConfig struct {
-	EmitInPayload    bool
-	EmitInFields     bool
-	PercentThreshold int
-	FlushInterval    int64
-	MessageType      string
+	EmitInPayload    bool   `toml:"emit_in_payload"`
+	EmitInFields     bool   `toml:"emit_in_fields"`
+	PercentThreshold int    `toml:"percent_threshold"`
+	FlushInterval    int64  `toml:"flush_interval"`
+	MessageType      string `toml:"message_type"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -126,10 +126,10 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (sm *StatAccumInput) Stop() {
-	// Sending a value over the stopChan signals to close the statChan.
-	sm.stopChan <- true
-	// Closing the stopChan implies statChan has been closed.
+	// Closing the stopChan first so DropStat won't put any stats on
+	// the statChan after it's closed.
 	close(sm.stopChan)
+	close(sm.statChan)
 }
 
 // Drops a Stat pointer onto the input's stat channel for processing. Returns
@@ -137,10 +137,7 @@ func (sm *StatAccumInput) Stop() {
 // couldn't process the stat.
 func (sm *StatAccumInput) DropStat(stat Stat) (sent bool) {
 	select {
-	case _, ok := <-sm.stopChan:
-		if ok {
-			close(sm.statChan)
-		}
+	case <-sm.stopChan:
 	default:
 		sm.statChan <- stat
 		sent = true
