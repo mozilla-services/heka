@@ -395,8 +395,6 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		readLine, err = reader.ReadString('\n')
 	}
 
-	fm.seek += bytes_read
-
 	// The final time that ReadString() is called and an error is
 	// returned, the readLine may contain data if no new line delimiter
 	// was found before the EOF.
@@ -445,6 +443,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 		return false
 	}
 
+	fm.seek += bytes_read
 	ok = fm.updateJournal(bytes_read)
 
 	return
