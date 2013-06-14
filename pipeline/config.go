@@ -575,4 +575,7 @@ func init() {
 	RegisterPlugin("DashboardOutput", func() interface{} {
 		return new(DashboardOutput)
 	})
+	RegisterPlugin("ElasticSearchOutput", func() interface{} {
+		return new(ElasticSearchOutput)
+	})
 }
