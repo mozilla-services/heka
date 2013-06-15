@@ -47,7 +47,6 @@ func StatsdInputSpec(c gs.Context) {
 		statsdInput := StatsdInput{}
 		config := statsdInput.ConfigStruct().(*StatsdInputConfig)
 
-		ith.MockHelper.EXPECT().StatAccumulator("StatAccumInput").Return(mockStatAccum, nil)
 		config.Address = ith.AddrStr
 		err := statsdInput.Init(config)
 		c.Assume(err, gs.IsNil)
@@ -56,10 +55,12 @@ func StatsdInputSpec(c gs.Context) {
 		realListener.Close()
 		mockListener := ts.NewMockConn(ctrl)
 		statsdInput.listener = mockListener
+
+		ith.MockHelper.EXPECT().StatAccumulator("StatAccumInput").Return(mockStatAccum, nil)
 		mockListener.EXPECT().Close()
 		mockListener.EXPECT().SetReadDeadline(gomock.Any())
 
-		c.Specify("Sends a Stat to the StatAccumulator", func() {
+		c.Specify("sends a Stat to the StatAccumulator", func() {
 			statName := "sample.count"
 			statVal := 303
 			msg := fmt.Sprintf("%s:%d|c\n", statName, statVal)
