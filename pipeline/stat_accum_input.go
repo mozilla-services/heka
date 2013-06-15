@@ -51,6 +51,7 @@ type StatAccumInput struct {
 	pConfig  *PipelineConfig
 	config   *StatAccumInputConfig
 	ir       InputRunner
+	tickChan <-chan time.Time
 	stopChan chan bool
 }
 
@@ -97,11 +98,11 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	sm.pConfig = h.PipelineConfig()
 	sm.ir = ir
-	t := time.Tick(time.Duration(sm.config.FlushInterval) * time.Second)
+	sm.tickChan = time.Tick(time.Duration(sm.config.FlushInterval) * time.Second)
 	ok := true
 	for ok {
 		select {
-		case <-t:
+		case <-sm.tickChan:
 			sm.Flush()
 		case stat, ok = <-sm.statChan:
 			if !ok {
