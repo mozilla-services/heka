@@ -265,7 +265,12 @@ func (sm *StatAccumInput) Flush() {
 		}
 		numStats++
 	}
-	fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
+	if sm.config.EmitInPayload {
+		fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
+	}
+	if sm.config.EmitInFields {
+		newField("statsd.numStats", numStats)
+	}
 
 	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
