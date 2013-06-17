@@ -97,16 +97,16 @@ func StatAccumInputSpec(c gs.Context) {
 				for i := 0; i < 3; i++ {
 					line := strings.Split(lines[i], " ")
 					c.Expect(len(line), gs.Equals, 3)
-					switch {
-					case i == 0:
+					switch i {
+					case 0:
 						c.Expect(line[0], gs.Equals, "stats."+statName)
 						c.Expect(line[1], gs.Equals, "0.000030")
 						timestamp = line[2]
-					case i == 1:
+					case 1:
 						c.Expect(line[0], gs.Equals, "stats_counts."+statName)
 						c.Expect(line[1], gs.Equals, strconv.Itoa(int(statVal)))
 						c.Expect(line[2], gs.Equals, timestamp)
-					case i == 2:
+					case 2:
 						c.Expect(line[0], gs.Equals, "statsd.numStats")
 						c.Expect(line[1], gs.Equals, "1")
 						c.Expect(line[2], gs.Equals, timestamp)
