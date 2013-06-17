@@ -458,24 +458,19 @@ Parameters:
 StatsdInput
 -----------
 
-Exposes internal `StatMonitor` API into which other Heka plugins can insert
-numeric statistics, and optionally listens for `statsd protocol
-<https://github.com/b/statsd_spec>`_ `counter`, `timer`, or `gauge` messages
-on a UDP port. Generates Heka messages of type `statmetric`, with a string
-payload in the format that is accepted by the `carbon
-<http://graphite.wikidot.com/carbon>`_ portion of `graphite
-<http://graphite.wikidot.com/>`_.
+Listens for `statsd protocol <https://github.com/b/statsd_spec>`_ `counter`,
+`timer`, or `gauge` messages on a UDP port, and generates `Stat` objects that
+are handed to a `StatAccumulator` for aggregation and processing.
 
 Parameters:
 
-- address (string, optional):
+- address (string):
     An IP address:port on which this plugin will expose a statsd server.
-- flushinterval (int):
-    Time interval (in seconds) between generated `statmetric` messages.
-    Defaults to 10.
-- percentthreshold (int):
-    Percent threshold to use for computing "upper_N%" type stat values.
-    Defaults to 90.
+    Defaults to "127.0.0.1:8125".
+- stat_accum_name (string):
+    Name of a StatAccumInput instance that this StatsdInput will use as its
+    StatAccumulator for submitting received stat values. Defaults to
+    "StatAccumInput".
 
 Example:
 
@@ -483,7 +478,38 @@ Example:
 
     [StatsdInput]
     address = ":8125"
-    flushinterval = 5
+    stat_accum_input = "custom_stat_accumulator"
+
+StatAccumInput
+--------------
+
+Provides an implementation of the `StatAccumulator` interface which other
+plugins can use to submit `Stat` objects for aggregation and roll-up.
+Accumulates these stats and then periodically emits a "stat metric" type
+message containing aggregated information about the stats received since the
+last generated message.
+
+Parameters:
+
+- emit_in_payload (bool):
+    Specifies whether or not the aggregated stat information should be emitted
+    in the payload of the generated messages, in the format accepted by the
+    `carbon <http://graphite.wikidot.com/carbon>`_ portion of the `graphite
+    <http://graphite.wikidot.com/>`_ graphing software. Defaults to false.
+- emit_in_fields (bool):
+    Specifies whether or not the aggregated stat information should be emitted
+    in the message fields of the generated messages. Defaults to true. *NOTE*:
+    At least one of 'emit_in_payload' or 'emit_in_fields' *must* be true or it
+    will be considered a configuration error and the input won't start.
+- percent_threshold (int):
+    Percent threshold to use for computing "upper_N%" type stat values.
+    Defaults to 90.
+- flush_interval (int):
+    Time interval (in seconds) between generated output messages. Defaults to
+    10.
+- message_type (string):
+    String value to use for the `Type` value of the emitted stat messages.
+    Defaults to "heka.statmetric".
 
 .. end-inputs
 
@@ -645,9 +671,8 @@ StatFilter
 ----------
 
 Filter plugin that accepts messages of a specfied form and uses extracted
-message data to generate statsd-style numerical metrics. Can be combined w/
-`message_matcher` capture groups (see :ref:`matcher_capture_groups`) to parse
-message payloads and generate counter and timer data from extracted content.
+message data to generate statsd-style numerical metrics in the form of `Stat`
+objects that can be consumed by a `StatAccumulator`.
 
 Parameters:
 
@@ -662,9 +687,10 @@ Parameters:
         Expression representing the (possibly dynamic) value that the
         `StatFilter` should emit for each received message.
 
-- StatsdInputName (string, optional):
-    Configured `name` value for a running `StatsdInput` plugin into which
-    stats can be fed. Defaults to `StatsdInput`.
+- stat_accum_name (string):
+    Name of a StatAccumInput instance that this StatFilter will use as its
+    StatAccumulator for submitting generate stat values. Defaults to
+    "StatAccumInput".
 
 Example (Assuming you had TransformFilter inserting messages as above):
 
@@ -672,10 +698,14 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
     [StatsdInput]
     address = "127.0.0.1:29301"
+    stat_accum_name = "my_stat_accum"
+
+    [my_stat_accum]
     flushInterval = 5
 
     [Hits]
     type = "StatFilter"
+    stat_accum_name = "my_stat_accum"
     message_matcher = 'Type == "ApacheLogfile"'
 
     [Hits.Metric.bandwidth]
@@ -690,7 +720,7 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
 .. note::
 
-    StatFilter requires the StatsdInput to be running.
+    StatFilter requires an available StatAccumulator to be running.
 
 .. _config_sandbox_filter:
 
@@ -875,9 +905,9 @@ Example:
 WhisperOutput
 -------------
 
-WhisperOutput plugins parse `statmetric` message types and write the extracted
-counter, timer, and gauge data out to a `graphite
-<http://graphite.wikidot.com/>`_ compatible `whisper database
+WhisperOutput plugins parse the "stat metric" messages generated by a
+StatAccumulator and write the extracted counter, timer, and gauge data out to
+a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 <http://graphite.wikidot.com/whisper>`_ file tree structure.
 
 Parameters:
@@ -918,7 +948,7 @@ Example:
 .. code-block:: ini
 
     [WhisperOutput]
-    message_matcher = "Type == 'statmetric'"
+    message_matcher = "Type == 'heka.statmetric'"
     defaultaggmethod = 3
     defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
 
