@@ -45,7 +45,7 @@ type StatFilterConfig struct {
 	Metric map[string]metric
 	// Configured name of StatAccumInput plugin to which this filter should be
 	// delivering its stats. Defaults to "StatsAccumInput".
-	StatAccumName string
+	StatAccumName string `toml:"stat_accum_input"`
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
