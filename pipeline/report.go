@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"strings"
@@ -145,12 +146,8 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
-		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
-			setNameField(pack.Message, name)
-			reportChan <- pack
-		} else {
-			pack.Recycle()
-		}
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
 
 	for _, runner := range pc.allDecoders {
@@ -185,7 +182,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 // Generates a single message with a payload that is a string representation
 // of the fields data and payload extracted from each running plugin's report
 // message and hands the message to the router for delivery.
-func (pc *PipelineConfig) allReportsMsg() {
+func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 	payload := make([]string, 0, 10)
 	var iName interface{}
 	var name, line string
@@ -220,8 +217,57 @@ func (pc *PipelineConfig) allReportsMsg() {
 	}
 	payload = append(payload, "]}")
 
+	report_type = "heka.all-report"
+	msg_payload = strings.Join(payload, "")
+	return
+}
+
+// Generates a single message with a payload that is a string representation
+// of the fields data and payload extracted from each running plugin's report
+// message and hands the message to the router for delivery.
+func (pc *PipelineConfig) allReportsMsg() {
+	report_type, msg_payload := pc.allReportsData()
+
 	pack := pc.PipelinePack(0)
-	pack.Message.SetType("heka.all-report")
-	pack.Message.SetPayload(strings.Join(payload, ""))
+	pack.Message.SetType(report_type)
+	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
+}
+
+func (pc *PipelineConfig) allReportsStdout() {
+	report_type, msg_payload := pc.allReportsData()
+	pc.log(pc.formatTextReport(report_type, msg_payload))
+}
+
+func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
+
+	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
+
+	///////////
+
+	m := make(map[string]interface{})
+	json.Unmarshal([]byte(payload), &m)
+
+	fullReport := make([]string, 0)
+	for _, row := range m["reports"].([]interface{}) {
+		pluginReport := make([]string, 0)
+		pluginReport = append(pluginReport, fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
+		for _, colname := range header {
+			data := row.(map[string]interface{})[colname]
+			if data != nil {
+				pluginReport = append(pluginReport,
+					fmt.Sprintf("    %s: %s",
+						colname,
+						data.(map[string]interface{})["value"]))
+			}
+		}
+
+		fullReport = append(fullReport, strings.Join(pluginReport, "\n"))
+	}
+
+	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",
+		report_type,
+		strings.Join(fullReport, "\n"))
+
+	return stdout_report
 }

@@ -483,7 +483,6 @@ func (p *PipelinePack) Recycle() {
 // PipelinePack pools, and starts all the runners. Then it listens for signals
 // and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
-	SIGUSR1 := syscall.Signal(0xa) // since it is not defined for Windows
 	log.Println("Starting hekad...")
 
 	var inputsWg sync.WaitGroup
@@ -533,7 +532,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
 
 	for !globals.Stopping {
 		select {
@@ -549,7 +548,7 @@ func Run(config *PipelineConfig) {
 				globals.Stopping = true
 			case SIGUSR1:
 				log.Println("Queue report initiated.")
-				go config.allReportsMsg()
+				go config.allReportsStdout()
 			}
 		}
 	}

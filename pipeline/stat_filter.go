@@ -34,8 +34,8 @@ type metric struct {
 // StatsdInput exactly as if a statsd message has come from a networked statsd
 // client.
 type StatFilter struct {
-	metrics   map[string]metric
-	inputName string
+	metrics       map[string]metric
+	statAccumName string
 }
 
 // StatFilter config struct.
@@ -43,21 +43,21 @@ type StatFilterConfig struct {
 	// Set of metric templates this filter should use, keyed by arbitrary
 	// metric id.
 	Metric map[string]metric
-	// Configured name of StatsdInput plugin to which this filter should
-	// be delivering its output. Defaults to "StatsdInput".
-	StatsdInputName string
+	// Configured name of StatAccumInput plugin to which this filter should be
+	// delivering its stats. Defaults to "StatsAccumInput".
+	StatAccumName string `toml:"stat_accum_input"`
 }
 
 func (s *StatFilter) ConfigStruct() interface{} {
 	return &StatFilterConfig{
-		StatsdInputName: "StatsdInput",
+		StatAccumName: "StatAccumInput",
 	}
 }
 
 func (s *StatFilter) Init(config interface{}) (err error) {
 	conf := config.(*StatFilterConfig)
 	s.metrics = conf.Metric
-	s.inputName = conf.StatsdInputName
+	s.statAccumName = conf.StatAccumName
 	return
 }
 
@@ -69,28 +69,18 @@ func (s *StatFilter) Init(config interface{}) (err error) {
 // the name "@Hostname.404s" would become a stat with the "@Hostname" replaced
 // by the hostname from the received message.
 func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-	inChan := fr.InChan()
+	var statAccum StatAccumulator
+	if statAccum, err = h.StatAccumulator(s.statAccumName); err != nil {
+		return
+	}
 
 	var (
 		pack     *PipelinePack
-		sp       StatPacket
 		captures map[string]string
-		ir       InputRunner
-		ok       bool
+		stat     Stat
 	)
 
-	// Pull the statsd input out
-	ir, ok = h.PipelineConfig().InputRunners[s.inputName]
-	if !ok {
-		return fmt.Errorf("Unable to locate StatsdInput '%s', was it configured?",
-			s.inputName)
-	}
-	statInput, ok := ir.Plugin().(*StatsdInput)
-	if !ok {
-		return fmt.Errorf("Unable to coerce '%s' input plugin to StatsdInput",
-			s.inputName)
-	}
-
+	inChan := fr.InChan()
 	for plc := range inChan {
 		pack = plc.Pack
 		captures = plc.Captures
@@ -112,17 +102,19 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
-			sp.Bucket = InterpolateString(met.Name, captures)
+			stat.Bucket = InterpolateString(met.Name, captures)
 			switch met.Type_ {
 			case "Counter":
-				sp.Modifier = ""
+				stat.Modifier = ""
 			case "Timer":
-				sp.Modifier = "ms"
+				stat.Modifier = "ms"
 			case "Gauge":
-				sp.Modifier = "g"
+				stat.Modifier = "g"
 			}
-			sp.Value = InterpolateString(met.Value, captures)
-			statInput.Packet <- sp
+			stat.Value = InterpolateString(met.Value, captures)
+			if !statAccum.DropStat(stat) {
+				fr.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+			}
 		}
 		pack.Recycle()
 	}

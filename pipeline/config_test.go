@@ -164,6 +164,97 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(matcher, gs.Equals, messageMatchStr)
 		})
 
+		c.Specify("can render JSON reports as pipe delimited data", func() {
+			RegisterPlugin("DefaultsTestOutput", func() interface{} {
+				return new(DefaultsTestOutput)
+			})
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults2.toml")
+			c.Expect(err, gs.IsNil)
+
+			data := `{"reports":[{"Plugin":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Plugin":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Plugin":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}},{"Plugin":"JsonDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"DecoderPool-JsonDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"DecoderPool-ProtobufDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Plugin":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}},{"Plugin":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Plugin":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
+
+			report := pipeConfig.formatTextReport("heka.all-report", data)
+
+			expected := `========[heka.all-report]========
+inputRecycleChan:
+    InChanCapacity: 100
+    InChanLength: 99
+injectRecycleChan:
+    InChanCapacity: 100
+    InChanLength: 98
+Router:
+    InChanCapacity: 50
+    InChanLength: 0
+    ProcessMessageCount: 26
+JsonDecoder-0:
+    InChanCapacity: 50
+    InChanLength: 0
+JsonDecoder-1:
+    InChanCapacity: 50
+    InChanLength: 0
+JsonDecoder-2:
+    InChanCapacity: 50
+    InChanLength: 0
+JsonDecoder-3:
+    InChanCapacity: 50
+    InChanLength: 0
+ProtobufDecoder-0:
+    InChanCapacity: 50
+    InChanLength: 0
+ProtobufDecoder-1:
+    InChanCapacity: 50
+    InChanLength: 0
+ProtobufDecoder-2:
+    InChanCapacity: 50
+    InChanLength: 0
+ProtobufDecoder-3:
+    InChanCapacity: 50
+    InChanLength: 0
+DecoderPool-JsonDecoder:
+    InChanCapacity: 4
+    InChanLength: 4
+DecoderPool-ProtobufDecoder:
+    InChanCapacity: 4
+    InChanLength: 4
+OpsSandboxManager:
+    InChanCapacity: 50
+    InChanLength: 0
+    MatchChanCapacity: 50
+    MatchChanLength: 0
+    MatchAvgDuration: 0
+    ProcessMessageCount: 0
+hekabench_counter:
+    InChanCapacity: 50
+    InChanLength: 0
+    MatchChanCapacity: 50
+    MatchChanLength: 0
+    MatchAvgDuration: 445
+    ProcessMessageCount: 0
+    InjectMessageCount: 0
+    Memory: 20644
+    MaxMemory: 20644
+    MaxInstructions: 18
+    MaxOutput: 0
+    ProcessMessageAvgDuration: 0
+    TimerEventAvgDuration: 78532
+LogOutput:
+    InChanCapacity: 50
+    InChanLength: 0
+    MatchChanCapacity: 50
+    MatchChanLength: 0
+    MatchAvgDuration: 406
+DashboardOutput:
+    InChanCapacity: 50
+    InChanLength: 0
+    MatchChanCapacity: 50
+    MatchChanLength: 0
+    MatchAvgDuration: 336
+========
+`
+
+			c.Expect(report, gs.Equals, expected)
+		})
+
 		c.Specify("works w/ bad param config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_params.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
@@ -172,6 +263,7 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Specify("works w/ common parameters that are not part of the struct", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_common.toml")
 			c.Assume(err, gs.IsNil)
+
 		})
 
 	})

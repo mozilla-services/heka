@@ -148,16 +148,16 @@ timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
 [SyncProxyDecoder.MessageFields]
 Type = "SyncProxyLog"
-RemoteIP = "%RemoteIP%"
+RemoteIP|ipv4 = "%RemoteIP%"
 User = "%User%"
 Method = "%Method%"
-Url = "%Url%"
+Url|uri = "%Url%"
 StatusCode = "%StatusCode%"
-RequestSize = "%RequestSize%"
+RequestSize|B= "%RequestSize%"
 Referer = "%Referer%"
 Browser = "%Browser%"
-ResponseTime = "%ResponseTime%"
-ResponseSize = "%ResponseSize%"
+ResponseTime|s = "%ResponseTime%"
+ResponseSize|B = "%ResponseSize%"
 Payload = ""
 
 [SyncProxyFilter]
@@ -166,6 +166,43 @@ message_matcher = "Type == 'SyncProxyLog'"
 ticker_interval = 60
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/sync_proxy.lua"
+preserve_data = false
+memory_limit = 1000000
+instruction_limit = 100000
+output_limit = 64000
+
+[SyncHeavyHitters]
+type = "SandboxFilter"
+message_matcher = "Type == 'SyncProxyLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/sync_heavyhitters.lua"
+preserve_data = false
+memory_limit = 8000000
+instruction_limit = 1000000
+output_limit = 64000
+
+[AuditLogInput]
+type = "LogfileInput"
+logfile = "./audit.log"
+decoders = ["AuditLogDecoder"]
+seekjournal = "./audit.journal"
+
+[AuditLogDecoder]
+type = "LoglineDecoder"
+matchRegex = '/^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)/'
+
+[AuditLogDecoder.MessageFields]
+Type = "AuditLog"
+AuditType = "%AuditType%"
+AuditTime|s = "%AuditTime%"
+
+[AuditLogFilter]
+type = "SandboxFilter"
+message_matcher = "Type == 'AuditLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/auditlog.lua"
 preserve_data = false
 memory_limit = 1000000
 instruction_limit = 100000

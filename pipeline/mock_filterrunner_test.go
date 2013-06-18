@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	sync "sync"
 	time "time"
+	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
 )
 
