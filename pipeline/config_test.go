@@ -163,5 +163,11 @@ func LoadFromConfigSpec(c gs.Context) {
 			matcher := runner.MatchRunner().MatcherSpecification().String()
 			c.Expect(matcher, gs.Equals, messageMatchStr)
 		})
+
+		c.Specify("works w/ bad param config file", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_params.toml")
+			c.Assume(err, gs.Not(gs.IsNil))
+		})
+
 	})
 }

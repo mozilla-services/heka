@@ -339,7 +339,15 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	}()
 
 	configStruct = hasConfigStruct.ConfigStruct()
-	if err = toml.PrimitiveDecode(config, configStruct); err != nil {
+
+	// Heka defines some common parameters
+	// that are 'magic' and don't appear in the actual struct
+	ignore_stuff := map[string]interface{}{"type": true,
+		"outputs":        true,
+		"message_filter": true}
+
+	if err = toml.PrimitiveDecodeStrict(config, configStruct,
+		ignore_stuff); err != nil {
 		configStruct = nil
 		err = fmt.Errorf("Can't unmarshal config: %s", err)
 	}
