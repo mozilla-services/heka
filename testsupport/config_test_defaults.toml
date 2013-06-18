@@ -7,4 +7,4 @@ address = "127.0.0.1:29329"
 
 [sample]
 type = "StatFilter"
-message_filter = "Type == 'counter' || Type == 'gauge'"
+message_matcher = "Type == 'counter' || Type == 'gauge'"

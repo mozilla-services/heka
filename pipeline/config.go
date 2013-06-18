@@ -342,12 +342,15 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 
 	// Heka defines some common parameters
 	// that are 'magic' and don't appear in the actual struct
-	ignore_stuff := map[string]interface{}{"type": true,
-		"outputs":        true,
-		"message_filter": true}
+	heka_params := map[string]interface{}{"type": true,
+		"message_signer":  true,
+		"message_matcher": true,
+		"ticker_interval": true,
+		"retries":         true,
+	}
 
 	if err = toml.PrimitiveDecodeStrict(config, configStruct,
-		ignore_stuff); err != nil {
+		heka_params); err != nil {
 		configStruct = nil
 		err = fmt.Errorf("Can't unmarshal config: %s", err)
 	}
