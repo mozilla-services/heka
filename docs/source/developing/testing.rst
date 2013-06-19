@@ -31,7 +31,8 @@ Configuration Variables
     - name (string): The name of the signer.
     - hmac_hash (string): md5 or sha1
     - hmac_key (string): The key the message will be signed with.
-    - version (int): The version number of the hmac_key. 
+    - version (int): The version number of the hmac_key.
+- ascii_only (bool): True, if generated message payloads should only contain ASCII characters. False, if message payloads should contain arbitrary binary data. Defaults to false.
 
 Example
 
