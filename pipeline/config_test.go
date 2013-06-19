@@ -251,7 +251,18 @@ DashboardOutput:
     MatchAvgDuration: 336
 ========
 `
+
 			c.Expect(report, gs.Equals, expected)
+		})
+
+		c.Specify("works w/ bad param config file", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_params.toml")
+			c.Assume(err, gs.Not(gs.IsNil))
+		})
+
+		c.Specify("works w/ common parameters that are not part of the struct", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_common.toml")
+			c.Assume(err, gs.IsNil)
 
 		})
 
