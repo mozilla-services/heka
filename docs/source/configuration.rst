@@ -1018,6 +1018,7 @@ Example:
 .. code-block:: ini
 
     [CarbonOutput]
+    message_matcher = "Type == 'heka.statmetric'"
     address = "localhost:2003"
 
 
