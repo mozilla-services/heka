@@ -345,7 +345,7 @@ dataSource.plug({fn: Y.Plugin.DataSourceJSONSchema, cfg: {
     });
 
 var table = new Y.DataTable({
-    columns: [{key: 'Plugin', sortable:true, formatter: '<a href="/{value}.html">{value}</a>', allowHTML: false},
+    columns: [{key: 'Plugin', sortable:true, formatter: '<a href="./{value}.html">{value}</a>', allowHTML: false},
               {key: 'InChanCapacity', sortable:true},
               {key: 'InChanLength', sortable:true},
               {key: 'MatchChanCapacity', sortable:true},
@@ -449,6 +449,14 @@ func getCbufTemplate() string {
             + '" onClick="' + name
             + '.setVisibility(this.id, this.checked)" checked><label style="font-size: smaller; color: '
             + color + '">'+ graph.attr_("labels")[i] + '</label>&nbsp;';
+        }
+        checkboxes.innerHTML += '<br/><input type="checkbox" id="logscale" onClick="graph.updateOptions({ logscale: this.checked })">'
+            + '<label style="font-size: smaller;">Log scale</label>';
+        if (cbuf.annotations.length > 0) {
+            for (var i = 0; i < cbuf.annotations.length; i++) {
+                cbuf.annotations[i].series = labels[cbuf.annotations[i].col];
+            }
+            graph.setAnnotations(cbuf.annotations);
         }
     }
     </script>
