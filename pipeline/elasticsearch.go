@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2013
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -24,27 +24,13 @@ import (
 	"bytes"
 	"strconv"
 	"io"
-	"github.com/rafrombrc/go-notify"
 	"strings"
 	"github.com/mozilla-services/heka/message"
+	"github.com/rafrombrc/go-notify"
 	"io/ioutil"
 )
 
 var (
-	DOCUMENTFORMATS = map[string]bool{
-	"raw":           true,
-	"clean":         true,
-}
-
-	CLUSTERNAME = "elasticsearch"
-	INDEXNAME   = "heka-%{2006.01.02}"
-	TYPENAME    = "message"
-
-	DELIMITERSTART = "%{"
-	DELIMITEREND = "}"
-
-	TIMESTAMPFORMAT = "2006-01-02T15:04:05.000Z"
-
 	httpClient = &http.Client{}
 )
 
@@ -58,12 +44,14 @@ type ElasticSearchOutput struct {
 	batchChan          	chan []byte
 	backChan		   	chan []byte
 	client 				*http.Client
-	format				string
-	// Field names to include in ElasticSearch document for "clean" format
-	fields				[]string
+	format				 string
+	// The Message Formatter to use when converting
+	// Heka messages to ElasticSearch documents
+	messageFormatter	MessageFormatter
 	// ElasticSearch server URL
 	// Defaults to "http://localhost:9200"
 	server				string
+	timestamp			 string
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -75,7 +63,7 @@ type ElasticSearchOutputConfig struct {
 	// Name of the document type of the messages.
 	TypeName string
 	// Interval at which accumulated messages should be bulk indexed to ElasticSearch, in
-	// milliseconds (default 1000, i.e. 1 second).
+	// milliseconds (default 5000, i.e. 5 seconds).
 	FlushInterval uint32
 	// Format of the document
 	Format string
@@ -84,14 +72,20 @@ type ElasticSearchOutputConfig struct {
 	// ElasticSearch server URL
 	// Defaults to "http://localhost:9200"
 	Server string
-}
-
-func (c ElasticSearchOutputConfig) String() string {
-	return fmt.Sprintf(`ElasticSearchOutputConfig{Cluster: "%s", Index: "%s", TypeName: "%s", Format: "%s", FlushInterval: "%d"}`, c.Cluster, c.Index, c.TypeName, c.Format, c.FlushInterval)
+	// Timestamp format
+	Timestamp string
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
-	return &ElasticSearchOutputConfig{Cluster: CLUSTERNAME, Index: INDEXNAME, TypeName: TYPENAME, FlushInterval: 5000, Format: "raw", Server: "http://localhost:9200"}
+	return &ElasticSearchOutputConfig{
+		Cluster: "elasticsearch",
+		Index: "heka-%{2006.01.02}",
+		TypeName: "message",
+		FlushInterval: 5000,
+		Format: "clean",
+		Server: "http://localhost:9200",
+		Timestamp: "2006-01-02T15:04:05.000Z",
+	}
 }
 
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
@@ -104,8 +98,16 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.backChan = make(chan []byte, 2)
 	o.client = new(http.Client)
 	o.format = conf.Format
-	o.fields = conf.Fields
+	switch (strings.ToLower(conf.Format)) {
+	case "raw":
+		o.messageFormatter = NewRawMessageFormatter()
+	case "clean":
+		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
+	default:
+		o.messageFormatter = NewRawMessageFormatter()
+	}
 	o.server = conf.Server
+	o.timestamp = conf.Timestamp
 	return
 }
 
@@ -161,10 +163,11 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 }
 
 type ElasticSearchCoordinates struct {
-	Index		string
-	Type		string
-	Id			string
-	Timestamp   *int64
+	Index		     	string
+	Type		      	string
+	Id			    	string
+	Timestamp   		*int64
+	TimestampFormat  	 string
 }
 
 func (e *ElasticSearchCoordinates) String() string {
@@ -177,64 +180,123 @@ func (e *ElasticSearchCoordinates) Bytes() []byte {
 	buf.WriteString(strconv.Quote(cleanIndexName(e.Index)))
 	buf.WriteString(`,"_type":`)
 	buf.WriteString(strconv.Quote(e.Type))
-
 	if len(e.Id) > 0 {
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(e.Id))
 	}
-
 	if e != nil && e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
 		buf.WriteString(`,"_timestamp":"`)
-		buf.WriteString(t.Format(TIMESTAMPFORMAT))
+		buf.WriteString(t.Format(e.TimestampFormat))
 		buf.WriteString(`"`)
 	}
 	buf.WriteString(`}}`)
 	return buf.Bytes()
 }
 
-// Reformats a Message into a clean JSON object
-func (o *ElasticSearchOutput) CleanFormatMarshal(m *message.Message) (doc []byte, err error) {
+// A Message Formatter formats a Heka message in JSON ([]byte)
+type MessageFormatter interface {
+	// Formats a Heka message in JSON
+	Format(*message.Message) (doc []byte, err error)
+}
+
+// Raw message formatter leaves the Heka message untouched
+type RawMessageFormatter struct {
+}
+
+func NewRawMessageFormatter() *RawMessageFormatter {
+	return &RawMessageFormatter{}
+}
+
+func (r *RawMessageFormatter) Format(m *message.Message) (doc []byte, err error) {
+	return json.Marshal(m)
+}
+
+// Clean message formatter reformats the Heka message in a
+// more friendly ElasticSearch/Kibana way
+type CleanMessageFormatter struct {
+	// Field names to include in ElasticSearch document for "clean" format
+	fields				[]string
+	timestampFormat  	 string
+}
+
+func NewCleanMessageFormatter(fields []string, timestampFormat string) *CleanMessageFormatter {
+	if fields == nil || len(fields) == 0 {
+		return &CleanMessageFormatter{
+			fields: []string{
+				"Uuid",
+				"Timestamp",
+				"Type",
+				"Logger",
+				"Severity",
+				"Payload",
+				"EnvVersion",
+				"Pid",
+				"Hostname",
+				"Fields",
+			},
+			timestampFormat: timestampFormat,
+		}
+	} else {
+		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat}
+	}
+}
+
+// Append a field (with a name and a value) to a Buffer
+func writeField(b *bytes.Buffer, name string, value string) {
+	if b.Len() > 1 {
+		b.WriteString(`,`)
+	}
+	b.WriteString(`"`)
+	b.WriteString(name)
+	b.WriteString(`":`)
+	b.WriteString(value)
+}
+
+func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err error) {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{`)
-
-	if o.fields == nil || len(o.fields) == 0 {
-		err = fmt.Errorf("ElasticSearchOutput fields is empty")
-		return
-	}
-
 	// Iterates over fields configured for clean formating
-	for i,f := range o.fields {
-		buf.WriteString(`"`)
-		buf.WriteString(f)
-		buf.WriteString(`":`)
-
-		switch (f) {
+	for _, f := range c.fields {
+		switch (strings.ToLower(f)) {
 		case "uuid":
-			buf.WriteString(strconv.Quote(m.GetUuidString()))
+			writeField(&buf, f, strconv.Quote(m.GetUuidString()))
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp())
-			buf.WriteString(strconv.Quote(t.Format(TIMESTAMPFORMAT)))
+			writeField(&buf, f, strconv.Quote(t.Format(c.timestampFormat)))
 		case "type":
-			buf.WriteString(strconv.Quote(m.GetType()))
+			writeField(&buf, f, strconv.Quote(m.GetType()))
 		case "logger":
-			buf.WriteString(strconv.Quote(m.GetLogger()))
+			writeField(&buf, f, strconv.Quote(m.GetLogger()))
 		case "severity":
-			buf.WriteString(strconv.Itoa(int(m.GetSeverity())))
+			writeField(&buf, f, strconv.Itoa(int(m.GetSeverity())))
 		case "payload":
-			buf.WriteString(strconv.Quote(m.GetPayload()))
-		case "env_version":
-			buf.WriteString(strconv.Quote(m.GetEnvVersion()))
+			writeField(&buf, f, strconv.Quote(m.GetPayload()))
+		case "envversion":
+			writeField(&buf, f, strconv.Quote(m.GetEnvVersion()))
 		case "pid":
-			buf.WriteString(strconv.Itoa(int(m.GetPid())))
+			writeField(&buf, f, strconv.Itoa(int(m.GetPid())))
 		case "hostname":
-			buf.WriteString(strconv.Quote(m.GetHostname()))
+			writeField(&buf, f, strconv.Quote(m.GetHostname()))
+		case "fields":
+			for _,field := range m.Fields {
+				switch field.GetValueType() {
+				case message.Field_STRING:
+					writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
+				case message.Field_BYTES:
+					//writeField(&buf, *field.Name, strconv.Quote(string(field.GetValue().([]byte)[:])))
+				case message.Field_INTEGER:
+					writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+				case message.Field_DOUBLE:
+					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+				case message.Field_BOOL:
+					writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+				}
+			}
 		default:
-			err = fmt.Errorf("ElasticSearchOutput clean field not found: %s", f)
+			// Search fo a given fields in the message
+			err = fmt.Errorf("Unable to find field: %s", f)
 			return
-		}
-		if i < len(o.fields) - 1 {
-			buf.WriteString(`,`)
 		}
 	}
 	buf.WriteString(`}`)
@@ -247,31 +309,25 @@ func (o *ElasticSearchOutput) CleanFormatMarshal(m *message.Message) (doc []byte
 func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
 
 	// Builds ElasticSearch document coordinates (1st line of bulk indexing)
-	coordinates := &ElasticSearchCoordinates{Index: o.indexName, Type: o.typeName, Timestamp: pack.Message.Timestamp}
+	coordinates := &ElasticSearchCoordinates{
+		Index: o.indexName,
+		Type: o.typeName,
+		Timestamp: pack.Message.Timestamp,
+		TimestampFormat: o.timestamp,
+	}
 
 	var document []byte
-	switch o.format {
-	case "raw":
-		if document, err = json.Marshal(pack.Message); err != nil {
-			err = fmt.Errorf("ElasticSearchOutput error in message conversion from %s format: %s", o.format, err)
-		}
-	case "clean":
-		if document, err = o.CleanFormatMarshal(pack.Message); err != nil {
-			err = fmt.Errorf("ElasticSearchOutput error in message conversion from %s format: %s", o.format, err)
-		}
-	default:
-		err = fmt.Errorf("ElasticSearchOutput message conversion error: Invalid format %s", o.format)
+	if document, err = o.messageFormatter.Format(pack.Message); err != nil {
+		err = fmt.Errorf("Error in message conversion to %s format: %s", o.format, err)
+		return
 	}
 
-	if err == nil {
-		// Write new bulk lines
-		*outBytes = append(*outBytes, coordinates.Bytes()...)
-		*outBytes = append(*outBytes, NEWLINE)
-		*outBytes = append(*outBytes, document...)
-		*outBytes = append(*outBytes, NEWLINE)
-	} else {
-		err = fmt.Errorf("ElasticSearchOutput error encoding document coordinates to JSON: %s", err)
-	}
+	// Write new bulk lines
+	*outBytes = append(*outBytes, coordinates.Bytes()...)
+	*outBytes = append(*outBytes, NEWLINE)
+	*outBytes = append(*outBytes, document...)
+	*outBytes = append(*outBytes, NEWLINE)
+
 	document = document[:0]
 	return
 }
@@ -295,7 +351,7 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 				// Channel is closed => we're shutting down, exit cleanly.
 				break
 			}
-			go doBulkRequest(o.server + "/_bulk", bytes.NewReader(outBatch));
+			doBulkRequest(o.server + "/_bulk", bytes.NewReader(outBatch));
 			outBatch = outBatch[:0]
 			o.backChan <- outBatch
 		case <-hupChan:
@@ -328,11 +384,11 @@ func doBulkRequest(url string, body io.Reader) {
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
 func cleanIndexName(name string) (index string) {
-	start := strings.Index(name, DELIMITERSTART)
-	end := strings.Index(name, DELIMITEREND)
+	start := strings.Index(name, "%{")
+	end := strings.Index(name, "}")
 
 	if start > -1 && end > -1 {
-		layout := name[start +  len(DELIMITERSTART) : end]
+		layout := name[start + len("%{") : end]
 		index = name[:start] + time.Now().Format(layout)
 	} else {
 		index = name
