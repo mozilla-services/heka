@@ -56,6 +56,7 @@ type FloodTest struct {
 	SignedPercentage     float64                      `toml:"signed_percentage"`
 	VariableSizeMessages bool                         `toml:"variable_size_messages"`
 	StaticMessageSize    uint64                       `toml:"static_message_size"`
+	AsciiOnly            bool                         `toml:"ascii_only"`
 }
 
 type FloodConfig map[string]FloodTest
@@ -96,7 +97,7 @@ func timerLoop(count, bytes *uint64, ticker *time.Ticker) {
 	}
 }
 
-func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
+func makeVariableMessage(encoder client.Encoder, items int, rdm *randomDataMaker) [][]byte {
 	ma := make([][]byte, items)
 	hostname, _ := os.Hostname()
 	pid := int32(os.Getpid())
@@ -112,6 +113,8 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 		msg.SetEnvVersion("0.2")
 		msg.SetPid(pid)
 		msg.SetHostname(hostname)
+		cnt = (rand.Int() % 3) * 1024
+		msg.SetPayload(makePayload(uint64(cnt), rdm))
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
 			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), "")
@@ -138,7 +141,7 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 			field, _ := message.NewField(fmt.Sprintf("bool%d", c), true, "")
 			msg.AddField(field)
 		}
-		cnt = (rand.Int() % 63) * 1024
+		cnt = (rand.Int() % 60) * 1024
 		buf := make([]byte, cnt)
 		field, _ := message.NewField("filler", buf, "")
 		msg.AddField(field)
@@ -153,17 +156,48 @@ func makeVariableMessage(encoder client.Encoder, items int) [][]byte {
 }
 
 type randomDataMaker struct {
-	src rand.Source
+	src       rand.Source
+	asciiOnly bool
 }
 
 func (r *randomDataMaker) Read(p []byte) (n int, err error) {
-	for i := range p {
-		p[i] = byte(r.src.Int63() & 0xff)
+	todo := len(p)
+	offset := 0
+	for {
+		valStash := int64(r.src.Int63())
+		var val int64
+		for i := 0; i < 8; i++ {
+			val = valStash & 0xff
+			if r.asciiOnly {
+				val = val % 94
+				val += 32
+			}
+			p[offset] = byte(val)
+			todo--
+			if todo == 0 {
+				return len(p), nil
+			}
+			offset++
+			valStash >>= 8
+		}
 	}
-	return len(p), nil
+	panic("unreachable")
 }
 
-func makeFixedMessage(encoder client.Encoder, size uint64) [][]byte {
+func makePayload(size uint64, rdm *randomDataMaker) (payload string) {
+	hostname, _ := os.Hostname()
+	payload = fmt.Sprintf("hekabench: %s", hostname)
+	buf := make([]byte, size)
+	payloadSuffix := bytes.NewBuffer(buf)
+	if _, err := io.CopyN(payloadSuffix, rdm, int64(size)); err == nil {
+		payload = fmt.Sprintf("%s - %s", payload, payloadSuffix.String())
+	} else {
+		log.Println("Error getting random string: ", err)
+	}
+	return
+}
+
+func makeFixedMessage(encoder client.Encoder, size uint64, rdm *randomDataMaker) [][]byte {
 	ma := make([][]byte, 1)
 	hostname, _ := os.Hostname()
 	pid := int32(os.Getpid())
@@ -176,19 +210,7 @@ func makeFixedMessage(encoder client.Encoder, size uint64) [][]byte {
 	msg.SetEnvVersion("0.8")
 	msg.SetPid(pid)
 	msg.SetHostname(hostname)
-	rdm := &randomDataMaker{
-		src: rand.NewSource(time.Now().UnixNano()),
-	}
-	buf := make([]byte, size)
-	payloadSuffix := bytes.NewBuffer(buf)
-	_, err := io.CopyN(payloadSuffix, rdm, int64(size))
-	payload := fmt.Sprintf("hekabench: %s", hostname)
-	if err == nil {
-		payload = fmt.Sprintf("%s - %s", payload, payloadSuffix.String())
-	} else {
-		log.Println("Error getting random string: ", err)
-	}
-	msg.SetPayload(payload)
+	msg.SetPayload(makePayload(size, rdm))
 	var stream []byte
 	if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
 		log.Println(err)
@@ -259,16 +281,23 @@ func main() {
 	var unsignedMessages [][]byte
 	var signedMessages [][]byte
 
+	rdm := &randomDataMaker{
+		src:       rand.NewSource(time.Now().UnixNano()),
+		asciiOnly: test.AsciiOnly,
+	}
+
 	if test.VariableSizeMessages {
 		numTestMessages = 64
-		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages)
-		signedMessages = makeVariableMessage(signedEncoder, numTestMessages)
+		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages, rdm)
+		signedMessages = makeVariableMessage(signedEncoder, numTestMessages, rdm)
 	} else {
 		if test.StaticMessageSize == 0 {
 			test.StaticMessageSize = 1000
 		}
-		unsignedMessages = makeFixedMessage(unsignedEncoder, test.StaticMessageSize)
-		signedMessages = makeFixedMessage(signedEncoder, test.StaticMessageSize)
+		unsignedMessages = makeFixedMessage(unsignedEncoder, test.StaticMessageSize,
+			rdm)
+		signedMessages = makeFixedMessage(signedEncoder, test.StaticMessageSize,
+			rdm)
 	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
