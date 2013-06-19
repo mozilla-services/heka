@@ -361,7 +361,25 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	}()
 
 	configStruct = hasConfigStruct.ConfigStruct()
-	if err = toml.PrimitiveDecode(config, configStruct); err != nil {
+
+	// Heka defines some common parameters
+	// that are defined in the PluginGlobals struct.
+	// Use reflection to extract the PluginGlobals fields or TOML tag
+	// name if available
+	heka_params := make(map[string]interface{})
+	pg := PluginGlobals{}
+	rt := reflect.ValueOf(pg).Type()
+	for i := 0; i < rt.NumField(); i++ {
+		sft := rt.Field(i)
+		kname := sft.Tag.Get("toml")
+		if len(kname) == 0 {
+			kname = sft.Name
+		}
+		heka_params[kname] = true
+	}
+
+	if err = toml.PrimitiveDecodeStrict(config, configStruct,
+		heka_params); err != nil {
 		configStruct = nil
 		err = fmt.Errorf("Can't unmarshal config: %s", err)
 	}
