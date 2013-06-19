@@ -363,12 +363,19 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	configStruct = hasConfigStruct.ConfigStruct()
 
 	// Heka defines some common parameters
-	// that are 'magic' and don't appear in the actual struct
-	heka_params := map[string]interface{}{"type": true,
-		"message_signer":  true,
-		"message_matcher": true,
-		"ticker_interval": true,
-		"retries":         true,
+	// that are defined in the PluginGlobals struct.
+	// Use reflection to extract the PluginGlobals fields or TOML tag
+	// name if available
+	heka_params := make(map[string]interface{})
+	pg := PluginGlobals{}
+	rt := reflect.ValueOf(pg).Type()
+	for i := 0; i < rt.NumField(); i++ {
+		sft := rt.Field(i)
+		kname := sft.Tag.Get("toml")
+		if len(kname) == 0 {
+			kname = sft.Name
+		}
+		heka_params[kname] = true
 	}
 
 	if err = toml.PrimitiveDecodeStrict(config, configStruct,
