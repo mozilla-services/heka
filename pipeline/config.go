@@ -705,4 +705,7 @@ func init() {
 	RegisterPlugin("NagiosOutput", func() interface{} {
 		return new(NagiosOutput)
 	})
+	RegisterPlugin("ElasticSearchOutput", func() interface{} {
+		return new(ElasticSearchOutput)
+	})
 }
