@@ -71,11 +71,11 @@ func CarbonOutputSpec(c gs.Context) {
 		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("writes out to the network", func() {
-			inChanCall := oth.MockOutputRunner.EXPECT().InChan()
+			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 			inChanCall.Return(inChan)
 
 			collectData := func(ch chan string) {
-				ln, err := net.Listen("tcp", "localhost:9125")
+				ln, err := net.Listen("tcp", "localhost:2003")
 				if err != nil {
 					ch <- err.Error()
 				}
@@ -113,10 +113,9 @@ func CarbonOutputSpec(c gs.Context) {
 			err = createProtobufStream(pack, &matchBytes)
 			c.Expect(err, gs.IsNil)
 
-			for i := 0; i < count; i++ {
-				result = <-ch
-				c.Expect(result, gs.Equals, lines[i])
-			}
+			result = <-ch
+			computed_result := strings.Join(lines, "\n") + "\n"
+			c.Expect(result, gs.Equals, computed_result)
 		})
 	})
 

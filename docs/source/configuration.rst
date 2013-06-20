@@ -1008,7 +1008,7 @@ Parameters:
 
 - address (string):
     An IP address:port on which this plugin will listen.
-    Defaults to: localhost:9125
+    Defaults to: localhost:2003
 
     .. code-block:: ini
 

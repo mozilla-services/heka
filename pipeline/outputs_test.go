@@ -322,7 +322,7 @@ func OutputsSpec(c gs.Context) {
 		})
 
 		c.Specify("writes out to the network", func() {
-			inChanCall := oth.MockOutputRunner.EXPECT().InChan()
+			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 			inChanCall.Return(inChan)
 
 			collectData := func(ch chan string) {

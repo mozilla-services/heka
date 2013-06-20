@@ -17,6 +17,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strconv"
@@ -36,7 +37,7 @@ type CarbonOutputConfig struct {
 }
 
 func (t *CarbonOutput) ConfigStruct() interface{} {
-	return &CarbonOutputConfig{Address: "localhost:9125"}
+	return &CarbonOutputConfig{Address: "localhost:2003"}
 }
 
 func (t *CarbonOutput) Init(config interface{}) (err error) {
@@ -61,10 +62,11 @@ func (t *CarbonOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	for plc := range or.InChan() {
 		pack = plc.Pack
-		payload := pack.Message.GetPayload()
+		lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
 		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
-		lines := strings.Split(strings.Trim(payload, " \n"), "\n")
 
+		clean_statmetrics := make([]string, len(lines))
+		index := 0
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)
@@ -81,22 +83,32 @@ func (t *CarbonOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				or.LogError(fmt.Errorf("parsing value '%s': %s", fields[1], e))
 				continue
 			}
-
-			conn, err := net.Dial("tcp", t.address)
-			if err != nil {
-				or.LogError(fmt.Errorf("Dial failed: %s",
-					err.Error()))
-				continue
-			}
-			defer conn.Close()
-
-			_, err = conn.Write([]byte(line))
-			if err != nil {
-				or.LogError(fmt.Errorf("Write to server failed: %s",
-					err.Error()))
-				continue
-			}
+			clean_statmetrics[index] = line
+			index += 1
 		}
+		clean_statmetrics = clean_statmetrics[:index]
+
+		conn, err := net.Dial("tcp", t.address)
+		if err != nil {
+			or.LogError(fmt.Errorf("Dial failed: %s",
+				err.Error()))
+			continue
+		}
+		defer conn.Close()
+
+		// Stuff each parseable statmetric into a bytebuffer
+		var buffer bytes.Buffer
+		for i := 0; i < len(clean_statmetrics); i++ {
+			buffer.WriteString(clean_statmetrics[i] + "\n")
+		}
+
+		_, err = conn.Write(buffer.Bytes())
+		if err != nil {
+			or.LogError(fmt.Errorf("Write to server failed: %s",
+				err.Error()))
+			continue
+		}
+
 	}
 
 	return
