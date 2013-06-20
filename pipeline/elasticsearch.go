@@ -61,10 +61,10 @@ type ElasticSearchOutputConfig struct {
 	// Name of the index in which the messages will be indexed.
 	Index string
 	// Name of the document type of the messages.
-	TypeName string
+	TypeName string `toml:"type_name"`
 	// Interval at which accumulated messages should be bulk indexed to ElasticSearch, in
 	// milliseconds (default 5000, i.e. 5 seconds).
-	FlushInterval uint32
+	FlushInterval uint32 `toml:"flush_interval"`
 	// Format of the document
 	Format string
 	// Field names to include in ElasticSearch document for "clean" format
