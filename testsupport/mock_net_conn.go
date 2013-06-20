@@ -5,8 +5,8 @@ package testsupport
 
 import (
 	gomock "code.google.com/p/gomock/gomock"
-	time "time"
 	net "net"
+	time "time"
 )
 
 // Mock of Conn interface

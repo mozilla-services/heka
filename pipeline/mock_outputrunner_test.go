@@ -4,9 +4,9 @@
 package pipeline
 
 import (
-	sync "sync"
-	gomock "code.google.com/p/gomock/gomock"
 	time "time"
+	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 )
 
 // Mock of OutputRunner interface
