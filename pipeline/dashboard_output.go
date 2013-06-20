@@ -72,6 +72,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	}
 	overwriteFile(path.Join(self.workingDirectory, "heka_report.html"), getReportHtml())
 	overwriteFile(path.Join(self.workingDirectory, "heka_sandbox_termination.html"), getSandboxTerminationHtml())
+	overwriteFile(path.Join(self.workingDirectory, "heka.js"), getHekaJs())
 
 	h := http.FileServer(http.Dir(self.workingDirectory))
 	http.Handle("/", h)
@@ -412,7 +413,7 @@ func getCbufTemplate() string {
 <head>
     <script src="http://people.mozilla.org/~mtrinkala/heka/dygraph-combined.js"  type="text/javascript">
     </script>
-    <script src="http://people.mozilla.org/~mtrinkala/heka/heka.js"  type="text/javascript">
+    <script src="heka.js"  type="text/javascript">
     </script>
     <script type="text/javascript">
 
@@ -494,4 +495,52 @@ tr:nth-child(odd) { background-color:#fff; }
 </div>
 </body>
 </html>`
+}
+
+func getHekaJs() string {
+	return `/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+function heka_parse_cbuf(data) {
+    var start = 1;
+    var cbuf = {};
+    var lines = data.split("\n");
+    var obj = JSON.parse(lines[0]);
+    if (obj.annotations) {
+        cbuf.annotations = obj.annotations;
+        cbuf.header = JSON.parse(lines[1]);
+        start = 2;
+    } else {
+        cbuf.header = obj;
+    }
+    cbuf.data = [];
+    for (var i = start; i < lines.length; i++) {
+        var line = lines[i];
+        var inFields = line.split('\t');
+
+        var fields = [];
+        fields[0] = new Date((cbuf.header.time + (cbuf.header.seconds_per_row*(i-start)))*1000);
+        for (var j = 0; j < inFields.length; j++) {
+            fields[j+1] = parseFloat(inFields[j]);
+        }
+        cbuf.data.push(fields);
+    }
+    return cbuf;
+}
+
+function heka_load_cbuf(url, callback) {
+    var req = new XMLHttpRequest();
+    var caller = this;
+    req.onreadystatechange = function () {
+        if (req.readyState == 4) {
+            if (req.status == 200 ||
+                req.status == 0) { 
+                callback(heka_parse_cbuf(req.responseText));
+            }
+        }
+    };
+    req.open("GET", url, true);
+    req.send(null);
+}`
 }
