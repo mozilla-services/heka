@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"io"
 	"io/ioutil"
 	"log"
@@ -342,24 +341,10 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 	o.backChan <- initBatch
 	var outBatch []byte
 
-	ok := true
-	hupChan := make(chan interface{})
-	notify.Start(RELOAD, hupChan)
-
-	for ok {
-		select {
-		case outBatch, ok = <-o.batchChan:
-			if !ok {
-				// Channel is closed => we're shutting down, exit cleanly.
-				break
-			}
-			doBulkRequest(o.server+"/_bulk", bytes.NewReader(outBatch))
-			outBatch = outBatch[:0]
-			o.backChan <- outBatch
-		case <-hupChan:
-			// Closing
-			log.Printf("ElasticSearchOutput closed")
-		}
+	for outBatch = range o.batchChan {
+		doBulkRequest(o.server+"/_bulk", bytes.NewReader(outBatch))
+		outBatch = outBatch[:0]
+		o.backChan <- outBatch
 	}
 	wg.Done()
 }
