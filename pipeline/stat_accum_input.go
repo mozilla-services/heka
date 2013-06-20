@@ -98,7 +98,7 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	sm.pConfig = h.PipelineConfig()
 	sm.ir = ir
-	sm.tickChan = time.Tick(time.Duration(sm.config.FlushInterval) * time.Second)
+	sm.tickChan = sm.ir.Ticker()
 	ok := true
 	for ok {
 		select {
