@@ -143,13 +143,13 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				close(o.batchChan)
 				break
 			}
+			// `handleMessage()` method recycles the pack.
 			if e = o.handleMessage(plc.Pack, &outBytes); e != nil {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
 			}
 			outBytes = outBytes[:0]
-			plc.Pack.Recycle()
 		case <-ticker:
 			if len(outBatch) > 0 {
 				// This will block until the other side is ready to accept
@@ -317,7 +317,9 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 	}
 
 	var document []byte
-	if document, err = o.messageFormatter.Format(pack.Message); err != nil {
+	document, err = o.messageFormatter.Format(pack.Message)
+	pack.Recycle()
+	if err != nil {
 		err = fmt.Errorf("Error in message conversion to %s format: %s", o.format, err)
 		return
 	}
