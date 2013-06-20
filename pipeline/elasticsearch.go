@@ -376,12 +376,12 @@ func doBulkRequest(url string, body io.Reader) {
 		}
 		if response != nil {
 			defer response.Body.Close()
-		}
-		if response.StatusCode > 304 {
-			log.Printf("ElasticSearchOutput bulk response in error: %s", response.Status)
-		}
-		if _, err = ioutil.ReadAll(response.Body); err != nil {
-			log.Printf("ElasticSearchOutput bulk response reading in error: %s", err)
+			if response.StatusCode > 304 {
+				log.Printf("ElasticSearchOutput bulk response in error: %s", response.Status)
+			}
+			if _, err = ioutil.ReadAll(response.Body); err != nil {
+				log.Printf("ElasticSearchOutput bulk response reading in error: %s", err)
+			}
 		}
 	}
 }
