@@ -139,7 +139,7 @@ output_limit = 1024
 type = "LogfileInput"
 logfile = "./sync-proxy.log"
 decoders = ["SyncProxyDecoder"]
-seekjournal = "./seekjournal"
+seekjournal = "./sync-proxy.journal"
 
 [SyncProxyDecoder]
 type = "LoglineDecoder"

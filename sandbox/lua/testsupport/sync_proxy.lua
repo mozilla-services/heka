@@ -2,23 +2,35 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-status = circular_buffer.new(1440, 5, 60)
+local rows = 1440
+local sec_per_row = 60
+
+status = circular_buffer.new(rows, 5, sec_per_row)
 local HTTP_200          = status:set_header(1, "HTTP_200"      , "count")
 local HTTP_300          = status:set_header(2, "HTTP_300"      , "count")
 local HTTP_400          = status:set_header(3, "HTTP_400"      , "count")
 local HTTP_500          = status:set_header(4, "HTTP_500"      , "count")
 local HTTP_UNKNOWN      = status:set_header(5, "HTTP_UNKNOWN"  , "count")
 
-request = circular_buffer.new(1440, 4, 60)
+request = circular_buffer.new(rows, 4, sec_per_row)
 local SUCCESS           = request:set_header(1, "Success"      , "count")
 local FAILURE           = request:set_header(2, "Failure"      , "count")
 local AVG_RESPONSE_SIZE = request:set_header(3, "Response Size", "B", "avg")
 local AVG_RESPONSE_TIME = request:set_header(4, "Response Time", "s", "avg")
 
-sums = circular_buffer.new(1440, 3, 60)
+sums = circular_buffer.new(rows, 3, sec_per_row)
 local REQUESTS      = sums:set_header(1, "Requests"      , "count")
 local RESPONSE_SIZE = sums:set_header(2, "Response Size" , "B")
 local RESPONSE_TIME = sums:set_header(3, "Response Time" , "s")
+
+local interval = 1e9 * sec_per_row
+local sliding_window = interval * 15
+
+newest = 0
+oldest = 0
+last_alert = 0
+annotations = {}
+annotations_size = 0
 
 function process_message ()
     local ts = read_message("Timestamp")
@@ -28,6 +40,9 @@ function process_message ()
 
     local cnt = sums:add(ts, REQUESTS, 1)
     if cnt == nil then return 0 end -- outside the buffer
+
+    if ts > newest then newest = ts end
+    if oldest == 0 then oldest = ts end
 
     local t = sums:add(ts, RESPONSE_SIZE, tonumber(rs))
     request:set(ts, AVG_RESPONSE_SIZE, t/cnt)
@@ -55,6 +70,24 @@ function process_message ()
     return 0
 end
 
+local function output_annotations()
+    if annotations_size > 0 then
+        output('{"annotations":[')
+        local i = 1
+        for k, v  in pairs(annotations) do
+            output(string.format('{"col":%d,"x":%d,"shortText":"%s","text":"%s"}', 
+                                 v.col, 
+                                 math.floor(k/1e6), 
+                                 v.shorttext, 
+                                 v.text))
+            if i < annotations_size then output(',') end
+            if k < newest - interval * rows then annotations[k] = nil end -- clean out old alerts
+            i = i + 1
+        end
+        output(']}\n')
+    end
+end
+
 function timer_event(ns)
     -- advance the buffers so the graphs will continue to advance without new data
     -- status:add(ns, 1, 0) 
@@ -63,6 +96,35 @@ function timer_event(ns)
     output(status)
     inject_message("cbuf", "HTTP Status")
 
+    if newest - interval - oldest < sliding_window * 2 then
+        output(request)
+        inject_message("cbuf", "Request Statistics")
+        return -- not enough data to check for anomalies
+    end
+
+    -- Anomaly detection
+    -- Compute the average of the last 15 intervals and the 15 intervals before
+    -- that and compare the difference against the historical standard deviation.
+    -- The current interval is not included since it is incomplete and can skew
+    -- the stats.
+    local previous_window = newest - sliding_window * 2
+    local current_window = newest - sliding_window
+    local historical_sd = request:compute("sd", AVG_RESPONSE_TIME, nil, previous_window - interval) 
+    local previous_avg = request:compute("avg", AVG_RESPONSE_TIME, previous_window, current_window - interval)
+    local current_avg = request:compute("avg", AVG_RESPONSE_TIME, current_window, newest - interval)
+
+    local delta = math.abs(current_avg - previous_avg)
+    if delta > historical_sd * 2 and newest - last_alert > sliding_window then
+        local msg = "CRITICAL:Average response time has fluxuated more than 2 standard deviations"
+        last_alert = newest - newest % interval
+        annotations[last_alert] = {col = AVG_RESPONSE_TIME, shorttext = "A", text = msg}
+        annotations_size = annotations_size + 1
+
+        output(msg)
+        inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
+    end
+
+    output_annotations()
     output(request)
     inject_message("cbuf", "Request Statistics")
 end
