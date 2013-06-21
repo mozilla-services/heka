@@ -45,9 +45,6 @@ func (t *CarbonOutput) Init(config interface{}) (err error) {
 	t.address = conf.Address
 
 	_, err = net.ResolveTCPAddr("tcp", t.address)
-	if err != nil {
-		return
-	}
 
 	return
 }
