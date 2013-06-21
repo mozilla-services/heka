@@ -1008,7 +1008,7 @@ a TCP socket using the `plaintext <http://graphite.readthedocs.org/en/1.0/feedin
 Parameters:
 
 - address (string):
-    An IP address:port on which this plugin will listen.
+    An IP address:port on which this plugin will write to.
     Defaults to: localhost:2003
 
 Example:
