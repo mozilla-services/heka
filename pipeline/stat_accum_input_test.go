@@ -121,6 +121,7 @@ func StatAccumInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 			ith.MockInputRunner.EXPECT().Ticker()
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan).AnyTimes()
 
 			var wg sync.WaitGroup
 
@@ -131,8 +132,6 @@ func StatAccumInputSpec(c gs.Context) {
 					wg.Done()
 					c.Expect(err, gs.IsNil)
 				}()
-				time.Sleep(50) // Kludgey wait for tickChan to be set so we can replace.
-				statAccumInput.tickChan = tickChan
 			}
 
 			c.Specify("emits data in fields by default", func() {
