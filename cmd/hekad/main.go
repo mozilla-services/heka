@@ -60,6 +60,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		defer profFile.Close()
 		pprof.StartCPUProfile(profFile)
 		defer pprof.StopCPUProfile()
 	}
