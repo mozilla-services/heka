@@ -158,7 +158,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		if e == nil {
 			ir.Inject(pack)
 		} else {
-			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", logline))
+			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", logline.Line))
 			pack.Recycle()
 		}
 	}
