@@ -358,12 +358,17 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 // Returning false from ReadLines will kill the watcher
 func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	ok = true
+	var bytes_read int64
+
 	defer func() {
 		// Capture send on close chan as this is a shut-down
 		if r := recover(); r != nil {
 			rStr := fmt.Sprintf("%s", r)
 			if strings.Contains(rStr, "send on closed channel") {
 				ok = false
+				// We're only partially through a file, write to the seekjournal.
+				fm.seek += bytes_read
+				fm.updateJournal(bytes_read)
 			} else {
 				panic(rStr)
 			}
@@ -398,15 +403,11 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Attempt to read lines from where we are.
 	reader := bufio.NewReader(fm.fd)
 	readLine, err := reader.ReadString('\n')
-	var bytes_read int64
-	bytes_read = 0
 	for err == nil {
-		if readLine != "" {
-			fm.last_logline = readLine
-		}
 		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 		fm.NewLines <- line
 		bytes_read += int64(len(readLine))
+		fm.last_logline = readLine
 
 		// If file rotation happens after the last
 		// reader.ReadString() in this loop, the remaining logfile
@@ -420,8 +421,8 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 			if len(readLine) > 0 {
 				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
 				fm.NewLines <- line
-				fm.last_logline = readLine
 				bytes_read += int64(len(readLine))
+				fm.last_logline = readLine
 			}
 		} else {
 			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
