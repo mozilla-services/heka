@@ -20,7 +20,7 @@ SandboxFilter Settings
  - preserve_data (bool): True if the sandbox global data should be preserved/restored on Heka shutdown/startup. The preserved data is stored along side the sandbox code i.e. counter.lua.data so Heka must have read/write permissions to that directory.
  - memory_limit (uint): The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB).
  - instruction_limit (uint): The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M).
- - output_limit (uint): The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB).
+ - output_limit (uint): The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB).  Anything less than 1KiB will default to 1KiB.
  - profile (bool): When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
 
 Example
