@@ -6,18 +6,19 @@ Configuring hekad
 
 .. start-hekad-config
 
-A hekad configuration file specifies what inputs, decoders, filters, and
-outputs will be loaded. The configuration file is in `TOML
-<https://github.com/mojombo/toml>`_ format. TOML looks is very similar to INI
-configuration formats, but with slightly more rich data structures and nesting
-support.
+A hekad configuration file specifies what inputs, decoders, filters,
+and outputs will be loaded. The configuration file is in `TOML
+<https://github.com/mojombo/toml>`_ format. TOML looks is very similar
+to INI configuration formats, but with slightly more rich data
+structures and nesting support.
 
-The config file is broken into sections, with each section representing a
-single instance of a plugin. The section name specifies the name of the
-plugin, and the "type" parameter specifies the plugin type; this must match
-one of the types registered via the `pipeline.RegisterPlugin` function. For
-example, the following section describes a plugin named "tcp:5565", an
-instance of Heka's plugin type "TcpInput":
+The config file is broken into sections, with each section representing
+a single instance of a plugin. The section name specifies the name of
+the plugin, and the "type" parameter specifies the plugin type; this
+must match one of the types registered via the
+`pipeline.RegisterPlugin` function. For example, the following section
+describes a plugin named "tcp:5565", an instance of Heka's plugin type
+"TcpInput":
 
 .. code-block:: ini
 
@@ -25,25 +26,37 @@ instance of Heka's plugin type "TcpInput":
     type = "TcpInput"
     address = ":5565"
 
-If you choose a plugin name that also happens to be a plugin type name, then
-you can omit the "type" parameter from the section and the specified name will
-be used as the type. Thus, the following section describes a plugin named
-"TcpInput", also of type "TcpInput":
+If you choose a plugin name that also happens to be a plugin type name,
+then you can omit the "type" parameter from the section and the
+specified name will be used as the type. Thus, the following section
+describes a plugin named "TcpInput", also of type "TcpInput":
 
 .. code-block:: ini
 
     [TcpInput]
     address = ":5566"
 
-Note that it's fine to have more than one instance of the same plugin type, as
-long as their configurations don't interfere with each other.
+Note that it's fine to have more than one instance of the same plugin
+type, as long as their configurations don't interfere with each other.
 
-Any values other than "type" in a section, such as "address" in the above
-examples, will be passed through to the plugin for internal configuration (see
-:ref:`plugin_config`).
+Any values other than "type" in a section, such as "address" in the
+above examples, will be passed through to the plugin for internal
+configuration (see :ref:`plugin_config`).
 
-A JsonDecoder and ProtobufDecoder will be automatically setup if not specified
-explicitly in the configuration file.
+A JsonDecoder and ProtobufDecoder will be automatically setup if not
+specified explicitly in the configuration file.
+
+If a plugin fails to load during startup, hekad will exit at startup.
+When hekad is running, if a plugin should fail (due to connection loss,
+inability to write a file, etc.) then hekad will either shut down or
+restart the plugin if the plugin supports restarting. When a plugin is
+restarting, hekad will likely stop accepting messages until the plugin
+resumes operation (this applies only to filters/output plugins).
+
+Plugins specify that they support restarting by implementing the
+Restarting interface (see :ref:`restarting_plugins`). Plugins
+supporting Restarting can have :ref:`their restarting behavior
+configured <configuring_restarting>`.
 
 .. end-hekad-config
 
@@ -100,6 +113,8 @@ Common Roles
 
 .. end-roles
 
+.. _hekad_command_line_options:
+
 Command Line Options
 ====================
 
@@ -113,6 +128,19 @@ Command Line Options
 
 ``-cpuprof`` `output_file`
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
+
+``-max_message_loops`` `uint`
+    The maximum number of times a message can be re-injected into the system.
+    This is used to prevent infinite message loops from filter to filter;
+    the default is 4.
+
+``-max_process_inject`` `uint`
+    The maximum number of messages that a sandbox filter's ProcessMessage
+    function can inject in a single call; the default is 1.
+
+``-max_timer_inject`` `uint`
+    The maximum number of messages that a sandbox filter's TimerEvent
+    function can inject in a single call; the default is 10.
 
 ``-maxprocs`` `int`
     Enable multi-core usage; the default is 1 core. More cores will generally
@@ -141,10 +169,149 @@ Command Line Options
 
 .. end-options
 
+.. start-restarting
+
+.. _configuring_restarting:
+
+Configuring Restarting Behavior
+===============================
+
+Plugins that support being restarted have a set of options that govern
+how the restart is handled. If preferred, the plugin can be configured
+to not restart at which point hekad will exit, or it could be restarted
+only 100 times, or restart attempts can proceed forever.
+
+Adding the restarting configuration is done by adding a config section
+to the plugins' config called `retries`. A small amount of jitter will
+be added to the delay between restart attempts.
+
+Parameters:
+
+- max_jitter (string):
+    The longest jitter duration to add to the delay between restarts. Jitter
+    up to 500ms by default is added to every delay to ensure more even
+    restart attempts over time.
+- max_delay (string):
+    The longest delay between attempts to restart the plugin. Defaults to
+    30s (30 seconds).
+- delay (string):
+    The starting delay between restart attempts. This value will be the
+    initial starting delay for the exponential back-off, and capped to
+    be no larger than the `max_delay`. Defaults to 250ms.
+- max_retries (int):
+    Maximum amount of times to attempt restarting the plugin before giving
+    up and shutting down hekad. Use 0 for no retry attempt, and -1 to
+    continue trying forever (note that this will cause hekad to halt
+    possibly forever if the plugin cannot be restarted).
+
+Example (UdpInput does not actually support nor need restarting,
+illustrative purposes only):
+
+.. code-block:: ini
+
+    [UdpInput]
+    address = "127.0.0.1:4880"
+
+    [UdpInput.retries]
+    max_delay = 30s
+    delay = 250ms
+    max_retries = 5
+
+.. end-restarting
+
 .. start-inputs
 
 Inputs
 ======
+
+.. _config_amqp_input:
+
+AMQPInput
+---------
+
+Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from
+the specified queue. If the message is serialized by hekad's AMQPOutput
+then the message will be de-serialized, otherwise the message will be
+run through the specified LoglineDecoder's. As AMQP is dynamically
+programmable, the broker topology needs to be specified.
+
+Parameters:
+
+- URL (string):
+    An AMQP connection string formatted per the `RabbitMQ URI Spec
+    <http://www.rabbitmq.com/uri-spec.html>`_.
+- Exchange (string):
+    AMQP exchange name
+- ExchangeType (string):
+    AMQP exchange type (`fanout`, `direct`, `topic`, or `headers`).
+- ExchangeDurability (bool):
+    Whether the exchange should be configured as a durable exchange. Defaults
+    to non-durable.
+- ExchangeAutoDelete (bool):
+    Whether the exchange is deleted when all queues have finished and there
+    is no publishing. Defaults to auto-delete.
+- RoutingKey (string):
+    The message routing key used to bind the queue to the exchange. Defaults
+    to empty string.
+- PrefetchCount (int):
+    How many messages to fetch at once before message acks are sent. See
+    `RabbitMQ performance measurements <http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-measurements-part-2/>`_
+    for help in tuning this number. Defaults to 2.
+- Queue (string):
+    Name of the queue to consume from, an empty string will have the broker
+    generate a name for the queue. Defaults to empty string.
+- QueueDurability (bool):
+    Whether the queue is durable or not. Defaults to non-durable.
+- QueueExclusive (bool):
+    Whether the queue is exclusive (only one consumer allowed) or not.
+    Defaults to non-exclusive.
+- QueueAutoDelete (bool):
+    Whether the queue is deleted when the last consumer un-subscribes.
+    Defaults to auto-delete.
+- Decoders (list of strings):
+    List of logline decoder names used to transform a raw message body into
+    a structured hekad message. These are skipped for serialized hekad
+    messages.
+
+Since many of these parameters have sane defaults, a minimal
+configuration to consume serialized messages would look like:
+
+.. code-block:: ini
+
+    [AMQPInput]
+    url = "amqp://guest:guest@rabbitmq/"
+    exchange = "testout"
+    exchangeType = "fanout"
+
+Or if using a logline decoder to parse OSX syslog messages may look like:
+
+.. code-block:: ini
+
+    [AMQPInput]
+    url = "amqp://guest:guest@rabbitmq/"
+    exchange = "testout"
+    exchangeType = "fanout"
+    decoders = ["logparser", "leftovers"]
+
+    [logparser]
+    type = "LoglineDecoder"
+    MatchRegex = '/\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+
+    [logparser.MessageFields]
+    Type = "amqplogline"
+    Hostname = "myhost"
+    Reporter = "%Reporter%"
+    Remaining = "%Remaining%"
+    Logger = "%Logger%"
+    Payload = "%Remaining%"
+
+    [leftovers]
+    type = "LoglineDecoder"
+    MatchRegex = '/.*/'
+
+    [leftovers.MessageFields]
+    Type = "drop"
+    Payload = ""
 
 .. _config_udp_input:
 
@@ -240,8 +407,8 @@ an internal discover list, and checked for existence every
 
 Parameters:
 
-- logfiles (list of strings):
-    A list of logfiles that should be read, must be absolute paths.
+- logfile (string):
+    Each LogfileInput can have a single logfile to monitor.
 - hostname (string):
     The hostname to use for the messages, by default this will be the
     machines qualified hostname. This can be set explicitly to ensure
@@ -256,31 +423,54 @@ Parameters:
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
+- decoders (list of strings):
+    List of logline decoder names used to transform the log line into
+    a structured hekad message.
+- logger (string):
+    Each LogfileInput may specify a logger name to use in the case an
+    error occurs during processing of a particular line of logging
+    text.  By default, the logger name is set to the logfile name.
+- seekjournal (string)
+    Heka will write out a journal to keep track of the last known read
+    position of a logfile.  By default, this will default to writing
+    in /var/run/hekad/seekjournals/.  The journal name will be the
+    logger name with path separators and periods replaced with
+    underscores.
+- resumeFromStart(bool)
+    When heka restarts, if a logfile cannot safely resume reading from
+    the last known position, this flag will determine whether hekad
+    will force the seek position to be 0 or the end of file. By
+    default, hekad will resume reading from the start of file.
 
+.. code-block:: ini
+
+    [LogfileInput]
+    logfile = "/var/log/opendirectoryd.log"
+    logger = "opendirectoryd"
+
+.. code-block:: ini
+
+    [LogfileInput]
+    logfile = "/var/log/opendirectoryd.log"
 
 .. _config_statsd_input:
 
 StatsdInput
 -----------
 
-Exposes internal `StatMonitor` API into which other Heka plugins can insert
-numeric statistics, and optionally listens for `statsd protocol
-<https://github.com/b/statsd_spec>`_ `counter`, `timer`, or `gauge` messages
-on a UDP port. Generates Heka messages of type `statmetric`, with a string
-payload in the format that is accepted by the `carbon
-<http://graphite.wikidot.com/carbon>`_ portion of `graphite
-<http://graphite.wikidot.com/>`_.
+Listens for `statsd protocol <https://github.com/b/statsd_spec>`_ `counter`,
+`timer`, or `gauge` messages on a UDP port, and generates `Stat` objects that
+are handed to a `StatAccumulator` for aggregation and processing.
 
 Parameters:
 
-- address (string, optional):
+- address (string):
     An IP address:port on which this plugin will expose a statsd server.
-- flushinterval (int):
-    Time interval (in seconds) between generated `statmetric` messages.
-    Defaults to 10.
-- percentthreshold (int):
-    Percent threshold to use for computing "upper_N%" type stat values.
-    Defaults to 90.
+    Defaults to "127.0.0.1:8125".
+- stat_accum_name (string):
+    Name of a StatAccumInput instance that this StatsdInput will use as its
+    StatAccumulator for submitting received stat values. Defaults to
+    "StatAccumInput".
 
 Example:
 
@@ -288,7 +478,38 @@ Example:
 
     [StatsdInput]
     address = ":8125"
-    flushinterval = 5
+    stat_accum_input = "custom_stat_accumulator"
+
+StatAccumInput
+--------------
+
+Provides an implementation of the `StatAccumulator` interface which other
+plugins can use to submit `Stat` objects for aggregation and roll-up.
+Accumulates these stats and then periodically emits a "stat metric" type
+message containing aggregated information about the stats received since the
+last generated message.
+
+Parameters:
+
+- emit_in_payload (bool):
+    Specifies whether or not the aggregated stat information should be emitted
+    in the payload of the generated messages, in the format accepted by the
+    `carbon <http://graphite.wikidot.com/carbon>`_ portion of the `graphite
+    <http://graphite.wikidot.com/>`_ graphing software. Defaults to false.
+- emit_in_fields (bool):
+    Specifies whether or not the aggregated stat information should be emitted
+    in the message fields of the generated messages. Defaults to true. *NOTE*:
+    At least one of 'emit_in_payload' or 'emit_in_fields' *must* be true or it
+    will be considered a configuration error and the input won't start.
+- percent_threshold (int):
+    Percent threshold to use for computing "upper_N%" type stat values.
+    Defaults to 90.
+- flush_interval (int):
+    Time interval (in seconds) between generated output messages. Defaults to
+    10.
+- message_type (string):
+    String value to use for the `Type` value of the emitted stat messages.
+    Defaults to "heka.statmetric".
 
 .. end-inputs
 
@@ -327,6 +548,74 @@ struct objects. The hekad protocol buffers message schema in defined in the
 
 .. seealso:: `Protocol Buffers - Google's data interchange format
    <http://code.google.com/p/protobuf/>`_
+
+.. _config_logline_decoder:
+
+LoglineDecoder
+--------------
+
+Decoder plugin that accepts messages of a specified form and generates new
+outgoing messages from extracted data, effectively transforming one message
+format into another. Can be combined w/ `message_matcher` capture groups (see
+:ref:`matcher_capture_groups`) to extract unstructured information from
+message payloads and use it to populate `Message` struct attributes and fields
+in a more structured manner.
+
+Parameters:
+
+- matchRegex:
+    Regular expression that must match for the decoder to process the message.
+- SeverityMap:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
+- MessageFields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in a regex
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used. Optional representation metadata can be added at 
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
+    bytes.  Adding a representation string to a standard message header name
+    will cause it to be added as a user defined field i.e., Payload|json will
+    create Fields[Payload] with a json representation.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_decoder.MessageFields]
+        Type = "%Type%Decoded"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Decoded` appended.
+- timestampLayout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
+
+Example (Parsing Apache Combined Log Format):
+
+.. code-block:: ini
+
+    [apache_transform_decoder]
+    type = "LoglineDecoder"
+    matchRegex = `/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    timestamplayout = "02/Jan/2006:15:04:05 -0700"
+
+    [apache_transform_decoder.SeverityMap]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [apache_transform_decoder.MessageFields]
+    Type = "ApacheLogfile"
+    Logger = "apache"
+    Url|uri = "%Url%"
+    Method = "%Method%"
+    Status = "%Status%"
+    RequestSize|B = "%RequestSize%"
+    Referer = "%Referer%"
+    Browser = "%Browser%"
 
 .. end-decoders
 
@@ -376,79 +665,14 @@ Example:
     [CounterFilter]
     message_matcher = "Type != 'heka.counter-output'"
 
-.. _config_transform_filter:
-
-TransformFilter
----------------
-
-Heka filter plugin that accepts messages of a specified form and generates new
-outgoing messages from extracted data, effectively transforming one message
-format into another. Can be combined w/ `message_matcher` capture groups (see
-:ref:`matcher_capture_groups`) to extract unstructured information from
-message payloads and use it to populate `Message` struct attributes and fields
-in a more structured manner.
-
-Parameters:
-
-- SeverityMap:
-    Subsection defining severity strings and the numerical value they should
-    be translated to. hekad uses numerical severity codes, so a severity of
-    `WARNING` can be translated to `3` by settings in this section.
-
-- MessageFields:
-    Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in a regex
-    in the message_matcher, and any other field that exists in the message. In
-    the event that a captured name overlaps with a message field, the captured
-    name's value will be used.
-
-    Interpolated values should be surrounded with `%` signs, for example::
-
-        [my_filter.MessageFields]
-        Type = "%Type%Transformed"
-
-    This will result in the new message's Type being set to the old messages
-    Type with `Transformed` appended.
-
-- TimestampLayout (string):
-    A formatting string instructing hekad how to turn a time string into the
-    actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
-
-Example (Parsing Apache Combined Log Format):
-
-.. code-block:: ini
-
-    [apache_transform_filter]
-    type = "TransformFilter"
-    message_matcher = 'Type == "logfile" && Logger == "/var/log/httpd.log" && Payload ~= /^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<Bytes>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
-    timestamplayout = "02/Jan/2006:15:04:05 +0100"
-
-    [apache_transform_filter.SeverityMap]
-    DEBUG = 1
-    WARNING = 2
-    INFO = 3
-
-    [apache_transform_filter.MessageFields]
-    Type = "ApacheLogfile"
-    Logger = "apache"
-    Url = "%Url%"
-    Method = "%Method%"
-    Status = "%Status%"
-    Bytes = "%Bytes%"
-    Referer = "%Referer%"
-    Browser = "%Browser%"
-
-
 .. _config_stat_filter:
 
 StatFilter
 ----------
 
 Filter plugin that accepts messages of a specfied form and uses extracted
-message data to generate statsd-style numerical metrics. Can be combined w/
-`message_matcher` capture groups (see :ref:`matcher_capture_groups`) to parse
-message payloads and generate counter and timer data from extracted content.
+message data to generate statsd-style numerical metrics in the form of `Stat`
+objects that can be consumed by a `StatAccumulator`.
 
 Parameters:
 
@@ -463,9 +687,10 @@ Parameters:
         Expression representing the (possibly dynamic) value that the
         `StatFilter` should emit for each received message.
 
-- StatsdInputName (string, optional):
-    Configured `name` value for a running `StatsdInput` plugin into which
-    stats can be fed. Defaults to `StatsdInput`.
+- stat_accum_name (string):
+    Name of a StatAccumInput instance that this StatFilter will use as its
+    StatAccumulator for submitting generate stat values. Defaults to
+    "StatAccumInput".
 
 Example (Assuming you had TransformFilter inserting messages as above):
 
@@ -473,10 +698,14 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
     [StatsdInput]
     address = "127.0.0.1:29301"
+    stat_accum_name = "my_stat_accum"
+
+    [my_stat_accum]
     flushInterval = 5
 
     [Hits]
     type = "StatFilter"
+    stat_accum_name = "my_stat_accum"
     message_matcher = 'Type == "ApacheLogfile"'
 
     [Hits.Metric.bandwidth]
@@ -491,7 +720,7 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
 .. note::
 
-    StatFilter requires the StatsdInput to be running.
+    StatFilter requires an available StatAccumulator to be running.
 
 .. _config_sandbox_filter:
 
@@ -516,6 +745,53 @@ a secure manner without stopping the Heka daemon.
 
 Outputs
 =======
+
+.. _config_amqp_output:
+
+AMQPOutput
+---------
+
+Connects to a remote AMQP broker (RabbitMQ) and sends messages to the
+specified queue. The message is serialized if specified, otherwise only
+the raw payload of the message will be sent. As AMQP is dynamically
+programmable, the broker topology needs to be specified.
+
+Parameters:
+
+- URL (string):
+    An AMQP connection string formatted per the `RabbitMQ URI Spec
+    <http://www.rabbitmq.com/uri-spec.html>`_.
+- Exchange (string):
+    AMQP exchange name
+- ExchangeType (string):
+    AMQP exchange type (`fanout`, `direct`, `topic`, or `headers`).
+- ExchangeDurability (bool):
+    Whether the exchange should be configured as a durable exchange. Defaults
+    to non-durable.
+- ExchangeAutoDelete (bool):
+    Whether the exchange is deleted when all queues have finished and there
+    is no publishing. Defaults to auto-delete.
+- RoutingKey (string):
+    The message routing key used to bind the queue to the exchange. Defaults
+    to empty string.
+- Persistent (bool):
+    Whether published messages should be marked as persistent or transient.
+    Defaults to non-persistent.
+- Serialize (bool):
+    Whether published messages should be fully serialized. If set to true
+    then messages will be encoded to Protocol Buffers and have the AMQP
+    message Content-Type set to `application/hekad`. Defaults to true.
+
+Example (that sends log lines from the logger):
+
+.. code-block:: ini
+
+    [AMQPOutput]
+    url = "amqp://guest:guest@rabbitmq/"
+    exchange = "testout"
+    exchangeType = "fanout"
+    message_matcher = 'Logger == "/var/log/system.log"'
+
 
 .. _config_log_output:
 
@@ -629,9 +905,9 @@ Example:
 WhisperOutput
 -------------
 
-WhisperOutput plugins parse `statmetric` message types and write the extracted
-counter, timer, and gauge data out to a `graphite
-<http://graphite.wikidot.com/>`_ compatible `whisper database
+WhisperOutput plugins parse the "stat metric" messages generated by a
+StatAccumulator and write the extracted counter, timer, and gauge data out to
+a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 <http://graphite.wikidot.com/whisper>`_ file tree structure.
 
 Parameters:
@@ -672,8 +948,50 @@ Example:
 .. code-block:: ini
 
     [WhisperOutput]
-    message_matcher = "Type == 'statmetric'"
+    message_matcher = "Type == 'heka.statmetric'"
     defaultaggmethod = 3
     defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+
+
+NagiosOutput
+---------------
+
+Specialized output plugin that listens for Nagios external command message types
+and generates an HTTP request against the Nagios cmd.cgi API. Currently the
+output will only send passive service check results.  The message payload must
+consist of a state followed by a colon and then the message i.e.,
+"OK:Service is functioning properly". The valid states are:
+OK|WARNING|CRITICAL|UNKNOWN.  Nagios must be configured with a service name that
+matches the Heka plugin instance name and the hostname where the plugin is
+running.
+
+Parameters:
+
+- url (string, optional):
+    An HTTP URL to the Nagios cmd.cgi. Defaults to "http://localhost/nagios/cgi-bin/cmd.cgi".
+- username (string, optional):
+    Username used to authenticate with the Nagios web interface. Defaults to "".
+- password (string, optional):
+    Password used to authenticate with the Nagios web interface. Defaults to "".
+- responseheadertimeout (uint, optional):
+    Specifies the amount of time, in seconds, to wait for a server's response 
+    headers after fully writing the request. Defaults to 2.
+
+Example configuration to output alerts from SandboxFilter plugins:
+
+.. code-block:: ini
+
+    [NagiosOutput]
+    url = "http://localhost/nagios/cgi-bin/cmd.cgi"
+    username = "nagiosadmin"
+    password = "nagiospw"
+    message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT'"
+
+Example Lua code to generate a Nagios alert:
+
+.. code-block:: lua
+
+    output("OK:Alerts are working!")
+    inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
 
 .. end-outputs

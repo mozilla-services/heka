@@ -20,14 +20,13 @@ encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
-message_matcher = "Type != 'heka.sandbox-output' && Type != 'hekabench'"
+message_matcher = "Type == 'heka.report'"
 
 [Dashboard]
 type = "DashboardOutput"
 address = "127.0.0.1:4352"
-ticker_interval = 60
+ticker_interval = 5
 working_directory = "./dashboard"
-message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || (Type == 'heka.sandbox-output' && Fields[payload_type] == 'cbuf')"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
@@ -38,7 +37,7 @@ max_filters = 100
 
 [StaticSandbox]
 type = "SandboxFilter"
-message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
+message_matcher = "Type == 'hekabench'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
@@ -57,6 +56,18 @@ preserve_data = true
 memory_limit = 256000
 instruction_limit = 1000
 output_limit = 64000
+profile = true
+
+[SlowMatcher]
+type = "SandboxFilter"
+message_matcher = "(Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT') || (Type =~ /(hekabench)/ && Hostname =~ /(.*)/ && Uuid =~ /([a-z0-9]{8}-[a-z0-9]{4}-4[a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{12})/ && Payload =~ /(.*)/ && Type =~ /(?P<one>hekabench)/ && Hostname =~ /(?P<two>.*)/ && Uuid =~ /(?P<three>[a-z0-9]{8}-[a-z0-9]{4}-4[a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{12})/ && Payload =~ /(?P<four>.*)/)"
+ticker_interval = 1
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/hekabench_cbuf_counter.lua"
+preserve_data = false
+memory_limit = 256000
+instruction_limit = 1000
+output_limit = 64000
 
 [LoopToSelf]
 type = "SandboxFilter"
@@ -71,7 +82,7 @@ output_limit = 1024
 
 [LoopToOtherA]
 type = "SandboxFilter"
-message_matcher = "Type == 'hekabench' && EnvVersion == '0.8' || Logger == 'LoopToOtherB'"
+message_matcher = "Type == 'hekabench' || Logger == 'LoopToOtherB'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
@@ -95,3 +106,104 @@ output_limit = 1024
 type = "CounterFilter"
 message_matcher = "Type == 'hekabench'"
 ticker_interval = 1
+
+[NagiosOutput]
+url = "http://localhost/nagios/cgi-bin/cmd.cgi"
+username = "nagiosadmin"
+password = "4bob"
+message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT'"
+
+[nagios-sandbox]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 10
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/nagios.lua"
+preserve_data = false
+memory_limit = 32767
+instruction_limit = 1000
+output_limit = 1024
+
+[BackPressure]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/backpressure.lua"
+preserve_data = false
+memory_limit = 32767
+instruction_limit = 1000000
+output_limit = 1024
+
+[SyncProxyInput]
+type = "LogfileInput"
+logfile = "./sync-proxy.log"
+decoders = ["SyncProxyDecoder"]
+seekjournal = "./seekjournal"
+
+[SyncProxyDecoder]
+type = "LoglineDecoder"
+matchRegex = '/^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)/'
+timestamplayout = "02/Jan/2006:15:04:05 -0700"
+
+[SyncProxyDecoder.MessageFields]
+Type = "SyncProxyLog"
+RemoteIP|ipv4 = "%RemoteIP%"
+User = "%User%"
+Method = "%Method%"
+Url|uri = "%Url%"
+StatusCode = "%StatusCode%"
+RequestSize|B= "%RequestSize%"
+Referer = "%Referer%"
+Browser = "%Browser%"
+ResponseTime|s = "%ResponseTime%"
+ResponseSize|B = "%ResponseSize%"
+Payload = ""
+
+[SyncProxyFilter]
+type = "SandboxFilter"
+message_matcher = "Type == 'SyncProxyLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/sync_proxy.lua"
+preserve_data = false
+memory_limit = 1000000
+instruction_limit = 100000
+output_limit = 64000
+
+[SyncHeavyHitters]
+type = "SandboxFilter"
+message_matcher = "Type == 'SyncProxyLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/sync_heavyhitters.lua"
+preserve_data = false
+memory_limit = 8000000
+instruction_limit = 1000000
+output_limit = 64000
+
+[AuditLogInput]
+type = "LogfileInput"
+logfile = "./audit.log"
+decoders = ["AuditLogDecoder"]
+seekjournal = "./audit.journal"
+
+[AuditLogDecoder]
+type = "LoglineDecoder"
+matchRegex = '/^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)/'
+
+[AuditLogDecoder.MessageFields]
+Type = "AuditLog"
+AuditType = "%AuditType%"
+AuditTime|s = "%AuditTime%"
+
+[AuditLogFilter]
+type = "SandboxFilter"
+message_matcher = "Type == 'AuditLog'"
+ticker_interval = 60
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/auditlog.lua"
+preserve_data = false
+memory_limit = 1000000
+instruction_limit = 100000
+output_limit = 64000

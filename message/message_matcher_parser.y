@@ -268,7 +268,6 @@ loop:
 			yylval.tokenId = OP_GT
 			return yylval.tokenId
 		}
-		m.peekrune = m.getrune()
 		yylval.token = ">="
 		yylval.tokenId = OP_GTE
 		return yylval.tokenId

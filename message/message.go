@@ -266,18 +266,18 @@ func (m *Message) AddField(f *Field) {
 }
 
 // Field constructor
-func NewField(name string, value interface{}, valueFormat Field_ValueFormat) (f *Field, err error) {
+func NewField(name string, value interface{}, representation string) (f *Field, err error) {
 	v := reflect.ValueOf(value)
 	t, err := getValueType(v)
 	if err == nil {
-		f = NewFieldInit(name, t, valueFormat)
+		f = NewFieldInit(name, t, representation)
 		f.AddValue(value)
 	}
 	return
 }
 
 // Field initializer sets up the key, value type, and format but does not actually add a value
-func NewFieldInit(name string, valueType Field_ValueType, valueFormat Field_ValueFormat) *Field {
+func NewFieldInit(name string, valueType Field_ValueType, representation string) *Field {
 	f := &Field{}
 	f.Name = new(string)
 	*f.Name = name
@@ -285,8 +285,8 @@ func NewFieldInit(name string, valueType Field_ValueType, valueFormat Field_Valu
 	f.ValueType = new(Field_ValueType)
 	*f.ValueType = valueType
 
-	f.ValueFormat = new(Field_ValueFormat)
-	*f.ValueFormat = valueFormat
+	f.Representation = new(string)
+	*f.Representation = representation
 
 	return f
 }
@@ -400,7 +400,7 @@ func CopyField(src *Field) *Field {
 	if src == nil {
 		return nil
 	}
-	dst := NewFieldInit(*src.Name, *src.ValueType, *src.ValueFormat)
+	dst := NewFieldInit(*src.Name, *src.ValueType, *src.Representation)
 
 	if src.ValueString != nil {
 		dst.ValueString = make([]string, len(src.ValueString))

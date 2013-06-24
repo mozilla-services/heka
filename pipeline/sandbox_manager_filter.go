@@ -20,10 +20,12 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,9 +33,10 @@ import (
 // dynamically creates, manages, and destroys sandboxed filter scripts as
 // instructed.
 type SandboxManagerFilter struct {
-	maxFilters       int
-	currentFilters   int
-	workingDirectory string
+	maxFilters          int
+	currentFilters      int
+	workingDirectory    string
+	processMessageCount int64
 }
 
 // Config struct for `SandboxManagerFilter`.
@@ -64,7 +67,8 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
-	newIntField(msg, "RunningFilters", this.currentFilters)
+	newIntField(msg, "RunningFilters", this.currentFilters, "count")
+	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
 	return nil
 }
 
@@ -75,6 +79,12 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 
 	wrapper := new(PluginWrapper)
 	wrapper.name = name
+
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		return nil, fmt.Errorf("Unable to decode config for plugin: %s, error: %s",
@@ -111,16 +121,11 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := NewFORunner(wrapper.name, plugin.(Plugin))
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
 	runner.name = wrapper.name
-	var tickLength uint
-	if pluginGlobals.Ticker != 0 {
-		sec := pluginGlobals.Ticker
-		tickLength = uint(sec)
-	}
 
-	if tickLength != 0 {
-		runner.tickLength = time.Duration(tickLength) * time.Second
+	if pluginGlobals.Ticker != 0 {
+		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
 	}
 
 	var matcher *MatchRunner
@@ -251,11 +256,19 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 
 	var ok = true
 	var plc *PipelineCapture
+	var delta int64
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
 		select {
 		case plc, ok = <-inChan:
 			if !ok {
+				break
+			}
+			atomic.AddInt64(&this.processMessageCount, 1)
+			delta = time.Now().UnixNano() - plc.Pack.Message.GetTimestamp()
+			if math.Abs(float64(delta)) >= 5e9 {
+				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew", delta/1e9))
+				plc.Pack.Recycle()
 				break
 			}
 			action, _ := plc.Pack.Message.GetFieldValue("action")

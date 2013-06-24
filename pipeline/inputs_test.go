@@ -27,6 +27,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -60,6 +61,29 @@ func (p *PanicInput) Stop() {
 	panic("PANICINPUT")
 }
 
+var stopinputTimes int
+
+type StoppingInput struct{}
+
+func (s *StoppingInput) Init(config interface{}) (err error) {
+	if stopinputTimes > 1 {
+		err = errors.New("Stopped enough, done")
+	}
+	return
+}
+
+func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	return
+}
+
+func (s *StoppingInput) CleanupForRestart() {
+	stopinputTimes += 1
+}
+
+func (s *StoppingInput) Stop() {
+	return
+}
+
 func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	return func(msgBytes []byte) {
 		msgBytes[0] = message.RECORD_SEPARATOR
@@ -69,6 +93,14 @@ func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 		msgBytes[pos] = message.UNIT_SEPARATOR
 		copy(msgBytes[pos+1:], mbytes)
 	}
+}
+
+func createJournal() (journal string, err error) {
+	var tmp_file *os.File
+	tmp_file, err = ioutil.TempFile("", "")
+	journal = tmp_file.Name()
+	tmp_file.Close()
+	return journal, nil
 }
 
 func InputsSpec(c gs.Context) {
@@ -121,10 +153,10 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
+		encCall.Return(ith.Decoders, nil)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			encCall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_JSON)
-			encCall.Return(mockDecoderRunner, true)
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
 			readCall.Return(buflen, nil)
@@ -140,8 +172,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a MD5 signed message from its connection", func() {
-			encCall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_JSON)
-			encCall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_MD5)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))
@@ -217,10 +247,10 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+		enccall := ith.MockDecoderSet.EXPECT().ByEncodings()
+		enccall.Return(ith.Decoders, nil)
 
 		c.Specify("reads a message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
 			readCall.Return(buflen, err)
@@ -235,8 +265,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a MD5 signed message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_MD5)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))
@@ -268,8 +296,6 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("reads a SHA1 signed message from its connection", func() {
-			pbcall := ith.MockDecoderSet.EXPECT().ByEncoding(message.Header_PROTOCOL_BUFFER)
-			pbcall.Return(mockDecoderRunner, true)
 			header.SetHmacHashFunction(message.Header_SHA1)
 			header.SetHmacSigner(signer)
 			header.SetHmacKeyVersion(uint32(1))
@@ -359,9 +385,38 @@ func InputsSpec(c gs.Context) {
 		})
 	})
 
+	c.Specify("Runner restarts a plugin on the first time only", func() {
+		var pluginGlobals PluginGlobals
+		pluginGlobals.Retries = RetryOptions{
+			MaxDelay:   "1us",
+			Delay:      "1us",
+			MaxJitter:  "1us",
+			MaxRetries: 1,
+		}
+		pc := new(PipelineConfig)
+		pc.inputWrappers = make(map[string]*PluginWrapper)
+
+		pw := &PluginWrapper{
+			name:          "stopping",
+			configCreator: func() interface{} { return nil },
+			pluginCreator: func() interface{} { return new(StoppingInput) },
+		}
+		pc.inputWrappers["stopping"] = pw
+
+		input := new(StoppingInput)
+		iRunner := NewInputRunner("stopping", input, &pluginGlobals)
+		var wg sync.WaitGroup
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(3)
+		cfgCall.Return(pc)
+		wg.Add(1)
+		iRunner.Start(ith.MockHelper, &wg)
+		wg.Wait()
+		c.Expect(stopinputTimes, gs.Equals, 2)
+	})
+
 	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
 		input := new(PanicInput)
-		iRunner := NewInputRunner("panic", input)
+		iRunner := NewInputRunner("panic", input, nil)
 		var wg sync.WaitGroup
 		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(config)
@@ -371,13 +426,23 @@ func InputsSpec(c gs.Context) {
 	})
 
 	c.Specify("A LogFileInput", func() {
+		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFiles = []string{"../testsupport/test.log"}
+		lfiConfig.SeekJournal, err = createJournal()
+		c.Expect(err, gs.IsNil)
+		lfiConfig.LogFile = "../testsupport/test-zeus.log"
+		lfiConfig.Logger = "zeus"
+
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err := lfInput.Init(lfiConfig)
+		err = lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
+
+		dName := "decoder-name"
+		lfInput.decoderNames = []string{dName}
+		mockDecoderRunner := NewMockDecoderRunner(ctrl)
+		mockDecoder := NewMockDecoder(ctrl)
 
 		// Create pool of packs.
 		numLines := 95 // # of lines in the log file we're parsing.
@@ -389,8 +454,20 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a log file", func() {
+			// Expect InputRunner calls to get InChan and inject outgoing msgs
+			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
+			// Expect calls to get decoder and decode each message. Since the
+			// decoding is a no-op, the message payload will be the log file
+			// line, unchanged.
+			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall.Return(mockDecoderRunner, true)
+			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
+			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
+			decodeCall.Return(nil)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
@@ -400,7 +477,8 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFiles[0])
+
+			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
 			fileStr := string(fileBytes)
 			lines := strings.Split(fileStr, "\n")
@@ -409,7 +487,28 @@ func InputsSpec(c gs.Context) {
 					continue
 				}
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
+				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
+			close(lfInput.Monitor.stopChan)
+		})
+
+		c.Specify("uses the filename as the default logger name", func() {
+			var err error
+
+            lfInput := new(LogfileInput)
+			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+			lfiConfig.SeekJournal, err = createJournal()
+			c.Expect(err, gs.Equals, nil)
+			lfiConfig.LogFile = "../testsupport/test-zeus.log"
+
+			lfiConfig.DiscoverInterval = 1
+			lfiConfig.StatInterval = 1
+			err = lfInput.Init(lfiConfig)
+			c.Expect(err, gs.Equals, nil)
+
+			c.Expect(lfInput.Monitor.logger_ident,
+				gs.Equals,
+				lfiConfig.LogFile)
 		})
 	})
 }

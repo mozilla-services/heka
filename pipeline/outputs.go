@@ -47,6 +47,12 @@ type OutputRunner interface {
 	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
 	// value) and drops it on the Output's input channel.
 	Deliver(pack *PipelinePack)
+	// Retains a pack for future delivery to the plugin when a plugin needs
+	// to shut down and wants to retain the pack for the next time its
+	// running properly
+	RetainPack(pack *PipelineCapture)
+	// Parsing engine for this Output's message_matcher.
+	MatchRunner() *MatchRunner
 }
 
 // Heka Output plugin type.
@@ -347,7 +353,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		} else if n != len(outBytes) {
 			or.LogError(fmt.Errorf("truncated output to: %s", t.address))
 		}
-		
+
 		plc.Pack.Recycle()
 	}
 

@@ -139,6 +139,33 @@ like::
 generally route messages to specific outputs using the
 :ref:`message_matcher`.)
 
+.. _restarting_plugin:
+
+Restarting Plugins
+==================
+
+In the event that your plugin fails to initialize properly at startup,
+hekad will exit. However, once hekad is running, if a plugin should
+fail (perhaps because a network connection dropped, a file became
+unavailable, etc), then hekad will shutdown. This shutdown can be
+avoided if your plugin supports being restarted.
+
+To add restart support to your plugin, the `Restarting` interface
+defined in the `config.go
+<https://github.com/mozilla-services/heka/blob/master/pipeline/config.go>`_
+file::
+
+    type Restarting interface {
+        CleanupForRestart()
+    }
+
+A plugin that implements this interface will not trigger shutdown
+should it fail while hekad is running. The `CleanupForRestart` method
+will be called when the plugins' main run method exits, a single time.
+Then the runner will repeatedly call the plugins Init method until it
+initializes successfully. It will then resume running it unless it
+exits again at which point the restart process will begin anew.
+
 .. _custom_plugin_config:
 
 Custom Plugin Config Structs
@@ -198,6 +225,15 @@ destination. The initialization code might look as follows::
         }
         return
     }
+
+In addition to specifying configuration options that are specific to your
+plugin, it is also possible to use the config struct to specify default values
+for the `ticker_interval` and `message_matcher` values that are available to
+all Filter and Output plugins. If a config struct contains a uint attribute
+called `TickerInterval`, that will be used as a default ticker interval value
+(in seconds) if none is supplied in the TOML. Similarly, if a config struct
+contains a string attribute called `MessageMatcher`, that will be used as the
+default message routing rule if none is specified in the configuration file.
 
 .. _inputs:
 

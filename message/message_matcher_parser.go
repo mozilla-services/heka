@@ -228,7 +228,6 @@ loop:
 			yylval.tokenId = OP_GT
 			return yylval.tokenId
 		}
-		m.peekrune = m.getrune()
 		yylval.token = ">="
 		yylval.tokenId = OP_GTE
 		return yylval.tokenId
@@ -561,9 +560,10 @@ type yyLexer interface {
 const yyFlag = -1000
 
 func yyTokname(c int) string {
-	if c > 0 && c <= len(yyToknames) {
-		if yyToknames[c-1] != "" {
-			return yyToknames[c-1]
+	// 4 is TOKSTART above
+	if c >= 4 && c-4 < len(yyToknames) {
+		if yyToknames[c-4] != "" {
+			return yyToknames[c-4]
 		}
 	}
 	return __yyfmt__.Sprintf("tok-%v", c)

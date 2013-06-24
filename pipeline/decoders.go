@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -30,74 +33,64 @@ type DecoderSet interface {
 	// Returns running DecoderRunner registered under the specified name, or
 	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
-	// Returns running DecoderRunner registered for the specified Heka
-	// protocol encoding header.
-	ByEncoding(enc message.Header_MessageEncoding) (decoder DecoderRunner, ok bool)
-	// Returns the full set of running DecoderRunners, indexed by names under
-	// which the were registered.
-	AllByName() (decoders map[string]DecoderRunner)
+	// Returns slice of running DecoderRunners, indexed by the Heka protocol
+	// encoding headers for which they're registered. Only returns the
+	// decoders that have been registered for a specific header.
+	ByEncodings() (decoders []DecoderRunner, err error)
 }
 
 type decoderSet struct {
-	byName     map[string]DecoderRunner
-	byEncoding []DecoderRunner
+	chansByName map[string]chan DecoderRunner
+	byName      map[string]DecoderRunner
+	byEncoding  []DecoderRunner
 }
 
-func newDecoderSet(wrappers map[string]*PluginWrapper) (ds *decoderSet, err error) {
-	length := int32(topHeaderMessageEncoding) + 1
+// Creates and returns a decoderSet that exposes an API to access the
+// DecoderRunners in the provided channels. Expects that the channels are
+// fully populated with all available DecoderRunners before being passed to
+// this function.
+func newDecoderSet(decoderChans map[string]chan DecoderRunner) (ds *decoderSet, err error) {
 	ds = &decoderSet{
-		byName:     make(map[string]DecoderRunner),
-		byEncoding: make([]DecoderRunner, length),
-	}
-	var (
-		d       Decoder
-		dInt    interface{}
-		dRunner DecoderRunner
-		enc     message.Header_MessageEncoding
-		name    string
-		w       *PluginWrapper
-		ok      bool
-	)
-	for name, w = range wrappers {
-		if dInt, err = w.CreateWithError(); err != nil {
-			return nil, fmt.Errorf("Failed creating decoder %s: %s", name, err)
-		}
-		if d, ok = dInt.(Decoder); !ok {
-			return nil, fmt.Errorf("Not Decoder type: %s", name)
-		}
-		dRunner = NewDecoderRunner(name, d)
-		ds.byName[name] = dRunner
-	}
-	for enc, name = range DecodersByEncoding {
-		if dRunner, ok = ds.byName[name]; !ok {
-			return nil, fmt.Errorf("Encoding registered decoder doesn't exist: %s",
-				name)
-		}
-		ds.byEncoding[enc] = dRunner
+		chansByName: decoderChans,
+		byName:      make(map[string]DecoderRunner),
 	}
 	return
 }
 
 func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
-	decoder, ok = ds.byName[name]
-	return
-}
-
-func (ds *decoderSet) ByEncoding(enc message.Header_MessageEncoding) (
-	decoder DecoderRunner, ok bool) {
-
-	iEnc := int(enc)
-	if !(iEnc >= 0 && iEnc < len(ds.byEncoding)) {
+	if decoder, ok = ds.byName[name]; ok {
+		// We've already got it, return it.
 		return
 	}
-	if decoder = ds.byEncoding[enc]; decoder != nil {
-		ok = true
+	var dChan chan DecoderRunner
+	if dChan, ok = ds.chansByName[name]; ok {
+		decoder = <-dChan
+		dChan <- decoder
+		ds.byName[name] = decoder
 	}
 	return
 }
 
-func (ds *decoderSet) AllByName() (decoders map[string]DecoderRunner) {
-	return ds.byName
+func (ds *decoderSet) ByEncodings() (decoders []DecoderRunner, err error) {
+	if ds.byEncoding != nil {
+		return ds.byEncoding, nil
+	}
+	var (
+		dRunner DecoderRunner
+		ok      bool
+	)
+	length := int32(topHeaderMessageEncoding) + 1
+	decoders = make([]DecoderRunner, length)
+	for enc, name := range DecodersByEncoding {
+		if dRunner, ok = ds.ByName(name); !ok {
+			err = fmt.Errorf("Decoder '%s' registered for encoding '%s' not configured",
+				name, enc.String())
+			return
+		}
+		decoders[enc] = dRunner
+	}
+	ds.byEncoding = decoders
+	return
 }
 
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
@@ -125,11 +118,16 @@ type dRunner struct {
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
 // provided Decoder plugin.
-func NewDecoderRunner(name string, decoder Decoder) DecoderRunner {
+func NewDecoderRunner(name string, decoder Decoder,
+	pluginGlobals *PluginGlobals) DecoderRunner {
 	return &dRunner{
-		pRunnerBase: pRunnerBase{name: name, plugin: decoder.(Plugin)},
-		uuid:        uuid.NewRandom().String(),
-		inChan:      make(chan *PipelinePack, Globals().PluginChanSize),
+		pRunnerBase: pRunnerBase{
+			name:          name,
+			plugin:        decoder.(Plugin),
+			pluginGlobals: pluginGlobals,
+		},
+		uuid:   uuid.NewRandom().String(),
+		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 }
 
@@ -155,6 +153,9 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 			}
 		}()
 
+		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
+			wanter.SetDecoderRunner(dr)
+		}
 		var err error
 		for pack = range dr.inChan {
 			if err = dr.Decoder().Decode(pack); err != nil {
@@ -186,6 +187,12 @@ func (dr *dRunner) LogMessage(msg string) {
 	log.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
+// Any decoder that needs access to its DecoderRunner  can implement this
+// interface and it will be provided at DecoderRunner start time.
+type WantsDecoderRunner interface {
+	SetDecoderRunner(dr DecoderRunner)
+}
+
 // Heka Decoder plugin interface.
 type Decoder interface {
 	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
@@ -213,4 +220,75 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 
 func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
 	return proto.Unmarshal(pack.MsgBytes, pack.Message)
+}
+
+// Populated by the init function, this regex matches the MessageFields values
+// to interpolate variables from capture groups or other parts of the existing
+// message.
+var varMatcher *regexp.Regexp
+
+// Common type used to specify a set of values with which to populate a
+// message object. The keys represent message fields, the values can be
+// interpolated w/ capture parts from a message matcher.
+type MessageTemplate map[string]string
+
+// Applies this message template's values to the provided message object,
+// interpolating the provided substitutions into the values in the process.
+func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string) error {
+	var val string
+	for field, rawVal := range mt {
+		val = InterpolateString(rawVal, subs)
+		switch field {
+		case "Logger":
+			msg.SetLogger(val)
+		case "Type":
+			msg.SetType(val)
+		case "Payload":
+			msg.SetPayload(val)
+		case "Hostname":
+			msg.SetHostname(val)
+		case "Pid":
+			pid, err := strconv.ParseInt(val, 10, 32)
+			if err != nil {
+				return err
+			}
+			msg.SetPid(int32(pid))
+		case "Uuid":
+			msg.SetUuid([]byte(val))
+		default:
+			fi := strings.SplitN(field, "|", 2)
+			if len(fi) < 2 {
+				fi = append(fi, "")
+			}
+			f, err := message.NewField(fi[0], val, fi[1])
+			msg.AddField(f)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Given a regular expression, return the string resulting from interpolating
+// variables that exist in matchParts
+//
+// Example input to a formatRegexp: Reported at %Hostname% by %Reporter%
+// Assuming there are entries in matchParts for 'Hostname' and 'Reporter', the
+// returned string will then be: Reported at Somehost by Jonathon
+func InterpolateString(formatRegexp string, subs map[string]string) (newString string) {
+	return varMatcher.ReplaceAllStringFunc(formatRegexp,
+		func(matchWord string) string {
+			// Remove the preceding and trailing %
+			m := matchWord[1 : len(matchWord)-1]
+			if repl, ok := subs[m]; ok {
+				return repl
+			}
+			return fmt.Sprintf("<%s>", m)
+		})
+}
+
+// Initialize the varMatcher for use in InterpolateString
+func init() {
+	varMatcher, _ = regexp.Compile("%[A-Za-z]+%")
 }

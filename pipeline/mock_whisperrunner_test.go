@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	gomock "code.google.com/p/gomock/gomock"
 	whisper "github.com/rafrombrc/whisper-go/whisper"
+	gomock "code.google.com/p/gomock/gomock"
 )
 
 // Mock of WhisperRunner interface
@@ -27,6 +27,16 @@ func NewMockWhisperRunner(ctrl *gomock.Controller) *MockWhisperRunner {
 
 func (_m *MockWhisperRunner) EXPECT() *_MockWhisperRunnerRecorder {
 	return _m.recorder
+}
+
+func (_m *MockWhisperRunner) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockWhisperRunnerRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 func (_m *MockWhisperRunner) InChan() chan *whisper.Point {

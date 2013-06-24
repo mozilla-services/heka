@@ -254,7 +254,7 @@ func TestMissingTimeEvent(t *testing.T) {
 
 func getTestMessage() *message.Message {
 	hostname, _ := os.Hostname()
-	field, _ := message.NewField("foo", "bar", message.Field_RAW)
+	field, _ := message.NewField("foo", "bar", "")
 	msg := &message.Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(5123456789)
@@ -268,12 +268,12 @@ func getTestMessage() *message.Message {
 	msg.AddField(field)
 
 	data := []byte("data")
-	field1, _ := message.NewField("bytes", data, message.Field_RAW)
-	field2, _ := message.NewField("int", int64(999), message.Field_RAW)
+	field1, _ := message.NewField("bytes", data, "")
+	field2, _ := message.NewField("int", int64(999), "")
 	field2.AddValue(int64(1024))
-	field3, _ := message.NewField("double", float64(99.9), message.Field_RAW)
-	field4, _ := message.NewField("bool", true, message.Field_RAW)
-	field5, _ := message.NewField("foo", "alternate", message.Field_RAW)
+	field3, _ := message.NewField("double", float64(99.9), "")
+	field4, _ := message.NewField("bool", true, "")
+	field5, _ := message.NewField("foo", "alternate", "")
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
@@ -294,27 +294,23 @@ func TestAPIErrors(t *testing.T) {
 		"no return",
 		"read_message() incorrect number of args",
 		"read_message() incorrect field name type",
-		"read_message() incorrect field index type",
-		"read_message() incorrect array index type",
 		"read_message() negative field index",
 		"read_message() negative array index",
 		"output limit exceeded"}
 
 	msgs := []string{
-		"process_message() inject_message() takes a maximum of 2 arguments",
-		"process_message() output() must have at least one argument",
+		"process_message() ./testsupport/errors.lua:11: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
 		"process_message() ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
 		"process_message() must return a single numeric value",
 		"process_message() must return a single numeric value",
-		"process_message() read_message() incorrect number of arguments",
+		"process_message() ./testsupport/errors.lua:28: read_message() incorrect number of arguments",
 		"process_message() ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
-		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (number expected, got nil)",
-		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (number expected, got nil)",
-		"process_message() read_message() field index must be >= 0",
-		"process_message() read_message() array index must be >= 0",
-		"process_message() output_limit exceeded"}
+		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (field index must be >= 0)",
+		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (array index must be >= 0)",
+		"process_message() ./testsupport/errors.lua:37: output_limit exceeded"}
 
 	var sbc SandboxConfig
 	var captures map[string]string
@@ -562,7 +558,7 @@ func TestFailedMessageInjection(t *testing.T) {
 			STATUS_TERMINATED, sb.Status())
 	}
 	s := sb.LastError()
-	errMsg := "process_message() inject_message() exceeded MaxMsgLoops"
+	errMsg := "process_message() ./testsupport/loop.lua:7: inject_message() exceeded MaxMsgLoops"
 	if s != errMsg {
 		t.Errorf("error should be \"%s\", received \"%s\"", errMsg, s)
 	}
@@ -589,7 +585,11 @@ func TestCircularBufferErrors(t *testing.T) {
 		"set() non numeric value",
 		"set() incorrect # args",
 		"add() incorrect # args",
-		"get() incorrect # args"}
+		"get() incorrect # args",
+		"compute() incorrect # args",
+		"compute() incorrect function",
+		"compute() incorrect column",
+		"compute() start > end"}
 
 	msgs := []string{
 		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #-1 to 'new' (incorrect number of arguments)",
@@ -609,7 +609,12 @@ func TestCircularBufferErrors(t *testing.T) {
 		"process_message() ./testsupport/circular_buffer_errors.lua:44: bad argument #3 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:47: bad argument #-1 to 'set' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:50: bad argument #-1 to 'add' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:53: bad argument #-1 to 'get' (incorrect number of arguments)"}
+		"process_message() ./testsupport/circular_buffer_errors.lua:53: bad argument #-1 to 'get' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:56: bad argument #-1 to 'compute' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:59: bad argument #1 to 'compute' (invalid option 'func')",
+		"process_message() ./testsupport/circular_buffer_errors.lua:62: bad argument #2 to 'compute' (column out of range)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:65: bad argument #4 to 'compute' (end must be >= start)",
+	}
 
 	var sbc SandboxConfig
 	var captures map[string]string
@@ -657,10 +662,10 @@ func TestCircularBuffer(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	output := []string{
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n0\t0\t0\n",
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n1\t1\t1\n2\t1\t2\n3\t1\t3\n",
-		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
+		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n0\t0\t0\n",
+		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n1\t1\t1\n2\t1\t2\n3\t1\t3\n",
+		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
+		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
 	cnt := 0
 	sb.InjectMessage(func(p, pt, pn string) int {
 		if p != output[cnt] {
@@ -706,6 +711,10 @@ func TestCircularBuffer(t *testing.T) {
 	}
 	sb.TimerEvent(0)
 	sb.TimerEvent(1)
+	r = sb.TimerEvent(3)
+	if r != 0 {
+		t.Errorf("TimerEvent failed: %s", sb.LastError())
+	}
 	sb.Destroy("/tmp/circular_buffer.lua.data")
 }
 
@@ -722,8 +731,8 @@ func TestCircularBufferRestore(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	output := []string{
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"type\":\"count\"},{\"name\":\"Set_column\",\"type\":\"count\"},{\"name\":\"Get_column\",\"type\":\"count\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
-		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"type\":\"count\"}]}\n7.1\n1000000\n"}
+		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
+		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n7.1\n1000000\n"}
 	cnt := 0
 	sb.InjectMessage(func(p, pt, pn string) int {
 		if p != output[cnt] {

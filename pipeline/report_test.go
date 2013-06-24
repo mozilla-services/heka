@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	f0, _ = message.NewField("test0", 0, message.Field_RAW)
-	f1, _ = message.NewField("test1", "one", message.Field_RAW)
+	f0, _ = message.NewField("test0", 0, "")
+	f1, _ = message.NewField("test1", "one", "")
 )
 
 func (f *CounterFilter) ReportMsg(msg *message.Message) (err error) {
@@ -79,7 +79,7 @@ func ReportSpec(c gs.Context) {
 
 	fName := "counter"
 	filter := new(CounterFilter)
-	fRunner := NewFORunner(fName, filter)
+	fRunner := NewFORunner(fName, filter, nil)
 	var err error
 	fRunner.matcher, err = NewMatchRunner("Type == ''", "")
 	c.Assume(err, gs.IsNil)
@@ -87,7 +87,7 @@ func ReportSpec(c gs.Context) {
 
 	iName := "udp"
 	input := new(UdpInput)
-	iRunner := NewInputRunner(iName, input)
+	iRunner := NewInputRunner(iName, input, nil)
 
 	c.Specify("`PopulateReportMsg`", func() {
 		msg := getTestMessage()
@@ -133,7 +133,6 @@ func ReportSpec(c gs.Context) {
 
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
-		pc.DecoderSets = nil
 
 		c.Specify("returns full set of accurate reports", func() {
 			reportChan := make(chan *PipelinePack)

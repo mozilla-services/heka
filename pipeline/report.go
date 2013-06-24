@@ -15,9 +15,11 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"strings"
+	"sync/atomic"
 )
 
 // Interface for Heka plugins that will provide reporting data. Plugins can
@@ -33,8 +35,16 @@ type ReportingPlugin interface {
 }
 
 // Convenience function for creating a new integer field on a message object.
-func newIntField(msg *message.Message, name string, val int) {
-	f, err := message.NewField(name, val, message.Field_RAW)
+func newIntField(msg *message.Message, name string, val int, representation string) {
+	f, err := message.NewField(name, val, representation)
+	if err == nil {
+		msg.AddField(f)
+	}
+}
+
+// Convenience function for creating a new int64 field on a message object.
+func newInt64Field(msg *message.Message, name string, val int64, representation string) {
+	f, err := message.NewField(name, val, representation)
 	if err == nil {
 		msg.AddField(f)
 	}
@@ -43,7 +53,7 @@ func newIntField(msg *message.Message, name string, val int) {
 // Convenience function for creating and setting a string field called "name"
 // on a message object.
 func setNameField(msg *message.Message, name string) {
-	f, err := message.NewField("name", name, message.Field_RAW)
+	f, err := message.NewField("name", name, "")
 	if err == nil {
 		msg.AddField(f)
 	}
@@ -67,13 +77,20 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 	}
 
 	if fRunner, ok := pr.(FilterRunner); ok {
-		newIntField(msg, "InChanCapacity", cap(fRunner.InChan()))
-		newIntField(msg, "InChanLength", len(fRunner.InChan()))
-		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan))
-		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan))
+		newIntField(msg, "InChanCapacity", cap(fRunner.InChan()), "count")
+		newIntField(msg, "InChanLength", len(fRunner.InChan()), "count")
+		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan), "count")
+		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan), "count")
+		var tmp int64 = 0
+		fRunner.MatchRunner().reportLock.Lock()
+		if fRunner.MatchRunner().matchSamples > 0 {
+			tmp = fRunner.MatchRunner().matchDuration / fRunner.MatchRunner().matchSamples
+		}
+		fRunner.MatchRunner().reportLock.Unlock()
+		newInt64Field(msg, "MatchAvgDuration", tmp, "ns")
 	} else if dRunner, ok := pr.(DecoderRunner); ok {
-		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()))
-		newIntField(msg, "InChanLength", len(dRunner.InChan()))
+		newIntField(msg, "InChanCapacity", cap(dRunner.InChan()), "count")
+		newIntField(msg, "InChanLength", len(dRunner.InChan()), "count")
 	}
 	msg.SetType("heka.plugin-report")
 	return
@@ -91,24 +108,25 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	pack = pc.PipelinePack(0)
 	msg = pack.Message
-	newIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan))
-	newIntField(msg, "InChanLength", len(pc.inputRecycleChan))
+	newIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan), "count")
+	newIntField(msg, "InChanLength", len(pc.inputRecycleChan), "count")
 	msg.SetType("heka.input-report")
 	setNameField(msg, "inputRecycleChan")
 	reportChan <- pack
 
 	pack = pc.PipelinePack(0)
 	msg = pack.Message
-	newIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan))
-	newIntField(msg, "InChanLength", len(pc.injectRecycleChan))
+	newIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan), "count")
+	newIntField(msg, "InChanLength", len(pc.injectRecycleChan), "count")
 	msg.SetType("heka.inject-report")
 	setNameField(msg, "injectRecycleChan")
 	reportChan <- pack
 
 	pack = pc.PipelinePack(0)
 	msg = pack.Message
-	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()))
-	newIntField(msg, "InChanLength", len(pc.router.InChan()))
+	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
+	newIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
+	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&pc.router.processMessageCount), "count")
 	msg.SetType("heka.router-report")
 	setNameField(msg, "Router")
 	reportChan <- pack
@@ -117,7 +135,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = pc.PipelinePack(0)
 		if err = PopulateReportMsg(runner, pack.Message); err != nil {
 			msg = pack.Message
-			f, e = message.NewField("Error", err.Error(), message.Field_RAW)
+			f, e = message.NewField("Error", err.Error(), "")
 			if e == nil {
 				msg.AddField(f)
 			}
@@ -128,20 +146,26 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
-		if len(pack.Message.Fields) > 0 || pack.Message.GetPayload() != "" {
-			setNameField(pack.Message, name)
-			reportChan <- pack
-		} else {
-			pack.Recycle()
-		}
+		setNameField(pack.Message, name)
+		reportChan <- pack
 	}
-	for i, dSet := range pc.DecoderSets {
-		for name, runner := range dSet.AllByName() {
-			pack = getReport(runner)
-			setNameField(pack.Message, fmt.Sprintf("%s-%d", name, i))
-			reportChan <- pack
-		}
+
+	for _, runner := range pc.allDecoders {
+		pack = getReport(runner)
+		setNameField(pack.Message, runner.Name())
+		reportChan <- pack
 	}
+
+	for name, dChan := range pc.decoderChannels {
+		pack = pc.PipelinePack(0)
+		msg = pack.Message
+		msg.SetType("heka.decoder-pool-report")
+		setNameField(msg, fmt.Sprintf("DecoderPool-%s", name))
+		newIntField(msg, "InChanCapacity", cap(dChan), "count")
+		newIntField(msg, "InChanLength", len(dChan), "count")
+		reportChan <- pack
+	}
+
 	for name, runner := range pc.FilterRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)
@@ -158,7 +182,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 // Generates a single message with a payload that is a string representation
 // of the fields data and payload extracted from each running plugin's report
 // message and hands the message to the router for delivery.
-func (pc *PipelineConfig) allReportsMsg() {
+func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 	payload := make([]string, 0, 10)
 	var iName interface{}
 	var name, line string
@@ -182,7 +206,10 @@ func (pc *PipelineConfig) allReportsMsg() {
 			if field.GetName() == "name" {
 				continue
 			}
-			line = fmt.Sprintf(",\"%s\":\"%v\"", field.GetName(), field.GetValue())
+			line = fmt.Sprintf(",\"%s\":{\"value\":\"%v\", \"representation\":\"%s\"}",
+				field.GetName(),
+				field.GetValue(),
+				field.GetRepresentation())
 			payload = append(payload, line)
 		}
 		payload = append(payload, "}")
@@ -190,8 +217,57 @@ func (pc *PipelineConfig) allReportsMsg() {
 	}
 	payload = append(payload, "]}")
 
+	report_type = "heka.all-report"
+	msg_payload = strings.Join(payload, "")
+	return
+}
+
+// Generates a single message with a payload that is a string representation
+// of the fields data and payload extracted from each running plugin's report
+// message and hands the message to the router for delivery.
+func (pc *PipelineConfig) allReportsMsg() {
+	report_type, msg_payload := pc.allReportsData()
+
 	pack := pc.PipelinePack(0)
-	pack.Message.SetType("heka.all-report")
-	pack.Message.SetPayload(strings.Join(payload, ""))
+	pack.Message.SetType(report_type)
+	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
+}
+
+func (pc *PipelineConfig) allReportsStdout() {
+	report_type, msg_payload := pc.allReportsData()
+	pc.log(pc.formatTextReport(report_type, msg_payload))
+}
+
+func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
+
+	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
+
+	///////////
+
+	m := make(map[string]interface{})
+	json.Unmarshal([]byte(payload), &m)
+
+	fullReport := make([]string, 0)
+	for _, row := range m["reports"].([]interface{}) {
+		pluginReport := make([]string, 0)
+		pluginReport = append(pluginReport, fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
+		for _, colname := range header {
+			data := row.(map[string]interface{})[colname]
+			if data != nil {
+				pluginReport = append(pluginReport,
+					fmt.Sprintf("    %s: %s",
+						colname,
+						data.(map[string]interface{})["value"]))
+			}
+		}
+
+		fullReport = append(fullReport, strings.Join(pluginReport, "\n"))
+	}
+
+	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",
+		report_type,
+		strings.Join(fullReport, "\n"))
+
+	return stdout_report
 }

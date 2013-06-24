@@ -48,6 +48,10 @@ type FilterRunner interface {
 	Inject(pack *PipelinePack) bool
 	// Parsing engine for this Filter's message_matcher.
 	MatchRunner() *MatchRunner
+	// Retains a pack for future delivery to the plugin when a plugin needs
+	// to shut down and wants to retain the pack for the next time its
+	// running properly
+	RetainPack(pack *PipelineCapture)
 }
 
 // Heka Filter plugin type.
@@ -69,6 +73,23 @@ type CounterFilter struct {
 	count     uint
 	rate      float64
 	rates     []float64
+}
+
+// CounterFilter config struct, used only for specifying default ticker
+// interval and message matcher values.
+type CounterFilterConfig struct {
+	// Defaults to counting everything except the counter's own output
+	// messages.
+	MessageMatcher string `toml:"message_matcher"`
+	// Defaults to 5 second intervals.
+	TickerInterval uint `toml:"ticker_interval"`
+}
+
+func (this *CounterFilter) ConfigStruct() interface{} {
+	return &CounterFilterConfig{
+		MessageMatcher: "Type != 'heka.counter-output'",
+		TickerInterval: uint(5),
+	}
 }
 
 func (this *CounterFilter) Init(config interface{}) error {
