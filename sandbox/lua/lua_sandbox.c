@@ -38,6 +38,9 @@ lua_sandbox* lua_sandbox_create(void* go,
         || output_limit > MAX_OUTPUT) {
         return NULL;
     }
+    if (output_limit < OUTPUT_SIZE) {
+        output_limit = OUTPUT_SIZE;
+    }
     lua_sandbox* lsb = malloc(sizeof(lua_sandbox));
     if (lsb == NULL) return lsb;
 
@@ -50,11 +53,7 @@ lua_sandbox* lua_sandbox_create(void* go,
     lsb->m_status = STATUS_UNKNOWN;
     lsb->m_error_message[0] = 0;
     lsb->m_output.m_pos = 0;
-    if (output_limit < OUTPUT_SIZE) {
-        lsb->m_output.m_size = output_limit + 1;
-    } else {
-        lsb->m_output.m_size = OUTPUT_SIZE;
-    }
+    lsb->m_output.m_size = OUTPUT_SIZE;
     lsb->m_output.m_data = malloc(lsb->m_output.m_size);
     size_t len = strlen(lua_file);
     lsb->m_lua_file = malloc(len + 1);

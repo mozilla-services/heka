@@ -29,7 +29,7 @@ local sliding_window = interval * 15
 newest = 0
 oldest = 0
 last_alert = 0
-annotations = {}
+annotations = {_name="annotations"}
 annotations_size = 0
 
 function process_message ()
@@ -70,24 +70,6 @@ function process_message ()
     return 0
 end
 
-local function output_annotations()
-    if annotations_size > 0 then
-        output('{"annotations":[')
-        local i = 1
-        for k, v  in pairs(annotations) do
-            output(string.format('{"col":%d,"x":%d,"shortText":"%s","text":"%s"}', 
-                                 v.col, 
-                                 math.floor(k/1e6), 
-                                 v.shorttext, 
-                                 v.text))
-            if i < annotations_size then output(',') end
-            if k < newest - interval * rows then annotations[k] = nil end -- clean out old alerts
-            i = i + 1
-        end
-        output(']}\n')
-    end
-end
-
 function timer_event(ns)
     -- advance the buffers so the graphs will continue to advance without new data
     -- status:add(ns, 1, 0) 
@@ -115,17 +97,27 @@ function timer_event(ns)
 
     local delta = math.abs(current_avg - previous_avg)
     if delta > historical_sd * 2 and newest - last_alert > sliding_window then
+        for i=1, annotations_size do -- clean out old alerts
+            if annotations[i].x < (newest - interval * rows)/1e6 then 
+                table.remove(annotations, i)
+                annotations_size = annotations_size - 1
+            else
+                break
+            end 
+        end
+
         local msg = "CRITICAL:Average response time has fluxuated more than 2 standard deviations"
         last_alert = newest - newest % interval
-        annotations[last_alert] = {col = AVG_RESPONSE_TIME, shorttext = "A", text = msg}
         annotations_size = annotations_size + 1
-
+        annotations[annotations_size] = {x          = math.floor(last_alert/1e6),
+                                         col        = AVG_RESPONSE_TIME, 
+                                         shortText  = "A", 
+                                         text       = msg}
         output(msg)
         inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
     end
 
-    output_annotations()
-    output(request)
+    output(annotations, request)
     inject_message("cbuf", "Request Statistics")
 end
 

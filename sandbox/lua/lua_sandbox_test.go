@@ -757,6 +757,111 @@ func TestCircularBufferRestore(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestInjectMessage(t *testing.T) {
+	var sbc SandboxConfig
+	var captures map[string]string
+	tests := []string{
+		"lua types",
+		"cloudwatch metric",
+		"external reference",
+		"array only",
+		"private keys",
+		"table name",
+		"global table",
+		"special characters",
+	}
+
+	outputs := []string{
+		`{"table":{"value":1}}
+1.2 string nil true false`,
+		`{"table":{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}}
+`,
+		`{"table":{"a":{"y":2,"x":1}}}
+`,
+		`{"table":[1,2,3]}
+`,
+		`{"table":{"x":1}}
+`,
+		`{"array":[1,2,3]}
+`,
+		`{"table":{}}
+`,
+		`{"table":{"special\tcharacters":"\"\t\r\n\b\f\\\/"}}
+`,
+	}
+	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	cnt := 0
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != outputs[cnt] {
+			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", outputs[cnt], p)
+		}
+		cnt++
+		return 0
+	})
+
+	for _, v := range tests {
+		msg.SetPayload(v)
+		r := sb.ProcessMessage(msg, captures)
+		if r != 0 {
+			t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+		}
+	}
+	sb.Destroy("")
+}
+
+func TestInjectMessageError(t *testing.T) {
+	var sbc SandboxConfig
+	var captures map[string]string
+	tests := []string{
+		"error internal reference",
+		"error circular reference",
+		"error escape overflow",
+	}
+	errors := []string{
+		"process_message() ./testsupport/inject_message.lua:43: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:48: table contains an internal or circular reference",
+		"process_message() not enough memory",
+	}
+
+	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 1024
+	msg := getTestMessage()
+	for i, v := range tests {
+		sb, err := lua.CreateLuaSandbox(&sbc)
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		err = sb.Init("")
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		msg.SetPayload(v)
+		r := sb.ProcessMessage(msg, captures)
+		if r != 1 {
+			t.Errorf("ProcessMessage should return 1, received %d", r)
+		} else {
+			if sb.LastError() != errors[i] {
+				t.Errorf("Expected: \"%s\" received: \"%s\"", errors[i], sb.LastError())
+			}
+		}
+		sb.Destroy("")
+	}
+}
+
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/serialize.lua"
