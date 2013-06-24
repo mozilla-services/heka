@@ -723,4 +723,7 @@ func init() {
 	RegisterPlugin("NagiosOutput", func() interface{} {
 		return new(NagiosOutput)
 	})
+	RegisterPlugin("CarbonOutput", func() interface{} {
+		return new(CarbonOutput)
+	})
 }

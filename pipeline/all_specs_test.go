@@ -53,6 +53,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(FileMonitorSpec)
 	r.AddSpec(LogfileInputSpec)
 	r.AddSpec(StatAccumInputSpec)
+	r.AddSpec(CarbonOutputSpec)
 	gospec.MainGoTest(r, t)
 }
 

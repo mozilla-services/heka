@@ -172,7 +172,6 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		wr       WhisperRunner
 		unixTime uint64
 		value    float64
-		payload  string
 		e        error
 		pack     *PipelinePack
 		wg       sync.WaitGroup
@@ -180,9 +179,8 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	for plc := range or.InChan() {
 		pack = plc.Pack
-		payload = pack.Message.GetPayload()
+		lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
 		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
-		lines := strings.Split(strings.Trim(payload, " \n"), "\n")
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)
