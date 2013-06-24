@@ -19,18 +19,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-)
-
-var (
-	httpClient = &http.Client{}
+	"encoding/base64"
+	"net"
+	"net/url"
+	"unicode/utf8"
 )
 
 // Output plugin that index messages to an elasticsearch cluster.
@@ -40,17 +38,16 @@ type ElasticSearchOutput struct {
 	indexName     string
 	typeName      string
 	flushInterval uint32
+	flushCount	  int
 	batchChan     chan []byte
 	backChan      chan []byte
-	client        *http.Client
 	format        string
+	timestamp 	  string
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
-	// ElasticSearch server URL
-	// Defaults to "http://localhost:9200"
-	server    string
-	timestamp string
+	// The BulkIndexer used to index documents
+	bulkIndexer		BulkIndexer
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -62,17 +59,25 @@ type ElasticSearchOutputConfig struct {
 	// Name of the document type of the messages.
 	TypeName string `toml:"type_name"`
 	// Interval at which accumulated messages should be bulk indexed to ElasticSearch, in
-	// milliseconds (default 5000, i.e. 5 seconds).
+	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32 `toml:"flush_interval"`
+	// Number of messages that triggers a bulk indexation to ElasticSearch
+	// (defaul to 10)
+	FlushCount int `toml:"flush_count"`
 	// Format of the document
 	Format string
 	// Field names to include in ElasticSearch document for "clean" format
 	Fields []string
-	// ElasticSearch server URL
-	// Defaults to "http://localhost:9200"
-	Server string
 	// Timestamp format
 	Timestamp string
+	// ElasticSearch server address. This address also defines the Bulk
+	// indexing mode. For example, "http://localhost:9200" defines a
+	// server accessible on localhost and the indexation will be done
+	// with the HTTP Bulk API. Whereas "udp://192.168.1.14:9700" defines
+	// a server accessible on the local network and the indexation will
+	// be done with the UDP Bulk API of ElasticSearch.
+	// (default to "http://localhost:9200")
+	Server string
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -80,10 +85,11 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Cluster:       "elasticsearch",
 		Index:         "heka-%{2006.01.02}",
 		TypeName:      "message",
-		FlushInterval: 5000,
+		FlushInterval: 1000,
+		FlushCount:		10,
 		Format:        "clean",
-		Server:        "http://localhost:9200",
 		Timestamp:     "2006-01-02T15:04:05.000Z",
+		Server:		   "http://localhost:9200",
 	}
 }
 
@@ -93,9 +99,9 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.indexName = conf.Index
 	o.typeName = conf.TypeName
 	o.flushInterval = conf.FlushInterval
+	o.flushCount = conf.FlushCount
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
-	o.client = new(http.Client)
 	o.format = conf.Format
 	switch strings.ToLower(conf.Format) {
 	case "raw":
@@ -105,8 +111,19 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
 	}
-	o.server = conf.Server
 	o.timestamp = conf.Timestamp
+	if serverUrl, err := url.Parse(conf.Server); err == nil {
+	 	switch (strings.ToLower(serverUrl.Scheme)) {
+		case "http", "https":
+			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host, o.flushCount)
+		case "udp":
+			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
+		}
+	} else {
+		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", conf.Server, err)
+		return err
+	}
+
 	return
 }
 
@@ -125,6 +142,7 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 	var plc *PipelineCapture
 	var e error
+	var count int
 	ok := true
 	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
 	outBatch := make([]byte, 0, 10000)
@@ -147,6 +165,15 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
+				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
+					if len(outBatch) > 0 {
+						// This will block until the other side is ready to accept
+						// this batch, freeing us to start on the next one.
+						o.batchChan <- outBatch
+						outBatch = <-o.backChan
+						count = 0
+					}
+				}
 			}
 			outBytes = outBytes[:0]
 		case <-ticker:
@@ -155,12 +182,15 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				// this batch, freeing us to start on the next one.
 				o.batchChan <- outBatch
 				outBatch = <-o.backChan
+				count = 0
 			}
 		}
 	}
 	wg.Done()
 }
 
+// ElasticSearchCoordinates stores the coordinates (_index, _type, _id)
+// of an ElasticSearch document
 type ElasticSearchCoordinates struct {
 	Index           string
 	Type            string
@@ -173,6 +203,7 @@ func (e *ElasticSearchCoordinates) String() string {
 	return string(e.Bytes())
 }
 
+// Renders the coordinates of the ElasticSearch document as JSON
 func (e *ElasticSearchCoordinates) Bytes() []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
@@ -194,6 +225,7 @@ func (e *ElasticSearchCoordinates) Bytes() []byte {
 }
 
 // A Message Formatter formats a Heka message in JSON ([]byte)
+// Replace it by client.Encoder ?
 type MessageFormatter interface {
 	// Formats a Heka message in JSON
 	Format(*message.Message) (doc []byte, err error)
@@ -270,7 +302,9 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 		case "severity":
 			writeField(&buf, f, strconv.Itoa(int(m.GetSeverity())))
 		case "payload":
-			writeField(&buf, f, strconv.Quote(m.GetPayload()))
+			if utf8.ValidString(m.GetPayload()) {
+				writeField(&buf, f, strconv.Quote(m.GetPayload()))
+			}
 		case "envversion":
 			writeField(&buf, f, strconv.Quote(m.GetEnvVersion()))
 		case "pid":
@@ -283,7 +317,8 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 				case message.Field_STRING:
 					writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
 				case message.Field_BYTES:
-					//writeField(&buf, *field.Name, strconv.Quote(string(field.GetValue().([]byte)[:])))
+					data := field.GetValue().([]byte)[:]
+					writeField(&buf, *field.Name, strconv.Quote(base64.StdEncoding.EncodeToString(data)))
 				case message.Field_INTEGER:
 					writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
 				case message.Field_DOUBLE:
@@ -342,33 +377,11 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 	var outBatch []byte
 
 	for outBatch = range o.batchChan {
-		doBulkRequest(o.server+"/_bulk", bytes.NewReader(outBatch))
+		o.bulkIndexer.Index(outBatch)
 		outBatch = outBatch[:0]
 		o.backChan <- outBatch
 	}
 	wg.Done()
-}
-
-func doBulkRequest(url string, body io.Reader) {
-	// Creating ElasticSearch Bulk request
-	if request, err := http.NewRequest("POST", url, body); err != nil {
-		log.Printf("ElasticSearchOutput error creating bulk request: %s", err)
-	} else {
-		request.Header.Add("Accept", "application/json")
-		response, err := httpClient.Do(request)
-		if err != nil {
-			log.Printf("ElasticSearchOutput error executing bulk request: %s", err)
-		}
-		if response != nil {
-			defer response.Body.Close()
-			if response.StatusCode > 304 {
-				log.Printf("ElasticSearchOutput bulk response in error: %s", response.Status)
-			}
-			if _, err = ioutil.ReadAll(response.Body); err != nil {
-				log.Printf("ElasticSearchOutput bulk response reading in error: %s", err)
-			}
-		}
-	}
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
@@ -384,3 +397,125 @@ func cleanIndexName(name string) (index string) {
 	}
 	return
 }
+
+// A BulkIndexer is used to index documents in ElasticSearch
+type BulkIndexer interface {
+	// Index documents
+	Index(body []byte) (success bool , err error)
+	// Check if a flush is needed
+	CheckFlush(count int, length int) (bool)
+}
+
+// A HttpBulkIndexer uses the HTTP REST Bulk Api of ElasticSearch
+// in order to index documents
+type HttpBulkIndexer struct {
+	// Protocol (http or https)
+	Protocol	string
+	// Host name and port number (default to "localhost:9200")
+	Domain		string
+	// Maximum number of documents
+	MaxCount	int
+	// Internal HTTP Client
+	client		*http.Client
+}
+
+func NewHttpBulkIndexer(protocol string, domain string, maxCount int) *HttpBulkIndexer {
+	return &HttpBulkIndexer{Protocol: protocol, Domain: domain, MaxCount: maxCount}
+}
+
+func (h *HttpBulkIndexer) CheckFlush(count int, length int) (bool) {
+	if count >= h.MaxCount {
+		return true
+	}
+	return false
+}
+
+func (h *HttpBulkIndexer) Index(body []byte) (success bool , err error) {
+	if h.client == nil {
+		h.client = &http.Client{}
+	}
+	url := fmt.Sprintf("%s://%s%s", h.Protocol, h.Domain, "/_bulk")
+
+	// Creating ElasticSearch Bulk HTTP request
+	if request, err := http.NewRequest("POST", url, bytes.NewReader(body)); err != nil {
+		err = fmt.Errorf("Error creating bulk request: %s", err)
+		return false, err
+	} else {
+		request.Header.Add("Accept", "application/json")
+		response, err := h.client.Do(request)
+		if err != nil {
+			err = fmt.Errorf("Error executing bulk request: %s", err)
+			return false, err
+		}
+		if response != nil {
+			defer response.Body.Close()
+			if response.StatusCode > 304 {
+				err = fmt.Errorf("Bulk response in error: %s", response.Status)
+				return false, err
+			}
+			if _, err = ioutil.ReadAll(response.Body); err != nil {
+				err = fmt.Errorf("Bulk bulk response reading in error: %s", err)
+				return false, err
+			}
+		}
+	}
+	return true, nil
+}
+
+// A UDPBulkIndexer uses the Bulk UDP Api of ElasticSearch
+// in order to index documents
+type UDPBulkIndexer struct {
+	// Host name and port number (default to "localhost:9700")
+	Domain		string
+	// Maximum number of documents
+	MaxCount	int
+	// Max. length of UDP packets
+	MaxLength	int
+	// Internal UDP Address
+	address *net.UDPAddr
+	// Internal UDP Client
+	client *net.UDPConn
+}
+
+func NewUDPBulkIndexer(domain string, maxCount int) *UDPBulkIndexer {
+	return &UDPBulkIndexer{Domain: domain, MaxCount: maxCount, MaxLength: 65000}
+}
+
+func (u *UDPBulkIndexer) CheckFlush(count int, length int) (bool) {
+	if length >= u.MaxLength {
+		return true
+	} else if count >= u.MaxCount {
+		return true
+	}
+	return false
+}
+
+func (u *UDPBulkIndexer) Index(body []byte) (success bool , err error) {
+	if u.address == nil {
+		if u.address, err = net.ResolveUDPAddr("udp", u.Domain); err != nil {
+			err = fmt.Errorf("Error resolving UDP address [%s]: %s", u.Domain, err)
+			return false, err
+		}
+	}
+	if u.client == nil {
+		if u.client, err = net.DialUDP("udp", nil, u.address); err != nil {
+			err = fmt.Errorf("Error creating UDP client: %s", err)
+			return false, err
+		}
+	}
+	if u.address != nil {
+		if _, err = u.client.Write(body[:]); err != nil {
+			err = fmt.Errorf("Error writing data to UDP server: %s", err)
+			return false, err
+		}
+	} else {
+		err = fmt.Errorf("Error writing data to UDP server, address not found")
+		return false, err
+	}
+	return true, nil
+}
+
+
+
+
+
