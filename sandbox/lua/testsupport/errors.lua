@@ -33,7 +33,7 @@ function process_message ()
     elseif msg == "read_message() negative array index" then
         read_message("Type", 0, -1)
     elseif msg == "output limit exceeded" then
-        for i=1,10 do
+        for i=1,15 do
             output("012345678901234567890123456789010123456789012345678901234567890123456789012345678901234567890123456789")
         end
     end

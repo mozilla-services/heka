@@ -68,10 +68,18 @@ Heka functions that are exposed to the Lua sandbox
     configuration parameter.
 
     *Arguments*
-        - arg (number, string, bool, nil) Lua variable or literal to be appended the output buffer
+        - arg (number, string, bool, nil, table) Lua variable or literal to be appended the output buffer
 
     *Return*
         none
+    
+    *Notes*
+        Outputting a Lua table will serialize it to JSON according to the following guidelines/restrictions:
+            - Tables cannot contain internal of circular references.
+            - Keys starting with an underscore are considered private and will not be serialized.
+                - '_name' is a special private key that can be used to specify the the name of the top level JSON object, if not provided the default is 'table'.
+            - Arrays only use contiguous numeric keys starting with an index of 1. Private keys are the exception i.e. local a = {1,2,3,_name="my_name"} will be serialized as: ``{"my_name":[1,2,3]}\n``
+            - Hashes only use string keys (numeric keys will not be quoted and the JSON output will be invalid). Note: the hash keys are output in an arbitrary order i.e. local a = {x = 1, y = 2} will be serialized as: ``{"table":{"y":2,"x":1}}\n``.
 
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
