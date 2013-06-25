@@ -32,24 +32,28 @@ Prerequisites:
 - gcc
 - g++
 - git
+- go 1.1.1
 - python 2.6 or greater
 - perl
 
 
-1. Check out the `heka build`_ repository:
+1. Ensure your GOROOT enviroment variable is set properly.  Usually
+   this is /usr/local/go.  GOPATH should not be set.
+
+2. Check out the `heka build`_ repository:
 
     .. code-block:: bash
 
         git clone https://github.com/mozilla-services/heka-build.git
 
-2. Run `make` in the heka-build directory:
+3. Run `make` in the heka-build directory:
 
     .. code-block:: bash
 
         cd heka-build
         make
 
-3. (Optional) Run the tests to ensure a functioning `hekad`:
+4. (Optional) Run the tests to ensure a functioning `hekad`:
 
     .. code-block:: bash
 
@@ -57,18 +61,13 @@ Prerequisites:
 
 You will now have a `hekad` binary in the `heka-build/bin` directory.
 
-.. note::
-
-    Building hekad requires a specific Go tip version that has been
-    verified to work. This will be checked out and built in the
-    `heka-build` directory.
 
 From Source (Windows)
 =====================
 
 Prerequisites (manual setup):
 
-- Go 1.1 http://code.google.com/p/go/downloads/list
+- Go 1.1.1 http://code.google.com/p/go/downloads/list
 - Cmake 2.8+ http://www.cmake.org/cmake/resources/software.html
 - Git http://code.google.com/p/msysgit/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
