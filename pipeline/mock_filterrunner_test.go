@@ -5,8 +5,8 @@ package pipeline
 
 import (
 	time "time"
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 )
 
 // Mock of FilterRunner interface
