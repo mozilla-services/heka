@@ -557,24 +557,29 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 
-	// For inputs we just store the InputRunner and we're done.
-	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name,
-			plugin.(Input), &pluginGlobals)
-		self.inputWrappers[wrapper.name] = wrapper
-		return
-	}
-
-	// Filters and outputs have a few more config settings.
-	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
-	runner.name = wrapper.name
-
 	// If no ticker_interval value was specified in the TOML, we check to see
 	// if a default TickerInterval value is specified on the config struct.
 	if pluginGlobals.Ticker == 0 {
 		tickerVal := getAttr(config, "TickerInterval", uint(0))
 		pluginGlobals.Ticker = tickerVal.(uint)
 	}
+
+	// For inputs we just store the InputRunner and we're done.
+	if pluginCategory == "Input" {
+		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name,
+			plugin.(Input), &pluginGlobals)
+		self.inputWrappers[wrapper.name] = wrapper
+
+		if pluginGlobals.Ticker != 0 {
+			self.InputRunners[wrapper.name].SetTickLength(time.Duration(pluginGlobals.Ticker) * time.Second)
+		}
+
+		return
+	}
+
+	// Filters and outputs have a few more config settings.
+	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
+	runner.name = wrapper.name
 
 	if pluginGlobals.Ticker != 0 {
 		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second

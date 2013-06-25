@@ -120,6 +120,7 @@ func StatAccumInputSpec(c gs.Context) {
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+			ith.MockInputRunner.EXPECT().Ticker()
 
 			var wg sync.WaitGroup
 

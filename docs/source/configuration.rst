@@ -504,9 +504,9 @@ Parameters:
 - percent_threshold (int):
     Percent threshold to use for computing "upper_N%" type stat values.
     Defaults to 90.
-- flush_interval (int):
-    Time interval (in seconds) between generated output messages. Defaults to
-    10.
+- ticker_interval (uint):
+    Time interval (in seconds) between generated output messages.
+    Defaults to 10.
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
