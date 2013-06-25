@@ -726,4 +726,7 @@ func init() {
 	RegisterPlugin("CarbonOutput", func() interface{} {
 		return new(CarbonOutput)
 	})
+	RegisterPlugin("ElasticSearchOutput", func() interface{} {
+		return new(ElasticSearchOutput)
+	})
 }
