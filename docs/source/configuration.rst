@@ -506,8 +506,7 @@ Parameters:
     Defaults to 90.
 - ticker_interval (uint):
     Time interval (in seconds) between generated output messages.
-    *NOTE*: You *must* specify this or else the accumulator will never
-    flush metrics.
+    Defaults to 10.
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".

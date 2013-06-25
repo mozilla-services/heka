@@ -51,6 +51,7 @@ type StatAccumInput struct {
 	pConfig  *PipelineConfig
 	config   *StatAccumInputConfig
 	ir       InputRunner
+	tickChan <-chan time.Time
 	stopChan chan bool
 }
 
@@ -60,6 +61,7 @@ type StatAccumInputConfig struct {
 	PercentThreshold int    `toml:"percent_threshold"`
 	FlushInterval    int64  `toml:"flush_interval"`
 	MessageType      string `toml:"message_type"`
+	TickerInterval           uint   `toml:"ticker_interval"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -68,6 +70,7 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		PercentThreshold: 90,
 		FlushInterval:    10,
 		MessageType:      "heka.statmetric",
+		TickerInterval:   uint(10),
 	}
 }
 
@@ -97,10 +100,11 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	sm.pConfig = h.PipelineConfig()
 	sm.ir = ir
+	sm.tickChan = sm.ir.Ticker()
 	ok := true
 	for ok {
 		select {
-		case <-sm.ir.Ticker():
+		case <-sm.tickChan:
 			sm.Flush()
 		case stat, ok = <-sm.statChan:
 			if !ok {
