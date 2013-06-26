@@ -125,7 +125,7 @@ func DecodersSpec(c gospec.Context) {
 		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
 
 		c.Specify("reading an apache timestamp", func() {
-			conf.MatchRegex = `/\[(?P<Timestamp>[^\]]+)\]/`
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := NewMockDecoderRunner(ctrl)
@@ -139,7 +139,7 @@ func DecodersSpec(c gospec.Context) {
 		c.Specify("apply representation metadata to a captured field", func() {
 			value := "0.23"
 			payload := "header"
-			conf.MatchRegex = `/(?P<ResponseTime>\d+\.\d+)/`
+			conf.MatchRegex = `(?P<ResponseTime>\d+\.\d+)`
 			conf.MessageFields = MessageTemplate{
 				"ResponseTime|s": "%ResponseTime%",
 				"Payload|s":      "%ResponseTime%",
@@ -168,7 +168,7 @@ func DecodersSpec(c gospec.Context) {
 		})
 
 		c.Specify("reading test-zeus.log", func() {
-			conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>[^\]]+)\] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
+			conf.MatchRegex = `(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>[^\]]+)\] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)`
 			conf.MessageFields = MessageTemplate{
 				"hostname": "%Hostname%",
 				"ip":       "%Ip%",
@@ -213,7 +213,7 @@ func DecodersSpec(c gospec.Context) {
 		})
 
 		c.Specify("reading test-severity.log", func() {
-			conf.MatchRegex = `/severity\: (?P<Severity>[a-zA-Z]+)/`
+			conf.MatchRegex = `severity: (?P<Severity>[a-zA-Z]+)`
 			conf.SeverityMap = map[string]int32{
 				"emergency": 0,
 				"alert":     1,

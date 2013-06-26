@@ -46,7 +46,7 @@ func CarbonOutputSpec(c gs.Context) {
 
 	oth := NewCarbonTestHelper(ctrl)
 	var wg sync.WaitGroup
-	inChan := make(chan *PipelineCapture, 1)
+	inChan := make(chan *PipelinePack, 1)
 	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A CarbonOutput", func() {
@@ -68,7 +68,6 @@ func CarbonOutputSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("writes out to the network", func() {
 			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
@@ -104,7 +103,7 @@ func CarbonOutputSpec(c gs.Context) {
 				carbonOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				wg.Done()
 			}()
-			inChan <- plc
+			inChan <- pack
 
 			close(inChan)
 			wg.Wait() // wait for close to finish, prevents intermittent test failures

@@ -46,7 +46,7 @@ type Sandbox interface {
 	Usage(utype, ustat int) uint
 
 	// Plugin functions
-	ProcessMessage(msg *message.Message, captures map[string]string) int
+	ProcessMessage(msg *message.Message) int
 	TimerEvent(ns int64) int
 
 	// Go callback
