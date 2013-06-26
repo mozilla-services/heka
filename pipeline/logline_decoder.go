@@ -93,7 +93,7 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 			continue
 		}
 		if name == "" {
-			name = fmt.Sprintf("%d)", index)
+			name = fmt.Sprintf("%d", index)
 		}
 
 		if index > resultLength-1 {
