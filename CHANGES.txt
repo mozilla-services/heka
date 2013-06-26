@@ -1,3 +1,8 @@
+0.2.0 (2013-06-26)
+==================
+
+* Fix stat name regex to capture "." characters in the name.
+
 0.2.0rc2 (2013-05-23)
 =====================
 
