@@ -53,7 +53,11 @@ func (ld *LoglineDecoder) ConfigStruct() interface{} {
 func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	conf := config.(*LoglineDecoderConfig)
 	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
-		err = fmt.Errorf("LoglineDecoder regex error: %s", err)
+		err = fmt.Errorf("LoglineDecoder: %s", err)
+		return
+	}
+	if ld.Match.NumSubexp() == 0 {
+		err = fmt.Errorf("LoglineDecoder regex must contain capture groups")
 		return
 	}
 
@@ -82,8 +86,7 @@ func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
 // and captures
 func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]string) {
 	findResults := re.FindStringSubmatch(s)
-	resultLength := len(findResults)
-	if resultLength < 2 {
+	if findResults == nil {
 		return
 	}
 	match = true
@@ -95,12 +98,7 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 		if name == "" {
 			name = fmt.Sprintf("%d", index)
 		}
-
-		if index > resultLength-1 {
-			captures[name] = ""
-		} else {
-			captures[name] = findResults[index]
-		}
+		captures[name] = findResults[index]
 	}
 	return
 }

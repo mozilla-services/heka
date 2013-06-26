@@ -124,6 +124,20 @@ func DecodersSpec(c gospec.Context) {
 		pack := NewPipelinePack(supply)
 		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
 
+		c.Specify("non capture regex", func() {
+			conf.MatchRegex = `\d+`
+			err := decoder.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "LoglineDecoder regex must contain capture groups")
+		})
+
+		c.Specify("invalid regex", func() {
+			conf.MatchRegex = `\mtest`
+			err := decoder.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "LoglineDecoder: error parsing regexp: invalid escape sequence: `\\m`")
+		})
+
 		c.Specify("reading an apache timestamp", func() {
 			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			err := decoder.Init(conf)
