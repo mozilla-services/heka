@@ -224,7 +224,6 @@ func sha1_hexdigest(data string) (result string) {
 func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
-	var seek int64
 
 	err = dec.Decode(&m)
 	if err != nil {
@@ -240,29 +239,48 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 	}
 	defer fd.Close()
 
-	reader := bufio.NewReader(fd)
-	readLine, err := reader.ReadString('\n')
-	seek = 0
-	for err == nil {
-		seek += int64(len(readLine))
-		if seek == seek_pos {
-			if sha1_hexdigest(readLine) == last_hash {
-				// woot.  same log file
-				fm.seek = seek_pos
-				msg := fmt.Sprintf("Line matches, continuing from byte pos : %d", seek_pos)
-				fm.LogMessage(msg)
-				return nil
-			} else if fm.resumeFromStart {
-				fm.seek = 0
-				msg := "Line mismatch.  Restarting from start of file."
-				fm.LogMessage(msg)
-				return nil
+	// Try to get to our seek position.
+	if _, err = fd.Seek(seek_pos, 0); err == nil {
+		// We got there, now move backwards through the file until we get to
+		// the beginning of the line.
+		char := make([]byte, 1)
+		for char[0] != []byte("\n")[0] {
+
+			// Our first backwards seek skips over what should be a trailing
+			// "\n", subsequent ones skip over the byte that we just read.
+			if _, err = fd.Seek(-2, 1); err != nil {
+				break
+			}
+			if _, err = fd.Read(char); err != nil {
+				break
 			}
 		}
-		readLine, err = reader.ReadString('\n')
+
+		if err == nil {
+			// We should be at the beginning of the last line read the last
+			// time Heka ran.
+			reader := bufio.NewReader(fd)
+			var readLine string
+			if readLine, err = reader.ReadString('\n'); err == nil {
+				if sha1_hexdigest(readLine) == last_hash {
+					// woot.  same log file
+					fm.seek = seek_pos
+					msg := fmt.Sprintf("Line matches, continuing from byte pos: %d", seek_pos)
+					fm.LogMessage(msg)
+					return nil
+				}
+				fm.LogMessage("Line mismatch.")
+			}
+		}
 	}
-	fm.seek = seek
-	msg := fmt.Sprintf("Line mismatch.  Restarting from end of file [%d].", seek)
+	var msg string
+	if fm.resumeFromStart {
+		fm.seek = 0
+		msg = "Restarting from start of file."
+	} else {
+		fm.seek, _ = fd.Seek(0, 2)
+		msg = fmt.Sprintf("Restarting from end of file [%d].", fm.seek)
+	}
 	fm.LogMessage(msg)
 	return nil
 }
@@ -553,10 +571,7 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
 	}
 
-	if err = fm.recoverSeekPosition(); err != nil {
-		return
-	}
-
+	err = fm.recoverSeekPosition()
 	return
 }
 
