@@ -42,9 +42,6 @@ ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = true
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 
 [HekabenchCbufCounter]
 type = "SandboxFilter"
@@ -54,7 +51,6 @@ script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/hekabench_cbuf_counter.lua"
 preserve_data = true
 memory_limit = 256000
-instruction_limit = 1000
 output_limit = 64000
 profile = true
 
@@ -66,7 +62,6 @@ script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/hekabench_cbuf_counter.lua"
 preserve_data = false
 memory_limit = 256000
-instruction_limit = 1000
 output_limit = 64000
 
 [LoopToSelf]
@@ -76,9 +71,6 @@ ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/loop.lua"
 preserve_data = true
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 
 [LoopToOtherA]
 type = "SandboxFilter"
@@ -87,9 +79,6 @@ ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 
 [LoopToOtherB]
 type = "SandboxFilter"
@@ -98,9 +87,6 @@ ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
 preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 
 [Counter]
 type = "CounterFilter"
@@ -120,9 +106,6 @@ ticker_interval = 10
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/nagios.lua"
 preserve_data = false
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 
 [BackPressure]
 type = "SandboxFilter"
@@ -131,9 +114,7 @@ ticker_interval = 60
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/backpressure.lua"
 preserve_data = false
-memory_limit = 32767
 instruction_limit = 1000000
-output_limit = 1024
 
 [SyncProxyInput]
 type = "LogfileInput"

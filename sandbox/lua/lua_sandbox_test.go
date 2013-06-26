@@ -790,7 +790,7 @@ func TestInjectMessage(t *testing.T) {
 `,
 	}
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
-	sbc.MemoryLimit = 32767
+	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
 	msg := getTestMessage()
@@ -830,13 +830,13 @@ func TestInjectMessageError(t *testing.T) {
 		"error escape overflow",
 	}
 	errors := []string{
-		"process_message() ./testsupport/inject_message.lua:43: table contains an internal or circular reference",
-		"process_message() ./testsupport/inject_message.lua:48: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:46: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:51: table contains an internal or circular reference",
 		"process_message() not enough memory",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
-	sbc.MemoryLimit = 32767
+	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
 	msg := getTestMessage()
@@ -979,6 +979,69 @@ func BenchmarkSandboxReadMessageCapture(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		sb.ProcessMessage(msg, captures)
+	}
+	sb.Destroy("")
+}
+
+func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
+	b.StopTimer()
+	var sbc SandboxConfig
+	var captures map[string]string
+	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 1024
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init("")
+	sb.InjectMessage(func(p, pt, pn string) int {
+		return 0
+	})
+	msg.SetPayload("lua types")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg, captures)
+	}
+	sb.Destroy("")
+}
+
+func BenchmarkSandboxOutputTable(b *testing.B) {
+	b.StopTimer()
+	var sbc SandboxConfig
+	var captures map[string]string
+	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 1024
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init("")
+	sb.InjectMessage(func(p, pt, pn string) int {
+		return 0
+	})
+	msg.SetPayload("cloudwatch metric")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg, captures)
+	}
+	sb.Destroy("")
+}
+
+func BenchmarkSandboxOutputCbuf(b *testing.B) {
+	b.StopTimer()
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 64512
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init("")
+	sb.InjectMessage(func(p, pt, pn string) int {
+		return 0
+	})
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.TimerEvent(0)
 	}
 	sb.Destroy("")
 }

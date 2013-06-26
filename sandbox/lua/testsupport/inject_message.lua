@@ -2,17 +2,20 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+local cbuf = circular_buffer.new(1440, 3, 60)
+local simple_table = {value=1}
+local metric = {MetricName="example",Timestamp=0,Unit="s",Value=0, 
+Dimensions={{Name="d1",Value="v1"}, {Name="d2",Value="v2"}},
+StatisticValues={{Maximum=0,Minimum=0,SampleCount=0,Sum= 0},{Maximum=0,Minimum=0,SampleCount=0,Sum=0}}}
+
 function process_message ()
     local msg = read_message("Payload")
 
     if msg == "lua types" then
-        output({value=1}, 1.2, " string ", nil, " ", true, " ", false)
+        output(simple_table, 1.2, " string ", nil, " ", true, " ", false)
         inject_message()
     elseif msg == "cloudwatch metric" then
-        local metric = {MetricName="example",Timestamp=0,Unit="s",Value=0, 
-Dimensions={{Name="d1",Value="v1"}, {Name="d2",Value="v2"}},
-StatisticValues={{Maximum=0,Minimum=0,SampleCount=0,Sum= 0},{Maximum=0,Minimum=0,SampleCount=0,Sum=0}}}
-    output(metric)
+        output(metric)
         inject_message()
     elseif msg == "external reference" then
         local a = {x = 1, y = 2}
@@ -58,7 +61,8 @@ StatisticValues={{Maximum=0,Minimum=0,SampleCount=0,Sum= 0},{Maximum=0,Minimum=0
     return 0
 end
 
-
 function timer_event(ns)
+    output(cbuf)
+    inject_message("cbuf", "test")
 end
 
