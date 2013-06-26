@@ -55,7 +55,11 @@ type SandboxFilter struct {
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return new(sandbox.SandboxConfig)
+	return &sandbox.SandboxConfig{
+		MemoryLimit:      32767,
+		InstructionLimit: 1000,
+		OutputLimit:      1024,
+	}
 }
 
 // Determines the script type and creates interpreter sandbox.
