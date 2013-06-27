@@ -4,8 +4,9 @@
 package pipeline
 
 import (
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
+	time "time"
 )
 
 // Mock of InputRunner interface
@@ -111,6 +112,14 @@ func (_mr *_MockInputRunnerRecorder) SetName(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetName", arg0)
 }
 
+func (_m *MockInputRunner) SetTickLength(_param0 time.Duration) {
+	_m.ctrl.Call(_m, "SetTickLength", _param0)
+}
+
+func (_mr *_MockInputRunnerRecorder) SetTickLength(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickLength", arg0)
+}
+
 func (_m *MockInputRunner) Start(_param0 PluginHelper, _param1 *sync.WaitGroup) error {
 	ret := _m.ctrl.Call(_m, "Start", _param0, _param1)
 	ret0, _ := ret[0].(error)
@@ -119,4 +128,14 @@ func (_m *MockInputRunner) Start(_param0 PluginHelper, _param1 *sync.WaitGroup) 
 
 func (_mr *_MockInputRunnerRecorder) Start(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start", arg0, arg1)
+}
+
+func (_m *MockInputRunner) Ticker() <-chan time.Time {
+	ret := _m.ctrl.Call(_m, "Ticker")
+	ret0, _ := ret[0].(<-chan time.Time)
+	return ret0
+}
+
+func (_mr *_MockInputRunnerRecorder) Ticker() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Ticker")
 }

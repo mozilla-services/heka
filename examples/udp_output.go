@@ -54,10 +54,10 @@ func (o *UdpOutput) Run(runner pipeline.FilterRunner, helper pipeline.PluginHelp
 	err error) {
 
 	var outgoing string
-	for plc := range runner.InChan() {
-		outgoing = fmt.Sprintf("%s\n", plc.Pack.Message.GetPayload())
+	for pack := range runner.InChan() {
+		outgoing = fmt.Sprintf("%s\n", pack.Message.GetPayload())
 		o.conn.Write([]byte(outgoing))
-		plc.Pack.Recycle()
+		pack.Recycle()
 	}
 	return
 }

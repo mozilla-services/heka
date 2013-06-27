@@ -277,7 +277,6 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	var (
 		pack    *PipelinePack
-		plc     *PipelineCapture
 		msg     *message.Message
 		persist uint8
 		ok      bool = true
@@ -296,11 +295,10 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		select {
 		case <-ao.closeChan:
 			ok = false
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
-			pack = plc.Pack
 			msg = pack.Message
 			if conf.Serialize {
 				if err = encoder.EncodeMessageStream(msg, &msgBody); err != nil {

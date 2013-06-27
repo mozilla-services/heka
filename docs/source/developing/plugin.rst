@@ -361,19 +361,12 @@ condition. And like input plugins, filters should call `runner.InChan()` to
 gain access to the plugin's input channel.
 
 The similarities end there, however. A filter's input channel provides
-pointers to `PipelineCapture` objects, defined in `pipeline_runner.go
+pointers to `PipelinePack` objects, defined in `pipeline_runner.go
 <https://github.com/mozilla-
-services/heka/blob/master/pipeline/pipeline_runner.go>`_ as follows::
+services/heka/blob/master/pipeline/pipeline_runner.go>`_
 
-    type PipelineCapture struct {
-            Pack     *PipelinePack
-            Captures map[string]string
-    }
-
-The `Pack` attribute contains a fully decoded `Message` object from which the
-filter can extract any desired information. The `Captures` value, if not nil,
-will contain the values of any regular expression capture groups that might be
-defined in the filter's `message_matcher` (see :ref:`matcher_capture_groups`).
+The `Pack` contains a fully decoded `Message` object from which the
+filter can extract any desired information.
 
 Upon processing a message, a filter plugin can perform any of three tasks:
 
@@ -421,7 +414,7 @@ needed.
 Observant readers might have noticed that, unlike the `Input` interface,
 filters don't need to implement a `Stop` method. Instead, Heka will
 communicate a shutdown event to filter plugins by closing the input channel
-from which the filter is receiving the `PipelineCapture` objects. When this
+from which the filter is receiving the `PipelinePack` objects. When this
 channel is closed, a filter should perform any necessary clean-up and then
 return from the `Run` method with a `nil` value to indicate a clean exit.
 
@@ -448,14 +441,13 @@ The `Output` interface is nearly identical to the `Filter` interface::
 In fact, there is very little difference between filter and output plugins,
 other than tasks that they will be performing. Like filters, outputs should
 call the `InChan` method on the provided runner to get an input channel, which
-will feed `PipelineCapture` objects, containing populated `PipelinePack`
-objects within. Like filters, outputs should listen on this channel until it
-is closed, at which time they should perform any necessary clean-up and then
-return. And, like filters, any output plugin with a `ticker_interval` value in
-the configuration will use that value to create a ticker channel that can be
-accessed using the runner's `Ticker` method. And, finally, outputs should also
-be sure to call `PipelinePack.Recycle()` when they finish w/ a pack so that
-Heka knows the pack is freed up for reuse.
+will feed `PipelinePack` objects. Like filters, outputs should listen on this 
+channel until it is closed, at which time they should perform any necessary 
+clean-up and thenreturn. And, like filters, any output plugin with a 
+`ticker_interval` value in the configuration will use that value to create a 
+ticker channel that can be accessed using the runner's `Ticker` method. And, 
+finally, outputs should also be sure to call `PipelinePack.Recycle()` when 
+they finish w/ a pack so that Heka knows the pack is freed up for reuse.
 
 .. _register_custom_plugins
 

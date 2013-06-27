@@ -4,9 +4,9 @@
 package pipeline
 
 import (
-	time "time"
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
+	time "time"
 )
 
 // Mock of FilterRunner interface
@@ -30,14 +30,6 @@ func (_m *MockFilterRunner) EXPECT() *_MockFilterRunnerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockFilterRunner) Deliver(_param0 *PipelinePack) {
-	_m.ctrl.Call(_m, "Deliver", _param0)
-}
-
-func (_mr *_MockFilterRunnerRecorder) Deliver(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Deliver", arg0)
-}
-
 func (_m *MockFilterRunner) Filter() Filter {
 	ret := _m.ctrl.Call(_m, "Filter")
 	ret0, _ := ret[0].(Filter)
@@ -48,9 +40,9 @@ func (_mr *_MockFilterRunnerRecorder) Filter() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Filter")
 }
 
-func (_m *MockFilterRunner) InChan() chan *PipelineCapture {
+func (_m *MockFilterRunner) InChan() chan *PipelinePack {
 	ret := _m.ctrl.Call(_m, "InChan")
-	ret0, _ := ret[0].(chan *PipelineCapture)
+	ret0, _ := ret[0].(chan *PipelinePack)
 	return ret0
 }
 
@@ -124,7 +116,7 @@ func (_mr *_MockFilterRunnerRecorder) PluginGlobals() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
 }
 
-func (_m *MockFilterRunner) RetainPack(_param0 *PipelineCapture) {
+func (_m *MockFilterRunner) RetainPack(_param0 *PipelinePack) {
 	_m.ctrl.Call(_m, "RetainPack", _param0)
 }
 

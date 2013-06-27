@@ -91,7 +91,7 @@ func WhisperOutputSpec(c gospec.Context) {
 	oth := new(OutputTestHelper)
 	oth.MockHelper = NewMockPluginHelper(ctrl)
 	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
-	inChan := make(chan *PipelineCapture, 1)
+	inChan := make(chan *PipelinePack, 1)
 	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A WhisperOutput", func() {
@@ -116,7 +116,6 @@ func WhisperOutputSpec(c gospec.Context) {
 
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("turns statmetric lines into points", func() {
 			inChanCall := oth.MockOutputRunner.EXPECT().InChan()
@@ -125,7 +124,7 @@ func WhisperOutputSpec(c gospec.Context) {
 			wChanCall.Return(wChan)
 
 			go o.Run(oth.MockOutputRunner, oth.MockHelper)
-			inChan <- plc
+			inChan <- pack
 
 			// Usually each wChan will be unique instead of shared across
 			// multiple whisper runners. This weird dance here prevents our

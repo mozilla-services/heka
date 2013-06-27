@@ -143,23 +143,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type =~ /TEST/ && Payload =~ /Payload/",
 			"Fields[foo][1] =~ /alt/",
 			"Fields[Payload] =~ /name=\\w+/",
-		}
-
-		type captureTest struct {
-			spec     string
-			captures map[string]string
-		}
-
-		capture := []captureTest{
-			{"Type =~ /(ST)/", map[string]string{"Type(1)": "ST"}},
-			{"Payload =~ /(?P<pl>Payload)/ && Fields[Payload] =~ /name=(?P<name>\\w+)/", map[string]string{"pl": "Payload", "name": "test"}},
-			{"Fields[Timestamp] =~ /%TIMESTAMP%/", map[string]string{"Timestamp": date}},
-		}
-
-		captureNegative := []captureTest{
-			{"Fields[Payload] !~ /type=(web)/", map[string]string{}},                             // no captures in negated regex
-			{"Type == 'bogus' && Fields[Payload] =~ /name=(?P<name>\\w+)/", map[string]string{}}, // no capture because of short-circuit eval
-			{"Fields[Payload] =~ /name=(?P<name>\\w+)/ && Type == 'bogus'", map[string]string{}}, // make sure successful captures are cleared on the match failure
+			"Type =~ /(ST)/",
 		}
 
 		c.Specify("malformed matcher tests", func() {
@@ -173,7 +157,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			for _, v := range negative {
 				ms, err := CreateMatcherSpecification(v)
 				c.Expect(err, gs.IsNil)
-				match, _ := ms.Match(msg)
+				match := ms.Match(msg)
 				c.Expect(match, gs.IsFalse)
 			}
 		})
@@ -182,33 +166,10 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			for _, v := range positive {
 				ms, err := CreateMatcherSpecification(v)
 				c.Expect(err, gs.IsNil)
-				match, _ := ms.Match(msg)
+				match := ms.Match(msg)
 				c.Expect(match, gs.IsTrue)
 			}
 		})
-
-		c.Specify("positive matcher tests with capture", func() {
-			for _, v := range capture {
-				ms, err := CreateMatcherSpecification(v.spec)
-				c.Expect(err, gs.IsNil)
-				match, captures := ms.Match(msg)
-				c.Expect(match, gs.IsTrue)
-				compareCaptures(c, captures, v.captures)
-				compareCaptures(c, v.captures, captures)
-			}
-		})
-
-		c.Specify("negative matcher tests with capture", func() {
-			for _, v := range captureNegative {
-				ms, err := CreateMatcherSpecification(v.spec)
-				c.Expect(err, gs.IsNil)
-				match, captures := ms.Match(msg)
-				c.Expect(match, gs.IsFalse)
-				compareCaptures(c, captures, v.captures)
-				compareCaptures(c, v.captures, captures)
-			}
-		})
-
 	})
 }
 

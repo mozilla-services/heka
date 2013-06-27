@@ -31,10 +31,8 @@ import (
 // Heka PluginRunner for Output plugins.
 type OutputRunner interface {
 	PluginRunner
-	// Input channel where Output should be listening for incoming messages,
-	// along w/ any capture groups that may have been defined and matched in
-	// the Output's message_matcher.
-	InChan() chan *PipelineCapture
+	// Input channel where Output should be listening for incoming messages.
+	InChan() chan *PipelinePack
 	// Associated Output plugin instance.
 	Output() Output
 	// Starts the Output plugin listening on the input channel in a separate
@@ -44,13 +42,10 @@ type OutputRunner interface {
 	// Returns a ticker channel configured to send ticks at an interval
 	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
-	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
-	// value) and drops it on the Output's input channel.
-	Deliver(pack *PipelinePack)
 	// Retains a pack for future delivery to the plugin when a plugin needs
 	// to shut down and wants to retain the pack for the next time its
 	// running properly
-	RetainPack(pack *PipelineCapture)
+	RetainPack(pack *PipelinePack)
 	// Parsing engine for this Output's message_matcher.
 	MatchRunner() *MatchRunner
 }
@@ -81,8 +76,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack *PipelinePack
 		msg  *message.Message
 	)
-	for plc := range inChan {
-		pack = plc.Pack
+	for pack = range inChan {
 		msg = pack.Message
 		if self.payloadOnly {
 			log.Printf(msg.GetPayload())
@@ -96,12 +90,11 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				"\tPayload: %s\n"+
 				"\tEnvVersion: %s\n"+
 				"\tSeverity: %d\n"+
-				"\tFields: %+v\n"+
-				"\tCaptures: %v\n>\n",
+				"\tFields: %+v\n>\n",
 				time.Unix(0, msg.GetTimestamp()), msg.GetType(),
 				msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
 				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-				msg.GetSeverity(), msg.Fields, plc.Captures)
+				msg.GetSeverity(), msg.Fields)
 		}
 		pack.Recycle()
 	}
@@ -190,7 +183,7 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go o.receiver(or, &wg)
-	go o.committer(&wg)
+	go o.committer(or, &wg)
 	wg.Wait()
 	return
 }
@@ -199,7 +192,7 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // data until the ticker triggers the buffered data should be put onto the
 // committer channel.
 func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
-	var plc *PipelineCapture
+	var pack *PipelinePack
 	var e error
 	ok := true
 	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
@@ -209,7 +202,7 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
 				if len(outBatch) > 0 {
@@ -218,13 +211,13 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				close(o.batchChan)
 				break
 			}
-			if e = o.handleMessage(plc.Pack, &outBytes); e != nil {
+			if e = o.handleMessage(pack, &outBytes); e != nil {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
 			}
 			outBytes = outBytes[:0]
-			plc.Pack.Recycle()
+			pack.Recycle()
 		case <-ticker:
 			if len(outBatch) > 0 {
 				// This will block until the other side is ready to accept
@@ -250,17 +243,17 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 			*outBytes = append(*outBytes, jsonMessage...)
 			*outBytes = append(*outBytes, NEWLINE)
 		} else {
-			err = fmt.Errorf("FileOutput '%s' error encoding to JSON: %s", o.path, err)
+			err = fmt.Errorf("Can't encode to JSON: %s", err)
 		}
 	case "text":
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
 		if err = createProtobufStream(pack, &*outBytes); err != nil {
-			err = fmt.Errorf("FileOutput '%s' error encoding to ProtoBuf: %s", o.path, err)
+			err = fmt.Errorf("Can't encode to ProtoBuf: %s", err)
 		}
 	default:
-		err = fmt.Errorf("FileOutput '%s' error: Invalid format %s", o.path, o.format)
+		err = fmt.Errorf("Invalid serialization format %s", o.format)
 	}
 	return
 }
@@ -268,7 +261,7 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 // Runs in a separate goroutine, waits for buffered data on the committer
 // channel, writes it out to the filesystem, and puts the now empty buffer on
 // the return channel for reuse.
-func (o *FileOutput) committer(wg *sync.WaitGroup) {
+func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 	initBatch := make([]byte, 0, 10000)
 	o.backChan <- initBatch
 	var outBatch []byte
@@ -287,9 +280,9 @@ func (o *FileOutput) committer(wg *sync.WaitGroup) {
 			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {
-				log.Printf("FileOutput error writing to %s: %s", o.path, err)
+				or.LogError(fmt.Errorf("Can't write to %s: %s", o.path, err))
 			} else if n != len(outBatch) {
-				log.Printf("FileOutput truncated output for %s", o.path)
+				or.LogError(fmt.Errorf("Truncated output for %s", o.path))
 			} else {
 				o.file.Sync()
 			}
@@ -339,12 +332,12 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var n int
 	outBytes := make([]byte, 0, 2000)
 
-	for plc := range or.InChan() {
+	for pack := range or.InChan() {
 		outBytes = outBytes[:0]
 
-		if e = createProtobufStream(plc.Pack, &outBytes); e != nil {
+		if e = createProtobufStream(pack, &outBytes); e != nil {
 			or.LogError(e)
-			plc.Pack.Recycle()
+			pack.Recycle()
 			continue
 		}
 
@@ -354,7 +347,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			or.LogError(fmt.Errorf("truncated output to: %s", t.address))
 		}
 
-		plc.Pack.Recycle()
+		pack.Recycle()
 	}
 
 	t.connection.Close()

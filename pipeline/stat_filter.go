@@ -75,34 +75,28 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	}
 
 	var (
-		pack     *PipelinePack
-		captures map[string]string
-		stat     Stat
+		pack   *PipelinePack
+		values = make(map[string]string)
+		stat   Stat
 	)
 
 	inChan := fr.InChan()
-	for plc := range inChan {
-		pack = plc.Pack
-		captures = plc.Captures
-		if captures == nil {
-			captures = make(map[string]string)
-		}
-
-		// Load existing fields into the set for replacement
-		captures["Logger"] = pack.Message.GetLogger()
-		captures["Hostname"] = pack.Message.GetHostname()
-		captures["Type"] = pack.Message.GetType()
-		captures["Payload"] = pack.Message.GetPayload()
+	for pack = range inChan {
+		// Load existing values into the set for replacement
+		values["Logger"] = pack.Message.GetLogger()
+		values["Hostname"] = pack.Message.GetHostname()
+		values["Type"] = pack.Message.GetType()
+		values["Payload"] = pack.Message.GetPayload()
 
 		for _, field := range pack.Message.Fields {
 			if field.GetValueType() == message.Field_STRING && len(field.ValueString) > 0 {
-				captures[field.GetName()] = field.ValueString[0]
+				values[field.GetName()] = field.ValueString[0]
 			}
 		}
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
-			stat.Bucket = InterpolateString(met.Name, captures)
+			stat.Bucket = InterpolateString(met.Name, values)
 			switch met.Type_ {
 			case "Counter":
 				stat.Modifier = ""
@@ -111,7 +105,7 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			case "Gauge":
 				stat.Modifier = "g"
 			}
-			stat.Value = InterpolateString(met.Value, captures)
+			stat.Value = InterpolateString(met.Value, values)
 			if !statAccum.DropStat(stat) {
 				fr.LogError(fmt.Errorf("Undelivered stat: %s", stat))
 			}

@@ -35,6 +35,7 @@ Prerequisites:
 - go 1.1.1
 - python 2.6 or greater
 - perl
+- patch
 
 
 1. Ensure your GOROOT enviroment variable is set properly.  Usually
@@ -46,12 +47,15 @@ Prerequisites:
 
         git clone https://github.com/mozilla-services/heka-build.git
 
-3. Run `make` in the heka-build directory:
+3. Run `make` in the heka-build directory (builds the current release (master
+   branch)):
 
     .. code-block:: bash
 
         cd heka-build
         make
+
+You will now have a `hekad` binary in the `heka-build/bin` directory.
 
 4. (Optional) Run the tests to ensure a functioning `hekad`:
 
@@ -59,7 +63,9 @@ Prerequisites:
 
         make test
 
-You will now have a `hekad` binary in the `heka-build/bin` directory.
+5. (Optional) If you want to build the latest code in development, run `make
+   dev` to switch to the dev branch and then run `make`. If you need to revert
+   back to the master branch at some point run `make undev`.
 
 
 From Source (Windows)

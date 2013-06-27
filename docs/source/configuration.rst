@@ -295,7 +295,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [logparser]
     type = "LoglineDecoder"
-    MatchRegex = '/\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
 
     [logparser.MessageFields]
     Type = "amqplogline"
@@ -307,7 +307,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [leftovers]
     type = "LoglineDecoder"
-    MatchRegex = '/.*/'
+    MatchRegex = '.*'
 
     [leftovers.MessageFields]
     Type = "drop"
@@ -480,6 +480,8 @@ Example:
     address = ":8125"
     stat_accum_input = "custom_stat_accumulator"
 
+.. _config_stat_accum_input:
+
 StatAccumInput
 --------------
 
@@ -504,9 +506,9 @@ Parameters:
 - percent_threshold (int):
     Percent threshold to use for computing "upper_N%" type stat values.
     Defaults to 90.
-- flush_interval (int):
-    Time interval (in seconds) between generated output messages. Defaults to
-    10.
+- ticker_interval (uint):
+    Time interval (in seconds) between generated output messages.
+    Defaults to 10.
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
@@ -900,6 +902,60 @@ Example:
     ticker_interval = 60
     message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
 
+.. _config_elasticsearch_output:
+
+ElasticSearchOutput
+-------------------
+
+Output plugin that serializes messages into JSON structures and uses HTTP requests
+to insert them into an ElasticSearch database.
+
+Parameters:
+
+- cluster (string):
+    ElasticSearch cluster name. Defaults to "elasticsearch"
+- index (string):
+    Name of the ES index into which the messages will be inserted. Defaults to
+    "heka-%{2006.01.02}".
+- type_name (string):
+    Name of ES record type to create. Defaults to "message".
+- flush_interval (int):
+    Interval at which accumulated messages should be bulk indexed into
+    ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
+- flush_count (int):
+    Number of messages that, if processed, will trigger them to be bulk
+    indexed into ElasticSearch. Defaults to 10.
+- format (string):
+    Message serialization format, either "clean" or "raw", where "clean" is
+    a more concise JSON representation of the message. Defaults to "clean".
+- fields ([]string):
+    If the format is "clean", then the 'fields' parameter can be used to
+    specify that only specific message data should be indexed into
+    ElasticSearch. Available fields to choose are "Uuid", "Timestamp", "Type",
+    "Logger", "Severity", "Payload", "EnvVersion", "Pid", "Hostname", and
+    "Fields" (where "Fields" causes the inclusion of any and all dynamically
+    specified message fields. Defaults to all.
+- timestamp (string):
+    Format to use for timestamps in generated ES documents. Defaults to
+    "2006-01-02T15:04:05.000Z".
+- server (string):
+    ElasticSearch server URL. Supports http://, https:// and udp:// urls.
+    Defaults to "http://localhost:9200".
+
+Example:
+
+.. code-block:: ini
+
+    [ElasticSearchOutput]
+    message_matcher = "Type == 'sync.log'"
+    cluster = "elasticsearch-cluster"
+    index = "synclog-%{2006.01.02.15.04.05}"
+    type_name = "sync.log.line"
+    server = "http://es-server:9200"
+    format = "clean"
+    flush_interval = 5000
+    flush_count = 10
+
 .. _config_whisper_output:
 
 WhisperOutput
@@ -952,6 +1008,7 @@ Example:
     defaultaggmethod = 3
     defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
 
+.. _config_nagios_output:
 
 NagiosOutput
 ---------------

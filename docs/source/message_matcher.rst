@@ -6,8 +6,7 @@ Message Matcher Syntax
 
 Message matching is done by the `hekad` router to choose an appropriate
 filter(s) to run. Every filter that matches will get a copy of the
-message. The matching criteria also allows for sections of a string
-that matched to be utilized later as a capture group.
+message.
 
 Examples
 ========
@@ -18,7 +17,6 @@ Examples
 - Fields[foo][1][0] == 'alternate'
 - Fields[MyBool] == TRUE
 - TRUE
-- Payload =~ /name=(?P<name>\\w+)/
 - Fields[created] =~ /%TIMESTAMP%/
 
 Relational Operators
@@ -79,37 +77,7 @@ Regular Expression String
 
 - enclosed by forward slashes
 - must be placed on the right side of the relational comparison i.e. Type =~ /test/
-
-.. _matcher_capture_groups:
-
-Regular Expression Capture Groups
----------------------------------
-
-Named and un-named capture groups are exposed through the matcher.
-When a match is detected for a named capture the result is added to a
-map using the specified name.
-
-i.e.::
-
-    Message.Payload = "name=joe;id=23"
-    message_matcher = Payload =~ /name=(?P<name>\\w+);id=(?P<id>\\d+)/
-    captures["name"] = "joe"
-    captures["id"] = "23"
-
-When a match is detected for an un-named capture the result is added to
-the map using the message variable name and the capture group number.
-
-i.e.::
-
-    Message.Payload = "name=joe;id=23"
-    message_matcher = Payload =~ /name=(\\w+);id=(\\d+)/
-    captures["Payload(1)"] = "joe"
-    captures["Payload(2)"] = "23"
-
-.. note::
-
-    If multiple regular expressions have capture groups with the same
-    name the results will be overwritten.
+- capture groups will be ignored
 
 .. _matcher_regex_helpers:
 

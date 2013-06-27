@@ -77,8 +77,8 @@ func (s *StoppingOutput) Stop() {
 }
 
 var (
-	stopresumeHolder   []string         = make([]string, 0, 10)
-	plc                *PipelineCapture = new(PipelineCapture)
+	stopresumeHolder   []string      = make([]string, 0, 10)
+	pack               *PipelinePack = new(PipelinePack)
 	stopresumerunTimes int
 )
 
@@ -93,11 +93,11 @@ func (s *StopResumeOutput) Init(config interface{}) (err error) {
 
 func (s *StopResumeOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	if stopresumerunTimes == 0 {
-		or.RetainPack(plc)
+		or.RetainPack(pack)
 	} else if stopresumerunTimes == 1 {
 		inChan := or.InChan()
 		pk := <-inChan
-		if pk == plc {
+		if pk == pack {
 			stopresumeHolder = append(stopresumeHolder, "success")
 		}
 	} else if stopresumerunTimes > 1 {
@@ -127,7 +127,7 @@ func OutputsSpec(c gs.Context) {
 
 	oth := NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
-	inChan := make(chan *PipelineCapture, 1)
+	inChan := make(chan *PipelinePack, 1)
 	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A FileOutput", func() {
@@ -143,7 +143,6 @@ func OutputsSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		toString := func(outData interface{}) string {
 			return string(*(outData.(*[]byte)))
@@ -227,7 +226,7 @@ func OutputsSpec(c gs.Context) {
 			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
 			wg.Add(1)
 			go fileOutput.receiver(oth.MockOutputRunner, &wg)
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 			outBatch := <-fileOutput.batchChan
 			wg.Wait()
@@ -245,7 +244,7 @@ func OutputsSpec(c gs.Context) {
 
 				// Start committer loop
 				wg.Add(1)
-				go fileOutput.committer(&wg)
+				go fileOutput.committer(oth.MockOutputRunner, &wg)
 
 				// Feed and close the batchChan
 				go func() {
@@ -275,7 +274,7 @@ func OutputsSpec(c gs.Context) {
 
 				// Start committer loop
 				wg.Add(1)
-				go fileOutput.committer(&wg)
+				go fileOutput.committer(oth.MockOutputRunner, &wg)
 
 				// Feed and close the batchChan
 				go func() {
@@ -310,7 +309,6 @@ func OutputsSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("correctly formats protocol buffer stream output", func() {
 			outBytes := make([]byte, 0, 200)
@@ -353,7 +351,7 @@ func OutputsSpec(c gs.Context) {
 				tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				wg.Done()
 			}()
-			inChan <- plc
+			inChan <- pack
 
 			close(inChan)
 			wg.Wait() // wait for close to finish, prevents intermittent test failures
