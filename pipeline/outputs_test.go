@@ -245,7 +245,7 @@ func OutputsSpec(c gs.Context) {
 
 				// Start committer loop
 				wg.Add(1)
-				go fileOutput.committer(&wg)
+				go fileOutput.committer(oth.MockOutputRunner, &wg)
 
 				// Feed and close the batchChan
 				go func() {
@@ -275,7 +275,7 @@ func OutputsSpec(c gs.Context) {
 
 				// Start committer loop
 				wg.Add(1)
-				go fileOutput.committer(&wg)
+				go fileOutput.committer(oth.MockOutputRunner, &wg)
 
 				// Feed and close the batchChan
 				go func() {

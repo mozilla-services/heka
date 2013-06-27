@@ -190,7 +190,7 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go o.receiver(or, &wg)
-	go o.committer(&wg)
+	go o.committer(or, &wg)
 	wg.Wait()
 	return
 }
@@ -250,17 +250,17 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 			*outBytes = append(*outBytes, jsonMessage...)
 			*outBytes = append(*outBytes, NEWLINE)
 		} else {
-			err = fmt.Errorf("FileOutput '%s' error encoding to JSON: %s", o.path, err)
+			err = fmt.Errorf("Can't encode to JSON: %s", err)
 		}
 	case "text":
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
 		if err = createProtobufStream(pack, &*outBytes); err != nil {
-			err = fmt.Errorf("FileOutput '%s' error encoding to ProtoBuf: %s", o.path, err)
+			err = fmt.Errorf("Can't encode to ProtoBuf: %s", err)
 		}
 	default:
-		err = fmt.Errorf("FileOutput '%s' error: Invalid format %s", o.path, o.format)
+		err = fmt.Errorf("Invalid serialization format %s", o.format)
 	}
 	return
 }
@@ -268,7 +268,7 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 // Runs in a separate goroutine, waits for buffered data on the committer
 // channel, writes it out to the filesystem, and puts the now empty buffer on
 // the return channel for reuse.
-func (o *FileOutput) committer(wg *sync.WaitGroup) {
+func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 	initBatch := make([]byte, 0, 10000)
 	o.backChan <- initBatch
 	var outBatch []byte
@@ -287,9 +287,9 @@ func (o *FileOutput) committer(wg *sync.WaitGroup) {
 			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {
-				log.Printf("FileOutput error writing to %s: %s", o.path, err)
+				or.LogError(fmt.Errorf("Can't write to %s: %s", o.path, err))
 			} else if n != len(outBatch) {
-				log.Printf("FileOutput truncated output for %s", o.path)
+				or.LogError(fmt.Errorf("Truncated output for %s", o.path))
 			} else {
 				o.file.Sync()
 			}
