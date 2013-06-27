@@ -62,13 +62,13 @@ type ElasticSearchOutputConfig struct {
 	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32 `toml:"flush_interval"`
 	// Number of messages that triggers a bulk indexation to ElasticSearch
-	// (defaul to 10)
+	// (default to 10)
 	FlushCount int `toml:"flush_count"`
-	// Format of the document
+	// Format of the document.
 	Format string
-	// Field names to include in ElasticSearch document for "clean" format
+	// Field names to include in ElasticSearch document for "clean" format.
 	Fields []string
-	// Timestamp format
+	// Timestamp format.
 	Timestamp string
 	// ElasticSearch server address. This address also defines the Bulk
 	// indexing mode. For example, "http://localhost:9200" defines a
@@ -168,7 +168,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
 					if len(outBatch) > 0 {
 						// This will block until the other side is ready to accept
-						// this batch, freeing us to start on the next one.
+						// this batch, so we can't get too far ahead.
 						o.batchChan <- outBatch
 						outBatch = <-o.backChan
 						count = 0
