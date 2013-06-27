@@ -1,6 +1,12 @@
 0.3.0 (2013-??-??)
 ==================
 
+* Removed match capture group support from the router's message matching
+  functionality, since this is better done in the decoder layer where the
+  back-pressure won't slow down all message delivery. This gets rid of the
+  `PipelineCapture` object altogether, so now filter and output plugins deal
+  w/ PipelinePacks directly.
+
 * Added ElasticSearch output.
 
 * Lua filters can now emit tables, which will be serialized to JSON and
