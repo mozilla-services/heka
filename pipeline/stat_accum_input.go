@@ -61,7 +61,7 @@ type StatAccumInputConfig struct {
 	PercentThreshold int    `toml:"percent_threshold"`
 	FlushInterval    int64  `toml:"flush_interval"`
 	MessageType      string `toml:"message_type"`
-	TickerInterval           uint   `toml:"ticker_interval"`
+	TickerInterval   uint   `toml:"ticker_interval"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {

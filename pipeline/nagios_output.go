@@ -59,14 +59,12 @@ func (n *NagiosOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 
 	var (
-		plc     *PipelineCapture
 		pack    *PipelinePack
 		msg     *message.Message
 		payload string
 	)
 
-	for plc = range inChan {
-		pack = plc.Pack
+	for pack = range inChan {
 		msg = pack.Message
 		payload = msg.GetPayload()
 		pos := strings.IndexAny(payload, ":")

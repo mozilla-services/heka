@@ -495,7 +495,7 @@ func InputsSpec(c gs.Context) {
 		c.Specify("uses the filename as the default logger name", func() {
 			var err error
 
-            lfInput := new(LogfileInput)
+			lfInput := new(LogfileInput)
 			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 			lfiConfig.SeekJournal, err = createJournal()
 			c.Expect(err, gs.Equals, nil)

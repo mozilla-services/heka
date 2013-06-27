@@ -18,6 +18,7 @@ package pipeline
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -38,7 +39,7 @@ type LoglineDecoderConfig struct {
 }
 
 type LoglineDecoder struct {
-	Matcher         *MatcherSpecification
+	Match           *regexp.Regexp
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
@@ -51,9 +52,12 @@ func (ld *LoglineDecoder) ConfigStruct() interface{} {
 
 func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	conf := config.(*LoglineDecoderConfig)
-	spec := fmt.Sprintf("Payload =~ %s", conf.MatchRegex)
-	if ld.Matcher, err = CreateMatcherSpecification(spec); err != nil {
-		err = fmt.Errorf("LoglineDecoder regex error: %s", err)
+	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
+		err = fmt.Errorf("LoglineDecoder: %s", err)
+		return
+	}
+	if ld.Match.NumSubexp() == 0 {
+		err = fmt.Errorf("LoglineDecoder regex must contain capture groups")
 		return
 	}
 
@@ -78,12 +82,33 @@ func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
 	ld.dRunner = dr
 }
 
+// Matches the given string against the regex and returns the match result
+// and captures
+func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]string) {
+	findResults := re.FindStringSubmatch(s)
+	if findResults == nil {
+		return
+	}
+	match = true
+	captures = make(map[string]string)
+	for index, name := range re.SubexpNames() {
+		if index == 0 {
+			continue
+		}
+		if name == "" {
+			name = fmt.Sprintf("%d", index)
+		}
+		captures[name] = findResults[index]
+	}
+	return
+}
+
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
 func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	// First try to match the regex.
-	match, captures := ld.Matcher.Match(pack.Message)
+	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
 		return fmt.Errorf("No match")
 	}

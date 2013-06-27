@@ -57,8 +57,7 @@ func (t *CarbonOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack   *PipelinePack
 	)
 
-	for plc := range or.InChan() {
-		pack = plc.Pack
+	for pack = range or.InChan() {
 		lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
 		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
 
