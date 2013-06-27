@@ -90,8 +90,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				"\tPayload: %s\n"+
 				"\tEnvVersion: %s\n"+
 				"\tSeverity: %d\n"+
-				"\tFields: %+v\n"+
-				"\tCaptures: %v\n>\n",
+				"\tFields: %+v\n>\n",
 				time.Unix(0, msg.GetTimestamp()), msg.GetType(),
 				msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
 				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
