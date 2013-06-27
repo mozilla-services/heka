@@ -238,7 +238,7 @@ func AMQPPluginSpec(c gs.Context) {
 
 		closeChan := make(chan *amqp.Error)
 
-		inChan := make(chan *PipelineCapture, 1)
+		inChan := make(chan *PipelinePack, 1)
 
 		mch.EXPECT().NotifyClose(gomock.Any()).Return(closeChan)
 		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false,
@@ -255,7 +255,6 @@ func AMQPPluginSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("publishes a plain message", func() {
 			defaultConfig.Serialize = false
@@ -265,7 +264,7 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 
 			mch.EXPECT().Publish("", "test", false, false, gomock.Any()).Return(nil)
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 
 			go func() {
@@ -282,7 +281,7 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 
 			mch.EXPECT().Publish("", "test", false, false, gomock.Any()).Return(nil)
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 
 			go func() {

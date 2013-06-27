@@ -93,7 +93,6 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	var (
 		ok   = true
-		plc  *PipelineCapture
 		pack *PipelinePack
 		msg  *message.Message
 	)
@@ -101,11 +100,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	reNotWord, _ := regexp.Compile("\\W")
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
-			pack = plc.Pack
 			msg = pack.Message
 			switch msg.GetType() {
 			case "heka.all-report":
@@ -177,7 +175,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					file.Close()
 				}
 			}
-			plc.Pack.Recycle()
+			pack.Recycle()
 		case <-ticker:
 			go h.PipelineConfig().allReportsMsg()
 		}
@@ -535,7 +533,7 @@ function heka_load_cbuf(url, callback) {
     req.onreadystatechange = function () {
         if (req.readyState == 4) {
             if (req.status == 200 ||
-                req.status == 0) { 
+                req.status == 0) {
                 callback(heka_parse_cbuf(req.responseText));
             }
         }

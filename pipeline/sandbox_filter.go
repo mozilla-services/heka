@@ -141,7 +141,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		sample         = true
 		blocking       = false
 		backpressure   = false
-		plc            *PipelineCapture
+		pack           *PipelinePack
 		retval         int
 		msgLoopCount   uint
 		injectionCount uint
@@ -178,13 +178,13 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
 			atomic.AddInt64(&this.processMessageCount, 1)
 			injectionCount = Globals().MaxMsgProcessInject
-			msgLoopCount = plc.Pack.MsgLoopCount
+			msgLoopCount = pack.MsgLoopCount
 
 			// reading a channel length is generally fast ~1ns
 			// we need to check the entire chain back to the router
@@ -201,7 +201,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				startTime = time.Now()
 				sample = true
 			}
-			retval = this.sb.ProcessMessage(plc.Pack.Message, plc.Captures)
+			retval = this.sb.ProcessMessage(pack.Message)
 			if sample {
 				this.reportLock.Lock()
 				this.processMessageDuration += time.Since(startTime).Nanoseconds()
@@ -233,7 +233,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			} else {
 				terminated = true
 			}
-			plc.Pack.Recycle()
+			pack.Recycle()
 
 		case t := <-ticker:
 			injectionCount = Globals().MaxMsgTimerInject
@@ -277,8 +277,8 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	if terminated {
 		go h.PipelineConfig().RemoveFilterRunner(fr.Name())
 		// recycle any messages until the matcher is torn down
-		for plc = range inChan {
-			plc.Pack.Recycle()
+		for pack = range inChan {
+			pack.Recycle()
 		}
 	}
 

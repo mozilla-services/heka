@@ -140,7 +140,7 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // data until the ticker triggers the buffered data should be put onto the
 // committer channel.
 func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
-	var plc *PipelineCapture
+	var pack *PipelinePack
 	var e error
 	var count int
 	ok := true
@@ -151,7 +151,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
 				if len(outBatch) > 0 {
@@ -161,7 +161,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				break
 			}
 			// `handleMessage()` method recycles the pack.
-			if e = o.handleMessage(plc.Pack, &outBytes); e != nil {
+			if e = o.handleMessage(pack, &outBytes); e != nil {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)

@@ -190,7 +190,6 @@ func TestFailedInit(t *testing.T) {
 
 func TestMissingProcessMessage(t *testing.T) {
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/hello_world.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -204,7 +203,7 @@ func TestMissingProcessMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	r := sb.ProcessMessage(msg, captures)
+	r := sb.ProcessMessage(msg)
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -216,7 +215,7 @@ func TestMissingProcessMessage(t *testing.T) {
 		t.Errorf("status should be %d, received %d",
 			STATUS_TERMINATED, sb.Status())
 	}
-	r = sb.ProcessMessage(msg, captures) // try to use the terminated plugin
+	r = sb.ProcessMessage(msg) // try to use the terminated plugin
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -313,7 +312,6 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:37: output_limit exceeded"}
 
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/errors.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -328,7 +326,7 @@ func TestAPIErrors(t *testing.T) {
 			t.Errorf("%s", err)
 		}
 		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg, captures)
+		r := sb.ProcessMessage(msg)
 		if r != 1 || STATUS_TERMINATED != sb.Status() {
 			t.Errorf("test: %s status should be %d, received %d",
 				v, STATUS_TERMINATED, sb.Status())
@@ -369,7 +367,6 @@ func TestTimerEvent(t *testing.T) {
 
 func TestReadMessage(t *testing.T) {
 	var sbc SandboxConfig
-	captures := map[string]string{"exists": "found"}
 	sbc.ScriptFilename = "./testsupport/read_message.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -382,7 +379,7 @@ func TestReadMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	r := sb.ProcessMessage(msg, captures)
+	r := sb.ProcessMessage(msg)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d", r)
 	}
@@ -428,7 +425,6 @@ func TestPreserve(t *testing.T) {
 
 func TestRestore(t *testing.T) {
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/simple_count.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -448,7 +444,7 @@ func TestRestore(t *testing.T) {
 		}
 		return 0
 	})
-	r := sb.ProcessMessage(msg, captures)
+	r := sb.ProcessMessage(msg)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d", r)
 	}
@@ -532,7 +528,6 @@ func TestPreserveFailureNoGlobal(t *testing.T) {
 
 func TestFailedMessageInjection(t *testing.T) {
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/loop.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -549,7 +544,7 @@ func TestFailedMessageInjection(t *testing.T) {
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 1
 	})
-	r := sb.ProcessMessage(msg, captures)
+	r := sb.ProcessMessage(msg)
 	if r != 1 {
 		t.Errorf("ProcessMessage should return 1, received %d", r)
 	}
@@ -617,7 +612,6 @@ func TestCircularBufferErrors(t *testing.T) {
 	}
 
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/circular_buffer_errors.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -632,7 +626,7 @@ func TestCircularBufferErrors(t *testing.T) {
 			t.Errorf("%s", err)
 		}
 		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg, captures)
+		r := sb.ProcessMessage(msg)
 		if r != 1 || STATUS_TERMINATED != sb.Status() {
 			t.Errorf("test: %s status should be %d, received %d",
 				v, STATUS_TERMINATED, sb.Status())
@@ -649,7 +643,6 @@ func TestCircularBufferErrors(t *testing.T) {
 func TestCircularBuffer(t *testing.T) {
 	msg := getTestMessage()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/circular_buffer.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -687,25 +680,25 @@ func TestCircularBuffer(t *testing.T) {
 	}
 	sb.TimerEvent(0)
 	msg.SetTimestamp(0)
-	r := sb.ProcessMessage(msg, captures)
+	r := sb.ProcessMessage(msg)
 	if r != 0 {
 		t.Errorf("ProcessMessage failed: %s", sb.LastError())
 	}
 	msg.SetTimestamp(1e9)
-	sb.ProcessMessage(msg, captures)
-	sb.ProcessMessage(msg, captures)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
 	msg.SetTimestamp(2e9)
-	sb.ProcessMessage(msg, captures)
-	sb.ProcessMessage(msg, captures)
-	sb.ProcessMessage(msg, captures)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
 	sb.TimerEvent(0)
 
 	msg.SetTimestamp(4e9)
-	sb.ProcessMessage(msg, captures)
+	sb.ProcessMessage(msg)
 	sb.TimerEvent(0)
 
 	msg.SetTimestamp(10e9)
-	r = sb.ProcessMessage(msg, captures)
+	r = sb.ProcessMessage(msg)
 	if r != 0 {
 		t.Errorf("ProcessMessage failed: %s", sb.LastError())
 	}
@@ -759,7 +752,6 @@ func TestCircularBufferRestore(t *testing.T) {
 
 func TestInjectMessage(t *testing.T) {
 	var sbc SandboxConfig
-	var captures map[string]string
 	tests := []string{
 		"lua types",
 		"cloudwatch metric",
@@ -813,7 +805,7 @@ func TestInjectMessage(t *testing.T) {
 
 	for _, v := range tests {
 		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg, captures)
+		r := sb.ProcessMessage(msg)
 		if r != 0 {
 			t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
 		}
@@ -823,7 +815,6 @@ func TestInjectMessage(t *testing.T) {
 
 func TestInjectMessageError(t *testing.T) {
 	var sbc SandboxConfig
-	var captures map[string]string
 	tests := []string{
 		"error internal reference",
 		"error circular reference",
@@ -850,7 +841,7 @@ func TestInjectMessageError(t *testing.T) {
 			t.Errorf("%s", err)
 		}
 		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg, captures)
+		r := sb.ProcessMessage(msg)
 		if r != 1 {
 			t.Errorf("ProcessMessage should return 1, received %d", r)
 		} else {
@@ -901,7 +892,6 @@ func BenchmarkSandboxCreateInitDestroyPreserve(b *testing.B) {
 func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -910,7 +900,7 @@ func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }
@@ -918,7 +908,6 @@ func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 func BenchmarkSandboxReadMessageString(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/readstring.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -927,7 +916,7 @@ func BenchmarkSandboxReadMessageString(b *testing.B) {
 	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }
@@ -935,7 +924,6 @@ func BenchmarkSandboxReadMessageString(b *testing.B) {
 func BenchmarkSandboxReadMessageInt(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/readint.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -944,7 +932,7 @@ func BenchmarkSandboxReadMessageInt(b *testing.B) {
 	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }
@@ -952,7 +940,6 @@ func BenchmarkSandboxReadMessageInt(b *testing.B) {
 func BenchmarkSandboxReadMessageField(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/readfield.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
@@ -961,24 +948,7 @@ func BenchmarkSandboxReadMessageField(b *testing.B) {
 	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
-	}
-	sb.Destroy("")
-}
-
-func BenchmarkSandboxReadMessageCapture(b *testing.B) {
-	b.StopTimer()
-	var sbc SandboxConfig
-	captures := map[string]string{"exists": "found"}
-	sbc.ScriptFilename = "./testsupport/readcapture.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
-	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }
@@ -986,7 +956,6 @@ func BenchmarkSandboxReadMessageCapture(b *testing.B) {
 func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
@@ -1000,7 +969,7 @@ func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
 	msg.SetPayload("lua types")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }
@@ -1008,7 +977,6 @@ func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
 func BenchmarkSandboxOutputTable(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	var captures map[string]string
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
@@ -1022,7 +990,7 @@ func BenchmarkSandboxOutputTable(b *testing.B) {
 	msg.SetPayload("cloudwatch metric")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg, captures)
+		sb.ProcessMessage(msg)
 	}
 	sb.Destroy("")
 }

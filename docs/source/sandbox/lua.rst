@@ -54,7 +54,6 @@ Heka functions that are exposed to the Lua sandbox
             - Severity
             - Pid
             - Fields[_name_]
-            - Captures[_name_] see: :ref:`message_matcher`
         - fieldIndex (unsigned) only used in combination with the Fields variableName
             - use to retrieve a specific instance of a repeated field _name_
         - arrayIndex (unsigned) only used in combination with the Fields variableName

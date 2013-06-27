@@ -295,7 +295,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [logparser]
     type = "LoglineDecoder"
-    MatchRegex = '/\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
 
     [logparser.MessageFields]
     Type = "amqplogline"
@@ -307,7 +307,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [leftovers]
     type = "LoglineDecoder"
-    MatchRegex = '/.*/'
+    MatchRegex = '.*'
 
     [leftovers.MessageFields]
     Type = "drop"
