@@ -157,9 +157,6 @@ func parseMatcherSpecification(ms *MatcherSpecification) error {
 		for _, node := range nodes {
 			if node.stmt.op.tokenId != OP_OR &&
 				node.stmt.op.tokenId != OP_AND {
-				if node.stmt.op.tokenId == OP_RE { // no capture for negated regex
-					ms.numCapture += node.stmt.value.regexp.NumSubexp()
-				}
 				s.push(node)
 			} else {
 				node.right = s.pop()

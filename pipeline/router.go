@@ -204,11 +204,10 @@ func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
 }
 
 // Starts the runner listening for messages on its input channel. Any message
-// that is a match will be embedded within a PipelineCapture and placed on the
-// provided matchChan (usually the input channel for a specific Filter or
-// Output plugin). Any messages that are not a match will be immediately
-// recycled.
-func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
+// that is a match will be placed on the provided matchChan (usually the input
+// channel for a specific Filter or Output plugin). Any messages that are not a
+// match will be immediately recycled.
+func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -230,9 +229,8 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			// a sample so there will be a ballpark figure immediately. We could
 			// use a ticker to sample at a regular interval but that seems like
 			// overkill at this  point.
-			counter  int = random
-			match    bool
-			captures map[string]string
+			counter int = random
+			match   bool
 		)
 
 		var capacity int64 = int64(cap(mr.inChan))
@@ -248,7 +246,7 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 			if counter == random {
 				startTime = time.Now()
 
-				match, captures = mr.spec.Match(pack.Message)
+				match = mr.spec.Match(pack.Message)
 
 				mr.reportLock.Lock()
 				mr.matchDuration += time.Since(startTime).Nanoseconds()
@@ -260,13 +258,12 @@ func (mr *MatchRunner) Start(matchChan chan *PipelineCapture) {
 					counter = 0
 				}
 			} else {
-				match, captures = mr.spec.Match(pack.Message)
+				match = mr.spec.Match(pack.Message)
 				counter++
 			}
 
 			if match {
-				plc := &PipelineCapture{Pack: pack, Captures: captures}
-				matchChan <- plc
+				matchChan <- pack
 			} else {
 				pack.Recycle()
 			}

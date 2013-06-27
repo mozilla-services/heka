@@ -53,7 +53,7 @@ func FiltersSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	fth := NewFilterTestHelper(ctrl)
-	inChan := make(chan *PipelineCapture, 1)
+	inChan := make(chan *PipelinePack, 1)
 	pConfig := NewPipelineConfig(nil)
 
 	c.Specify("A SandboxFilter", func() {
@@ -68,7 +68,6 @@ func FiltersSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("Over inject messages from ProcessMessage", func() {
 			var timer <-chan time.Time
@@ -83,7 +82,7 @@ func FiltersSpec(c gs.Context) {
 			config.ScriptFilename = "../sandbox/lua/testsupport/processinject.lua"
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
@@ -120,14 +119,13 @@ func FiltersSpec(c gs.Context) {
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
 		pack.Message = msg
 		pack.Decoded = true
-		plc := &PipelineCapture{Pack: pack}
 
 		c.Specify("Control message in the past", func() {
 			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: 5 seconds skew"))
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
@@ -137,7 +135,7 @@ func FiltersSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: -5 seconds skew"))
-			inChan <- plc
+			inChan <- pack
 			close(inChan)
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
