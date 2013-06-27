@@ -27,14 +27,13 @@ distributions and OSX.
 
 Prerequisites:
 
-- cmake 2.8+
+- cmake 2.8 or greater
 - make
 - gcc
 - g++
 - git
-- go 1.1 or greater
+- go 1.1 or greater (1.1.1 recommended)
 - python 2.6 or greater
-- perl
 - patch
 
 
@@ -71,7 +70,7 @@ From Source (Windows)
 
 Prerequisites (manual setup):
 
-- Go 1.1.1 http://code.google.com/p/go/downloads/list
+- Go 1.1+ (1.1.1 recommended) http://code.google.com/p/go/downloads/list
 - Cmake 2.8+ http://www.cmake.org/cmake/resources/software.html
 - Git http://code.google.com/p/msysgit/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
