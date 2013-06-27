@@ -32,23 +32,21 @@ Prerequisites:
 - gcc
 - g++
 - git
-- go 1.1.1
+- go 1.1 or greater
 - python 2.6 or greater
 - perl
 - patch
 
 
-1. Ensure your GOROOT enviroment variable is set properly.  Usually
-   this is /usr/local/go.  GOPATH should not be set.
-
-2. Check out the `heka build`_ repository:
+1. Check out the `heka build`_ repository:
 
     .. code-block:: bash
 
         git clone https://github.com/mozilla-services/heka-build.git
 
-3. Run `make` in the heka-build directory (builds the current release (master
-   branch)):
+2. Run `make` in the heka-build directory (builds the current release (master
+   branch); if you have go installed in a non-standard location, you may need
+   to set the GOROOT environment variable):
 
     .. code-block:: bash
 
@@ -57,13 +55,13 @@ Prerequisites:
 
 You will now have a `hekad` binary in the `heka-build/bin` directory.
 
-4. (Optional) Run the tests to ensure a functioning `hekad`:
+3. (Optional) Run the tests to ensure a functioning `hekad`:
 
     .. code-block:: bash
 
         make test
 
-5. (Optional) If you want to build the latest code in development, run `make
+4. (Optional) If you want to build the latest code in development, run `make
    dev` to switch to the dev branch and then run `make`. If you need to revert
    back to the master branch at some point run `make undev`.
 
