@@ -16,18 +16,18 @@ package pipeline
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"encoding/base64"
-	"net"
-	"net/url"
 	"unicode/utf8"
 )
 
@@ -38,16 +38,16 @@ type ElasticSearchOutput struct {
 	indexName     string
 	typeName      string
 	flushInterval uint32
-	flushCount	  int
+	flushCount    int
 	batchChan     chan []byte
 	backChan      chan []byte
 	format        string
-	timestamp 	  string
+	timestamp     string
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
 	// The BulkIndexer used to index documents
-	bulkIndexer		BulkIndexer
+	bulkIndexer BulkIndexer
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -62,13 +62,13 @@ type ElasticSearchOutputConfig struct {
 	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32 `toml:"flush_interval"`
 	// Number of messages that triggers a bulk indexation to ElasticSearch
-	// (defaul to 10)
+	// (default to 10)
 	FlushCount int `toml:"flush_count"`
-	// Format of the document
+	// Format of the document.
 	Format string
-	// Field names to include in ElasticSearch document for "clean" format
+	// Field names to include in ElasticSearch document for "clean" format.
 	Fields []string
-	// Timestamp format
+	// Timestamp format.
 	Timestamp string
 	// ElasticSearch server address. This address also defines the Bulk
 	// indexing mode. For example, "http://localhost:9200" defines a
@@ -86,10 +86,10 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Index:         "heka-%{2006.01.02}",
 		TypeName:      "message",
 		FlushInterval: 1000,
-		FlushCount:		10,
+		FlushCount:    10,
 		Format:        "clean",
 		Timestamp:     "2006-01-02T15:04:05.000Z",
-		Server:		   "http://localhost:9200",
+		Server:        "http://localhost:9200",
 	}
 }
 
@@ -113,7 +113,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	}
 	o.timestamp = conf.Timestamp
 	if serverUrl, err := url.Parse(conf.Server); err == nil {
-	 	switch (strings.ToLower(serverUrl.Scheme)) {
+		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
 			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host, o.flushCount)
 		case "udp":
@@ -168,7 +168,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
 					if len(outBatch) > 0 {
 						// This will block until the other side is ready to accept
-						// this batch, freeing us to start on the next one.
+						// this batch, so we can't get too far ahead.
 						o.batchChan <- outBatch
 						outBatch = <-o.backChan
 						count = 0
@@ -401,36 +401,36 @@ func cleanIndexName(name string) (index string) {
 // A BulkIndexer is used to index documents in ElasticSearch
 type BulkIndexer interface {
 	// Index documents
-	Index(body []byte) (success bool , err error)
+	Index(body []byte) (success bool, err error)
 	// Check if a flush is needed
-	CheckFlush(count int, length int) (bool)
+	CheckFlush(count int, length int) bool
 }
 
 // A HttpBulkIndexer uses the HTTP REST Bulk Api of ElasticSearch
 // in order to index documents
 type HttpBulkIndexer struct {
 	// Protocol (http or https)
-	Protocol	string
+	Protocol string
 	// Host name and port number (default to "localhost:9200")
-	Domain		string
+	Domain string
 	// Maximum number of documents
-	MaxCount	int
+	MaxCount int
 	// Internal HTTP Client
-	client		*http.Client
+	client *http.Client
 }
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int) *HttpBulkIndexer {
 	return &HttpBulkIndexer{Protocol: protocol, Domain: domain, MaxCount: maxCount}
 }
 
-func (h *HttpBulkIndexer) CheckFlush(count int, length int) (bool) {
+func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
 	if count >= h.MaxCount {
 		return true
 	}
 	return false
 }
 
-func (h *HttpBulkIndexer) Index(body []byte) (success bool , err error) {
+func (h *HttpBulkIndexer) Index(body []byte) (success bool, err error) {
 	if h.client == nil {
 		h.client = &http.Client{}
 	}
@@ -466,11 +466,11 @@ func (h *HttpBulkIndexer) Index(body []byte) (success bool , err error) {
 // in order to index documents
 type UDPBulkIndexer struct {
 	// Host name and port number (default to "localhost:9700")
-	Domain		string
+	Domain string
 	// Maximum number of documents
-	MaxCount	int
+	MaxCount int
 	// Max. length of UDP packets
-	MaxLength	int
+	MaxLength int
 	// Internal UDP Address
 	address *net.UDPAddr
 	// Internal UDP Client
@@ -481,7 +481,7 @@ func NewUDPBulkIndexer(domain string, maxCount int) *UDPBulkIndexer {
 	return &UDPBulkIndexer{Domain: domain, MaxCount: maxCount, MaxLength: 65000}
 }
 
-func (u *UDPBulkIndexer) CheckFlush(count int, length int) (bool) {
+func (u *UDPBulkIndexer) CheckFlush(count int, length int) bool {
 	if length >= u.MaxLength {
 		return true
 	} else if count >= u.MaxCount {
@@ -490,7 +490,7 @@ func (u *UDPBulkIndexer) CheckFlush(count int, length int) (bool) {
 	return false
 }
 
-func (u *UDPBulkIndexer) Index(body []byte) (success bool , err error) {
+func (u *UDPBulkIndexer) Index(body []byte) (success bool, err error) {
 	if u.address == nil {
 		if u.address, err = net.ResolveUDPAddr("udp", u.Domain); err != nil {
 			err = fmt.Errorf("Error resolving UDP address [%s]: %s", u.Domain, err)
@@ -514,8 +514,3 @@ func (u *UDPBulkIndexer) Index(body []byte) (success bool , err error) {
 	}
 	return true, nil
 }
-
-
-
-
-
