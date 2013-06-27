@@ -27,13 +27,13 @@ distributions and OSX.
 
 Prerequisites:
 
-- cmake 2.8+
+- cmake 2.8 or greater
 - make
 - gcc
 - g++
 - git
+- go 1.1 or greater (1.1.1 recommended)
 - python 2.6 or greater
-- perl
 - patch
 
 
@@ -43,12 +43,16 @@ Prerequisites:
 
         git clone https://github.com/mozilla-services/heka-build.git
 
-2. Run `make` in the heka-build directory (builds the current release (master branch)):
+2. Run `make` in the heka-build directory (builds the current release (master
+   branch); if you have go installed in a non-standard location, you may need
+   to set the GOROOT environment variable):
 
     .. code-block:: bash
 
         cd heka-build
         make
+
+You will now have a `hekad` binary in the `heka-build/bin` directory.
 
 3. (Optional) Run the tests to ensure a functioning `hekad`:
 
@@ -56,22 +60,17 @@ Prerequisites:
 
         make test
 
-4. (Optional) If you want to build the latest code in development, run `make dev` to switch to the dev branch and then run `make`. If you need to revert back to the master branch at some point run `make undev`.
+4. (Optional) If you want to build the latest code in development, run `make
+   dev` to switch to the dev branch and then run `make`. If you need to revert
+   back to the master branch at some point run `make undev`.
 
-You will now have a `hekad` binary in the `heka-build/bin` directory.
-
-.. note::
-
-    Building hekad requires a specific Go tip version that has been
-    verified to work. This will be checked out and built in the
-    `heka-build` directory.
 
 From Source (Windows)
 =====================
 
 Prerequisites (manual setup):
 
-- Go 1.1 http://code.google.com/p/go/downloads/list
+- Go 1.1+ (1.1.1 recommended) http://code.google.com/p/go/downloads/list
 - Cmake 2.8+ http://www.cmake.org/cmake/resources/software.html
 - Git http://code.google.com/p/msysgit/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
