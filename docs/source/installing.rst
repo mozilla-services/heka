@@ -34,6 +34,7 @@ Prerequisites:
 - git
 - python 2.6 or greater
 - perl
+- patch
 
 
 1. Check out the `heka build`_ repository:
@@ -42,7 +43,7 @@ Prerequisites:
 
         git clone https://github.com/mozilla-services/heka-build.git
 
-2. Run `make` in the heka-build directory:
+2. Run `make` in the heka-build directory (builds the current release (master branch)):
 
     .. code-block:: bash
 
@@ -54,6 +55,8 @@ Prerequisites:
     .. code-block:: bash
 
         make test
+
+4. (Optional) If you want to build the latest code in development, run `make dev` to switch to the dev branch and then run `make`. If you need to revert back to the master branch at some point run `make undev`.
 
 You will now have a `hekad` binary in the `heka-build/bin` directory.
 
