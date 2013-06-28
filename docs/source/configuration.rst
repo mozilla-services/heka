@@ -836,8 +836,9 @@ Parameters:
 - prefix_ts (bool, optional):
     Whether a timestamp should be prefixed to each message line in the file.
     Defaults to ``false``.
-- perm (int, optional):
-    File permission for writing. Defaults to ``0666``.
+- perm (string, optional):
+    File permission for writing. A string of the octal digit representation.
+    Defaults to "644".
 
 Example:
 
@@ -848,6 +849,7 @@ Example:
     message_matcher = "Type == 'heka.counter-output'"
     path = "/var/log/heka/counter-output.log"
     prefix_ts = true
+    perm = "666"
 
 .. _config_tcp_output:
 

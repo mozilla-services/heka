@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -142,15 +143,15 @@ type FileOutputConfig struct {
 	Format string
 	// Add timestamp prefix to each output line?
 	Prefix_ts bool
-	// Output file permissions (default 0644).
-	Perm os.FileMode
+	// Output file permissions (default "644").
+	Perm string
 	// Interval at which accumulated file data should be written to disk, in
 	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32
 }
 
 func (o *FileOutput) ConfigStruct() interface{} {
-	return &FileOutputConfig{Format: "text", Perm: 0644, FlushInterval: 1000}
+	return &FileOutputConfig{Format: "text", Perm: "644", FlushInterval: 1000}
 }
 
 func (o *FileOutput) Init(config interface{}) (err error) {
@@ -163,7 +164,13 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	o.path = conf.Path
 	o.format = conf.Format
 	o.prefix_ts = conf.Prefix_ts
-	o.perm = conf.Perm
+	var intPerm int64
+	if intPerm, err = strconv.ParseInt(conf.Perm, 8, 32); err != nil {
+		err = fmt.Errorf("FileOutput '%s' error parsing `perm` option: %s",
+			o.path, err)
+		return
+	}
+	o.perm = os.FileMode(intPerm)
 	if err = o.openFile(); err != nil {
 		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
 		return
