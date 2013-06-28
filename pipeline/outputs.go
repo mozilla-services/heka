@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"sync"
 	"time"
 )
@@ -175,6 +176,17 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 }
 
 func (o *FileOutput) openFile() (err error) {
+
+	basePath := path.Dir(o.path)
+
+	if err = os.MkdirAll(basePath, 0700); err != nil {
+		return
+	}
+
+	if err = checkWritePermission(basePath); err != nil {
+		return
+	}
+
 	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
 	return
 }
@@ -353,4 +365,13 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	t.connection.Close()
 
 	return
+}
+
+func checkWritePermission(filepath string) (err error) {
+	var file *os.File
+	if file, err = os.OpenFile(path.Join(filepath, ".hekad.perm_check"), os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+		file.WriteString("ok")
+		file.Close()
+	}
+	return err
 }
