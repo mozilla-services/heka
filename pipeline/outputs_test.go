@@ -267,7 +267,7 @@ func OutputsSpec(c gs.Context) {
 			})
 
 			c.Specify("with different Perm settings", func() {
-				config.Perm = 0600
+				config.Perm = "600"
 				err := fileOutput.Init(config)
 				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
