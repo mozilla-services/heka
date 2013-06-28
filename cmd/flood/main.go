@@ -241,7 +241,7 @@ func main() {
 
 	flag.Parse()
 
-	if len(flag.Args()) == 0 {
+	if flag.NFlag() == 0 {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
