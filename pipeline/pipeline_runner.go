@@ -558,21 +558,31 @@ func Run(config *PipelineConfig) {
 	config.decodersWg.Wait()
 	log.Println("Decoders shutdown complete")
 
+	var matchRunner *MatchRunner
 	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
-		// needed for a clean shutdown without deadlocking or orphaning messages
+		// Needed for a clean shutdown without deadlocking or orphaning messages:
 		// 1. removes the matcher from the router
 		// 2. closes the matcher input channel and lets it drain
 		// 3. closes the filter input channel and lets it drain
 		// 4. exits the filter
-		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
+		if matchRunner = filter.MatchRunner(); matchRunner != nil {
+			config.router.RemoveFilterMatcher() <- matchRunner
+		} else {
+			// No matcher, we only need to stop the filter itself.
+			close(filter.InChan())
+		}
 		log.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
-		config.router.RemoveOutputMatcher() <- output.MatchRunner()
+		if matchRunner = output.MatchRunner(); matchRunner != nil {
+			config.router.RemoveOutputMatcher() <- matchRunner
+		} else {
+			close(output.InChan())
+		}
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
