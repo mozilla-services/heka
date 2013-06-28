@@ -40,22 +40,14 @@ type LoglineDecoderConfig struct {
 	// match, all the default time layout's will be tried.
 	TimestampLayout string
 
-	// Timezone used for the timestamps in the source text. This option should
-	// only be used in cases where the source text timestamps are not in UTC
-	// but the timezone used is not specified in the text itself. If the
-	// timestamp *is* specified in the source text, you should parse this
-	// using the timestamp_layout string. Timezone must be specified as a time
-	// delta from UTC that will be understood by Go's duration parsing
-	//
-
-	// Duration of time by which each parsed timestamp should be adjusted when
-	// decoded. Useful in cases such as when a file's timestamps are not in
-	// UTC, but the timezone data is not in the timestamp. (If the timezone
-	// data *is* in the timestamp, you can parse this directly w/ the
-	// timestamp_layout option.) Must be specified in a way that will be
-	// understood by Go's duration parsing (see
-	// http://golang.org/pkg/time/#ParseDuration), e.g. "-7h" or "+2h30m".
-	TimeAdjustDuration string `toml:"time_adjust_duration"`
+	// Time zone in which the timestamps in the text are presumed to be in.
+	// Should be a location name corresponding to a file in the IANA Time Zone
+	// database (e.g. "America/Los_Angeles"), as parsed by Go's
+	// `time.LoadLocation()` function (see
+	// http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not
+	// required if valid time zone info is embedded in every parsed timestamp,
+	// since those can be parsed as specified in the `timestamp_layout`.
+	TimestampLocation string `toml:"timestamp_location"`
 }
 
 type LoglineDecoder struct {
@@ -63,7 +55,7 @@ type LoglineDecoder struct {
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
-	timeDelta       time.Duration
+	tzLocation      *time.Location
 	dRunner         DecoderRunner
 }
 
@@ -95,10 +87,9 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 		}
 	}
 	ld.TimestampLayout = conf.TimestampLayout
-	if conf.TimeAdjustDuration != "" {
-		if ld.timeDelta, err = time.ParseDuration(conf.TimeAdjustDuration); err != nil {
-			err = fmt.Errorf("LoglineDecoder can't parse timezone: %s", err)
-		}
+	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
+		err = fmt.Errorf("LoglineDecoder unknown timestamp_location '%s': %s",
+			conf.TimestampLocation, err)
 	}
 	return
 }
@@ -140,16 +131,13 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 
 	if timeStamp, ok := captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp)
+		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
 		if err != nil {
 			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
 		}
 		// Did we get a year?
 		if val.Year() == 0 {
 			val = val.AddDate(time.Now().Year(), 0, 0)
-		}
-		if ld.timeDelta != 0 {
-			val = val.Add(ld.timeDelta)
 		}
 		pack.Message.SetTimestamp(val.UnixNano())
 	} else if sevStr, ok := captures["Severity"]; ok {

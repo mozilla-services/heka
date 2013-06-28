@@ -153,14 +153,19 @@ func DecodersSpec(c gospec.Context) {
 		c.Specify("adjusts timestamps as specified", func() {
 			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			conf.TimestampLayout = "02/Jan/2006:15:04:05"
-			conf.TimeAdjustDuration = "+7h"
-			err := decoder.Init(conf)
+			conf.TimestampLocation = "America/Los_Angeles"
+			timeStr := "18/Apr/2013:14:00:28"
+			loc, err := time.LoadLocation(conf.TimestampLocation)
+			c.Assume(err, gs.IsNil)
+			expectedLocal, err := time.ParseInLocation(conf.TimestampLayout, timeStr, loc)
+			c.Assume(err, gs.IsNil)
+			err = decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
-			pack.Message.SetPayload("[18/Apr/2013:14:00:28]")
+			pack.Message.SetPayload("[" + timeStr + "]")
 			err = decoder.Decode(pack)
-			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1366318828000000000))
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, expectedLocal.UnixNano())
 			pack.Zero()
 		})
 

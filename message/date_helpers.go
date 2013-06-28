@@ -120,14 +120,16 @@ var (
 )
 
 // Parse a time with the supplied timeLayout, falling back to all the
-// basicTimeLayouts
-func ForgivingTimeParse(timeLayout, inputTime string) (parsedTime time.Time, err error) {
-	parsedTime, err = time.Parse(timeLayout, inputTime)
+// basicTimeLayouts.
+func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (
+	parsedTime time.Time, err error) {
+
+	parsedTime, err = time.ParseInLocation(timeLayout, inputTime, loc)
 	if err == nil {
 		return
 	}
 	for _, layout := range basicTimeLayouts {
-		parsedTime, err = time.Parse(layout, inputTime)
+		parsedTime, err = time.ParseInLocation(layout, inputTime, loc)
 		if err == nil {
 			return
 		}
