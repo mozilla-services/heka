@@ -335,6 +335,8 @@ func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	return
 }
 
+var unknownOptionRegex = regexp.MustCompile("^Configuration contains key \\[(?P<key>\\S+)\\]")
+
 // If `configable` supports the `HasConfigStruct` interface this will use said
 // interface to fetch a config struct object and populate it w/ the values in
 // provided `config`. If not, simply returns `config` unchanged.
@@ -381,7 +383,11 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 	if err = toml.PrimitiveDecodeStrict(config, configStruct,
 		heka_params); err != nil {
 		configStruct = nil
-		err = fmt.Errorf("Can't unmarshal config: %s", err)
+		matches := unknownOptionRegex.FindStringSubmatch(err.Error())
+		if len(matches) == 2 {
+			// We've got an unrecognized config option.
+			err = fmt.Errorf("Unknown config setting: %s", matches[1])
+		}
 	}
 	return
 }
