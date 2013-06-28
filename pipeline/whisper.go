@@ -131,10 +131,27 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 	}
 }
 
+func checkWritePermission(filepath string) (err error) {
+	var file *os.File
+	if file, err = os.OpenFile(path.Join(filepath, ".hekad.perm_check"), os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+		file.WriteString("ok")
+		file.Close()
+	}
+	return err
+}
+
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
 	o.basePath = conf.BasePath
 	o.defaultAggMethod = conf.DefaultAggMethod
+
+	if err = os.MkdirAll(o.basePath, 0700); err != nil {
+		return
+	}
+
+	if err = checkWritePermission(o.basePath); err != nil {
+		return
+	}
 
 	if conf.DefaultArchiveInfo == nil {
 		// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
