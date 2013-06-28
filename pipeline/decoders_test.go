@@ -146,7 +146,21 @@ func DecodersSpec(c gospec.Context) {
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload("[18/Apr/2013:14:00:28 -0700]")
 			err = decoder.Decode(pack)
-			c.Expect(pack.Message.GetTimestamp() == 1366318828000000000, gs.IsTrue)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1366318828000000000))
+			pack.Zero()
+		})
+
+		c.Specify("adjusts timestamps as specified", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			conf.TimestampLayout = "02/Jan/2006:15:04:05"
+			conf.TimeAdjustDuration = "+7h"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[18/Apr/2013:14:00:28]")
+			err = decoder.Decode(pack)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1366318828000000000))
 			pack.Zero()
 		})
 
