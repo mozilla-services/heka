@@ -889,7 +889,7 @@ Parameters:
 - address (string, optional):
     An IP address:port on which we will serve output via HTTP. Defaults to
     "0.0.0.0:4352".
-- workingdirectory (string, optional):
+- working_directory (string, optional):
     File system directory into which the plugin will write data files and from
     which it will serve HTTP. The Heka process must have read / write access
     to this directory. Defaults to "./dashboard".
