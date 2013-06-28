@@ -33,7 +33,7 @@ type LoglineDecoderConfig struct {
 
 	// Keyed to the message field that should be filled in, the value will be
 	// interpolated so it can use capture parts from the message match.
-	MessageFields MessageTemplate
+	MessageFields MessageTemplate `toml:"message_fields"`
 
 	// User specified timestamp layout string, used for parsing a timestamp
 	// string into an actual time object. If not specified or it fails to
