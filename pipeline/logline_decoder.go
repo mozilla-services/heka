@@ -26,16 +26,28 @@ import (
 type LoglineDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
-	MatchRegex string
+	MatchRegex string `toml:"match_regex"`
+
 	// Maps severity strings to their int version
-	SeverityMap map[string]int32
+	SeverityMap map[string]int32 `toml:"severity_map"`
+
 	// Keyed to the message field that should be filled in, the value will be
 	// interpolated so it can use capture parts from the message match.
-	MessageFields MessageTemplate
+	MessageFields MessageTemplate `toml:"message_fields"`
+
 	// User specified timestamp layout string, used for parsing a timestamp
 	// string into an actual time object. If not specified or it fails to
 	// match, all the default time layout's will be tried.
-	TimestampLayout string
+	TimestampLayout string `toml:"timestamp_layout"`
+
+	// Time zone in which the timestamps in the text are presumed to be in.
+	// Should be a location name corresponding to a file in the IANA Time Zone
+	// database (e.g. "America/Los_Angeles"), as parsed by Go's
+	// `time.LoadLocation()` function (see
+	// http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not
+	// required if valid time zone info is embedded in every parsed timestamp,
+	// since those can be parsed as specified in the `timestamp_layout`.
+	TimestampLocation string `toml:"timestamp_location"`
 }
 
 type LoglineDecoder struct {
@@ -43,6 +55,7 @@ type LoglineDecoder struct {
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
+	tzLocation      *time.Location
 	dRunner         DecoderRunner
 }
 
@@ -74,6 +87,10 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 		}
 	}
 	ld.TimestampLayout = conf.TimestampLayout
+	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
+		err = fmt.Errorf("LoglineDecoder unknown timestamp_location '%s': %s",
+			conf.TimestampLocation, err)
+	}
 	return
 }
 
@@ -114,7 +131,7 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 
 	if timeStamp, ok := captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp)
+		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
 		if err != nil {
 			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
 		}
