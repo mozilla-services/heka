@@ -565,13 +565,13 @@ in a more structured manner.
 
 Parameters:
 
-- matchRegex:
+- match_regex:
     Regular expression that must match for the decoder to process the message.
-- SeverityMap:
+- severity_map:
     Subsection defining severity strings and the numerical value they should
     be translated to. hekad uses numerical severity codes, so a severity of
     `WARNING` can be translated to `3` by settings in this section.
-- MessageFields:
+- message_fields:
     Subsection defining message fields to populate and the interpolated values
     that should be used. Valid interpolated values are any captured in a regex
     in the message_matcher, and any other field that exists in the message. In
@@ -585,15 +585,24 @@ Parameters:
 
     Interpolated values should be surrounded with `%` signs, for example::
 
-        [my_decoder.MessageFields]
+        [my_decoder.message_fields]
         Type = "%Type%Decoded"
 
     This will result in the new message's Type being set to the old messages
     Type with `Decoded` appended.
-- timestampLayout (string):
+- timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    constants>`_.
+- timestamp_location (string):
+    Time zone in which the timestamps in the text are presumed to be in.
+    Should be a location name corresponding to a file in the IANA Time Zone
+    database (e.g. "America/Los_Angeles"), as parsed by Go's
+    `time.LoadLocation()` function (see
+    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
+    if valid time zone info is embedded in every parsed timestamp, since those
+    can be parsed as specified in the `timestamp_layout`.
 
 Example (Parsing Apache Combined Log Format):
 
