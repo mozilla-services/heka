@@ -42,8 +42,8 @@ type wRunner struct {
 // Creates or opens the relevant whisper db file, and returns running
 // WhisperRunner that will write to that file.
 func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
-	aggMethod whisper.AggregationMethod, wg *sync.WaitGroup) (
-	wr WhisperRunner, err error) {
+	aggMethod whisper.AggregationMethod, folderPerm os.FileMode,
+	wg *sync.WaitGroup) (wr WhisperRunner, err error) {
 
 	var db *whisper.Whisper
 	if db, err = whisper.Open(path_); err != nil {
@@ -56,7 +56,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		// First make sure the folder is there.
 		dir := path.Dir(path_)
 		if _, err = os.Stat(dir); os.IsNotExist(err) {
-			if err = os.MkdirAll(dir, 0700); err != nil {
+			if err = os.MkdirAll(dir, folderPerm); err != nil {
 				err = fmt.Errorf("Error creating whisper db folder '%s': %s", dir, err)
 				return
 			}
@@ -106,6 +106,7 @@ type WhisperOutput struct {
 	defaultAggMethod   whisper.AggregationMethod
 	defaultArchiveInfo []whisper.ArchiveInfo
 	dbs                map[string]WhisperRunner
+	folderPerm         os.FileMode
 }
 
 // WhisperOutput config struct.
@@ -120,6 +121,11 @@ type WhisperOutputConfig struct {
 	// Slice of 3-tuples, each 3-tuple describes a time interval's storage policy:
 	// [<offset> <# of secs per datapoint> <# of datapoints>]
 	DefaultArchiveInfo [][]uint32
+
+	// Permissions to apply to directories created within the database file
+	// tree. Must be a string representation of an octal integer. Defaults to
+	// "700".
+	FolderPerm string `toml:"folder_perm"`
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
@@ -128,6 +134,7 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
 		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
+		FolderPerm:       "700",
 	}
 }
 
@@ -135,6 +142,14 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
 	o.basePath = conf.BasePath
 	o.defaultAggMethod = conf.DefaultAggMethod
+
+	var intPerm int64
+	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
+		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, ",
+			"is it an octal integer string?", o.basePath)
+		return
+	}
+	o.folderPerm = os.FileMode(intPerm)
 
 	if conf.DefaultArchiveInfo == nil {
 		// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
@@ -190,7 +205,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if wr = o.dbs[fields[0]]; wr == nil {
 				wg.Add(1)
 				wr, e = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultArchiveInfo,
-					o.defaultAggMethod, &wg)
+					o.defaultAggMethod, o.folderPerm, &wg)
 				if e != nil {
 					or.LogError(fmt.Errorf("can't create WhisperRunner: %s", e))
 					continue

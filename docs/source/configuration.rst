@@ -998,6 +998,10 @@ Parameters:
     third uses one hour for each of 168 data points, or 7 days of retention.
     Finally, the fourth uses 12 hours for each of 1456 data points,
     representing two years of data.
+- folder_perm (string, optional):
+    Permission mask to be applied to folders created in the whisper database
+    file tree. Must be a string representation of an octal integer. Defaults
+    to "700".
 
 Example:
 
@@ -1007,6 +1011,7 @@ Example:
     message_matcher = "Type == 'heka.statmetric'"
     defaultaggmethod = 3
     defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+    folder_perm = "755"
 
 .. _config_nagios_output:
 
