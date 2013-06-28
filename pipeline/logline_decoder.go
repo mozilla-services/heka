@@ -27,15 +27,35 @@ type LoglineDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
 	MatchRegex string
+
 	// Maps severity strings to their int version
 	SeverityMap map[string]int32
+
 	// Keyed to the message field that should be filled in, the value will be
 	// interpolated so it can use capture parts from the message match.
 	MessageFields MessageTemplate
+
 	// User specified timestamp layout string, used for parsing a timestamp
 	// string into an actual time object. If not specified or it fails to
 	// match, all the default time layout's will be tried.
 	TimestampLayout string
+
+	// Timezone used for the timestamps in the source text. This option should
+	// only be used in cases where the source text timestamps are not in UTC
+	// but the timezone used is not specified in the text itself. If the
+	// timestamp *is* specified in the source text, you should parse this
+	// using the timestamp_layout string. Timezone must be specified as a time
+	// delta from UTC that will be understood by Go's duration parsing
+	//
+
+	// Duration of time by which each parsed timestamp should be adjusted when
+	// decoded. Useful in cases such as when a file's timestamps are not in
+	// UTC, but the timezone data is not in the timestamp. (If the timezone
+	// data *is* in the timestamp, you can parse this directly w/ the
+	// timestamp_layout option.) Must be specified in a way that will be
+	// understood by Go's duration parsing (see
+	// http://golang.org/pkg/time/#ParseDuration), e.g. "-7h" or "+2h30m".
+	TimeAdjustDuration string `toml:"time_adjust_duration"`
 }
 
 type LoglineDecoder struct {
@@ -43,6 +63,7 @@ type LoglineDecoder struct {
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
+	timeDelta       time.Duration
 	dRunner         DecoderRunner
 }
 
@@ -74,6 +95,11 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 		}
 	}
 	ld.TimestampLayout = conf.TimestampLayout
+	if conf.TimeAdjustDuration != "" {
+		if ld.timeDelta, err = time.ParseDuration(conf.TimeAdjustDuration); err != nil {
+			err = fmt.Errorf("LoglineDecoder can't parse timezone: %s", err)
+		}
+	}
 	return
 }
 
@@ -121,6 +147,9 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 		// Did we get a year?
 		if val.Year() == 0 {
 			val = val.AddDate(time.Now().Year(), 0, 0)
+		}
+		if ld.timeDelta != 0 {
+			val = val.Add(ld.timeDelta)
 		}
 		pack.Message.SetTimestamp(val.UnixNano())
 	} else if sevStr, ok := captures["Severity"]; ok {
