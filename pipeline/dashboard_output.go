@@ -62,11 +62,11 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 
 	self.workingDirectory, _ = filepath.Abs(conf.WorkingDirectory)
 	if err = os.MkdirAll(self.workingDirectory, 0700); err != nil {
-		return
+		return fmt.Errorf("Can't create the working directory for the dashboard output: %s", err.Error())
 	}
 
 	for _, fname := range []string{"heka_report.html", "heka_sandbox_termination.html", "heka.js"} {
-		if err = overwriteFile(path.Join(self.workingDirectory, fname), ""); err != nil {
+		if err = overwriteFile(path.Join(self.workingDirectory, fname), "ok"); err != nil {
 			return
 		}
 	}
@@ -190,7 +190,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func overwriteFile(filename, s string) (err error ){
+func overwriteFile(filename, s string) (err error) {
 	var file *os.File
 	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
 		file.WriteString(s)

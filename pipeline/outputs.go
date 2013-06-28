@@ -180,7 +180,7 @@ func (o *FileOutput) openFile() (err error) {
 	basePath := path.Dir(o.path)
 
 	if err = os.MkdirAll(basePath, 0700); err != nil {
-		return
+		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
 	}
 
 	if err = checkWritePermission(basePath); err != nil {

@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
+    "path"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -231,6 +232,15 @@ func OutputsSpec(c gs.Context) {
 			outBatch := <-fileOutput.batchChan
 			wg.Wait()
 			c.Expect(string(outBatch), gs.Equals, payload)
+		})
+
+		c.Specify("Init halts if basedirectory is not writable", func() {
+            tmpdir := path.Join(os.TempDir(), "tmpdir")
+			err := os.MkdirAll(tmpdir, 0400)
+			c.Assume(err, gs.IsNil)
+			config.Path = tmpdir
+			err = fileOutput.Init(config)
+			c.Assume(err, gs.Not(gs.IsNil))
 		})
 
 		c.Specify("commits to a file", func() {
