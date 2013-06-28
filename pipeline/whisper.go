@@ -112,15 +112,15 @@ type WhisperOutput struct {
 // WhisperOutput config struct.
 type WhisperOutputConfig struct {
 	// Full file path to where the Whisper db files are stored.
-	BasePath string
+	BasePath string `toml:"base_path"`
 
 	// Default mechanism whisper will use to aggregate data points as they
 	// roll from more precise (i.e. more recent) to less precise storage.
-	DefaultAggMethod whisper.AggregationMethod
+	DefaultAggMethod whisper.AggregationMethod `toml:"default_agg_method"`
 
 	// Slice of 3-tuples, each 3-tuple describes a time interval's storage policy:
 	// [<offset> <# of secs per datapoint> <# of datapoints>]
-	DefaultArchiveInfo [][]uint32
+	DefaultArchiveInfo [][]uint32 `toml:"default_archive_info"`
 
 	// Permissions to apply to directories created within the database file
 	// tree. Must be a string representation of an octal integer. Defaults to
