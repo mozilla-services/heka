@@ -166,8 +166,8 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	o.prefix_ts = conf.Prefix_ts
 	var intPerm int64
 	if intPerm, err = strconv.ParseInt(conf.Perm, 8, 32); err != nil {
-		err = fmt.Errorf("FileOutput '%s' error parsing `perm` option: %s",
-			o.path, err)
+		err = fmt.Errorf("FileOutput '%s' can't parse `perm`, is it an octal integer string?",
+			o.path)
 		return
 	}
 	o.perm = os.FileMode(intPerm)
