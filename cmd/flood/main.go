@@ -238,7 +238,13 @@ func sendMessage(sender client.Sender, buf []byte, corrupt bool) (err error) {
 func main() {
 	configFile := flag.String("config", "flood.toml", "Flood configuration file")
 	configTest := flag.String("test", "default", "Test section to load")
+
 	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
 
 	var config FloodConfig
 	if _, err := toml.DecodeFile(*configFile, &config); err != nil {

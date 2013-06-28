@@ -50,6 +50,11 @@ func main() {
 	maxMsgTimerInject := flag.Uint("max_timer_inject", 10, "Maximum number of messages that TimerEvent can inject in a single call")
 	flag.Parse()
 
+	if len(flag.Args()) == 0 {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
 	if *version {
 		fmt.Println(VERSION)
 		os.Exit(0)
