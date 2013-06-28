@@ -970,10 +970,10 @@ a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 
 Parameters:
 
-- basepath (string, optional):
+- base_path (string, optional):
     Path to the base directory where the whisper file tree will be written. Defaults
     to "/var/run/hekad/whisper".
-- defaultaggmethod (int, optional):
+- default_agg_method (int, optional):
     Default aggregation method to use for each whisper output file. Supports
     the following values:
 
@@ -983,7 +983,7 @@ Parameters:
     3. Aggregate using last received value.
     4. Aggregate using maximum value.
     5. Aggregate using minimum value.
-- defaultarchiveinfo ([][]int, optional):
+- default_archive_info ([][]int, optional):
     Default specification for new whisper db archives. Should be a sequence of
     3-tuples, where each tuple describes a time interval's storage policy:
     [<offset> <# of secs per datapoint> <# of datapoints>] (see `whisper docs
@@ -1000,6 +1000,10 @@ Parameters:
     third uses one hour for each of 168 data points, or 7 days of retention.
     Finally, the fourth uses 12 hours for each of 1456 data points,
     representing two years of data.
+- folder_perm (string, optional):
+    Permission mask to be applied to folders created in the whisper database
+    file tree. Must be a string representation of an octal integer. Defaults
+    to "700".
 
 Example:
 
@@ -1007,8 +1011,9 @@ Example:
 
     [WhisperOutput]
     message_matcher = "Type == 'heka.statmetric'"
-    defaultaggmethod = 3
-    defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+    default_agg_method = 3
+    default_archive_info = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+    folder_perm = "755"
 
 .. _config_nagios_output:
 
