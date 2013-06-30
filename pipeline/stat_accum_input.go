@@ -207,14 +207,6 @@ func (sm *StatAccumInput) Flush() {
 		values                                   []float64
 	)
 
-	emitTimerStats := func(origKey string, count int, min, max, mean, maxAtThreshold float64) {
-		timerNs := statsNs.Namespace("timers").Namespace(origKey)
-		timerNs.Emit("mean", mean)
-		timerNs.Emit("upper", max)
-		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), maxAtThreshold)
-		timerNs.Emit("lower", min)
-		timerNs.Emit("count", count)
-	}
 	for u, t := range sm.timers {
 		if len(t) > 0 {
 			sort.Float64s(t)
@@ -235,12 +227,14 @@ func (sm *StatAccumInput) Flush() {
 				mean = sum / float64(numInThreshold)
 			}
 			sm.timers[u] = t[:0]
-			emitTimerStats(u, count, min, max, mean, maxAtThreshold)
-		} else {
-			// Need to still submit timers as zero
-			emitTimerStats(u, 0, 0, 0, 0, 0)
+			timerNs := statsNs.Namespace("timers").Namespace(u)
+			timerNs.Emit("mean", mean)
+			timerNs.Emit("upper", max)
+			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), maxAtThreshold)
+			timerNs.Emit("lower", min)
+			timerNs.Emit("count", count)
+			numStats++
 		}
-		numStats++
 	}
 	rootNs.Namespace("statsd").Emit("numStats", numStats)
 
