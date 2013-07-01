@@ -191,7 +191,43 @@ func StatAccumInputSpec(c gs.Context) {
 				close(statAccumInput.statChan)
 				wg.Wait()
 			})
-		})
 
+			c.Specify("correctly processes timers", func() {
+				sendTimer := func(vals ...int) {
+					for _, v := range vals {
+						statAccumInput.statChan <- Stat{"sample.timer", strconv.Itoa(int(v)), "ms", float32(1)}
+					}
+				}
+				err := statAccumInput.Init(config)
+				c.Assume(err, gs.IsNil)
+				startAndSwapTickChan()
+
+				sendTimer(220, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+
+				close(statAccumInput.statChan)
+				wg.Wait()
+
+				msg := ith.Pack.Message
+
+				getVal := func(token string) float64 {
+					tmp, ok := msg.GetFieldValue("stats.timers.sample.timer." + token)
+					c.Expect(ok, gs.IsTrue)
+					val, ok := tmp.(float64)
+					c.Expect(ok, gs.IsTrue)
+					return val
+				}
+
+				c.Expect(getVal("upper"), gs.Equals, 220.0)
+				c.Expect(getVal("lower"), gs.Equals, 10.0)
+				c.Expect(getVal("mean"), gs.Equals, 70.0)
+				c.Expect(getVal("upper_90"), gs.Equals, 100.0)
+				c.Expect(getVal("mean_90"), gs.Equals, 55.0)
+				tmp, ok := msg.GetFieldValue("stats.timers.sample.timer.count")
+				c.Expect(ok, gs.IsTrue)
+				intTmp, ok := tmp.(int64)
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(intTmp, gs.Equals, int64(11))
+			})
+		})
 	})
 }

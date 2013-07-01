@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -201,36 +202,36 @@ func (sm *StatAccumInput) Flush() {
 		numStats++
 	}
 
-	var (
-		min, max, mean, maxAtThreshold, sum      float64
-		count, thresholdIndex, numInThreshold, i int
-		values                                   []float64
-	)
-
 	for u, t := range sm.timers {
 		if len(t) > 0 {
 			sort.Float64s(t)
-			min = t[0]
-			max = t[len(t)-1]
-			mean = min
-			maxAtThreshold = max
-			count = len(t)
-			if len(t) > 1 {
-				thresholdIndex = ((100 - sm.config.PercentThreshold) / 100) * count
-				numInThreshold = count - thresholdIndex
-				values = t[0:numInThreshold]
-
-				sum = float64(0)
-				for i = 0; i < numInThreshold; i++ {
-					sum += values[i]
-				}
-				mean = sum / float64(numInThreshold)
-			}
-			sm.timers[u] = t[:0]
+			min := t[0]
+			max := t[len(t)-1]
 			timerNs := statsNs.Namespace("timers").Namespace(u)
+			count := len(t)
+			if count > 1 {
+				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
+				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
+				values := t[0:numInThreshold]
+				max := t[numInThreshold-1]
+				var sum float64
+				for _, v := range values {
+					sum += v
+				}
+				mean := sum / float64(numInThreshold)
+				timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), max)
+				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
+			}
+
+			sm.timers[u] = t[:0]
+			var sum float64
+			for _, v := range t {
+				sum += v
+			}
+			mean := sum / float64(count)
+
 			timerNs.Emit("mean", mean)
 			timerNs.Emit("upper", max)
-			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), maxAtThreshold)
 			timerNs.Emit("lower", min)
 			timerNs.Emit("count", count)
 			numStats++
