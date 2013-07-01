@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"math"
 	"sort"
 	"strconv"
@@ -170,7 +169,7 @@ func (sm *StatAccumInput) Flush() {
 			if field, err = message.NewField(name, value, ""); err == nil {
 				pack.Message.AddField(field)
 			} else {
-				log.Println("StatAccumInput can't add field: ", name)
+				sm.ir.LogError(fmt.Errorf("can't add field: %s", name))
 			}
 		}
 	}
