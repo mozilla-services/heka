@@ -124,7 +124,7 @@ Command Line Options
     Output the version number, then exit.
 
 ``-config`` `config_file`
-    Specify the configuration file to use; the default is /etc/hekad.json.  (See hekad.config(5).)
+    Specify the configuration file to use; the default is /etc/hekad.toml.  (See hekad.config(5).)
 
 ``-cpuprof`` `output_file`
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
