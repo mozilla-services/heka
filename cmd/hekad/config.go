@@ -22,15 +22,15 @@ import (
 )
 
 type HekadConfig struct {
-	Maxprocs            int
-	PoolSize            int
-	DecoderPoolSize     int
-	ChanSize            int
-	CpuProfName         string
-	MemProfName         string
-	MaxMsgLoops         uint
-	MaxMsgProcessInject uint
-	MaxMsgTimerInject   uint
+	Maxprocs            int    `toml:"maxprocs"`
+	PoolSize            int    `toml:"poolsize"`
+	DecoderPoolSize     int    `toml:"decoder_poolsize"`
+	ChanSize            int    `toml:"plugin_chansize"`
+	CpuProfName         string `toml:"cpuprof"`
+	MemProfName         string `toml:"memprof"`
+	MaxMsgLoops         uint   `toml:"max_message_loops"`
+	MaxMsgProcessInject uint   `toml:"max_process_inject"`
+	MaxMsgTimerInject   uint   `toml:"max_timer_inject"`
 }
 
 func LoadHekadConfig(filename string) (config *HekadConfig, err error) {

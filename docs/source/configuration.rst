@@ -60,6 +60,56 @@ configured <configuring_restarting>`.
 
 .. end-hekad-config
 
+Global configuration options
+============================
+
+You can declare a [hekad] section in your configuration file to
+configure some global options for heka
+
+Parameters:
+
+- cpuprof (string `output_file`)
+    Turn on CPU profiling of hekad; output is logged to the `output_file`.
+
+- max_message_loops (uint)
+    The maximum number of times a message can be re-injected into the system.
+    This is used to prevent infinite message loops from filter to filter;
+    the default is 4.
+
+- max_process_inject (uint)
+    The maximum number of messages that a sandbox filter's ProcessMessage
+    function can inject in a single call; the default is 1.
+
+- max_timer_inject (uint)
+    The maximum number of messages that a sandbox filter's TimerEvent
+    function can inject in a single call; the default is 10.
+
+- maxprocs (int)
+    Enable multi-core usage; the default is 1 core. More cores will generally
+    increase message throughput. Best performance is usually attained by
+    setting this to 2 x (number of cores). This assumes each core is
+    hyper-threaded.
+
+- memprof (string `output_file`)
+    Enable memory profiling; output is logged to the `output_file`.
+
+- poolsize (int)
+    Specify the pool size of maximum messages that can exist; default is 100
+    which is usually sufficient and of optimal performance.
+
+- decoder_poolsize (int)
+    Specify the number of decoder sets to spin up for use converting input
+    data to Heka's Message objects. Default is 4, optimal value is variable,
+    depending on number of total running plugins, number of expected
+    concurrent connections, amount of expected traffic, and number of
+    available cores on the host.
+
+- plugin_chansize (int)
+    Specify the buffer size for the input channel for the various Heka
+    plugins. Defaults to 50, which is usually sufficient and of optimal
+    performance.
+
+
 Example hekad.toml File
 =======================
 
@@ -126,46 +176,6 @@ Command Line Options
 ``-config`` `config_file`
     Specify the configuration file to use; the default is /etc/hekad.toml.  (See hekad.config(5).)
 
-``-cpuprof`` `output_file`
-    Turn on CPU profiling of hekad; output is logged to the `output_file`.
-
-``-max_message_loops`` `uint`
-    The maximum number of times a message can be re-injected into the system.
-    This is used to prevent infinite message loops from filter to filter;
-    the default is 4.
-
-``-max_process_inject`` `uint`
-    The maximum number of messages that a sandbox filter's ProcessMessage
-    function can inject in a single call; the default is 1.
-
-``-max_timer_inject`` `uint`
-    The maximum number of messages that a sandbox filter's TimerEvent
-    function can inject in a single call; the default is 10.
-
-``-maxprocs`` `int`
-    Enable multi-core usage; the default is 1 core. More cores will generally
-    increase message throughput. Best performance is usually attained by
-    setting this to 2 x (number of cores). This assumes each core is
-    hyper-threaded.
-
-``-memprof`` `output_file`
-    Enable memory profiling; output is logged to the `output_file`.
-
-``-poolsize`` `int`
-    Specify the pool size of maximum messages that can exist; default is 100
-    which is usually sufficient and of optimal performance.
-
-``-decoder_poolsize`` `int`
-    Specify the number of decoder sets to spin up for use converting input
-    data to Heka's Message objects. Default is 4, optimal value is variable,
-    depending on number of total running plugins, number of expected
-    concurrent connections, amount of expected traffic, and number of
-    available cores on the host.
-
-``-plugin_chansize`` `int`
-    Specify the buffer size for the input channel for the various Heka
-    plugins. Defaults to 50, which is usually sufficient and of optimal
-    performance.
 
 .. end-options
 
