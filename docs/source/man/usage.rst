@@ -7,7 +7,7 @@ hekad
 Synopsis
 ========
 
-hekad [``-version``] [``-config`` `config_file`] [``-cpuprof`` `output_file`] [``-maxprocs`` `int`] [``-memprof`` `output_file`] [``-poolsize`` `int`]
+hekad [``-version``] [``-config`` `config_file`]
 
 Description
 ===========
