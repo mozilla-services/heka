@@ -19,7 +19,7 @@ import (
 )
 
 func TestDecode(t *testing.T) {
-    err := LoadFromConfigFile("../../testsupport/hekad.toml")
+	_, err := LoadHekadConfig("../../testsupport/sample-config.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
