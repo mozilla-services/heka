@@ -63,8 +63,8 @@ configured <configuring_restarting>`.
 Global configuration options
 ============================
 
-You can declare a [hekad] section in your configuration file to
-configure some global options for heka
+You can optionally declare a `[hekad]` section in your configuration
+file to configure some global options for the heka daemon.
 
 Parameters:
 
@@ -110,12 +110,23 @@ Parameters:
     performance.
 
 
-Example hekad.toml File
+Example hekad.toml file
 =======================
 
 .. start-hekad-toml
 
 .. code-block:: ini
+
+    [hekad]
+    cpuprof = "/var/log/hekad/cpuprofile.log"
+    decoder_poolsize = 10
+    max_message_loops = 4
+    max_process_inject = 10
+    max_timer_inject  = 10
+    maxprocs = 10
+    memprof = "/var/log/hekad/memprof.log"
+    plugin_chansize = 10
+    poolsize = 100
 
     # Listens for Heka protocol on TCP port 5565.
     [TcpInput]
