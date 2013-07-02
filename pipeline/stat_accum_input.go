@@ -56,19 +56,33 @@ type StatAccumInput struct {
 }
 
 type StatAccumInputConfig struct {
-	EmitInPayload    bool   `toml:"emit_in_payload"`
-	EmitInFields     bool   `toml:"emit_in_fields"`
-	PercentThreshold int    `toml:"percent_threshold"`
-	FlushInterval    int64  `toml:"flush_interval"`
-	MessageType      string `toml:"message_type"`
-	TickerInterval   uint   `toml:"ticker_interval"`
+	// Specifies whether or not stats data should be written to outgoing
+	// message payloads, in the string format that is expected by a listening
+	// Graphite Carbon server. Defaults to false.
+	EmitInPayload bool `toml:"emit_in_payload"`
+
+	// Specifies whether or not stats data should be written to outgoing
+	// message fields. Defaults to true. At least one of `EmitInPayload` or
+	// `EmitInFields` *must* be true or there will be a config error.
+	EmitInFields bool `toml:"emit_in_fields"`
+
+	// Percentage threshold to use for calculating "upper N%" type numerical
+	// statistics. Defaults to 90.
+	PercentThreshold int `toml:"percent_threshold"`
+
+	// Type value to use for outgoing stat messages, defaults to
+	// `heka.statmetric`.
+	MessageType string `toml:"message_type"`
+
+	// Interval at which the generated stat messages should be emitted, in
+	// seconds. Defaults to 10.
+	TickerInterval uint `toml:"ticker_interval"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
 	return &StatAccumInputConfig{
 		EmitInFields:     true,
 		PercentThreshold: 90,
-		FlushInterval:    10,
 		MessageType:      "heka.statmetric",
 		TickerInterval:   uint(10),
 	}
@@ -189,7 +203,8 @@ func (sm *StatAccumInput) Flush() {
 	statsNs := rootNs.Namespace("stats")
 
 	for key, c := range sm.counters {
-		value = float64(c) / ((float64(sm.config.FlushInterval) * float64(time.Second)) / float64(1e3))
+		value = float64(c) / ((float64(sm.config.TickerInterval) *
+			float64(time.Second)) / float64(1e3))
 		statsNs.EmitInField(key, int(value))
 		statsNs.EmitInPayload(key, value)
 		rootNs.Namespace("stats_counts").Emit(key, c)
