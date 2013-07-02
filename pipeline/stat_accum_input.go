@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"log"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -152,11 +152,9 @@ func (sm *StatAccumInput) DropStat(stat Stat) (sent bool) {
 // into the Heka pipeline.
 func (sm *StatAccumInput) Flush() {
 	var (
-		value         float64
-		intval        int64
-		field         *message.Field
-		err           error
-		sName, scName string
+		value float64
+		field *message.Field
+		err   error
 	)
 	numStats := 0
 	now := time.Now().UTC()
@@ -164,116 +162,81 @@ func (sm *StatAccumInput) Flush() {
 	buffer := bytes.NewBufferString("")
 	pack := <-sm.ir.InChan()
 
-	newField := func(name string, value interface{}) {
-		if field, err = message.NewField(name, value, ""); err == nil {
-			pack.Message.AddField(field)
-		} else {
-			log.Println("StatAccumInput can't add field: ", name)
-		}
-	}
+	rootNs := NewRootNamespace("")
 
 	if sm.config.EmitInFields {
-		newField("timestamp", nowUnix)
+		rootNs.Emitters.EmitInField = func(name string, value interface{}) {
+			if field, err = message.NewField(name, value, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				sm.ir.LogError(fmt.Errorf("can't add field: %s", name))
+			}
+		}
 	}
 
-	for s, c := range sm.counters {
+	if sm.config.EmitInPayload {
+		rootNs.Emitters.EmitInPayload = func(name string, value interface{}) {
+			switch value.(type) {
+			default:
+				fmt.Fprintf(buffer, "%s %v %d\n", name, value, nowUnix)
+			case float64:
+				fmt.Fprintf(buffer, "%s %f %d\n", name, value, nowUnix)
+			}
+		}
+	}
+
+	rootNs.EmitInField("timestamp", nowUnix)
+	statsNs := rootNs.Namespace("stats")
+
+	for key, c := range sm.counters {
 		value = float64(c) / ((float64(sm.config.FlushInterval) * float64(time.Second)) / float64(1e3))
-		sName = fmt.Sprintf("stats.%s", s)
-		scName = fmt.Sprintf("stats_counts.%s", s)
-		if sm.config.EmitInPayload {
-			fmt.Fprintf(buffer, "%s %f %d\n", sName, value, nowUnix)
-			fmt.Fprintf(buffer, "%s %d %d\n", scName, c, nowUnix)
-		}
-		if sm.config.EmitInFields {
-			newField(sName, int(value))
-			newField(scName, c)
-		}
-		sm.counters[s] = 0
+		statsNs.EmitInField(key, int(value))
+		statsNs.EmitInPayload(key, value)
+		rootNs.Namespace("stats_counts").Emit(key, c)
+		sm.counters[key] = 0
 		numStats++
 	}
-	for i, g := range sm.gauges {
-		intval = int64(g)
-		sName = fmt.Sprintf("stats.%s", i)
-		if sm.config.EmitInPayload {
-			fmt.Fprintf(buffer, "%s %d %d\n", sName, intval, nowUnix)
-		}
-		if sm.config.EmitInFields {
-			newField(sName, intval)
-		}
+	for key, g := range sm.gauges {
+		rootNs.Namespace("stats").Emit(key, int64(g))
 		numStats++
 	}
-
-	var (
-		min, max, mean, maxAtThreshold, sum      float64
-		count, thresholdIndex, numInThreshold, i int
-		values                                   []float64
-	)
 
 	for u, t := range sm.timers {
 		if len(t) > 0 {
 			sort.Float64s(t)
-			min = t[0]
-			max = t[len(t)-1]
-			mean = min
-			maxAtThreshold = max
-			count = len(t)
-			if len(t) > 1 {
-				thresholdIndex = ((100 - sm.config.PercentThreshold) / 100) * count
-				numInThreshold = count - thresholdIndex
-				values = t[0:numInThreshold]
-
-				sum = float64(0)
-				for i = 0; i < numInThreshold; i++ {
-					sum += values[i]
+			min := t[0]
+			max := t[len(t)-1]
+			timerNs := statsNs.Namespace("timers").Namespace(u)
+			count := len(t)
+			if count > 1 {
+				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
+				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
+				values := t[0:numInThreshold]
+				max := t[numInThreshold-1]
+				var sum float64
+				for _, v := range values {
+					sum += v
 				}
-				mean = sum / float64(numInThreshold)
+				mean := sum / float64(numInThreshold)
+				timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), max)
+				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
 			}
+
 			sm.timers[u] = t[:0]
+			var sum float64
+			for _, v := range t {
+				sum += v
+			}
+			mean := sum / float64(count)
 
-			if sm.config.EmitInPayload {
-				fmt.Fprintf(buffer, "stats.timers.%s.mean %f %d\n", u, mean, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.upper %f %d\n", u, max, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %f %d\n", u,
-					sm.config.PercentThreshold, maxAtThreshold, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.lower %f %d\n", u, min, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, count, nowUnix)
-			}
-
-			if sm.config.EmitInFields {
-				newField(fmt.Sprintf("stats.timers.%s.mean", u), mean)
-				newField(fmt.Sprintf("stats.timers.%s.upper", u), max)
-				newField(fmt.Sprintf("stats.timers.%s.upper_%d", u, sm.config.PercentThreshold),
-					maxAtThreshold)
-				newField(fmt.Sprintf("stats.timers.%s.lower", u), min)
-				newField(fmt.Sprintf("stats.timers.%s.count", u), count)
-			}
-		} else {
-			if sm.config.EmitInPayload {
-				// Need to still submit timers as zero
-				fmt.Fprintf(buffer, "stats.timers.%s.mean %d %d\n", u, 0, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.upper %d %d\n", u, 0, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.upper_%d %d %d\n", u,
-					sm.config.PercentThreshold, 0, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.lower %d %d\n", u, 0, nowUnix)
-				fmt.Fprintf(buffer, "stats.timers.%s.count %d %d\n", u, 0, nowUnix)
-			}
-			if sm.config.EmitInFields {
-				newField(fmt.Sprintf("stats.timers.%s.mean", u), 0)
-				newField(fmt.Sprintf("stats.timers.%s.upper", u), 0)
-				newField(fmt.Sprintf("stats.timers.%s.upper_%d", u, sm.config.PercentThreshold),
-					0)
-				newField(fmt.Sprintf("stats.timers.%s.lower", u), 0)
-				newField(fmt.Sprintf("stats.timers.%s.count", u), 0)
-			}
+			timerNs.Emit("mean", mean)
+			timerNs.Emit("upper", max)
+			timerNs.Emit("lower", min)
+			timerNs.Emit("count", count)
+			numStats++
 		}
-		numStats++
 	}
-	if sm.config.EmitInPayload {
-		fmt.Fprintf(buffer, "statsd.numStats %d %d\n", numStats, nowUnix)
-	}
-	if sm.config.EmitInFields {
-		newField("statsd.numStats", numStats)
-	}
+	rootNs.Namespace("statsd").Emit("numStats", numStats)
 
 	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
@@ -282,4 +245,61 @@ func (sm *StatAccumInput) Flush() {
 	pack.Message.SetPid(sm.pConfig.pid)
 	pack.Message.SetPayload(buffer.String())
 	sm.ir.Inject(pack)
+}
+
+type statsEmitters struct {
+	EmitInPayload func(key string, value interface{})
+	EmitInField   func(key string, value interface{})
+}
+
+type namespaceTree struct {
+	prefix   string
+	Emitters *statsEmitters
+	parent   *namespaceTree
+}
+
+func NewRootNamespace(namespace string) *namespaceTree {
+	ns := new(namespaceTree)
+	ns.setNamespace(namespace)
+	ns.Emitters = new(statsEmitters)
+	return ns
+}
+func (ns *namespaceTree) setNamespace(namespace string) {
+	var prefix string
+	if ns.parent != nil {
+		prefix = ns.parent.prefix
+	}
+	if len(namespace) == 0 || namespace[len(namespace)-1] == '.' {
+		ns.prefix = prefix + namespace
+	} else {
+		ns.prefix = prefix + namespace + "."
+	}
+}
+
+func (ns *namespaceTree) Namespace(namespace string) *namespaceTree {
+	n := namespaceTree{"", ns.Emitters, ns}
+	n.setNamespace(namespace)
+	return &n
+}
+
+func (ns *namespaceTree) EmitInField(key string, value interface{}) *namespaceTree {
+	if ns.Emitters.EmitInField != nil {
+		ns.Emitters.EmitInField(ns.prefix+key, value)
+	}
+	return ns
+}
+func (ns *namespaceTree) EmitInPayload(key string, value interface{}) *namespaceTree {
+	if ns.Emitters.EmitInPayload != nil {
+		ns.Emitters.EmitInPayload(ns.prefix+key, value)
+	}
+	return ns
+}
+func (ns *namespaceTree) Emit(key string, value interface{}) *namespaceTree {
+	if ns.Emitters.EmitInPayload != nil {
+		ns.Emitters.EmitInPayload(ns.prefix+key, value)
+	}
+	if ns.Emitters.EmitInField != nil {
+		ns.Emitters.EmitInField(ns.prefix+key, value)
+	}
+	return ns
 }
