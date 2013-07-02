@@ -11,9 +11,11 @@ encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
+message_matcher = "TRUE"
 
 [default]
 type ="StatFilter"
+message_matcher = "Type == \"mytype\""
 
 [sample]
 type = "StatFilter"
