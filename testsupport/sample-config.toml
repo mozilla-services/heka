@@ -1,0 +1,49 @@
+[hekad]
+cpuprof = "/var/log/hekad/cpuprofile.log"
+decoder_poolsize = 10
+max_message_loops = 4
+max_process_inject = 10
+max_timer_inject  = 10
+maxprocs = 10
+memprof = "/var/log/hekad/memprof.log"
+plugin_chansize = 10
+poolsize = 100
+
+[StatsdInput]
+address = "127.0.0.1:8125"
+ticker_interval = 1
+
+[TcpInput]
+address = "127.0.0.1:5565"
+
+[TcpInput2]
+type = "TcpInput"
+address = "127.0.0.1:5566"
+
+[CounterFilter]
+message_matcher = "Type != 'heka.counter-output'"
+ticker_interval = 1
+
+[StatsdFileOutput]
+type = "FileOutput"
+path = "log/statsdonly.log"
+format = "json"
+
+[CounterFileOutput]
+type = "FileOutput"
+path = "log/counter.log"
+message_matcher = "Type == 'heka.counter-output'"
+
+[LogOutput]
+message_matcher = "Type == 'heka.counter-output'"
+payload_only = true
+
+[WhisperOutput]
+basepath = "/var/run/hekad/whisper/db"
+message_matcher = "Type == 'statmetric'"
+defaultaggmethod = 1
+defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+
+[DashboardOutput]
+message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
+ticker_interval = 5

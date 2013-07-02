@@ -647,8 +647,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	// Load all the plugins
 	var errcnt uint
 	for name, conf := range configFile {
+        if name == "hekad"  {
+            continue
+        }
 		log.Println("Loading: ", name)
-
 		errcnt += self.loadSection(name, conf)
 	}
 
