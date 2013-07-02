@@ -18,9 +18,9 @@ SandboxFilter Settings
  - script_type (string): The language the sandbox is written in.  Currently the only valid option is 'lua'.
  - filename (string): For a static configuration this is the full path to the sandbox code. The filename must be unique between static plugins, since the global data is preserved using this name. For a dynamic configuration the filename is ignored and the the physical location on disk is controlled by the SandboxManagerFilter.
  - preserve_data (bool): True if the sandbox global data should be preserved/restored on Heka shutdown/startup. The preserved data is stored along side the sandbox code i.e. counter.lua.data so Heka must have read/write permissions to that directory.
- - memory_limit (uint): The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB).
- - instruction_limit (uint): The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M).
- - output_limit (uint): The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB).
+ - memory_limit (uint): The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB, default 32767).
+ - instruction_limit (uint): The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M, default 1000).
+ - output_limit (uint): The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default 1024).  Anything less than 1KiB will default to 1KiB.
  - profile (bool): When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
 
 Example

@@ -124,7 +124,7 @@ Command Line Options
     Output the version number, then exit.
 
 ``-config`` `config_file`
-    Specify the configuration file to use; the default is /etc/hekad.json.  (See hekad.config(5).)
+    Specify the configuration file to use; the default is /etc/hekad.toml.  (See hekad.config(5).)
 
 ``-cpuprof`` `output_file`
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
@@ -295,7 +295,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [logparser]
     type = "LoglineDecoder"
-    MatchRegex = '/\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)/'
+    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
 
     [logparser.MessageFields]
     Type = "amqplogline"
@@ -307,7 +307,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
 
     [leftovers]
     type = "LoglineDecoder"
-    MatchRegex = '/.*/'
+    MatchRegex = '.*'
 
     [leftovers.MessageFields]
     Type = "drop"
@@ -480,6 +480,8 @@ Example:
     address = ":8125"
     stat_accum_input = "custom_stat_accumulator"
 
+.. _config_stat_accum_input:
+
 StatAccumInput
 --------------
 
@@ -504,9 +506,9 @@ Parameters:
 - percent_threshold (int):
     Percent threshold to use for computing "upper_N%" type stat values.
     Defaults to 90.
-- flush_interval (int):
-    Time interval (in seconds) between generated output messages. Defaults to
-    10.
+- ticker_interval (uint):
+    Time interval (in seconds) between generated output messages.
+    Defaults to 10.
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
@@ -563,13 +565,13 @@ in a more structured manner.
 
 Parameters:
 
-- matchRegex:
+- match_regex:
     Regular expression that must match for the decoder to process the message.
-- SeverityMap:
+- severity_map:
     Subsection defining severity strings and the numerical value they should
     be translated to. hekad uses numerical severity codes, so a severity of
     `WARNING` can be translated to `3` by settings in this section.
-- MessageFields:
+- message_fields:
     Subsection defining message fields to populate and the interpolated values
     that should be used. Valid interpolated values are any captured in a regex
     in the message_matcher, and any other field that exists in the message. In
@@ -583,15 +585,24 @@ Parameters:
 
     Interpolated values should be surrounded with `%` signs, for example::
 
-        [my_decoder.MessageFields]
+        [my_decoder.message_fields]
         Type = "%Type%Decoded"
 
     This will result in the new message's Type being set to the old messages
     Type with `Decoded` appended.
-- timestampLayout (string):
+- timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-constants>`_.
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    constants>`_.
+- timestamp_location (string):
+    Time zone in which the timestamps in the text are presumed to be in.
+    Should be a location name corresponding to a file in the IANA Time Zone
+    database (e.g. "America/Los_Angeles"), as parsed by Go's
+    `time.LoadLocation()` function (see
+    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
+    if valid time zone info is embedded in every parsed timestamp, since those
+    can be parsed as specified in the `timestamp_layout`.
 
 Example (Parsing Apache Combined Log Format):
 
@@ -834,8 +845,9 @@ Parameters:
 - prefix_ts (bool, optional):
     Whether a timestamp should be prefixed to each message line in the file.
     Defaults to ``false``.
-- perm (int, optional):
-    File permission for writing. Defaults to ``0666``.
+- perm (string, optional):
+    File permission for writing. A string of the octal digit representation.
+    Defaults to "644".
 
 Example:
 
@@ -846,6 +858,7 @@ Example:
     message_matcher = "Type == 'heka.counter-output'"
     path = "/var/log/heka/counter-output.log"
     prefix_ts = true
+    perm = "666"
 
 .. _config_tcp_output:
 
@@ -900,6 +913,60 @@ Example:
     ticker_interval = 60
     message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
 
+.. _config_elasticsearch_output:
+
+ElasticSearchOutput
+-------------------
+
+Output plugin that serializes messages into JSON structures and uses HTTP requests
+to insert them into an ElasticSearch database.
+
+Parameters:
+
+- cluster (string):
+    ElasticSearch cluster name. Defaults to "elasticsearch"
+- index (string):
+    Name of the ES index into which the messages will be inserted. Defaults to
+    "heka-%{2006.01.02}".
+- type_name (string):
+    Name of ES record type to create. Defaults to "message".
+- flush_interval (int):
+    Interval at which accumulated messages should be bulk indexed into
+    ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
+- flush_count (int):
+    Number of messages that, if processed, will trigger them to be bulk
+    indexed into ElasticSearch. Defaults to 10.
+- format (string):
+    Message serialization format, either "clean" or "raw", where "clean" is
+    a more concise JSON representation of the message. Defaults to "clean".
+- fields ([]string):
+    If the format is "clean", then the 'fields' parameter can be used to
+    specify that only specific message data should be indexed into
+    ElasticSearch. Available fields to choose are "Uuid", "Timestamp", "Type",
+    "Logger", "Severity", "Payload", "EnvVersion", "Pid", "Hostname", and
+    "Fields" (where "Fields" causes the inclusion of any and all dynamically
+    specified message fields. Defaults to all.
+- timestamp (string):
+    Format to use for timestamps in generated ES documents. Defaults to
+    "2006-01-02T15:04:05.000Z".
+- server (string):
+    ElasticSearch server URL. Supports http://, https:// and udp:// urls.
+    Defaults to "http://localhost:9200".
+
+Example:
+
+.. code-block:: ini
+
+    [ElasticSearchOutput]
+    message_matcher = "Type == 'sync.log'"
+    cluster = "elasticsearch-cluster"
+    index = "synclog-%{2006.01.02.15.04.05}"
+    type_name = "sync.log.line"
+    server = "http://es-server:9200"
+    format = "clean"
+    flush_interval = 5000
+    flush_count = 10
+
 .. _config_whisper_output:
 
 WhisperOutput
@@ -912,10 +979,10 @@ a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 
 Parameters:
 
-- basepath (string, optional):
+- base_path (string, optional):
     Path to the base directory where the whisper file tree will be written. Defaults
     to "/var/run/hekad/whisper".
-- defaultaggmethod (int, optional):
+- default_agg_method (int, optional):
     Default aggregation method to use for each whisper output file. Supports
     the following values:
 
@@ -925,7 +992,7 @@ Parameters:
     3. Aggregate using last received value.
     4. Aggregate using maximum value.
     5. Aggregate using minimum value.
-- defaultarchiveinfo ([][]int, optional):
+- default_archive_info ([][]int, optional):
     Default specification for new whisper db archives. Should be a sequence of
     3-tuples, where each tuple describes a time interval's storage policy:
     [<offset> <# of secs per datapoint> <# of datapoints>] (see `whisper docs
@@ -942,6 +1009,10 @@ Parameters:
     third uses one hour for each of 168 data points, or 7 days of retention.
     Finally, the fourth uses 12 hours for each of 1456 data points,
     representing two years of data.
+- folder_perm (string, optional):
+    Permission mask to be applied to folders created in the whisper database
+    file tree. Must be a string representation of an octal integer. Defaults
+    to "700".
 
 Example:
 
@@ -949,9 +1020,11 @@ Example:
 
     [WhisperOutput]
     message_matcher = "Type == 'heka.statmetric'"
-    defaultaggmethod = 3
-    defaultarchiveinfo = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+    default_agg_method = 3
+    default_archive_info = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+    folder_perm = "755"
 
+.. _config_nagios_output:
 
 NagiosOutput
 ---------------
@@ -993,5 +1066,31 @@ Example Lua code to generate a Nagios alert:
 
     output("OK:Alerts are working!")
     inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
+
+.. _config_carbon_output:
+
+CarbonOutput
+------------
+
+CarbonOutput plugins parse the "stat metric" messages generated by a
+StatAccumulator and write the extracted counter, timer, and gauge data out to
+a `graphite <http://graphite.wikidot.com/>`_ compatible `carbon
+<http://graphite.wikidot.com/carbon>`_ daemon.  Output is written over
+a TCP socket using the `plaintext <http://graphite.readthedocs.org/en/1.0/feeding-carbon.html#the-plaintext-protocol>`_ protocol.
+
+Parameters:
+
+- address (string):
+    An IP address:port on which this plugin will write to.
+    Defaults to: localhost:2003
+
+Example:
+
+.. code-block:: ini
+
+    [CarbonOutput]
+    message_matcher = "Type == 'heka.statmetric'"
+    address = "localhost:2003"
+
 
 .. end-outputs

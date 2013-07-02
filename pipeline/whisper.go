@@ -42,8 +42,8 @@ type wRunner struct {
 // Creates or opens the relevant whisper db file, and returns running
 // WhisperRunner that will write to that file.
 func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
-	aggMethod whisper.AggregationMethod, wg *sync.WaitGroup) (
-	wr WhisperRunner, err error) {
+	aggMethod whisper.AggregationMethod, folderPerm os.FileMode,
+	wg *sync.WaitGroup) (wr WhisperRunner, err error) {
 
 	var db *whisper.Whisper
 	if db, err = whisper.Open(path_); err != nil {
@@ -56,7 +56,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		// First make sure the folder is there.
 		dir := path.Dir(path_)
 		if _, err = os.Stat(dir); os.IsNotExist(err) {
-			if err = os.MkdirAll(dir, 0700); err != nil {
+			if err = os.MkdirAll(dir, folderPerm); err != nil {
 				err = fmt.Errorf("Error creating whisper db folder '%s': %s", dir, err)
 				return
 			}
@@ -106,20 +106,26 @@ type WhisperOutput struct {
 	defaultAggMethod   whisper.AggregationMethod
 	defaultArchiveInfo []whisper.ArchiveInfo
 	dbs                map[string]WhisperRunner
+	folderPerm         os.FileMode
 }
 
 // WhisperOutput config struct.
 type WhisperOutputConfig struct {
 	// Full file path to where the Whisper db files are stored.
-	BasePath string
+	BasePath string `toml:"base_path"`
 
 	// Default mechanism whisper will use to aggregate data points as they
 	// roll from more precise (i.e. more recent) to less precise storage.
-	DefaultAggMethod whisper.AggregationMethod
+	DefaultAggMethod whisper.AggregationMethod `toml:"default_agg_method"`
 
 	// Slice of 3-tuples, each 3-tuple describes a time interval's storage policy:
 	// [<offset> <# of secs per datapoint> <# of datapoints>]
-	DefaultArchiveInfo [][]uint32
+	DefaultArchiveInfo [][]uint32 `toml:"default_archive_info"`
+
+	// Permissions to apply to directories created within the database file
+	// tree. Must be a string representation of an octal integer. Defaults to
+	// "700".
+	FolderPerm string `toml:"folder_perm"`
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
@@ -128,6 +134,7 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
 		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
+		FolderPerm:       "700",
 	}
 }
 
@@ -135,6 +142,14 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
 	o.basePath = conf.BasePath
 	o.defaultAggMethod = conf.DefaultAggMethod
+
+	var intPerm int64
+	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
+		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, ",
+			"is it an octal integer string?", o.basePath)
+		return
+	}
+	o.folderPerm = os.FileMode(intPerm)
 
 	if conf.DefaultArchiveInfo == nil {
 		// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
@@ -172,17 +187,14 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		wr       WhisperRunner
 		unixTime uint64
 		value    float64
-		payload  string
 		e        error
 		pack     *PipelinePack
 		wg       sync.WaitGroup
 	)
 
-	for plc := range or.InChan() {
-		pack = plc.Pack
-		payload = pack.Message.GetPayload()
+	for pack = range or.InChan() {
+		lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
 		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
-		lines := strings.Split(strings.Trim(payload, " \n"), "\n")
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)
@@ -193,7 +205,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if wr = o.dbs[fields[0]]; wr == nil {
 				wg.Add(1)
 				wr, e = NewWhisperRunner(o.getFsPath(fields[0]), o.defaultArchiveInfo,
-					o.defaultAggMethod, &wg)
+					o.defaultAggMethod, o.folderPerm, &wg)
 				if e != nil {
 					or.LogError(fmt.Errorf("can't create WhisperRunner: %s", e))
 					continue

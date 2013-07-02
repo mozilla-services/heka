@@ -41,6 +41,11 @@ func main() {
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
+	if flag.NFlag() == 0 {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
 	if *version {
 		fmt.Println(VERSION)
 		os.Exit(0)
@@ -68,6 +73,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+		profFile.Close()
 		pprof.StartCPUProfile(profFile)
 		defer pprof.StopCPUProfile()
 	}

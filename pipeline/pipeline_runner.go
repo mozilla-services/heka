@@ -217,9 +217,9 @@ type foRunner struct {
 	matcher    *MatchRunner
 	tickLength time.Duration
 	ticker     <-chan time.Time
-	inChan     chan *PipelineCapture
+	inChan     chan *PipelinePack
 	h          PluginHelper
-	retainPack *PipelineCapture
+	retainPack *PipelinePack
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -233,7 +233,7 @@ func NewFORunner(name string, plugin Plugin,
 			pluginGlobals: pluginGlobals,
 		},
 	}
-	runner.inChan = make(chan *PipelineCapture, Globals().PluginChanSize)
+	runner.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
 	return
 }
 
@@ -344,14 +344,9 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	}
 }
 
-func (foRunner *foRunner) Deliver(pack *PipelinePack) {
-	plc := &PipelineCapture{Pack: pack}
-	foRunner.inChan <- plc
-}
-
 func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 	spec := foRunner.MatchRunner().MatcherSpecification()
-	match, _ := spec.Match(pack.Message)
+	match := spec.Match(pack.Message)
 	if match {
 		pack.Recycle()
 		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
@@ -378,13 +373,13 @@ func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
 }
 
-func (foRunner *foRunner) RetainPack(pack *PipelineCapture) {
+func (foRunner *foRunner) RetainPack(pack *PipelinePack) {
 	foRunner.retainPack = pack
 }
 
-func (foRunner *foRunner) InChan() (inChan chan *PipelineCapture) {
+func (foRunner *foRunner) InChan() (inChan chan *PipelinePack) {
 	if foRunner.retainPack != nil {
-		retainChan := make(chan *PipelineCapture)
+		retainChan := make(chan *PipelinePack)
 		go func() {
 			retainChan <- foRunner.retainPack
 			foRunner.retainPack = nil
@@ -429,15 +424,6 @@ type PipelinePack struct {
 	// Number of times the current message chain has generated new messages
 	// and inserted them into the pipeline.
 	MsgLoopCount uint
-}
-
-// Container data structure used on the input channel for Filters and Outputs.
-type PipelineCapture struct {
-	// Contains the message to be processed.
-	Pack *PipelinePack
-	// Contains any match group capture data that may have been obtained from
-	// message_matcher regular expression processing.
-	Captures map[string]string
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the

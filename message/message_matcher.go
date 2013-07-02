@@ -14,13 +14,10 @@
 
 package message
 
-import "fmt"
-
 // MatcherSpecification used by the message router to distribute messages
 type MatcherSpecification struct {
-	vm         *tree
-	spec       string
-	numCapture int
+	vm   *tree
+	spec string
 }
 
 // CreateMatcherSpecification compiles the spec string into a simple
@@ -36,17 +33,9 @@ func CreateMatcherSpecification(spec string) (*MatcherSpecification, error) {
 }
 
 // Match compares the message against the matcher spec and return the match
-// result and captures if applicable
-func (m *MatcherSpecification) Match(message *Message) (match bool,
-	captures map[string]string) {
-	if m.numCapture > 0 {
-		captures = make(map[string]string, m.numCapture)
-	}
-	match = evalMatcherSpecification(m.vm, message, captures)
-	if !match {
-		captures = nil
-	}
-	return
+// result
+func (m *MatcherSpecification) Match(message *Message) bool {
+	return evalMatcherSpecification(m.vm, message)
 }
 
 // String outputs the spec as text
@@ -54,16 +43,15 @@ func (m *MatcherSpecification) String() string {
 	return m.spec
 }
 
-func evalMatcherSpecification(t *tree, msg *Message,
-	captures map[string]string) (b bool) {
+func evalMatcherSpecification(t *tree, msg *Message) (b bool) {
 	if t == nil {
 		return false
 	}
 
 	if t.left != nil {
-		b = evalMatcherSpecification(t.left, msg, captures)
+		b = evalMatcherSpecification(t.left, msg)
 	} else {
-		return testExpr(msg, t.stmt, captures)
+		return testExpr(msg, t.stmt)
 	}
 	if b == true && t.stmt.op.tokenId == OP_OR {
 		return // short circuit
@@ -73,7 +61,7 @@ func evalMatcherSpecification(t *tree, msg *Message,
 	}
 
 	if t.right != nil {
-		b = evalMatcherSpecification(t.right, msg, captures)
+		b = evalMatcherSpecification(t.right, msg)
 	}
 	return
 }
@@ -108,35 +96,7 @@ func getNumericValue(msg *Message, stmt *Statement) float64 {
 	return 0
 }
 
-func regexpTest(s string, stmt *Statement, captures map[string]string) bool {
-	if stmt.value.regexp.NumSubexp() == 0 {
-		return stmt.value.regexp.MatchString(s)
-	} else {
-		findResults := stmt.value.regexp.FindStringSubmatch(s)
-		resultLength := len(findResults)
-		if resultLength < 2 {
-			return false
-		}
-		for index, name := range stmt.value.regexp.SubexpNames() {
-			if index == 0 {
-				continue
-			}
-			if name == "" {
-				name = fmt.Sprintf("%s(%d)", stmt.field.token, index)
-			}
-
-			if index > resultLength-1 {
-				captures[name] = ""
-			} else {
-				captures[name] = findResults[index]
-			}
-		}
-		return true
-	}
-	return false
-}
-
-func stringTest(s string, stmt *Statement, captures map[string]string) bool {
+func stringTest(s string, stmt *Statement) bool {
 	switch stmt.op.tokenId {
 	case OP_EQ:
 		return (s == stmt.value.token)
@@ -151,7 +111,7 @@ func stringTest(s string, stmt *Statement, captures map[string]string) bool {
 	case OP_GTE:
 		return (s >= stmt.value.token)
 	case OP_RE:
-		return regexpTest(s, stmt, captures)
+		return stmt.value.regexp.MatchString(s)
 	case OP_NRE:
 		return !stmt.value.regexp.MatchString(s)
 	}
@@ -176,7 +136,7 @@ func numericTest(f float64, stmt *Statement) bool {
 	return false
 }
 
-func testExpr(msg *Message, stmt *Statement, captures map[string]string) bool {
+func testExpr(msg *Message, stmt *Statement) bool {
 	switch stmt.op.tokenId {
 	case TRUE:
 		return true
@@ -186,7 +146,7 @@ func testExpr(msg *Message, stmt *Statement, captures map[string]string) bool {
 		switch stmt.field.tokenId {
 		case VAR_UUID, VAR_TYPE, VAR_LOGGER, VAR_PAYLOAD,
 			VAR_ENVVERSION, VAR_HOSTNAME:
-			return stringTest(getStringValue(msg, stmt), stmt, captures)
+			return stringTest(getStringValue(msg, stmt), stmt)
 		case VAR_TIMESTAMP, VAR_SEVERITY, VAR_PID:
 			return numericTest(getNumericValue(msg, stmt), stmt)
 		case VAR_FIELDS:
@@ -210,12 +170,12 @@ func testExpr(msg *Message, stmt *Statement, captures map[string]string) bool {
 				if ai >= len(field.ValueString) {
 					return false
 				}
-				return stringTest(field.ValueString[ai], stmt, captures)
+				return stringTest(field.ValueString[ai], stmt)
 			case Field_BYTES:
 				if ai >= len(field.ValueBytes) {
 					return false
 				}
-				return stringTest(string(field.ValueBytes[ai]), stmt, captures)
+				return stringTest(string(field.ValueBytes[ai]), stmt)
 			case Field_INTEGER:
 				if ai >= len(field.ValueInteger) {
 					return false

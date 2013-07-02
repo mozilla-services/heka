@@ -71,12 +71,12 @@ func (f *HostFilter) Run(runner pipeline.FilterRunner, helper pipeline.PluginHel
 	if output, ok = helper.Output(f.output); !ok {
 		return fmt.Errorf("No output: %s", output)
 	}
-	for plc := range runner.InChan() {
-		hostname = plc.Pack.Message.GetHostname()
+	for pack := range runner.InChan() {
+		hostname = pack.Message.GetHostname()
 		if f.hosts[hostname] {
-			output.Deliver(plc.Pack)
+			output.InChan() <- pack
 		} else {
-			plc.Pack.Recycle()
+			pack.Recycle()
 		}
 	}
 	return

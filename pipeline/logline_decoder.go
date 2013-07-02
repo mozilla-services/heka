@@ -18,6 +18,7 @@ package pipeline
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -25,23 +26,36 @@ import (
 type LoglineDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
-	MatchRegex string
+	MatchRegex string `toml:"match_regex"`
+
 	// Maps severity strings to their int version
-	SeverityMap map[string]int32
+	SeverityMap map[string]int32 `toml:"severity_map"`
+
 	// Keyed to the message field that should be filled in, the value will be
 	// interpolated so it can use capture parts from the message match.
-	MessageFields MessageTemplate
+	MessageFields MessageTemplate `toml:"message_fields"`
+
 	// User specified timestamp layout string, used for parsing a timestamp
 	// string into an actual time object. If not specified or it fails to
 	// match, all the default time layout's will be tried.
-	TimestampLayout string
+	TimestampLayout string `toml:"timestamp_layout"`
+
+	// Time zone in which the timestamps in the text are presumed to be in.
+	// Should be a location name corresponding to a file in the IANA Time Zone
+	// database (e.g. "America/Los_Angeles"), as parsed by Go's
+	// `time.LoadLocation()` function (see
+	// http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not
+	// required if valid time zone info is embedded in every parsed timestamp,
+	// since those can be parsed as specified in the `timestamp_layout`.
+	TimestampLocation string `toml:"timestamp_location"`
 }
 
 type LoglineDecoder struct {
-	Matcher         *MatcherSpecification
+	Match           *regexp.Regexp
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
+	tzLocation      *time.Location
 	dRunner         DecoderRunner
 }
 
@@ -51,9 +65,12 @@ func (ld *LoglineDecoder) ConfigStruct() interface{} {
 
 func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	conf := config.(*LoglineDecoderConfig)
-	spec := fmt.Sprintf("Payload =~ %s", conf.MatchRegex)
-	if ld.Matcher, err = CreateMatcherSpecification(spec); err != nil {
-		err = fmt.Errorf("LoglineDecoder regex error: %s", err)
+	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
+		err = fmt.Errorf("LoglineDecoder: %s", err)
+		return
+	}
+	if ld.Match.NumSubexp() == 0 {
+		err = fmt.Errorf("LoglineDecoder regex must contain capture groups")
 		return
 	}
 
@@ -70,6 +87,10 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 		}
 	}
 	ld.TimestampLayout = conf.TimestampLayout
+	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
+		err = fmt.Errorf("LoglineDecoder unknown timestamp_location '%s': %s",
+			conf.TimestampLocation, err)
+	}
 	return
 }
 
@@ -78,18 +99,39 @@ func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
 	ld.dRunner = dr
 }
 
+// Matches the given string against the regex and returns the match result
+// and captures
+func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]string) {
+	findResults := re.FindStringSubmatch(s)
+	if findResults == nil {
+		return
+	}
+	match = true
+	captures = make(map[string]string)
+	for index, name := range re.SubexpNames() {
+		if index == 0 {
+			continue
+		}
+		if name == "" {
+			name = fmt.Sprintf("%d", index)
+		}
+		captures[name] = findResults[index]
+	}
+	return
+}
+
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
 func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 	// First try to match the regex.
-	match, captures := ld.Matcher.Match(pack.Message)
+	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
 		return fmt.Errorf("No match")
 	}
 
 	if timeStamp, ok := captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp)
+		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
 		if err != nil {
 			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
 		}

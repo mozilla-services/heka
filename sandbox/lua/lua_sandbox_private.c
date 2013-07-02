@@ -166,6 +166,40 @@ int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int serialize_table_as_json(lua_sandbox* lsb,
+                            serialization_data* data,
+                            int isHash)
+{
+    int result = 0;
+    lua_checkstack(lsb->m_lua, 2);
+    lua_pushnil(lsb->m_lua);
+    int had_output = 0;
+    size_t start = 0;
+    while (result == 0 && lua_next(lsb->m_lua, -2) != 0) {
+        if (had_output) {
+            if (dynamic_snprintf(&lsb->m_output, ",")) return 1;
+        }
+        start = lsb->m_output.m_pos;
+        result = serialize_kvp_as_json(lsb, data, isHash);
+        lua_pop(lsb->m_lua, 1); // Remove the value leaving the key on top for
+                                // the next interation.
+        if (start != lsb->m_output.m_pos) {
+            had_output = 1;
+        } else {
+            had_output = 0;
+        }
+    }
+    if (start != 0 && had_output == 0) { // remove the trailing comma
+        size_t reset_pos = start - 1;
+        if (lsb->m_output.m_data[reset_pos] == ',') {
+            lsb->m_output.m_data[reset_pos] = 0;
+            lsb->m_output.m_pos = reset_pos;
+        }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int serialize_data(lua_sandbox* lsb, int index, output_data* output)
 {
     output->m_pos = 0;
@@ -211,11 +245,6 @@ int serialize_data(lua_sandbox* lsb, int index, output_data* output)
         }
         lua_pop(lsb->m_lua, 2); // Remove the pcall result and the string table.
         break;
-    case LUA_TNIL:
-        if (dynamic_snprintf(output, "nil")) {
-            return 1;
-        }
-        break;
     case LUA_TBOOLEAN:
         if (dynamic_snprintf(output, "%s",
                              lua_toboolean(lsb->m_lua, index)
@@ -227,6 +256,110 @@ int serialize_data(lua_sandbox* lsb, int index, output_data* output)
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "serialize_data cannot preserve type '%s'",
                  lua_typename(lsb->m_lua, lua_type(lsb->m_lua, index)));
+        return 1;
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
+{
+    const char* s;
+    size_t cnt = 0, len = 0;
+    size_t olimit = (size_t)lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT];
+    size_t start_pos = output->m_pos;
+    size_t escaped_len = 0;
+    switch (lua_type(lsb->m_lua, index)) {
+    case LUA_TNUMBER:
+        if (dynamic_snprintf(output, "%0.9g",
+                             lua_tonumber(lsb->m_lua, index))) {
+            return 1;
+        }
+        break;
+    case LUA_TSTRING:
+        s = lua_tolstring(lsb->m_lua, index, &len);
+        escaped_len = len + 3; // account for the quotes and terminator
+        for (int i = 0; i < len; ++i) {
+            if (escaped_len > olimit - start_pos) {
+                return 1;
+            }
+            // buffer needs at least enough room for quotes, terminator, and an
+            // escaped character
+            if (output->m_pos + 5 > output->m_size) {
+                size_t newsize = output->m_size * 2;
+                while (escaped_len >= newsize - start_pos) {
+                    newsize *= 2;
+                }
+                void* ptr = realloc(output->m_data, newsize);
+                if (ptr == NULL) return 1;
+                output->m_data = ptr;
+                output->m_size = newsize;
+            }
+            if (i == 0) {
+                output->m_data[output->m_pos++] = '"';
+            }
+            switch (s[i]) {
+            case '"':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = '"';
+                ++escaped_len;
+                break;
+            case '\\':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = '\\';
+                ++escaped_len;
+                break;
+            case '/':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = '/';
+                ++escaped_len;
+                break;
+            case '\b':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = 'b';
+                ++escaped_len;
+                break;
+            case '\f':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = 'f';
+                ++escaped_len;
+                break;
+            case '\n':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = 'n';
+                ++escaped_len;
+                break;
+            case '\r':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = 'r';
+                ++escaped_len;
+                break;
+            case '\t':
+                output->m_data[output->m_pos++] = '\\';
+                output->m_data[output->m_pos++] = 't';
+                ++escaped_len;
+                break;
+            default:
+                output->m_data[output->m_pos++] = s[i];
+            }
+        }
+        output->m_data[output->m_pos++] = '"';
+        output->m_data[output->m_pos] = 0;
+        break;
+    case LUA_TBOOLEAN:
+        if (dynamic_snprintf(output, "%s",
+                             lua_toboolean(lsb->m_lua, index)
+                             ? "true" : "false")) {
+            return 1;
+        }
+        break;
+    default:
+        snprintf(lsb->m_error_message, ERROR_SIZE,
+                 "serialize_data_as_json cannot preserve type '%s'",
+                 lua_typename(lsb->m_lua, lua_type(lsb->m_lua, index)));
+        return 1;
+    }
+    if (output->m_pos > olimit) {
         return 1;
     }
     return 0;
@@ -251,11 +384,10 @@ const char* userdata_type(lua_State* lua, void* ud, int index)
 ////////////////////////////////////////////////////////////////////////////////
 int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
 {
-    int kindex = -2, vindex = -1;
+    int kindex = -2, vindex = -1, result = 0;
 
     if (ignore_value_type(lsb, data, vindex)) return 0;
-    int result = serialize_data(lsb, kindex, &lsb->m_output);
-    if (result != 0) return result;
+    if (serialize_data(lsb, kindex, &lsb->m_output)) return 1;
 
     size_t pos = data->m_keys.m_pos;
     if (dynamic_snprintf(&data->m_keys, "%s[%s]", data->m_keys.m_data + parent,
@@ -299,7 +431,7 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
                 } else {
                     snprintf(lsb->m_error_message, ERROR_SIZE,
                              "preserve table out of memory");
-                    result = 1;
+                    return 1;
                 }
             } else {
                 fprintf(data->m_fh, "%s = ", data->m_keys.m_data + pos);
@@ -315,6 +447,70 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
         if (result == 0) {
             fprintf(data->m_fh, "%s\n", lsb->m_output.m_data);
         }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int ignore_key(lua_sandbox* lsb, int index)
+{
+    if (lua_type(lsb->m_lua, index) == LUA_TSTRING) {
+        const char* key = lua_tostring(lsb->m_lua, index);
+        if (key[0] == '_') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int serialize_kvp_as_json(lua_sandbox* lsb,
+                          serialization_data* data,
+                          int isHash)
+{
+    static const char* array_start = "[", *array_end = "]";
+    static const char* hash_start = "{", *hash_end = "}";
+    int kindex = -2, vindex = -1, result = 0;
+
+    if (ignore_value_type_json(lsb, vindex)) return 0;
+    if (ignore_key(lsb, kindex)) return 0;
+    if (isHash) {
+        if (serialize_data_as_json(lsb, kindex, &lsb->m_output)) return 1;
+        if (dynamic_snprintf(&lsb->m_output, ":")) return 1;
+    }
+
+    if (lua_type(lsb->m_lua, vindex) == LUA_TTABLE) {
+        const void* ptr = lua_topointer(lsb->m_lua, vindex);
+        table_ref* seen = find_table_ref(&data->m_tables, ptr);
+        if (seen == NULL) {
+            seen = add_table_ref(&data->m_tables, ptr, 0);
+            if (seen != NULL) {
+                const char* start, *end;
+                lua_rawgeti(lsb->m_lua, vindex, 1);
+                int hash = lua_isnil(lsb->m_lua, -1);
+                lua_pop(lsb->m_lua, 1); // remove the test value
+                if (hash) {
+                    start = hash_start;
+                    end = hash_end;
+                } else {
+                    start = array_start;
+                    end = array_end;
+                }
+                if (dynamic_snprintf(&lsb->m_output, start)) return 1;
+                if (serialize_table_as_json(lsb, data, hash)) return 1;
+                if (dynamic_snprintf(&lsb->m_output, end)) return 1;
+            } else {
+                snprintf(lsb->m_error_message, ERROR_SIZE,
+                         "serialize table out of memory");
+                return 1;
+            }
+        } else {
+            snprintf(lsb->m_error_message, ERROR_SIZE,
+                     "table contains an internal or circular reference");
+            return 1;
+        }
+    } else {
+        result = serialize_data_as_json(lsb, vindex, &lsb->m_output);
     }
     return result;
 }
@@ -372,6 +568,29 @@ int ignore_value_type(lua_sandbox* lsb, serialization_data* data, int index)
     case LUA_TFUNCTION:
     case LUA_TTHREAD:
     case LUA_TLIGHTUSERDATA:
+    case LUA_TNIL:
+        return 1;
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int ignore_value_type_json(lua_sandbox* lsb, int index)
+{
+    void* ud = NULL;
+    switch (lua_type(lsb->m_lua, index)) {
+    case LUA_TTABLE:
+        if (lua_getmetatable(lsb->m_lua, index) != 0) {
+            lua_pop(lsb->m_lua, 1); // Remove the metatable.
+            return 1;
+        }
+        break;
+    case LUA_TUSERDATA:
+    case LUA_TNONE:
+    case LUA_TFUNCTION:
+    case LUA_TTHREAD:
+    case LUA_TLIGHTUSERDATA:
+    case LUA_TNIL:
         return 1;
     }
     return 0;
@@ -416,7 +635,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...)
         int len = vsnprintf(ptr, remaining, fmt, args);
         va_end(args);
         if (len >= remaining) {
-            size_t newsize = output->m_size;
+            size_t newsize = output->m_size * 2;
             while (len >= newsize - output->m_pos) {
                 newsize *= 2;
             }
@@ -473,6 +692,43 @@ int output(lua_State* lua)
                 result = 1;
             }
             break;
+        case LUA_TBOOLEAN:
+            if (dynamic_snprintf(&lsb->m_output, "%s",
+                                 lua_toboolean(lsb->m_lua, i)
+                                 ? "true" : "false")) {
+                result = 1;
+            }
+            break;
+        case LUA_TTABLE:
+            if (!dynamic_snprintf(&lsb->m_output, "{")) {
+                serialization_data data;
+                data.m_globals = NULL;
+                data.m_tables.m_size = 64;
+                data.m_tables.m_pos = 0;
+                data.m_tables.m_array = malloc(data.m_tables.m_size * sizeof(table_ref));
+                if (data.m_tables.m_array == NULL) {
+                    snprintf(lsb->m_error_message, ERROR_SIZE,
+                             "json table serialization out of memory");
+                    result = 1;
+                } else {
+                    lua_checkstack(lsb->m_lua, 2);
+                    lua_getfield(lsb->m_lua, i, "_name");
+                    if (lua_type(lsb->m_lua, -1) != LUA_TSTRING) {
+                        lua_pop(lsb->m_lua, 1); // remove the failed _name result
+                        lua_pushstring(lsb->m_lua, "table"); // add default name
+                    }
+                    lua_pushvalue(lsb->m_lua, i);
+                    result = serialize_kvp_as_json(lsb, &data, 1);
+                    if (result == 0) {
+                        result = dynamic_snprintf(&lsb->m_output, "}\n");
+                    }
+                    lua_pop(lsb->m_lua, 2); // remove the name and copy of the table
+                    free(data.m_tables.m_array);
+                }
+            } else {
+                result = 1;
+            }
+            break;
         case LUA_TUSERDATA:
             ud = lua_touserdata(lua, i);
             if (heka_circular_buffer == userdata_type(lua, ud, i)) {
@@ -493,7 +749,10 @@ int output(lua_State* lua)
     if (result != 0
         || lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
         > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
-        luaL_error(lua, "output_limit exceeded");
+        if (lsb->m_error_message[0] == 0) {
+            luaL_error(lua, "output_limit exceeded");
+        }
+        luaL_error(lua, lsb->m_error_message);
     }
     return 0;
 }
@@ -579,7 +838,8 @@ int inject_message(lua_State* lua)
     }
 
     if (lsb->m_output.m_pos != 0) {
-        int result = go_lua_inject_message(lsb->m_go, 
+        lsb->m_output.m_data[lsb->m_output.m_pos] = 0;
+        int result = go_lua_inject_message(lsb->m_go,
                                            lsb->m_output.m_data,
                                            (char*)type,
                                            (char*)name);

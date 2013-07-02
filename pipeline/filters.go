@@ -27,7 +27,7 @@ type FilterRunner interface {
 	PluginRunner
 	// Input channel on which the Filter should listen for incoming messages
 	// to be processed. Closure of the channel signals shutdown to the filter.
-	InChan() chan *PipelineCapture
+	InChan() chan *PipelinePack
 	// Associated Filter plugin object.
 	Filter() Filter
 	// Starts the Filter (so it's listening on the input channel for messages
@@ -38,9 +38,6 @@ type FilterRunner interface {
 	// Returns a ticker channel configured to send ticks at an interval
 	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
-	// Wraps provided PipelinePack in a PipelineCapture (with nil Capture
-	// value) and drops it on the Filter's input channel.
-	Deliver(pack *PipelinePack)
 	// Hands provided PipelinePack to the Heka Router for delivery to any
 	// Filter or Output plugins with a corresponding message_matcher. Returns
 	// false and doesn't perform message injection if the message would be
@@ -51,7 +48,7 @@ type FilterRunner interface {
 	// Retains a pack for future delivery to the plugin when a plugin needs
 	// to shut down and wants to retain the pack for the next time its
 	// running properly
-	RetainPack(pack *PipelineCapture)
+	RetainPack(pack *PipelinePack)
 }
 
 // Heka Filter plugin type.
@@ -103,18 +100,18 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 	var (
 		ok           = true
-		plc          *PipelineCapture
+		pack         *PipelinePack
 		msgLoopCount uint
 	)
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
-			msgLoopCount = plc.Pack.MsgLoopCount
+			msgLoopCount = pack.MsgLoopCount
 			this.count++
-			plc.Pack.Recycle()
+			pack.Recycle()
 		case <-ticker:
 			this.tally(fr, h, msgLoopCount)
 		}

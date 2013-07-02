@@ -4,8 +4,8 @@
 package pipeline
 
 import (
-	sync "sync"
 	gomock "code.google.com/p/gomock/gomock"
+	sync "sync"
 	time "time"
 )
 
@@ -30,17 +30,9 @@ func (_m *MockOutputRunner) EXPECT() *_MockOutputRunnerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOutputRunner) Deliver(_param0 *PipelinePack) {
-	_m.ctrl.Call(_m, "Deliver", _param0)
-}
-
-func (_mr *_MockOutputRunnerRecorder) Deliver(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Deliver", arg0)
-}
-
-func (_m *MockOutputRunner) InChan() chan *PipelineCapture {
+func (_m *MockOutputRunner) InChan() chan *PipelinePack {
 	ret := _m.ctrl.Call(_m, "InChan")
-	ret0, _ := ret[0].(chan *PipelineCapture)
+	ret0, _ := ret[0].(chan *PipelinePack)
 	return ret0
 }
 
@@ -114,7 +106,7 @@ func (_mr *_MockOutputRunnerRecorder) PluginGlobals() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PluginGlobals")
 }
 
-func (_m *MockOutputRunner) RetainPack(_param0 *PipelineCapture) {
+func (_m *MockOutputRunner) RetainPack(_param0 *PipelinePack) {
 	_m.ctrl.Call(_m, "RetainPack", _param0)
 }
 

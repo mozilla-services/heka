@@ -111,7 +111,7 @@ func MessageFieldsSpec(c gospec.Context) {
 	})
 
 	c.Specify("Add Integer Field", func() {
-        representation := "ns"
+		representation := "ns"
 		msg := &Message{}
 		f, _ := NewField("foo", 1, representation)
 		msg.AddField(f)

@@ -12,7 +12,7 @@
 #include "lua_sandbox.h"
 
 #define ERROR_SIZE 255
-#define OUTPUT_SIZE 1024 * 4
+#define OUTPUT_SIZE 1024
 #define MAX_MEMORY 1024 * 1024 * 8
 #define MAX_INSTRUCTION 1000000
 #define MAX_OUTPUT 1024 * 63
@@ -133,6 +133,19 @@ int preserve_global_data(lua_sandbox* lsb, const char* data_file);
 int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent);
 
 /** 
+ * Serializes a Lua table structure as JSON.
+ * 
+ * @param lsb Pointer to the sandbox.
+ * @param data Pointer to the serialization state data.
+ * @param isHash True if this table is a hash, false if it is an array.
+ * 
+ * @return int Zero on success, non-zero on failure.
+ */
+int serialize_table_as_json(lua_sandbox* lsb,
+                            serialization_data* data,
+                            int isHash);
+
+/** 
  * Serializes a Lua data value.
  * 
  * @param lsb Pointer to the sandbox.
@@ -143,6 +156,16 @@ int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent);
  */
 int serialize_data(lua_sandbox* lsb, int index, output_data* output);
 
+/** 
+ * Serializes a Lua data as JSON.
+ * 
+ * @param lsb Pointer to the sandbox.
+ * @param index Lua stack index where the data resides.
+ * @param output Pointer the output collector.
+ * 
+ * @return int
+ */
+int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output);
 
 /** 
  * Determines the name of the userdata type
@@ -165,6 +188,30 @@ const char* userdata_type(lua_State* lua, void* ud, int index);
  * @return int Zero on success, non-zero on failure.
  */
 int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent);
+
+/**
+ * Checks to see a string key starts with a '_' in which case it will be 
+ * ignored. 
+ * 
+ * @param lsb Pointer to the sandbox.
+ * @param index Lua stack index where the key resides.
+ * 
+ * @return int True if the key should not be serialized.
+ */
+int ignore_key(lua_sandbox* lsb, int index);
+
+/** 
+ * Serializes a table key value pair as JSON.
+ * 
+ * @param lsb Pointer to the sandbox.
+ * @param data Pointer to the serialization state data.
+ * @param isHash True if this kvp is part of a hash, false if it is in an array.
+ *  
+ * @return int Zero on success, non-zero on failure.
+ */
+int serialize_kvp_as_json(lua_sandbox* lsb,
+                          serialization_data* data,
+                          int isHash);
 
 /** 
  * Looks for a table to see if it has already been processed. 
@@ -192,12 +239,22 @@ table_ref* add_table_ref(table_ref_array* tra, const void* ptr,
  * Helper function to determine what data should not be serialized.
  * 
  * @param lsb Pointer to the sandbox.
- * @param data Pointer to the serialization state data.
+ * @param data Pointer to the serialization state data.  
  * @param index Lua stack index where the data resides.
  * 
  * @return int
  */
 int ignore_value_type(lua_sandbox* lsb, serialization_data* data, int index);
+
+/** 
+ * Helper function to determine what data should not be serialized to JSON.
+ * 
+ * @param lsb Pointer to the sandbox.
+ * @param index Lua stack index where the data resides.
+ * 
+ * @return int
+ */
+int ignore_value_type_json(lua_sandbox* lsb, int index);
 
 /** 
  * Restores previously serialized data from disk.

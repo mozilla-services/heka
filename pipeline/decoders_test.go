@@ -124,22 +124,55 @@ func DecodersSpec(c gospec.Context) {
 		pack := NewPipelinePack(supply)
 		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
 
+		c.Specify("non capture regex", func() {
+			conf.MatchRegex = `\d+`
+			err := decoder.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "LoglineDecoder regex must contain capture groups")
+		})
+
+		c.Specify("invalid regex", func() {
+			conf.MatchRegex = `\mtest`
+			err := decoder.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "LoglineDecoder: error parsing regexp: invalid escape sequence: `\\m`")
+		})
+
 		c.Specify("reading an apache timestamp", func() {
-			conf.MatchRegex = `/\[(?P<Timestamp>[^\]]+)\]/`
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload("[18/Apr/2013:14:00:28 -0700]")
 			err = decoder.Decode(pack)
-			c.Expect(pack.Message.GetTimestamp() == 1366318828000000000, gs.IsTrue)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1366318828000000000))
+			pack.Zero()
+		})
+
+		c.Specify("adjusts timestamps as specified", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			conf.TimestampLayout = "02/Jan/2006:15:04:05"
+			conf.TimestampLocation = "America/Los_Angeles"
+			timeStr := "18/Apr/2013:14:00:28"
+			loc, err := time.LoadLocation(conf.TimestampLocation)
+			c.Assume(err, gs.IsNil)
+			expectedLocal, err := time.ParseInLocation(conf.TimestampLayout, timeStr, loc)
+			c.Assume(err, gs.IsNil)
+			err = decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[" + timeStr + "]")
+			err = decoder.Decode(pack)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, expectedLocal.UnixNano())
 			pack.Zero()
 		})
 
 		c.Specify("apply representation metadata to a captured field", func() {
 			value := "0.23"
 			payload := "header"
-			conf.MatchRegex = `/(?P<ResponseTime>\d+\.\d+)/`
+			conf.MatchRegex = `(?P<ResponseTime>\d+\.\d+)`
 			conf.MessageFields = MessageTemplate{
 				"ResponseTime|s": "%ResponseTime%",
 				"Payload|s":      "%ResponseTime%",
@@ -168,7 +201,7 @@ func DecodersSpec(c gospec.Context) {
 		})
 
 		c.Specify("reading test-zeus.log", func() {
-			conf.MatchRegex = `/(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>[^\]]+)\] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)/`
+			conf.MatchRegex = `(?P<Ip>([0-9]{1,3}\.){3}[0-9]{1,3}) (?P<Hostname>(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])) (?P<User>\w+) \[(?P<Timestamp>[^\]]+)\] \"(?P<Verb>[A-X]+) (?P<Request>\/\S*) HTTP\/(?P<Httpversion>\d\.\d)\" (?P<Response>\d{3}) (?P<Bytes>\d+)`
 			conf.MessageFields = MessageTemplate{
 				"hostname": "%Hostname%",
 				"ip":       "%Ip%",
@@ -213,7 +246,7 @@ func DecodersSpec(c gospec.Context) {
 		})
 
 		c.Specify("reading test-severity.log", func() {
-			conf.MatchRegex = `/severity\: (?P<Severity>[a-zA-Z]+)/`
+			conf.MatchRegex = `severity: (?P<Severity>[a-zA-Z]+)`
 			conf.SeverityMap = map[string]int32{
 				"emergency": 0,
 				"alert":     1,

@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Heka PluginRunner for Input plugins.
@@ -39,6 +40,13 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	// Associated Input plugin object.
 	Input() Input
+
+	SetTickLength(tickLength time.Duration)
+
+	// Returns a ticker channel configured to send ticks at an interval
+	// specified by the plugin's ticker_interval config value, if provided.
+	Ticker() (ticker <-chan time.Time)
+
 	// Starts Input in a separate goroutine and returns. Should decrement the
 	// plugin when the Input stops and the goroutine has completed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
@@ -49,8 +57,18 @@ type InputRunner interface {
 
 type iRunner struct {
 	pRunnerBase
-	input  Input
-	inChan chan *PipelinePack
+	input      Input
+	inChan     chan *PipelinePack
+	tickLength time.Duration
+	ticker     <-chan time.Time
+}
+
+func (ir *iRunner) SetTickLength(tickLength time.Duration) {
+	ir.tickLength = tickLength
+}
+
+func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
+	return ir.ticker
 }
 
 // Creates and returns a new (not yet started) InputRunner associated w/ the
@@ -78,6 +96,11 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
 	ir.inChan = h.PipelineConfig().inputRecycleChan
+
+	if ir.tickLength != 0 {
+		ir.ticker = time.Tick(ir.tickLength)
+	}
+
 	go ir.Starter(h, wg)
 	return
 }

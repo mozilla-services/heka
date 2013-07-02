@@ -255,27 +255,27 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 	inChan := fr.InChan()
 
 	var ok = true
-	var plc *PipelineCapture
+	var pack *PipelinePack
 	var delta int64
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
 		select {
-		case plc, ok = <-inChan:
+		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
 			atomic.AddInt64(&this.processMessageCount, 1)
-			delta = time.Now().UnixNano() - plc.Pack.Message.GetTimestamp()
+			delta = time.Now().UnixNano() - pack.Message.GetTimestamp()
 			if math.Abs(float64(delta)) >= 5e9 {
 				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew", delta/1e9))
-				plc.Pack.Recycle()
+				pack.Recycle()
 				break
 			}
-			action, _ := plc.Pack.Message.GetFieldValue("action")
+			action, _ := pack.Message.GetFieldValue("action")
 			switch action {
 			case "load":
 				if this.currentFilters < this.maxFilters {
-					err := this.loadSandbox(fr, h, this.workingDirectory, plc.Pack.Message)
+					err := this.loadSandbox(fr, h, this.workingDirectory, pack.Message)
 					if err != nil {
 						fr.LogError(err)
 					}
@@ -283,7 +283,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 					fr.LogError(fmt.Errorf("%s attempted to load more than %d filters", fr.Name(), this.maxFilters))
 				}
 			case "unload":
-				fv, _ := plc.Pack.Message.GetFieldValue("name")
+				fv, _ := pack.Message.GetFieldValue("name")
 				if name, ok := fv.(string); ok {
 					name = getSandboxName(fr.Name(), name)
 					if h.PipelineConfig().RemoveFilterRunner(name) {
@@ -292,7 +292,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 					}
 				}
 			}
-			plc.Pack.Recycle()
+			pack.Recycle()
 		}
 	}
 	return
