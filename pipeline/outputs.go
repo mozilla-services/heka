@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -132,6 +133,7 @@ type FileOutput struct {
 	file          *os.File
 	batchChan     chan []byte
 	backChan      chan []byte
+	folderPerm    os.FileMode
 }
 
 // ConfigStruct for FileOutput plugin.
@@ -148,10 +150,18 @@ type FileOutputConfig struct {
 	// Interval at which accumulated file data should be written to disk, in
 	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32
+
+	// Permissions to apply to directories created for FileOutput's
+	// parent directory if it doesn't exist.  Must be a string
+	// representation of an octal integer. Defaults to "700".
+	FolderPerm string `toml:"folder_perm"`
 }
 
 func (o *FileOutput) ConfigStruct() interface{} {
-	return &FileOutputConfig{Format: "text", Perm: "644", FlushInterval: 1000}
+	return &FileOutputConfig{Format: "text", Perm: "644",
+		FlushInterval: 1000,
+		FolderPerm:    "700",
+	}
 }
 
 func (o *FileOutput) Init(config interface{}) (err error) {
@@ -175,6 +185,14 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
 		return
 	}
+
+	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
+		err = fmt.Errorf("FileOutput '%s' can't parse `folder_perm`, is it an octal integer string?",
+			o.path)
+		return
+	}
+	o.folderPerm = os.FileMode(intPerm)
+
 	o.flushInterval = conf.FlushInterval
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2) // Never block on the hand-back
@@ -182,6 +200,17 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 }
 
 func (o *FileOutput) openFile() (err error) {
+
+	basePath := path.Dir(o.path)
+
+	if err = os.MkdirAll(basePath, o.folderPerm); err != nil {
+		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
+	}
+
+	if err = checkWritePermission(basePath); err != nil {
+		return
+	}
+
 	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
 	return
 }
@@ -360,4 +389,13 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	t.connection.Close()
 
 	return
+}
+
+func checkWritePermission(filepath string) (err error) {
+	var file *os.File
+	if file, err = os.OpenFile(path.Join(filepath, ".hekad.perm_check"), os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+		file.WriteString("ok")
+		file.Close()
+	}
+	return err
 }

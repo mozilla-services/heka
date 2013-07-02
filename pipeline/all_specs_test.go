@@ -54,6 +54,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(LogfileInputSpec)
 	r.AddSpec(StatAccumInputSpec)
 	r.AddSpec(CarbonOutputSpec)
+	r.AddSpec(DashboardOutputSpec)
 	gospec.MainGoTest(r, t)
 }
 
