@@ -599,6 +599,12 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 
 	var matcher *MatchRunner
+	if pluginGlobals.Matcher == "" {
+		// Filters and outputs must specify a message matcher
+		self.log(fmt.Sprintf("'%s' missing message matcher", wrapper.name))
+		errcnt++
+		return
+	}
 	if pluginGlobals.Matcher != "" {
 		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
 			pluginGlobals.Signer); err != nil {
