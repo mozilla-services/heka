@@ -157,9 +157,9 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload("[5:16PM]")
-            cur_date := time.Date(time.Now().Year(), time.Now().Month(),
-                                  time.Now().Day(), 17, 16, 0, 0,
-                                  time.Now().Location())
+			now := time.Now()
+			cur_date := time.Date(now.Year(), now.Month(), now.Day(), 17, 16, 0, 0,
+				time.UTC)
 			err = decoder.Decode(pack)
 			c.Expect(pack.Message.GetTimestamp(), gs.Equals, cur_date.UnixNano())
 			pack.Zero()
