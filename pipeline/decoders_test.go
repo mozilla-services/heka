@@ -150,6 +150,21 @@ func DecodersSpec(c gospec.Context) {
 			pack.Zero()
 		})
 
+		c.Specify("uses kitchen timestamp", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[5:16PM]")
+            cur_date := time.Date(time.Now().Year(), time.Now().Month(),
+                                  time.Now().Day(), 17, 16, 0, 0,
+                                  time.Now().Location())
+			err = decoder.Decode(pack)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, cur_date.UnixNano())
+			pack.Zero()
+		})
+
 		c.Specify("adjusts timestamps as specified", func() {
 			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			conf.TimestampLayout = "02/Jan/2006:15:04:05"
