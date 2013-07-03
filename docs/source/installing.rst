@@ -35,7 +35,7 @@ Prerequisites:
 - go 1.1 or greater (1.1.1 recommended)
 - python 2.6 or greater
 - patch
-
+- mercurial
 
 1. Check out the `heka build`_ repository:
 
