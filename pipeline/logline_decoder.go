@@ -135,8 +135,11 @@ func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
 		if err != nil {
 			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
 		}
-		// Did we get a year?
-		if val.Year() == 0 {
+		// If we only get a timestamp, use the current date
+		if (val.Year() == 0 && val.Month() == 1 && val.Day() == 1) {
+			val = val.AddDate(time.Now().Year(), (time.Now().Month()-1), (time.Now().Day()-1))
+        	} else if (val.Year() == 0) {
+        		// If there's no year, use current year
 			val = val.AddDate(time.Now().Year(), 0, 0)
 		}
 		pack.Message.SetTimestamp(val.UnixNano())
