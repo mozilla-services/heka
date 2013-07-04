@@ -72,7 +72,6 @@ func LogfileInputSpec(c gs.Context) {
 
 	c.Specify("LogfileInput", func() {
 		c.Specify("save the seek position of the last complete logline", func() {
-			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			lfInput, lfiConfig := createIncompleteLogfileInput(journal_name)
 
 			// Initialize the input test helper

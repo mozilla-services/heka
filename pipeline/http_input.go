@@ -8,19 +8,24 @@ import (
 )
 
 type HttpInput struct {
-	dataChan chan []byte
-	stopChan chan bool
-	hm       *HttpMonitor
+	dataChan    chan []byte
+	stopChan    chan bool
+	Monitor     *HttpInputMonitor
+	decoderName string
 }
 
 type HttpInputConfig struct {
 	Url            string
 	TickerInterval uint `toml:"ticker_interval"`
+
+	// Names of configured `LoglineDecoder` instances.
+	DecoderName string
 }
 
 func (hi *HttpInput) ConfigStruct() interface{} {
 	return &HttpInputConfig{
 		TickerInterval: uint(10),
+		DecoderName:    "JsonDecoder",
 	}
 }
 
@@ -29,31 +34,50 @@ func (hi *HttpInput) Init(config interface{}) error {
 
 	hi.dataChan = make(chan []byte)
 	hi.stopChan = make(chan bool)
+	hi.decoderName = conf.DecoderName
 
-	hi.hm = new(HttpMonitor)
+	hi.Monitor = new(HttpInputMonitor)
 
-	hi.hm.Init(conf.Url, hi.dataChan, hi.stopChan)
+	hi.Monitor.Init(conf.Url, hi.dataChan, hi.stopChan)
 	return nil
 }
 
 func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	ir.LogMessage(fmt.Sprintf("[HttpInput (%s)] Running...", hi.hm.url))
+	var (
+		pack    *PipelinePack
+		dRunner DecoderRunner
+		e       error
+		ok      bool
+	)
 
-	go hi.hm.Monitor(ir)
+	ir.LogMessage(fmt.Sprintf("[HttpInput (%s)] Running...",
+		hi.Monitor.url))
+
+	go hi.Monitor.Monitor(ir)
 
 	hostname := h.PipelineConfig().hostname
 	packSupply := ir.InChan()
 
+	dSet := h.DecoderSet()
+	if dRunner, ok = dSet.ByName(hi.decoderName); !ok {
+		return fmt.Errorf("Decoder not found: %s", hi.decoderName)
+	}
+	decoder := dRunner.Decoder()
+
 	for {
 		select {
 		case data := <-hi.dataChan:
-			pack := <-packSupply
+			pack = <-packSupply
 			copy(pack.MsgBytes, data)
 			pack.Message.SetType("httpdata")
 			pack.Message.SetHostname(hostname)
 
-			// TODO: pull in the decoder code from LogfileInput
-			ir.Inject(pack)
+			if e = decoder.Decode(pack); e == nil {
+				ir.Inject(pack)
+			} else {
+				ir.LogError(fmt.Errorf("Couldn't parse HTTP data: %s", string(data)))
+				pack.Recycle()
+			}
 		}
 	}
 
@@ -64,7 +88,7 @@ func (hi *HttpInput) Stop() {
 	close(hi.stopChan)
 }
 
-type HttpMonitor struct {
+type HttpInputMonitor struct {
 	url      string
 	dataChan chan []byte
 	stopChan chan bool
@@ -73,15 +97,15 @@ type HttpMonitor struct {
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpMonitor) Init(url string, dataChan chan []byte, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(url string, dataChan chan []byte, stopChan chan bool) {
 	hm.url = url
 	hm.dataChan = dataChan
 	hm.stopChan = stopChan
 
 }
 
-func (hm *HttpMonitor) Monitor(ir InputRunner) {
-	ir.LogMessage("[HttpMonitor] Monitoring...")
+func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
+	ir.LogMessage("[HttpInputMonitor] Monitoring...")
 
 	hm.ir = ir
 	hm.tickChan = ir.Ticker()
@@ -94,7 +118,7 @@ func (hm *HttpMonitor) Monitor(ir InputRunner) {
 			defer resp.Body.Close()
 
 			if err != nil {
-				ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))
+				ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
 				return
 			}
 
@@ -102,20 +126,20 @@ func (hm *HttpMonitor) Monitor(ir InputRunner) {
 			body, err := ioutil.ReadAll(resp.Body)
 
 			if err != nil {
-				ir.LogError(fmt.Errorf("[HttpMonitor] %s", err))
-				return
+				ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
+				continue
 			}
 
 			// Send it on the channel
 			hm.dataChan <- body
 
 		case <-hm.stopChan:
-			ir.LogMessage(fmt.Sprintf("[HttpMonitor (%s)] Stop", hm.url))
+			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.url))
 			return
 		}
 	}
 }
 
-func (hm *HttpMonitor) Stop() {
+func (hm *HttpInputMonitor) Stop() {
 	hm.stopChan <- true
 }
