@@ -229,18 +229,18 @@ func (sm *StatAccumInput) Flush() {
 		numStats++
 	}
 
-	for u, t := range sm.timers {
-		if len(t) > 0 {
-			sort.Float64s(t)
-			min := t[0]
-			max := t[len(t)-1]
-			timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(u)
-			count := len(t)
+	for key, timings := range sm.timers {
+		if len(timings) > 0 {
+			sort.Float64s(timings)
+			min := timings[0]
+			max := timings[len(timings)-1]
+			timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
+			count := len(timings)
 			if count > 1 {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
 				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
-				values := t[0:numInThreshold]
-				max := t[numInThreshold-1]
+				values := timings[0:numInThreshold]
+				max := timings[numInThreshold-1]
 				var sum float64
 				for _, v := range values {
 					sum += v
@@ -250,9 +250,9 @@ func (sm *StatAccumInput) Flush() {
 				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
 			}
 
-			sm.timers[u] = t[:0]
+			sm.timers[key] = timings[:0]
 			var sum float64
-			for _, v := range t {
+			for _, v := range timings {
 				sum += v
 			}
 			mean := sum / float64(count)
