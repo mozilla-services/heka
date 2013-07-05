@@ -41,6 +41,10 @@ func StatAccumInputSpec(c gs.Context) {
 	c.Specify("A StatAccumInput", func() {
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
+		config.LegacyNamespaces = true
+		config.GlobalPrefix = "stats"
+		config.StatsdPrefix = "statsd"
+		config.TimerPrefix = "timers"
 		tickChan := make(chan time.Time)
 
 		c.Specify("must emit data in payload and/or message fields", func() {
@@ -82,6 +86,7 @@ func StatAccumInputSpec(c gs.Context) {
 
 				// statsd.numStats
 				tmp, ok = msg.GetFieldValue("statsd.numStats")
+
 				c.Expect(ok, gs.IsTrue)
 				intTmp, ok = tmp.(int64)
 				c.Expect(ok, gs.IsTrue)
