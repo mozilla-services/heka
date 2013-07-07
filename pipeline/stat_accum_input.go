@@ -222,9 +222,7 @@ func (sm *StatAccumInput) Flush() {
 	globalNs := rootNs.Namespace(sm.config.GlobalPrefix)
 	counterNs := globalNs.Namespace(sm.config.CounterPrefix)
 	for key, c := range sm.counters {
-		ratePerSecond := float64(c) / ((float64(sm.config.TickerInterval) *
-			float64(time.Second)) / float64(1e3))
-
+		ratePerSecond := float64(c) / float64(sm.config.TickerInterval)
 		if sm.config.LegacyNamespaces {
 			counterNs.EmitInField(key, int(ratePerSecond))
 			counterNs.EmitInPayload(key, ratePerSecond)

@@ -107,10 +107,10 @@ func StatAccumInputSpec(c gs.Context) {
 			msg := finalizeSendingStats()
 
 			validateValueAtKey(msg, "sample.cnt.count", int64(15))
-			validateValueAtKey(msg, "sample.cnt.rate", 0.0000015) // FIXME: wrong rate
+			validateValueAtKey(msg, "sample.cnt.rate", 1.5)
 
 			validateValueAtKey(msg, "sample2.cnt.count", int64(1110))
-			validateValueAtKey(msg, "sample2.cnt.rate", 0.0001110) // FIXME: wrong rate
+			validateValueAtKey(msg, "sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
 		})
 		c.Specify("emits gauge with correct prefixes", func() {
 			prepareSendingStats()
@@ -169,7 +169,7 @@ func StatAccumInputSpec(c gs.Context) {
 				c.Expect(ok, gs.IsTrue)
 				intTmp, ok = tmp.(int64)
 				c.Expect(ok, gs.IsTrue)
-				c.Expect(intTmp, gs.Equals, int64(0))
+				c.Expect(intTmp, gs.Equals, int64(30))
 
 				// stats_counts.sample.stat
 				tmp, ok = msg.GetFieldValue("stats_counts." + statName)
@@ -199,7 +199,7 @@ func StatAccumInputSpec(c gs.Context) {
 					switch i {
 					case 0:
 						c.Expect(line[0], gs.Equals, "stats."+statName)
-						c.Expect(line[1], gs.Equals, "0.000030")
+						c.Expect(line[1], gs.Equals, "30.300000")
 						timestamp = line[2]
 					case 1:
 						c.Expect(line[0], gs.Equals, "stats_counts."+statName)
