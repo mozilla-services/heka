@@ -92,6 +92,8 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		PercentThreshold: 90,
 		MessageType:      "heka.statmetric",
 		TickerInterval:   uint(10),
+		LegacyNamespaces: false,
+		StatsdPrefix:     "statsd",
 	}
 }
 
@@ -107,6 +109,17 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
 		)
+	}
+	if sm.config.LegacyNamespaces {
+		if len(sm.config.GlobalPrefix) == 0 {
+			sm.config.GlobalPrefix = "stats"
+		}
+		if len(sm.config.TimerPrefix) == 0 {
+			sm.config.TimerPrefix = "timers"
+		}
+		if len(sm.config.GaugePrefix) == 0 {
+			sm.config.GaugePrefix = "gauges"
+		}
 	}
 	return nil
 }
@@ -264,15 +277,12 @@ func (sm *StatAccumInput) Flush() {
 			numStats++
 		}
 	}
-	var statsdNs *namespaceTree
+
 	if sm.config.LegacyNamespaces {
-		statsdNs = rootNs
-
+		rootNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
 	} else {
-		statsdNs = globalNs
-
+		globalNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
 	}
-	statsdNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
 
 	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
