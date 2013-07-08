@@ -83,7 +83,7 @@ type StatAccumInputConfig struct {
 	CounterPrefix    string `toml:"counter_prefix"`
 	TimerPrefix      string `toml:"timer_prefix"`
 	GaugePrefix      string `toml:"gauge_prefix"`
-	StatsdPrefix     string `toml:"legacy_stats_prefix"`
+	StatsdPrefix     string `toml:"statsd_prefix"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
