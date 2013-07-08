@@ -111,13 +111,13 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 		)
 	}
 	if sm.config.LegacyNamespaces {
-		if len(sm.config.GlobalPrefix) == 0 {
+		if sm.config.GlobalPrefix == "" {
 			sm.config.GlobalPrefix = "stats"
 		}
-		if len(sm.config.TimerPrefix) == 0 {
+		if sm.config.TimerPrefix == "" {
 			sm.config.TimerPrefix = "timers"
 		}
-		if len(sm.config.GaugePrefix) == 0 {
+		if sm.config.GaugePrefix == "" {
 			sm.config.GaugePrefix = "gauges"
 		}
 	}
