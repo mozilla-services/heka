@@ -77,6 +77,13 @@ type StatAccumInputConfig struct {
 	// Interval at which the generated stat messages should be emitted, in
 	// seconds. Defaults to 10.
 	TickerInterval uint `toml:"ticker_interval"`
+
+	LegacyNamespaces bool   `toml:"legacy_namespaces"`
+	GlobalPrefix     string `toml:"global_prefix"`
+	CounterPrefix    string `toml:"counter_prefix"`
+	TimerPrefix      string `toml:"timer_prefix"`
+	GaugePrefix      string `toml:"gauge_prefix"`
+	StatsdPrefix     string `toml:"legacy_stats_prefix"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -85,6 +92,8 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		PercentThreshold: 90,
 		MessageType:      "heka.statmetric",
 		TickerInterval:   uint(10),
+		LegacyNamespaces: false,
+		StatsdPrefix:     "statsd",
 	}
 }
 
@@ -100,6 +109,17 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
 		)
+	}
+	if sm.config.LegacyNamespaces {
+		if sm.config.GlobalPrefix == "" {
+			sm.config.GlobalPrefix = "stats"
+		}
+		if sm.config.TimerPrefix == "" {
+			sm.config.TimerPrefix = "timers"
+		}
+		if sm.config.GaugePrefix == "" {
+			sm.config.GaugePrefix = "gauges"
+		}
 	}
 	return nil
 }
@@ -166,7 +186,6 @@ func (sm *StatAccumInput) DropStat(stat Stat) (sent bool) {
 // into the Heka pipeline.
 func (sm *StatAccumInput) Flush() {
 	var (
-		value float64
 		field *message.Field
 		err   error
 	)
@@ -176,7 +195,7 @@ func (sm *StatAccumInput) Flush() {
 	buffer := bytes.NewBufferString("")
 	pack := <-sm.ir.InChan()
 
-	rootNs := NewRootNamespace("")
+	rootNs := NewRootNamespace()
 
 	if sm.config.EmitInFields {
 		rootNs.Emitters.EmitInField = func(name string, value interface{}) {
@@ -198,36 +217,41 @@ func (sm *StatAccumInput) Flush() {
 			}
 		}
 	}
-
 	rootNs.EmitInField("timestamp", nowUnix)
-	statsNs := rootNs.Namespace("stats")
 
+	globalNs := rootNs.Namespace(sm.config.GlobalPrefix)
+	counterNs := globalNs.Namespace(sm.config.CounterPrefix)
 	for key, c := range sm.counters {
-		value = float64(c) / ((float64(sm.config.TickerInterval) *
-			float64(time.Second)) / float64(1e3))
-		statsNs.EmitInField(key, int(value))
-		statsNs.EmitInPayload(key, value)
-		rootNs.Namespace("stats_counts").Emit(key, c)
+		ratePerSecond := float64(c) / float64(sm.config.TickerInterval)
+		if sm.config.LegacyNamespaces {
+			counterNs.EmitInField(key, int(ratePerSecond))
+			counterNs.EmitInPayload(key, ratePerSecond)
+			rootNs.Namespace("stats_counts").Emit(key, c)
+		} else {
+			counterKey := counterNs.Namespace(key)
+			counterKey.Emit("rate", ratePerSecond)
+			counterKey.Emit("count", c)
+		}
 		sm.counters[key] = 0
 		numStats++
 	}
-	for key, g := range sm.gauges {
-		rootNs.Namespace("stats").Emit(key, int64(g))
+	for key, gauge := range sm.gauges {
+		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, int64(gauge))
 		numStats++
 	}
 
-	for u, t := range sm.timers {
-		if len(t) > 0 {
-			sort.Float64s(t)
-			min := t[0]
-			max := t[len(t)-1]
-			timerNs := statsNs.Namespace("timers").Namespace(u)
-			count := len(t)
+	for key, timings := range sm.timers {
+		if len(timings) > 0 {
+			sort.Float64s(timings)
+			min := timings[0]
+			max := timings[len(timings)-1]
+			timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
+			count := len(timings)
 			if count > 1 {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
 				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
-				values := t[0:numInThreshold]
-				max := t[numInThreshold-1]
+				values := timings[0:numInThreshold]
+				max := timings[numInThreshold-1]
 				var sum float64
 				for _, v := range values {
 					sum += v
@@ -237,9 +261,9 @@ func (sm *StatAccumInput) Flush() {
 				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
 			}
 
-			sm.timers[u] = t[:0]
+			sm.timers[key] = timings[:0]
 			var sum float64
-			for _, v := range t {
+			for _, v := range timings {
 				sum += v
 			}
 			mean := sum / float64(count)
@@ -251,7 +275,12 @@ func (sm *StatAccumInput) Flush() {
 			numStats++
 		}
 	}
-	rootNs.Namespace("statsd").Emit("numStats", numStats)
+
+	if sm.config.LegacyNamespaces {
+		rootNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
+	} else {
+		globalNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
+	}
 
 	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
@@ -273,9 +302,8 @@ type namespaceTree struct {
 	parent   *namespaceTree
 }
 
-func NewRootNamespace(namespace string) *namespaceTree {
+func NewRootNamespace() *namespaceTree {
 	ns := new(namespaceTree)
-	ns.setNamespace(namespace)
 	ns.Emitters = new(statsEmitters)
 	return ns
 }

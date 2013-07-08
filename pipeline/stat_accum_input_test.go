@@ -38,9 +38,107 @@ func StatAccumInputSpec(c gs.Context) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.PackSupply <- ith.Pack
 
-	c.Specify("A StatAccumInput", func() {
+	c.Specify("A StatAccumInput using normal namespaces", func() {
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+		ith.MockInputRunner.EXPECT().Ticker()
+
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
+		err := statAccumInput.Init(config)
+		c.Expect(err, gs.IsNil)
+
+		var wg sync.WaitGroup
+		prepareSendingStats := func() {
+			wg.Add(1)
+			go func() {
+				err := statAccumInput.Run(ith.MockInputRunner, ith.MockHelper)
+				wg.Done()
+				c.Expect(err, gs.IsNil)
+			}()
+		}
+		finalizeSendingStats := func() *message.Message {
+			close(statAccumInput.statChan)
+			wg.Wait()
+			return ith.Pack.Message
+		}
+
+		sendTimer := func(key string, vals ...int) {
+			for _, v := range vals {
+				statAccumInput.statChan <- Stat{key, strconv.Itoa(v), "ms", float32(1)}
+			}
+		}
+		sendCounter := func(key string, vals ...int) {
+			for _, v := range vals {
+				statAccumInput.statChan <- Stat{key, strconv.Itoa(v), "c", float32(1)}
+			}
+		}
+		sendGauge := func(key string, vals ...int) {
+			for _, v := range vals {
+				statAccumInput.statChan <- Stat{key, strconv.Itoa(v), "g", float32(1)}
+			}
+		}
+
+		validateValueAtKey := func(msg *message.Message, key string, value interface{}) {
+			fieldValue, ok := msg.GetFieldValue(key)
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, value)
+		}
+		c.Specify("emits timer with correct prefixes", func() {
+			prepareSendingStats()
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			sendTimer("sample2.timer", 10, 20)
+			msg := finalizeSendingStats()
+
+			validateValueAtKey(msg, "sample.timer.count", int64(4))
+			validateValueAtKey(msg, "sample.timer.mean", 15.0)
+			validateValueAtKey(msg, "sample.timer.lower", 10.0)
+			validateValueAtKey(msg, "sample2.timer.count", int64(2))
+			validateValueAtKey(msg, "sample2.timer.mean", 15.0)
+			validateValueAtKey(msg, "sample2.timer.lower", 10.0)
+
+			validateValueAtKey(msg, "statsd.numStats", int64(2))
+		})
+		c.Specify("emits counters with correct prefixes", func() {
+			prepareSendingStats()
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendCounter("sample2.cnt", 159, 951)
+			msg := finalizeSendingStats()
+
+			validateValueAtKey(msg, "sample.cnt.count", int64(15))
+			validateValueAtKey(msg, "sample.cnt.rate", 1.5)
+
+			validateValueAtKey(msg, "sample2.cnt.count", int64(1110))
+			validateValueAtKey(msg, "sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
+		})
+		c.Specify("emits gauge with correct prefixes", func() {
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendGauge("sample2.gauge", 1, 2, 3, 4, 5)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "sample.gauge", int64(2))
+			validateValueAtKey(msg, "sample2.gauge", int64(5))
+		})
+
+		c.Specify("emits correct statsd.numStats count", func() {
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendGauge("sample2.gauge", 1, 2)
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendCounter("sample2.cnt", 159, 951)
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			sendTimer("sample2.timer", 10, 20)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "statsd.numStats", int64(6))
+		})
+	})
+
+	c.Specify("A StatAccumInput using Legacy namespaces", func() {
+		statAccumInput := StatAccumInput{}
+		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
+		config.LegacyNamespaces = true
+
 		tickChan := make(chan time.Time)
 
 		c.Specify("must emit data in payload and/or message fields", func() {
@@ -71,7 +169,7 @@ func StatAccumInputSpec(c gs.Context) {
 				c.Expect(ok, gs.IsTrue)
 				intTmp, ok = tmp.(int64)
 				c.Expect(ok, gs.IsTrue)
-				c.Expect(intTmp, gs.Equals, int64(0))
+				c.Expect(intTmp, gs.Equals, int64(30))
 
 				// stats_counts.sample.stat
 				tmp, ok = msg.GetFieldValue("stats_counts." + statName)
@@ -82,6 +180,7 @@ func StatAccumInputSpec(c gs.Context) {
 
 				// statsd.numStats
 				tmp, ok = msg.GetFieldValue("statsd.numStats")
+
 				c.Expect(ok, gs.IsTrue)
 				intTmp, ok = tmp.(int64)
 				c.Expect(ok, gs.IsTrue)
@@ -100,7 +199,7 @@ func StatAccumInputSpec(c gs.Context) {
 					switch i {
 					case 0:
 						c.Expect(line[0], gs.Equals, "stats."+statName)
-						c.Expect(line[1], gs.Equals, "0.000030")
+						c.Expect(line[1], gs.Equals, "30.300000")
 						timestamp = line[2]
 					case 1:
 						c.Expect(line[0], gs.Equals, "stats_counts."+statName)
