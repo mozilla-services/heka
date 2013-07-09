@@ -101,11 +101,11 @@ func (hm *HttpInputMonitor) Init(url string, dataChan chan []byte, stopChan chan
 	hm.url = url
 	hm.dataChan = dataChan
 	hm.stopChan = stopChan
-
 }
 
 func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 	ir.LogMessage("[HttpInputMonitor] Monitoring...")
+
 
 	hm.ir = ir
 	hm.tickChan = ir.Ticker()
@@ -115,12 +115,11 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 		case <-hm.tickChan:
 			// Fetch URL
 			resp, err := http.Get(hm.url)
-			defer resp.Body.Close()
-
 			if err != nil {
 				ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
 				return
 			}
+			defer resp.Body.Close()
 
 			// Read content
 			body, err := ioutil.ReadAll(resp.Body)

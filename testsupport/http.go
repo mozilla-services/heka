@@ -11,7 +11,7 @@ type OneHttpServer struct {
 	listener      net.Listener
 }
 
-func NewHttpserver(response_data string, hostname string, port int) (server *OneHttpServer, e error) {
+func NewOneHttpServer(response_data string, hostname string, port int) (server *OneHttpServer, e error) {
 	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
 	if e != nil {
 		return nil, e
@@ -25,7 +25,7 @@ func (o *OneHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	o.listener.Close()
 }
 
-func (o *OneHttpServer) Start() {
-	http.Handle("/", o)
+func (o *OneHttpServer) Start(urlpath string) {
+	http.Handle(urlpath, o)
 	http.Serve(o.listener, nil)
 }
