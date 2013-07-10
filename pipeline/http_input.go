@@ -23,7 +23,6 @@ type HttpInputConfig struct {
 func (hi *HttpInput) ConfigStruct() interface{} {
 	return &HttpInputConfig{
 		TickerInterval: uint(10),
-		DecoderName:    "JsonDecoder",
 	}
 }
 
@@ -44,7 +43,6 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
 		pack    *PipelinePack
 		dRunner DecoderRunner
-		e       error
 		ok      bool
 	)
 
@@ -60,21 +58,16 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	if dRunner, ok = dSet.ByName(hi.decoderName); !ok {
 		return fmt.Errorf("Decoder not found: %s", hi.decoderName)
 	}
-	decoder := dRunner.Decoder()
-
 	for {
 		select {
 		case data := <-hi.dataChan:
 			pack = <-packSupply
 			copy(pack.MsgBytes, data)
-			pack.Message.SetType("httpdata")
+			pack.Message.SetType("heka.httpdata")
 			pack.Message.SetHostname(hostname)
-			if e = decoder.Decode(pack); e == nil {
-				ir.Inject(pack)
-			} else {
-				ir.LogError(fmt.Errorf("Couldn't parse HTTP data: %s", string(data)))
-				pack.Recycle()
-			}
+			dRunner.InChan() <- pack
+		case <-hi.stopChan:
+			return
 		}
 	}
 
@@ -83,6 +76,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 func (hi *HttpInput) Stop() {
 	close(hi.stopChan)
+	close(hi.Monitor.stopChan)
 }
 
 type HttpInputMonitor struct {
@@ -113,17 +107,16 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 			resp, err := http.Get(hm.url)
 			if err != nil {
 				ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
-				return
+				continue
 			}
-			defer resp.Body.Close()
 
 			// Read content
 			body, err := ioutil.ReadAll(resp.Body)
-
 			if err != nil {
 				ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
 				continue
 			}
+			resp.Body.Close()
 
 			// Send it on the channel
 			hm.dataChan <- body
@@ -133,8 +126,4 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 			return
 		}
 	}
-}
-
-func (hm *HttpInputMonitor) Stop() {
-	hm.stopChan <- true
 }
