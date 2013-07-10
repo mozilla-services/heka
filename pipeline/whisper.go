@@ -143,14 +143,6 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	o.basePath = conf.BasePath
 	o.defaultAggMethod = conf.DefaultAggMethod
 
-	if err = os.MkdirAll(o.basePath, 0700); err != nil {
-		return
-	}
-
-	if err = checkWritePermission(o.basePath); err != nil {
-		return
-	}
-
 	var intPerm int64
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
 		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, ",
@@ -158,6 +150,14 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 		return
 	}
 	o.folderPerm = os.FileMode(intPerm)
+
+	if err = os.MkdirAll(o.basePath, o.folderPerm); err != nil {
+		return
+	}
+
+	if err = checkWritePermission(o.basePath); err != nil {
+		return
+	}
 
 	if conf.DefaultArchiveInfo == nil {
 		// 60 seconds per datapoint, 1440 datapoints = 1 day of retention
