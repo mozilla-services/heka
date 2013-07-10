@@ -15,7 +15,6 @@
 package pipeline
 
 import (
-	"math"
 	"syscall"
 )
 
