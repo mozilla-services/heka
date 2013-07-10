@@ -16,10 +16,8 @@ type HttpInput struct {
 
 type HttpInputConfig struct {
 	Url            string
-	TickerInterval uint `toml:"ticker_interval"`
-
-	// Names of configured `LoglineDecoder` instances.
-	DecoderName string
+	TickerInterval uint   `toml:"ticker_interval"`
+	DecoderName    string `toml:"decoder"`
 }
 
 func (hi *HttpInput) ConfigStruct() interface{} {
@@ -71,7 +69,6 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			copy(pack.MsgBytes, data)
 			pack.Message.SetType("httpdata")
 			pack.Message.SetHostname(hostname)
-
 			if e = decoder.Decode(pack); e == nil {
 				ir.Inject(pack)
 			} else {
@@ -105,7 +102,6 @@ func (hm *HttpInputMonitor) Init(url string, dataChan chan []byte, stopChan chan
 
 func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 	ir.LogMessage("[HttpInputMonitor] Monitoring...")
-
 
 	hm.ir = ir
 	hm.tickChan = ir.Ticker()
