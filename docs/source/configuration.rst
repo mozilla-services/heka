@@ -662,15 +662,15 @@ Example (Parsing Apache Combined Log Format):
 
     [apache_transform_decoder]
     type = "LoglineDecoder"
-    matchRegex = `/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
-    [apache_transform_decoder.SeverityMap]
+    [apache_transform_decoder.severity_map]
     DEBUG = 1
     WARNING = 2
     INFO = 3
 
-    [apache_transform_decoder.MessageFields]
+    [apache_transform_decoder.message_fields]
     Type = "ApacheLogfile"
     Logger = "apache"
     Url|uri = "%Url%"
