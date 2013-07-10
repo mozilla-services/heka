@@ -62,7 +62,11 @@ func HttpInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 		mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
-		mockDecoderRunner.EXPECT().InChan()
+
+        // Stub out the DecoderRunner input channel so that we can
+        // inspect bytes later on
+		dRunnerInChan := make(chan *PipelinePack, 1)
+		mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 		dset := ith.MockDecoderSet.EXPECT().ByName("JsonDecoder")
 		dset.Return(ith.Decoders[message.Header_JSON], true)
