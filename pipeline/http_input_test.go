@@ -50,6 +50,7 @@ func HttpInputSpec(c gs.Context) {
 
 		httpInput := HttpInput{}
 		config := httpInput.ConfigStruct().(*HttpInputConfig)
+		config.DecoderName = "JsonDecoder"
 		config.Url = "http://localhost:9876/"
 		tickChan := make(chan time.Time)
 
@@ -60,9 +61,8 @@ func HttpInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
-		mockDecoder := NewMockDecoder(ctrl)
 		mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
-		mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
+		mockDecoderRunner.EXPECT().InChan()
 
 		dset := ith.MockDecoderSet.EXPECT().ByName("JsonDecoder")
 		dset.Return(ith.Decoders[message.Header_JSON], true)
@@ -75,8 +75,6 @@ func HttpInputSpec(c gs.Context) {
 		}
 
 		c.Specify("honors time ticker to flush", func() {
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).AnyTimes()
-			mockDecoder.EXPECT().Decode(ith.Pack).Return(nil)
 
 			err := httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
