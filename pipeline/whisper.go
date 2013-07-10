@@ -129,7 +129,7 @@ type WhisperOutputConfig struct {
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	basePath := path.Join("/var", "run", "hekad", "whisper")
+	basePath := path.Join(string(os.PathSeparator), "var", "run", "hekad", "whisper")
 
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
