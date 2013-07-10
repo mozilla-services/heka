@@ -554,7 +554,7 @@ Parameters:
     Defaults to 10.
 - decoder (string):
     The name of the decoder used to transform the response body text into
-    a structured hekad message. Defaults to "JsonDecoder"
+    a structured hekad message. No default decoder is specified.
 
 Example:
 
