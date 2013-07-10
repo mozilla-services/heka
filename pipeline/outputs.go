@@ -396,9 +396,11 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 func checkWritePermission(filepath string) (err error) {
 	var file *os.File
-	if file, err = os.OpenFile(path.Join(filepath, ".hekad.perm_check"), os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+	filename := path.Join(filepath, ".hekad.perm_check")
+	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
 		file.WriteString("ok")
 		file.Close()
+		os.Remove(filename)
 	}
 	return err
 }
