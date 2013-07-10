@@ -253,7 +253,7 @@ AMQPInput
 Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from
 the specified queue. If the message is serialized by hekad's AMQPOutput
 then the message will be de-serialized, otherwise the message will be
-run through the specified LoglineDecoder's. As AMQP is dynamically
+run through the specified PayloadRegexDecoder's. As AMQP is dynamically
 programmable, the broker topology needs to be specified.
 
 Parameters:
@@ -290,7 +290,7 @@ Parameters:
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
 - Decoders (list of strings):
-    List of logline decoder names used to transform a raw message body into
+    List of decoder names used to transform a raw message body into
     a structured hekad message. These are skipped for serialized hekad
     messages.
 
@@ -304,7 +304,7 @@ configuration to consume serialized messages would look like:
     exchange = "testout"
     exchangeType = "fanout"
 
-Or if using a logline decoder to parse OSX syslog messages may look like:
+Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
 
 .. code-block:: ini
 
@@ -315,7 +315,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
     decoders = ["logparser", "leftovers"]
 
     [logparser]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
 
     [logparser.MessageFields]
@@ -327,7 +327,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
     Payload = "%Remaining%"
 
     [leftovers]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     MatchRegex = '.*'
 
     [leftovers.MessageFields]
@@ -445,7 +445,7 @@ Parameters:
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
 - decoders (list of strings):
-    List of logline decoder names used to transform the log line into
+    List of decoder names used to transform the log line into
     a structured hekad message.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
@@ -572,9 +572,9 @@ struct objects. The hekad protocol buffers message schema in defined in the
 .. seealso:: `Protocol Buffers - Google's data interchange format
    <http://code.google.com/p/protobuf/>`_
 
-.. _config_logline_decoder:
+.. _config_payloadregex_decoder:
 
-LoglineDecoder
+PayloadRegexDecoder
 --------------
 
 Decoder plugin that accepts messages of a specified form and generates new
@@ -630,7 +630,7 @@ Example (Parsing Apache Combined Log Format):
 .. code-block:: ini
 
     [apache_transform_decoder]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 -0700"
 

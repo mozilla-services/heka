@@ -653,9 +653,9 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	// Load all the plugins
 	var errcnt uint
 	for name, conf := range configFile {
-        if name == "hekad"  {
-            continue
-        }
+		if name == "hekad" {
+			continue
+		}
 		log.Println("Loading: ", name)
 		errcnt += self.loadSection(name, conf)
 	}
@@ -721,8 +721,8 @@ func init() {
 	RegisterPlugin("SandboxFilter", func() interface{} {
 		return new(SandboxFilter)
 	})
-	RegisterPlugin("LoglineDecoder", func() interface{} {
-		return new(LoglineDecoder)
+	RegisterPlugin("PayloadRegexDecoder", func() interface{} {
+		return new(PayloadRegexDecoder)
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
