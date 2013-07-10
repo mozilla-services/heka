@@ -14,13 +14,6 @@
 
 package pipeline
 
-import (
-	"syscall"
-)
+import "syscall"
 
-// Define it since it is not defined for Windows.
-
-// Note that you will need to manually send signal 10 to hekad as
-// SIGUSR1 isn't defined on Windows.
-
-const SIGUSR1 = syscall.Signal(0xa)
+const SIGUSR1 = syscall.SIGUSR1
