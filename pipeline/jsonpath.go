@@ -36,9 +36,9 @@ func NewJsonPath(json_text string) (result *JsonPath, err error) {
 	return result, nil
 }
 
-func (j *JsonPath) find(jp string) (result string, err error) {
+func (j *JsonPath) find(jp string) (result interface{}, err error) {
 	if jp == "" {
-		return "", errors.New("invalid path")
+		return result, errors.New("invalid path")
 	}
 
 	// Need to grab a pointer to the top of the data structure
@@ -49,7 +49,7 @@ func (j *JsonPath) find(jp string) (result string, err error) {
 	for _, token := range strings.Split(jp, "/") {
 		sl := re.FindAllStringSubmatch(token, -1)
 		if len(sl) == 0 {
-			return "", errors.New("invalid path")
+			return result, errors.New("invalid path")
 		}
 		ss := sl[0]
 		if ss[1] != "" {
@@ -58,12 +58,14 @@ func (j *JsonPath) find(jp string) (result string, err error) {
 		if ss[2] != "" {
 			i, err := strconv.Atoi(ss[2][1 : len(ss[2])-1])
 			if err != nil {
-				return "", errors.New("invalid path")
+				return result, errors.New("invalid path")
 			}
 			v = v.([]interface{})[i]
 		}
 	}
 
-	result = v.(string)
+	//rv := reflect.ValueOf(v)
+	//rv_kind := rv.Kind()
+	result = v
 	return result, nil
 }
