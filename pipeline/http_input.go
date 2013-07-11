@@ -69,10 +69,10 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			pack = <-packSupply
 			pack.Message.SetType("heka.httpdata")
 			pack.Message.SetHostname(hostname)
+			pack.Message.SetPayload(string(data))
 			if router_shortcircuit {
 				pConfig.router.InChan() <- pack
 			} else {
-				copy(pack.MsgBytes, data)
 				dRunner.InChan() <- pack
 			}
 		case <-hi.stopChan:
