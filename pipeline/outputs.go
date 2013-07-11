@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -397,10 +398,21 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 func checkWritePermission(filepath string) (err error) {
 	var file *os.File
 	filename := path.Join(filepath, ".hekad.perm_check")
-	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
-		file.WriteString("ok")
-		file.Close()
-		os.Remove(filename)
+	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644); err == nil {
+		errMsgs := make([]string, 0, 3)
+		var e error
+		if _, e = file.WriteString("ok"); e != nil {
+			errMsgs = append(errMsgs, "can't write to test file")
+		}
+		if e = file.Close(); e != nil {
+			errMsgs = append(errMsgs, "can't close test file")
+		}
+		if e = os.Remove(filename); e != nil {
+			errMsgs = append(errMsgs, "can't remove test file")
+		}
+		if len(errMsgs) > 0 {
+			err = fmt.Errorf("errors: %s", strings.Join(errMsgs, ", "))
+		}
 	}
-	return err
+	return
 }
