@@ -34,8 +34,8 @@ func JsonPathSpec(c gs.Context) {
 			}
 		],
 		"boo": {
-			"bag": "ddd",
-			"bug": "ccc"
+			"bag": true,
+			"bug": false
 		}
 	}
 }
@@ -65,5 +65,14 @@ func JsonPathSpec(c gs.Context) {
 		result, err = json_path.find("/foo/bar[1]/moo")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, float64(256))
+
+		result, err = json_path.find("/foo/boo/bag")
+		c.Expect(err, gs.IsNil)
+		c.Expect(result, gs.Equals, true)
+
+		result, err = json_path.find("/foo/boo/bug")
+		c.Expect(err, gs.IsNil)
+		c.Expect(result, gs.Equals, false)
+
 	})
 }
