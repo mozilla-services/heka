@@ -55,6 +55,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(StatAccumInputSpec)
 	r.AddSpec(CarbonOutputSpec)
 	r.AddSpec(DashboardOutputSpec)
+	r.AddSpec(JsonPathSpec)
 	gospec.MainGoTest(r, t)
 }
 
