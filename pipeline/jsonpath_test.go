@@ -65,15 +65,15 @@ func JsonPathSpec(c gs.Context) {
 
 		result, err = json_path.Find("/foo/bar[1]/moo")
 		c.Expect(err, gs.IsNil)
-		c.Expect(result, gs.Equals, float64(256))
+		c.Expect(result, gs.Equals, "256.000000000")
 
 		result, err = json_path.Find("/foo/boo/bag")
 		c.Expect(err, gs.IsNil)
-		c.Expect(result, gs.Equals, true)
+		c.Expect(result, gs.Equals, "true")
 
 		result, err = json_path.Find("/foo/boo/bug")
 		c.Expect(err, gs.IsNil)
-		c.Expect(result, gs.Equals, false)
+		c.Expect(result, gs.Equals, "false")
 
 		result, err = json_path.Find("/foo/bar[99]/baz")
 		c.Expect(err, gs.Not(gs.IsNil))

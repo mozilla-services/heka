@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -71,8 +72,16 @@ func (j *JsonPath) Find(jp string) (result interface{}, err error) {
 		}
 	}
 
-	//rv := reflect.ValueOf(v)
-	//rv_kind := rv.Kind()
-	result = v
+	r_kind := reflect.ValueOf(v).Kind()
+	if r_kind == reflect.Bool {
+		result = fmt.Sprintf("%t", v)
+	} else if r_kind == reflect.Float64 {
+		result = fmt.Sprintf("%0.9f", v)
+	} else if r_kind == reflect.Int64 {
+		result = fmt.Sprintf("%d", v)
+	} else {
+		result = fmt.Sprintf("%s", v)
+	}
+
 	return result, nil
 }
