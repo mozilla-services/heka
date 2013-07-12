@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -140,13 +141,17 @@ type FileOutput struct {
 type FileOutputConfig struct {
 	// Full output file path.
 	Path string
+
 	// Format for message serialization, from text (payload only), json, or
 	// protobufstream.
 	Format string
+
 	// Add timestamp prefix to each output line?
 	Prefix_ts bool
+
 	// Output file permissions (default "644").
 	Perm string
+
 	// Interval at which accumulated file data should be written to disk, in
 	// milliseconds (default 1000, i.e. 1 second).
 	FlushInterval uint32
@@ -158,7 +163,9 @@ type FileOutputConfig struct {
 }
 
 func (o *FileOutput) ConfigStruct() interface{} {
-	return &FileOutputConfig{Format: "text", Perm: "644",
+	return &FileOutputConfig{
+		Format:        "text",
+		Perm:          "644",
 		FlushInterval: 1000,
 		FolderPerm:    "700",
 	}
@@ -175,6 +182,14 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	o.format = conf.Format
 	o.prefix_ts = conf.Prefix_ts
 	var intPerm int64
+
+	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
+		err = fmt.Errorf("FileOutput '%s' can't parse `folder_perm`, is it an octal integer string?",
+			o.path)
+		return
+	}
+	o.folderPerm = os.FileMode(intPerm)
+
 	if intPerm, err = strconv.ParseInt(conf.Perm, 8, 32); err != nil {
 		err = fmt.Errorf("FileOutput '%s' can't parse `perm`, is it an octal integer string?",
 			o.path)
@@ -186,13 +201,6 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		return
 	}
 
-	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
-		err = fmt.Errorf("FileOutput '%s' can't parse `folder_perm`, is it an octal integer string?",
-			o.path)
-		return
-	}
-	o.folderPerm = os.FileMode(intPerm)
-
 	o.flushInterval = conf.FlushInterval
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2) // Never block on the hand-back
@@ -200,17 +208,13 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 }
 
 func (o *FileOutput) openFile() (err error) {
-
 	basePath := path.Dir(o.path)
-
 	if err = os.MkdirAll(basePath, o.folderPerm); err != nil {
 		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
 	}
-
 	if err = checkWritePermission(basePath); err != nil {
 		return
 	}
-
 	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
 	return
 }
@@ -393,9 +397,22 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 func checkWritePermission(filepath string) (err error) {
 	var file *os.File
-	if file, err = os.OpenFile(path.Join(filepath, ".hekad.perm_check"), os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
-		file.WriteString("ok")
-		file.Close()
+	filename := path.Join(filepath, ".hekad.perm_check")
+	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644); err == nil {
+		errMsgs := make([]string, 0, 3)
+		var e error
+		if _, e = file.WriteString("ok"); e != nil {
+			errMsgs = append(errMsgs, "can't write to test file")
+		}
+		if e = file.Close(); e != nil {
+			errMsgs = append(errMsgs, "can't close test file")
+		}
+		if e = os.Remove(filename); e != nil {
+			errMsgs = append(errMsgs, "can't remove test file")
+		}
+		if len(errMsgs) > 0 {
+			err = fmt.Errorf("errors: %s", strings.Join(errMsgs, ", "))
+		}
 	}
-	return err
+	return
 }

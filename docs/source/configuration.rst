@@ -534,6 +534,37 @@ Parameters:
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
 
+.. _config_http_input:
+
+HttpInput
+---------
+
+Starts a HTTP client which intermittently polls a URL for data.
+The entire response body is parsed by a decoder into a pipeline pack.
+Data is always fetched using HTTP GET and any errors are logged and
+are not fatal for the plugin.
+
+Parameters:
+
+- url (string):
+    A HTTP URL which this plugin will regularly poll for data. 
+    No default URL is specified.
+- ticker_interval (uint):
+    Time interval (in seconds) between attempts to poll for new data.
+    Defaults to 10.
+- decoder (string):
+    The name of the decoder used to transform the response body text into
+    a structured hekad message. No default decoder is specified.
+
+Example:
+
+.. code-block:: ini
+
+    [HttpInput]
+    url = "http://localhost:9876/"
+    ticker_interval = 5
+    decoder = "JsonDecoder"
+
 .. end-inputs
 
 .. start-decoders
