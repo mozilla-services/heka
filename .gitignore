@@ -1,3 +1,8 @@
 cmd/hekad/plugin_loader.go
 docs/build
 sandbox/lua/lua_sandbox.go
+message/message.pb.go
+message/message_matcher_parser.go
+message/y.output
+build
+mock_*
