@@ -44,33 +44,34 @@ func JsonPathSpec(c gs.Context) {
 		var json_path *JsonPath
 		var result interface{}
 
-		json_path, err = NewJsonPath(s)
+		json_path = new(JsonPath)
+		err = json_path.SetJsonText(s)
 		if err != nil {
 			fmt.Println(err.Error())
 			return
 		}
 
-		result, err = json_path.find("/foo/bar[0]/baz")
+		result, err = json_path.Find("/foo/bar[0]/baz")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, "こんにちわ世界")
 
-		result, err = json_path.find("/foo/bar[0]/noo")
+		result, err = json_path.Find("/foo/bar[0]/noo")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, "aaa")
 
-		result, err = json_path.find("/foo/bar[1]/maz")
+		result, err = json_path.Find("/foo/bar[1]/maz")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, "123")
 
-		result, err = json_path.find("/foo/bar[1]/moo")
+		result, err = json_path.Find("/foo/bar[1]/moo")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, float64(256))
 
-		result, err = json_path.find("/foo/boo/bag")
+		result, err = json_path.Find("/foo/boo/bag")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, true)
 
-		result, err = json_path.find("/foo/boo/bug")
+		result, err = json_path.Find("/foo/boo/bug")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result, gs.Equals, false)
 

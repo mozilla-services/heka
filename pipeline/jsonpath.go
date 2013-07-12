@@ -27,16 +27,13 @@ type JsonPath struct {
 	json_text string
 }
 
-func NewJsonPath(json_text string) (result *JsonPath, err error) {
-	result = &JsonPath{json_text: json_text}
-	err = json.Unmarshal([]byte(json_text), &result.json_data)
-	if err != nil {
-		return
-	}
-	return result, nil
+func (j *JsonPath) SetJsonText(json_text string) (err error) {
+	j.json_text = json_text
+	err = json.Unmarshal([]byte(json_text), &j.json_data)
+    return
 }
 
-func (j *JsonPath) find(jp string) (result interface{}, err error) {
+func (j *JsonPath) Find(jp string) (result interface{}, err error) {
 	if jp == "" {
 		return result, errors.New("invalid path")
 	}
