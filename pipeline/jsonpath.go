@@ -37,7 +37,7 @@ func (j *JsonPath) SetJsonText(json_text string) (err error) {
 	return
 }
 
-func (j *JsonPath) Find(jp string) (result interface{}, err error) {
+func (j *JsonPath) Find(jp string) (result string, err error) {
 	var ok bool
 
 	if jp == "" {
