@@ -8,18 +8,14 @@
 set(MOCKGEN_EXECUTABLE "${PROJECT_PATH}/bin/mockgen${CMAKE_EXECUTABLE_SUFFIX}")
 macro(add_internal_mock package destination mocked_object source)
     set(_path "${HEKA_PATH}/${package}/${destination}")
-    set(_preserve "${CMAKE_SOURCE_DIR}/${package}/${destination}")
-    # mockgen requires the files to be in the gopath so we have to generate it
-    # and copy it back for the dependency analysis to work
-    set(_MOCK_LIST ${_MOCK_LIST} ${_preserve})
-    add_custom_command(OUTPUT ${_preserve}
+    set(_MOCK_LIST ${_MOCK_LIST} ${_path})
+    add_custom_command(OUTPUT ${_path}
     COMMAND ${MOCKGEN_EXECUTABLE}
     -package=${package}
-    -destination="${package}/${destination}"
+    -destination="${_path}"
     -self_package=github.com/mozilla-services/heka/${package}
     github.com/mozilla-services/heka/${package}
     ${mocked_object}
-    COMMAND ${CMAKE_COMMAND} -E copy "${_path}" "${_preserve}"
     DEPENDS "${CMAKE_SOURCE_DIR}/${package}/${source}"
     WORKING_DIRECTORY ${HEKA_PATH}
     COMMENT "Built ${destination}")
