@@ -1,4 +1,4 @@
-0.3.0 (2013-??-??)
+0.3.0 (2013-07-16)
 ==================
 
 * Fixed default (and only supported, for now) sample rate in the stats
