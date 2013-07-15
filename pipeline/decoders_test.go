@@ -117,6 +117,53 @@ func DecodersSpec(c gospec.Context) {
 		Globals().Stopping = false
 	})
 
+	c.Specify("A JsonPayloadDecoder", func() {
+		decoder := new(PayloadJsonDecoder)
+		conf := decoder.ConfigStruct().(*PayloadJsonDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
+
+		c.Specify("decodes simple messages", func() {
+			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "03/Jan/2013:17:22:11 -0500"}`
+			conf.JsonMap = map[string]string{"Count": "/statsd/count",
+				"Name":      "/statsd/name",
+				"Pid":       "/pid",
+				"Timestamp": "/timestamp",
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"Pid":       "%Pid%",
+				"StatCount": "%Count%",
+				"StatName":  "%Name%",
+				"Timestamp": "%Timestamp%",
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(json_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			// TODO: check the Pid, statname, timestamp and count
+			c.Expect(pack.Message.GetPid(), gs.Equals, int32(532))
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1357251731000000000))
+
+			var ok bool
+			var name, count interface{}
+			count, ok = pack.Message.GetFieldValue("StatCount")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(count, gs.Equals, "1.000000000")
+
+			name, ok = pack.Message.GetFieldValue("StatName")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(name, gs.Equals, "some.counter")
+		})
+	})
+
 	c.Specify("A PayloadRegexDecoder", func() {
 		decoder := new(PayloadRegexDecoder)
 		conf := decoder.ConfigStruct().(*PayloadRegexDecoderConfig)
