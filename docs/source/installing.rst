@@ -31,12 +31,17 @@ Prerequisites (all systems):
 - Git http://code.google.com/p/msysgit/downloads/list
 - Go 1.1 or greater (1.1.1 recommended) http://code.google.com/p/go/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
+- Protobuf 2.3 or greater http://code.google.com/p/protobuf/downloads/list
 - Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
 
 Prerequisites (Unix):
 
 - make
 - gcc
+- patch
+- dpkg (optional)
+- rpmbuild (optional)
+- packagemaker (optional)
 
 Prerequisites (Windows):
 
