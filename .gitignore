@@ -1,3 +1,4 @@
 docs/build
 sandbox/lua/lua_sandbox.go.in
 build
+cmake/plugin_loader.cmake
