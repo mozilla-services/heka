@@ -43,6 +43,7 @@ type ElasticSearchOutput struct {
 	backChan      chan []byte
 	format        string
 	timestamp     string
+	useTimestamp   bool
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
@@ -78,6 +79,9 @@ type ElasticSearchOutputConfig struct {
 	// be done with the UDP Bulk API of ElasticSearch.
 	// (default to "http://localhost:9200")
 	Server string
+	// When formating the Index use the Timestamp from the Message instead of Now
+	UseTimestamp bool
+
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -90,6 +94,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Format:        "clean",
 		Timestamp:     "2006-01-02T15:04:05.000Z",
 		Server:        "http://localhost:9200",
+		UseTimestamp:  false,
 	}
 }
 
@@ -103,6 +108,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
+	o.useTimestamp = conf.UseTimestamp
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
@@ -199,6 +205,7 @@ type ElasticSearchCoordinates struct {
 	Id              string
 	Timestamp       *int64
 	TimestampFormat string
+	UseTimestamp    bool
 }
 
 func (e *ElasticSearchCoordinates) String() string {
@@ -209,14 +216,14 @@ func (e *ElasticSearchCoordinates) String() string {
 func (e *ElasticSearchCoordinates) Bytes() []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
-	buf.WriteString(strconv.Quote(cleanIndexName(e.Index)))
+	buf.WriteString(strconv.Quote(cleanIndexName(e)))
 	buf.WriteString(`,"_type":`)
 	buf.WriteString(strconv.Quote(e.Type))
 	if len(e.Id) > 0 {
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(e.Id))
 	}
-	if e != nil && e.Timestamp != nil {
+	if e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
 		buf.WriteString(`,"_timestamp":"`)
 		buf.WriteString(t.Format(e.TimestampFormat))
@@ -481,6 +488,7 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 		Type:            o.typeName,
 		Timestamp:       pack.Message.Timestamp,
 		TimestampFormat: o.timestamp,
+		UseTimestamp:    o.useTimestamp,
 	}
 
 	var document []byte
@@ -518,13 +526,21 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
-func cleanIndexName(name string) (index string) {
+func cleanIndexName(e *ElasticSearchCoordinates) (index string) {
+	name := e.Index
 	start := strings.Index(name, "%{")
 	end := strings.Index(name, "}")
 
 	if start > -1 && end > -1 {
 		layout := name[start+len("%{") : end]
-		index = name[:start] + time.Now().Format(layout)
+		var t time.Time
+		if e.UseTimestamp && e.Timestamp != nil {
+			t = time.Unix(0, *e.Timestamp).UTC()
+		} else {
+			t = time.Now()
+		}
+
+		index = name[:start] + t.Format(layout)
 	} else {
 		index = name
 	}
