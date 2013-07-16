@@ -3,8 +3,8 @@ set BUILD_DIR=%CD%\build
 
 setlocal ENABLEDELAYEDEXPANSION
 set NEWGOPATH=%BUILD_DIR%\heka
-set p=!PATH:%GOPATH%\bin;=!
-endlocal & set PATH=%p%;%NEWGOPATH%\bin; & set GOPATH=%NEWGOPATH%
+if NOT "%GOBIN%"=="" (set p=!PATH:%GOBIN%;=!) else (set p=!PATH!)
+endlocal & set GOPATH=%NEWGOPATH%& set GOBIN=%NEWGOPATH%\bin& set PATH=%p%;%NEWGOPATH%\bin;
 
 if NOT exist %BUILD_DIR% mkdir %BUILD_DIR%
 cd %BUILD_DIR%
