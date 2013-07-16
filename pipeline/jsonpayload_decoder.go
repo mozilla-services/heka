@@ -8,8 +8,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Ben Bangert (bbangert@mozilla.com)
-#   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -18,15 +17,14 @@ package pipeline
 import (
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
-	"regexp"
 	"strconv"
 	"time"
 )
 
-type LoglineDecoderConfig struct {
+type PayloadJsonDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
-	MatchRegex string `toml:"match_regex"`
+	JsonMap map[string]string `toml:"json_map"`
 
 	// Maps severity strings to their int version
 	SeverityMap map[string]int32 `toml:"severity_map"`
@@ -50,8 +48,8 @@ type LoglineDecoderConfig struct {
 	TimestampLocation string `toml:"timestamp_location"`
 }
 
-type LoglineDecoder struct {
-	Match           *regexp.Regexp
+type PayloadJsonDecoder struct {
+	JsonMap         map[string]string
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
@@ -59,19 +57,16 @@ type LoglineDecoder struct {
 	dRunner         DecoderRunner
 }
 
-func (ld *LoglineDecoder) ConfigStruct() interface{} {
-	return new(LoglineDecoderConfig)
+func (ld *PayloadJsonDecoder) ConfigStruct() interface{} {
+	return new(PayloadJsonDecoderConfig)
 }
 
-func (ld *LoglineDecoder) Init(config interface{}) (err error) {
-	conf := config.(*LoglineDecoderConfig)
-	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
-		err = fmt.Errorf("LoglineDecoder: %s", err)
-		return
-	}
-	if ld.Match.NumSubexp() == 0 {
-		err = fmt.Errorf("LoglineDecoder regex must contain capture groups")
-		return
+func (ld *PayloadJsonDecoder) Init(config interface{}) (err error) {
+	conf := config.(*PayloadJsonDecoderConfig)
+
+	ld.JsonMap = make(map[string]string)
+	for capture_name, jp := range conf.JsonMap {
+		ld.JsonMap[capture_name] = jp
 	}
 
 	ld.SeverityMap = make(map[string]int32)
@@ -88,34 +83,31 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	}
 	ld.TimestampLayout = conf.TimestampLayout
 	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
-		err = fmt.Errorf("LoglineDecoder unknown timestamp_location '%s': %s",
+		err = fmt.Errorf("PayloadJsonDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
 	return
 }
 
 // Heka will call this to give us access to the runner.
-func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
+func (ld *PayloadJsonDecoder) SetDecoderRunner(dr DecoderRunner) {
 	ld.dRunner = dr
 }
 
 // Matches the given string against the regex and returns the match result
 // and captures
-func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]string) {
-	findResults := re.FindStringSubmatch(s)
-	if findResults == nil {
-		return
-	}
-	match = true
+func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	captures = make(map[string]string)
-	for index, name := range re.SubexpNames() {
-		if index == 0 {
+
+	jp := new(JsonPath)
+	jp.SetJsonText(s)
+
+	for capture_group, jpath := range ld.JsonMap {
+		node_val, err := jp.Find(jpath)
+		if err != nil {
 			continue
 		}
-		if name == "" {
-			name = fmt.Sprintf("%d", index)
-		}
-		captures[name] = findResults[index]
+		captures[capture_group] = node_val
 	}
 	return
 }
@@ -123,12 +115,9 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
-func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
+func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
 	// First try to match the regex.
-	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
-	if !match {
-		return fmt.Errorf("No match")
-	}
+	captures := ld.match(pack.Message.GetPayload())
 
 	if timeStamp, ok := captures["Timestamp"]; ok {
 		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
