@@ -120,7 +120,7 @@ endif()
 if (MINGW)
     set(LUA_DLL_PATH "${PROJECT_PATH}/lib/liblua.dll")
     install(FILES ${LUA_DLL_PATH} DESTINATION bin)
-    add_custom_command(TARGET lua-5_1_5 POST_BUILD
+    add_custom_command(TARGET heka_source POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}"
     COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}/pipeline"
     COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}/sandbox/lua"
