@@ -126,10 +126,10 @@ func DecodersSpec(c gospec.Context) {
 
 		c.Specify("decodes simple messages", func() {
 			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "03/Jan/2013:17:22:11 -0500"}`
-			conf.JsonMap = map[string]string{"Count": "/statsd/count",
-				"Name":      "/statsd/name",
-				"Pid":       "/pid",
-				"Timestamp": "/timestamp",
+			conf.JsonMap = map[string]string{"Count": "$.statsd.count",
+				"Name":      "$.statsd.name",
+				"Pid":       "$.pid",
+				"Timestamp": "$.timestamp",
 			}
 
 			conf.MessageFields = MessageTemplate{
@@ -145,7 +145,6 @@ func DecodersSpec(c gospec.Context) {
 			pack.Message.SetPayload(json_data)
 			err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
-			// TODO: check the Pid, statname, timestamp and count
 			c.Expect(pack.Message.GetPid(), gs.Equals, int32(532))
 
 			c.Expect(pack.Message.GetTimestamp(),

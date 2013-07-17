@@ -40,14 +40,17 @@ func (j *JsonPath) SetJsonText(json_text string) (err error) {
 func (j *JsonPath) Find(jp string) (result string, err error) {
 	var ok bool
 
-	if jp == "" {
+	if jp == "" || strings.HasPrefix("$.", jp) {
 		return result, errors.New("invalid path")
 	}
+
+	// Strip off the leading $.
+	jp = jp[2:]
 
 	// Need to grab a pointer to the top of the data structure
 	v := j.json_data
 
-	for _, token := range strings.Split(jp, "/") {
+	for _, token := range strings.Split(jp, ".") {
 		sl := json_re.FindAllStringSubmatch(token, -1)
 		if len(sl) == 0 {
 			return result, errors.New("invalid path")
