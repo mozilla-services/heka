@@ -20,10 +20,14 @@ From Source
 ===========
 
 `hekad` requires a Go work environment to be setup for the binary to be
-built; this task is automated by the build process. To create a working `hekad` 
-binary for your platform you'll need to install some prerequisites. Many of
-these are standard on modern Unix distributions and all are available for 
-installation on Windows systems.
+built; this task is automated by the build process. The build script will
+override the Go environment for the shell window it is executed in. This creates
+an isolated environment that is intended specifically for building and 
+developing Heka.  The build script should be be run every time a new shell is 
+opened for Heka development to ensure the correct dependencies are found and 
+being used. To create a working `hekad` binary for your platform you'll need to
+install some prerequisites. Many of these are standard on modern Unix 
+distributions and all are available for installation on Windows systems.
 
 Prerequisites (all systems):
 
@@ -108,8 +112,8 @@ system:
 
     .. code-block:: bash
 
-        make packages # Unix
-        mingw32-make packages # Windows
+        make package # Unix
+        mingw32-make package # Windows
 
 The packages will be created in the build directory.
 
@@ -118,5 +122,3 @@ The packages will be created in the build directory.
     You will need `rpmbuild` installed to build the rpms.
 
     .. seealso:: `Setting up an rpm-build environment <http://wiki.centos.org/HowTos/SetupRpmBuildEnvironment>`_
-
-.. _heka build: https://github.com/mozilla-services/heka-build
