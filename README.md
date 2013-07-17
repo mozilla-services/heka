@@ -10,7 +10,9 @@ More details can be found on the ReadTheDocs sites for the [Heka
 project](http://heka-docs.readthedocs.org/) and for the [Heka
 daemon](http://hekad.readthedocs.org/), and lower level package
 documentation can be found on
-[GoDoc](http://godoc.org/github.com/mozilla-services/heka).
+[GoDoc](http://godoc.org/github.com/mozilla-services/heka). Questions can
+be asked on the [mailing list](https://mail.mozilla.org/listinfo/heka) or
+in the #heka channel on irc.mozilla.org.
 
 Heka is written in [Go](http://golang.org/), but Heka plugins can be written
 in either Go or [Lua](http://lua.org). The easiest way to install Heka is
