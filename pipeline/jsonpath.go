@@ -29,7 +29,7 @@ type JsonPath struct {
 	json_text string
 }
 
-var json_re = regexp.MustCompile("^([^0-9\\s\\[][^\\s\\[]*)?(\\[[0-9]+\\])?$")
+var json_re = regexp.MustCompile(`^([^0-9\s\[][^\s\[]*)?(\[[0-9]+\])?$`)
 
 func (j *JsonPath) SetJsonText(json_text string) (err error) {
 	j.json_text = json_text
