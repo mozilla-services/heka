@@ -117,7 +117,7 @@ func DecodersSpec(c gospec.Context) {
 		Globals().Stopping = false
 	})
 
-	c.Specify("A JsonPayloadDecoder", func() {
+	c.Specify("A PayloadJsonDecoder", func() {
 		decoder := new(PayloadJsonDecoder)
 		conf := decoder.ConfigStruct().(*PayloadJsonDecoderConfig)
 		supply := make(chan *PipelinePack, 1)
