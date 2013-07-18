@@ -685,12 +685,9 @@ Example (Parsing Apache Combined Log Format):
 PayloadJsonDecoder
 ------------------
 
-Decoder plugin that accepts messages of a specified form and generates new
-outgoing messages from extracted data, effectively transforming one message
-format into another. Can be combined w/ `message_matcher` capture groups (see
-:ref:`matcher_capture_groups`) to extract unstructured information from
-message payloads and use it to populate `Message` struct attributes and fields
-in a more structured manner.
+This decoder plugin accepts JSON blobs and allows you to map parts
+of the JSON into Field attributes of the pipelinepack message using
+JSONPath syntax.
 
 Parameters:
 
@@ -705,7 +702,7 @@ Parameters:
     `WARNING` can be translated to `3` by settings in this section.
 - message_fields:
     Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in a regex
+    that should be used. Valid interpolated values are any captured in a JSONPath
     in the message_matcher, and any other field that exists in the message. In
     the event that a captured name overlaps with a message field, the captured
     name's value will be used. Optional representation metadata can be added at 
@@ -744,7 +741,6 @@ Example:
 
     [myjson_decoder]
     type = "PayloadJsonDecoder"
-    timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
     [myjson_decoder.json_map]
     Count = "$.statsd.count"
@@ -763,7 +759,8 @@ Example:
     StatName =  "%Name%"
     Timestamp = "%Timestamp%"
 
-Heka only supports a small subset of valid JSONPath expressions.
+PayloadJsonDecoder's json_map config subsection  only supports a small
+subset of valid JSONPath expressions.
 
 ========     =========================================
 JSONPath     Description

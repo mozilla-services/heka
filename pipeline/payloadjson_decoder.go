@@ -96,7 +96,7 @@ func (ld *PayloadJsonDecoder) SetDecoderRunner(dr DecoderRunner) {
 	ld.dRunner = dr
 }
 
-// Matches the given string against the regex and returns the match result
+// Matches the given string against the JSONPath and returns the match result
 // and captures
 func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	captures = make(map[string]string)
@@ -114,11 +114,11 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	return
 }
 
-// Runs the message payload against decoder's regex. If there's a match, the
-// message will be populated based on the decoder's message template, with
-// capture values interpolated into the message template values.
+// Runs the message payload against decoder's map of JSONPaths. If
+// there's a match, the message will be populated based on the
+// decoder's message template, with capture values interpolated into
+// the message template values.
 func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
-	// First try to match the regex.
 	captures := ld.match(pack.Message.GetPayload())
 
 	if timeStamp, ok := captures["Timestamp"]; ok {
