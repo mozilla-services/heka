@@ -19,7 +19,7 @@ import (
 	"github.com/rafrombrc/whisper-go/whisper"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,7 +54,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		}
 
 		// First make sure the folder is there.
-		dir := path.Dir(path_)
+		dir := filepath.Dir(path_)
 		if _, err = os.Stat(dir); os.IsNotExist(err) {
 			if err = os.MkdirAll(dir, folderPerm); err != nil {
 				err = fmt.Errorf("Error creating whisper db folder '%s': %s", dir, err)
@@ -129,7 +129,7 @@ type WhisperOutputConfig struct {
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	basePath := path.Join("var", "run", "hekad", "whisper")
+	basePath := filepath.Join("var", "run", "hekad", "whisper")
 
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
@@ -184,7 +184,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
 	statPath = strings.Replace(statName, ".", string(os.PathSeparator), -1)
 	statPath = strings.Join([]string{statPath, "wsp"}, ".")
-	statPath = path.Join(o.basePath, statPath)
+	statPath = filepath.Join(o.basePath, statPath)
 	return
 }
 

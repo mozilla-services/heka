@@ -22,7 +22,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -31,12 +31,12 @@ func createIncompleteLogfileInput(journal_name string) (*LogfileInput, *LogfileI
 
 	lfInput := new(LogfileInput)
 	lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-	lfiConfig.LogFile = "../testsupport/test-zeus-incomplete.log"
+	lfiConfig.LogFile = filepath.Join("..", "testsupport", "test-zeus-incomplete.log")
 	lfiConfig.DiscoverInterval = 5
 	lfiConfig.StatInterval = 5
 	lfiConfig.SeekJournal = journal_name
 	// Remove any journal that may exist
-	os.Remove(path.Clean(journal_name))
+	os.Remove(filepath.Clean(journal_name))
 
 	return lfInput, lfiConfig
 }
@@ -130,7 +130,11 @@ func LogfileInputSpec(c gs.Context) {
 
 			json.Unmarshal(fbytes, &newFM)
 
-			c.Expect(newFM.seek, gs.Equals, int64(1249))
+			if runtime.GOOS == "windows" {
+				c.Expect(newFM.seek, gs.Equals, int64(1253))
+			} else {
+				c.Expect(newFM.seek, gs.Equals, int64(1249))
+			}
 		})
 
 	})

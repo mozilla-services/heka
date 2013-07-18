@@ -22,7 +22,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/whisper-go/whisper"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +31,7 @@ import (
 func WhisperRunnerSpec(c gospec.Context) {
 	tmpDir := os.TempDir()
 	tmpFileName := fmt.Sprintf("heka-%d.wsp", time.Now().UTC().UnixNano())
-	tmpFileName = path.Join(tmpDir, tmpFileName)
+	tmpFileName = filepath.Join(tmpDir, tmpFileName)
 
 	interval := uint32(10)
 	archiveInfo := []whisper.ArchiveInfo{

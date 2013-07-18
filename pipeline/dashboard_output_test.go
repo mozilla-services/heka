@@ -19,7 +19,8 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
-	"path"
+	"path/filepath"
+	"runtime"
 )
 
 func DashboardOutputSpec(c gs.Context) {
@@ -32,12 +33,16 @@ func DashboardOutputSpec(c gs.Context) {
 
 		config := dashboardOutput.ConfigStruct().(*DashboardOutputConfig)
 		c.Specify("Init halts if basedirectory is not writable", func() {
-			tmpdir := path.Join(os.TempDir(), "tmpdir")
+			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
 			err := os.MkdirAll(tmpdir, 0400)
 			c.Assume(err, gs.IsNil)
 			config.WorkingDirectory = tmpdir
 			err = dashboardOutput.Init(config)
-			c.Assume(err, gs.Not(gs.IsNil))
+			if runtime.GOOS == "windows" {
+				c.Assume(err, gs.IsNil)
+			} else {
+				c.Assume(err, gs.Not(gs.IsNil))
+			}
 		})
 	})
 }
