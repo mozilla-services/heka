@@ -87,5 +87,10 @@ func JsonPathSpec(c gs.Context) {
 		result, err = json_path.Find("$.foo.bar.3428")
 		c.Expect(err, gs.Not(gs.IsNil))
 
+		expected_data := `[{"baz":"こんにちわ世界","noo":"aaa"},{"maz":"123","moo":256}]`
+		result_data, err := json_path.Find("$.foo.bar")
+		c.Expect(err, gs.IsNil)
+		c.Expect(result_data, gs.Equals, expected_data)
+
 	})
 }

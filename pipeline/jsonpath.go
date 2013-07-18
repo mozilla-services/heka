@@ -82,6 +82,9 @@ func (j *JsonPath) Find(jp string) (result string, err error) {
 		result = fmt.Sprintf("%0.9f", v)
 	} else if r_kind == reflect.Int64 {
 		result = fmt.Sprintf("%d", v)
+	} else if r_kind == reflect.Map || r_kind == reflect.Slice {
+		json_str, _ := json.Marshal(v)
+		result = fmt.Sprintf("%s", json_str)
 	} else {
 		result = fmt.Sprintf("%s", v)
 	}
