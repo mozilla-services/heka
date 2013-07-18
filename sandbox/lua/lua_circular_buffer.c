@@ -291,6 +291,53 @@ static double compute_avg(circular_buffer* cb, int column, int start_row,
     return result / row_count;
 }
 
+// TODO remove - BSD sqrt function using Newton's method
+// This is a temporary fix until we figure out why the math sqrt function call
+// causes cgo link errors on Windows.
+////////////////////////////////////////////////////////////////////////////////
+static double bsd_sqrt(double arg)
+{
+    double x, temp;
+    int exp;
+    int i;
+
+    if (arg <= 0.) {
+        return (0.);
+    }
+    x = frexp(arg, &exp);
+    while (x < 0.5) {
+        x *= 2;
+        exp--;
+    }
+    /*
+     * NOTE
+     * this wont work on 1's comp
+     */
+    if (exp & 1) {
+        x *= 2;
+        exp--;
+    }
+    temp = 0.5 * (1.0 + x);
+
+    while (exp > 60) {
+        temp *= (1L << 30);
+        exp -= 60;
+    }
+    while (exp < -60) {
+        temp /= (1L << 30);
+        exp += 60;
+    }
+    if (exp >= 0) {
+        temp *= 1L << (exp / 2);
+    } else {
+        temp /= 1L << (-exp / 2);
+    }
+    for (i = 0; i <= 4; i++) {
+        temp = 0.5 * (temp + arg / temp);
+    }
+    return (temp);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 static double compute_sd(circular_buffer* cb, int column, int start_row,
                          int end_row)
@@ -309,7 +356,7 @@ static double compute_sd(circular_buffer* cb, int column, int start_row,
         ++row_count;
     }
     while (row++ != end_row);
-    return sqrt(sum_squares / row_count);
+    return bsd_sqrt(sum_squares / row_count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
