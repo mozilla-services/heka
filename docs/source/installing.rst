@@ -9,9 +9,9 @@ Installing
 Binaries
 ========
 
-`hekad` `releases are available on the Mozilla Services website
-<https://docs.services.mozilla.com/_static/binaries/hekad-0.2/>`_.
-Binaries are available for Linux, OSX, and Windows with packages for Debian and
+`hekad` `releases are available on the Github project releases page
+<https://github.com/mozilla-services/heka/releases>`_.
+Binaries are available for Linux and OSX, with packages for Debian and
 RPM based distributions.
 
 .. _from_source:

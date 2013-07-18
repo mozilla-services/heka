@@ -688,6 +688,9 @@ func init() {
 	RegisterPlugin("TcpInput", func() interface{} {
 		return new(TcpInput)
 	})
+	RegisterPlugin("HttpInput", func() interface{} {
+		return new(HttpInput)
+	})
 	RegisterPlugin("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
 	})
