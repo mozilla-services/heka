@@ -114,17 +114,19 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	return
 }
 
-// Runs the message payload against decoder's map of JSONPaths. If
-// there's a match, the message will be populated based on the
-// decoder's message template, with capture values interpolated into
-// the message template values.
-func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
-	captures := ld.match(pack.Message.GetPayload())
+type GenericDecoder struct {
+	Captures        map[string]string
+	dRunner         DecoderRunner
+	TimestampLayout string
+	TzLocation      *time.Location
+	SeverityMap     map[string]int32
+}
 
-	if timeStamp, ok := captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
+func (gd *GenericDecoder) DecodeTimestamp(pack *PipelinePack) {
+	if timeStamp, ok := gd.Captures["Timestamp"]; ok {
+		val, err := ForgivingTimeParse(gd.TimestampLayout, timeStamp, gd.TzLocation)
 		if err != nil {
-			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
+			gd.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
 		}
 		// If we only get a timestamp, use the current date
 		if val.Year() == 0 && val.Month() == 1 && val.Day() == 1 {
@@ -135,20 +137,44 @@ func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
 			val = val.AddDate(time.Now().Year(), 0, 0)
 		}
 		pack.Message.SetTimestamp(val.UnixNano())
-	} else if sevStr, ok := captures["Severity"]; ok {
+	}
+}
+
+func (gd *GenericDecoder) DecodeSeverity(pack *PipelinePack) {
+	if sevStr, ok := gd.Captures["Severity"]; ok {
 		// If so, see if we have a mapping for this severity.
-		if sevInt, ok := ld.SeverityMap[sevStr]; ok {
+		if sevInt, ok := gd.SeverityMap[sevStr]; ok {
 			pack.Message.SetSeverity(sevInt)
 		} else {
 			// No mapping => severity value should be an int.
 			sevInt, err := strconv.ParseInt(sevStr, 10, 32)
 			if err != nil {
-				ld.dRunner.LogError(fmt.Errorf("Don't recognize severity: '%s'", sevStr))
+				gd.dRunner.LogError(fmt.Errorf("Don't recognize severity: '%s'", sevStr))
 			} else {
 				pack.Message.SetSeverity(int32(sevInt))
 			}
 		}
 	}
+}
+
+// Runs the message payload against decoder's map of JSONPaths. If
+// there's a match, the message will be populated based on the
+// decoder's message template, with capture values interpolated into
+// the message template values.
+func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
+	captures := ld.match(pack.Message.GetPayload())
+
+	gd := &GenericDecoder{
+		Captures:        captures,
+		dRunner:         ld.dRunner,
+		TimestampLayout: ld.TimestampLayout,
+		TzLocation:      ld.tzLocation,
+		SeverityMap:     ld.SeverityMap,
+	}
+
+	gd.DecodeTimestamp(pack)
+	gd.DecodeSeverity(pack)
+
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
 	return ld.MessageFields.PopulateMessage(pack.Message, captures)
