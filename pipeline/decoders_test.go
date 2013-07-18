@@ -122,10 +122,9 @@ func DecodersSpec(c gospec.Context) {
 		conf := decoder.ConfigStruct().(*PayloadJsonDecoderConfig)
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
-		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
 
 		c.Specify("decodes simple messages", func() {
-			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "03/Jan/2013:17:22:11 -0500"}`
+			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "2013-08-13T10:32:00.000Z"}`
 			conf.JsonMap = map[string]string{"Count": "$.statsd.count",
 				"Name":      "$.statsd.name",
 				"Pid":       "$.pid",
@@ -149,7 +148,7 @@ func DecodersSpec(c gospec.Context) {
 
 			c.Expect(pack.Message.GetTimestamp(),
 				gs.Equals,
-				int64(1357251731000000000))
+				int64(1376389920000000000))
 
 			var ok bool
 			var name, count interface{}

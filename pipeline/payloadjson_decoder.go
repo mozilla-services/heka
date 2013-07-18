@@ -58,7 +58,9 @@ type PayloadJsonDecoder struct {
 }
 
 func (ld *PayloadJsonDecoder) ConfigStruct() interface{} {
-	return new(PayloadJsonDecoderConfig)
+	return &PayloadJsonDecoderConfig{
+		TimestampLayout: "2012-04-23T18:25:43.511Z",
+	}
 }
 
 func (ld *PayloadJsonDecoder) Init(config interface{}) (err error) {

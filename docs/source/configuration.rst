@@ -726,7 +726,9 @@ Parameters:
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
     be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
-    constants>`_.
+    constants>`_.  The default layout is ISO8601 - the same as
+    Javascript.
+
 - timestamp_location (string):
     Time zone in which the timestamps in the text are presumed to be in.
     Should be a location name corresponding to a file in the IANA Time Zone
