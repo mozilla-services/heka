@@ -162,6 +162,51 @@ func DecodersSpec(c gospec.Context) {
 		})
 	})
 
+	c.Specify("A PayloadXmlDecoder", func() {
+		decoder := new(PayloadXmlDecoder)
+		conf := decoder.ConfigStruct().(*PayloadXmlDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
+
+		xml_data := `<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"><SOAP-ENV:Body><m:setPresence xmlns:m="http://schemas.microsoft.com/winrtc/2002/11/sip"><m:presentity m:uri="test"><m:availability m:aggregate="300" m:description="online"/><m:activity m:aggregate="400" m:description="Active"/><textnode>08/May/2013:18:04:05 -0700</textnode><deviceName xmlns="http://schemas.microsoft.com/2002/09/sip/client/presence" name="WIN-0DDABKC1UI8"/></m:presentity></m:setPresence></SOAP-ENV:Body></SOAP-ENV:Envelope>`
+
+		c.Specify("can set field values from attribute nodes", func() {
+			conf.XpathMap = map[string]string{
+				"Text": "//*[local-name()='deviceName']/@name",
+			}
+			conf.MessageFields = map[string]string{
+				"SomeText": "%Text%",
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(xml_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			some_text, ok := pack.Message.GetFieldValue("SomeText")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(some_text, gs.Equals, "WIN-0DDABKC1UI8")
+		})
+
+		c.Specify("can set field values from text nodes", func() {
+			conf.XpathMap = map[string]string{
+				"Timestamp": "//*[local-name()='textnode']",
+			}
+			conf.MessageFields = map[string]string{}
+			conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(xml_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1368061445000000000))
+		})
+	})
+
 	c.Specify("A PayloadRegexDecoder", func() {
 		decoder := new(PayloadRegexDecoder)
 		conf := decoder.ConfigStruct().(*PayloadRegexDecoderConfig)

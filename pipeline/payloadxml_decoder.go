@@ -59,7 +59,7 @@ type PayloadXmlDecoder struct {
 func (p *PayloadXmlDecoder) ConfigStruct() interface{} {
 	return &PayloadXmlDecoderConfig{
 		TimestampLayout: "2012-04-23T18:25:43.511Z",
-    }
+	}
 }
 
 func (p *PayloadXmlDecoder) Init(config interface{}) (err error) {
@@ -120,13 +120,12 @@ func (p *PayloadXmlDecoder) match(s string) (captures map[string]string, err err
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
 func (p *PayloadXmlDecoder) Decode(pack *PipelinePack) (err error) {
-	// First try to match the regex.
 	captures, err := p.match(pack.Message.GetPayload())
 	if err != nil {
-		return err
+		return
 	}
 
-	gd := &GenericDecoder{
+	pdh := &PayloadDecoderHelper{
 		Captures:        captures,
 		dRunner:         p.dRunner,
 		TimestampLayout: p.TimestampLayout,
@@ -134,8 +133,8 @@ func (p *PayloadXmlDecoder) Decode(pack *PipelinePack) (err error) {
 		SeverityMap:     p.SeverityMap,
 	}
 
-	gd.DecodeTimestamp(pack)
-	gd.DecodeSeverity(pack)
+	pdh.DecodeTimestamp(pack)
+	pdh.DecodeSeverity(pack)
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
