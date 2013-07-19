@@ -98,7 +98,8 @@ func WhisperOutputSpec(c gospec.Context) {
 
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
-		config := o.ConfigStruct()
+		config := o.ConfigStruct().(*WhisperOutputConfig)
+		config.BasePath = filepath.Join(os.TempDir(), config.BasePath)
 		o.Init(config)
 
 		const count = 5

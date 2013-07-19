@@ -46,7 +46,7 @@ type DashboardOutputConfig struct {
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
-		WorkingDirectory: "./dashboard",
+		WorkingDirectory: filepath.Join(".", "dashboard"),
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
 	}
@@ -79,7 +79,6 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	overwriteFile(filepath.Join(self.workingDirectory, "heka.js"), getHekaJs())
 
 	h := http.FileServer(http.Dir(self.workingDirectory))
-	http.Handle("/", h)
 	self.server = &http.Server{
 		Addr:         conf.Address,
 		Handler:      h,

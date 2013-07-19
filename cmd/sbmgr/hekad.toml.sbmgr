@@ -1,3 +1,6 @@
+[hekad]
+maxprocs = 4
+
 [TCP:5565]
 type = "TcpInput"
 address = "127.0.0.1:5565"
@@ -124,10 +127,10 @@ seekjournal = "./sync-proxy.journal"
 
 [SyncProxyDecoder]
 type = "LoglineDecoder"
-matchRegex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:(\d+\.\d+|\-) req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
-timestamplayout = "02/Jan/2006:15:04:05 -0700"
+match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:(\d+\.\d+|\-) req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
+timestamp_layout = "02/Jan/2006:15:04:05 -0700"
 
-[SyncProxyDecoder.MessageFields]
+[SyncProxyDecoder.message_fields]
 Type = "SyncProxyLog"
 RemoteIP|ipv4 = "%RemoteIP%"
 User = "%User%"
@@ -171,9 +174,9 @@ seekjournal = "./audit.journal"
 
 [AuditLogDecoder]
 type = "LoglineDecoder"
-matchRegex = '^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)'
+match_regex = '^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)'
 
-[AuditLogDecoder.MessageFields]
+[AuditLogDecoder.message_fields]
 Type = "AuditLog"
 AuditType = "%AuditType%"
 AuditTime|s = "%AuditTime%"

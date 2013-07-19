@@ -129,8 +129,7 @@ type WhisperOutputConfig struct {
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	basePath := filepath.Join("var", "run", "hekad", "whisper")
-
+	basePath := filepath.Join(string(os.PathSeparator), "var", "run", "hekad", "whisper")
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
 		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,

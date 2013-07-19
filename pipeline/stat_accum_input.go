@@ -241,11 +241,11 @@ func (sm *StatAccumInput) Flush() {
 	}
 
 	for key, timings := range sm.timers {
+		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
 		if len(timings) > 0 {
 			sort.Float64s(timings)
 			min := timings[0]
 			max := timings[len(timings)-1]
-			timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
 			count := len(timings)
 			if count > 1 {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
@@ -272,8 +272,15 @@ func (sm *StatAccumInput) Flush() {
 			timerNs.Emit("upper", max)
 			timerNs.Emit("lower", min)
 			timerNs.Emit("count", count)
-			numStats++
+		} else {
+			timerNs.Emit("mean", 0)
+			timerNs.Emit("upper", 0)
+			timerNs.Emit("lower", 0)
+			timerNs.Emit("count", 0)
+			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), 0)
+			timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), 0)
 		}
+		numStats++
 	}
 
 	if sm.config.LegacyNamespaces {
