@@ -117,9 +117,54 @@ func DecodersSpec(c gospec.Context) {
 		Globals().Stopping = false
 	})
 
-	c.Specify("A LoglineDecoder", func() {
-		decoder := new(LoglineDecoder)
-		conf := decoder.ConfigStruct().(*LoglineDecoderConfig)
+	c.Specify("A PayloadJsonDecoder", func() {
+		decoder := new(PayloadJsonDecoder)
+		conf := decoder.ConfigStruct().(*PayloadJsonDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "2013-08-13T10:32:00.000Z"}`
+			conf.JsonMap = map[string]string{"Count": "$.statsd.count",
+				"Name":      "$.statsd.name",
+				"Pid":       "$.pid",
+				"Timestamp": "$.timestamp",
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"Pid":       "%Pid%",
+				"StatCount": "%Count%",
+				"StatName":  "%Name%",
+				"Timestamp": "%Timestamp%",
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(json_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetPid(), gs.Equals, int32(532))
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1376389920000000000))
+
+			var ok bool
+			var name, count interface{}
+			count, ok = pack.Message.GetFieldValue("StatCount")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(count, gs.Equals, "1.000000000")
+
+			name, ok = pack.Message.GetFieldValue("StatName")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(name, gs.Equals, "some.counter")
+		})
+	})
+
+	c.Specify("A PayloadRegexDecoder", func() {
+		decoder := new(PayloadRegexDecoder)
+		conf := decoder.ConfigStruct().(*PayloadRegexDecoderConfig)
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 		conf.TimestampLayout = "02/Jan/2006:15:04:05 -0700"
@@ -128,14 +173,14 @@ func DecodersSpec(c gospec.Context) {
 			conf.MatchRegex = `\d+`
 			err := decoder.Init(conf)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), gs.Equals, "LoglineDecoder regex must contain capture groups")
+			c.Expect(err.Error(), gs.Equals, "PayloadRegexDecoder regex must contain capture groups")
 		})
 
 		c.Specify("invalid regex", func() {
 			conf.MatchRegex = `\mtest`
 			err := decoder.Init(conf)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), gs.Equals, "LoglineDecoder: error parsing regexp: invalid escape sequence: `\\m`")
+			c.Expect(err.Error(), gs.Equals, "PayloadRegexDecoder: error parsing regexp: invalid escape sequence: `\\m`")
 		})
 
 		c.Specify("reading an apache timestamp", func() {

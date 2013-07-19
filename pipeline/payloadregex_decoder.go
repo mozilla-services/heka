@@ -17,13 +17,11 @@ package pipeline
 
 import (
 	"fmt"
-	. "github.com/mozilla-services/heka/message"
 	"regexp"
-	"strconv"
 	"time"
 )
 
-type LoglineDecoderConfig struct {
+type PayloadRegexDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
 	MatchRegex string `toml:"match_regex"`
@@ -50,7 +48,7 @@ type LoglineDecoderConfig struct {
 	TimestampLocation string `toml:"timestamp_location"`
 }
 
-type LoglineDecoder struct {
+type PayloadRegexDecoder struct {
 	Match           *regexp.Regexp
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
@@ -59,18 +57,18 @@ type LoglineDecoder struct {
 	dRunner         DecoderRunner
 }
 
-func (ld *LoglineDecoder) ConfigStruct() interface{} {
-	return new(LoglineDecoderConfig)
+func (ld *PayloadRegexDecoder) ConfigStruct() interface{} {
+	return new(PayloadRegexDecoderConfig)
 }
 
-func (ld *LoglineDecoder) Init(config interface{}) (err error) {
-	conf := config.(*LoglineDecoderConfig)
+func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
+	conf := config.(*PayloadRegexDecoderConfig)
 	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
-		err = fmt.Errorf("LoglineDecoder: %s", err)
+		err = fmt.Errorf("PayloadRegexDecoder: %s", err)
 		return
 	}
 	if ld.Match.NumSubexp() == 0 {
-		err = fmt.Errorf("LoglineDecoder regex must contain capture groups")
+		err = fmt.Errorf("PayloadRegexDecoder regex must contain capture groups")
 		return
 	}
 
@@ -88,14 +86,14 @@ func (ld *LoglineDecoder) Init(config interface{}) (err error) {
 	}
 	ld.TimestampLayout = conf.TimestampLayout
 	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
-		err = fmt.Errorf("LoglineDecoder unknown timestamp_location '%s': %s",
+		err = fmt.Errorf("PayloadRegexDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
 	return
 }
 
 // Heka will call this to give us access to the runner.
-func (ld *LoglineDecoder) SetDecoderRunner(dr DecoderRunner) {
+func (ld *PayloadRegexDecoder) SetDecoderRunner(dr DecoderRunner) {
 	ld.dRunner = dr
 }
 
@@ -123,41 +121,24 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
-func (ld *LoglineDecoder) Decode(pack *PipelinePack) (err error) {
+func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
 	// First try to match the regex.
 	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
 		return fmt.Errorf("No match")
 	}
 
-	if timeStamp, ok := captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(ld.TimestampLayout, timeStamp, ld.tzLocation)
-		if err != nil {
-			ld.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
-		}
-		// If we only get a timestamp, use the current date
-		if val.Year() == 0 && val.Month() == 1 && val.Day() == 1 {
-			now := time.Now()
-			val = val.AddDate(now.Year(), int(now.Month()-1), now.Day()-1)
-		} else if val.Year() == 0 {
-			// If there's no year, use current year
-			val = val.AddDate(time.Now().Year(), 0, 0)
-		}
-		pack.Message.SetTimestamp(val.UnixNano())
-	} else if sevStr, ok := captures["Severity"]; ok {
-		// If so, see if we have a mapping for this severity.
-		if sevInt, ok := ld.SeverityMap[sevStr]; ok {
-			pack.Message.SetSeverity(sevInt)
-		} else {
-			// No mapping => severity value should be an int.
-			sevInt, err := strconv.ParseInt(sevStr, 10, 32)
-			if err != nil {
-				ld.dRunner.LogError(fmt.Errorf("Don't recognize severity: '%s'", sevStr))
-			} else {
-				pack.Message.SetSeverity(int32(sevInt))
-			}
-		}
+	pdh := &PayloadDecoderHelper{
+		Captures:        captures,
+		dRunner:         ld.dRunner,
+		TimestampLayout: ld.TimestampLayout,
+		TzLocation:      ld.tzLocation,
+		SeverityMap:     ld.SeverityMap,
 	}
+
+	pdh.DecodeTimestamp(pack)
+	pdh.DecodeSeverity(pack)
+
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
 	return ld.MessageFields.PopulateMessage(pack.Message, captures)

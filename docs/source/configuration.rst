@@ -253,7 +253,7 @@ AMQPInput
 Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from
 the specified queue. If the message is serialized by hekad's AMQPOutput
 then the message will be de-serialized, otherwise the message will be
-run through the specified LoglineDecoder's. As AMQP is dynamically
+run through the specified PayloadRegexDecoder's. As AMQP is dynamically
 programmable, the broker topology needs to be specified.
 
 Parameters:
@@ -290,7 +290,7 @@ Parameters:
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
 - Decoders (list of strings):
-    List of logline decoder names used to transform a raw message body into
+    List of decoder names used to transform a raw message body into
     a structured hekad message. These are skipped for serialized hekad
     messages.
 
@@ -304,7 +304,7 @@ configuration to consume serialized messages would look like:
     exchange = "testout"
     exchangeType = "fanout"
 
-Or if using a logline decoder to parse OSX syslog messages may look like:
+Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
 
 .. code-block:: ini
 
@@ -315,7 +315,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
     decoders = ["logparser", "leftovers"]
 
     [logparser]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
 
     [logparser.MessageFields]
@@ -327,7 +327,7 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
     Payload = "%Remaining%"
 
     [leftovers]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     MatchRegex = '.*'
 
     [leftovers.MessageFields]
@@ -445,7 +445,7 @@ Parameters:
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
 - decoders (list of strings):
-    List of logline decoder names used to transform the log line into
+    List of decoder names used to transform the log line into
     a structured hekad message.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
@@ -603,9 +603,9 @@ struct objects. The hekad protocol buffers message schema in defined in the
 .. seealso:: `Protocol Buffers - Google's data interchange format
    <http://code.google.com/p/protobuf/>`_
 
-.. _config_logline_decoder:
+.. _config_payloadregex_decoder:
 
-LoglineDecoder
+PayloadRegexDecoder
 --------------
 
 Decoder plugin that accepts messages of a specified form and generates new
@@ -661,7 +661,7 @@ Example (Parsing Apache Combined Log Format):
 .. code-block:: ini
 
     [apache_transform_decoder]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
@@ -679,6 +679,125 @@ Example (Parsing Apache Combined Log Format):
     RequestSize|B = "%RequestSize%"
     Referer = "%Referer%"
     Browser = "%Browser%"
+
+.. _config_payloadjson_decoder:
+
+PayloadJsonDecoder
+------------------
+
+This decoder plugin accepts JSON blobs and allows you to map parts
+of the JSON into Field attributes of the pipelinepack message using
+JSONPath syntax.
+
+Parameters:
+
+- json_map:
+    A subsection defining a capture name that maps to a JSONPath expression.
+    Each expression can fetch a single value, if the expression does
+    not resolve to a valid node in the JSON message, the capture group
+    will be assigned an empty string value.
+- severity_map:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
+- message_fields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in a JSONPath
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used. Optional representation metadata can be added at 
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
+    bytes.  Adding a representation string to a standard message header name
+    will cause it to be added as a user defined field i.e., Payload|json will
+    create Fields[Payload] with a json representation.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_decoder.message_fields]
+        Type = "%Type%Decoded"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Decoded` appended.
+- timestamp_layout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    constants>`_.  The default layout is ISO8601 - the same as
+    Javascript.
+
+- timestamp_location (string):
+    Time zone in which the timestamps in the text are presumed to be in.
+    Should be a location name corresponding to a file in the IANA Time Zone
+    database (e.g. "America/Los_Angeles"), as parsed by Go's
+    `time.LoadLocation()` function (see
+    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
+    if valid time zone info is embedded in every parsed timestamp, since those
+    can be parsed as specified in the `timestamp_layout`.
+
+Example:
+
+.. code-block:: ini
+
+    [myjson_decoder]
+    type = "PayloadJsonDecoder"
+
+    [myjson_decoder.json_map]
+    Count = "$.statsd.count"
+    Name = "$.statsd.name"
+    Pid = "$.pid"
+    Timestamp = "$.timestamp"
+
+    [myjson_decoder.severity_map]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [myjson_decoder.message_fields]
+    Pid = "%Pid%"
+    StatCount = "%Count%"
+    StatName =  "%Name%"
+    Timestamp = "%Timestamp%"
+
+PayloadJsonDecoder's json_map config subsection  only supports a small
+subset of valid JSONPath expressions.
+
+========     =========================================
+JSONPath     Description
+========     =========================================
+$            the root object/element
+.            child operator
+[]           subscript operator to iterate over arrays
+========     =========================================
+
+Examples:
+---------
+
+.. code-block:: javascript
+
+    var s = {
+        "foo": {
+            "bar": [
+                {
+                    "baz": "こんにちわ世界",
+                    "noo": "aaa"
+                },
+                {
+                    "maz": "123",
+                    "moo": 256
+                }
+            ],
+            "boo": {
+                "bag": true,
+                "bug": false
+            }
+        }
+    }
+
+    # Valid paths
+    $.foo.bar[0].baz
+    $.foo.bar
+
 
 .. end-decoders
 

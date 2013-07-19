@@ -248,7 +248,8 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 		case "Hostname":
 			msg.SetHostname(val)
 		case "Pid":
-			pid, err := strconv.ParseInt(val, 10, 32)
+			int_part := strings.Split(val, ".")[0]
+			pid, err := strconv.ParseInt(int_part, 10, 32)
 			if err != nil {
 				return err
 			}
