@@ -128,7 +128,7 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
 		return fmt.Errorf("No match")
 	}
 
-	gd := &GenericDecoder{
+	pdh := &PayloadDecoderHelper{
 		Captures:        captures,
 		dRunner:         ld.dRunner,
 		TimestampLayout: ld.TimestampLayout,
@@ -136,8 +136,8 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
 		SeverityMap:     ld.SeverityMap,
 	}
 
-	gd.DecodeTimestamp(pack)
-	gd.DecodeSeverity(pack)
+	pdh.DecodeTimestamp(pack)
+	pdh.DecodeSeverity(pack)
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts

@@ -119,7 +119,7 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
 	captures := ld.match(pack.Message.GetPayload())
 
-	gd := &GenericDecoder{
+	pdh := &PayloadDecoderHelper{
 		Captures:        captures,
 		dRunner:         ld.dRunner,
 		TimestampLayout: ld.TimestampLayout,
@@ -127,8 +127,8 @@ func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
 		SeverityMap:     ld.SeverityMap,
 	}
 
-	gd.DecodeTimestamp(pack)
-	gd.DecodeSeverity(pack)
+	pdh.DecodeTimestamp(pack)
+	pdh.DecodeSeverity(pack)
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
