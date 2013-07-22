@@ -15,7 +15,7 @@
 package pipeline
 
 import (
-	"github.com/crankycoder/gokogiri/xml"
+	"github.com/moovweb/gokogiri/xml"
 )
 
 type XMLDocument struct {
