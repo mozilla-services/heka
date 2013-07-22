@@ -58,7 +58,9 @@ type PayloadRegexDecoder struct {
 }
 
 func (ld *PayloadRegexDecoder) ConfigStruct() interface{} {
-	return new(PayloadRegexDecoderConfig)
+	return &PayloadRegexDecoderConfig{ 
+		TimestampLayout: DefaultTimestampLayout,
+    }
 }
 
 func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {

@@ -29,6 +29,8 @@ type PayloadDecoderHelper struct {
 	SeverityMap     map[string]int32
 }
 
+const DefaultTimestampLayout string = "2012-04-23T18:25:43.511Z"
+
 /*
 Timestamps strings are decoded using the TimestampLayout and written
 back to the Message as nanoseconds into the Timestamp field.

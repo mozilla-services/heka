@@ -58,7 +58,7 @@ type PayloadXmlDecoder struct {
 
 func (p *PayloadXmlDecoder) ConfigStruct() interface{} {
 	return &PayloadXmlDecoderConfig{
-		TimestampLayout: "2012-04-23T18:25:43.511Z",
+		TimestampLayout: DefaultTimestampLayout,
 	}
 }
 
