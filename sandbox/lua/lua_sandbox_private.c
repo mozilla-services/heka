@@ -12,7 +12,9 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <time.h>
 #include "lua_sandbox_private.h"
+#include "lua_sandbox_protobuf.h"
 #include "lua_circular_buffer.h"
 #include "_cgo_export.h"
 
@@ -95,6 +97,33 @@ void sandbox_terminate(lua_sandbox* lsb)
     }
     lsb->m_usage[USAGE_TYPE_MEMORY][USAGE_STAT_CURRENT] = 0;
     lsb->m_status = STATUS_TERMINATED;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void update_output_stats(lua_sandbox* lsb)
+{
+    lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT] = lsb->m_output.m_pos;
+    if (lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
+        > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_MAXIMUM]) {
+        lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_MAXIMUM] =
+          lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT];
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int realloc_output(output_data* output, size_t needed)
+{
+    if (needed + output->m_pos > MAX_OUTPUT) return 1;
+    size_t newsize = output->m_size * 2;
+    while (needed >= newsize - output->m_pos) {
+        newsize *= 2;
+    }
+
+    void* ptr = realloc(output->m_data, newsize);
+    if (ptr == NULL) return 1;
+    output->m_data = ptr;
+    output->m_size = newsize;
+    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +229,56 @@ int serialize_table_as_json(lua_sandbox* lsb,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int serialize_table_as_pb(lua_sandbox* lsb)
+{
+    output_data* d = &lsb->m_output;
+    d->m_pos = 0;
+    size_t needed = 18;
+    if (needed > d->m_size - d->m_pos) {
+        if (realloc_output(d, needed)) return 1;
+    }
+
+    // create a type 4 uuid
+    d->m_data[d->m_pos++] = 2 | (1 << 3);
+    d->m_data[d->m_pos++] = 16;
+    for (int x = 0; x < 16; ++x) {
+        d->m_data[d->m_pos++] = rand() % 255;
+    }
+    d->m_data[8] = d->m_data[8] & 0x0F | 0x40;
+    d->m_data[10] = d->m_data[10] & 0x0F | 0xA0;
+
+    // use existing or create a timestamp
+    lua_getfield(lsb->m_lua, 1, "Timestamp");
+    long long ts;
+    if (lua_isnumber(lsb->m_lua, -1)) {
+        ts = (long long)lua_tonumber(lsb->m_lua, -1);
+    } else {
+        ts = time(NULL) * 1e9;
+    }
+    lua_pop(lsb->m_lua, 1);
+    if (pb_write_tag(d, 2, 0)) return 1;
+    if (pb_write_varint(d, ts)) return 1;
+
+    if (encode_string(lsb, d, 3, "Type")) return 1;
+    if (encode_string(lsb, d, 4, "Logger")) return 1;
+    if (encode_int(lsb, d, 5, "Severity")) return 1;
+    if (encode_string(lsb, d, 6, "Payload")) return 1;
+    if (encode_string(lsb, d, 7, "EnvVersion")) return 1;
+    if (encode_int(lsb, d, 8, "Pid")) return 1;
+    if (encode_string(lsb, d, 9, "Hostname")) return 1;
+    if (encode_fields(lsb, d, 10, "Fields")) return 1;
+    // if we go above 15 pb_write_tag will need to start varint encoding
+
+    update_output_stats(lsb);
+    if (lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
+        > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
+        snprintf(lsb->m_error_message, ERROR_SIZE, "output_limit exceeded");
+        return 1;
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int serialize_data(lua_sandbox* lsb, int index, output_data* output)
 {
     output->m_pos = 0;
@@ -266,7 +345,6 @@ int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
 {
     const char* s;
     size_t cnt = 0, len = 0;
-    size_t olimit = (size_t)lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT];
     size_t start_pos = output->m_pos;
     size_t escaped_len = 0;
     switch (lua_type(lsb->m_lua, index)) {
@@ -280,20 +358,11 @@ int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
         s = lua_tolstring(lsb->m_lua, index, &len);
         escaped_len = len + 3; // account for the quotes and terminator
         for (int i = 0; i < len; ++i) {
-            if (escaped_len > olimit - start_pos) {
-                return 1;
-            }
             // buffer needs at least enough room for quotes, terminator, and an
             // escaped character
             if (output->m_pos + 5 > output->m_size) {
-                size_t newsize = output->m_size * 2;
-                while (escaped_len >= newsize - start_pos) {
-                    newsize *= 2;
-                }
-                void* ptr = realloc(output->m_data, newsize);
-                if (ptr == NULL) return 1;
-                output->m_data = ptr;
-                output->m_size = newsize;
+                size_t needed = escaped_len - (output->m_pos - start_pos);
+                if (realloc_output(output, needed)) return 1;
             }
             if (i == 0) {
                 output->m_data[output->m_pos++] = '"';
@@ -357,9 +426,6 @@ int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
         snprintf(lsb->m_error_message, ERROR_SIZE,
                  "serialize_data_as_json cannot preserve type '%s'",
                  lua_typename(lsb->m_lua, lua_type(lsb->m_lua, index)));
-        return 1;
-    }
-    if (output->m_pos > olimit) {
         return 1;
     }
     return 0;
@@ -747,12 +813,7 @@ int output(lua_State* lua)
             break;
         }
     }
-    lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT] = lsb->m_output.m_pos;
-    if (lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
-        > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_MAXIMUM]) {
-        lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_MAXIMUM] =
-          lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT];
-    }
+    update_output_stats(lsb);
     if (result != 0
         || lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
         > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
@@ -828,26 +889,41 @@ int inject_message(lua_State* lua)
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
-    int n = lua_gettop(lua);
-    if (n > 2) {
-        luaL_error(lua, "inject_message() takes a maximum of 2 arguments");
-    }
-
     const char* type = default_type;
     const char* name = default_name;
-    switch (n) {
-    case 2:
-        name = luaL_checkstring(lua, 2);
-        // fall thru
+    switch (lua_gettop(lua)) {
+    case 0:
+        break;
     case 1:
+        if (lua_istable(lua, 1) == 1) {
+            type = "";
+            int result = serialize_table_as_pb(lsb);
+            if (result != 0) {
+                lsb->m_output.m_pos = 0;
+                luaL_error(lua, "inject_message() cound not encode protobuf - %s",
+                           lsb->m_error_message);
+            }
+        } else if (lua_isstring(lua, 1) == 1) {
+            type = luaL_checkstring(lua, 1);
+            if (strlen(type) == 0) type = default_type;
+        } else {
+            luaL_error(lua, "inject_message() must have a table or string as the first argument");
+        }
+        break;
+    case 2:
         type = luaL_checkstring(lua, 1);
+        if (strlen(type) == 0) type = default_type;
+        name = luaL_checkstring(lua, 2);
+        break;
+    default:
+        luaL_error(lua, "inject_message() takes a maximum of 2 arguments");
         break;
     }
 
     if (lsb->m_output.m_pos != 0) {
-        lsb->m_output.m_data[lsb->m_output.m_pos] = 0;
         int result = go_lua_inject_message(lsb->m_go,
                                            lsb->m_output.m_data,
+                                           (int)(lsb->m_output.m_pos),
                                            (char*)type,
                                            (char*)name);
         lsb->m_output.m_pos = 0;
