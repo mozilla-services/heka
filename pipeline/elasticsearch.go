@@ -114,7 +114,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
 		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
-	case "kibana":
+	case "logstash_original":
 		o.messageFormatter = &KibanaFormatter{}
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
