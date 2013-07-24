@@ -43,7 +43,7 @@ type ElasticSearchOutput struct {
 	backChan      chan []byte
 	format        string
 	timestamp     string
-	useTimestamp   bool
+	esIndexFromTimestamp   bool
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
@@ -80,7 +80,7 @@ type ElasticSearchOutputConfig struct {
 	// (default to "http://localhost:9200")
 	Server string
 	// When formating the Index use the Timestamp from the Message instead of Now
-	UseTimestamp bool
+	ESIndexFromTimestamp bool
 
 }
 
@@ -94,7 +94,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Format:        "clean",
 		Timestamp:     "2006-01-02T15:04:05.000Z",
 		Server:        "http://localhost:9200",
-		UseTimestamp:  false,
+		ESIndexFromTimestamp:  false,
 	}
 }
 
@@ -108,7 +108,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
-	o.useTimestamp = conf.UseTimestamp
+	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
@@ -205,7 +205,7 @@ type ElasticSearchCoordinates struct {
 	Id              string
 	Timestamp       *int64
 	TimestampFormat string
-	UseTimestamp    bool
+	ESIndexFromTimestamp    bool
 }
 
 func (e *ElasticSearchCoordinates) String() string {
@@ -488,7 +488,7 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 		Type:            o.typeName,
 		Timestamp:       pack.Message.Timestamp,
 		TimestampFormat: o.timestamp,
-		UseTimestamp:    o.useTimestamp,
+		ESIndexFromTimestamp:    o.esIndexFromTimestamp,
 	}
 
 	var document []byte
@@ -534,7 +534,7 @@ func cleanIndexName(e *ElasticSearchCoordinates) (index string) {
 	if start > -1 && end > -1 {
 		layout := name[start+len("%{") : end]
 		var t time.Time
-		if e.UseTimestamp && e.Timestamp != nil {
+		if e.ESIndexFromTimestamp && e.Timestamp != nil {
 			t = time.Unix(0, *e.Timestamp).UTC()
 		} else {
 			t = time.Now()

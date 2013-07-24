@@ -1004,6 +1004,9 @@ Parameters:
 - server (string):
     ElasticSearch server URL. Supports http://, https:// and udp:// urls.
     Defaults to "http://localhost:9200".
+- ESIndexFromTimestamp (bool):
+    When generating the index name use the timestamp from the message
+    instead of the current time. Defaults to false.
 
 Example:
 
