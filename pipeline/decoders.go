@@ -291,5 +291,5 @@ func InterpolateString(formatRegexp string, subs map[string]string) (newString s
 
 // Initialize the varMatcher for use in InterpolateString
 func init() {
-	varMatcher, _ = regexp.Compile("%.+?%")
+	varMatcher, _ = regexp.Compile("%\w+%")
 }
