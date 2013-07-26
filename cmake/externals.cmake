@@ -96,7 +96,7 @@ endif()
 if (INCLUDE_DOCUMENTATION)
     git_clone(https://github.com/mozilla-services/heka-docs dev)
 
-    add_custom_command(TARGET heka-docs POST_BUILD
+    add_custom_command(TARGET docs POST_BUILD
     COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html
     WORKING_DIRECTORY "${HEKA_PATH}/../heka-docs"
     COMMENT "Built Heka architecture documentation")

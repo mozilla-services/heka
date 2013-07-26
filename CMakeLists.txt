@@ -23,6 +23,10 @@ set(PROJECT_PATH "${CMAKE_BINARY_DIR}/heka")
 set(HEKA_PATH "${PROJECT_PATH}/src/github.com/mozilla-services/heka")
 set(LUA_INCLUDE_PATH "${PROJECT_PATH}/include")
 set(LUA_LIB_PATH "${PROJECT_PATH}/lib")
+set(HEKA_EXE "${PROJECT_PATH}/bin/hekad${CMAKE_EXECUTABLE_SUFFIX}")
+set(FLOOD_EXE "${PROJECT_PATH}/bin/flood${CMAKE_EXECUTABLE_SUFFIX}")
+set(SBMGR_EXE "${PROJECT_PATH}/bin/sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
+set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
 
@@ -31,11 +35,11 @@ if (BENCHMARK)
     set(BENCHMARK_FLAG -bench .)
 endif()
 
-option(INCLUDE_DOCUMENTATION "Enables documentation generation if Sphinx is available." on)
+set(INCLUDE_DOCUMENTATION true)
 find_program(SPHINX_BUILD_EXECUTABLE sphinx-build PATH_SUFFIXES bin)
 if (NOT SPHINX_BUILD_EXECUTABLE)
     message(STATUS "sphinx-build was not found, the documentation will not be generated.")
-    set(INCLUDE_DOCUMENTATION off)
+    set(INCLUDE_DOCUMENTATION false)
 endif()
 
 if (MINGW)
@@ -82,6 +86,13 @@ if (EXISTS "${CMAKE_BINARY_DIR}/plugin_loader.go")
     configure_file("${CMAKE_BINARY_DIR}/plugin_loader.go" "${HEKA_PATH}/cmd/hekad/plugin_loader.go" COPYONLY)
 endif()
 
+add_custom_target(clean-heka
+COMMAND ${CMAKE_COMMAND} -E remove_directory "${HEKA_PATH}"
+COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${FLOOD_EXE}" "${SBMGR_EXE}" "${SBMGRLOAD_EXE}"
+COMMAND ${CMAKE_COMMAND} ..
+COMMENT "Resynchronizing the Go workspace with the Heka repository"
+)
+
 add_custom_target(heka_source ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/client" "${HEKA_PATH}/client"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/cmd" "${HEKA_PATH}/cmd"
@@ -106,13 +117,14 @@ ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)
-    add_custom_command(TARGET hekad POST_BUILD
+    add_custom_target(docs
     COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html
     COMMAND ${SPHINX_BUILD_EXECUTABLE} -b man -d build/doctrees source build/man
     WORKING_DIRECTORY "${HEKA_PATH}/docs"
-	DEPENDS heka_source
+    DEPENDS heka_source
     COMMENT "Built Heka user/developer documentation")
 
+    install(CODE "execute_process(COMMAND ${CMAKE_BUILD_TOOL} docs)") # always force the docs to rebuild before installing/packaging
     install(DIRECTORY "${HEKA_PATH}/docs/build/man/" DESTINATION share/man/man1 FILES_MATCHING PATTERN "*.1")
     install(DIRECTORY "${HEKA_PATH}/docs/build/man/" DESTINATION share/man/man5 FILES_MATCHING PATTERN "*.5")
 endif()
@@ -127,20 +139,20 @@ if (MINGW)
     COMMENT "Install liblua.dll for the mock generation and unit tests")
 endif()
 
-install(PROGRAMS "${PROJECT_PATH}/bin/hekad${CMAKE_EXECUTABLE_SUFFIX}" DESTINATION bin)
+install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
 
 add_custom_target(flood ALL 
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/flood
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-install(PROGRAMS "${PROJECT_PATH}/bin/flood${CMAKE_EXECUTABLE_SUFFIX}" DESTINATION bin)
+install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL 
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgr
 DEPENDS hekad)
 
-install(PROGRAMS "${PROJECT_PATH}/bin/sbmgr${CMAKE_EXECUTABLE_SUFFIX}" DESTINATION bin)
+install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgrload ALL 
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload

@@ -1,5 +1,6 @@
 @echo off
 set BUILD_DIR=%CD%\build
+set CTEST_OUTPUT_ON_FAILURE=1
 
 setlocal ENABLEDELAYEDEXPANSION
 set NEWGOPATH=%BUILD_DIR%\heka
