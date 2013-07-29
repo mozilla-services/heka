@@ -58,11 +58,11 @@ type StatAccumInput struct {
 type StatAccumInputConfig struct {
 	// Specifies whether or not stats data should be written to outgoing
 	// message payloads, in the string format that is expected by a listening
-	// Graphite Carbon server. Defaults to false.
+	// Graphite Carbon server. Defaults to true.
 	EmitInPayload bool `toml:"emit_in_payload"`
 
 	// Specifies whether or not stats data should be written to outgoing
-	// message fields. Defaults to true. At least one of `EmitInPayload` or
+	// message fields. Defaults to false. At least one of `EmitInPayload` or
 	// `EmitInFields` *must* be true or there will be a config error.
 	EmitInFields bool `toml:"emit_in_fields"`
 
@@ -88,7 +88,7 @@ type StatAccumInputConfig struct {
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
 	return &StatAccumInputConfig{
-		EmitInFields:     true,
+		EmitInPayload:    true,
 		PercentThreshold: 90,
 		MessageType:      "heka.statmetric",
 		TickerInterval:   uint(10),
