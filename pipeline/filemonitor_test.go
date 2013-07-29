@@ -200,7 +200,7 @@ func FileMonitorSpec(c gs.Context) {
 		lfInput.Monitor.cleanJournalPath()
 		c.Expect(lfInput.Monitor.seekJournalPath,
 			gs.Equals,
-			"/var/run/hekad/seekjournals/___testsupport_test-zeus_log")
+			"/var/cache/hekad/seekjournals/___testsupport_test-zeus_log")
 	})
 
 }
