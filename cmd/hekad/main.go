@@ -38,28 +38,28 @@ const (
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string){
-        maxprocs := config.Maxprocs
-        poolSize := config.PoolSize
-        decoderPoolSize := config.DecoderPoolSize
-        chanSize := config.ChanSize
-        cpuProfName := config.CpuProfName
-        memProfName := config.MemProfName
-        maxMsgLoops := config.MaxMsgLoops
-        maxMsgProcessInject := config.MaxMsgProcessInject
-        maxMsgTimerInject := config.MaxMsgTimerInject
+	maxprocs := config.Maxprocs
+	poolSize := config.PoolSize
+	decoderPoolSize := config.DecoderPoolSize
+	chanSize := config.ChanSize
+	cpuProfName := config.CpuProfName
+	memProfName := config.MemProfName
+	maxMsgLoops := config.MaxMsgLoops
+	maxMsgProcessInject := config.MaxMsgProcessInject
+	maxMsgTimerInject := config.MaxMsgTimerInject
 
 	runtime.GOMAXPROCS(maxprocs)
 
-        globals := pipeline.DefaultGlobals()
-        globals.PoolSize = poolSize
-        globals.DecoderPoolSize = decoderPoolSize
-        globals.PluginChanSize = chanSize
-        globals.MaxMsgLoops = maxMsgLoops
-        if globals.MaxMsgLoops == 0 {
-                globals.MaxMsgLoops = 1
-        }
-        globals.MaxMsgProcessInject = maxMsgProcessInject
-        globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals := pipeline.DefaultGlobals()
+	globals.PoolSize = poolSize
+	globals.DecoderPoolSize = decoderPoolSize
+	globals.PluginChanSize = chanSize
+	globals.MaxMsgLoops = maxMsgLoops
+	if globals.MaxMsgLoops == 0 {
+		globals.MaxMsgLoops = 1
+	}
+	globals.MaxMsgProcessInject = maxMsgProcessInject
+	globals.MaxMsgTimerInject = maxMsgTimerInject
 
 	return globals, cpuProfName, memProfName	
 }
