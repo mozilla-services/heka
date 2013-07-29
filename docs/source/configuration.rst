@@ -518,10 +518,10 @@ Parameters:
     Specifies whether or not the aggregated stat information should be emitted
     in the payload of the generated messages, in the format accepted by the
     `carbon <http://graphite.wikidot.com/carbon>`_ portion of the `graphite
-    <http://graphite.wikidot.com/>`_ graphing software. Defaults to false.
+    <http://graphite.wikidot.com/>`_ graphing software. Defaults to true.
 - emit_in_fields (bool):
     Specifies whether or not the aggregated stat information should be emitted
-    in the message fields of the generated messages. Defaults to true. *NOTE*:
+    in the message fields of the generated messages. Defaults to false. *NOTE*:
     At least one of 'emit_in_payload' or 'emit_in_fields' *must* be true or it
     will be considered a configuration error and the input won't start.
 - percent_threshold (int):
