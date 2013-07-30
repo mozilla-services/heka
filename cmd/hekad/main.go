@@ -31,6 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"io/ioutil"
+	"path"
 )
 
 const (
@@ -65,8 +66,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 }
 
 func main() {
-	configFile := flag.String("config", "/etc/hekad.toml", "Config file")
-	configDir := flag.String("configdir", "", "Config Directory. If specified then -config is ignored.")
+	configPath := flag.String("config", "/etc/hekad.toml", "Config file or directory. If directory is specified then all files will be loaded.")
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
@@ -85,19 +85,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *configDir != "" {
-		files, _ := ioutil.ReadDir(*configDir)
-		for _, f := range files {
-			config, err = LoadHekadConfig(*configDir + f.Name())
-		}
-	} else {
-		config, err = LoadHekadConfig(*configFile)
-	}
-
+	config, err = LoadHekadConfig(*configPath)
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
-
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 
@@ -124,16 +115,17 @@ func main() {
 
 	// Set up and load the pipeline configuration and start the daemon.
 	pipeconf := pipeline.NewPipelineConfig(globals)
+        p, err := os.Open(*configPath)
+        fi, err := p.Stat()
 
-        if *configDir != "" {
-		files, _ := ioutil.ReadDir(*configDir)
+        if fi.IsDir() {
+		files, _ := ioutil.ReadDir(*configPath)
 		for _, f := range files {
-			err = pipeconf.LoadFromConfigFile(*configDir + f.Name())
+			err = pipeconf.LoadFromConfigFile(path.Join(*configPath, f.Name()))
 		}
 	} else {
-		err = pipeconf.LoadFromConfigFile(*configFile)
+		err = pipeconf.LoadFromConfigFile(*configPath)
 	}
-
 
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
