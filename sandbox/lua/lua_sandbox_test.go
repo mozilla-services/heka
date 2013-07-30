@@ -22,6 +22,7 @@ import . "github.com/mozilla-services/heka/sandbox"
 import "github.com/mozilla-services/heka/sandbox/lua"
 import "io/ioutil"
 import "bytes"
+import "path/filepath"
 
 func TestCreation(t *testing.T) {
 	var sbc SandboxConfig
@@ -403,9 +404,9 @@ func TestPreserve(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := "/tmp/serialize.lua.data"
+	output := filepath.Join(os.TempDir(), "serialize.lua.data")
 	saved := "./testsupport/serialize.lua.data"
-	err = sb.Destroy("/tmp/serialize.lua.data")
+	err = sb.Destroy(output)
 	if err != nil {
 		t.Errorf("%s", err)
 	} else {
@@ -485,7 +486,7 @@ func TestPreserveFailure(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := "/tmp/serialize_failure.lua.data"
+	output := filepath.Join(os.TempDir(), "serialize_failure.lua.data")
 	err = sb.Destroy(output)
 	if err == nil {
 		t.Errorf("The key of type 'function' should have failed")

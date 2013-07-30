@@ -44,7 +44,7 @@ function timer_event(ns)
             error(string.format("no range avg = %G", t))
         end
         t = stats:compute("sd", 1)
-        if math.sqrt(2) ~= t then
+        if math.abs(math.sqrt(2)-t) > 0.00001 then
             error(string.format("no range sd = %G", t))
         end
         t = stats:compute("min", 1)

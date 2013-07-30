@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
-    "path"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +27,8 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -235,7 +236,7 @@ func OutputsSpec(c gs.Context) {
 		})
 
 		c.Specify("Init halts if basedirectory is not writable", func() {
-            tmpdir := path.Join(os.TempDir(), "tmpdir")
+			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
 			err := os.MkdirAll(tmpdir, 0400)
 			c.Assume(err, gs.IsNil)
 			config.Path = tmpdir
@@ -304,8 +305,12 @@ func OutputsSpec(c gs.Context) {
 				fileInfo, err := tmpFile.Stat()
 				c.Assume(err, gs.IsNil)
 				fileMode := fileInfo.Mode()
-				// 7 consecutive dashes implies no perms for group or other
-				c.Expect(fileMode.String(), ts.StringContains, "-------")
+				if runtime.GOOS == "windows" {
+					c.Expect(fileMode.String(), ts.StringContains, "-rw-rw-rw-")
+				} else {
+					// 7 consecutive dashes implies no perms for group or other
+					c.Expect(fileMode.String(), ts.StringContains, "-------")
+				}
 			})
 		})
 	})
