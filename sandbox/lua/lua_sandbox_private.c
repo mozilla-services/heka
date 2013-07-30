@@ -626,7 +626,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...)
 {
     va_list args;
     int result = 0;
-    size_t len = 0, remaining = 0;
+    size_t remaining = 0;
     char* ptr = NULL, *old_ptr = NULL;
     do {
         ptr = output->m_data + output->m_pos;
@@ -634,6 +634,13 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...)
         va_start(args, fmt);
         int len = vsnprintf(ptr, remaining, fmt, args);
         va_end(args);
+        if (len == -1) {
+            // Windows and Unix have different return values for this function
+            // -1 on Unix is a format error
+            // -1 on Windows means the buffer is too small and the required len
+            // is not returned
+            len = remaining;
+        }
         if (len >= remaining) {
             size_t newsize = output->m_size * 2;
             while (len >= newsize - output->m_pos) {

@@ -104,7 +104,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	}
 	wrapper.configCreator = func() interface{} { return config }
 	conf := config.(*sandbox.SandboxConfig)
-	conf.ScriptFilename = path.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
+	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
 
 	// Apply configuration to instantiated plugin.
 	configPlugin := func() (err error) {
@@ -160,7 +160,7 @@ func getSandboxName(managerName, sandboxName string) (name string) {
 
 // Cleans up the script and configuration files on unload or load failure.
 func removeAll(dir, glob string) {
-	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
+	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
@@ -184,7 +184,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 					return fmt.Errorf("loadSandbox failed: %s is already running", name)
 				}
 				fr.LogMessage(fmt.Sprintf("Loading: %s", name))
-				confFile := path.Join(dir, fmt.Sprintf("%s.toml", name))
+				confFile := filepath.Join(dir, fmt.Sprintf("%s.toml", name))
 				err = ioutil.WriteFile(confFile, []byte(config), 0600)
 				if err != nil {
 					return
@@ -193,7 +193,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
 					return fmt.Errorf("loadSandbox failed: %s\n", err)
 				}
-				scriptFile := path.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
+				scriptFile := filepath.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
 				err = ioutil.WriteFile(scriptFile, []byte(msg.GetPayload()), 0600)
 				if err != nil {
 					removeAll(dir, fmt.Sprintf("%s.*", name))
@@ -221,7 +221,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 // directory.
 func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelper, dir string) {
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
-	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
+	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
 			var configFile ConfigFile
 			if _, err = toml.DecodeFile(fn, &configFile); err != nil {

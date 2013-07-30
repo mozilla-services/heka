@@ -1,0 +1,89 @@
+diff -r -u lua-5.1.1/src/ldebug.c lua-5.1.1-hookcount/src/ldebug.c
+--- lua-5.1.1/src/ldebug.c    2005-12-22 17:19:56.000000000 +0100
++++ lua-5.1.1-hookcount/src/ldebug.c    2006-09-10 17:55: 05.000000000 +0200
+@@ -80,6 +80,10 @@
+   return L->basehookcount;
+ }
+
++LUA_API int lua_gethookcountremaining (lua_State *L) {
++  return L->hookcount;
++}
++
+
+ LUA_API int lua_getstack (lua_State *L, int level, lua_Debug *ar) {
+   int status;
+diff -r -u lua-5.1.1/src/lua.h lua-5.1.1-hookcount/src/lua.h
+--- lua-5.1.1/src/lua.h    2006-06-02 17:34:00.000000000 +0200
++++ lua-5.1.1-hookcount/src/lua.h    2006-09-10 17:55:05.000000000 +0200
+@@ -338,6 +338,7 @@
+ LUA_API lua_Hook lua_gethook (lua_State *L);
+ LUA_API int lua_gethookmask (lua_State *L);
+ LUA_API int lua_gethookcount (lua_State *L);
++LUA_API int lua_gethookcountremaining (lua_State *L);
+
+
+ struct lua_Debug {
+diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
+--- lua-5.1.5/CMakeLists.txt	Wed Dec 31 16:00:00 1969
++++ lua-5.1.5p/CMakeLists.txt	Wed May  8 14:47:43 2013
+@@ -0,0 +1,60 @@
++# This Source Code Form is subject to the terms of the Mozilla Public
++# License, v. 2.0. If a copy of the MPL was not distributed with this
++# file, You can obtain one at http://mozilla.org/MPL/2.0/.
++
++cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
++project(lua C)
++set(CMAKE_C_FLAGS "-O2 -Wall")
++
++set(LUA_SOURCE
++src/lapi.c
++src/lauxlib.c
++src/lbaselib.c
++src/lcode.c
++src/ldblib.c
++src/ldebug.c
++src/ldo.c
++src/ldump.c
++src/lfunc.c
++src/lgc.c
++src/linit.c
++src/liolib.c
++src/llex.c
++src/lmathlib.c
++src/lmem.c
++src/loadlib.c
++src/lobject.c
++src/lopcodes.c
++src/loslib.c
++src/lparser.c
++src/lstate.c
++src/lstring.c
++src/lstrlib.c
++src/ltable.c
++src/ltablib.c
++src/ltm.c
++src/lundump.c
++src/lvm.c
++src/lzio.c
++)
++
++if (MINGW)
++    add_library(lua SHARED ${LUA_SOURCE})
++    set_target_properties(lua PROPERTIES LINK_FLAGS -s)
++    if (ADDRESS_MODEL EQUAL 32)
++        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
++        set_target_properties(lua PROPERTIES LINK_FLAGS "-s -m32")
++    endif()
++    add_definitions(-DLUA_BUILD_AS_DLL)
++elseif(APPLE)
++    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
++    add_library(lua STATIC ${LUA_SOURCE})
++    add_definitions(-DLUA_USE_LINUX)
++    target_link_libraries(lua -lreadline)
++else()
++    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
++    add_library(lua STATIC ${LUA_SOURCE})
++endif()
++
++install(TARGETS lua DESTINATION lib)
++install(FILES src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h DESTINATION include)

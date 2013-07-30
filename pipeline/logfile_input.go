@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -560,7 +560,7 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 	fm.cleanJournalPath()
 
 	// Check that the directory to seekJournalPath actually exists
-	journalDir := path.Dir(fm.seekJournalPath)
+	journalDir := filepath.Dir(fm.seekJournalPath)
 
 	if dirInfo, err = os.Stat(journalDir); err != nil {
 		fm.LogMessage(fmt.Sprintf("%s parent dir doesn't exist", fm.seekJournalPath))
@@ -580,8 +580,8 @@ func (fm *FileMonitor) cleanJournalPath() {
 	if fm.seekJournalPath == "" {
 		r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
 		journal_name := r.Replace(fm.logger_ident)
-		defaultPath := path.Join("/var/run/hekad/seekjournals", journal_name)
+		defaultPath := filepath.Join("var", "run", "hekad", "seekjournals", journal_name)
 		fm.seekJournalPath = defaultPath
 	}
-	fm.seekJournalPath = path.Clean(fm.seekJournalPath)
+	fm.seekJournalPath = filepath.Clean(fm.seekJournalPath)
 }

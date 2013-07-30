@@ -22,7 +22,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 )
 
@@ -35,7 +35,7 @@ func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig
 	lfiConfig.StatInterval = 5
 	lfiConfig.SeekJournal = journal_name
 	// Remove any journal that may exist
-	os.Remove(path.Clean(journal_name))
+	os.Remove(filepath.Clean(journal_name))
 
 	return lfInput, lfiConfig
 }
@@ -191,16 +191,17 @@ func FileMonitorSpec(c gs.Context) {
 	c.Specify("filemonitor can generate journal paths", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFile = "../testsupport/test-zeus.log"
+		lfiConfig.LogFile = filepath.Join("..", "testsupport", "test-zeus.log")
 		lfiConfig.DiscoverInterval = 5
 		lfiConfig.StatInterval = 5
 
 		lfInput.Init(lfiConfig)
 		//c.Expect(err, gs.Equals, nil)
 		lfInput.Monitor.cleanJournalPath()
+		clean := filepath.Join("var", "run", "hekad", "seekjournals", "___testsupport_test-zeus_log")
 		c.Expect(lfInput.Monitor.seekJournalPath,
 			gs.Equals,
-			"/var/run/hekad/seekjournals/___testsupport_test-zeus_log")
+			clean)
 	})
 
 }

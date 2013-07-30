@@ -46,7 +46,7 @@ type DashboardOutputConfig struct {
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
-		WorkingDirectory: "./dashboard",
+		WorkingDirectory: filepath.Join(".", "dashboard"),
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
 	}
@@ -65,24 +65,20 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 		return fmt.Errorf("Can't create the working directory for the dashboard output: %s", err.Error())
 	}
 
-	for _, fname := range []string{"heka_report.html", "heka_sandbox_termination.html", "heka.js"} {
-		if err = overwriteFile(path.Join(self.workingDirectory, fname), "ok"); err != nil {
-			return
-		}
-	}
-
 	// delete all previous output
-	if matches, err := filepath.Glob(path.Join(self.workingDirectory, "*.*")); err == nil {
+	if matches, err := filepath.Glob(filepath.Join(self.workingDirectory, "*.*")); err == nil {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
 	}
-	overwriteFile(path.Join(self.workingDirectory, "heka_report.html"), getReportHtml())
-	overwriteFile(path.Join(self.workingDirectory, "heka_sandbox_termination.html"), getSandboxTerminationHtml())
-	overwriteFile(path.Join(self.workingDirectory, "heka.js"), getHekaJs())
+	// test we have write permission on the first file only
+	if err = overwriteFile(filepath.Join(self.workingDirectory, "heka_report.html"), getReportHtml()); err != nil {
+		return
+	}
+	overwriteFile(filepath.Join(self.workingDirectory, "heka_sandbox_termination.html"), getSandboxTerminationHtml())
+	overwriteFile(filepath.Join(self.workingDirectory, "heka.js"), getHekaJs())
 
 	h := http.FileServer(http.Dir(self.workingDirectory))
-	http.Handle("/", h)
 	self.server = &http.Server{
 		Addr:         conf.Address,
 		Handler:      h,
@@ -114,7 +110,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			msg = pack.Message
 			switch msg.GetType() {
 			case "heka.all-report":
-				fn := path.Join(self.workingDirectory, "heka_report.json")
+				fn := filepath.Join(self.workingDirectory, "heka_report.json")
 				createPluginPages(self.workingDirectory, msg.GetPayload())
 				overwriteFile(fn, msg.GetPayload())
 			case "heka.sandbox-output":
@@ -132,10 +128,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 					payloadType = reNotWord.ReplaceAllString(payloadType, "")
 					fn := msg.GetLogger() + nameExt + "." + payloadType
-					ofn := path.Join(self.workingDirectory, fn)
+					ofn := filepath.Join(self.workingDirectory, fn)
 					if payloadType == "cbuf" {
 						html := msg.GetLogger() + nameExt + ".html"
-						ohtml := path.Join(self.workingDirectory, html)
+						ohtml := filepath.Join(self.workingDirectory, html)
 						_, err := os.Stat(ohtml)
 						if err != nil {
 							overwriteFile(ohtml, fmt.Sprintf(getCbufTemplate(),
@@ -151,7 +147,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					}
 				}
 			case "heka.sandbox-terminated":
-				fn := path.Join(self.workingDirectory, "heka_sandbox_termination.tsv")
+				fn := filepath.Join(self.workingDirectory, "heka_sandbox_termination.tsv")
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
 					var line string
 					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {
@@ -209,7 +205,7 @@ type PluginMetadata struct {
 }
 
 func getPluginMetadataPath(dir, logger string) string {
-	return path.Join(dir, logger+".json")
+	return filepath.Join(dir, logger+".json")
 }
 
 func updatePluginMetadata(dir, logger, fn, name string) {
@@ -300,7 +296,7 @@ func createPluginPages(dir, payload string) {
 		if logger, ok = p["Plugin"].(string); !ok {
 			continue
 		}
-		fn := path.Join(dir, logger+".html")
+		fn := filepath.Join(dir, logger+".html")
 		props := make([]string, 0, 5)
 		for k, v := range p {
 			mv, ok := v.(map[string]interface{})
