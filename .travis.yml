@@ -6,7 +6,7 @@ notifications:
         channels:
             - "irc.mozilla.org#heka"
 before_install:
-    - sudo apt-get install libprotobuf-c0-dev libprotobuf7 cmake
+    - sudo apt-get install protobuf-c-compiler cmake
 
 install:
     - . build.sh
