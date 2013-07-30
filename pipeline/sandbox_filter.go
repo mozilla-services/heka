@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"sync"
@@ -72,8 +71,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 
 	switch this.sbc.ScriptType {
 	case "lua":
-		this.sb, err = lua.CreateLuaSandbox(this.sbc)
-		if err != nil {
+        if this.sb, err = CreateLuaSandbox(this.sbc); err != nil {
 			return err
 		}
 	default:
