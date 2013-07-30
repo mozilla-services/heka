@@ -486,7 +486,7 @@ func TestPreserveFailure(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := "/tmp/serialize_failure.lua.data"
+	output := filepath.Join(os.TempDir(), "serialize_failure.lua.data")
 	err = sb.Destroy(output)
 	if err == nil {
 		t.Errorf("The key of type 'function' should have failed")
