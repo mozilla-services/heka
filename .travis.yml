@@ -1,13 +1,12 @@
 language: go
 go:
-    - "1.1"
+    - 1.1
     - tip
 before_install:
-    - sudo apt-get install protobuf
-    - sudo apt-get install cmake
+    - sudo apt-get install libprotobuf-c0 libprotobuf7 cmake
 
 install:
-    - ". build.sh"
+    - . build.sh
 
 script:
     - make test
