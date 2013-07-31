@@ -293,7 +293,7 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 		case "uuid":
 			writeField(&buf, f, strconv.Quote(m.GetUuidString()))
 		case "timestamp":
-			t := time.Unix(0, m.GetTimestamp())
+			t := time.Unix(0, m.GetTimestamp()).UTC()
 			writeField(&buf, f, strconv.Quote(t.Format(c.timestampFormat)))
 		case "type":
 			writeField(&buf, f, strconv.Quote(m.GetType()))
