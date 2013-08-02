@@ -57,12 +57,54 @@ function process_message ()
         end
         output({escape = escape})
         inject_message()
+    elseif msg == "message" then
+        local msg = {Timestamp = 1e9, Type="type", Logger="logger", Payload="payload", EnvVersion="env_version", Hostname="hostname", Severity=9, }
+        inject_message(msg)
+    elseif msg == "message field" then
+        local msg = {Timestamp = 1e9, Fields = {count=1}}
+        inject_message(msg)
+    elseif msg == "message field array" then
+        local msg = {Timestamp = 1e9, Fields = {counts={2,3,4}}}
+        inject_message(msg)
+    elseif msg == "message field metadata" then
+        local msg = {Timestamp = 1e9, Fields = {count={value=5,representation="count"}}}
+        inject_message(msg)
+    elseif msg == "message field metadata array" then
+        local msg = {Timestamp = 1e9, Fields = {counts={value={6,7,8},representation="count"}}}
+        inject_message(msg)
+    elseif msg == "message field all types" then
+        local msg = {Timestamp = 1e9, Fields = {number=1,numbers={value={1,2,3}, representation="count"},string="string",strings={"s1","s2","s3"}, bool=true, bools={true,false,false}}}
+        inject_message(msg)
+    elseif msg == "error mis-match field array" then
+        local msg = {Timestamp = 1e9, Fields = {counts={2,"ten",4}}}
+        inject_message(msg)
+    elseif msg == "error nil field" then
+        local msg = {Timestamp = 1e9, Fields = {counts={}}}
+        inject_message(msg)
+    elseif msg == "error nil type arg" then
+        inject_message(nil)
+    elseif msg == "error nil name arg" then
+        inject_message("txt", nil)
+    elseif msg == "error incorrect number of args" then
+        inject_message("txt", "name", 1)
+    elseif msg == "message force memmove" then
+        local msg = {Timestamp = 1e9, Fields = {string="0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"}}
+        inject_message(msg)
     end
     return 0
 end
 
+local output_msg = {Timestamp = 1e9, Type="TEST", Logger="GoSpec", Papload="Test Payload", EnvVersion="0.8", Pid=1234, Hostname="hostname", Severity=6, Fields = {foo="bar"}}
+
 function timer_event(ns)
-    output(cbuf)
-    inject_message("cbuf", "test")
+    if ns == 0 then
+        output(cbuf)
+        inject_message("cbuf", "test")
+    elseif ns == 1 then
+        inject_message(output_msg)
+    elseif ns == 2 then
+        output(output_msg)
+        inject_message("json")
+    end
 end
 

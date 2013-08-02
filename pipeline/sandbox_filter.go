@@ -16,6 +16,7 @@
 package pipeline
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
@@ -162,13 +163,26 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				Globals().MaxMsgLoops))
 			return 1
 		}
-		pack.Message.SetType("heka.sandbox-output")
-		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetPayload(payload)
-		ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
-		pack.Message.AddField(ptype)
-		pname, _ := message.NewField("payload_name", payload_name, "")
-		pack.Message.AddField(pname)
+		if len(payload_type) == 0 { // heka protobuf message
+			hostname := pack.Message.GetHostname()
+			err := proto.Unmarshal([]byte(payload), pack.Message)
+			if err == nil {
+				// do not allow filters to override the following
+				pack.Message.SetType("heka.sandbox." + pack.Message.GetType())
+				pack.Message.SetLogger(fr.Name())
+				pack.Message.SetHostname(hostname)
+			} else {
+				return 1
+			}
+		} else {
+			pack.Message.SetType("heka.sandbox-output")
+			pack.Message.SetLogger(fr.Name())
+			pack.Message.SetPayload(payload)
+			ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
+			pack.Message.AddField(ptype)
+			pname, _ := message.NewField("payload_name", payload_name, "")
+			pack.Message.AddField(pname)
+		}
 		if !fr.Inject(pack) {
 			return 1
 		}

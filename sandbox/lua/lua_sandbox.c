@@ -8,14 +8,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
 #include "lua_sandbox.h"
 #include "lua_sandbox_private.h"
 #include "lua_circular_buffer.h"
-#include "_cgo_export.h"
-
 
 static const char* disable_base_functions[] = { "collectgarbage", "coroutine",
     "dofile", "getfenv", "getmetatable", "load", "loadfile", "loadstring",
@@ -62,6 +61,7 @@ lua_sandbox* lua_sandbox_create(void* go,
         return NULL;
     }
     strcpy(lsb->m_lua_file, lua_file);
+    srand(time(NULL));
     return lsb;
 }
 
