@@ -934,12 +934,11 @@ int inject_message(lua_State* lua)
     return 0;
 }
 
-int luaopen_lpeg (lua_State *L);
 ////////////////////////////////////////////////////////////////////////////////
 int require_library(lua_State* lua)
 {
     const char *name = luaL_checkstring(lua, 1);
-    if (strcmp(name, "lpeg") == 0) {
+    if (strcmp(name, LUA_LPEGLIBNAME) == 0) {
         const char* disable[] = { NULL };
         load_library(lua, name, luaopen_lpeg, disable);
     } else {

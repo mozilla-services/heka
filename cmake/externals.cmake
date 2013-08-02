@@ -17,6 +17,7 @@ externalproject_add(
     lpeg-0_12
     URL http://www.inf.puc-rio.br/~roberto/lpeg/lpeg-0.12.tar.gz
     URL_MD5 4abb3c28cd8b6565c6a65e88f06c9162
+    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lpeg-0_12.patch
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""

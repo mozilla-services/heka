@@ -1,32 +1,7 @@
-diff -r -u lua-5.1.1/src/ldebug.c lua-5.1.1-hookcount/src/ldebug.c
---- lua-5.1.1/src/ldebug.c    2005-12-22 17:19:56.000000000 +0100
-+++ lua-5.1.1-hookcount/src/ldebug.c    2006-09-10 17:55: 05.000000000 +0200
-@@ -80,6 +80,10 @@
-   return L->basehookcount;
- }
-
-+LUA_API int lua_gethookcountremaining (lua_State *L) {
-+  return L->hookcount;
-+}
-+
-
- LUA_API int lua_getstack (lua_State *L, int level, lua_Debug *ar) {
-   int status;
-diff -r -u lua-5.1.1/src/lua.h lua-5.1.1-hookcount/src/lua.h
---- lua-5.1.1/src/lua.h    2006-06-02 17:34:00.000000000 +0200
-+++ lua-5.1.1-hookcount/src/lua.h    2006-09-10 17:55:05.000000000 +0200
-@@ -338,6 +338,7 @@
- LUA_API lua_Hook lua_gethook (lua_State *L);
- LUA_API int lua_gethookmask (lua_State *L);
- LUA_API int lua_gethookcount (lua_State *L);
-+LUA_API int lua_gethookcountremaining (lua_State *L);
-
-
- struct lua_Debug {
-diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
---- lua-5.1.5/CMakeLists.txt	Wed Dec 31 16:00:00 1969
-+++ lua-5.1.5p/CMakeLists.txt	Wed May  8 14:47:43 2013
-@@ -0,0 +1,66 @@
+diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
+--- lua-5.1.5.orig/CMakeLists.txt	Wed Dec 31 16:00:00 1969
++++ lua-5_1_5/CMakeLists.txt	Fri Aug  2 09:26:42 2013
+@@ -0,0 +1,70 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -34,6 +9,13 @@ diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 +cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 +project(lua C)
 +set(CMAKE_C_FLAGS "-O2 -Wall")
++
++set(LPEG_SOURCE
++../lpeg-0_12/lpcap.c
++../lpeg-0_12/lpcode.c
++../lpeg-0_12/lptree.c
++../lpeg-0_12/lpvm.c
++)
 +
 +set(LUA_SOURCE
 +src/lapi.c
@@ -65,11 +47,7 @@ diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 +src/lundump.c
 +src/lvm.c
 +src/lzio.c
-+../lpeg-0_12/lpcap.c
-+../lpeg-0_12/lpcode.c
-+../lpeg-0_12/lpprint.c
-+../lpeg-0_12/lptree.c
-+../lpeg-0_12/lpvm.c
++${LPEG_SOURCE}
 +)
 +include_directories("${CMAKE_SOURCE_DIR}/src")
 +
@@ -80,6 +58,7 @@ diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 +        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
 +        set_target_properties(lua PROPERTIES LINK_FLAGS "-s -m32")
 +    endif()
++    set_source_files_properties(${LPEG_SOURCE} PROPERTIES COMPILE_DEFINITIONS LUA_CORE)
 +    add_definitions(-DLUA_BUILD_AS_DLL)
 +elseif(APPLE)
 +    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
@@ -93,3 +72,40 @@ diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 +
 +install(TARGETS lua DESTINATION lib)
 +install(FILES src/lua.h src/luaconf.h src/lualib.h src/lauxlib.h DESTINATION include)
+diff -Naur lua-5.1.5.orig/src/ldebug.c lua-5_1_5/src/ldebug.c
+--- lua-5.1.5.orig/src/ldebug.c	Thu May  8 09:56:26 2008
++++ lua-5_1_5/src/ldebug.c	Fri Aug  2 09:26:42 2013
+@@ -80,6 +80,10 @@
+   return L->basehookcount;
+ }
+ 
++LUA_API int lua_gethookcountremaining (lua_State *L) {
++  return L->hookcount;
++}
++
+ 
+ LUA_API int lua_getstack (lua_State *L, int level, lua_Debug *ar) {
+   int status;
+diff -Naur lua-5.1.5.orig/src/lua.h lua-5_1_5/src/lua.h
+--- lua-5.1.5.orig/src/lua.h	Fri Jan 13 12:36:20 2012
++++ lua-5_1_5/src/lua.h	Fri Aug  2 09:26:42 2013
+@@ -341,6 +341,7 @@
+ LUA_API lua_Hook lua_gethook (lua_State *L);
+ LUA_API int lua_gethookmask (lua_State *L);
+ LUA_API int lua_gethookcount (lua_State *L);
++LUA_API int lua_gethookcountremaining (lua_State *L);
+ 
+ 
+ struct lua_Debug {
+diff -Naur lua-5.1.5.orig/src/lualib.h lua-5_1_5/src/lualib.h
+--- lua-5.1.5.orig/src/lualib.h	Thu Dec 27 05:02:25 2007
++++ lua-5_1_5/src/lualib.h	Fri Aug  2 09:59:47 2013
+@@ -39,6 +39,8 @@
+ #define LUA_LOADLIBNAME	"package"
+ LUALIB_API int (luaopen_package) (lua_State *L);
+ 
++#define LUA_LPEGLIBNAME	"lpeg"
++LUALIB_API int (luaopen_lpeg) (lua_State *L);
+ 
+ /* open all previous libraries */
+ LUALIB_API void (luaL_openlibs) (lua_State *L); 
