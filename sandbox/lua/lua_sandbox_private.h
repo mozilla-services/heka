@@ -311,7 +311,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns zero values on the stack.
  */
 int output(lua_State* lua);
 
@@ -323,7 +323,7 @@ int output(lua_State* lua);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns one value on the stack.
  */
 int read_message(lua_State* lua);
 
@@ -333,8 +333,17 @@ int read_message(lua_State* lua);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns zero values on the stack.
  */
 int inject_message(lua_State* lua);
+
+/** 
+ * Overridden 'require' used to load optional sandbox libraries in global space.
+ * 
+ * @param lua Pointer to the Lua state.
+ * 
+ * @return int Returns zero values on the stack.
+ */
+int require_library(lua_State* lua);
 
 #endif

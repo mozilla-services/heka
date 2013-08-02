@@ -288,6 +288,7 @@ func getTestMessage() *message.Message {
 func TestAPIErrors(t *testing.T) {
 	msg := getTestMessage()
 	tests := []string{
+		"require unknown",
 		"output() no arg",
 		"out of memory",
 		"out of instructions",
@@ -301,6 +302,7 @@ func TestAPIErrors(t *testing.T) {
 		"output limit exceeded"}
 
 	msgs := []string{
+		"process_message() ./testsupport/errors.lua:11: library 'unknown' is not available",
 		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -918,6 +920,38 @@ func TestInjectMessageError(t *testing.T) {
 		}
 		sb.Destroy("")
 	}
+}
+
+func TestLpeg(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/lpeg_csv.lua"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.InjectMessage(func(p, pt, pn string) int {
+		expected := `{"table":["1","string with spaces","quoted string, with comma and \"quoted\" text"]}
+`
+		if p != expected {
+			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", expected, p)
+		}
+		return 0
+	})
+
+	msg.SetPayload("1,string with spaces,\"quoted string, with comma and \"\"quoted\"\" text\"")
+	r := sb.ProcessMessage(msg)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+	}
+	sb.Destroy("")
 }
 
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
