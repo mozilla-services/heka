@@ -7,9 +7,9 @@ data = ""
 function process_message ()
     local msg = read_message("Payload")
 
-    if msg == "inject_message() incorrect number of args" then
-        inject_message(1, 2, 3)
-    elseif msg == "output() no arg" then
+
+
+    if msg == "output() no arg" then
         output()
     elseif msg == "out of memory" then
         for i=1,500 do
