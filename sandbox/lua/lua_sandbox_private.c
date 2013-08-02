@@ -934,6 +934,19 @@ int inject_message(lua_State* lua)
     return 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+int require_library(lua_State* lua)
+{
+    const char *name = luaL_checkstring(lua, 1);
+    if (strcmp(name, LUA_LPEGLIBNAME) == 0) {
+        const char* disable[] = { NULL };
+        load_library(lua, name, luaopen_lpeg, disable);
+    } else {
+        luaL_error(lua, "library '%s' is not available", name);
+    }
+    return 0;
+}
+
 // todo split the protobuf code out to a separate source file when
 // http://code.google.com/p/go/issues/detail?id=5740 is resolved
 ////////////////////////////////////////////////////////////////////////////////
