@@ -26,7 +26,7 @@ diff -r -u lua-5.1.1/src/lua.h lua-5.1.1-hookcount/src/lua.h
 diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 --- lua-5.1.5/CMakeLists.txt	Wed Dec 31 16:00:00 1969
 +++ lua-5.1.5p/CMakeLists.txt	Wed May  8 14:47:43 2013
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,66 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -65,7 +65,13 @@ diff -r -u -N lua-5.1.5/CMakeLists.txt lua-5.1.5p/CMakeLists.txt
 +src/lundump.c
 +src/lvm.c
 +src/lzio.c
++../lpeg-0_12/lpcap.c
++../lpeg-0_12/lpcode.c
++../lpeg-0_12/lpprint.c
++../lpeg-0_12/lptree.c
++../lpeg-0_12/lpvm.c
 +)
++include_directories("${CMAKE_SOURCE_DIR}/src")
 +
 +if (MINGW)
 +    add_library(lua SHARED ${LUA_SOURCE})

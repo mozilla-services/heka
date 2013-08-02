@@ -7,9 +7,9 @@ data = ""
 function process_message ()
     local msg = read_message("Payload")
 
-
-
-    if msg == "output() no arg" then
+    if msg == "require unknown" then
+        require("unknown")
+    elseif msg == "output() no arg" then
         output()
     elseif msg == "out of memory" then
         for i=1,500 do
