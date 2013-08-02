@@ -123,7 +123,7 @@ Heka functions that are exposed to the Lua sandbox
 
     *Arguments*
         - libraryName (string)
-            - **lpeg** loads the Lua Parsing Expressing Grammar Library
+            - **lpeg** loads the Lua Parsing Expression Grammar Library
 
     *Return*
         none, the library is exposed as a global table with the library name.
