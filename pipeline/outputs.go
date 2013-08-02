@@ -24,7 +24,7 @@ import (
 	"log"
 	"net"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -208,7 +208,7 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 }
 
 func (o *FileOutput) openFile() (err error) {
-	basePath := path.Dir(o.path)
+	basePath := filepath.Dir(o.path)
 	if err = os.MkdirAll(basePath, o.folderPerm); err != nil {
 		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
 	}
@@ -395,9 +395,9 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
-func checkWritePermission(filepath string) (err error) {
+func checkWritePermission(fp string) (err error) {
 	var file *os.File
-	filename := path.Join(filepath, ".hekad.perm_check")
+	filename := filepath.Join(fp, ".hekad.perm_check")
 	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644); err == nil {
 		errMsgs := make([]string, 0, 3)
 		var e error
