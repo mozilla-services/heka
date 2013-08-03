@@ -43,6 +43,7 @@ type ElasticSearchOutput struct {
 	backChan      chan []byte
 	format        string
 	timestamp     string
+	esIndexFromTimestamp   bool
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
@@ -78,6 +79,9 @@ type ElasticSearchOutputConfig struct {
 	// be done with the UDP Bulk API of ElasticSearch.
 	// (default to "http://localhost:9200")
 	Server string
+	// When formating the Index use the Timestamp from the Message instead of Now
+	ESIndexFromTimestamp bool
+
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -90,6 +94,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Format:        "clean",
 		Timestamp:     "2006-01-02T15:04:05.000Z",
 		Server:        "http://localhost:9200",
+		ESIndexFromTimestamp:  false,
 	}
 }
 
@@ -103,11 +108,14 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
+	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
 		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
+	case "logstash_original":
+		o.messageFormatter = &KibanaFormatter{}
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
 	}
@@ -197,6 +205,7 @@ type ElasticSearchCoordinates struct {
 	Id              string
 	Timestamp       *int64
 	TimestampFormat string
+	ESIndexFromTimestamp    bool
 }
 
 func (e *ElasticSearchCoordinates) String() string {
@@ -207,14 +216,14 @@ func (e *ElasticSearchCoordinates) String() string {
 func (e *ElasticSearchCoordinates) Bytes() []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
-	buf.WriteString(strconv.Quote(cleanIndexName(e.Index)))
+	buf.WriteString(strconv.Quote(cleanIndexName(e)))
 	buf.WriteString(`,"_type":`)
 	buf.WriteString(strconv.Quote(e.Type))
 	if len(e.Id) > 0 {
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(e.Id))
 	}
-	if e != nil && e.Timestamp != nil {
+	if e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
 		buf.WriteString(`,"_timestamp":"`)
 		buf.WriteString(t.Format(e.TimestampFormat))
@@ -251,6 +260,9 @@ type CleanMessageFormatter struct {
 	timestampFormat string
 }
 
+type KibanaFormatter struct {
+}
+
 func NewCleanMessageFormatter(fields []string, timestampFormat string) *CleanMessageFormatter {
 	if fields == nil || len(fields) == 0 {
 		return &CleanMessageFormatter{
@@ -282,6 +294,134 @@ func writeField(b *bytes.Buffer, name string, value string) {
 	b.WriteString(name)
 	b.WriteString(`":`)
 	b.WriteString(value)
+}
+
+const lowerhex = "0123456789abcdef"
+
+func writeUTF16Escape(b *bytes.Buffer, c rune) {
+	b.WriteString(`\u`)
+	b.WriteByte(lowerhex[(c>>12)&0xF])
+	b.WriteByte(lowerhex[(c>>8)&0xF])
+	b.WriteByte(lowerhex[(c>>4)&0xF])
+	b.WriteByte(lowerhex[c&0xF])
+}
+
+// go json encoder will blow up on invalid utf8
+// so we use this custom json encoder
+// also, go json encoder generates these funny \U escapes
+// which i don't think are valid json
+
+// also note that  invalid utf-8 sequences get encoded as U+FFFD
+// this is feature :)
+
+func writeQuotedString(b *bytes.Buffer, str string) {
+	b.WriteString(`"`)
+
+	// string = quotation-mark *char quotation-mark
+
+	// char = unescaped /
+	//        escape (
+	//            %x22 /          ; "    quotation mark  U+0022
+	//            %x5C /          ; \    reverse solidus U+005C
+	//            %x2F /          ; /    solidus         U+002F
+	//            %x62 /          ; b    backspace       U+0008
+	//            %x66 /          ; f    form feed       U+000C
+	//            %x6E /          ; n    line feed       U+000A
+	//            %x72 /          ; r    carriage return U+000D
+	//            %x74 /          ; t    tab             U+0009
+	//            %x75 4HEXDIG )  ; uXXXX                U+XXXX
+
+	// escape = %x5C              ; \
+
+	// quotation-mark = %x22      ; "
+
+	// unescaped = %x20-21 / %x23-5B / %x5D-10FFFF
+
+	for _, c := range str {
+		if c == 0x20 || c == 0x21 || (c >= 0x23 && c <= 0x5B) || (c >= 0x5D) {
+			b.WriteRune(c)
+		} else {
+
+			// all runes should be < 16 bits because of the (c >= 0x5D) guard above
+			// however, runes are int32 so it is possible to have negative values
+			// that won't be correctly outputted. however, afaik these values are
+			/// not part of the unicode standard.
+			writeUTF16Escape(b, c)
+		}
+
+	}
+	b.WriteString(`"`)
+
+}
+
+func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
+	if !first {
+		b.WriteString(`,`)
+	}
+	writeQuotedString(b, name)
+	b.WriteString(`:`)
+	writeQuotedString(b, value)
+}
+
+func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
+	if !first {
+		b.WriteString(`,`)
+	}
+	writeQuotedString(b, name)
+	b.WriteString(`:`)
+	b.WriteString(value)
+
+}
+
+func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
+	buf := bytes.Buffer{}
+	buf.WriteString(`{`)
+
+	writeStringField(true, &buf, `@uuid`, m.GetUuidString())
+
+	t := time.Unix(0, m.GetTimestamp()) // time.Unix gives local time back
+	writeStringField(false, &buf, `@timestamp`, t.UTC().Format("2006-01-02T15:04:05.000Z"))
+
+	writeStringField(false, &buf, `@type`, m.GetType())
+
+	writeStringField(false, &buf, `@logger`, m.GetLogger())
+
+	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))
+
+	writeStringField(false, &buf, `@message`, m.GetPayload())
+
+	writeRawField(false, &buf, `@envversion`, strconv.Quote(m.GetEnvVersion()))
+
+	writeRawField(false, &buf, `@pid`, strconv.Itoa(int(m.GetPid())))
+
+	writeStringField(false, &buf, `@source_host`, m.GetHostname())
+
+	buf.WriteString(`,"@fields":{`)
+	first := true
+	for _, field := range m.Fields {
+		switch field.GetValueType() {
+		case message.Field_STRING:
+			writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+			first = false
+		case message.Field_BYTES:
+			data := field.GetValue().([]byte)[:]
+			writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
+			first = false
+		case message.Field_INTEGER:
+			writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+			first = false
+		case message.Field_DOUBLE:
+			writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+			first = false
+		case message.Field_BOOL:
+			writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+			first = false
+		}
+	}
+	buf.WriteString(`}`) // end of fields
+	buf.WriteString(`}`)
+	doc = buf.Bytes()
+	return
 }
 
 func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err error) {
@@ -348,6 +488,7 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 		Type:            o.typeName,
 		Timestamp:       pack.Message.Timestamp,
 		TimestampFormat: o.timestamp,
+		ESIndexFromTimestamp:    o.esIndexFromTimestamp,
 	}
 
 	var document []byte
@@ -385,13 +526,21 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
-func cleanIndexName(name string) (index string) {
+func cleanIndexName(e *ElasticSearchCoordinates) (index string) {
+	name := e.Index
 	start := strings.Index(name, "%{")
 	end := strings.Index(name, "}")
 
 	if start > -1 && end > -1 {
 		layout := name[start+len("%{") : end]
-		index = name[:start] + time.Now().Format(layout)
+		var t time.Time
+		if e.ESIndexFromTimestamp && e.Timestamp != nil {
+			t = time.Unix(0, *e.Timestamp).UTC()
+		} else {
+			t = time.Now()
+		}
+
+		index = name[:start] + t.Format(layout)
 	} else {
 		index = name
 	}
