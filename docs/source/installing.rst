@@ -123,7 +123,7 @@ repository URL, and the repository tag to fetch.
 
     .. code-block:: txt
 
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
+        add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
 
 The preceeding entry clones the `heka-mozsvc-plugins` git repository into the Go
 work environment, checks out the dev branch, and imports the package into 
