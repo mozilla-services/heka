@@ -32,10 +32,10 @@ distributions and all are available for installation on Windows systems.
 Prerequisites (all systems):
 
 - CMake 2.8 or greater http://www.cmake.org/cmake/resources/software.html
-- Git http://code.google.com/p/msysgit/downloads/list
+- Git http://git-scm.com/download
 - Go 1.1 or greater (1.1.1 recommended) http://code.google.com/p/go/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
-- Protobuf 2.3 or greater http://code.google.com/p/protobuf/downloads/list
+- Protobuf 2.3 or greater (optional - only needed if message.proto is modified) http://code.google.com/p/protobuf/downloads/list
 - Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
 
 Prerequisites (Unix):

@@ -4,7 +4,6 @@
 
 include(ExternalProject)
 
-find_package(Protobuf 2.3 REQUIRED)
 get_filename_component(GIT_PATH ${GIT_EXECUTABLE} PATH)
 find_program(PATCH_EXECUTABLE patch HINTS "${GIT_PATH}" "${GIT_PATH}/../bin")
 if (NOT PATCH_EXECUTABLE)
