@@ -1108,8 +1108,10 @@ Parameters:
     Number of messages that, if processed, will trigger them to be bulk
     indexed into ElasticSearch. Defaults to 10.
 - format (string):
-    Message serialization format, either "clean" or "raw", where "clean" is
-    a more concise JSON representation of the message. Defaults to "clean".
+    Message serialization format, either "clean", "logstash_original"
+    or "raw", where "clean" is a more concise JSON representation of the 
+    message and "logstash_original" outputs in a format similar to 
+    logstash. Defaults to "clean".
 - fields ([]string):
     If the format is "clean", then the 'fields' parameter can be used to
     specify that only specific message data should be indexed into
@@ -1123,6 +1125,9 @@ Parameters:
 - server (string):
     ElasticSearch server URL. Supports http://, https:// and udp:// urls.
     Defaults to "http://localhost:9200".
+- ESIndexFromTimestamp (bool):
+    When generating the index name use the timestamp from the message
+    instead of the current time. Defaults to false.
 
 Example:
 

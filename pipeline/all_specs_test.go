@@ -57,6 +57,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(DashboardOutputSpec)
 	r.AddSpec(JsonPathSpec)
 	r.AddSpec(HttpInputSpec)
+	r.AddSpec(ElasticSearchOutputSpec)
 	gospec.MainGoTest(r, t)
 }
 
