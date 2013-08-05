@@ -1108,10 +1108,10 @@ Parameters:
     Number of messages that, if processed, will trigger them to be bulk
     indexed into ElasticSearch. Defaults to 10.
 - format (string):
-    Message serialization format, either "clean", "logstash_original"
-    or "raw", where "clean" is a more concise JSON representation of the 
-    message and "logstash_original" outputs in a format similar to 
-    logstash. Defaults to "clean".
+    Message serialization format, either "clean", "logstash_v0" or "raw",
+    where "clean" is a more concise JSON representation of the  message and
+    "logstash_v0" outputs in a format similar to  Logstash's original (i.e.
+    "version 0") ElasticSearch schema. Defaults to "clean".
 - fields ([]string):
     If the format is "clean", then the 'fields' parameter can be used to
     specify that only specific message data should be indexed into
