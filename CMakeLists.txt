@@ -15,6 +15,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(Go 1.1 REQUIRED)
 find_package(Git REQUIRED)
+find_package(Protobuf 2.3 QUIET)
 set(PACKAGE_NAME "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}_${CPACK_PACKAGE_VERSION_MINOR}_${CPACK_PACKAGE_VERSION_PATCH}")
 set(CPACK_PACKAGE_NAME "${PACKAGE_NAME}-${GO_PLATFORM}-${GO_ARCH}")
 set(CPACK_PACKAGE_FILE_NAME ${CPACK_PACKAGE_NAME})
@@ -93,6 +94,15 @@ COMMAND ${CMAKE_COMMAND} ..
 COMMENT "Resynchronizing the Go workspace with the Heka repository"
 )
 
+set(MESSAGE_PROTO_OUT "${CMAKE_SOURCE_DIR}/message/message.pb.go")
+add_custom_command(
+OUTPUT ${MESSAGE_PROTO_OUT}
+COMMAND ${CMAKE_COMMAND} -DSRC_DIR="${CMAKE_SOURCE_DIR}" -DPROTOBUF_EXECUTABLE="${PROTOBUF_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/cmake/message_proto.cmake"
+DEPENDS "${CMAKE_SOURCE_DIR}/message/message.proto"
+WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/message"
+COMMENT "Built ${MESSAGE_PROTO_OUT}"
+)
+
 add_custom_target(heka_source ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/client" "${HEKA_PATH}/client"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/cmd" "${HEKA_PATH}/cmd"
@@ -102,15 +112,15 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sandbox" "${HEKA_PATH}/sandbox"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/testsupport" "${HEKA_PATH}/testsupport"
-DEPENDS lua-5_1_5 GoPackages
+DEPENDS lua-5_1_5 GoPackages ${MESSAGE_PROTO_OUT}
 )
-add_custom_target(message_code_generation ALL
+
+add_custom_target(message_matcher_parser ALL
 COMMAND ${GO_EXECUTABLE} tool yacc -l=false -o=message_matcher_parser.go message_matcher_parser.y
-COMMAND ${PROTOBUF_EXECUTABLE} --go_out=. message.proto
 DEPENDS heka_source
 WORKING_DIRECTORY "${HEKA_PATH}/message"
 )
-add_dependencies(mocks message_code_generation)
+add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL 
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
