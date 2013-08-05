@@ -454,7 +454,7 @@ Parameters:
 - seekjournal (string)
     Heka will write out a journal to keep track of the last known read
     position of a logfile.  By default, this will default to writing
-    in /var/run/hekad/seekjournals/.  The journal name will be the
+    in /var/cache/hekad/seekjournals/.  The journal name will be the
     logger name with path separators and periods replaced with
     underscores.
 - resumeFromStart(bool)
@@ -1157,7 +1157,7 @@ Parameters:
 
 - base_path (string, optional):
     Path to the base directory where the whisper file tree will be written. Defaults
-    to "/var/run/hekad/whisper".
+    to "/var/cache/hekad/whisper".
 - default_agg_method (int, optional):
     Default aggregation method to use for each whisper output file. Supports
     the following values:
