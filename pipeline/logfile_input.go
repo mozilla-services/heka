@@ -580,7 +580,7 @@ func (fm *FileMonitor) cleanJournalPath() {
 	if fm.seekJournalPath == "" {
 		r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
 		journal_name := r.Replace(fm.logger_ident)
-		defaultPath := filepath.Join("var", "run", "hekad", "seekjournals", journal_name)
+		defaultPath := filepath.Join("var", "cache", "hekad", "seekjournals", journal_name)
 		fm.seekJournalPath = defaultPath
 	}
 	fm.seekJournalPath = filepath.Clean(fm.seekJournalPath)

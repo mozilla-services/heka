@@ -198,7 +198,7 @@ func FileMonitorSpec(c gs.Context) {
 		lfInput.Init(lfiConfig)
 		//c.Expect(err, gs.Equals, nil)
 		lfInput.Monitor.cleanJournalPath()
-		clean := filepath.Join("var", "run", "hekad", "seekjournals", "___testsupport_test-zeus_log")
+		clean := filepath.Join("var", "cache", "hekad", "seekjournals", "___testsupport_test-zeus_log")
 		c.Expect(lfInput.Monitor.seekJournalPath,
 			gs.Equals,
 			clean)
