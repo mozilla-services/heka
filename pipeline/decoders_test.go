@@ -32,17 +32,6 @@ import (
 	"time"
 )
 
-type PanicDecoder struct{}
-
-func (p *PanicDecoder) Init(config interface{}) (err error) {
-	return
-}
-
-func (p *PanicDecoder) Decode(pack *PipelinePack) (err error) {
-	panic("PANICDECODER")
-	return
-}
-
 // Attach an `Init` method to MockDecoders so they'll work w/ PluginWrappers
 func (d *MockDecoder) Init(config interface{}) (err error) {
 	return
@@ -102,19 +91,6 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Decode(pack)
 			c.Expect(err, gs.Not(gs.IsNil))
 		})
-	})
-
-	c.Specify("Recovers from a panic in `Decode()`", func() {
-		decoder := new(PanicDecoder)
-		dRunner := NewDecoderRunner("panic", decoder, nil)
-		pack := NewPipelinePack(config.inputRecycleChan)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		Globals().Stopping = true
-		dRunner.Start(config, &wg)
-		dRunner.InChan() <- pack // No panic ==> success
-		wg.Wait()
-		Globals().Stopping = false
 	})
 
 	c.Specify("A PayloadJsonDecoder", func() {

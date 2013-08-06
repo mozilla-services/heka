@@ -45,16 +45,6 @@ func NewOutputTestHelper(ctrl *gomock.Controller) (oth *OutputTestHelper) {
 	return
 }
 
-type PanicOutput struct{}
-
-func (p *PanicOutput) Init(config interface{}) (err error) {
-	panic("PANICOUTPUT")
-}
-
-func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	panic("PANICOUTPUT")
-}
-
 var stopoutputTimes int
 
 type StoppingOutput struct{}
@@ -378,15 +368,6 @@ func OutputsSpec(c gs.Context) {
 			result = <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
 		})
-	})
-
-	c.Specify("Runner recovers from panic in output's `Run()` method", func() {
-		output := new(PanicOutput)
-		oRunner := NewFORunner("panic", output, nil)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		oRunner.Start(oth.MockHelper, &wg) // no panic => success
-		wg.Wait()
 	})
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {

@@ -107,12 +107,6 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 
 func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	defer func() {
-		if r := recover(); r != nil {
-			// Panics in separate goroutines that are spun up by the input
-			// will still bring the process down, but this protects us at
-			// least a little bit. :P
-			ir.LogError(fmt.Errorf("PANIC: %s", r))
-		}
 		wg.Done()
 	}()
 

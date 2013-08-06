@@ -108,12 +108,6 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 
 	// Apply configuration to instantiated plugin.
 	configPlugin := func() (err error) {
-		defer func() {
-			// Slight protection against Init call into plugin code.
-			if r := recover(); r != nil {
-				err = fmt.Errorf("Init() panicked: %s", r)
-			}
-		}()
 		err = plugin.(Plugin).Init(config)
 		return
 	}
