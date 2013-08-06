@@ -21,7 +21,6 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
-	"sync"
 	"time"
 )
 

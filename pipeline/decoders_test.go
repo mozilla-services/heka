@@ -27,7 +27,6 @@ import (
 	"github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
