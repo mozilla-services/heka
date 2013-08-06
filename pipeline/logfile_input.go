@@ -344,7 +344,6 @@ func (fm *FileMonitor) Watcher() {
 }
 
 func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
-	var msg string
 	var seekJournal *os.File
 	var file_err error
 
@@ -353,20 +352,19 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	}
 
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
-		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		os.O_CREATE|os.O_RDWR|os.O_TRUNC,
 		0660); file_err != nil {
-		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
-		fm.LogError(msg)
+		fm.LogError(fmt.Sprintf("Error opening seek recovery log: %s", file_err.Error()))
 		return false
 	}
 	defer seekJournal.Close()
-	seekJournal.Seek(0, os.SEEK_END)
 
 	var filemon_bytes []byte
 	filemon_bytes, _ = json.Marshal(fm)
-
-	msg = string(filemon_bytes) + "\n"
-	seekJournal.WriteString(msg)
+	if _, file_err = seekJournal.Write(filemon_bytes); file_err != nil {
+		fm.LogError(fmt.Sprintf("Error writing seek recovery log: %s", file_err.Error()))
+		return false
+	}
 
 	return true
 }
@@ -522,9 +520,8 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 		return
 	}
 
-	var f *os.File
-
-	if f, err = os.Open(fm.seekJournalPath); err != nil {
+	var seekJournal *os.File
+	if seekJournal, err = os.Open(fm.seekJournalPath); err != nil {
 		// The logfile doesn't exist, nothing special to do
 		if os.IsNotExist(err) {
 			// file doesn't exist, but that's ok, not a real error
@@ -532,13 +529,6 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 		} else {
 			return
 		}
-	}
-	defer f.Close()
-
-	var seekJournal *os.File
-	if seekJournal, err = os.OpenFile(fm.seekJournalPath,
-		os.O_RDWR, 0660); err != nil {
-		return
 	}
 	defer seekJournal.Close()
 
