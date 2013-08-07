@@ -31,7 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"io/ioutil"
-	"path"
+	"filepath"
 )
 
 const (
@@ -121,7 +121,7 @@ func main() {
         if fi.IsDir() {
 		files, _ := ioutil.ReadDir(*configPath)
 		for _, f := range files {
-			err = pipeconf.LoadFromConfigFile(path.Join(*configPath, f.Name()))
+			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, f.Name()))
 		}
 	} else {
 		err = pipeconf.LoadFromConfigFile(*configPath)
