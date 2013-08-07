@@ -28,6 +28,7 @@ import (
 	"github.com/mozilla-services/heka/pipeline"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 )
@@ -37,7 +38,8 @@ const (
 )
 
 func main() {
-	configFile := flag.String("config", "/etc/hekad.toml", "Config file")
+	configFile := flag.String("config", filepath.FromSlash("/etc/hekad.toml"),
+		"Config file")
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
@@ -65,6 +67,10 @@ func main() {
 	maxMsgLoops := config.MaxMsgLoops
 	maxMsgProcessInject := config.MaxMsgProcessInject
 	maxMsgTimerInject := config.MaxMsgTimerInject
+
+	if err = os.MkdirAll(config.BaseDir, 0644); err != nil {
+		log.Fatalf("Error creating base_dir %s: %s", config.BaseDir, err)
+	}
 
 	runtime.GOMAXPROCS(maxprocs)
 
@@ -100,6 +106,7 @@ func main() {
 	}
 	globals.MaxMsgProcessInject = maxMsgProcessInject
 	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.BaseDir = config.BaseDir
 	pipeconf := pipeline.NewPipelineConfig(globals)
 
 	err = pipeconf.LoadFromConfigFile(*configFile)

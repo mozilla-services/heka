@@ -22,6 +22,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sync"
@@ -264,6 +265,16 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 		return true
 	}
 	return false
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, returns an absolute path w/ the
+// inPath relative to the GlobalConfigStruct.BaseDir.
+func GetHekaConfigDir(inPath string) string {
+	if filepath.IsAbs(inPath) {
+		return inPath
+	}
+	return filepath.Join(Globals().BaseDir, inPath)
 }
 
 type ConfigFile PluginConfig
@@ -727,9 +738,9 @@ func init() {
 	RegisterPlugin("PayloadRegexDecoder", func() interface{} {
 		return new(PayloadRegexDecoder)
 	})
-        RegisterPlugin("PayloadJsonDecoder", func() interface{} {
-                return new(PayloadJsonDecoder)
-        })
+	RegisterPlugin("PayloadJsonDecoder", func() interface{} {
+		return new(PayloadJsonDecoder)
+	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
 	})

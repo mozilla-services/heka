@@ -46,6 +46,7 @@ type GlobalConfigStruct struct {
 	MaxMsgProcessInject uint
 	MaxMsgTimerInject   uint
 	Stopping            bool
+	BaseDir             string
 	sigChan             chan os.Signal
 }
 

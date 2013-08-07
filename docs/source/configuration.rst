@@ -109,6 +109,11 @@ Parameters:
     plugins. Defaults to 50, which is usually sufficient and of optimal
     performance.
 
+- base_dir (string)
+    Base working directory Heka will use for persistent storage through
+    process and server restarts. Defaults to `/var/cache/hekad` (or
+    `c:\var\cache\hekad` on windows).
+
 
 Example hekad.toml file
 =======================

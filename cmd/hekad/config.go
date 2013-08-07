@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"github.com/bbangert/toml"
+	"path/filepath"
 )
 
 type HekadConfig struct {
@@ -31,6 +32,7 @@ type HekadConfig struct {
 	MaxMsgLoops         uint   `toml:"max_message_loops"`
 	MaxMsgProcessInject uint   `toml:"max_process_inject"`
 	MaxMsgTimerInject   uint   `toml:"max_timer_inject"`
+	BaseDir             string `toml:"base_dir"`
 }
 
 func LoadHekadConfig(filename string) (config *HekadConfig, err error) {
@@ -43,6 +45,7 @@ func LoadHekadConfig(filename string) (config *HekadConfig, err error) {
 		MaxMsgLoops:         4,
 		MaxMsgProcessInject: 1,
 		MaxMsgTimerInject:   10,
+		BaseDir:             filepath.FromSlash("/var/cache/hekad"),
 	}
 
 	var configFile map[string]toml.Primitive
