@@ -205,7 +205,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)
-			if len(fields) != 3 || !strings.HasPrefix(fields[0], "stats") {
+			if len(fields) != 3 {
 				or.LogError(fmt.Errorf("malformed statmetric line: '%s'", line))
 				continue
 			}
