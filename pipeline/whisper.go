@@ -63,7 +63,8 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		} else if err != nil {
 			err = fmt.Errorf("Error opening whisper db folder '%s': %s", dir, err)
 		}
-		if db, err = whisper.Create(path_, archiveInfo, 0.1, aggMethod, false); err != nil {
+		createOptions := whisper.CreateOptions{0.1, aggMethod, false}
+		if db, err = whisper.Create(path_, archiveInfo, createOptions); err != nil {
 			err = fmt.Errorf("Error creating whisper db: %s", err)
 			return
 		}
@@ -132,7 +133,7 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 	basePath := filepath.Join(string(os.PathSeparator), "var", "cache", "hekad", "whisper")
 	return &WhisperOutputConfig{
 		BasePath:         basePath,
-		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
+		DefaultAggMethod: whisper.AggregationAverage,
 		FolderPerm:       "700",
 	}
 }
