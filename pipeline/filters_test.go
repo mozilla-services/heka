@@ -21,7 +21,6 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -35,16 +34,6 @@ func NewFilterTestHelper(ctrl *gomock.Controller) (fth *FilterTestHelper) {
 	fth.MockHelper = NewMockPluginHelper(ctrl)
 	fth.MockFilterRunner = NewMockFilterRunner(ctrl)
 	return
-}
-
-type PanicFilter struct{}
-
-func (p *PanicFilter) Init(config interface{}) (err error) {
-	panic("PANICFILTER")
-}
-
-func (p *PanicFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-	panic("PANICFILTER")
 }
 
 func FiltersSpec(c gs.Context) {
@@ -140,14 +129,5 @@ func FiltersSpec(c gs.Context) {
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
 
-	})
-
-	c.Specify("Runner recovers from panic in filter's `Run()` method", func() {
-		filter := new(PanicFilter)
-		fRunner := NewFORunner("panic", filter, nil)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		fRunner.Start(fth.MockHelper, &wg) // no panic => success
-		wg.Wait()
 	})
 }

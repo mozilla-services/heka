@@ -1,3 +1,0 @@
-[PanicOutput]
-type = "PanicOutput"
-message_matcher = "Type == \"heka.counter_output\""
