@@ -86,7 +86,7 @@ git_clone(https://code.google.com/p/gomock master)
 add_custom_command(TARGET gomock POST_BUILD
 COMMAND ${GO_EXECUTABLE} install code.google.com/p/gomock/mockgen)
 git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf136efdab8)
-git_clone(https://github.com/rafrombrc/whisper-go 9efcbebb6a82cbade74c61eb908f0198298c3e51)
+git_clone(https://github.com/rafrombrc/whisper-go 1863c0ce763fbf4203d182aacce65388b99b7490)
 git_clone(https://github.com/rafrombrc/go-notify e3ddb616eea90d4e87dff8513c251ff514678406)
 git_clone(https://github.com/bbangert/toml daeafb907545245cc4b1540c905b777899e13553)
 git_clone(https://github.com/streadway/amqp 171c24a86dfdd0ab079c4077500fd6bf59b6b00b)

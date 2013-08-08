@@ -392,7 +392,7 @@ func InputsSpec(c gs.Context) {
 		input := new(StoppingInput)
 		iRunner := NewInputRunner("stopping", input, &pluginGlobals)
 		var wg sync.WaitGroup
-		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(3)
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(7)
 		cfgCall.Return(pc)
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg)

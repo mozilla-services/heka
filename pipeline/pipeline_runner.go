@@ -466,7 +466,6 @@ func (p *PipelinePack) Recycle() {
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
-	var inputsWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
 
@@ -503,10 +502,10 @@ func Run(config *PipelineConfig) {
 	config.router.Start()
 
 	for name, input := range config.InputRunners {
-		inputsWg.Add(1)
-		if err = input.Start(config, &inputsWg); err != nil {
+		config.inputsWg.Add(1)
+		if err = input.Start(config, &config.inputsWg); err != nil {
 			log.Printf("Input '%s' failed to start: %s", name, err)
-			inputsWg.Done()
+			config.inputsWg.Done()
 			continue
 		}
 		log.Printf("Input started: %s\n", name)
@@ -534,11 +533,13 @@ func Run(config *PipelineConfig) {
 		}
 	}
 
+	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {
 		input.Input().Stop()
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
-	inputsWg.Wait()
+	config.inputsLock.Unlock()
+	config.inputsWg.Wait()
 
 	log.Println("Waiting for decoders shutdown")
 	for _, decoder := range config.allDecoders {

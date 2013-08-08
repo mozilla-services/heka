@@ -34,16 +34,16 @@ import (
 // Output plugin that index messages to an elasticsearch cluster.
 // Largely based on FileOutput plugin.
 type ElasticSearchOutput struct {
-	clusterName   string
-	indexName     string
-	typeName      string
-	flushInterval uint32
-	flushCount    int
-	batchChan     chan []byte
-	backChan      chan []byte
-	format        string
-	timestamp     string
-	esIndexFromTimestamp   bool
+	clusterName          string
+	indexName            string
+	typeName             string
+	flushInterval        uint32
+	flushCount           int
+	batchChan            chan []byte
+	backChan             chan []byte
+	format               string
+	timestamp            string
+	esIndexFromTimestamp bool
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
@@ -81,20 +81,19 @@ type ElasticSearchOutputConfig struct {
 	Server string
 	// When formating the Index use the Timestamp from the Message instead of Now
 	ESIndexFromTimestamp bool
-
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 	return &ElasticSearchOutputConfig{
-		Cluster:       "elasticsearch",
-		Index:         "heka-%{2006.01.02}",
-		TypeName:      "message",
-		FlushInterval: 1000,
-		FlushCount:    10,
-		Format:        "clean",
-		Timestamp:     "2006-01-02T15:04:05.000Z",
-		Server:        "http://localhost:9200",
-		ESIndexFromTimestamp:  false,
+		Cluster:              "elasticsearch",
+		Index:                "heka-%{2006.01.02}",
+		TypeName:             "message",
+		FlushInterval:        1000,
+		FlushCount:           10,
+		Format:               "clean",
+		Timestamp:            "2006-01-02T15:04:05.000Z",
+		Server:               "http://localhost:9200",
+		ESIndexFromTimestamp: false,
 	}
 }
 
@@ -114,7 +113,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
 		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
-	case "logstash_original":
+	case "logstash_v0":
 		o.messageFormatter = &KibanaFormatter{}
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
@@ -123,7 +122,8 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	if serverUrl, err := url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
-			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host, o.flushCount)
+			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
+				o.flushCount)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		}
@@ -200,12 +200,12 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 // ElasticSearchCoordinates stores the coordinates (_index, _type, _id)
 // of an ElasticSearch document
 type ElasticSearchCoordinates struct {
-	Index           string
-	Type            string
-	Id              string
-	Timestamp       *int64
-	TimestampFormat string
-	ESIndexFromTimestamp    bool
+	Index                string
+	Type                 string
+	Id                   string
+	Timestamp            *int64
+	TimestampFormat      string
+	ESIndexFromTimestamp bool
 }
 
 func (e *ElasticSearchCoordinates) String() string {
@@ -378,22 +378,14 @@ func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
 	buf.WriteString(`{`)
 
 	writeStringField(true, &buf, `@uuid`, m.GetUuidString())
-
 	t := time.Unix(0, m.GetTimestamp()) // time.Unix gives local time back
 	writeStringField(false, &buf, `@timestamp`, t.UTC().Format("2006-01-02T15:04:05.000Z"))
-
 	writeStringField(false, &buf, `@type`, m.GetType())
-
 	writeStringField(false, &buf, `@logger`, m.GetLogger())
-
 	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))
-
 	writeStringField(false, &buf, `@message`, m.GetPayload())
-
 	writeRawField(false, &buf, `@envversion`, strconv.Quote(m.GetEnvVersion()))
-
 	writeRawField(false, &buf, `@pid`, strconv.Itoa(int(m.GetPid())))
-
 	writeStringField(false, &buf, `@source_host`, m.GetHostname())
 
 	buf.WriteString(`,"@fields":{`)
@@ -411,7 +403,8 @@ func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
 			writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
 			first = false
 		case message.Field_DOUBLE:
-			writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+			writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+				'g', -1, 64))
 			first = false
 		case message.Field_BOOL:
 			writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
@@ -462,7 +455,8 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 				case message.Field_INTEGER:
 					writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
 				case message.Field_DOUBLE:
-					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+						'g', -1, 64))
 				case message.Field_BOOL:
 					writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
 				}
@@ -484,11 +478,11 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 
 	// Builds ElasticSearch document coordinates (1st line of bulk indexing)
 	coordinates := &ElasticSearchCoordinates{
-		Index:           o.indexName,
-		Type:            o.typeName,
-		Timestamp:       pack.Message.Timestamp,
-		TimestampFormat: o.timestamp,
-		ESIndexFromTimestamp:    o.esIndexFromTimestamp,
+		Index:                o.indexName,
+		Type:                 o.typeName,
+		Timestamp:            pack.Message.Timestamp,
+		TimestampFormat:      o.timestamp,
+		ESIndexFromTimestamp: o.esIndexFromTimestamp,
 	}
 
 	var document []byte

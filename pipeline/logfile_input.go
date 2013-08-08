@@ -344,7 +344,6 @@ func (fm *FileMonitor) Watcher() {
 }
 
 func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
-	var msg string
 	var seekJournal *os.File
 	var file_err error
 
@@ -353,20 +352,19 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	}
 
 	if seekJournal, file_err = os.OpenFile(fm.seekJournalPath,
-		os.O_CREATE|os.O_RDWR|os.O_APPEND,
+		os.O_CREATE|os.O_RDWR|os.O_TRUNC,
 		0660); file_err != nil {
-		msg = fmt.Sprintf("Error opening seek recovery log for append: %s", file_err.Error())
-		fm.LogError(msg)
+		fm.LogError(fmt.Sprintf("Error opening seek recovery log: %s", file_err.Error()))
 		return false
 	}
 	defer seekJournal.Close()
-	seekJournal.Seek(0, os.SEEK_END)
 
 	var filemon_bytes []byte
 	filemon_bytes, _ = json.Marshal(fm)
-
-	msg = string(filemon_bytes) + "\n"
-	seekJournal.WriteString(msg)
+	if _, file_err = seekJournal.Write(filemon_bytes); file_err != nil {
+		fm.LogError(fmt.Sprintf("Error writing seek recovery log: %s", file_err.Error()))
+		return false
+	}
 
 	return true
 }
@@ -522,9 +520,8 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 		return
 	}
 
-	var f *os.File
-
-	if f, err = os.Open(fm.seekJournalPath); err != nil {
+	var seekJournal *os.File
+	if seekJournal, err = os.Open(fm.seekJournalPath); err != nil {
 		// The logfile doesn't exist, nothing special to do
 		if os.IsNotExist(err) {
 			// file doesn't exist, but that's ok, not a real error
@@ -532,13 +529,6 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 		} else {
 			return
 		}
-	}
-	defer f.Close()
-
-	var seekJournal *os.File
-	if seekJournal, err = os.OpenFile(fm.seekJournalPath,
-		os.O_RDWR, 0660); err != nil {
-		return
 	}
 	defer seekJournal.Close()
 
@@ -575,13 +565,107 @@ func (fm *FileMonitor) setupJournalling() (err error) {
 	return
 }
 
+func getJournalFilename(logger string) string {
+	r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
+	return r.Replace(logger)
+}
+
 func (fm *FileMonitor) cleanJournalPath() {
 	// if the seekJournalPath is empty, write out the default
 	if fm.seekJournalPath == "" {
-		r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
-		journal_name := r.Replace(fm.logger_ident)
-		defaultPath := filepath.Join("var", "run", "hekad", "seekjournals", journal_name)
-		fm.seekJournalPath = defaultPath
+		fm.seekJournalPath = filepath.Join("var", "cache", "hekad", "seekjournals", getJournalFilename(fm.logfile))
 	}
 	fm.seekJournalPath = filepath.Clean(fm.seekJournalPath)
+}
+
+type LogfileDirectoryManagerInput struct {
+	conf    *LogfileInputConfig
+	stopped chan bool
+	logList map[string]bool
+}
+
+func (ldm *LogfileDirectoryManagerInput) Init(config interface{}) (err error) {
+	ldm.conf = config.(*LogfileInputConfig)
+	ldm.stopped = make(chan bool)
+	ldm.logList = make(map[string]bool)
+	fn := filepath.Base(ldm.conf.LogFile)
+	if strings.ContainsAny(fn, "*?[]") {
+		err = fmt.Errorf("Globs are not allowed in the file name: %s", fn)
+	}
+	if fn == "." || fn == string(os.PathSeparator) {
+		err = fmt.Errorf("A logfile name must be specified")
+	}
+	return
+}
+
+func (ldm *LogfileDirectoryManagerInput) ConfigStruct() interface{} {
+	return &LogfileInputConfig{
+		DiscoverInterval: 5000,
+		StatInterval:     500,
+		SeekJournal:      "",
+		ResumeFromStart:  true,
+	}
+}
+
+// Expands the path glob and spins up a new LogfileInput if necessary
+func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper) (err error) {
+	if matches, err := filepath.Glob(ldm.conf.LogFile); err == nil {
+		for _, fn := range matches {
+			if _, ok := ldm.logList[fn]; !ok {
+				ldm.logList[fn] = true
+				ir.LogMessage(fmt.Sprintf("Starting LogfileInput for %s", fn))
+				config := *ldm.conf
+				config.LogFile = fn
+				if ldm.conf.SeekJournal != "" {
+					config.SeekJournal = filepath.Join(ldm.conf.SeekJournal, getJournalFilename(fn))
+				}
+
+				var pluginGlobals PluginGlobals
+				pluginGlobals.Typ = "LogfileInput"
+				pluginGlobals.Retries = RetryOptions{
+					MaxDelay:   "30s",
+					Delay:      "250ms",
+					MaxRetries: -1,
+				}
+				wrapper := new(PluginWrapper)
+				wrapper.name = fmt.Sprintf("%s-%s", ir.Name(), fn)
+				wrapper.pluginCreator, _ = AvailablePlugins[pluginGlobals.Typ]
+				plugin := wrapper.pluginCreator()
+				wrapper.configCreator = func() interface{} { return config }
+				if err = plugin.(Plugin).Init(&config); err != nil {
+					ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.name, err))
+					return err
+				}
+				lfir := NewInputRunner(wrapper.name, plugin.(Input), &pluginGlobals)
+				err = h.PipelineConfig().AddInputRunner(lfir, wrapper)
+			}
+		}
+	}
+	return
+}
+
+// Heka Input plugin that scans the path glob looking for new directories.  
+// When a new directory is found with the specified log a LogfileInput plugin
+// is started.
+func (ldm *LogfileDirectoryManagerInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	var ok = true
+	ticker := ir.Ticker()
+
+	if err = ldm.scanPath(ir, h); err != nil {
+		return
+	}
+	for ok {
+		select {
+		case _, ok = <-ldm.stopped:
+		case _ = <-ticker:
+			if err = ldm.scanPath(ir, h); err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+func (ldm *LogfileDirectoryManagerInput) Stop() {
+	close(ldm.stopped)
 }

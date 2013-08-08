@@ -141,7 +141,9 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Re-initialize our plugin using its wrapper
+		h.PipelineConfig().inputsLock.Lock()
 		pw := h.PipelineConfig().inputWrappers[ir.name]
+		h.PipelineConfig().inputsLock.Unlock()
 
 		// Attempt to recreate the plugin until it works without error
 		// or until we were told to stop
