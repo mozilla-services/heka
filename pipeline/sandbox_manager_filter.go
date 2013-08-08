@@ -107,11 +107,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
 
 	// Apply configuration to instantiated plugin.
-	configPlugin := func() (err error) {
-		err = plugin.(Plugin).Init(config)
-		return
-	}
-	if err = configPlugin(); err != nil {
+	if err = plugin.(Plugin).Init(config); err != nil {
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 

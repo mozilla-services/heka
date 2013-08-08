@@ -481,11 +481,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	wrapper.configCreator = func() interface{} { return config }
 
 	// Apply configuration to instantiated plugin.
-	configPlugin := func() (err error) {
-		err = plugin.(Plugin).Init(config)
-		return
-	}
-	if err = configPlugin(); err != nil {
+	if err = plugin.(Plugin).Init(config); err != nil {
 		self.log(fmt.Sprintf("Initialization failed for '%s': %s",
 			sectionName, err))
 		errcnt++
