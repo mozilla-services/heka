@@ -10,6 +10,8 @@ Bug Handling
 Features
 --------
 
+* Added LogfileDirectoryManagerInput Issue #344
+
 
 0.3.0 (2013-07-16)
 ==================

@@ -455,7 +455,7 @@ Parameters:
     Heka will write out a journal to keep track of the last known read
     position of a logfile.  By default, this will default to writing
     in /var/cache/hekad/seekjournals/.  The journal name will be the
-    logger name with path separators and periods replaced with
+    log file name with path separators and periods replaced with
     underscores.
 - resumeFromStart(bool)
     When heka restarts, if a logfile cannot safely resume reading from
@@ -473,6 +473,39 @@ Parameters:
 
     [LogfileInput]
     logfile = "/var/log/opendirectoryd.log"
+
+.. _config_logfile_directory_manager_input:
+
+LogfileDirectoryManagerInput
+----------------------------
+
+Scans for log files in a globbed directory path and when a new log is
+discovered it will start an instance of the LogfileInput plugin to process it.
+The LogfileInput will inherit its configuration from the manager's settings
+with the logfile and seekjournal properties properly adjusted.
+
+Parameters: (identical to LogfileInput with the following exceptions)
+
+- logfile (string):
+    A path with a globbed directory component pointing to a common (statically named) log file.
+- seekjournal (string)
+    The path where all of the journal files will be written. Defaults to /var/cache/hekad/seekjournals
+- ticker_interval (uint):
+    Time interval (in seconds) between directory scans for new log files.
+    Defaults to 0 (only scans once on startup)
+
+.. code-block:: ini
+
+    [vhosts]
+    type = "LogfileDirectoryManagerInput"
+    logfile = "/var/log/vhost/*/apache.log"
+
+.. note::
+
+    The spawned LogfileInput plugins are named `manager_name`-`logfile` i.e.,
+
+    - vhosts-/var/log/www/apache.log
+    - vhosts-/var/log/internal/apache.log
 
 .. _config_statsd_input:
 
