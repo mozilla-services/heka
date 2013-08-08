@@ -135,7 +135,32 @@ func LogfileInputSpec(c gs.Context) {
 				c.Expect(newFM.seek, gs.Equals, int64(1249))
 			}
 		})
-
 	})
 
+	c.Specify("A LogfileDirectoryManagerInput", func() {
+		c.Specify("empty file name", func() {
+			var err error
+
+			ldm := new(LogfileDirectoryManagerInput)
+			conf := ldm.ConfigStruct().(*LogfileInputConfig)
+			conf.LogFile = ""
+			err = ldm.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "A logfile name must be specified")
+		})
+
+		c.Specify("glob in file name", func() {
+			var err error
+
+			ldm := new(LogfileDirectoryManagerInput)
+			conf := ldm.ConfigStruct().(*LogfileInputConfig)
+			conf.LogFile = "../testsupport/*.log"
+			err = ldm.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "Globs are not allowed in the file name: *.log")
+		})
+
+		// Note: Testing the actual functionality (spinning up new plugins within Heka)
+		// is a manual process.
+	})
 }
