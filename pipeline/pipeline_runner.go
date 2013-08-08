@@ -254,11 +254,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	)
 	globals := Globals()
 	defer func() {
-		if r := recover(); r != nil {
-			// Only recovers from panics in the main `Run` method
-			// goroutine, but better than nothing.
-			foRunner.LogError(fmt.Errorf("PANIC: %s", r))
-		}
 		wg.Done()
 	}()
 
@@ -537,12 +532,6 @@ func Run(config *PipelineConfig) {
 			}
 		}
 	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("PANIC during shutdown: %s", r)
-		}
-	}()
 
 	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {

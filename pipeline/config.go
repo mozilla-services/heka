@@ -345,14 +345,6 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 // Create a new instance of the plugin and return it, or nil and appropriate
 // error value if this isn't possible.
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
-	defer func() {
-		// Slight protection against Init call into plugin code.
-		if r := recover(); r != nil {
-			plugin = nil
-			err = fmt.Errorf("'%s' Init() panicked: %s", self.name, r)
-		}
-	}()
-
 	plugin = self.pluginCreator()
 	err = plugin.(Plugin).Init(self.configCreator())
 	return
@@ -376,14 +368,6 @@ func LoadConfigStruct(config toml.Primitive, configable interface{}) (
 		}
 		return
 	}
-
-	defer func() {
-		// Slight protection against ConfigStruct call into plugin code.
-		if r := recover(); r != nil {
-			configStruct = nil
-			err = fmt.Errorf("ConfigStruct() panicked: %s", r)
-		}
-	}()
 
 	configStruct = hasConfigStruct.ConfigStruct()
 
@@ -520,17 +504,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	wrapper.configCreator = func() interface{} { return config }
 
 	// Apply configuration to instantiated plugin.
-	configPlugin := func() (err error) {
-		defer func() {
-			// Slight protection against Init call into plugin code.
-			if r := recover(); r != nil {
-				err = fmt.Errorf("Init() panicked: %s", r)
-			}
-		}()
-		err = plugin.(Plugin).Init(config)
-		return
-	}
-	if err = configPlugin(); err != nil {
+	if err = plugin.(Plugin).Init(config); err != nil {
 		self.log(fmt.Sprintf("Initialization failed for '%s': %s",
 			sectionName, err))
 		errcnt++
