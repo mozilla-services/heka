@@ -64,12 +64,6 @@ func setNameField(msg *message.Message, name string) {
 // capacity, plus any additional data that the plugin might provide through
 // implementation of the `ReportingPlugin` interface defined above.
 func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("'%s' `populateReportMsg` panic: %s", pr.Name(), r)
-		}
-	}()
-
 	if reporter, ok := pr.Plugin().(ReportingPlugin); ok {
 		if err = reporter.ReportMsg(msg); err != nil {
 			return
@@ -144,11 +138,13 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		return
 	}
 
+	pc.inputsLock.Lock()
 	for name, runner := range pc.InputRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)
 		reportChan <- pack
 	}
+	pc.inputsLock.Unlock()
 
 	for _, runner := range pc.allDecoders {
 		pack = getReport(runner)
@@ -166,11 +162,14 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		reportChan <- pack
 	}
 
+	pc.filtersLock.Lock()
 	for name, runner := range pc.FilterRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)
 		reportChan <- pack
 	}
+	pc.filtersLock.Unlock()
+
 	for name, runner := range pc.OutputRunners {
 		pack = getReport(runner)
 		setNameField(pack.Message, name)
