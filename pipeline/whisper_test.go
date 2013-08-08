@@ -43,7 +43,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		folderPerm := os.FileMode(0755)
-		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM,
+		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AggregationSum,
 			folderPerm, &wg)
 		c.Assume(err, gs.IsNil)
 		defer func() {
