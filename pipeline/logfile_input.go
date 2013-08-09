@@ -38,22 +38,31 @@ type LogfileInputConfig struct {
 	Hostname string
 	// Interval btn hd scans for existence of watched files, in milliseconds,
 	// default 5000 (i.e. 5 seconds).
-	DiscoverInterval int
+	DiscoverInterval int `toml:"discover_interval"`
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
-	StatInterval int
+	StatInterval int `toml:"stat_interval"`
 	// Names of configured `LoglineDecoder` instances.
 	Decoders []string
-
-	// Name of the seek journal
-	SeekJournal string
-
+	// Specifies whether to use a seek journal to keep track of where we are
+	// in a file to be able to resume parsing from the same location upon
+	// restart. Defaults to true.
+	UseSeekJournal bool `toml:"use_seek_journal"`
+	// Name to use for the seek journal file, if one is used. Only refers to
+	// the file name itself, not the full path; Heka will store all seek
+	// journals in a `seekjournal` folder relative to the Heka base directory.
+	// Defaults to a sanitized version of the `logger` value (which itself
+	// defaults to the filesystem path of the input file). This value is
+	// ignored if `use_seek_journal` is set to false.
+	SeekJournalName string `toml:"seek_journal_name"`
+	// Default value to use for the `logger` attribute on the generated Heka
+	// messages. Note that this value might be modified by a decoder. Defaults
+	// to the full filesystem path of the input file.
 	Logger string
-
 	// On failure to resume from last known position, LogfileInput
 	// will resume reading from either the start of file or the end of
-	// file.
-	ResumeFromStart bool
+	// file. Defaults to false.
+	ResumeFromStart bool `toml:"resume_from_start"`
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -74,8 +83,7 @@ type Logline struct {
 	Path string
 	// Log file line contents.
 	Line string
-
-	// Name of the logger we're using
+	// Associated `logger` string token.
 	Logger string
 }
 
@@ -83,7 +91,7 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
 		StatInterval:     500,
-		SeekJournal:      "",
+		UseSeekJournal:   true,
 		ResumeFromStart:  true,
 	}
 }
@@ -347,7 +355,7 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	var seekJournal *os.File
 	var file_err error
 
-	if bytes_read == 0 || fm.seekJournalPath == "." {
+	if bytes_read == 0 || fm.seekJournalPath == "" {
 		return true
 	}
 
@@ -494,7 +502,6 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 
 	fm.pendingMessages = make([]string, 0)
 	fm.pendingErrors = make([]string, 0)
-	fm.seekJournalPath = conf.SeekJournal
 
 	if logger != "" {
 		fm.logger_ident = logger
@@ -505,8 +512,14 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 	fm.discoverInterval = time.Millisecond * time.Duration(discoverInterval)
 	fm.statInterval = time.Millisecond * time.Duration(statInterval)
 
-	if err = fm.setupJournalling(); err != nil {
-		return
+	if conf.UseSeekJournal {
+		seekJournalName := conf.SeekJournalName
+		if seekJournalName == "" {
+			seekJournalName = fm.logger_ident
+		}
+		if err = fm.setupJournalling(seekJournalName); err != nil {
+			return
+		}
 	}
 
 	go fm.Watcher()
@@ -515,8 +528,8 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 }
 
 func (fm *FileMonitor) recoverSeekPosition() (err error) {
-	// Check if the file exists first,
-	if fm.seekJournalPath == "." {
+	// No seekJournalPath means we're not tracking file location.
+	if fm.seekJournalPath == "" {
 		return
 	}
 
@@ -544,38 +557,35 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 	return
 }
 
-func (fm *FileMonitor) setupJournalling() (err error) {
+// Initialize the seek journal file for keeping track of our place in a log
+// file.
+func (fm *FileMonitor) setupJournalling(journalName string) (err error) {
+	// Check that the `seekjournals` directory exists, try to create it if
+	// not.
+	journalDir := GetHekaConfigDir("seekjournals")
 	var dirInfo os.FileInfo
-
-	fm.cleanJournalPath()
-
-	// Check that the directory to seekJournalPath actually exists
-	journalDir := filepath.Dir(fm.seekJournalPath)
-
 	if dirInfo, err = os.Stat(journalDir); err != nil {
-		fm.LogMessage(fmt.Sprintf("%s parent dir doesn't exist", fm.seekJournalPath))
-		return
-	}
-
-	if !dirInfo.IsDir() {
+		if os.IsNotExist(err) {
+			if err = os.MkdirAll(journalDir, 0700); err != nil {
+				fm.LogMessage(fmt.Sprintf("Error creating seek journal folder %s: %s",
+					journalDir, err))
+				return
+			}
+		} else {
+			fm.LogMessage(fmt.Sprintf("Error accessing seek journal folder %s: %s",
+				journalDir, err))
+			return
+		}
+	} else if !dirInfo.IsDir() {
 		return fmt.Errorf("%s doesn't appear to be a directory", journalDir)
 	}
 
-	err = fm.recoverSeekPosition()
-	return
-}
-
-func getJournalFilename(logger string) string {
+	// Generate the full file path and save it on the FileMonitor struct.
 	r := strings.NewReplacer(string(os.PathSeparator), "_", ".", "_")
-	return r.Replace(logger)
-}
+	journalName = r.Replace(journalName)
+	fm.seekJournalPath = filepath.Join(journalDir, journalName)
 
-func (fm *FileMonitor) cleanJournalPath() {
-	// if the seekJournalPath is empty, write out the default
-	if fm.seekJournalPath == "" {
-		fm.seekJournalPath = filepath.Join("var", "cache", "hekad", "seekjournals", getJournalFilename(fm.logfile))
-	}
-	fm.seekJournalPath = filepath.Clean(fm.seekJournalPath)
+	return fm.recoverSeekPosition()
 }
 
 type LogfileDirectoryManagerInput struct {
@@ -593,7 +603,10 @@ func (ldm *LogfileDirectoryManagerInput) Init(config interface{}) (err error) {
 		err = fmt.Errorf("Globs are not allowed in the file name: %s", fn)
 	}
 	if fn == "." || fn == string(os.PathSeparator) {
-		err = fmt.Errorf("A logfile name must be specified")
+		err = fmt.Errorf("A logfile name must be specified.")
+	}
+	if ldm.conf.SeekJournalName != "" {
+		err = fmt.Errorf("LogfileDirectoryManagerInput doesn't support `seek_journal_name` option.")
 	}
 	return
 }
@@ -602,7 +615,7 @@ func (ldm *LogfileDirectoryManagerInput) ConfigStruct() interface{} {
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
 		StatInterval:     500,
-		SeekJournal:      "",
+		UseSeekJournal:   true,
 		ResumeFromStart:  true,
 	}
 }
@@ -616,9 +629,6 @@ func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper
 				ir.LogMessage(fmt.Sprintf("Starting LogfileInput for %s", fn))
 				config := *ldm.conf
 				config.LogFile = fn
-				if ldm.conf.SeekJournal != "" {
-					config.SeekJournal = filepath.Join(ldm.conf.SeekJournal, getJournalFilename(fn))
-				}
 
 				var pluginGlobals PluginGlobals
 				pluginGlobals.Typ = "LogfileInput"
@@ -644,7 +654,7 @@ func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper
 	return
 }
 
-// Heka Input plugin that scans the path glob looking for new directories.  
+// Heka Input plugin that scans the path glob looking for new directories.
 // When a new directory is found with the specified log a LogfileInput plugin
 // is started.
 func (ldm *LogfileDirectoryManagerInput) Run(ir InputRunner, h PluginHelper) (err error) {
