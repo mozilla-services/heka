@@ -31,7 +31,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"io/ioutil"
-	"filepath"
+	"path/filepath"
 )
 
 const (

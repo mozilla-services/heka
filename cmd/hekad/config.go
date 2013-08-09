@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"github.com/bbangert/toml"
         "io/ioutil"
-	"filepath"
+	"path/filepath"
 	"os"
 )
 
