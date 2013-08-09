@@ -34,8 +34,10 @@ type DashboardOutputConfig struct {
 	Address string `toml:"address"`
 	// Working directory where the Dashboard output is written to; it also
 	// serves as the root for the HTTP fileserver.  This directory is created
-	// if necessary and if it exists the previous output is wiped clean.
-	// *DO NOT* store any user created content here.
+	// if necessary and if it exists the previous output is wiped clean. *DO
+	// NOT* store any user created content here. Relative paths will be
+	// evaluated relative to the Heka base dir. Defaults to "dashboard" (i.e.
+	// "$(BASE_DIR)/dashboard").
 	WorkingDirectory string `toml:"working_directory"`
 	// Default interval at which dashboard will update is 5 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
@@ -46,7 +48,7 @@ type DashboardOutputConfig struct {
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
-		WorkingDirectory: filepath.Join(".", "dashboard"),
+		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
 	}
@@ -60,9 +62,10 @@ type DashboardOutput struct {
 func (self *DashboardOutput) Init(config interface{}) (err error) {
 	conf := config.(*DashboardOutputConfig)
 
-	self.workingDirectory, _ = filepath.Abs(conf.WorkingDirectory)
+	self.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
 	if err = os.MkdirAll(self.workingDirectory, 0700); err != nil {
-		return fmt.Errorf("Can't create the working directory for the dashboard output: %s", err.Error())
+		return fmt.Errorf("Can't create the working directory for the dashboard output: %s",
+			err.Error())
 	}
 
 	// delete all previous output
