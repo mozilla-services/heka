@@ -10,6 +10,7 @@ Bug Handling
 Features
 --------
 
+* Allow add_external_plugin to specify sub-packages Issue #384
 * Added LogfileDirectoryManagerInput Issue #344
 
 
