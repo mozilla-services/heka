@@ -60,9 +60,6 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 			if _, err = toml.DecodeFile(filename, &configFile); err != nil {
 				return nil, fmt.Errorf("Error decoding config file: %s", err)
 			}
-			if configFile["hekad"] != nil {
-				break
-			}
 		}
 	} else {
 		if _, err = toml.DecodeFile(configPath, &configFile); err != nil {
