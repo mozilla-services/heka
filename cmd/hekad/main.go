@@ -94,7 +94,7 @@ func main() {
 	}
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
-	if err = os.MkdirAll(globals.BaseDir, 0644); err != nil {
+	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
 		log.Fatalf("Error creating base_dir %s: %s", config.BaseDir, err)
 	}
 
