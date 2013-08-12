@@ -79,7 +79,8 @@ type ElasticSearchOutputConfig struct {
 	// be done with the UDP Bulk API of ElasticSearch.
 	// (default to "http://localhost:9200")
 	Server string
-	// When formating the Index use the Timestamp from the Message instead of Now
+	// When formating the Index use the Timestamp from the Message instead of
+	// Now.
 	ESIndexFromTimestamp bool
 }
 
