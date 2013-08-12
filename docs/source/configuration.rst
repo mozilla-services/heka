@@ -495,10 +495,10 @@ Parameters:
 LogfileDirectoryManagerInput
 ----------------------------
 
-Scans for log files in a globbed directory path and when a new log directory
-is discovered it will start an instance of the LogfileInput plugin to process
-it. Each LogfileInput will inherit its configuration from the manager's
-settings with the logfile property properly adjusted.
+Scans for log files in a globbed directory path and when a new file matching
+the specified path is discovered it will start an instance of the LogfileInput
+plugin to process it. Each LogfileInput will inherit its configuration from
+the manager's settings with the logfile property properly adjusted.
 
 Parameters: (identical to LogfileInput with the following exceptions)
 
