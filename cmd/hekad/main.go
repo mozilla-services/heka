@@ -26,19 +26,19 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"io/ioutil"
-	"path/filepath"
 )
 
 const (
 	VERSION = "0.4.0"
 )
 
-func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string){
+func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
 	maxprocs := config.Maxprocs
 	poolSize := config.PoolSize
 	decoderPoolSize := config.DecoderPoolSize
@@ -61,12 +61,15 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	}
 	globals.MaxMsgProcessInject = maxMsgProcessInject
 	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.BaseDir = config.BaseDir
 
-	return globals, cpuProfName, memProfName	
+	return globals, cpuProfName, memProfName
 }
 
 func main() {
-	configPath := flag.String("config", "/etc/hekad.toml", "Config file or directory. If directory is specified then all files will be loaded.")
+	configPath := flag.String("config", filepath.FromSlash("/etc/hekad.toml"),
+		"Config file or directory. If directory is specified then all files "+
+			"in the directory will be loaded.")
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
@@ -91,6 +94,9 @@ func main() {
 	}
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
+	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
+		log.Fatalf("Error creating base_dir %s: %s", config.BaseDir, err)
+	}
 
 	if cpuProfName != "" {
 		profFile, err := os.Create(cpuProfName)
@@ -115,10 +121,10 @@ func main() {
 
 	// Set up and load the pipeline configuration and start the daemon.
 	pipeconf := pipeline.NewPipelineConfig(globals)
-        p, err := os.Open(*configPath)
-        fi, err := p.Stat()
+	p, err := os.Open(*configPath)
+	fi, err := p.Stat()
 
-        if fi.IsDir() {
+	if fi.IsDir() {
 		files, _ := ioutil.ReadDir(*configPath)
 		for _, f := range files {
 			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, f.Name()))

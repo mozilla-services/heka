@@ -81,14 +81,6 @@ func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	}
 }
 
-func createJournal() (journal string, err error) {
-	var tmp_file *os.File
-	tmp_file, err = ioutil.TempFile("", "")
-	journal = tmp_file.Name()
-	tmp_file.Close()
-	return journal, nil
-}
-
 func InputsSpec(c gs.Context) {
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
@@ -401,10 +393,19 @@ func InputsSpec(c gs.Context) {
 	})
 
 	c.Specify("A LogFileInput", func() {
+		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+		c.Expect(tmpErr, gs.Equals, nil)
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = tmpDir
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr = os.RemoveAll(tmpDir)
+			c.Expect(tmpErr, gs.Equals, nil)
+		}()
 		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.SeekJournal, err = createJournal()
+		lfiConfig.SeekJournalName = "test-seekjournal"
 		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
@@ -468,17 +469,13 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("uses the filename as the default logger name", func() {
-			var err error
-
 			lfInput := new(LogfileInput)
 			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-			lfiConfig.SeekJournal, err = createJournal()
-			c.Expect(err, gs.Equals, nil)
 			lfiConfig.LogFile = "../testsupport/test-zeus.log"
 
 			lfiConfig.DiscoverInterval = 1
 			lfiConfig.StatInterval = 1
-			err = lfInput.Init(lfiConfig)
+			err := lfInput.Init(lfiConfig)
 			c.Expect(err, gs.Equals, nil)
 
 			c.Expect(lfInput.Monitor.logger_ident,

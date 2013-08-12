@@ -112,7 +112,9 @@ type WhisperOutput struct {
 
 // WhisperOutput config struct.
 type WhisperOutputConfig struct {
-	// Full file path to where the Whisper db files are stored.
+	// File path where the Whisper db files are stored. Can be an absolute
+	// path, or relative to the Heka base directory. Defaults to
+	// `$(BASEDIR)/whisper`.
 	BasePath string `toml:"base_path"`
 
 	// Default mechanism whisper will use to aggregate data points as they
@@ -130,9 +132,8 @@ type WhisperOutputConfig struct {
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	basePath := filepath.Join(string(os.PathSeparator), "var", "cache", "hekad", "whisper")
 	return &WhisperOutputConfig{
-		BasePath:         basePath,
+		BasePath:         "whisper",
 		DefaultAggMethod: whisper.AggregationAverage,
 		FolderPerm:       "700",
 	}
@@ -140,7 +141,7 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
-	o.basePath = conf.BasePath
+	o.basePath = GetHekaConfigDir(conf.BasePath)
 	o.defaultAggMethod = conf.DefaultAggMethod
 
 	var intPerm int64
