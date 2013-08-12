@@ -656,7 +656,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		if name == "hekad" {
 			continue
 		}
-		log.Println("Loading: ", name)
+		log.Printf("Loading: [%s]\n", name)
 		errcnt += self.loadSection(name, conf)
 	}
 
@@ -666,11 +666,11 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	dWrappers := self.DecoderWrappers
 
 	if _, ok := dWrappers["JsonDecoder"]; !ok {
-		log.Println("Loading: JsonDecoder")
+		log.Println("Loading: [JsonDecoder]")
 		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
 	}
 	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
-		log.Println("Loading: ProtobufDecoder")
+		log.Println("Loading: [ProtobufDecoder]")
 		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
 	}
 
@@ -690,6 +690,9 @@ func init() {
 	})
 	RegisterPlugin("HttpInput", func() interface{} {
 		return new(HttpInput)
+	})
+	RegisterPlugin("MultiDecoder", func() interface{} {
+		return new(MultiDecoder)
 	})
 	RegisterPlugin("JsonDecoder", func() interface{} {
 		return new(JsonDecoder)
@@ -727,9 +730,9 @@ func init() {
 	RegisterPlugin("PayloadRegexDecoder", func() interface{} {
 		return new(PayloadRegexDecoder)
 	})
-        RegisterPlugin("PayloadJsonDecoder", func() interface{} {
-                return new(PayloadJsonDecoder)
-        })
+	RegisterPlugin("PayloadJsonDecoder", func() interface{} {
+		return new(PayloadJsonDecoder)
+	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
 	})
