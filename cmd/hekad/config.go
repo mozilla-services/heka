@@ -19,6 +19,9 @@ package main
 import (
 	"fmt"
 	"github.com/bbangert/toml"
+        "io/ioutil"
+	"path/filepath"
+	"os"
 )
 
 type HekadConfig struct {
@@ -33,7 +36,7 @@ type HekadConfig struct {
 	MaxMsgTimerInject   uint   `toml:"max_timer_inject"`
 }
 
-func LoadHekadConfig(filename string) (config *HekadConfig, err error) {
+func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:            100,
 		DecoderPoolSize:     4,
@@ -46,10 +49,24 @@ func LoadHekadConfig(filename string) (config *HekadConfig, err error) {
 	}
 
 	var configFile map[string]toml.Primitive
+	var filename string
+	p, err := os.Open(configPath)
+	fi, err := p.Stat()
 
-	if _, err = toml.DecodeFile(filename, &configFile); err != nil {
-		return nil, fmt.Errorf("Error decoding config file: %s", err)
+	if fi.IsDir() {
+		files, _ := ioutil.ReadDir(configPath)
+		for _, f := range files {
+			filename = filepath.Join(configPath, f.Name())
+			if _, err = toml.DecodeFile(filename, &configFile); err != nil {
+				return nil, fmt.Errorf("Error decoding config file: %s", err)
+			}
+		}
+	} else {
+		if _, err = toml.DecodeFile(configPath, &configFile); err != nil {
+			return nil, fmt.Errorf("Error decoding config file: %s", err)
+		}
 	}
+
 
 	empty_ignore := map[string]interface{}{}
 	parsed_config, ok := configFile["hekad"]
