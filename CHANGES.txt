@@ -4,6 +4,11 @@
 Backwards Incompatibilities
 ---------------------------
 
+* LogfileInput seek journals now support a boolean `use_seek_journal` config
+  flag, and only the name of the journal file is now settable via
+  `seek_journal_name`, replacing the `seekjournal` option which specified the
+  full path.
+
 * Build is now entirely cmake based and lives directly in the heka repository,
   replacing the separate primarily gnu make driven separate heka-build repo.
 
@@ -43,6 +48,9 @@ Bug Handling
 
 Features
 --------
+
+* Added `base_dir` global (i.e. `[hekad]` section) config option to specify a
+  single location Heka plugins should use to persist data to the file system.
 
 * The `hekad` commands `config` flag now supports use of a config directory in
   addition to a single config file. If a directory path is specified, every

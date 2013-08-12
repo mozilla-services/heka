@@ -22,6 +22,7 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sync"
@@ -287,6 +288,16 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginW
 		return fmt.Errorf("AddInputRunner '%s' failed to start: %s", iRunner.Name(), err)
 	}
 	return nil
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, returns an absolute path w/ the
+// inPath relative to the GlobalConfigStruct.BaseDir.
+func GetHekaConfigDir(inPath string) string {
+	if filepath.IsAbs(inPath) {
+		return inPath
+	}
+	return filepath.Join(Globals().BaseDir, inPath)
 }
 
 type ConfigFile PluginConfig
