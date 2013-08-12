@@ -4,11 +4,19 @@
 Backwards Incompatibilities
 ---------------------------
 
+* LogfileInput seek journals now support a boolean `use_seek_journal` config
+  flag, and only the name of the journal file is now settable via
+  `seek_journal_name`, replacing the `seekjournal` option which specified the
+  full path.
+
 Bug Handling
 ------------
 
 Features
 --------
+
+* Added `base_dir` global (i.e. `[hekad]` section) config option to specify a
+  single location Heka plugins should use to persist data to the file system.
 
 * Added LogfileDirectoryManagerInput Issue #344
 
