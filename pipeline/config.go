@@ -108,7 +108,7 @@ type PipelineConfig struct {
 	InputRunners map[string]InputRunner
 	// PluginWrappers that can create Input plugin objects.
 	inputWrappers map[string]*PluginWrapper
-	// PluginWrappers that can create Decoder= plugin objects.
+	// PluginWrappers that can create Decoder plugin objects.
 	DecoderWrappers map[string]*PluginWrapper
 	// All running FilterRunners, by name.
 	FilterRunners map[string]FilterRunner
