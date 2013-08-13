@@ -119,7 +119,8 @@ Go code, your plugins must be included with and registered into Heka at
 compile time. The build process supports this through the use of an optional 
 cmake file `{heka root}/cmake/plugin_loader.cmake`.  A cmake function has been
 provided `add_external_plugin` taking the repository type (git, hg, or svn), 
-repository URL, and the repository tag to fetch.
+repository URL, the repository tag to fetch, and an optional list of 
+sub-packages to be initialized.
 
     .. code-block:: txt
 
