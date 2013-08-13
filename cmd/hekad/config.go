@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -19,9 +20,9 @@ package main
 import (
 	"fmt"
 	"github.com/bbangert/toml"
-        "io/ioutil"
-	"path/filepath"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 type HekadConfig struct {
@@ -34,6 +35,7 @@ type HekadConfig struct {
 	MaxMsgLoops         uint   `toml:"max_message_loops"`
 	MaxMsgProcessInject uint   `toml:"max_process_inject"`
 	MaxMsgTimerInject   uint   `toml:"max_timer_inject"`
+	BaseDir             string `toml:"base_dir"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -46,6 +48,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxMsgLoops:         4,
 		MaxMsgProcessInject: 1,
 		MaxMsgTimerInject:   10,
+		BaseDir:             filepath.FromSlash("/var/cache/hekad"),
 	}
 
 	var configFile map[string]toml.Primitive
@@ -66,7 +69,6 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 			return nil, fmt.Errorf("Error decoding config file: %s", err)
 		}
 	}
-
 
 	empty_ignore := map[string]interface{}{}
 	parsed_config, ok := configFile["hekad"]

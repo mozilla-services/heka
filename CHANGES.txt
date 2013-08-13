@@ -4,15 +4,70 @@
 Backwards Incompatibilities
 ---------------------------
 
+* LogfileInput seek journals now support a boolean `use_seek_journal` config
+  flag, and only the name of the journal file is now settable via
+  `seek_journal_name`, replacing the `seekjournal` option which specified the
+  full path.
+
+* Build is now entirely cmake based and lives directly in the heka repository,
+  replacing the separate primarily gnu make driven separate heka-build repo.
+
+* Core Heka plugins now default to writing data to /var/cache instead of
+  /var/run since /var/run is usually deleted on server restart.
+
+* StatAccumInput now defaults to emitting stats data in the payload instead of
+  in the message fields.
+
+* Renamed LoglineDecoder to PayloadRegexDecoder.
+
 Bug Handling
 ------------
+
+* Removed all code that attempted to catch and recover from panics in called
+  plugin code, since a) the recovery often left Heka in an undefined, broken
+  state b) the safety was a lie, any panic in a separate goroutine would not
+  be caught and c) panic traceback actually makes it easier to debug.
+
+* WhisperOutput and CarbonOutput no longer require stats to use the `stats`
+  namespace prefix.
+
+* LogfileInput now truncates and overwrites the seek journals instead of
+  appending.
+
+* `protoc` now an optional dependency for the build, only required if the
+  protobuf definition is actually changed.
+
+* MessageTemplate field name interpolation was only supporting alphabetic
+  characters for field names, now supports all "word" characters (i.e.
+  alphanumeric plus underscore).
+
+* ElasticSearchOutput now always sends timestamps in expected UTC time zone
+  format.
+
+* Fixed a CarbonOutput memory / socket leak.
 
 Features
 --------
 
-* Allow add_external_plugin to specify sub-packages Issue #384
-* Added LogfileDirectoryManagerInput Issue #344
+* Allow add_external_plugin to specify sub-packages (issue #384)
 
+* Added `base_dir` global (i.e. `[hekad]` section) config option to specify a
+  single location Heka plugins should use to persist data to the file system.
+
+* The `hekad` commands `config` flag now supports use of a config directory in
+  addition to a single config file. If a directory path is specified, every
+  file in the directory will be parsed and they will all be merged to a single
+  running configuration.
+
+* Added LogfileDirectoryManagerInput (issue #344).
+
+* LPEG library added to Lua sandbox (issue #144).
+
+* ElasticSearchOutput now supports `logstash_v0` output format that is modeled
+  after the original Logstash ElasticSearch message schema.
+
+* Added PayloadJsonDecoder that can extract information from JSON text in a
+  message payload during decoding.
 
 0.3.0 (2013-07-16)
 ==================
