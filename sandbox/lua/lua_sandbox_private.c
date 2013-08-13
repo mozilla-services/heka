@@ -55,7 +55,7 @@ void* memory_manager(void* ud, void* ptr, size_t osize, size_t nsize)
         free(ptr);
         lsb->m_usage[USAGE_TYPE_MEMORY][USAGE_STAT_CURRENT] -= osize;
     } else {
-        int new_state_memory =
+        unsigned new_state_memory =
           lsb->m_usage[USAGE_TYPE_MEMORY][USAGE_STAT_CURRENT] + nsize - osize;
         if (new_state_memory
             <= lsb->m_usage[USAGE_TYPE_MEMORY][USAGE_STAT_LIMIT]) {
@@ -244,8 +244,8 @@ int serialize_table_as_pb(lua_sandbox* lsb)
     for (int x = 0; x < 16; ++x) {
         d->m_data[d->m_pos++] = rand() % 255;
     }
-    d->m_data[8] = d->m_data[8] & 0x0F | 0x40;
-    d->m_data[10] = d->m_data[10] & 0x0F | 0xA0;
+    d->m_data[8] = (d->m_data[8] & 0x0F) | 0x40;
+    d->m_data[10] = (d->m_data[10] & 0x0F) | 0xA0;
 
     // use existing or create a timestamp
     lua_getfield(lsb->m_lua, 1, "Timestamp");
@@ -344,7 +344,7 @@ int serialize_data(lua_sandbox* lsb, int index, output_data* output)
 int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
 {
     const char* s;
-    size_t cnt = 0, len = 0;
+    size_t len = 0;
     size_t start_pos = output->m_pos;
     size_t escaped_len = 0;
     switch (lua_type(lsb->m_lua, index)) {
@@ -357,7 +357,7 @@ int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
     case LUA_TSTRING:
         s = lua_tolstring(lsb->m_lua, index, &len);
         escaped_len = len + 3; // account for the quotes and terminator
-        for (int i = 0; i < len; ++i) {
+        for (size_t i = 0; i < len; ++i) {
             // buffer needs at least enough room for quotes, terminator, and an
             // escaped character
             if (output->m_pos + 5 > output->m_size) {
@@ -643,7 +643,6 @@ int ignore_value_type(lua_sandbox* lsb, serialization_data* data, int index)
 ////////////////////////////////////////////////////////////////////////////////
 int ignore_value_type_json(lua_sandbox* lsb, int index)
 {
-    void* ud = NULL;
     switch (lua_type(lsb->m_lua, index)) {
     case LUA_TTABLE:
         if (lua_getmetatable(lsb->m_lua, index) != 0) {
@@ -692,7 +691,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...)
 {
     va_list args;
     int result = 0;
-    size_t remaining = 0;
+    int remaining = 0;
     char* ptr = NULL, *old_ptr = NULL;
     do {
         ptr = output->m_data + output->m_pos;
@@ -709,7 +708,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...)
         }
         if (len >= remaining) {
             size_t newsize = output->m_size * 2;
-            while (len >= newsize - output->m_pos) {
+            while ((size_t)len >= newsize - output->m_pos) {
                 newsize *= 2;
             }
             void* p = malloc(newsize);
@@ -957,7 +956,6 @@ int pb_write_varint(output_data* d, long long i)
         if (realloc_output(d, needed)) return 1;
     }
 
-    size_t start = d->m_pos;
     if (i == 0) {
         d->m_data[d->m_pos++] = 0;
         return 0;
@@ -1210,7 +1208,6 @@ int encode_fields(lua_sandbox* lsb, output_data* d, char id, const char* name)
         len_pos = d->m_pos;
         if (pb_write_varint(d, 0)) return 1;  // length tbd later
         if (lua_isstring(lsb->m_lua, -2)) {
-            size_t len;
             const char* s = lua_tolstring(lsb->m_lua, -2, &len);
             if (pb_write_string(d, 1, s, len)) return 1;
         } else {
