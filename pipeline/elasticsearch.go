@@ -522,26 +522,40 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
 func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name string) (interpolatedValue string) {
-        iSlice := strings.Split(name, "%")
+        iSlice := strings.Split(name, "%{")
 
         for i,element := range iSlice {
-                elStart := strings.Index(element, "{")
                 elEnd := strings.Index(element, "}")
 
-                if elStart > -1 && elEnd > -1 {
-                        elVal := element[elStart + 1:elEnd]
-                        fname, ok := m.GetFieldValue(elVal)
-
-                        if ok {
-                                iSlice[i] = strings.Replace(iSlice[i], element[elStart:elEnd+1], fname.(string), -1)
-                        } else {
-                                var t time.Time
-                                if e.ESIndexFromTimestamp && e.Timestamp != nil {
-                                  t = time.Unix(0, *e.Timestamp).UTC()
+                if elEnd > -1 {
+                        elVal := element[:elEnd]
+                        switch elVal {
+                        case "Type":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetType(), -1)
+                        case "Hostname":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetHostname(), -1)
+                        case "Pid":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetPid())), -1)
+                        case "UUID":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetUuidString(), -1)
+                        case "Logger":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetLogger(), -1)
+                        case "EnvVersion":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetEnvVersion(), -1)
+                        case "Severity":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetSeverity())), -1)
+                        default:
+                                if fname, ok := m.GetFieldValue(elVal); ok {
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], fname.(string), -1)
                                 } else {
-                                  t = time.Now()
+                                        var t time.Time
+                                        if e.ESIndexFromTimestamp && e.Timestamp != nil {
+                                          t = time.Unix(0, *e.Timestamp).UTC()
+                                        } else {
+                                          t = time.Now()
+                                        }
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
                                 }
-                                iSlice[i] = strings.Replace(iSlice[i], element[elStart:elEnd+1], t.Format(elVal), -1)
                         }
                 }
         }
@@ -549,7 +563,6 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
         interpolatedValue = strings.Join(iSlice, "")
         return
 }
-
 
 // A BulkIndexer is used to index documents in ElasticSearch
 type BulkIndexer interface {
