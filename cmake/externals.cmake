@@ -79,7 +79,12 @@ function(add_external_plugin vcs url tag)
     else()
         message(FATAL_ERROR "Unknown version control system ${vcs}")
     endif()
-    set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_path} PARENT_SCOPE)
+
+    set(_packages ${_path})
+    foreach(_subpath ${ARGN})
+        set(_packages ${_packages} "${_path}/${_subpath}")
+    endforeach()
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)
 
 git_clone(https://code.google.com/p/gomock master)

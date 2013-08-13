@@ -49,6 +49,8 @@ Bug Handling
 Features
 --------
 
+* Allow add_external_plugin to specify sub-packages (issue #384)
+
 * Added `base_dir` global (i.e. `[hekad]` section) config option to specify a
   single location Heka plugins should use to persist data to the file system.
 
