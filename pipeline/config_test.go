@@ -128,12 +128,14 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			hasSyncDecoder := false
 
-            // JSONDecoder and ProtobufDecoder will always be loaded
+			// JSONDecoder and ProtobufDecoder will always be loaded
 			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 3)
 
+			// Check that the MultiDecoder actually loaded
 			for k, _ := range pipeConfig.DecoderWrappers {
 				if k == "syncdecoder" {
 					hasSyncDecoder = true
+					break
 				}
 			}
 			c.Assume(hasSyncDecoder, gs.IsTrue)

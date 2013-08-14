@@ -117,6 +117,44 @@ func DecodersSpec(c gospec.Context) {
 		Globals().Stopping = false
 	})
 
+	c.Specify("A MultiDecoder", func() {
+		decoder := new(MultiDecoder)
+		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
+
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			// bind in regex decoders
+			conf.Name = "MyMultiDecoder"
+			conf.Order = []string{"syncraw"}
+			conf.Subs = make(map[string]interface{}, 0)
+			conf.Subs["syncraw"] = make(map[string]interface{}, 0)
+			syncraw := conf.Subs["syncraw"].(map[string]interface{})
+			syncraw["type"] = "PayloadRegexDecoder"
+			syncraw["match_regex"] = "^(?P<TheData>.*)"
+
+			syncraw["message_fields"] = make(map[string]interface{}, 0)
+			message_fields := syncraw["message_fields"].(map[string]interface{})
+			message_fields["Somedata"] = "%TheData%"
+
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "this could be any text"
+			pack.Message.SetPayload(regex_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
+			value, ok := pack.Message.GetFieldValue("Somedata")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, regex_data)
+		})
+	})
+
 	c.Specify("A PayloadJsonDecoder", func() {
 		decoder := new(PayloadJsonDecoder)
 		conf := decoder.ConfigStruct().(*PayloadJsonDecoderConfig)
