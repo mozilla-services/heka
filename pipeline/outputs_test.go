@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
-    "path"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +27,8 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -42,16 +43,6 @@ func NewOutputTestHelper(ctrl *gomock.Controller) (oth *OutputTestHelper) {
 	oth.MockHelper = NewMockPluginHelper(ctrl)
 	oth.MockOutputRunner = NewMockOutputRunner(ctrl)
 	return
-}
-
-type PanicOutput struct{}
-
-func (p *PanicOutput) Init(config interface{}) (err error) {
-	panic("PANICOUTPUT")
-}
-
-func (p *PanicOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	panic("PANICOUTPUT")
 }
 
 var stopoutputTimes int
@@ -235,7 +226,7 @@ func OutputsSpec(c gs.Context) {
 		})
 
 		c.Specify("Init halts if basedirectory is not writable", func() {
-            tmpdir := path.Join(os.TempDir(), "tmpdir")
+			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
 			err := os.MkdirAll(tmpdir, 0400)
 			c.Assume(err, gs.IsNil)
 			config.Path = tmpdir
@@ -304,8 +295,12 @@ func OutputsSpec(c gs.Context) {
 				fileInfo, err := tmpFile.Stat()
 				c.Assume(err, gs.IsNil)
 				fileMode := fileInfo.Mode()
-				// 7 consecutive dashes implies no perms for group or other
-				c.Expect(fileMode.String(), ts.StringContains, "-------")
+				if runtime.GOOS == "windows" {
+					c.Expect(fileMode.String(), ts.StringContains, "-rw-rw-rw-")
+				} else {
+					// 7 consecutive dashes implies no perms for group or other
+					c.Expect(fileMode.String(), ts.StringContains, "-------")
+				}
 			})
 		})
 	})
@@ -373,15 +368,6 @@ func OutputsSpec(c gs.Context) {
 			result = <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
 		})
-	})
-
-	c.Specify("Runner recovers from panic in output's `Run()` method", func() {
-		output := new(PanicOutput)
-		oRunner := NewFORunner("panic", output, nil)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		oRunner.Start(oth.MockHelper, &wg) // no panic => success
-		wg.Wait()
 	})
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {

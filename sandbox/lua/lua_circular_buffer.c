@@ -68,7 +68,7 @@ static inline time_t get_start_time(circular_buffer* cb)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static void clear_rows(circular_buffer* cb, int num_rows)
+static void clear_rows(circular_buffer* cb, unsigned num_rows)
 {
     if (num_rows >= cb->m_rows) { // clear all
         memset(cb->m_values, 0, sizeof(double) * cb->m_rows * cb->m_columns);
@@ -139,7 +139,7 @@ static circular_buffer* check_circular_buffer(lua_State* lua, int min_args)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-static int check_row(lua_State* lua, circular_buffer* cb, double ns, int advance)
+static int check_row(circular_buffer* cb, double ns, int advance)
 {
     time_t t = (time_t)(ns / 1e9);
     t = t - (t % cb->m_seconds_per_row);
@@ -153,7 +153,7 @@ static int check_row(lua_State* lua, circular_buffer* cb, double ns, int advance
         clear_rows(cb, row_delta);
         cb->m_current_time = t;
         cb->m_current_row = row;
-    } else if (abs(row_delta) >= cb->m_rows) {
+    } else if (abs(row_delta) >= (int)cb->m_rows) {
         return -1;
     }
     return row;
@@ -162,7 +162,7 @@ static int check_row(lua_State* lua, circular_buffer* cb, double ns, int advance
 ////////////////////////////////////////////////////////////////////////////////
 static int check_column(lua_State* lua, circular_buffer* cb, int arg)
 {
-    int column = luaL_checkint(lua, arg);
+    unsigned column = luaL_checkint(lua, arg);
     luaL_argcheck(lua, 1 <= column && column <= cb->m_columns, arg,
                   "column out of range");
     --column; // make zero based
@@ -173,7 +173,7 @@ static int check_column(lua_State* lua, circular_buffer* cb, int arg)
 static int circular_buffer_add(lua_State* lua)
 {
     circular_buffer* cb = check_circular_buffer(lua, 4);
-    int row             = check_row(lua, cb,
+    int row             = check_row(cb,
                                     luaL_checknumber(lua, 2),
                                     1); // advance the buffer forward if
                                         // necessary
@@ -194,7 +194,7 @@ static int circular_buffer_add(lua_State* lua)
 static int circular_buffer_get(lua_State* lua)
 {
     circular_buffer* cb = check_circular_buffer(lua, 3);
-    int row             = check_row(lua, cb,
+    int row             = check_row(cb,
                                     luaL_checknumber(lua, 2),
                                     0);
     int column          = check_column(lua, cb, 3);
@@ -211,7 +211,7 @@ static int circular_buffer_get(lua_State* lua)
 static int circular_buffer_set(lua_State* lua)
 {
     circular_buffer* cb = check_circular_buffer(lua, 4);
-    int row             = check_row(lua, cb,
+    int row             = check_row(cb,
                                     luaL_checknumber(lua, 2),
                                     1); // advance the buffer forward if
                                         //necessary
@@ -257,11 +257,11 @@ static int circular_buffer_set_header(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_sum(circular_buffer* cb, int column, int start_row,
-                          int end_row)
+static double compute_sum(circular_buffer* cb, unsigned column,
+                          unsigned start_row, unsigned end_row)
 {
     double result = 0;
-    int row = start_row;
+    unsigned row = start_row;
     do {
         if (row == cb->m_rows) {
             row = 0;
@@ -273,12 +273,12 @@ static double compute_sum(circular_buffer* cb, int column, int start_row,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_avg(circular_buffer* cb, int column, int start_row,
-                          int end_row)
+static double compute_avg(circular_buffer* cb, unsigned column,
+                          unsigned start_row, unsigned end_row)
 {
     double result = 0;
-    int row = start_row;
-    int row_count = 0;
+    unsigned row = start_row;
+    unsigned row_count = 0;
 
     do {
         if (row == cb->m_rows) {
@@ -291,15 +291,62 @@ static double compute_avg(circular_buffer* cb, int column, int start_row,
     return result / row_count;
 }
 
+// TODO remove - BSD sqrt function using Newton's method
+// This is a temporary fix until we figure out why the math sqrt function call
+// causes cgo link errors on Windows.
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_sd(circular_buffer* cb, int column, int start_row,
-                         int end_row)
+static double bsd_sqrt(double arg)
+{
+    double x, temp;
+    int exp;
+    int i;
+
+    if (arg <= 0.) {
+        return (0.);
+    }
+    x = frexp(arg, &exp);
+    while (x < 0.5) {
+        x *= 2;
+        exp--;
+    }
+    /*
+     * NOTE
+     * this wont work on 1's comp
+     */
+    if (exp & 1) {
+        x *= 2;
+        exp--;
+    }
+    temp = 0.5 * (1.0 + x);
+
+    while (exp > 60) {
+        temp *= (1L << 30);
+        exp -= 60;
+    }
+    while (exp < -60) {
+        temp /= (1L << 30);
+        exp += 60;
+    }
+    if (exp >= 0) {
+        temp *= 1L << (exp / 2);
+    } else {
+        temp /= 1L << (-exp / 2);
+    }
+    for (i = 0; i <= 4; i++) {
+        temp = 0.5 * (temp + arg / temp);
+    }
+    return (temp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static double compute_sd(circular_buffer* cb, unsigned column,
+                         unsigned start_row, unsigned end_row)
 {
     double avg = compute_avg(cb, column, start_row, end_row);
     double sum_squares = 0;
     double value = 0;
-    int row = start_row;
-    int row_count = 0;
+    unsigned row = start_row;
+    unsigned row_count = 0;
     do {
         if (row == cb->m_rows) {
             row = 0;
@@ -309,16 +356,16 @@ static double compute_sd(circular_buffer* cb, int column, int start_row,
         ++row_count;
     }
     while (row++ != end_row);
-    return sqrt(sum_squares / row_count);
+    return bsd_sqrt(sum_squares / row_count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_min(circular_buffer* cb, int column, int start_row,
-                          int end_row)
+static double compute_min(circular_buffer* cb, unsigned column, 
+                          unsigned start_row, unsigned end_row)
 {
     double result = DBL_MAX;
     double value = 0;
-    int row = start_row;
+    unsigned row = start_row;
     do {
         if (row == cb->m_rows) {
             row = 0;
@@ -333,12 +380,12 @@ static double compute_min(circular_buffer* cb, int column, int start_row,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_max(circular_buffer* cb, int column, int start_row,
-                          int end_row)
+static double compute_max(circular_buffer* cb, unsigned column,
+                          unsigned start_row, unsigned end_row)
 {
     double result = DBL_MIN;
     double value = 0;
-    int row = start_row;
+    unsigned row = start_row;
     do {
         if (row == cb->m_rows) {
             row = 0;
@@ -365,8 +412,8 @@ static int circular_buffer_compute(lua_State* lua)
     double end_ns   = luaL_optnumber(lua, 5, cb->m_current_time * 1e9);
     luaL_argcheck(lua, end_ns >= start_ns, 5, "end must be >= start");
 
-    int start_row = check_row(lua, cb, start_ns, 0);
-    int end_row   = check_row(lua, cb, end_ns, 0);
+    int start_row = check_row(cb, start_ns, 0);
+    int end_row   = check_row(cb, end_ns, 0);
     if (-1 == start_row  || -1 == end_row) {
         lua_pushnil(lua);
         return 1;
@@ -404,12 +451,12 @@ static int circular_buffer_fromstring(lua_State* lua)
     int n = 0;
     long long t;
     double value;
-    if (!sscanf(values, "%lld %d%n", &t, &cb->m_current_row, &n)) {
+    if (!sscanf(values, "%lld %u%n", &t, &cb->m_current_row, &n)) {
         lua_pushstring(lua, "fromstring() invalid time/row");
         lua_error(lua);
     }
     cb->m_current_time = t;
-    int offset = n, pos = 0;
+    size_t offset = n, pos = 0;
     size_t len = cb->m_rows * cb->m_columns;
     while (sscanf(&values[offset], "%lg%n", &value, &n) == 1) {
         if (pos == len) {

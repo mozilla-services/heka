@@ -22,35 +22,41 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 )
 
-func createLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig) {
-
+func createLogfileInput(journalName string) (*LogfileInput, *LogfileInputConfig) {
 	lfInput := new(LogfileInput)
 	lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 	lfiConfig.LogFile = "../testsupport/test-zeus.log"
 	lfiConfig.DiscoverInterval = 5
 	lfiConfig.StatInterval = 5
-	lfiConfig.SeekJournal = journal_name
-	// Remove any journal that may exist
-	os.Remove(path.Clean(journal_name))
-
+	lfiConfig.SeekJournalName = journalName
 	return lfInput, lfiConfig
 }
 
 func FileMonitorSpec(c gs.Context) {
-	tmp_file, tmp_err := ioutil.TempFile("", "")
-	c.Expect(tmp_err, gs.Equals, nil)
-	journal_name := tmp_file.Name()
-	tmp_file.Close()
+	config := NewPipelineConfig(nil)
+	tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+	c.Expect(tmpErr, gs.Equals, nil)
+	origBaseDir := Globals().BaseDir
+	Globals().BaseDir = tmpDir
+	defer func() {
+		Globals().BaseDir = origBaseDir
+		tmpErr = os.RemoveAll(tmpDir)
+		c.Expect(tmpErr, gs.Equals, nil)
+	}()
+	journalName := "test-seekjournal"
+	journalDir := filepath.Join(tmpDir, "seekjournals")
+	tmpErr = os.MkdirAll(journalDir, 0770)
+	c.Expect(tmpErr, gs.Equals, nil)
+	journalPath := filepath.Join(journalDir, journalName)
 
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	config := NewPipelineConfig(nil)
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
 	ith.Pack = NewPipelinePack(config.inputRecycleChan)
@@ -73,7 +79,7 @@ func FileMonitorSpec(c gs.Context) {
 
 		c.Specify("without a previous journal", func() {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig := createLogfileInput(journalName)
 
 			// Initialize the input test helper
 			err := lfInput.Init(lfiConfig)
@@ -125,15 +131,14 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("with a previous journal initializes with a seek value", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig := createLogfileInput(journalName)
 
-			journal_data := `{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
 
-			journal, journal_err := os.OpenFile(journal_name,
-				os.O_CREATE|os.O_RDWR, 0660)
-			c.Expect(journal_err, gs.Equals, nil)
+			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journalErr, gs.Equals, nil)
 
-			journal.WriteString(journal_data)
+			journal.WriteString(journalData)
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
@@ -146,16 +151,15 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("resets last read position to 0 if hash doesn't match", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig := createLogfileInput(journalName)
 			lfiConfig.ResumeFromStart = true
 
-			journal_data := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
 
-			journal, journal_err := os.OpenFile(journal_name,
-				os.O_CREATE|os.O_RDWR, 0660)
-			c.Expect(journal_err, gs.Equals, nil)
+			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journalErr, gs.Equals, nil)
 
-			journal.WriteString(journal_data)
+			journal.WriteString(journalData)
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
@@ -166,16 +170,15 @@ func FileMonitorSpec(c gs.Context) {
 		})
 
 		c.Specify("resets last read position to end of file if hash doesn't match", func() {
-			lfInput, lfiConfig := createLogfileInput(journal_name)
+			lfInput, lfiConfig := createLogfileInput(journalName)
 			lfiConfig.ResumeFromStart = false
 
-			journal_data := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
 
-			journal, journal_err := os.OpenFile(journal_name,
-				os.O_CREATE|os.O_RDWR, 0660)
-			c.Expect(journal_err, gs.Equals, nil)
+			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
+			c.Expect(journalErr, gs.Equals, nil)
 
-			journal.WriteString(journal_data)
+			journal.WriteString(journalData)
 			journal.Close()
 
 			err := lfInput.Init(lfiConfig)
@@ -188,19 +191,17 @@ func FileMonitorSpec(c gs.Context) {
 
 	})
 
-	c.Specify("filemonitor can generate journal paths", func() {
+	c.Specify("filemonitor generates expected journal path", func() {
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.LogFile = "../testsupport/test-zeus.log"
+		lfiConfig.LogFile = filepath.Join("..", "testsupport", "test-zeus.log")
 		lfiConfig.DiscoverInterval = 5
 		lfiConfig.StatInterval = 5
 
-		lfInput.Init(lfiConfig)
-		//c.Expect(err, gs.Equals, nil)
-		lfInput.Monitor.cleanJournalPath()
-		c.Expect(lfInput.Monitor.seekJournalPath,
-			gs.Equals,
-			"/var/run/hekad/seekjournals/___testsupport_test-zeus_log")
+		err := lfInput.Init(lfiConfig)
+		c.Expect(err, gs.Equals, nil)
+		clean := filepath.Join(journalDir, "___testsupport_test-zeus_log")
+		c.Expect(lfInput.Monitor.seekJournalPath, gs.Equals, clean)
 	})
 
 }

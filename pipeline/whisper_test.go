@@ -22,7 +22,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/whisper-go/whisper"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +31,7 @@ import (
 func WhisperRunnerSpec(c gospec.Context) {
 	tmpDir := os.TempDir()
 	tmpFileName := fmt.Sprintf("heka-%d.wsp", time.Now().UTC().UnixNano())
-	tmpFileName = path.Join(tmpDir, tmpFileName)
+	tmpFileName = filepath.Join(tmpDir, tmpFileName)
 
 	interval := uint32(10)
 	archiveInfo := []whisper.ArchiveInfo{
@@ -43,7 +43,7 @@ func WhisperRunnerSpec(c gospec.Context) {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		folderPerm := os.FileMode(0755)
-		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AGGREGATION_SUM,
+		wr, err := NewWhisperRunner(tmpFileName, archiveInfo, whisper.AggregationSum,
 			folderPerm, &wg)
 		c.Assume(err, gs.IsNil)
 		defer func() {
@@ -99,7 +99,7 @@ func WhisperOutputSpec(c gospec.Context) {
 	c.Specify("A WhisperOutput", func() {
 		o := new(WhisperOutput)
 		config := o.ConfigStruct().(*WhisperOutputConfig)
-		config.BasePath = path.Join(os.TempDir(), config.BasePath)
+		config.BasePath = filepath.Join(os.TempDir(), config.BasePath)
 		o.Init(config)
 
 		const count = 5

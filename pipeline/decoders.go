@@ -139,20 +139,6 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	go func() {
 		var pack *PipelinePack
 
-		defer func() {
-			if r := recover(); r != nil {
-				dr.LogError(fmt.Errorf("PANIC: %s", r))
-				if pack != nil {
-					pack.Recycle()
-				}
-				if Globals().Stopping {
-					wg.Done()
-				} else {
-					dr.Start(h, wg)
-				}
-			}
-		}()
-
 		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
 			wanter.SetDecoderRunner(dr)
 		}
@@ -291,5 +277,5 @@ func InterpolateString(formatRegexp string, subs map[string]string) (newString s
 
 // Initialize the varMatcher for use in InterpolateString
 func init() {
-	varMatcher, _ = regexp.Compile("%[A-Za-z]+%")
+	varMatcher, _ = regexp.Compile("%\\w+%")
 }

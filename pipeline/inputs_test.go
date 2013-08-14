@@ -47,20 +47,6 @@ type InputTestHelper struct {
 	DecodeChan      chan *PipelinePack
 }
 
-type PanicInput struct{}
-
-func (p *PanicInput) Init(config interface{}) (err error) {
-	return
-}
-
-func (p *PanicInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	panic("PANICINPUT")
-}
-
-func (p *PanicInput) Stop() {
-	panic("PANICINPUT")
-}
-
 var stopinputTimes int
 
 type StoppingInput struct{}
@@ -93,14 +79,6 @@ func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 		msgBytes[pos] = message.UNIT_SEPARATOR
 		copy(msgBytes[pos+1:], mbytes)
 	}
-}
-
-func createJournal() (journal string, err error) {
-	var tmp_file *os.File
-	tmp_file, err = ioutil.TempFile("", "")
-	journal = tmp_file.Name()
-	tmp_file.Close()
-	return journal, nil
 }
 
 func InputsSpec(c gs.Context) {
@@ -406,7 +384,7 @@ func InputsSpec(c gs.Context) {
 		input := new(StoppingInput)
 		iRunner := NewInputRunner("stopping", input, &pluginGlobals)
 		var wg sync.WaitGroup
-		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(3)
+		cfgCall := ith.MockHelper.EXPECT().PipelineConfig().Times(7)
 		cfgCall.Return(pc)
 		wg.Add(1)
 		iRunner.Start(ith.MockHelper, &wg)
@@ -414,22 +392,20 @@ func InputsSpec(c gs.Context) {
 		c.Expect(stopinputTimes, gs.Equals, 2)
 	})
 
-	c.Specify("Runner recovers from panic in input's `Run()` method", func() {
-		input := new(PanicInput)
-		iRunner := NewInputRunner("panic", input, nil)
-		var wg sync.WaitGroup
-		cfgCall := ith.MockHelper.EXPECT().PipelineConfig()
-		cfgCall.Return(config)
-		wg.Add(1)
-		iRunner.Start(ith.MockHelper, &wg) // no panic => success
-		wg.Wait()
-	})
-
 	c.Specify("A LogFileInput", func() {
+		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+		c.Expect(tmpErr, gs.Equals, nil)
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = tmpDir
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr = os.RemoveAll(tmpDir)
+			c.Expect(tmpErr, gs.Equals, nil)
+		}()
 		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-		lfiConfig.SeekJournal, err = createJournal()
+		lfiConfig.SeekJournalName = "test-seekjournal"
 		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
@@ -493,17 +469,13 @@ func InputsSpec(c gs.Context) {
 		})
 
 		c.Specify("uses the filename as the default logger name", func() {
-			var err error
-
 			lfInput := new(LogfileInput)
 			lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
-			lfiConfig.SeekJournal, err = createJournal()
-			c.Expect(err, gs.Equals, nil)
 			lfiConfig.LogFile = "../testsupport/test-zeus.log"
 
 			lfiConfig.DiscoverInterval = 1
 			lfiConfig.StatInterval = 1
-			err = lfInput.Init(lfiConfig)
+			err := lfInput.Init(lfiConfig)
 			c.Expect(err, gs.Equals, nil)
 
 			c.Expect(lfInput.Monitor.logger_ident,

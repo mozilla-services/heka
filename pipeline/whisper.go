@@ -19,7 +19,7 @@ import (
 	"github.com/rafrombrc/whisper-go/whisper"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,7 +54,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		}
 
 		// First make sure the folder is there.
-		dir := path.Dir(path_)
+		dir := filepath.Dir(path_)
 		if _, err = os.Stat(dir); os.IsNotExist(err) {
 			if err = os.MkdirAll(dir, folderPerm); err != nil {
 				err = fmt.Errorf("Error creating whisper db folder '%s': %s", dir, err)
@@ -63,7 +63,8 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		} else if err != nil {
 			err = fmt.Errorf("Error opening whisper db folder '%s': %s", dir, err)
 		}
-		if db, err = whisper.Create(path_, archiveInfo, 0.1, aggMethod, false); err != nil {
+		createOptions := whisper.CreateOptions{0.1, aggMethod, false}
+		if db, err = whisper.Create(path_, archiveInfo, createOptions); err != nil {
 			err = fmt.Errorf("Error creating whisper db: %s", err)
 			return
 		}
@@ -111,7 +112,9 @@ type WhisperOutput struct {
 
 // WhisperOutput config struct.
 type WhisperOutputConfig struct {
-	// Full file path to where the Whisper db files are stored.
+	// File path where the Whisper db files are stored. Can be an absolute
+	// path, or relative to the Heka base directory. Defaults to
+	// `$(BASEDIR)/whisper`.
 	BasePath string `toml:"base_path"`
 
 	// Default mechanism whisper will use to aggregate data points as they
@@ -129,18 +132,16 @@ type WhisperOutputConfig struct {
 }
 
 func (o *WhisperOutput) ConfigStruct() interface{} {
-	basePath := path.Join(string(os.PathSeparator), "var", "run", "hekad", "whisper")
-
 	return &WhisperOutputConfig{
-		BasePath:         basePath,
-		DefaultAggMethod: whisper.AGGREGATION_AVERAGE,
+		BasePath:         "whisper",
+		DefaultAggMethod: whisper.AggregationAverage,
 		FolderPerm:       "700",
 	}
 }
 
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
-	o.basePath = conf.BasePath
+	o.basePath = GetHekaConfigDir(conf.BasePath)
 	o.defaultAggMethod = conf.DefaultAggMethod
 
 	var intPerm int64
@@ -184,7 +185,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 func (o *WhisperOutput) getFsPath(statName string) (statPath string) {
 	statPath = strings.Replace(statName, ".", string(os.PathSeparator), -1)
 	statPath = strings.Join([]string{statPath, "wsp"}, ".")
-	statPath = path.Join(o.basePath, statPath)
+	statPath = filepath.Join(o.basePath, statPath)
 	return
 }
 
@@ -206,7 +207,7 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)
-			if len(fields) != 3 || !strings.HasPrefix(fields[0], "stats") {
+			if len(fields) != 3 {
 				or.LogError(fmt.Errorf("malformed statmetric line: '%s'", line))
 				continue
 			}

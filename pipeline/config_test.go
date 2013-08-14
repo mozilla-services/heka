@@ -18,6 +18,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"runtime"
 )
 
 type DefaultsTestOutput struct{}
@@ -131,7 +132,11 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Specify("handles missing config file correctly", func() {
 			err := pipeConfig.LoadFromConfigFile("no_such_file.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), ts.StringContains, "open no_such_file.toml: no such file or directory")
+			if runtime.GOOS == "windows" {
+				c.Expect(err.Error(), ts.StringContains, "open no_such_file.toml: The system cannot find the file specified.")
+			} else {
+				c.Expect(err.Error(), ts.StringContains, "open no_such_file.toml: no such file or directory")
+			}
 		})
 
 		c.Specify("errors correctly w/ bad outputs config", func() {
@@ -140,14 +145,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
 			msg := pipeConfig.logMsgs[0]
 			c.Expect(msg, ts.StringContains, "No such plugin")
-		})
-
-		c.Specify("captures plugin Init() panics", func() {
-			RegisterPlugin("PanicOutput", func() interface{} {
-				return new(PanicOutput)
-			})
-			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.toml")
-			c.Expect(err, gs.Not(gs.IsNil))
 		})
 
 		c.Specify("for a DefaultsTestOutput", func() {

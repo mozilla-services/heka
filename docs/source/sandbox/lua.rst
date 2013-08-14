@@ -96,6 +96,59 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         none
 
+**inject_message(message_table)**
+    Creates a new Heka protocol buffer message using the contents of the
+    specified Lua table (injection limits are enforced as described above).
+    Notes about message fields:
+
+    * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
+    * UUID is automatically generated, anything provided by the user is ignored.
+    * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
+    * Type is prepended with "heka.sandbox." to avoid data confusion/mis-representation.
+    * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
+        * name=value i.e., foo="bar"; foo=1; foo=true
+        * name={array} i.e., foo={"b", "a", "r"}
+        * name={object} i.e. foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, representation="ms"}
+            * value (required) may be a single value or an array of values
+            * representation (optional) metadata for display and unit management
+
+    *Arguments*
+        - message_table A table with the proper message structure.
+
+    *Return*
+        none
+
+**require(libraryName)**
+    Loads optional sandbox libraries
+
+    *Arguments*
+        - libraryName (string)
+            - **lpeg** loads the Lua Parsing Expression Grammar Library
+
+    *Return*
+        none, the library is exposed as a global table with the library name.
+
+Sample Lua Message Structure
+----------------------------
+.. code-block:: lua
+
+    {
+    Uuid        = "data",               -- ignored
+    Logger      = "nginx",              -- ignored 
+    Hostname    = "bogus.mozilla.com",  -- ignored 
+
+    Timestamp   = 1e9,                   
+    Type        = "TEST",               -- will become "heka.sandbox.TEST" in the SandboxFilter
+    Papload     = "Test Payload",
+    EnvVersion  = "0.8",
+    Pid         = 1234, 
+    Severity    = 6, 
+    Fields      = {
+                http_status     = 200, 
+                request_size    = {value=1413, representation="B"}
+                }
+    }
+
 Circular Buffer Library
 =======================
 The library is a sliding window time series data store and is implemented in

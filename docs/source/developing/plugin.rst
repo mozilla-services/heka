@@ -485,7 +485,5 @@ It is recommended that `RegisterPlugin` calls be put in your Go package's
 `init() function <http://golang.org/doc/effective_go.html#init>`_ so that you
 can simply import your package when building `hekad` and the package's plugins
 will be registered and available for use in your Heka config file. This is
-made a bit easier if you use `heka build`_, see
+made a bit easier if you use `plugin_loader.cmake`_, see
 :ref:`build_include_externals`.
-
-.. _heka build: https://github.com/mozilla-services/heka-build
