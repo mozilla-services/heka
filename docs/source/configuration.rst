@@ -853,6 +853,71 @@ Examples:
     $.foo.bar[0].baz
     $.foo.bar
 
+.. _config_multidecoder:
+
+MultiDecoder
+------------
+
+This decoder plugin allows you to an ordered list of delegate
+decoders.  MultiDecoder will pass a PipelinePack to each of the
+delegates until decode succeeds.  In the case of failure to decode,
+MultiDecoder will either drop the message or re-inject the message
+into the pipeline.
+
+Parameters:
+
+- Subs:
+    A subsection is used to declare the TOML configuration for any
+    delegate decoders. The default is that no delegate decoders are
+    defined.
+
+- Order (list of strings):
+    PipelinePack objects will be passed in order to each decoder in this list. 
+    Default is an empty list.
+    
+- Name (string):
+    The name of the multidecoder.  Default is MultiDecoder-<address of multidecoder>
+
+- Catchall (bool):
+    If enabled, PipelinePack objects will be reinjected into the
+    router if no delegate successfully decodes the input message.
+    Default is true.
+
+
+Example (Two PayloadRegexDecoder delegates): 
+
+.. code-block:: ini
+
+        [syncdecoder]
+        type = "MultiDecoder"
+        order = ['syncformat', 'syncraw']
+
+        [syncdecoder.subs.syncformat]
+        type = "PayloadRegexDecoder"
+        match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
+        timestamp_layout = "02/Jan/2006:15:04:05 -0700"
+
+        [syncdecoder.subs.syncformat.message_fields]
+        RemoteIP|ipv4 = "%RemoteIP%"
+        User = "%User%"
+        Method = "%Method%"
+        Url|uri = "%Url%"
+        StatusCode = "%StatusCode%"
+        RequestSize|B= "%RequestSize%"
+        Referer = "%Referer%"
+        Browser = "%Browser%"
+        ResponseTime|s = "%ResponseTime%"
+        ResponseSize|B = "%ResponseSize%"
+        Payload = ""
+
+        [syncdecoder.subs.syncraw]
+        type = "PayloadRegexDecoder"
+        match_regex = '^(?P<TheData>.*)'
+
+        [syncdecoder.subs.syncraw.message_fields]
+        Somedata = "%TheData%"
+
+
 
 .. end-decoders
 
