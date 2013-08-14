@@ -738,6 +738,9 @@ func init() {
 	RegisterPlugin("PayloadJsonDecoder", func() interface{} {
 		return new(PayloadJsonDecoder)
 	})
+	RegisterPlugin("PayloadXmlDecoder", func() interface{} {
+		return new(PayloadXmlDecoder)
+	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
 	})

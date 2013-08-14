@@ -8,8 +8,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Ben Bangert (bbangert@mozilla.com)
-#   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -17,14 +16,14 @@ package pipeline
 
 import (
 	"fmt"
-	"regexp"
+	"strings"
 	"time"
 )
 
-type PayloadRegexDecoderConfig struct {
+type PayloadXmlDecoderConfig struct {
 	// Regular expression that describes log line format and capture group
 	// values.
-	MatchRegex string `toml:"match_regex"`
+	XpathMap map[string]string `toml:"xpath_map"`
 
 	// Maps severity strings to their int version
 	SeverityMap map[string]int32 `toml:"severity_map"`
@@ -48,8 +47,8 @@ type PayloadRegexDecoderConfig struct {
 	TimestampLocation string `toml:"timestamp_location"`
 }
 
-type PayloadRegexDecoder struct {
-	Match           *regexp.Regexp
+type PayloadXmlDecoder struct {
+	XpathMap        map[string]string
 	SeverityMap     map[string]int32
 	MessageFields   MessageTemplate
 	TimestampLayout string
@@ -57,65 +56,62 @@ type PayloadRegexDecoder struct {
 	dRunner         DecoderRunner
 }
 
-func (ld *PayloadRegexDecoder) ConfigStruct() interface{} {
-	return &PayloadRegexDecoderConfig{ 
+func (p *PayloadXmlDecoder) ConfigStruct() interface{} {
+	return &PayloadXmlDecoderConfig{
 		TimestampLayout: DefaultTimestampLayout,
-    }
+	}
 }
 
-func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
-	conf := config.(*PayloadRegexDecoderConfig)
-	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
-		err = fmt.Errorf("PayloadRegexDecoder: %s", err)
-		return
-	}
-	if ld.Match.NumSubexp() == 0 {
-		err = fmt.Errorf("PayloadRegexDecoder regex must contain capture groups")
-		return
+func (p *PayloadXmlDecoder) Init(config interface{}) (err error) {
+	conf := config.(*PayloadXmlDecoderConfig)
+
+	p.XpathMap = make(map[string]string)
+	for capture_name, jp := range conf.XpathMap {
+		p.XpathMap[capture_name] = jp
 	}
 
-	ld.SeverityMap = make(map[string]int32)
-	ld.MessageFields = make(MessageTemplate)
+	p.SeverityMap = make(map[string]int32)
+	p.MessageFields = make(MessageTemplate)
 	if conf.SeverityMap != nil {
 		for codeString, codeInt := range conf.SeverityMap {
-			ld.SeverityMap[codeString] = codeInt
+			p.SeverityMap[codeString] = codeInt
 		}
 	}
 	if conf.MessageFields != nil {
 		for field, action := range conf.MessageFields {
-			ld.MessageFields[field] = action
+			p.MessageFields[field] = action
 		}
 	}
-	ld.TimestampLayout = conf.TimestampLayout
-	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
-		err = fmt.Errorf("PayloadRegexDecoder unknown timestamp_location '%s': %s",
+	p.TimestampLayout = conf.TimestampLayout
+	if p.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
+		err = fmt.Errorf("PayloadXmlDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
 	return
 }
 
 // Heka will call this to give us access to the runner.
-func (ld *PayloadRegexDecoder) SetDecoderRunner(dr DecoderRunner) {
-	ld.dRunner = dr
+func (p *PayloadXmlDecoder) SetDecoderRunner(dr DecoderRunner) {
+	p.dRunner = dr
 }
 
 // Matches the given string against the regex and returns the match result
 // and captures
-func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]string) {
-	findResults := re.FindStringSubmatch(s)
-	if findResults == nil {
+func (p *PayloadXmlDecoder) match(s string) (captures map[string]string, err error) {
+	captures = make(map[string]string)
+
+	xdoc, err := NewXMLDocument(s)
+	if err != nil {
 		return
 	}
-	match = true
-	captures = make(map[string]string)
-	for index, name := range re.SubexpNames() {
-		if index == 0 {
+	defer xdoc.Free()
+
+	for capture_group, xpath := range p.XpathMap {
+		nodes, err := xdoc.Find(xpath)
+		if err != nil {
 			continue
 		}
-		if name == "" {
-			name = fmt.Sprintf("%d", index)
-		}
-		captures[name] = findResults[index]
+		captures[capture_group] = strings.Join(nodes, ", ")
 	}
 	return
 }
@@ -123,19 +119,18 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
-func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
-	// First try to match the regex.
-	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
-	if !match {
-		return fmt.Errorf("No match")
+func (p *PayloadXmlDecoder) Decode(pack *PipelinePack) (err error) {
+	captures, err := p.match(pack.Message.GetPayload())
+	if err != nil {
+		return
 	}
 
 	pdh := &PayloadDecoderHelper{
 		Captures:        captures,
-		dRunner:         ld.dRunner,
-		TimestampLayout: ld.TimestampLayout,
-		TzLocation:      ld.tzLocation,
-		SeverityMap:     ld.SeverityMap,
+		dRunner:         p.dRunner,
+		TimestampLayout: p.TimestampLayout,
+		TzLocation:      p.tzLocation,
+		SeverityMap:     p.SeverityMap,
 	}
 
 	pdh.DecodeTimestamp(pack)
@@ -143,5 +138,5 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	return ld.MessageFields.PopulateMessage(pack.Message, captures)
+	return p.MessageFields.PopulateMessage(pack.Message, captures)
 }

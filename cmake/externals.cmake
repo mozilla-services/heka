@@ -103,6 +103,7 @@ add_dependencies(sets slices)
 git_clone(https://github.com/crowdmob/goamz 7168305bd984b32bef7157a672e2460d0b0bba2f)
 git_clone(https://github.com/rafrombrc/gospec master)
 git_clone(https://github.com/crankycoder/g2s master)
+git_clone(https://github.com/moovweb/gokogiri master)
 
 if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
