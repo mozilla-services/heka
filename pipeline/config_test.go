@@ -167,14 +167,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(msg, ts.StringContains, "No such plugin")
 		})
 
-		c.Specify("captures plugin Init() panics", func() {
-			RegisterPlugin("PanicOutput", func() interface{} {
-				return new(PanicOutput)
-			})
-			err := pipeConfig.LoadFromConfigFile("../testsupport/config_panic.toml")
-			c.Expect(err, gs.Not(gs.IsNil))
-		})
-
 		c.Specify("for a DefaultsTestOutput", func() {
 			RegisterPlugin("DefaultsTestOutput", func() interface{} {
 				return new(DefaultsTestOutput)

@@ -68,46 +68,51 @@ file to configure some global options for the heka daemon.
 
 Parameters:
 
-- cpuprof (string `output_file`)
+- cpuprof (string `output_file`):
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
 
-- max_message_loops (uint)
+- max_message_loops (uint):
     The maximum number of times a message can be re-injected into the system.
     This is used to prevent infinite message loops from filter to filter;
     the default is 4.
 
-- max_process_inject (uint)
+- max_process_inject (uint):
     The maximum number of messages that a sandbox filter's ProcessMessage
     function can inject in a single call; the default is 1.
 
-- max_timer_inject (uint)
+- max_timer_inject (uint):
     The maximum number of messages that a sandbox filter's TimerEvent
     function can inject in a single call; the default is 10.
 
-- maxprocs (int)
+- maxprocs (int):
     Enable multi-core usage; the default is 1 core. More cores will generally
     increase message throughput. Best performance is usually attained by
     setting this to 2 x (number of cores). This assumes each core is
     hyper-threaded.
 
-- memprof (string `output_file`)
+- memprof (string `output_file`):
     Enable memory profiling; output is logged to the `output_file`.
 
-- poolsize (int)
+- poolsize (int):
     Specify the pool size of maximum messages that can exist; default is 100
     which is usually sufficient and of optimal performance.
 
-- decoder_poolsize (int)
+- decoder_poolsize (int):
     Specify the number of decoder sets to spin up for use converting input
     data to Heka's Message objects. Default is 4, optimal value is variable,
     depending on number of total running plugins, number of expected
     concurrent connections, amount of expected traffic, and number of
     available cores on the host.
 
-- plugin_chansize (int)
+- plugin_chansize (int):
     Specify the buffer size for the input channel for the various Heka
     plugins. Defaults to 50, which is usually sufficient and of optimal
     performance.
+
+- base_dir (string):
+    Base working directory Heka will use for persistent storage through
+    process and server restarts. Defaults to `/var/cache/hekad` (or
+    `c:\var\cache\hekad` on windows).
 
 
 Example hekad.toml file
@@ -415,16 +420,22 @@ Example:
 LogfileInput
 ------------
 
-Tails logfiles, creating a message for each line in each logfile being
-monitored. Logfiles are read in their entirety, and watched for
-changes. This input gracefully handles log rotation via the file moving
-but may lose a few log lines of using the truncation method of log
-rotation. It's recommended to use log rotation schemes that move the
-logfile to another location to avoid possible loss of log lines.
+Tails a single log file, creating a message for each line in the file being
+monitored. Files are read in their entirety, and watched for changes. This
+input gracefully handles log rotation via the file moving but may lose a few
+log lines if using the "truncation" method of log rotation. It's recommended
+to use log rotation schemes that move the file to another location to avoid
+possible loss of log lines.
 
-In the event the logfile does not currently exist, it will be placed in
-an internal discover list, and checked for existence every
-`discoverInterval` milliseconds (5000ms or 5s) by default.
+In the event the log file does not currently exist, it will be placed in an
+internal discover list, and checked for existence every `discover_interval`
+milliseconds (5000ms or 5s by default).
+
+A single LogfileInput can only be used to read a single file. If you have
+multiple identical files spread across multiple directories (e.g. a
+`/var/log/hosts/<HOSTNAME>/app.log` structure, where each <HOSTNAME> folder
+contains a log file originating from a separate host), you'll want to use the
+:ref:`config_logfile_directory_manager_input`.
 
 Parameters:
 
@@ -435,12 +446,12 @@ Parameters:
     machines qualified hostname. This can be set explicitly to ensure
     its the correct name in the event the machine has multiple
     interfaces/hostnames.
-- discoverInterval (int):
+- discover_interval (int):
     During logfile rotation, or if the logfile is not originally
     present on the system, this interval is how often the existence of
     the logfile will be checked for. The default of 5 seconds is
     usually fine. This interval is in milliseconds.
-- statInterval (int):
+- stat_interval (int):
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
@@ -451,13 +462,18 @@ Parameters:
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
     text.  By default, the logger name is set to the logfile name.
-- seekjournal (string)
-    Heka will write out a journal to keep track of the last known read
-    position of a logfile.  By default, this will default to writing
-    in /var/cache/hekad/seekjournals/.  The journal name will be the
-    logger name with path separators and periods replaced with
-    underscores.
-- resumeFromStart(bool)
+- use_seek_journal (bool):
+    Specifies whether to use a seek journal to keep track of where we are
+    in a file to be able to resume parsing from the same location upon
+    restart. Defaults to true.
+- seek_journal_name (string):
+    Name to use for the seek journal file, if one is used. Only refers to
+    the file name itself, not the full path; Heka will store all seek
+    journals in a `seekjournal` folder relative to the Heka base directory.
+    Defaults to a sanitized version of the `logger` value (which itself
+    defaults to the filesystem path of the input file). This value is
+    ignored if `use_seek_journal` is set to false.
+- resume_from_start (bool):
     When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
@@ -473,6 +489,45 @@ Parameters:
 
     [LogfileInput]
     logfile = "/var/log/opendirectoryd.log"
+
+.. _config_logfile_directory_manager_input:
+
+LogfileDirectoryManagerInput
+----------------------------
+
+Scans for log files in a globbed directory path and when a new file matching
+the specified path is discovered it will start an instance of the LogfileInput
+plugin to process it. Each LogfileInput will inherit its configuration from
+the manager's settings with the logfile property properly adjusted.
+
+Parameters: (identical to LogfileInput with the following exceptions)
+
+- logfile (string):
+    A path with a globbed directory component pointing to a common (statically
+    named) log file. Note that only directories can be globbed; the file itself
+    must have the same name in each directory.
+- seek_journal_name (string):
+    With a LogfileInput it is possible to specify a particular name for the
+    seek journal file that will be used. This is not possible with the
+    LogfileDirectoryManagerInput; the seek_journal_name will always be auto-
+    generated, and any attempt to specify a hard coded seek_journal_name will
+    be treated as a configuration error.
+- ticker_interval (uint):
+    Time interval (in seconds) between directory scans for new log files.
+    Defaults to 0 (only scans once on startup).
+
+.. code-block:: ini
+
+    [vhosts]
+    type = "LogfileDirectoryManagerInput"
+    logfile = "/var/log/vhost/*/apache.log"
+
+.. note::
+
+    The spawned LogfileInput plugins are named `manager_name`-`logfile` i.e.,
+
+    - vhosts-/var/log/www/apache.log
+    - vhosts-/var/log/internal/apache.log
 
 .. _config_statsd_input:
 
@@ -1068,21 +1123,26 @@ Parameters:
 
 - ticker_interval (uint):
     Specifies how often, in seconds, the dashboard files should be updated.
-- address (string, optional):
+    Defaults to 5.
+- message_matcher (string):
+    Defaults to `"Type == 'heka.all-report' || Type == 'heka.sandbox-output'
+    || Type == 'heka.sandbox-terminated'"`. Not recommended to change this
+    unless you know what you're doing.
+- address (string):
     An IP address:port on which we will serve output via HTTP. Defaults to
     "0.0.0.0:4352".
-- working_directory (string, optional):
+- working_directory (string):
     File system directory into which the plugin will write data files and from
     which it will serve HTTP. The Heka process must have read / write access
-    to this directory. Defaults to "./dashboard".
+    to this directory. Relative paths will be evaluated relative to the Heka
+    base directory. Defaults to "dashboard" (i.e. "$(BASE_DIR)/dashboard").
 
 Example:
 
 .. code-block:: ini
 
     [DashboardOutput]
-    ticker_interval = 60
-    message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
+    ticker_interval = 30
 
 .. _config_elasticsearch_output:
 
@@ -1148,17 +1208,19 @@ Example:
 WhisperOutput
 -------------
 
-WhisperOutput plugins parse the "stat metric" messages generated by a
+WhisperOutput plugins parse the "statmetric" messages generated by a
 StatAccumulator and write the extracted counter, timer, and gauge data out to
 a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 <http://graphite.wikidot.com/whisper>`_ file tree structure.
 
 Parameters:
 
-- base_path (string, optional):
-    Path to the base directory where the whisper file tree will be written. Defaults
-    to "/var/cache/hekad/whisper".
-- default_agg_method (int, optional):
+- base_path (string):
+    Path to the base directory where the whisper file tree will be written.
+    Absolute paths will be honored, relative paths will be calculated relative
+    to the Heka base directory. Defaults to "whisper" (i.e.
+    "$(BASE_DIR)/whisper").
+- default_agg_method (int):
     Default aggregation method to use for each whisper output file. Supports
     the following values:
 
@@ -1168,7 +1230,7 @@ Parameters:
     3. Aggregate using last received value.
     4. Aggregate using maximum value.
     5. Aggregate using minimum value.
-- default_archive_info ([][]int, optional):
+- default_archive_info ([][]int):
     Default specification for new whisper db archives. Should be a sequence of
     3-tuples, where each tuple describes a time interval's storage policy:
     [<offset> <# of secs per datapoint> <# of datapoints>] (see `whisper docs
@@ -1185,7 +1247,7 @@ Parameters:
     third uses one hour for each of 168 data points, or 7 days of retention.
     Finally, the fourth uses 12 hours for each of 1456 data points,
     representing two years of data.
-- folder_perm (string, optional):
+- folder_perm (string):
     Permission mask to be applied to folders created in the whisper database
     file tree. Must be a string representation of an octal integer. Defaults
     to "700".

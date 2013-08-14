@@ -27,31 +27,37 @@ import (
 	"strings"
 )
 
-func createIncompleteLogfileInput(journal_name string) (*LogfileInput, *LogfileInputConfig) {
-
+func createIncompleteLogfileInput(journalName string) (*LogfileInput, *LogfileInputConfig) {
 	lfInput := new(LogfileInput)
 	lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 	lfiConfig.LogFile = filepath.Join("..", "testsupport", "test-zeus-incomplete.log")
 	lfiConfig.DiscoverInterval = 5
 	lfiConfig.StatInterval = 5
-	lfiConfig.SeekJournal = journal_name
-	// Remove any journal that may exist
-	os.Remove(filepath.Clean(journal_name))
-
+	lfiConfig.SeekJournalName = journalName
 	return lfInput, lfiConfig
 }
 
 func LogfileInputSpec(c gs.Context) {
-	tmp_file, tmp_err := ioutil.TempFile("", "")
-	c.Expect(tmp_err, gs.Equals, nil)
-	journal_name := tmp_file.Name()
-	tmp_file.Close()
-
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	config := NewPipelineConfig(nil)
+
+	tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+	c.Expect(tmpErr, gs.Equals, nil)
+	origBaseDir := Globals().BaseDir
+	Globals().BaseDir = tmpDir
+	defer func() {
+		Globals().BaseDir = origBaseDir
+		tmpErr = os.RemoveAll(tmpDir)
+		c.Expect(tmpErr, gs.Equals, nil)
+	}()
+	journalName := "test-seekjournal"
+	journalDir := filepath.Join(tmpDir, "seekjournal")
+	tmpErr = os.MkdirAll(journalDir, 0770)
+	c.Expect(tmpErr, gs.Equals, nil)
+
 	ith := new(InputTestHelper)
 	ith.Msg = getTestMessage()
 	ith.Pack = NewPipelinePack(config.inputRecycleChan)
@@ -72,7 +78,7 @@ func LogfileInputSpec(c gs.Context) {
 
 	c.Specify("LogfileInput", func() {
 		c.Specify("save the seek position of the last complete logline", func() {
-			lfInput, lfiConfig := createIncompleteLogfileInput(journal_name)
+			lfInput, lfiConfig := createIncompleteLogfileInput(journalName)
 
 			// Initialize the input test helper
 			err := lfInput.Init(lfiConfig)
@@ -135,7 +141,32 @@ func LogfileInputSpec(c gs.Context) {
 				c.Expect(newFM.seek, gs.Equals, int64(1249))
 			}
 		})
-
 	})
 
+	c.Specify("A LogfileDirectoryManagerInput", func() {
+		c.Specify("empty file name", func() {
+			var err error
+
+			ldm := new(LogfileDirectoryManagerInput)
+			conf := ldm.ConfigStruct().(*LogfileInputConfig)
+			conf.LogFile = ""
+			err = ldm.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "A logfile name must be specified.")
+		})
+
+		c.Specify("glob in file name", func() {
+			var err error
+
+			ldm := new(LogfileDirectoryManagerInput)
+			conf := ldm.ConfigStruct().(*LogfileInputConfig)
+			conf.LogFile = "../testsupport/*.log"
+			err = ldm.Init(conf)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "Globs are not allowed in the file name: *.log")
+		})
+
+		// Note: Testing the actual functionality (spinning up new plugins within Heka)
+		// is a manual process.
+	})
 }
