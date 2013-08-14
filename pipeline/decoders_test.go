@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -152,6 +153,27 @@ func DecodersSpec(c gospec.Context) {
 			value, ok := pack.Message.GetFieldValue("Somedata")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, regex_data)
+		})
+
+		c.Specify("pushes message into catchall on no match", func() {
+			// bind in no decoders
+			conf.Name = "MyMultiDecoder"
+			conf.Order = []string{}
+			conf.Subs = make(map[string]interface{}, 0)
+
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			// Expect to push the message back onto the input channel
+			dRunner.EXPECT.InChan()
+
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "this could be any text"
+			pack.Message.SetPayload(regex_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
 		})
 	})
 

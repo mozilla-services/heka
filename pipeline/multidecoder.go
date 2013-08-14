@@ -168,6 +168,8 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 
 	if md.Catchall {
+		newType = fmt.Sprintf("%s.catchall", newType)
+		pack.Message.SetType(newType)
 		md.dRunner.InChan() <- pack
 	} else {
 		md.dRunner.LogError(fmt.Errorf("Unable to decode message with any contained decoder: [%s]", pack))
