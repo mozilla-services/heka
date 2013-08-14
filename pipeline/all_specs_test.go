@@ -41,6 +41,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(DecodersSpec)
+    /*
 	r.AddSpec(FiltersSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
@@ -58,6 +59,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(JsonPathSpec)
 	r.AddSpec(HttpInputSpec)
 	r.AddSpec(ElasticSearchOutputSpec)
+    */
 	gospec.MainGoTest(r, t)
 }
 

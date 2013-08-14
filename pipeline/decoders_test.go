@@ -165,15 +165,43 @@ func DecodersSpec(c gospec.Context) {
 			c.Assume(err, gs.IsNil)
 
 			dRunner := NewMockDecoderRunner(ctrl)
-			// Expect to push the message back onto the input channel
-			dRunner.EXPECT.InChan()
+			// Clobber the InChan() call so that we always get a real
+			// channel
+			inChan := make(chan *PipelinePack, 1)
+			inChanCall := dRunner.EXPECT().InChan().AnyTimes()
+			inChanCall.Return(inChan)
 
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "this could be any text"
 			pack.Message.SetPayload(regex_data)
 			err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
-			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
+
+			// Expect that the message got pushed back onto the input channel
+			pack = <-inChan
+			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder.catchall")
+		})
+
+		c.Specify("drops message if Catchall is disabled and all decoders fail", func() {
+			// bind in no decoders
+			conf.Name = "MyMultiDecoder"
+			conf.Order = []string{}
+			conf.Catchall = false
+			conf.Subs = make(map[string]interface{}, 0)
+
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			// Expect that we log an error for undecoded message
+			dRunner.EXPECT().LogError(fmt.Errorf("Unable to decode message with any contained decoder"))
+
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "this could be any text"
+			pack.Message.SetPayload(regex_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
 		})
 	})
 
