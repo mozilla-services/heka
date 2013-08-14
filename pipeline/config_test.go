@@ -126,6 +126,17 @@ func LoadFromConfigSpec(c gs.Context) {
 		c.Specify("works w/ MultiDecoder", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_multidecoder.toml")
 			c.Assume(err, gs.IsNil)
+			hasSyncDecoder := false
+
+            // JSONDecoder and ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 3)
+
+			for k, _ := range pipeConfig.DecoderWrappers {
+				if k == "syncdecoder" {
+					hasSyncDecoder = true
+				}
+			}
+			c.Assume(hasSyncDecoder, gs.IsTrue)
 
 		})
 
