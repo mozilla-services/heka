@@ -17,6 +17,7 @@ package pipeline
 import (
 	"fmt"
 	"github.com/bbangert/toml"
+	"log"
 )
 
 type MultiDecoder struct {
@@ -50,13 +51,12 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Order = conf.Order
 	md.Decoders = make(map[string]Decoder, 0)
 	md.Catchall = conf.Catchall
+	md.Name = conf.Name
 
 	// run PrimitiveDecode against each subsection here and bind
 	// it into the md.Decoders map
-
 	for name, conf := range conf.Subs {
-		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name,
-			name))
+		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name, name))
 		decoder, err := md.loadSection(name, conf)
 		if err != nil {
 			return err
@@ -67,7 +67,11 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 }
 
 func (md *MultiDecoder) log(msg string) {
-	md.dRunner.LogMessage(msg)
+	if md.dRunner != nil {
+		md.dRunner.LogMessage(msg)
+	} else {
+		log.Println(msg)
+	}
 }
 
 // loadSection must be passed a plugin name and the config for that plugin. It
