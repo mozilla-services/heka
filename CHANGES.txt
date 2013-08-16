@@ -49,6 +49,10 @@ Bug Handling
 Features
 --------
 
+* Allow LogfileInput to use configurable delimiters including regexp (issue #263)
+  This includes a backwards incompatible change for the journal file, old 
+  journals will not be honored and the new journal will overwrite it.
+
 * Allow add_external_plugin to specify sub-packages (issue #384)
 
 * Added `base_dir` global (i.e. `[hekad]` section) config option to specify a

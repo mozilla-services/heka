@@ -100,7 +100,7 @@ func FileMonitorSpec(c gs.Context) {
 			}
 
 			// Expect InputRunner calls to get InChan and inject outgoing msgs
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
 			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
@@ -133,7 +133,7 @@ func FileMonitorSpec(c gs.Context) {
 		c.Specify("with a previous journal initializes with a seek value", func() {
 			lfInput, lfiConfig := createLogfileInput(journalName)
 
-			journalData := `{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_start":28650,"last_len":300,"seek":28950}`
 
 			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
 			c.Expect(journalErr, gs.Equals, nil)
@@ -154,7 +154,7 @@ func FileMonitorSpec(c gs.Context) {
 			lfInput, lfiConfig := createLogfileInput(journalName)
 			lfiConfig.ResumeFromStart = true
 
-			journalData := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"xxxxx","last_start":28650,"last_len":300,"seek":28950}`
 
 			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
 			c.Expect(journalErr, gs.Equals, nil)
@@ -173,7 +173,7 @@ func FileMonitorSpec(c gs.Context) {
 			lfInput, lfiConfig := createLogfileInput(journalName)
 			lfiConfig.ResumeFromStart = false
 
-			journalData := `{"last_hash":"xxxxx","last_line":"10.1.1.40 plinko-1272.byzantium.mozilla.com user37 [15/Mar/2013:12:20:29 -0700] \"GET /1.1/user37/info/collections HTTP/1.1\" 200 484 \"-\" \"Firefox AndroidSync 1.20.0.1.0 (Firefox)\" \"-\" \"ssl: SSL_RSA_WITH_RC4_128_SHA, version=TLSv1, bits=128\" node_s:0.016658 req_s:0.391589 retries:0 req_b:274 \"c_l:-\"\r\n","seek":28950}`
+			journalData := `{"last_hash":"xxxxx","last_start":28650,"last_len":300,"seek":28950}`
 
 			journal, journalErr := os.OpenFile(journalPath, os.O_CREATE|os.O_RDWR, 0660)
 			c.Expect(journalErr, gs.Equals, nil)

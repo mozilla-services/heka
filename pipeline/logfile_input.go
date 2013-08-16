@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -63,6 +64,13 @@ type LogfileInputConfig struct {
 	// will resume reading from either the start of file or the end of
 	// file. Defaults to false.
 	ResumeFromStart bool `toml:"resume_from_start"`
+	// Type of parser used to break the log file up into messages
+	ParserType string `toml:"parser_type"`
+	// Delimiter used to split the log stream into log messages
+	Delimiter string
+	// String indicating if the delimiter is at the start or end of the line,
+	// only used for regexp delimiters
+	DelimiterLocation string `toml:"delimiter_location"`
 }
 
 // Heka Input plugin that reads files from the filesystem, converts each line
@@ -77,23 +85,19 @@ type LogfileInput struct {
 	decoderNames []string
 }
 
-// Represents a single line from a log file.
-type Logline struct {
-	// Path to the file from which the line was extracted.
-	Path string
-	// Log file line contents.
-	Line string
-	// Associated `logger` string token.
-	Logger string
-}
-
-func (lw *LogfileInput) ConfigStruct() interface{} {
+func getDefaultLogfileInputConfig() interface{} {
 	return &LogfileInputConfig{
 		DiscoverInterval: 5000,
 		StatInterval:     500,
 		UseSeekJournal:   true,
 		ResumeFromStart:  true,
+		ParserType:       "token",
+		Delimiter:        "\n",
 	}
+}
+
+func (lw *LogfileInput) ConfigStruct() interface{} {
+	return getDefaultLogfileInputConfig()
 }
 
 func (lw *LogfileInput) Init(config interface{}) (err error) {
@@ -122,9 +126,8 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		e       error
 		ok      bool
 	)
-	packSupply := ir.InChan()
-
 	lw.Monitor.ir = ir
+	go lw.Monitor.Watcher()
 
 	for _, msg := range lw.Monitor.pendingMessages {
 		lw.Monitor.LogMessage(msg)
@@ -147,16 +150,13 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		decoders[i] = dRunner.Decoder()
 	}
 
-	for logline := range lw.Monitor.NewLines {
-		pack = <-packSupply
+	for pack = range lw.Monitor.outChan {
 		pack.Message.SetUuid(uuid.NewRandom())
 		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetType("logfile")
-		pack.Message.SetLogger(logline.Logger)
 		pack.Message.SetSeverity(int32(0))
 		pack.Message.SetEnvVersion("0.8")
 		pack.Message.SetPid(0)
-		pack.Message.SetPayload(logline.Line)
 		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
 			if e = decoder.Decode(pack); e == nil {
@@ -166,7 +166,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		if e == nil {
 			ir.Inject(pack)
 		} else {
-			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", logline.Line))
+			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", pack.Message.GetPayload()))
 			pack.Recycle()
 		}
 	}
@@ -175,7 +175,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 func (lw *LogfileInput) Stop() {
 	close(lw.Monitor.stopChan) // stops the monitor's watcher
-	close(lw.Monitor.NewLines)
+	close(lw.Monitor.outChan)
 }
 
 // FileMonitor, manages a group of FileTailers
@@ -183,15 +183,14 @@ func (lw *LogfileInput) Stop() {
 // Handles the actual mechanics of finding, watching, and reading from file
 // system files.
 type FileMonitor struct {
-	// Channel onto which FileMonitor will place LogLine objects as the file
+	// Channel onto which FileMonitor will place PipelinePack objects as the file
 	// is being read.
-	NewLines chan Logline
+	outChan  chan *PipelinePack
 	stopChan chan bool
 	seek     int64
 
 	logfile         string
 	seekJournalPath string
-	discover        bool
 	logger_ident    string
 
 	fd               *os.File
@@ -203,8 +202,19 @@ type FileMonitor struct {
 	pendingMessages []string
 	pendingErrors   []string
 
-	last_logline    string
-	resumeFromStart bool
+	last_logline       string
+	last_logline_start int64
+	resumeFromStart    bool
+
+	parser    func(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
+	delimiter byte
+
+	regexpDelimiter    *regexp.Regexp
+	regexpDelimiterEol bool
+
+	readBuffer []byte
+	readPos    int
+	scanPos    int
 }
 
 // Serialize to JSON
@@ -216,8 +226,10 @@ func (fm *FileMonitor) MarshalJSON() ([]byte, error) {
 	h := sha1.New()
 	io.WriteString(h, fm.last_logline)
 	tmp := map[string]interface{}{
-		"seek":      fm.seek,
-		"last_hash": fmt.Sprintf("%x", h.Sum(nil)),
+		"seek":       fm.seek,
+		"last_start": fm.last_logline_start,
+		"last_len":   len(fm.last_logline),
+		"last_hash":  fmt.Sprintf("%x", h.Sum(nil)),
 	}
 
 	return json.Marshal(tmp)
@@ -233,12 +245,20 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 	var dec = json.NewDecoder(bytes.NewReader(data))
 	var m map[string]interface{}
 
+	defer func() {
+		if r := recover(); r != nil {
+			fm.LogMessage("Error parsing the journal file")
+		}
+	}()
+
 	err = dec.Decode(&m)
 	if err != nil {
 		return fmt.Errorf("Caught error while decoding json blob: %s", err.Error())
 	}
 
 	var seek_pos = int64(m["seek"].(float64))
+	var last_start = int64(m["last_start"].(float64))
+	var last_len = int64(m["last_len"].(float64))
 	var last_hash = m["last_hash"].(string)
 
 	var fd *os.File
@@ -248,38 +268,24 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 	defer fd.Close()
 
 	// Try to get to our seek position.
-	if _, err = fd.Seek(seek_pos, 0); err == nil {
-		// We got there, now move backwards through the file until we get to
-		// the beginning of the line.
-		char := make([]byte, 1)
-		for char[0] != []byte("\n")[0] {
-
-			// Our first backwards seek skips over what should be a trailing
-			// "\n", subsequent ones skip over the byte that we just read.
-			if _, err = fd.Seek(-2, 1); err != nil {
-				break
-			}
-			if _, err = fd.Read(char); err != nil {
-				break
-			}
-		}
-
+	if _, err = fd.Seek(last_start, 0); err == nil {
+		// We should be at the beginning of the last line read the last
+		// time Heka ran.
+		reader := bufio.NewReader(fd)
+		buf := make([]byte, last_len)
+		_, err := io.ReadAtLeast(reader, buf, int(last_len))
 		if err == nil {
-			// We should be at the beginning of the last line read the last
-			// time Heka ran.
-			reader := bufio.NewReader(fd)
-			var readLine string
-			if readLine, err = reader.ReadString('\n'); err == nil {
-				if sha1_hexdigest(readLine) == last_hash {
-					// woot.  same log file
-					fm.seek = seek_pos
-					msg := fmt.Sprintf("Line matches, continuing from byte pos: %d", seek_pos)
-					fm.LogMessage(msg)
-					return nil
-				}
-				fm.LogMessage("Line mismatch.")
+			h := sha1.New()
+			h.Write(buf)
+			tmp := fmt.Sprintf("%x", h.Sum(nil))
+			if tmp == last_hash {
+				fm.seek = seek_pos
+				msg := fmt.Sprintf("Line matches, continuing from byte pos: %d", seek_pos)
+				fm.LogMessage(msg)
+				return nil
 			}
 		}
+		fm.LogMessage("Line mismatch.")
 	}
 	var msg string
 	if fm.resumeFromStart {
@@ -295,9 +301,9 @@ func (fm *FileMonitor) UnmarshalJSON(data []byte) (err error) {
 
 // Tries to open specified file, adding file descriptor to the FileMonitor's
 // set of open descriptors.
-func (fm *FileMonitor) OpenFile(fileName string) (err error) {
+func (fm *FileMonitor) OpenFile() (err error) {
 	// Attempt to open the file
-	fd, err := os.Open(fileName)
+	fd, err := os.Open(fm.logfile)
 	if err != nil {
 		return
 	}
@@ -332,16 +338,16 @@ func (fm *FileMonitor) Watcher() {
 			break
 		case <-checkStat:
 			if fm.fd != nil {
-				ok = fm.ReadLines(fm.logfile)
+				ok = fm.ReadLines()
 				if !ok {
 					break
 				}
 			}
 		case <-discovery:
-			// Check to see if the files exist now, start reading them
-			// if we can, and watch them
-			if fm.OpenFile(fm.logfile) == nil {
-				fm.discover = false
+			if fm.fd == nil {
+				// Check to see if the files exist now, start reading them
+				// if we can, and watch them
+				fm.OpenFile()
 			}
 		}
 	}
@@ -377,12 +383,140 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	return true
 }
 
-// Reads all unread lines out of the specified file, creates a LogLine object
-// for each line, and puts it on the NewLine channel for processing.
+// Standard line parser using a token delimiter
+func tokenParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+	var (
+		reader   = bufio.NewReader(fm.fd)
+		readLine string
+		pack     *PipelinePack
+	)
+	for true {
+		if readLine, err = reader.ReadString(fm.delimiter); err != nil {
+			break
+		}
+		pack = <-fm.ir.InChan()
+		pack.Message.SetLogger(fm.logger_ident)
+		pack.Message.SetPayload(readLine)
+		fm.outChan <- pack
+		fm.last_logline_start = fm.seek + bytesRead
+		bytesRead += int64(len(readLine))
+		fm.last_logline = readLine
+		// If file rotation happens after the last
+		// reader.ReadString() in this loop, the remaining logfile
+		// data will be picked up the next time that ReadLines() is
+		// invoked
+	}
+
+	if err == io.EOF {
+		if isRotated {
+			if len(readLine) > 0 {
+				pack = <-fm.ir.InChan()
+				pack.Message.SetLogger(fm.logger_ident)
+				pack.Message.SetPayload(readLine)
+				fm.outChan <- pack
+				fm.last_logline_start = fm.seek + bytesRead
+				bytesRead += int64(len(readLine))
+				fm.last_logline = readLine
+			}
+		} else {
+			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
+		}
+	}
+	return
+}
+
+// Regexp line parser using a start or end of line regexp delimiter
+func regexpParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+	var (
+		n        int
+		pScanPos = fm.scanPos
+		reader   = bufio.NewReader(fm.fd)
+		pack     *PipelinePack
+	)
+	for true {
+		if n, err = reader.Read(fm.readBuffer[fm.readPos:]); err != nil {
+			break
+		}
+		fm.readPos += n
+		fm.scanPos += fm.findLogs(fm.readBuffer[fm.scanPos:fm.readPos], bytesRead)
+		bytesRead += int64(fm.scanPos - pScanPos)
+		pScanPos = fm.scanPos
+
+		if float64(cap(fm.readBuffer)-fm.readPos) <= float64(cap(fm.readBuffer))*0.1 {
+			if fm.scanPos == 0 { // line will not fit in the current buffer
+				newSlice := make([]byte, cap(fm.readBuffer)*2)
+				copy(newSlice, fm.readBuffer)
+				fm.readBuffer = newSlice
+			} else { // reclaim the space at the beginning of the buffer
+				copy(fm.readBuffer, fm.readBuffer[fm.scanPos:fm.readPos])
+				fm.readPos, fm.scanPos, pScanPos = fm.readPos-fm.scanPos, 0, 0
+			}
+		}
+	}
+
+	if err == io.EOF {
+		if isRotated {
+			if fm.readPos-fm.scanPos > 0 {
+				pack = <-fm.ir.InChan()
+				pack.Message.SetLogger(fm.logger_ident)
+				pack.Message.SetPayload(string(fm.readBuffer[fm.scanPos:fm.readPos]))
+				fm.outChan <- pack
+				fm.last_logline_start = fm.seek + bytesRead
+				bytesRead += int64(fm.readPos - fm.scanPos)
+				fm.last_logline = pack.Message.GetPayload()
+				fm.readPos, fm.scanPos = 0, 0
+			}
+		}
+	}
+	return
+}
+
+// returns the position after the last complete log
+func (fm *FileMonitor) findLogs(buf []byte, bytesRead int64) int {
+	var (
+		start, prevStart, end, captureLen int
+		pack                              *PipelinePack
+		loc                               []int
+	)
+	for true {
+		loc = fm.regexpDelimiter.FindSubmatchIndex(buf[start:])
+		if loc == nil {
+			break
+		}
+		if len(loc) == 4 {
+			if fm.regexpDelimiterEol { // append the capture to the end of the previous record
+				prevStart = start
+				end = start + loc[3]
+				start += loc[1]
+			} else { // append the capture to the beginning of the next record
+				prevStart = start - captureLen
+				end = start + loc[0]
+				start += loc[3]
+				captureLen = loc[3] - loc[2]
+			}
+		} else { // no capture discard the delimiter
+			prevStart = start
+			end = start + loc[0]
+			start += loc[1]
+		}
+		if prevStart != end {
+			pack = <-fm.ir.InChan()
+			pack.Message.SetLogger(fm.logger_ident)
+			pack.Message.SetPayload(string(buf[prevStart:end]))
+			fm.outChan <- pack
+			fm.last_logline_start = fm.seek + bytesRead + int64(prevStart)
+			fm.last_logline = pack.Message.GetPayload()
+		}
+	}
+	return start - captureLen
+}
+
+// Reads all unread lines out of the monitored file, creates a PipelinePack object
+// for each line, and puts it on the NewPack channel for processing.
 // Returning false from ReadLines will kill the watcher
-func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
+func (fm *FileMonitor) ReadLines() (ok bool) {
 	ok = true
-	var bytes_read int64
+	var bytesRead int64
 
 	defer func() {
 		// Capture send on close chan as this is a shut-down
@@ -391,8 +525,8 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 			if strings.Contains(rStr, "send on closed channel") {
 				ok = false
 				// We're only partially through a file, write to the seekjournal.
-				fm.seek += bytes_read
-				fm.updateJournal(bytes_read)
+				fm.seek += bytesRead
+				fm.updateJournal(bytesRead)
 			} else {
 				panic(rStr)
 			}
@@ -411,7 +545,7 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 	// Check that we haven't been rotated, if we have, put this
 	// back on discover
 	isRotated := false
-	pinfo, err := os.Stat(fileName)
+	pinfo, err := os.Stat(fm.logfile)
 	if err != nil || !os.SameFile(pinfo, finfo) {
 		isRotated = true
 		defer func() {
@@ -420,38 +554,13 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 			}
 			fm.fd = nil
 			fm.seek = 0
-			fm.discover = true
 		}()
 	}
 
 	// Attempt to read lines from where we are.
-	reader := bufio.NewReader(fm.fd)
-	readLine, err := reader.ReadString('\n')
-	for err == nil {
-		line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
-		fm.NewLines <- line
-		bytes_read += int64(len(readLine))
-		fm.last_logline = readLine
+	bytesRead, err = fm.parser(fm, isRotated)
 
-		// If file rotation happens after the last
-		// reader.ReadString() in this loop, the remaining logfile
-		// data will be picked up the next time that ReadLines() is
-		// invoked
-		readLine, err = reader.ReadString('\n')
-	}
-
-	if err == io.EOF {
-		if isRotated {
-			if len(readLine) > 0 {
-				line := Logline{Path: fileName, Line: readLine, Logger: fm.logger_ident}
-				fm.NewLines <- line
-				bytes_read += int64(len(readLine))
-				fm.last_logline = readLine
-			}
-		} else {
-			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
-		}
-	} else {
+	if err != io.EOF {
 		// Some unexpected error, reset everything
 		// but don't kill the watcher
 		fm.LogError(err.Error())
@@ -460,12 +569,11 @@ func (fm *FileMonitor) ReadLines(fileName string) (ok bool) {
 			fm.fd = nil
 		}
 		fm.seek = 0
-		fm.discover = true
 		return true
 	}
 
-	fm.seek += bytes_read
-	return fm.updateJournal(bytes_read)
+	fm.seek += bytesRead
+	return fm.updateJournal(bytesRead)
 }
 
 func (fm *FileMonitor) LogError(msg string) {
@@ -491,14 +599,39 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 	logger := conf.Logger
 
 	fm.resumeFromStart = conf.ResumeFromStart
+	if conf.ParserType == "" || conf.ParserType == "token" {
+		if len(conf.Delimiter) == 0 {
+			fm.delimiter = '\n'
+		} else if len(conf.Delimiter) == 1 {
+			fm.delimiter = conf.Delimiter[0]
+		} else {
+			return fmt.Errorf("invalid delimiter: %s", conf.Delimiter)
+		}
+		fm.parser = tokenParser
+	} else if conf.ParserType == "regexp" {
+		if conf.DelimiterLocation == "start" {
+			fm.regexpDelimiterEol = false
+		} else if conf.DelimiterLocation == "" || conf.DelimiterLocation == "end" {
+			fm.regexpDelimiterEol = true
+		} else {
+			return fmt.Errorf("unknown delimiter location: %s", conf.DelimiterLocation)
+		}
+		fm.regexpDelimiter = regexp.MustCompile(conf.Delimiter)
+		if fm.regexpDelimiter.NumSubexp() > 1 {
+			return fmt.Errorf("the regexp must not contain more than one capture group: %s", conf.Delimiter)
+		}
+		fm.readBuffer = make([]byte, 1024*4)
+		fm.parser = regexpParser
+	} else {
+		return fmt.Errorf("unknown parser type: %s", conf.ParserType)
+	}
 
-	fm.NewLines = make(chan Logline)
+	fm.outChan = make(chan *PipelinePack)
 	fm.stopChan = make(chan bool)
 	fm.seek = 0
 	fm.fd = nil
 
 	fm.logfile = file
-	fm.discover = true
 
 	fm.pendingMessages = make([]string, 0)
 	fm.pendingErrors = make([]string, 0)
@@ -521,9 +654,6 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 			return
 		}
 	}
-
-	go fm.Watcher()
-
 	return
 }
 
@@ -612,12 +742,7 @@ func (ldm *LogfileDirectoryManagerInput) Init(config interface{}) (err error) {
 }
 
 func (ldm *LogfileDirectoryManagerInput) ConfigStruct() interface{} {
-	return &LogfileInputConfig{
-		DiscoverInterval: 5000,
-		StatInterval:     500,
-		UseSeekJournal:   true,
-		ResumeFromStart:  true,
-	}
+	return getDefaultLogfileInputConfig()
 }
 
 // Expands the path glob and spins up a new LogfileInput if necessary

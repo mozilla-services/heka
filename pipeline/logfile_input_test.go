@@ -99,7 +99,7 @@ func LogfileInputSpec(c gs.Context) {
 			}
 
 			// Expect InputRunner calls to get InChan and inject outgoing msgs
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
 			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
