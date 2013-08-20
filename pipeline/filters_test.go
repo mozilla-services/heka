@@ -21,6 +21,7 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -102,7 +103,15 @@ func FiltersSpec(c gs.Context) {
 		sbmFilter := new(SandboxManagerFilter)
 		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
 		config.MaxFilters = 1
-		config.WorkingDirectory = os.TempDir()
+
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = os.TempDir()
+		sbxMgrsDir := filepath.Join(Globals().BaseDir, "sbxmgrs")
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr := os.RemoveAll(sbxMgrsDir)
+			c.Expect(tmpErr, gs.IsNil)
+		}()
 
 		msg := getTestMessage()
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
@@ -110,6 +119,7 @@ func FiltersSpec(c gs.Context) {
 		pack.Decoded = true
 
 		c.Specify("Control message in the past", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -120,6 +130,7 @@ func FiltersSpec(c gs.Context) {
 		})
 
 		c.Specify("Control message in the future", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() + 5.9e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -127,6 +138,18 @@ func FiltersSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+		})
+
+		c.Specify("Generates the right default working directory", func() {
+			sbmFilter.Init(config)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			name := "SandboxManagerFilter"
+			fth.MockFilterRunner.EXPECT().Name().Return(name)
+			close(inChan)
+			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(sbmFilter.workingDirectory, gs.Equals, sbxMgrsDir)
+			_, err := os.Stat(sbxMgrsDir)
+			c.Expect(err, gs.IsNil)
 		})
 
 	})
