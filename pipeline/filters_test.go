@@ -21,6 +21,7 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -110,6 +111,7 @@ func FiltersSpec(c gs.Context) {
 		pack.Decoded = true
 
 		c.Specify("Control message in the past", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -120,6 +122,7 @@ func FiltersSpec(c gs.Context) {
 		})
 
 		c.Specify("Control message in the future", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() + 5.9e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -127,6 +130,28 @@ func FiltersSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+		})
+
+		c.Specify("Generates the right default working directory", func() {
+			origBaseDir := Globals().BaseDir
+			Globals().BaseDir = config.WorkingDirectory
+			sbxMgrsDir := filepath.Join(config.WorkingDirectory, "sbxmgrs")
+			defer func() {
+				Globals().BaseDir = origBaseDir
+				tmpErr := os.RemoveAll(sbxMgrsDir)
+				c.Expect(tmpErr, gs.IsNil)
+			}()
+			config.WorkingDirectory = ""
+			sbmFilter.Init(config)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			name := "SandboxManagerFilter"
+			fth.MockFilterRunner.EXPECT().Name().Return(name).Times(2)
+			close(inChan)
+			workDir := filepath.Join(sbxMgrsDir, name)
+			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(sbmFilter.workingDirectory, gs.Equals, workDir)
+			_, err := os.Stat(workDir)
+			c.Expect(err, gs.IsNil)
 		})
 
 	})
