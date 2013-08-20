@@ -29,7 +29,6 @@ Example
     type = "SandboxManagerFilter"
     message_signer = "ops"
     message_matcher = "Type == 'heka.control.sandbox'"
-    working_directory = "/var/heka/sandbox"
     max_filters = 100
 
 Control Message
