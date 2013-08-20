@@ -103,7 +103,15 @@ func FiltersSpec(c gs.Context) {
 		sbmFilter := new(SandboxManagerFilter)
 		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
 		config.MaxFilters = 1
-		config.WorkingDirectory = os.TempDir()
+
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = os.TempDir()
+		sbxMgrsDir := filepath.Join(Globals().BaseDir, "sbxmgrs")
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr := os.RemoveAll(sbxMgrsDir)
+			c.Expect(tmpErr, gs.IsNil)
+		}()
 
 		msg := getTestMessage()
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
@@ -133,24 +141,14 @@ func FiltersSpec(c gs.Context) {
 		})
 
 		c.Specify("Generates the right default working directory", func() {
-			origBaseDir := Globals().BaseDir
-			Globals().BaseDir = config.WorkingDirectory
-			sbxMgrsDir := filepath.Join(config.WorkingDirectory, "sbxmgrs")
-			defer func() {
-				Globals().BaseDir = origBaseDir
-				tmpErr := os.RemoveAll(sbxMgrsDir)
-				c.Expect(tmpErr, gs.IsNil)
-			}()
-			config.WorkingDirectory = ""
 			sbmFilter.Init(config)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			name := "SandboxManagerFilter"
-			fth.MockFilterRunner.EXPECT().Name().Return(name).Times(2)
+			fth.MockFilterRunner.EXPECT().Name().Return(name)
 			close(inChan)
-			workDir := filepath.Join(sbxMgrsDir, name)
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			c.Expect(sbmFilter.workingDirectory, gs.Equals, workDir)
-			_, err := os.Stat(workDir)
+			c.Expect(sbmFilter.workingDirectory, gs.Equals, sbxMgrsDir)
+			_, err := os.Stat(sbxMgrsDir)
 			c.Expect(err, gs.IsNil)
 		})
 

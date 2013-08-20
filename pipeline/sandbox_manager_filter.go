@@ -52,7 +52,9 @@ type SandboxManagerFilterConfig struct {
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
-	return new(SandboxManagerFilterConfig)
+	return &SandboxManagerFilterConfig{
+		WorkingDirectory: "sbxmgrs",
+	}
 }
 
 // Creates the working directory to store the submitted scripts,
@@ -60,13 +62,8 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
-	// If the working directory is specified, we try to create it here. If
-	// not, we generate our directory from the plugin name, so we have to do
-	// it in the Run method since we can only get that from the runner.
-	if conf.WorkingDirectory != "" {
-		this.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
-		err = os.MkdirAll(this.workingDirectory, 0700)
-	}
+	this.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
+	err = os.MkdirAll(this.workingDirectory, 0700)
 	return
 }
 
@@ -252,16 +249,6 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 	var ok = true
 	var pack *PipelinePack
 	var delta int64
-
-	// Set and create the default working directory if one hasn't already been
-	// specified.
-	if this.workingDirectory == "" {
-		wDir := filepath.Join("sbxmgrs", getNormalizedName(fr.Name()))
-		this.workingDirectory = GetHekaConfigDir(wDir)
-		if err = os.MkdirAll(this.workingDirectory, 0700); err != nil {
-			return
-		}
-	}
 
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
