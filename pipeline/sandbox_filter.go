@@ -68,8 +68,8 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
 		return nil // no-op already initialized
 	}
-	conf := config.(*sandbox.SandboxConfig)
-	this.sbc = conf
+	this.sbc = config.(*sandbox.SandboxConfig)
+	this.sbc.ScriptFilename = GetHekaConfigDir(this.sbc.ScriptFilename)
 
 	switch this.sbc.ScriptType {
 	case "lua":

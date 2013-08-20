@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* SandboxManagerFilter now auto-generates a default working directory based on
+  the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
+
 * LogfileInput seek journals now support a boolean `use_seek_journal` config
   flag, and only the name of the journal file is now settable via
   `seek_journal_name`, replacing the `seekjournal` option which specified the

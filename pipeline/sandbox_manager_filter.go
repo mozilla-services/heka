@@ -45,12 +45,16 @@ type SandboxManagerFilterConfig struct {
 	// manage.
 	MaxFilters int `toml:"max_filters"`
 	// Path to file system directory the sandbox manager can use for storing
-	// dynamic filter scripts and data.
+	// dynamic filter scripts and data. Relative paths will be relative to the
+	// Heka base_dir. Defaults to a directory in ${BASE_DIR}/sbxmgrs that is
+	// auto-generated based on the plugin name.
 	WorkingDirectory string `toml:"working_directory"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
-	return new(SandboxManagerFilterConfig)
+	return &SandboxManagerFilterConfig{
+		WorkingDirectory: "sbxmgrs",
+	}
 }
 
 // Creates the working directory to store the submitted scripts,
@@ -58,11 +62,9 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
-	this.workingDirectory, _ = filepath.Abs(conf.WorkingDirectory)
-	if err = os.MkdirAll(this.workingDirectory, 0700); err != nil {
-		return err
-	}
-	return nil
+	this.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
+	err = os.MkdirAll(this.workingDirectory, 0700)
+	return
 }
 
 // Adds running filters count to the report output.
@@ -247,6 +249,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 	var ok = true
 	var pack *PipelinePack
 	var delta int64
+
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
 		select {
@@ -270,7 +273,8 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 						fr.LogError(err)
 					}
 				} else {
-					fr.LogError(fmt.Errorf("%s attempted to load more than %d filters", fr.Name(), this.maxFilters))
+					fr.LogError(fmt.Errorf("%s attempted to load more than %d filters",
+						fr.Name(), this.maxFilters))
 				}
 			case "unload":
 				fv, _ := pack.Message.GetFieldValue("name")

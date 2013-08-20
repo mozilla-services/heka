@@ -18,7 +18,7 @@ Filter Parameters
 
 SandboxManagerFilter Settings
 =============================
-- working_directory (string): The directory where the filter configurations, code, and states are preserved.  The directory can be unique or shared between sandbox managers since the filter names are unique per manager.
+- working_directory (string): The directory where the filter configurations, code, and states are preserved.  The directory can be unique or shared between sandbox managers since the filter names are unique per manager. Defaults to a directory in ${BASE_DIR}/sbxmgrs with a name generated from the plugin name.
 - max_filters (uint): The maximum number of filters this manager can run.
 
 Example
@@ -29,7 +29,6 @@ Example
     type = "SandboxManagerFilter"
     message_signer = "ops"
     message_matcher = "Type == 'heka.control.sandbox'"
-    working_directory = "/var/heka/sandbox"
     max_filters = 100
 
 Control Message

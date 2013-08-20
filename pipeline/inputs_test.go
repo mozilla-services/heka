@@ -402,7 +402,7 @@ func InputsSpec(c gs.Context) {
 		defer func() {
 			Globals().BaseDir = origBaseDir
 			tmpErr = os.RemoveAll(tmpDir)
-			c.Expect(tmpErr, gs.Equals, nil)
+			c.Expect(tmpErr, gs.IsNil)
 		}()
 		var err error
 		lfInput := new(LogfileInput)
