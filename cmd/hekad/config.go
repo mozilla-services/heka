@@ -73,7 +73,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	empty_ignore := map[string]interface{}{}
 	parsed_config, ok := configFile["hekad"]
 	if ok {
-		if err = toml.PrimitiveDecodeStrict(parsed_config, &config, empty_ignore); err != nil {
+		if err = toml.PrimitiveDecodeStrict(parsed_config, config, empty_ignore); err != nil {
 			err = fmt.Errorf("Can't unmarshal config: %s", err)
 		}
 	}

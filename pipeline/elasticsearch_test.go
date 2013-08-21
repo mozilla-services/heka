@@ -53,7 +53,7 @@ func ElasticSearchOutputSpec(c gs.Context) {
 
 		err := json.Unmarshal(b, &decoded)
 
-		c.Expect(err, gs.Equals, nil)
+		c.Expect(err, gs.IsNil)
 		c.Expect(decoded["@fields"].(map[string]interface{})[`"foo`], gs.Equals, "bar\n")
 		c.Expect(decoded["@fields"].(map[string]interface{})[`"number`], gs.Equals, 64.0)
 		c.Expect(decoded["@fields"].(map[string]interface{})["\xEF\xBF\xBD"], gs.Equals, "\xEF\xBF\xBD")
@@ -67,7 +67,18 @@ func ElasticSearchOutputSpec(c gs.Context) {
 		c.Expect(decoded["@envversion"], gs.Equals, "0.8")
 		c.Expect(decoded["@pid"], gs.Equals, 14098.0)
 		c.Expect(decoded["@source_host"], gs.Equals, "hostname")
+	})
 
+	c.Specify("Should properly encode message using payload formatter", func() {
+		formatter := PayloadFormatter{}
+		msg := getTestMessageWithFunnyFields()
+		jsonPayload := `{"this": "is", "a": "test"}
+{"of": "the", "payload": "formatter"}
+`
+		msg.SetPayload(jsonPayload)
+		b, err := formatter.Format(msg)
+		c.Expect(err, gs.IsNil)
+		c.Expect(string(b), gs.Equals, jsonPayload)
 	})
 
 }
