@@ -871,31 +871,27 @@ Examples:
 MultiDecoder
 ------------
 
-This decoder plugin allows you to an ordered list of delegate
-decoders.  MultiDecoder will pass a PipelinePack to each of the
-delegates until decode succeeds.  In the case of failure to decode,
-MultiDecoder will either drop the message or re-inject the message
-into the pipeline.
+This decoder plugin allows you to specify an ordered list of delegate
+decoders.  The MultiDecoder will pass the PipelinePack to be decoded to each
+of the delegate decoders in turn until decode succeeds.  In the case of
+failure to decode, MultiDecoder will return an error and recycle the message.
 
 Parameters:
 
-- Subs:
-    A subsection is used to declare the TOML configuration for any
-    delegate decoders. The default is that no delegate decoders are
-    defined.
+- subs:
+    A subsection is used to declare the TOML configuration for any delegate
+    decoders. The default is that no delegate decoders are defined.
 
-- Order (list of strings):
-    PipelinePack objects will be passed in order to each decoder in this list. 
+- order (list of strings):
+    PipelinePack objects will be passed in order to each decoder in this list.
     Default is an empty list.
     
-- Name (string):
-    The name of the multidecoder.  Default is MultiDecoder-<address of multidecoder>
+- name (string):
+    Defaults to MultiDecoder-<address of multidecoder>.
 
-- Catchall (bool):
-    If enabled, PipelinePack objects will be reinjected into the
-    router if no delegate successfully decodes the input message.
-    Default is true.
-
+- log_sub_errors (bool):
+    If true, the DecoderRunner will log the errors returned whenever a
+    delegate decoder fails to decode a message. Defaults to false.
 
 Example (Two PayloadRegexDecoder delegates): 
 
@@ -929,8 +925,6 @@ Example (Two PayloadRegexDecoder delegates):
 
         [syncdecoder.subs.syncraw.message_fields]
         Somedata = "%TheData%"
-
-
 
 .. end-decoders
 

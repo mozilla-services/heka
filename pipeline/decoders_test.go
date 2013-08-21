@@ -100,26 +100,25 @@ func DecodersSpec(c gospec.Context) {
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 
+		conf.Name = "MyMultiDecoder"
+		conf.Order = []string{"syncraw"}
+		conf.Subs = make(map[string]interface{}, 0)
+		conf.Subs["syncraw"] = make(map[string]interface{}, 0)
+		syncraw := conf.Subs["syncraw"].(map[string]interface{})
+		syncraw["type"] = "PayloadRegexDecoder"
+		syncraw["match_regex"] = "^(?P<TheData>m.*)"
+
+		syncraw["message_fields"] = make(map[string]interface{}, 0)
+		message_fields := syncraw["message_fields"].(map[string]interface{})
+		message_fields["Somedata"] = "%TheData%"
+
 		c.Specify("decodes simple messages", func() {
-			// bind in regex decoders
-			conf.Name = "MyMultiDecoder"
-			conf.Order = []string{"syncraw"}
-			conf.Subs = make(map[string]interface{}, 0)
-			conf.Subs["syncraw"] = make(map[string]interface{}, 0)
-			syncraw := conf.Subs["syncraw"].(map[string]interface{})
-			syncraw["type"] = "PayloadRegexDecoder"
-			syncraw["match_regex"] = "^(?P<TheData>.*)"
-
-			syncraw["message_fields"] = make(map[string]interface{}, 0)
-			message_fields := syncraw["message_fields"].(map[string]interface{})
-			message_fields["Somedata"] = "%TheData%"
-
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
-			regex_data := "this could be any text"
+			regex_data := "matching text"
 			pack.Message.SetPayload(regex_data)
 			err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
@@ -130,53 +129,33 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(value, gs.Equals, regex_data)
 		})
 
-		c.Specify("pushes message into catchall on no match", func() {
-			// bind in no decoders
-			conf.Name = "MyMultiDecoder"
-			conf.Order = []string{}
-			conf.Subs = make(map[string]interface{}, 0)
-
+		c.Specify("returns an error if all decoders fail", func() {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
 			dRunner := NewMockDecoderRunner(ctrl)
-			// Clobber the InChan() call so that we always get a real
-			// channel
-			inChan := make(chan *PipelinePack, 1)
-			inChanCall := dRunner.EXPECT().InChan().AnyTimes()
-			inChanCall.Return(inChan)
-
 			decoder.SetDecoderRunner(dRunner)
-			regex_data := "this could be any text"
+			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
 			err = decoder.Decode(pack)
-			c.Assume(err, gs.IsNil)
-
-			// Expect that the message got pushed back onto the input channel
-			pack = <-inChan
-			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder.catchall")
+			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
 		})
 
-		c.Specify("drops message if Catchall is disabled and all decoders fail", func() {
-			// bind in no decoders
-			conf.Name = "MyMultiDecoder"
-			conf.Order = []string{}
-			conf.Catchall = false
-			conf.Subs = make(map[string]interface{}, 0)
-
+		c.Specify("logs subdecoder failures when configured to do so", func() {
+			conf.LogSubErrors = true
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
 			dRunner := NewMockDecoderRunner(ctrl)
-			// Expect that we log an error for undecoded message
-			dRunner.EXPECT().LogError(fmt.Errorf("Unable to decode message with any contained decoder"))
-
 			decoder.SetDecoderRunner(dRunner)
-			regex_data := "this could be any text"
+			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
-			err = decoder.Decode(pack)
-			c.Assume(err, gs.IsNil)
 
+			// Expect that we log an error for undecoded message.
+			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'syncraw' decode error: No match"))
+
+			err = decoder.Decode(pack)
+			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
 		})
 	})
 

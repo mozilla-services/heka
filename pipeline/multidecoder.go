@@ -21,37 +21,34 @@ import (
 )
 
 type MultiDecoder struct {
-	Decoders map[string]Decoder
-	Order    []string
-	dRunner  DecoderRunner
-	Catchall bool
-	Name     string
+	Decoders     map[string]Decoder
+	Order        []string
+	dRunner      DecoderRunner
+	Name         string
+	LogSubErrors bool
 }
 
 type MultiDecoderConfig struct {
 	// subs is an ordered dictionary of other decoders
-	Subs     map[string]interface{}
-	Order    []string
-	Name     string
-	Catchall bool
+	Subs         map[string]interface{}
+	Order        []string
+	Name         string
+	LogSubErrors bool `toml:"log_sub_errors"`
 }
 
 func (md *MultiDecoder) ConfigStruct() interface{} {
 	subs := make(map[string]interface{})
 	order := make([]string, 0)
 	name := fmt.Sprintf("MultiDecoder-%p", md)
-	return &MultiDecoderConfig{Subs: subs,
-		Order:    order,
-		Name:     name,
-		Catchall: true}
+	return &MultiDecoderConfig{subs, order, name, false}
 }
 
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	conf := config.(*MultiDecoderConfig)
 	md.Order = conf.Order
 	md.Decoders = make(map[string]Decoder, 0)
-	md.Catchall = conf.Catchall
 	md.Name = conf.Name
+	md.LogSubErrors = conf.LogSubErrors
 
 	// run PrimitiveDecode against each subsection here and bind
 	// it into the md.Decoders map
@@ -123,18 +120,7 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	wrapper.configCreator = func() interface{} { return config }
 
 	// Apply configuration to instantiated plugin.
-	configPlugin := func() (err error) {
-		defer func() {
-			// Slight protection against Init call into plugin code.
-			if r := recover(); r != nil {
-				err = fmt.Errorf("Init() panicked: %s", r)
-			}
-		}()
-		err = plugin.(Plugin).Init(config)
-		return
-	}
-
-	if err = configPlugin(); err != nil {
+	if err = plugin.(Plugin).Init(config); err != nil {
 		err = fmt.Errorf("Initialization failed for '%s': %s",
 			sectionName, err)
 		md.log(err.Error())
@@ -148,7 +134,7 @@ func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	md.dRunner = dr
 }
 
-// Runs the message payload against each of the decoders
+// Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 	var d Decoder
 	var newType string
@@ -165,15 +151,12 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 		if err = d.Decode(pack); err == nil {
 			return
 		}
+		if md.LogSubErrors {
+			err = fmt.Errorf("Subdecoder '%s' decode error: %s", decoder_name, err)
+			md.dRunner.LogError(err)
+		}
 	}
 
-	if md.Catchall {
-		newType = fmt.Sprintf("%s.catchall", newType)
-		pack.Message.SetType(newType)
-		md.dRunner.InChan() <- pack
-	} else {
-		md.dRunner.LogError(fmt.Errorf("Unable to decode message with any contained decoder"))
-		pack.Recycle()
-	}
-	return nil
+	pack.Recycle()
+	return fmt.Errorf("Unable to decode message with any contained decoder.")
 }
