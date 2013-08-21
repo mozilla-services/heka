@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -89,6 +90,72 @@ func DecodersSpec(c gospec.Context) {
 			pack.MsgBytes = bunk
 			err := decoder.Decode(pack)
 			c.Expect(err, gs.Not(gs.IsNil))
+		})
+	})
+
+	c.Specify("A MultiDecoder", func() {
+		decoder := new(MultiDecoder)
+		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
+
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		conf.Name = "MyMultiDecoder"
+		conf.Order = []string{"syncraw"}
+		conf.Subs = make(map[string]interface{}, 0)
+		conf.Subs["syncraw"] = make(map[string]interface{}, 0)
+		syncraw := conf.Subs["syncraw"].(map[string]interface{})
+		syncraw["type"] = "PayloadRegexDecoder"
+		syncraw["match_regex"] = "^(?P<TheData>m.*)"
+
+		syncraw["message_fields"] = make(map[string]interface{}, 0)
+		message_fields := syncraw["message_fields"].(map[string]interface{})
+		message_fields["Somedata"] = "%TheData%"
+
+		c.Specify("decodes simple messages", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "matching text"
+			pack.Message.SetPayload(regex_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
+			value, ok := pack.Message.GetFieldValue("Somedata")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, regex_data)
+		})
+
+		c.Specify("returns an error if all decoders fail", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "non-matching text"
+			pack.Message.SetPayload(regex_data)
+			err = decoder.Decode(pack)
+			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
+		})
+
+		c.Specify("logs subdecoder failures when configured to do so", func() {
+			conf.LogSubErrors = true
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			regex_data := "non-matching text"
+			pack.Message.SetPayload(regex_data)
+
+			// Expect that we log an error for undecoded message.
+			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'syncraw' decode error: No match"))
+
+			err = decoder.Decode(pack)
+			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
 		})
 	})
 

@@ -122,6 +122,26 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(DecodersByEncoding[message.Header_PROTOCOL_BUFFER], gs.Equals,
 				"ProtobufDecoder")
 		})
+
+		c.Specify("works w/ MultiDecoder", func() {
+			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_multidecoder.toml")
+			c.Assume(err, gs.IsNil)
+			hasSyncDecoder := false
+
+			// JSONDecoder and ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 3)
+
+			// Check that the MultiDecoder actually loaded
+			for k, _ := range pipeConfig.DecoderWrappers {
+				if k == "syncdecoder" {
+					hasSyncDecoder = true
+					break
+				}
+			}
+			c.Assume(hasSyncDecoder, gs.IsTrue)
+
+		})
+
 		c.Specify("explodes w/ bad config file", func() {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
