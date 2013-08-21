@@ -115,7 +115,9 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	case "clean":
 		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
 	case "logstash_v0":
-		o.messageFormatter = &KibanaFormatter{}
+		o.messageFormatter = new(KibanaFormatter)
+	case "payload":
+		o.messageFormatter = new(PayloadFormatter)
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
 	}
@@ -253,8 +255,16 @@ func (r *RawMessageFormatter) Format(m *message.Message) (doc []byte, err error)
 	return json.Marshal(m)
 }
 
-// Clean message formatter reformats the Heka message in a
-// more friendly ElasticSearch/Kibana way
+// Payload message formatter just returns the contents of the message payload.
+type PayloadFormatter struct {
+}
+
+func (pf *PayloadFormatter) Format(m *message.Message) (doc []byte, err error) {
+	return []byte(m.GetPayload()), nil
+}
+
+// Clean message formatter reformats the Heka message in a more friendly
+// ElasticSearch/Kibana way.
 type CleanMessageFormatter struct {
 	// Field names to include in ElasticSearch document for "clean" format
 	fields          []string
