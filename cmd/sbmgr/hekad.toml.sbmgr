@@ -1,5 +1,6 @@
 [hekad]
 maxprocs = 4
+base_dir = "."
 
 [TCP:5565]
 type = "TcpInput"
@@ -123,7 +124,7 @@ instruction_limit = 1000000
 type = "LogfileInput"
 logfile = "./sync-proxy.log"
 decoders = ["SyncProxyDecoder"]
-seekjournal = "./sync-proxy.journal"
+seek_journal_name = "sync-proxy.journal"
 
 [SyncProxyDecoder]
 type = "PayloadRegexDecoder"
@@ -170,7 +171,7 @@ output_limit = 64000
 type = "LogfileInput"
 logfile = "./audit.log"
 decoders = ["AuditLogDecoder"]
-seekjournal = "./audit.journal"
+seek_journal_name = "audit.journal"
 
 [AuditLogDecoder]
 type = "PayloadRegexDecoder"

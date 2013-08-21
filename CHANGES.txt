@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* SandboxManagerFilter now auto-generates a default working directory based on
+  the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
+
 * LogfileInput seek journals now support a boolean `use_seek_journal` config
   flag, and only the name of the journal file is now settable via
   `seek_journal_name`, replacing the `seekjournal` option which specified the
@@ -48,6 +51,10 @@ Bug Handling
 
 Features
 --------
+
+* Allow LogfileInput to use configurable delimiters including regexp (issue #263)
+  This includes a backwards incompatible change for the journal file, old 
+  journals will not be honored and the new journal will overwrite it.
 
 * Allow add_external_plugin to specify sub-packages (issue #384)
 

@@ -477,7 +477,20 @@ Parameters:
     When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
-    default, hekad will resume reading from the start of file.
+    default, hekad will resume reading from the start of file.  
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+- delimiter (string):
+    Character or regexp delimiter used by the parser (default "\\n").  For the 
+    regexp delimiter a single capture group can be specified to preserve the 
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration. 
+    Note: when a start delimiter is used the last line in the file will not be 
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
 
 .. code-block:: ini
 
