@@ -52,6 +52,9 @@ Bug Handling
 Features
 --------
 
+* Added "payload" format option to ElasticSearchOutput to pass message payload
+  through to ES unchanged.
+
 * Allow LogfileInput to use configurable delimiters including regexp (issue #263)
   This includes a backwards incompatible change for the journal file, old 
   journals will not be honored and the new journal will overwrite it.
