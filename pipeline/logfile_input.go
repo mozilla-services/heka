@@ -26,7 +26,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -92,7 +91,6 @@ func getDefaultLogfileInputConfig() interface{} {
 		UseSeekJournal:   true,
 		ResumeFromStart:  true,
 		ParserType:       "token",
-		Delimiter:        "\n",
 	}
 }
 
@@ -194,7 +192,6 @@ type FileMonitor struct {
 	logger_ident    string
 
 	fd               *os.File
-	checkStat        <-chan time.Time
 	discoverInterval time.Duration
 	statInterval     time.Duration
 
@@ -206,15 +203,8 @@ type FileMonitor struct {
 	last_logline_start int64
 	resumeFromStart    bool
 
-	parser    func(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
-	delimiter byte
-
-	regexpDelimiter    *regexp.Regexp
-	regexpDelimiterEol bool
-
-	readBuffer []byte
-	readPos    int
-	scanPos    int
+	parser        StreamParser
+	parseFunction func(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
 }
 
 // Serialize to JSON
@@ -383,132 +373,58 @@ func (fm *FileMonitor) updateJournal(bytes_read int64) (ok bool) {
 	return true
 }
 
-// Standard line parser using a token delimiter
-func tokenParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+// Standard text log file parser
+func payloadParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
 	var (
-		reader   = bufio.NewReader(fm.fd)
-		readLine string
-		pack     *PipelinePack
+		n      int
+		pack   *PipelinePack
+		record []byte
 	)
-	for true {
-		if readLine, err = reader.ReadString(fm.delimiter); err != nil {
-			break
+	for err == nil {
+		n, record, err = fm.parser.Parse(fm.fd)
+		if err == io.EOF && isRotated {
+			record = fm.parser.GetRemainingData()
 		}
-		pack = <-fm.ir.InChan()
-		pack.Message.SetLogger(fm.logger_ident)
-		pack.Message.SetPayload(readLine)
-		fm.outChan <- pack
-		fm.last_logline_start = fm.seek + bytesRead
-		bytesRead += int64(len(readLine))
-		fm.last_logline = readLine
-		// If file rotation happens after the last
-		// reader.ReadString() in this loop, the remaining logfile
-		// data will be picked up the next time that ReadLines() is
-		// invoked
-	}
-
-	if err == io.EOF {
-		if isRotated {
-			if len(readLine) > 0 {
-				pack = <-fm.ir.InChan()
-				pack.Message.SetLogger(fm.logger_ident)
-				pack.Message.SetPayload(readLine)
-				fm.outChan <- pack
-				fm.last_logline_start = fm.seek + bytesRead
-				bytesRead += int64(len(readLine))
-				fm.last_logline = readLine
-			}
-		} else {
-			fm.fd.Seek(-int64(len(readLine)), os.SEEK_CUR)
-		}
-	}
-	return
-}
-
-// Regexp line parser using a start or end of line regexp delimiter
-func regexpParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
-	var (
-		n        int
-		pScanPos = fm.scanPos
-		reader   = bufio.NewReader(fm.fd)
-		pack     *PipelinePack
-	)
-	for true {
-		if n, err = reader.Read(fm.readBuffer[fm.readPos:]); err != nil {
-			break
-		}
-		fm.readPos += n
-		fm.scanPos += fm.findLogs(fm.readBuffer[fm.scanPos:fm.readPos], bytesRead)
-		bytesRead += int64(fm.scanPos - pScanPos)
-		pScanPos = fm.scanPos
-
-		if float64(cap(fm.readBuffer)-fm.readPos) <= float64(cap(fm.readBuffer))*0.1 {
-			if fm.scanPos == 0 { // line will not fit in the current buffer
-				newSlice := make([]byte, cap(fm.readBuffer)*2)
-				copy(newSlice, fm.readBuffer)
-				fm.readBuffer = newSlice
-			} else { // reclaim the space at the beginning of the buffer
-				copy(fm.readBuffer, fm.readBuffer[fm.scanPos:fm.readPos])
-				fm.readPos, fm.scanPos, pScanPos = fm.readPos-fm.scanPos, 0, 0
-			}
-		}
-	}
-
-	if err == io.EOF {
-		if isRotated {
-			if fm.readPos-fm.scanPos > 0 {
-				pack = <-fm.ir.InChan()
-				pack.Message.SetLogger(fm.logger_ident)
-				pack.Message.SetPayload(string(fm.readBuffer[fm.scanPos:fm.readPos]))
-				fm.outChan <- pack
-				fm.last_logline_start = fm.seek + bytesRead
-				bytesRead += int64(fm.readPos - fm.scanPos)
-				fm.last_logline = pack.Message.GetPayload()
-				fm.readPos, fm.scanPos = 0, 0
-			}
-		}
-	}
-	return
-}
-
-// returns the position after the last complete log
-func (fm *FileMonitor) findLogs(buf []byte, bytesRead int64) int {
-	var (
-		start, prevStart, end, captureLen int
-		pack                              *PipelinePack
-		loc                               []int
-	)
-	for true {
-		loc = fm.regexpDelimiter.FindSubmatchIndex(buf[start:])
-		if loc == nil {
-			break
-		}
-		if len(loc) == 4 {
-			if fm.regexpDelimiterEol { // append the capture to the end of the previous record
-				prevStart = start
-				end = start + loc[3]
-				start += loc[1]
-			} else { // append the capture to the beginning of the next record
-				prevStart = start - captureLen
-				end = start + loc[0]
-				start += loc[3]
-				captureLen = loc[3] - loc[2]
-			}
-		} else { // no capture discard the delimiter
-			prevStart = start
-			end = start + loc[0]
-			start += loc[1]
-		}
-		if prevStart != end {
+		if len(record) > 0 {
+			payload := string(record)
 			pack = <-fm.ir.InChan()
 			pack.Message.SetLogger(fm.logger_ident)
-			pack.Message.SetPayload(string(buf[prevStart:end]))
+			pack.Message.SetPayload(payload)
 			fm.outChan <- pack
-			fm.last_logline_start = fm.seek + bytesRead + int64(prevStart)
-			fm.last_logline = pack.Message.GetPayload()
+			fm.last_logline_start = fm.seek + bytesRead
+			fm.last_logline = payload
 		}
+		bytesRead += int64(n)
 	}
-	return start - captureLen
+	return
+}
+
+// Framed protobuf message parser
+func messageProtoParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+	var (
+		n      int
+		pack   *PipelinePack
+		record []byte
+	)
+	for err == nil {
+		n, record, err = fm.parser.Parse(fm.fd)
+		if len(record) > 2 {
+			pack = <-fm.ir.InChan()
+			headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
+			messageLen := len(record) - headerLen
+			// ignore authentication headers
+			if messageLen > len(pack.MsgBytes) {
+				pack.MsgBytes = make([]byte, messageLen)
+			}
+			pack.MsgBytes = pack.MsgBytes[:messageLen]
+			copy(pack.MsgBytes, record[headerLen:])
+			fm.outChan <- pack
+			fm.last_logline_start = fm.seek + bytesRead
+			fm.last_logline = string(record)
+		}
+		bytesRead += int64(n)
+	}
+	return
 }
 
 // Reads all unread lines out of the monitored file, creates a PipelinePack object
@@ -558,7 +474,7 @@ func (fm *FileMonitor) ReadLines() (ok bool) {
 	}
 
 	// Attempt to read lines from where we are.
-	bytesRead, err = fm.parser(fm, isRotated)
+	bytesRead, err = fm.parseFunction(fm, isRotated)
 
 	if err != io.EOF {
 		// Some unexpected error, reset everything
@@ -600,28 +516,30 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 
 	fm.resumeFromStart = conf.ResumeFromStart
 	if conf.ParserType == "" || conf.ParserType == "token" {
-		if len(conf.Delimiter) == 0 {
-			fm.delimiter = '\n'
-		} else if len(conf.Delimiter) == 1 {
-			fm.delimiter = conf.Delimiter[0]
-		} else {
+		tp := NewTokenParser()
+		fm.parser = tp
+		fm.parseFunction = payloadParser
+		switch len(conf.Delimiter) {
+		case 0: // use default
+		case 1:
+			tp.SetDelimiter(conf.Delimiter[0])
+		default:
 			return fmt.Errorf("invalid delimiter: %s", conf.Delimiter)
 		}
-		fm.parser = tokenParser
 	} else if conf.ParserType == "regexp" {
-		if conf.DelimiterLocation == "start" {
-			fm.regexpDelimiterEol = false
-		} else if conf.DelimiterLocation == "" || conf.DelimiterLocation == "end" {
-			fm.regexpDelimiterEol = true
-		} else {
-			return fmt.Errorf("unknown delimiter location: %s", conf.DelimiterLocation)
+		rp := NewRegexpParser()
+		fm.parser = rp
+		fm.parseFunction = payloadParser
+		if err = rp.SetDelimiter(conf.Delimiter); err != nil {
+			return err
 		}
-		fm.regexpDelimiter = regexp.MustCompile(conf.Delimiter)
-		if fm.regexpDelimiter.NumSubexp() > 1 {
-			return fmt.Errorf("the regexp must not contain more than one capture group: %s", conf.Delimiter)
+		if err = rp.SetDelimiterLocation(conf.DelimiterLocation); err != nil {
+			return err
 		}
-		fm.readBuffer = make([]byte, 1024*4)
-		fm.parser = regexpParser
+	} else if conf.ParserType == "message.proto" {
+		mp := NewMessageProtoParser()
+		fm.parser = mp
+		fm.parseFunction = messageProtoParser
 	} else {
 		return fmt.Errorf("unknown parser type: %s", conf.ParserType)
 	}

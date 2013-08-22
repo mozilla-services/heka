@@ -481,7 +481,8 @@ Parameters:
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
-- delimiter (string):
+    - message.proto - splits the log on protobuf message boundaries
+- delimiter (string): Only used for token or regexp parsers.
     Character or regexp delimiter used by the parser (default "\\n").  For the 
     regexp delimiter a single capture group can be specified to preserve the 
     delimiter (or part of the delimiter). The capture will be added to the start
