@@ -413,7 +413,7 @@ func messageProtoParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err e
 			headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
 			messageLen := len(record) - headerLen
 			// ignore authentication headers
-			if messageLen > len(pack.MsgBytes) {
+			if messageLen > cap(pack.MsgBytes) {
 				pack.MsgBytes = make([]byte, messageLen)
 			}
 			pack.MsgBytes = pack.MsgBytes[:messageLen]
