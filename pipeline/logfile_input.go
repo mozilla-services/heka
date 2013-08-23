@@ -79,7 +79,6 @@ type LogfileInputConfig struct {
 type LogfileInput struct {
 	// Encapsulates actual file finding / listening / reading mechanics.
 	Monitor      *FileMonitor
-	hostname     string
 	stopped      bool
 	decoderNames []string
 }
@@ -101,14 +100,6 @@ func (lw *LogfileInput) ConfigStruct() interface{} {
 func (lw *LogfileInput) Init(config interface{}) (err error) {
 	conf := config.(*LogfileInputConfig)
 	lw.Monitor = new(FileMonitor)
-	val := conf.Hostname
-	if val == "" {
-		val, err = os.Hostname()
-		if err != nil {
-			return
-		}
-	}
-	lw.hostname = val
 	if err = lw.Monitor.Init(conf); err != nil {
 		return err
 	}
@@ -149,13 +140,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	}
 
 	for pack = range lw.Monitor.outChan {
-		pack.Message.SetUuid(uuid.NewRandom())
-		pack.Message.SetTimestamp(time.Now().UnixNano())
-		pack.Message.SetType("logfile")
-		pack.Message.SetSeverity(int32(0))
-		pack.Message.SetEnvVersion("0.8")
-		pack.Message.SetPid(0)
-		pack.Message.SetHostname(lw.hostname)
 		for _, decoder := range decoders {
 			if e = decoder.Decode(pack); e == nil {
 				break
@@ -205,6 +189,7 @@ type FileMonitor struct {
 
 	parser        StreamParser
 	parseFunction func(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
+	hostname      string
 }
 
 // Serialize to JSON
@@ -388,6 +373,13 @@ func payloadParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
 		if len(record) > 0 {
 			payload := string(record)
 			pack = <-fm.ir.InChan()
+			pack.Message.SetUuid(uuid.NewRandom())
+			pack.Message.SetTimestamp(time.Now().UnixNano())
+			pack.Message.SetType("logfile")
+			pack.Message.SetSeverity(int32(0))
+			pack.Message.SetEnvVersion("0.8")
+			pack.Message.SetPid(0)
+			pack.Message.SetHostname(fm.hostname)
 			pack.Message.SetLogger(fm.logger_ident)
 			pack.Message.SetPayload(payload)
 			fm.outChan <- pack
@@ -513,6 +505,13 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 	discoverInterval := conf.DiscoverInterval
 	statInterval := conf.StatInterval
 	logger := conf.Logger
+	if conf.Hostname == "" {
+		conf.Hostname, err = os.Hostname()
+		if err != nil {
+			return
+		}
+	}
+	fm.hostname = conf.Hostname
 
 	fm.resumeFromStart = conf.ResumeFromStart
 	if conf.ParserType == "" || conf.ParserType == "token" {
