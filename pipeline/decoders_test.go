@@ -23,9 +23,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/sandbox"
 	ts "github.com/mozilla-services/heka/testsupport"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/gospec/src/gospec"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -396,6 +397,58 @@ func DecodersSpec(c gospec.Context) {
 			})
 		})
 	})
+
+	c.Specify("A SandboxDecoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../sandbox/lua/testsupport/decoder.lua"
+		conf.ScriptType = "lua"
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			data := "1376389920 debug id=2321 url=example.com item=1"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1376389920000000000))
+
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("id")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "2321")
+
+			value, ok = pack.Message.GetFieldValue("url")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "example.com")
+
+			value, ok = pack.Message.GetFieldValue("item")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "1")
+		})
+
+		c.Specify("decodes an invalid messages", func() {
+			data := "1376389920 bogus id=2321 url=example.com item=1"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			err = decoder.Decode(pack)
+			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+		})
+	})
 }
 
 func BenchmarkDecodeJSON(b *testing.B) {
@@ -418,6 +471,7 @@ func BenchmarkDecodeJSON(b *testing.B) {
 		jsonDecoder.Decode(pipelinePack)
 	}
 }
+
 func BenchmarkEncodeProtobuf(b *testing.B) {
 	b.StopTimer()
 	msg := getTestMessage()
