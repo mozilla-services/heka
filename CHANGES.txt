@@ -52,6 +52,11 @@ Bug Handling
 Features
 --------
 
+* Support Heka protobuf message data in the LogfileInput plugin (issue #261)
+
+* Added "payload" format option to ElasticSearchOutput to pass message payload
+  through to ES unchanged.
+
 * Allow LogfileInput to use configurable delimiters including regexp (issue #263)
   This includes a backwards incompatible change for the journal file, old 
   journals will not be honored and the new journal will overwrite it.

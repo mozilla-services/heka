@@ -481,7 +481,8 @@ Parameters:
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
-- delimiter (string):
+    - message.proto - splits the log on protobuf message boundaries
+- delimiter (string): Only used for token or regexp parsers.
     Character or regexp delimiter used by the parser (default "\\n").  For the 
     regexp delimiter a single capture group can be specified to preserve the 
     delimiter (or part of the delimiter). The capture will be added to the start
@@ -1240,10 +1241,12 @@ Parameters:
     Number of messages that, if processed, will trigger them to be bulk
     indexed into ElasticSearch. Defaults to 10.
 - format (string):
-    Message serialization format, either "clean", "logstash_v0" or "raw",
-    where "clean" is a more concise JSON representation of the  message and
-    "logstash_v0" outputs in a format similar to  Logstash's original (i.e.
-    "version 0") ElasticSearch schema. Defaults to "clean".
+    Message serialization format, either "clean", "logstash_v0", "payload" or
+    "raw". "clean" is a more concise JSON representation of the message,
+    "logstash_v0" outputs in a format similar to Logstash's original (i.e.
+    "version 0") ElasticSearch schema, "payload" passes the message payload
+    directly into ElasticSearch, and "raw" is a full JSON representation of
+    the message. Defaults to "clean".
 - fields ([]string):
     If the format is "clean", then the 'fields' parameter can be used to
     specify that only specific message data should be indexed into
