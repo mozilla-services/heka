@@ -18,8 +18,7 @@
 
 static const char* disable_base_functions[] = { "collectgarbage", "coroutine",
     "dofile", "getfenv", "getmetatable", "load", "loadfile", "loadstring",
-    "module", "print", "rawequal", "rawget", "rawset", "require", "setfenv",
-    NULL };
+    "module", "print", "rawequal", "require", "setfenv", NULL };
 
 static const char* disable_os_functions[] = { "execute", "exit", "remove",
     "rename", "setlocale",  "tmpname", NULL };
