@@ -152,6 +152,9 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 			pack.Decoded = true
 			h.PipelineConfig().router.InChan() <- pack
 		}
+		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
+			wanter.Shutdown()
+		}
 		dr.LogMessage("stopped")
 		wg.Done()
 	}()
@@ -177,6 +180,12 @@ func (dr *dRunner) LogMessage(msg string) {
 // interface and it will be provided at DecoderRunner start time.
 type WantsDecoderRunner interface {
 	SetDecoderRunner(dr DecoderRunner)
+}
+
+// Any decoder that needs to know when the DecoderRunner is exiting can
+// implement this interface and it will called on DecoderRunner exit.
+type WantsDecoderRunnerShutdown interface {
+	Shutdown()
 }
 
 // Heka Decoder plugin interface.

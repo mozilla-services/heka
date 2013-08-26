@@ -45,6 +45,7 @@ type SandboxFilter struct {
 	sbc                    *sandbox.SandboxConfig
 	preservationFile       string
 	processMessageCount    int64
+	processMessageFailures int64
 	injectMessageCount     int64
 	processMessageSamples  int64
 	processMessageDuration int64
@@ -106,6 +107,7 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
 		sandbox.STAT_MAXIMUM)), "B")
 	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
+	newInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&this.processMessageFailures), "count")
 	newInt64Field(msg, "InjectMessageCount", atomic.LoadInt64(&this.injectMessageCount), "count")
 	newInt64Field(msg, "ProcessMessageSamples", this.processMessageSamples, "count")
 	newInt64Field(msg, "TimerEventSamples", this.timerEventSamples, "count")
@@ -233,7 +235,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				}
 				this.reportLock.Unlock()
 			}
-			if retval == 0 {
+			if retval <= 0 {
 				if backpressure && this.processMessageSamples >= int64(capacity) {
 					fr.MatchRunner().reportLock.Lock()
 					if this.processMessageDuration/this.processMessageSamples > slowDuration ||
@@ -242,6 +244,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 						blocking = true
 					}
 					fr.MatchRunner().reportLock.Unlock()
+				}
+				if retval < 0 {
+					atomic.AddInt64(&this.processMessageFailures, 1)
 				}
 				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
 			} else {
@@ -269,6 +274,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				// no lock on the ProcessMessage variables here because there are no active writers
 				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
+				newInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures, "count")
 				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
 				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration/this.processMessageSamples, "ns")

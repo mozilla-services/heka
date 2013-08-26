@@ -328,6 +328,20 @@ As with inputs, the `Decoder` interface is quite simple::
             Decode(pack *PipelinePack) error
     }
 
+There are two optional Decoder interfaces.  The first provides the Decoder
+access to its DecoderRunner object when it is started.
+
+    type WantsDecoderRunner interface {
+        SetDecoderRunner(dr DecoderRunner)
+    }
+
+The second provides a notification to the Decoder when the DecoderRunner is 
+exiting.
+
+    type WantsDecoderRunnerShutdown interface {
+        Shutdown()
+    }
+
 A decoder's `Decode` method should extract the raw message data from
 `pack.MsgBytes` and attempt to deserialize this and use the contained
 information to populate the Message struct pointed to by the `pack.Message`

@@ -301,12 +301,12 @@ func (f *Field) AddValue(value interface{}) error {
 	if err != nil {
 		return err
 	}
-	if t != *f.ValueType {
+	if t != f.GetValueType() {
 		return fmt.Errorf("The field contains: %v; attempted to add %v",
 			Field_ValueType_name[int32(*f.ValueType)], Field_ValueType_name[int32(t)])
 	}
 
-	switch *f.ValueType {
+	switch f.GetValueType() {
 	case Field_STRING:
 		l := len(f.ValueString)
 		c := cap(f.ValueString)
@@ -370,7 +370,7 @@ func (f *Field) AddValue(value interface{}) error {
 
 // Helper function that returns the appropriate value object.
 func (f *Field) GetValue() (value interface{}) {
-	switch *f.ValueType {
+	switch f.GetValueType() {
 	case Field_STRING:
 		if len(f.ValueString) > 0 {
 			value = f.ValueString[0]

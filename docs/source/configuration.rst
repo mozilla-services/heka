@@ -927,6 +927,16 @@ Example (Two PayloadRegexDecoder delegates):
         [syncdecoder.subs.syncraw.message_fields]
         Somedata = "%TheData%"
 
+.. _config_sandboxdecoder:
+
+Sandbox Decoder
+---------------
+
+The sandbox decoder provides an isolated execution environment for data parsing
+and complex transformations without the need to recompile Heka.
+
+:ref:`sandboxdecoder_settings`
+
 .. end-decoders
 
 .. _config_common_parameters:

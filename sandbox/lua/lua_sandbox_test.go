@@ -1152,3 +1152,24 @@ func BenchmarkSandboxOutputMessageAsJSON(b *testing.B) {
 	}
 	sb.Destroy("")
 }
+
+func BenchmarkSandboxLpegDecoder(b *testing.B) {
+	b.StopTimer()
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/decoder.lua"
+	sbc.MemoryLimit = 1024*1024*8
+	sbc.InstructionLimit = 1e6
+	sbc.OutputLimit = 1024*63
+	msg := getTestMessage()
+	sb, _ := lua.CreateLuaSandbox(&sbc)
+	sb.Init("")
+	sb.InjectMessage(func(p, pt, pn string) int {
+		return 0
+	})
+	msg.SetPayload("1376389920 debug id=2321 url=example.com item=1")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		sb.ProcessMessage(msg)
+	}
+	sb.Destroy("")
+}
