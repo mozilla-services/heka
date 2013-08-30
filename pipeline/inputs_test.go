@@ -563,6 +563,9 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -661,6 +664,9 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -744,6 +750,9 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "multiline")
 			}
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"39e4c3e6e9c88a794b3e7c91c155682c34cf1a4a","last_len":41,"last_start":172,"seek":214}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -821,6 +830,9 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetType(), gs.Equals, "hekabench")
 			}
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f67dc6bbbbb6a91b59e661b6170de50c96eab100","last_len":46499,"last_start":255191,"seek":301690}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
