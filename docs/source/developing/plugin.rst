@@ -488,7 +488,6 @@ itself::
 
     RegisterPlugin("UdpInput", func() interface{} {return new(UdpInput)})
     RegisterPlugin("TcpInput", func() interface{} {return new(TcpInput)})
-    RegisterPlugin("JsonDecoder", func() interface{} {return new(JsonDecoder)})
     RegisterPlugin("ProtobufDecoder", func() interface{} {return new(ProtobufDecoder)})
     RegisterPlugin("CounterFilter", func() interface{} {return new(CounterFilter)})
     RegisterPlugin("StatFilter", func() interface{} {return new(StatFilter)})

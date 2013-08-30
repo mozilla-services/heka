@@ -19,7 +19,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/bbangert/toml"
-	. "github.com/mozilla-services/heka/message"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,17 +28,12 @@ import (
 	"time"
 )
 
-// Cap size of our decoder set arrays
-const MAX_HEADER_MESSAGEENCODING Header_MessageEncoding = 256
-
 // Set a sample rate for match and message processing timing i.e. 1 in a million
 const DURATION_SAMPLE_DENOMINATOR = 1e6
 
 var (
-	AvailablePlugins         = make(map[string]func() interface{})
-	DecodersByEncoding       = make(map[Header_MessageEncoding]string)
-	topHeaderMessageEncoding Header_MessageEncoding
-	PluginTypeRegex          = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
+	AvailablePlugins = make(map[string]func() interface{})
+	PluginTypeRegex  = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
 )
 
 // Adds a plugin to the set of usable Heka plugins that can be referenced from
@@ -323,7 +317,6 @@ type RetryOptions struct {
 type PluginGlobals struct {
 	Typ      string `toml:"type"`
 	Ticker   uint   `toml:"ticker_interval"`
-	Encoding string `toml:"encoding_name"`
 	Matcher  string `toml:"message_matcher"`
 	Signer   string `toml:"message_signer"`
 	PoolSize uint   `toml:"pool_size"`
@@ -332,11 +325,8 @@ type PluginGlobals struct {
 
 // Default Decoders configuration.
 var defaultDecoderTOML = `
-[JsonDecoder]
-encoding_name = "JSON"
 
 [ProtobufDecoder]
-encoding_name = "PROTOCOL_BUFFER"
 `
 
 // A helper object to support delayed plugin creation.
@@ -429,34 +419,6 @@ func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}
 	return attrVal.Interface()
 }
 
-// Registers a the specified decoder to be used for messages with the
-// specified Heka protocol encoding header.
-func regDecoderForHeader(decoderName string, encodingName string) (err error) {
-	var encoding Header_MessageEncoding
-	var ok bool
-	if encodingInt32, ok := Header_MessageEncoding_value[encodingName]; !ok {
-		err = fmt.Errorf("No Header_MessageEncoding named '%s'", encodingName)
-		return
-	} else {
-		encoding = Header_MessageEncoding(encodingInt32)
-	}
-	if encoding > MAX_HEADER_MESSAGEENCODING {
-		err = fmt.Errorf("Header_MessageEncoding '%s' value '%d' higher than max '%d'",
-			encodingName, encoding, MAX_HEADER_MESSAGEENCODING)
-		return
-	}
-	// Be nice to be able to verify that this is actually a decoder.
-	if _, ok = AvailablePlugins[decoderName]; !ok {
-		err = fmt.Errorf("No decoder named '%s' registered as a plugin", decoderName)
-		return
-	}
-	if encoding > topHeaderMessageEncoding {
-		topHeaderMessageEncoding = encoding
-	}
-	DecodersByEncoding[encoding] = decoderName
-	return
-}
-
 // Used internally to log and record plugin config loading errors.
 func (self *PipelineConfig) log(msg string) {
 	self.logMsgs = append(self.logMsgs, msg)
@@ -534,16 +496,6 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// For decoders check to see if we need to register against a protocol
 	// header, store the wrapper and continue.
 	if pluginCategory == "Decoder" {
-		if pluginGlobals.Encoding != "" {
-			err = regDecoderForHeader(pluginType, pluginGlobals.Encoding)
-			if err != nil {
-				self.log(fmt.Sprintf(
-					"Can't register decoder '%s' for encoding '%s': %s",
-					wrapper.name, pluginGlobals.Encoding, err))
-				errcnt++
-				return
-			}
-		}
 		self.DecoderWrappers[wrapper.name] = wrapper
 
 		if pluginGlobals.PoolSize == 0 {
@@ -668,15 +620,11 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		errcnt += self.loadSection(name, conf)
 	}
 
-	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
+	// Add PROTOCOL_BUFFER decoders if none were configured
 	var configDefault ConfigFile
 	toml.Decode(defaultDecoderTOML, &configDefault)
 	dWrappers := self.DecoderWrappers
 
-	if _, ok := dWrappers["JsonDecoder"]; !ok {
-		log.Println("Loading: [JsonDecoder]")
-		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
-	}
 	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
 		log.Println("Loading: [ProtobufDecoder]")
 		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
@@ -701,9 +649,6 @@ func init() {
 	})
 	RegisterPlugin("MultiDecoder", func() interface{} {
 		return new(MultiDecoder)
-	})
-	RegisterPlugin("JsonDecoder", func() interface{} {
-		return new(JsonDecoder)
 	})
 	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)

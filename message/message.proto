@@ -1,16 +1,11 @@
 package message;
 
 message Header {
-  enum MessageEncoding {
-    PROTOCOL_BUFFER = 0;
-    JSON            = 1;
-  }
   enum HmacHashFunction {
     MD5  = 0;
     SHA1 = 1;
   }
   required uint32           message_length      = 1; // length in bytes
-  optional MessageEncoding  message_encoding    = 2 [default = PROTOCOL_BUFFER];
 
   optional HmacHashFunction hmac_hash_function  = 3 [default = MD5];
   optional string           hmac_signer         = 4;

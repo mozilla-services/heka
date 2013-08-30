@@ -77,10 +77,10 @@ type AMQPInputConfig struct {
 	// the routing key to bind the queue to the exchange with
 	// Defaults to empty string
 	RoutingKey string
-	// Names of configured `LoglineDecoder` instances used to decode this
-	//  message off the input. The message will be de-serialized per its
-	// content-type before this decoder is run.
-	Decoders []string
+	// Name of configured decoder used to decode this message off the input.
+	// The message will be de-serialized per its content-type before this
+	// decoder is run.
+	Decoder string
 	// How many messages should be pre-fetched before message acks
 	// See http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-measurements-part-2/
 	// for benchmarks showing the impact of low prefetch counts
@@ -402,38 +402,27 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
-		dRunner DecoderRunner
-		pack    *PipelinePack
-		e       error
-		ok      bool
+		dRunner, pbdRunner DecoderRunner
+		pack              *PipelinePack
+		ok, msgOk         bool
 	)
 	defer ai.usageWg.Done()
 	packSupply := ir.InChan()
 
 	conf := ai.config
-
-	// Setup decoder sets for use with non-serialized messages
 	dSet := h.DecoderSet()
-	decoders := make([]Decoder, len(conf.Decoders))
-	for i, name := range conf.Decoders {
-		if dRunner, ok = dSet.ByName(name); !ok {
-			return fmt.Errorf("Decoder not found: %s", name)
+	// Setup decoder sets for use with non-serialized messages
+	if conf.Decoder != "" {
+		if dRunner, ok = dSet.ByName(conf.Decoder); !ok {
+			return fmt.Errorf("Decoder not found: %s", conf.Decoder)
 		}
-		decoders[i] = dRunner.Decoder()
-	}
-
-	// Setup decoders for serialized messages
-	var (
-		dRunners []DecoderRunner
-		msgOk    bool
-		decoder  DecoderRunner
-		encoding message.Header_MessageEncoding
-	)
-
-	if dRunners, err = h.DecoderSet().ByEncodings(); err != nil {
-		return
 	}
 	header := &message.Header{}
+
+	// Setup decoders for serialized messages
+	if pbdRunner, ok = dSet.ByName("ProtobufDecoder"); !ok {
+		return fmt.Errorf("Decoder not found: ProtobufDecoder")
+	}
 
 	stream, err := ai.ch.Consume(conf.Queue, "", false, conf.QueueExclusive,
 		false, false, nil)
@@ -450,14 +439,7 @@ readLoop:
 		if msg.ContentType == "application/hekad" {
 			_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
 			if msgOk {
-				encoding = header.GetMessageEncoding()
-				if decoder = dRunners[encoding]; decoder != nil {
-					decoder.InChan() <- pack
-				} else {
-					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
-						encoding.String()))
-					pack.Recycle()
-				}
+				pbdRunner.InChan() <- pack
 			} else {
 				pack.Recycle()
 			}
@@ -466,19 +448,12 @@ readLoop:
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			for _, decoder := range decoders {
-				if e = decoder.Decode(pack); e == nil {
-					break
-				}
-			}
 			pack.Decoded = true
-			if e == nil {
+			if dRunner == nil {
 				ir.Inject(pack)
 			} else {
-				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
-				pack.Recycle()
+				dRunner.InChan() <- pack
 			}
-			e = nil
 		}
 		msg.Ack(false)
 	}

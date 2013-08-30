@@ -29,11 +29,14 @@ import (
 )
 
 const (
-	MAX_HEADER_SIZE  = 255
-	MAX_MESSAGE_SIZE = 64 * 1024
-	RECORD_SEPARATOR = uint8(0x1e)
-	UNIT_SEPARATOR   = uint8(0x1f)
-	UUID_SIZE        = 16
+	HEADER_DELIMITER_SIZE = 2                         // record separator + len
+	HEADER_FRAMING_SIZE   = HEADER_DELIMITER_SIZE + 1 // unit separator
+	MAX_HEADER_SIZE       = 255
+	MAX_MESSAGE_SIZE      = 64 * 1024
+	MAX_RECORD_SIZE       = HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE
+	RECORD_SEPARATOR      = uint8(0x1e)
+	UNIT_SEPARATOR        = uint8(0x1f)
+	UUID_SIZE             = 16
 )
 
 type MessageSigningConfig struct {
@@ -41,15 +44,6 @@ type MessageSigningConfig struct {
 	Hash    string `toml:"hmac_hash"`
 	Key     string `toml:"hmac_key"`
 	Version uint32 `toml:"version"`
-}
-
-func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
-	if h != nil {
-		if h.MessageEncoding == nil {
-			h.MessageEncoding = new(Header_MessageEncoding)
-		}
-		*h.MessageEncoding = v
-	}
 }
 
 func (h *Header) SetMessageLength(v uint32) {

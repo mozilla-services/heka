@@ -43,8 +43,8 @@ Any values other than "type" in a section, such as "address" in the
 above examples, will be passed through to the plugin for internal
 configuration (see :ref:`plugin_config`).
 
-A JsonDecoder and ProtobufDecoder will be automatically setup if not
-specified explicitly in the configuration file.
+A ProtobufDecoder will be automatically setup if not specified explicitly in 
+the configuration file.
 
 If a plugin fails to load during startup, hekad will exit at startup.
 When hekad is running, if a plugin should fail (due to connection loss,
@@ -294,10 +294,10 @@ Parameters:
 - QueueAutoDelete (bool):
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
-- Decoders (list of strings):
-    List of decoder names used to transform a raw message body into
-    a structured hekad message. These are skipped for serialized hekad
-    messages.
+- Decoder (string):
+    Decoder name used to transform non Heka protobuf messages into a structured 
+    hekad message. If no decoder is specified the amqp message body is placed in
+    the Heka message payload.
 
 Since many of these parameters have sane defaults, a minimal
 configuration to consume serialized messages would look like:
@@ -317,7 +317,7 @@ Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
-    decoders = ["logparser", "leftovers"]
+    decoder = "logparser"
 
     [logparser]
     type = "PayloadRegexDecoder"
@@ -330,14 +330,6 @@ Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
     Remaining = "%Remaining%"
     Logger = "%Logger%"
     Payload = "%Remaining%"
-
-    [leftovers]
-    type = "PayloadRegexDecoder"
-    MatchRegex = '.*'
-
-    [leftovers.MessageFields]
-    Type = "drop"
-    Payload = ""
 
 .. _config_udp_input:
 
@@ -360,6 +352,24 @@ Parameters:
 
     - hmac_key (string):
         The hash key used to sign the message.
+- decoder (string):
+    Decoder name used to transform the stream into a structured hekad message.
+    If no decoder is specified the parsed data is placed in the Heka message
+    payload. The value is always set to ProtobufDecoder for the message.proto 
+    parser regardless of what is specified.
+- parser_type (string):
+    - token - splits the stream on a byte delimiter.
+    - regexp - splits the stream on a regexp delimiter.
+    - message.proto - splits the stream on protobuf message boundaries (default).
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the 
+    regexp delimiter a single capture group can be specified to preserve the 
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the message depending on the delimiter_location configuration. 
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of the message.
+    - end - the regexp delimiter occurs at the end of the message (default).
+
 
 Example:
 
@@ -398,6 +408,23 @@ Parameters:
 
     - hmac_key (string):
         The hash key used to sign the message.
+- decoder (string):
+    Decoder name used to transform the stream into a structured hekad message.
+    If no decoder is specified the parsed data is placed in the Heka message
+    payload. The value is always set to ProtobufDecoder for the message.proto 
+    parser regardless of what is specified.
+- parser_type (string):
+    - token - splits the stream on a byte delimiter.
+    - regexp - splits the stream on a regexp delimiter.
+    - message.proto - splits the stream on protobuf message boundaries (default).
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the 
+    regexp delimiter a single capture group can be specified to preserve the 
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the message depending on the delimiter_location configuration. 
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of the message.
+    - end - the regexp delimiter occurs at the end of the message (default).
 
 Example:
 
@@ -455,9 +482,11 @@ Parameters:
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
-- decoders (list of strings):
-    List of decoder names used to transform the log line into
-    a structured hekad message.
+- decoder (string):
+    Decoder name used to transform the log into a structured hekad message.
+    If no decoder is specified the log data is placed in the Heka message 
+    payload. The value is always set to ProtobufDecoder for the 
+    message.proto parser regardless of what is specified.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
@@ -568,7 +597,7 @@ Example:
 
     [StatsdInput]
     address = ":8125"
-    stat_accum_input = "custom_stat_accumulator"
+    stat_accum_name = "custom_stat_accumulator"
 
 .. _config_stat_accum_input:
 
@@ -622,8 +651,9 @@ Parameters:
     Time interval (in seconds) between attempts to poll for new data.
     Defaults to 10.
 - decoder (string):
-    The name of the decoder used to transform the response body text into
-    a structured hekad message. No default decoder is specified.
+    Decoder name used to transform the response into a structured hekad message.
+    If no decoder is specified the the response data is placed in the Heka
+    message payload. 
 
 Example:
 
@@ -632,7 +662,7 @@ Example:
     [HttpInput]
     url = "http://localhost:9876/"
     ticker_interval = 5
-    decoder = "JsonDecoder"
+    decoder = "PayloadJsonDecoder"
 
 .. end-inputs
 
@@ -640,37 +670,6 @@ Example:
 
 Decoders
 ========
-
-A decoder may be specified for each encoding type defined in message.pb.go.
-Unless you are using a custom decoder you probably won't need to specify these
-by hand, by default the JsonDecoder and ProtobufDecoder will be configured as
-if you had included the following configuration.
-
-Example:
-
-.. code-block:: ini
-
-    [JsonDecoder]
-    encoding_name = "JSON"
-
-    [ProtobufDecoder]
-    encoding_name = "PROTOCOL_BUFFER"
-
-The JsonDecoder converts JSON serialized Heka messages to `Message` struct
-objects. The `encoding_name` setting means that this decoder should be used
-for any Heka protocol messages that have the encoding header of JSON. The
-ProtobufDecoder converts protocol buffers serialized messages to `Message`
-struct objects. The hekad protocol buffers message schema in defined in the
-`message.proto` file in the `message` package.
-
-.. note::
-
-    These sections remain configurable explicitly in the configuration
-    file for possible future use where a different Decoder may want to
-    handle one of these encodings.
-
-.. seealso:: `Protocol Buffers - Google's data interchange format
-   <http://code.google.com/p/protobuf/>`_
 
 .. _config_payloadregex_decoder:
 
