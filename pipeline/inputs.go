@@ -21,6 +21,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"crypto/subtle"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
@@ -257,7 +258,7 @@ func authenticateMessage(signers map[string]Signer, header *Header, msg []byte) 
 		}
 		hm.Write(msg)
 		expectedDigest := hm.Sum(nil)
-		if bytes.Compare(digest, expectedDigest) != 0 {
+		if subtle.ConstantTimeCompare(digest, expectedDigest) != 1 {
 			return false
 		}
 	}
