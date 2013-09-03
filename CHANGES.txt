@@ -4,6 +4,17 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the MessageEncoding enum from the protobuf message (issue #381
+eliminated the need since TCP/UDP inputs were the primary users).
+
+* Removed the JSONDecoder (issue #381 eliminated the need).  Note: the 
+JsonDecoder only supported message.proto JSON and there is now a generalized 
+PayloadJsonDecoder.
+
+* Removed the decoders array configuration in favor of a single MultiDecoder
+  (issue #308).
+	* Impacts: AMQPInput and LogfileInput.
+
 * SandboxManagerFilter now auto-generates a default working directory based on
   the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
 
@@ -55,11 +66,6 @@ Features
 --------
 
 * Added stream parsing to TCP and UDP inputs (issues #381 #165)
-	* Removed the MessageEncoding enum from the protobuf message
-	* Removed the JSONDecoder (this decoder only supported message.proto JSON)
-
-* Remove the decoders array configuration in favor of a single MultiDecoder (issue #308)
-	* Updated AMQPInput and LogfileInput
 
 * Better enforcement of MAX_MESSAGE_SIZE on input data (issue #333)
 

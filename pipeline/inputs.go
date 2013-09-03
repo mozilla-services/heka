@@ -572,7 +572,7 @@ func (t *TcpInput) Init(config interface{}) error {
 		t.parser = tp
 		t.parseFunction = networkPayloadParser
 		switch len(t.config.Delimiter) {
-		case 0: // use default
+		case 0: // no value was set, the default provided by the StreamParser will be used
 		case 1:
 			tp.SetDelimiter(t.config.Delimiter[0])
 		default:

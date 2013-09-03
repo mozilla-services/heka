@@ -294,6 +294,7 @@ Parameters:
 - QueueAutoDelete (bool):
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
+.. versionchanged:: 0.4
 - Decoder (string):
     Decoder name used to transform non Heka protobuf messages into a structured 
     hekad message. If no decoder is specified the amqp message body is placed in
@@ -352,6 +353,7 @@ Parameters:
 
     - hmac_key (string):
         The hash key used to sign the message.
+.. versionadded:: 0.4
 - decoder (string):
     Decoder name used to transform the stream into a structured hekad message.
     If no decoder is specified the parsed data is placed in the Heka message
@@ -408,6 +410,8 @@ Parameters:
 
     - hmac_key (string):
         The hash key used to sign the message.
+
+.. versionadded:: 0.4
 - decoder (string):
     Decoder name used to transform the stream into a structured hekad message.
     If no decoder is specified the parsed data is placed in the Heka message
@@ -482,11 +486,6 @@ Parameters:
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
-- decoder (string):
-    Decoder name used to transform the log into a structured hekad message.
-    If no decoder is specified the log data is placed in the Heka message 
-    payload. The value is always set to ProtobufDecoder for the 
-    message.proto parser regardless of what is specified.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
@@ -507,6 +506,13 @@ Parameters:
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
     default, hekad will resume reading from the start of file.  
+.. versionchanged:: 0.4
+- decoder (string):
+    Decoder name used to transform the log into a structured hekad message.
+    If no decoder is specified the log data is placed in the Heka message 
+    payload. The value is always set to ProtobufDecoder for the 
+    message.proto parser regardless of what is specified.
+.. versionadded:: 0.4
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
