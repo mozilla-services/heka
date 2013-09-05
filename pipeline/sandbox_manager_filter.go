@@ -123,7 +123,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher != "" {
 		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
-			pluginGlobals.Signer); err != nil {
+			pluginGlobals.Signer, runner); err != nil {
 			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
 				wrapper.name, err)
 		}
