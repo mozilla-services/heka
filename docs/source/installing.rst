@@ -31,7 +31,7 @@ distributions and all are available for installation on Windows systems.
 
 Prerequisites (all systems):
 
-- CMake 2.8 or greater http://www.cmake.org/cmake/resources/software.html
+- CMake 2.8.7 or greater http://www.cmake.org/cmake/resources/software.html
 - Git http://git-scm.com/download
 - Go 1.1 or greater (1.1.1 recommended) http://code.google.com/p/go/downloads/list
 - Mercurial http://mercurial.selenic.com/downloads/
