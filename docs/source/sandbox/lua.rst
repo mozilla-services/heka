@@ -1,6 +1,5 @@
 .. _lua:
 
-===========
 Lua Sandbox
 ===========
 
@@ -11,7 +10,7 @@ restrictions.
 .. seealso:: `Lua Reference Manual <http://www.lua.org/manual/5.1/>`_
 
 API
-===
+---
 
 Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
@@ -24,11 +23,15 @@ Functions that must be exposed from the Lua sandbox
         none
 
     *Return*
-        0 for success, non zero for failure
+        - < 0 for non-fatal failure (increments ProcessMessageFailures)
+        - 0 for success
+        - > 0 for fatal error (terminates the sandbox)
 
 **timer_event(ns)**
     Called by Heka when the ticker_interval expires.  The instruction_limit 
-    configuration parameter is applied to this function call.
+    configuration parameter is applied to this function call.  This function
+    is only required in SandboxFilters (SandboxDecoders do not support timer
+    events).
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch
@@ -104,7 +107,7 @@ Heka functions that are exposed to the Lua sandbox
     * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
     * UUID is automatically generated, anything provided by the user is ignored.
     * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
-    * Type is prepended with "heka.sandbox." to avoid data confusion/mis-representation.
+    * Type is prepended with "heka.sandbox." by the SandboxFilter to avoid data confusion/mis-representation.
     * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
         * name=value i.e., foo="bar"; foo=1; foo=true
         * name={array} i.e., foo={"b", "a", "r"}
@@ -123,7 +126,7 @@ Heka functions that are exposed to the Lua sandbox
 
     *Arguments*
         - libraryName (string)
-            - **lpeg** loads the Lua Parsing Expression Grammar Library
+            - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
 
     *Return*
         none, the library is exposed as a global table with the library name.
@@ -133,9 +136,9 @@ Sample Lua Message Structure
 .. code-block:: lua
 
     {
-    Uuid        = "data",               -- ignored
-    Logger      = "nginx",              -- ignored 
-    Hostname    = "bogus.mozilla.com",  -- ignored 
+    Uuid        = "data",               -- always ignored
+    Logger      = "nginx",              -- ignored in the SandboxFilter
+    Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
 
     Timestamp   = 1e9,                   
     Type        = "TEST",               -- will become "heka.sandbox.TEST" in the SandboxFilter
@@ -149,8 +152,9 @@ Sample Lua Message Structure
                 }
     }
 
-Circular Buffer Library
-=======================
+Lua Circular Buffer Library
+===========================
+
 The library is a sliding window time series data store and is implemented in
 the ``circular_buffer`` table.
 
@@ -300,8 +304,8 @@ containing a graphical view of the data.
 
 .. _lua_tutorials:
 
-Tutorials
-=========
+Lua Sandbox Tutorial
+====================
 
 How to create a simple sandbox filter
 -------------------------------------

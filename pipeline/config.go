@@ -768,4 +768,7 @@ func init() {
 	RegisterPlugin("LogfileDirectoryManagerInput", func() interface{} {
 		return new(LogfileDirectoryManagerInput)
 	})
+	RegisterPlugin("SandboxDecoder", func() interface{} {
+		return new(SandboxDecoder)
+	})
 }

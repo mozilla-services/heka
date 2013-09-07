@@ -52,6 +52,10 @@ Bug Handling
 Features
 --------
 
+* Added SandboxDecoder (issue #370)
+
+* Support Heka protobuf message data in the LogfileInput plugin (issue #261)
+
 * Added "payload" format option to ElasticSearchOutput to pass message payload
   through to ES unchanged.
 

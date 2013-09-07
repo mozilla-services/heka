@@ -352,7 +352,7 @@ func decodeHeader(buf []byte, header *Header) bool {
 func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool) {
 	pos = bytes.IndexByte(buf, RECORD_SEPARATOR)
 	if pos != -1 {
-		if len(buf) > 1 {
+		if len(buf)-pos > 1 {
 			headerLength := int(buf[pos+1])
 			headerEnd := pos + headerLength + 3 // recsep+len+header+unitsep
 			if len(buf) >= headerEnd {

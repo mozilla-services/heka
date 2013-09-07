@@ -473,9 +473,7 @@ func InputsSpec(c gs.Context) {
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
-			if 0 != bytes.Compare(journalData, journalFile) {
-				t.Errorf("The journal data does not match")
-			}
+			c.Expect(bytes.Compare(journalData, journalFile), gs.Equals, 0)
 		})
 
 		c.Specify("uses the filename as the default logger name", func() {
@@ -575,9 +573,7 @@ func InputsSpec(c gs.Context) {
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
-			if 0 != bytes.Compare(journalData, journalFile) {
-				t.Errorf("The journal data does not match")
-			}
+			c.Expect(bytes.Compare(journalData, journalFile), gs.Equals, 0)
 		})
 	})
 
@@ -662,9 +658,86 @@ func InputsSpec(c gs.Context) {
 			journalData := []byte(`{"last_hash":"39e4c3e6e9c88a794b3e7c91c155682c34cf1a4a","last_len":41,"last_start":172,"seek":214}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
-			if 0 != bytes.Compare(journalData, journalFile) {
-				t.Errorf("The journal data does not match")
+			c.Expect(bytes.Compare(journalData, journalFile), gs.Equals, 0)
+		})
+	})
+
+	c.Specify("A message.proto LogFileInput", func() {
+		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+		c.Expect(tmpErr, gs.Equals, nil)
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = tmpDir
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr = os.RemoveAll(tmpDir)
+			c.Expect(tmpErr, gs.Equals, nil)
+		}()
+		var err error
+		lfInput := new(LogfileInput)
+		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+		lfiConfig.SeekJournalName = "protobuf-seekjournal"
+		c.Expect(err, gs.IsNil)
+		lfiConfig.LogFile = "../testsupport/protobuf.log"
+		lfiConfig.ParserType = "message.proto"
+		lfiConfig.UseSeekJournal = true
+
+		lfiConfig.DiscoverInterval = 1
+		lfiConfig.StatInterval = 1
+		err = lfInput.Init(lfiConfig)
+		c.Expect(err, gs.IsNil)
+
+		dName := "decoder-name"
+		lfInput.decoderNames = []string{dName}
+		mockDecoderRunner := NewMockDecoderRunner(ctrl)
+		mockDecoder := NewMockDecoder(ctrl)
+
+		// Create pool of packs.
+		numLines := 7 // # of lines in the log file we're parsing.
+		packs := make([]*PipelinePack, numLines)
+		ith.PackSupply = make(chan *PipelinePack, numLines)
+		for i := 0; i < numLines; i++ {
+			packs[i] = NewPipelinePack(ith.PackSupply)
+			ith.PackSupply <- packs[i]
+		}
+
+		c.Specify("reads a log file", func() {
+			// Expect InputRunner calls to get InChan and inject outgoing msgs
+			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
+			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
+			// Expect calls to get decoder and decode each message. Since the
+			// decoding is a no-op, the message payload will be the log file
+			// line, unchanged.
+			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall.Return(mockDecoderRunner, true)
+			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
+			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
+			decodeCall.Return(nil)
+			go func() {
+				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
+				c.Expect(err, gs.IsNil)
+			}()
+			for len(ith.PackSupply) > 0 {
+				// Free up the scheduler while we wait for the log file lines
+				// to be processed.
+				runtime.Gosched()
 			}
+
+			lines := []int{36230, 41368, 42310, 41343, 37171, 56727, 46492}
+			for i, line := range lines {
+				c.Expect(len(packs[i].MsgBytes), gs.Equals, line)
+                err = proto.Unmarshal(packs[i].MsgBytes, packs[i].Message)
+                c.Expect(err, gs.IsNil)
+                c.Expect(packs[i].Message.GetType(), gs.Equals, "hekabench")
+			}
+			close(lfInput.Monitor.stopChan)
+
+			journalData := []byte(`{"last_hash":"f67dc6bbbbb6a91b59e661b6170de50c96eab100","last_len":46499,"last_start":255191,"seek":301690}`)
+			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
+			c.Expect(err, gs.IsNil)
+			c.Expect(bytes.Compare(journalData, journalFile), gs.Equals, 0)
 		})
 	})
 }
