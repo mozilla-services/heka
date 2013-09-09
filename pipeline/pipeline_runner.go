@@ -46,6 +46,7 @@ type GlobalConfigStruct struct {
 	MaxMsgLoops         uint
 	MaxMsgProcessInject uint
 	MaxMsgTimerInject   uint
+	MaxPackIdle         time.Duration
 	Stopping            bool
 	BaseDir             string
 	sigChan             chan os.Signal
@@ -53,6 +54,7 @@ type GlobalConfigStruct struct {
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
+	idle, _ := time.ParseDuration("2m")
 	return &GlobalConfigStruct{
 		PoolSize:            100,
 		DecoderPoolSize:     2,
@@ -60,6 +62,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgLoops:         4,
 		MaxMsgProcessInject: 1,
 		MaxMsgTimerInject:   10,
+		MaxPackIdle:         idle,
 	}
 }
 
@@ -115,7 +118,7 @@ func (p *PacketTracking) Reset() {
 }
 
 // Returns the names of the plugins that have last accessed the packet
-func (p *PacketTracking) PluginNames(names []string) {
+func (p *PacketTracking) PluginNames() (names []string) {
 	names = make([]string, 0, 4)
 	for _, pr := range p.lastPlugins {
 		names = append(names, pr.Name())
@@ -145,12 +148,47 @@ func (d *DiagnosticTracker) AddPack(pack *PipelinePack) {
 
 // Run the monitoring routine, this should be spun up in a new goroutine
 func (d *DiagnosticTracker) Run() {
-	idleMax := time.Duration(5) * time.Second
+	var (
+		pack           *PipelinePack
+		earliestAccess time.Time
+		pluginCounts   map[string]int
+		name           string
+		count          int
+	)
+	idleMax := Globals().MaxPackIdle
 	probablePacks := make([]*PipelinePack, 0, len(d.packs))
-	ticker := time.NewTicker(time.Duration(2) * time.Second)
+	ticker := time.NewTicker(time.Duration(30) * time.Second)
 	for {
 		<-ticker.C
+		probablePacks = probablePacks[:0]
+		pluginCounts = make(map[string]int)
 
+		// Locate all the packs that have not been touched in idleMax duration
+		// that are not recycled
+		earliestAccess = time.Now().Add(-idleMax)
+		for _, pack = range d.packs {
+			if len(pack.diagnostics.lastPlugins) == 0 {
+				continue
+			}
+			if pack.diagnostics.LastAccess.Before(earliestAccess) {
+				probablePacks = append(probablePacks, pack)
+				for _, pluginName := range pack.diagnostics.PluginNames() {
+					pluginCounts[pluginName] += 1
+				}
+			}
+		}
+
+		// Drop a warning about how many packs have been idle
+		if len(probablePacks) > 0 {
+			log.Printf("(%s) Diagnostics: %d packs have been idle more than %d seconds.\n",
+				d.ChannelName, len(probablePacks), idleMax)
+			log.Printf("(%s) Plugin names and quantities found on idle packs:\n",
+				d.ChannelName)
+			for name, count = range pluginCounts {
+				log.Printf("\t%s: %d\n", name, count)
+			}
+			log.Println("")
+		}
 	}
 }
 
@@ -588,6 +626,8 @@ func Run(config *PipelineConfig) {
 		config.injectRecycleChan <- injectPack
 	}
 
+	go inputTracker.Run()
+	go injectTracker.Run()
 	config.router.Start()
 
 	for name, input := range config.InputRunners {

@@ -23,22 +23,26 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type HekadConfig struct {
-	Maxprocs            int    `toml:"maxprocs"`
-	PoolSize            int    `toml:"poolsize"`
-	DecoderPoolSize     int    `toml:"decoder_poolsize"`
-	ChanSize            int    `toml:"plugin_chansize"`
-	CpuProfName         string `toml:"cpuprof"`
-	MemProfName         string `toml:"memprof"`
-	MaxMsgLoops         uint   `toml:"max_message_loops"`
-	MaxMsgProcessInject uint   `toml:"max_process_inject"`
-	MaxMsgTimerInject   uint   `toml:"max_timer_inject"`
-	BaseDir             string `toml:"base_dir"`
+	Maxprocs            int           `toml:"maxprocs"`
+	PoolSize            int           `toml:"poolsize"`
+	DecoderPoolSize     int           `toml:"decoder_poolsize"`
+	ChanSize            int           `toml:"plugin_chansize"`
+	CpuProfName         string        `toml:"cpuprof"`
+	MemProfName         string        `toml:"memprof"`
+	MaxMsgLoops         uint          `toml:"max_message_loops"`
+	MaxMsgProcessInject uint          `toml:"max_process_inject"`
+	MaxMsgTimerInject   uint          `toml:"max_timer_inject"`
+	MaxPackIdle         time.Duration `toml:"max_pack_idle"`
+	BaseDir             string        `toml:"base_dir"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
+	idle, _ := time.ParseDuration("2m")
+
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:            100,
 		DecoderPoolSize:     4,
@@ -48,6 +52,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxMsgLoops:         4,
 		MaxMsgProcessInject: 1,
 		MaxMsgTimerInject:   10,
+		MaxPackIdle:         idle,
 		BaseDir:             filepath.FromSlash("/var/cache/hekad"),
 	}
 
