@@ -431,6 +431,7 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	}
 
 	for !stopped {
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		select {
 		case <-self.stopChan:
 			stopped = true
@@ -471,8 +472,13 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 				}
 			}
 			if err != nil {
-				stopped = true
-				break
+				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+					// keep the connection open, we are just checking to see if
+					// we are shutting down: Issue #354
+				} else {
+					stopped = true
+					break
+				}
 			}
 			// make room at the end of the buffer
 			if (header.MessageLength != nil &&
