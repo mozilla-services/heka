@@ -20,6 +20,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"crypto/subtle"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
@@ -402,7 +403,7 @@ func authenticateMessage(signers map[string]Signer, header *Header,
 		}
 		hm.Write(pack.MsgBytes)
 		expectedDigest := hm.Sum(nil)
-		if bytes.Compare(digest, expectedDigest) != 0 {
+		if subtle.ConstantTimeCompare(digest, expectedDigest) != 1 {
 			return false
 		}
 		pack.Signer = header.GetHmacSigner()
@@ -431,6 +432,7 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 	}
 
 	for !stopped {
+		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		select {
 		case <-self.stopChan:
 			stopped = true
@@ -471,8 +473,13 @@ func (self *TcpInput) handleConnection(conn net.Conn) {
 				}
 			}
 			if err != nil {
-				stopped = true
-				break
+				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+					// keep the connection open, we are just checking to see if
+					// we are shutting down: Issue #354
+				} else {
+					stopped = true
+					break
+				}
 			}
 			// make room at the end of the buffer
 			if (header.MessageLength != nil &&

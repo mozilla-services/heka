@@ -229,6 +229,7 @@ func InputsSpec(c gs.Context) {
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 		enccall := ith.MockDecoderSet.EXPECT().ByEncodings()
 		enccall.Return(ith.Decoders, nil)
+		mockConnection.EXPECT().SetReadDeadline(gomock.Any()).Return(nil)
 
 		c.Specify("reads a message from its connection", func() {
 			hbytes, _ := proto.Marshal(header)
@@ -728,9 +729,9 @@ func InputsSpec(c gs.Context) {
 			lines := []int{36230, 41368, 42310, 41343, 37171, 56727, 46492}
 			for i, line := range lines {
 				c.Expect(len(packs[i].MsgBytes), gs.Equals, line)
-                err = proto.Unmarshal(packs[i].MsgBytes, packs[i].Message)
-                c.Expect(err, gs.IsNil)
-                c.Expect(packs[i].Message.GetType(), gs.Equals, "hekabench")
+				err = proto.Unmarshal(packs[i].MsgBytes, packs[i].Message)
+				c.Expect(err, gs.IsNil)
+				c.Expect(packs[i].Message.GetType(), gs.Equals, "hekabench")
 			}
 			close(lfInput.Monitor.stopChan)
 
