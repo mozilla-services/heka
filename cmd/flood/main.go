@@ -49,7 +49,6 @@ type FloodTest struct {
 	IpAddress            string                       `toml:"ip_address"`
 	Sender               string                       `toml:"sender"`
 	PprofFile            string                       `toml:"pprof_file"`
-	Encoder              string                       `toml:"encoder"`
 	NumMessages          uint64                       `toml:"num_messages"`
 	Signer               message.MessageSigningConfig `toml:"signer"`
 	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
@@ -272,16 +271,8 @@ func main() {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
-	var unsignedEncoder client.Encoder
-	var signedEncoder client.Encoder
-	switch test.Encoder {
-	case "json":
-		unsignedEncoder = client.NewJsonEncoder(nil)
-		signedEncoder = client.NewJsonEncoder(&test.Signer)
-	case "protobuf":
-		unsignedEncoder = client.NewProtobufEncoder(nil)
-		signedEncoder = client.NewProtobufEncoder(&test.Signer)
-	}
+	unsignedEncoder := client.NewProtobufEncoder(nil)
+	signedEncoder := client.NewProtobufEncoder(&test.Signer)
 
 	var numTestMessages = 1
 	var unsignedMessages [][]byte

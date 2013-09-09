@@ -24,18 +24,6 @@ Sample text output ::
         InChanCapacity: 50
         InChanLength: 0
         ProcessMessageCount: 26
-    JsonDecoder-0:
-        InChanCapacity: 50
-        InChanLength: 0
-    JsonDecoder-1:
-        InChanCapacity: 50
-        InChanLength: 0
-    JsonDecoder-2:
-        InChanCapacity: 50
-        InChanLength: 0
-    JsonDecoder-3:
-        InChanCapacity: 50
-        InChanLength: 0
     ProtobufDecoder-0:
         InChanCapacity: 50
         InChanLength: 0
@@ -48,9 +36,6 @@ Sample text output ::
     ProtobufDecoder-3:
         InChanCapacity: 50
         InChanLength: 0
-    DecoderPool-JsonDecoder:
-        InChanCapacity: 4
-        InChanLength: 4
     DecoderPool-ProtobufDecoder:
         InChanCapacity: 4
         InChanLength: 4

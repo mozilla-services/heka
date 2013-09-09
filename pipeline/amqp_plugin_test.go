@@ -68,17 +68,15 @@ func AMQPPluginSpec(c gs.Context) {
 		// set up mock helper, decoder set, and packSupply channel
 		ith.MockHelper = NewMockPluginHelper(ctrl)
 		ith.MockInputRunner = NewMockInputRunner(ctrl)
-		ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-		ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
-		ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
+		ith.Decoder = NewMockDecoderRunner(ctrl)
 		ith.PackSupply = make(chan *PipelinePack, 1)
 		ith.DecodeChan = make(chan *PipelinePack)
 		ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Times(2).Return(ith.MockDecoderSet)
-		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
-		encCall.Return(ith.Decoders, nil)
+		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
+		encCall := ith.MockDecoderSet.EXPECT().ByName("ProtobufDecoder")
+		encCall.Return(ith.Decoder, true)
 
 		c.Specify("with a valid setup and no decoders", func() {
 
@@ -154,7 +152,7 @@ func AMQPPluginSpec(c gs.Context) {
 					gomock.Any()).Return(streamChan, nil)
 
 				// Expect the decoded pack
-				mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+				mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 				mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 
 				// Increase the usage since Run decrements it on close
@@ -180,7 +178,7 @@ func AMQPPluginSpec(c gs.Context) {
 			defaultConfig.Exchange = ""
 			defaultConfig.ExchangeType = ""
 			defaultConfig.RoutingKey = "test"
-			defaultConfig.Decoders = []string{"defaultDecode"}
+			defaultConfig.Decoder = "defaultDecode"
 			err := amqpInput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
@@ -201,14 +199,11 @@ func AMQPPluginSpec(c gs.Context) {
 					gomock.Any()).Return(streamChan, nil)
 
 				// Make the mock decoder runner and decoder for the 'defaultDecode'
-				dmr := NewMockDecoderRunner(ctrl)
-				mdec := NewMockDecoder(ctrl)
-				ith.MockDecoderSet.EXPECT().ByName("defaultDecode").Return(dmr, true)
-				dmr.EXPECT().Decoder().Return(mdec)
-				mdec.EXPECT().Decode(ith.Pack).Return(nil)
+				ith.MockDecoderSet.EXPECT().ByName("defaultDecode").Return(ith.Decoder, true)
 
-				// Expect the injected packet
-				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
+				// Expect the decoded pack
+				mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+				mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 
 				// Increase the usage since Run decrements it on close
 				ug.Add(1)
@@ -217,7 +212,8 @@ func AMQPPluginSpec(c gs.Context) {
 				go func() {
 					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				}()
-				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
 				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
 				close(streamChan)

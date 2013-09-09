@@ -2,7 +2,6 @@
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"                 # tcp or udp
 pprof_file          = ""
-encoder             = "protobuf"            # protobuf or json
 num_messages        = 0                     # number of message to send 0 = infinite
 corrupt_percentage  = 0.0001                # 1 in a million
 signed_percentage   = 0.00011
@@ -17,7 +16,6 @@ variable_size_messages = true
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
 pprof_file          = ""
-encoder             = "protobuf"
 num_messages        = 0
 ascii_only          = true
 
@@ -25,7 +23,6 @@ ascii_only          = true
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
 pprof_file          = ""
-encoder             = "protobuf"
 num_messages        = 0
 static_message_size = 20000
 
@@ -33,7 +30,6 @@ static_message_size = 20000
 ip_address          = "127.0.0.1:5566"
 sender              = "tcp"
 pprof_file          = ""
-encoder             = "protobuf"
 num_messages        = 0
 static_message_size = 20000
 
@@ -41,17 +37,9 @@ static_message_size = 20000
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
 pprof_file          = ""
-encoder             = "protobuf"
 num_messages        = 0
 variable_size_messages = true
 ascii_only          = true
-
-[simple_json]
-ip_address          = "127.0.0.1:5565"
-sender              = "tcp"
-pprof_file          = ""
-encoder             = "json"
-num_messages        = 0
 
 [udp]                                       # real world some errors, variable size messages
 ip_address          = "127.0.0.1:5565"
@@ -72,20 +60,11 @@ variable_size_messages = true
 ip_address          = "127.0.0.1:5565"
 sender              = "udp"
 pprof_file          = ""
-encoder             = "protobuf"            # protobuf or json
 num_messages        = 0                     # number of message to send 0 = infinite
-
-[simple_udp_json]
-ip_address          = "127.0.0.1:5565"
-sender              = "udp"
-pprof_file          = ""
-encoder             = "json"
-num_messages        = 0
 
 [signed]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
-encoder             = "protobuf"
 corrupt_percentage  = 0.0001                # 1 in a million
 signed_percentage   = 100.0
 [signed.signer]
@@ -97,7 +76,6 @@ signed_percentage   = 100.0
 [signed_sha1]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
-encoder             = "protobuf"
 corrupt_percentage  = 0.0001                # 1 in a million
 signed_percentage   = 100.0
 [signed_sha1.signer]
@@ -109,13 +87,27 @@ signed_percentage   = 100.0
 [1000]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
-encoder             = "protobuf"
 num_messages        = 1000
+
+[1000_udp]
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"
+num_messages        = 1000
+
+[1_udp]
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"
+num_messages        = 1
+
+[1_udp_var]
+ip_address          = "127.0.0.1:5565"
+sender              = "udp"
+num_messages        = 1
+variable_size_messages = true
 
 [1000_signed]
 ip_address          = "127.0.0.1:5565"
 sender              = "tcp"
-encoder             = "protobuf"
 num_messages        = 1000
 signed_percentage   = 100.0
 [1000_signed.signer]

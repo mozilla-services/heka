@@ -14,13 +14,8 @@ address = "127.0.0.1:5565"
 	[UDP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
-[JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
-
 [ProtobufDecoder]
 type = "ProtobufDecoder"
-encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"
@@ -123,7 +118,7 @@ instruction_limit = 1000000
 [SyncProxyInput]
 type = "LogfileInput"
 logfile = "./sync-proxy.log"
-decoders = ["SyncProxyDecoder"]
+decoder = "SyncProxyDecoder"
 seek_journal_name = "sync-proxy.journal"
 
 [SyncProxyDecoder]
@@ -170,7 +165,7 @@ output_limit = 64000
 [AuditLogInput]
 type = "LogfileInput"
 logfile = "./audit.log"
-decoders = ["AuditLogDecoder"]
+decoder = "AuditLogDecoder"
 seek_journal_name = "audit.journal"
 
 [AuditLogDecoder]

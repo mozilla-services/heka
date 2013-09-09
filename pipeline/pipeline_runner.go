@@ -425,11 +425,9 @@ type PipelinePack struct {
 // Returns a new PipelinePack pointer that will recycle itself onto the
 // provided channel when a message has completed processing.
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
-	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
 
 	return &PipelinePack{
-		MsgBytes:     msgBytes,
 		Message:      message,
 		RecycleChan:  recycleChan,
 		Decoded:      false,

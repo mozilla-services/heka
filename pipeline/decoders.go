@@ -18,7 +18,6 @@ package pipeline
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"log"
@@ -33,10 +32,6 @@ type DecoderSet interface {
 	// Returns running DecoderRunner registered under the specified name, or
 	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
-	// Returns slice of running DecoderRunners, indexed by the Heka protocol
-	// encoding headers for which they're registered. Only returns the
-	// decoders that have been registered for a specific header.
-	ByEncodings() (decoders []DecoderRunner, err error)
 }
 
 type decoderSet struct {
@@ -68,28 +63,6 @@ func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
 		dChan <- decoder
 		ds.byName[name] = decoder
 	}
-	return
-}
-
-func (ds *decoderSet) ByEncodings() (decoders []DecoderRunner, err error) {
-	if ds.byEncoding != nil {
-		return ds.byEncoding, nil
-	}
-	var (
-		dRunner DecoderRunner
-		ok      bool
-	)
-	length := int32(topHeaderMessageEncoding) + 1
-	decoders = make([]DecoderRunner, length)
-	for enc, name := range DecodersByEncoding {
-		if dRunner, ok = ds.ByName(name); !ok {
-			err = fmt.Errorf("Decoder '%s' registered for encoding '%s' not configured",
-				name, enc.String())
-			return
-		}
-		decoders[enc] = dRunner
-	}
-	ds.byEncoding = decoders
 	return
 }
 
@@ -193,17 +166,6 @@ type Decoder interface {
 	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
 	// and use it to populated pack.Message message object.
 	Decode(pack *PipelinePack) error
-}
-
-// Decoder for converting JSON strings into Message objects.
-type JsonDecoder struct{}
-
-func (self *JsonDecoder) Init(config interface{}) error {
-	return nil
-}
-
-func (self *JsonDecoder) Decode(pack *PipelinePack) error {
-	return json.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
 // Decoder for converting ProtocolBuffer data into Message objects.

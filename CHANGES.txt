@@ -4,6 +4,17 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the MessageEncoding enum from the protobuf message (issue #381
+eliminated the need since TCP/UDP inputs were the primary users).
+
+* Removed the JSONDecoder (issue #381 eliminated the need).  Note: the 
+JsonDecoder only supported message.proto JSON and there is now a generalized 
+PayloadJsonDecoder.
+
+* Removed the decoders array configuration in favor of a single MultiDecoder
+  (issue #308).
+	* Impacts: AMQPInput and LogfileInput.
+
 * SandboxManagerFilter now auto-generates a default working directory based on
   the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
 
@@ -25,6 +36,8 @@ Backwards Incompatibilities
 
 Bug Handling
 ------------
+
+* Timeout inactive TCPInput connections on shutdown (issue #354)
 
 * Removed all code that attempted to catch and recover from panics in called
   plugin code, since a) the recovery often left Heka in an undefined, broken
@@ -51,6 +64,10 @@ Bug Handling
 
 Features
 --------
+
+* Added stream parsing to TCP and UDP inputs (issues #381 #165)
+
+* Better enforcement of MAX_MESSAGE_SIZE on input data (issue #333)
 
 * Added SandboxDecoder (issue #370)
 
