@@ -58,6 +58,11 @@ Restarting interface (see :ref:`restarting_plugins`). Plugins
 supporting Restarting can have :ref:`their restarting behavior
 configured <configuring_restarting>`.
 
+An internal diagnostic runner runs every 30 seconds to sweep the packs
+used for messages so that possible bugs in heka plugins can be reported
+and pinned down to a likely plugin(s) that failed to properly recycle
+the pack.
+
 .. end-hekad-config
 
 Global configuration options
@@ -83,6 +88,12 @@ Parameters:
 - max_timer_inject (uint):
     The maximum number of messages that a sandbox filter's TimerEvent
     function can inject in a single call; the default is 10.
+
+- max_pack_idle (string):
+    A time duration string (e.x. "2s", "2m", "2h") indicating how long a
+    message pack can be 'idle' before its considered leaked by heka. If too
+    many packs leak from a bug in a filter or output then heka will eventually
+    halt. This setting indicates when that is considered to have occurred.
 
 - maxprocs (int):
     Enable multi-core usage; the default is 1 core. More cores will generally
@@ -477,17 +488,17 @@ Parameters:
     When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
-    default, hekad will resume reading from the start of file.  
+    default, hekad will resume reading from the start of file.
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
     - message.proto - splits the log on protobuf message boundaries
 - delimiter (string): Only used for token or regexp parsers.
-    Character or regexp delimiter used by the parser (default "\\n").  For the 
-    regexp delimiter a single capture group can be specified to preserve the 
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
     delimiter (or part of the delimiter). The capture will be added to the start
-    or end of the log line depending on the delimiter_location configuration. 
-    Note: when a start delimiter is used the last line in the file will not be 
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
     processed (since the next record defines its end) until the log is rolled.
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of a log line.
@@ -616,7 +627,7 @@ are not fatal for the plugin.
 Parameters:
 
 - url (string):
-    A HTTP URL which this plugin will regularly poll for data. 
+    A HTTP URL which this plugin will regularly poll for data.
     No default URL is specified.
 - ticker_interval (uint):
     Time interval (in seconds) between attempts to poll for new data.
@@ -697,8 +708,8 @@ Parameters:
     that should be used. Valid interpolated values are any captured in a regex
     in the message_matcher, and any other field that exists in the message. In
     the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at 
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    name's value will be used. Optional representation metadata can be added at
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
@@ -774,8 +785,8 @@ Parameters:
     that should be used. Valid interpolated values are any captured in a JSONPath
     in the message_matcher, and any other field that exists in the message. In
     the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at 
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    name's value will be used. Optional representation metadata can be added at
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
@@ -886,7 +897,7 @@ Parameters:
 - order (list of strings):
     PipelinePack objects will be passed in order to each decoder in this list.
     Default is an empty list.
-    
+
 - name (string):
     Defaults to MultiDecoder-<address of multidecoder>.
 
@@ -894,7 +905,7 @@ Parameters:
     If true, the DecoderRunner will log the errors returned whenever a
     delegate decoder fails to decode a message. Defaults to false.
 
-Example (Two PayloadRegexDecoder delegates): 
+Example (Two PayloadRegexDecoder delegates):
 
 .. code-block:: ini
 
@@ -1370,7 +1381,7 @@ Parameters:
 - password (string, optional):
     Password used to authenticate with the Nagios web interface. Defaults to "".
 - responseheadertimeout (uint, optional):
-    Specifies the amount of time, in seconds, to wait for a server's response 
+    Specifies the amount of time, in seconds, to wait for a server's response
     headers after fully writing the request. Defaults to 2.
 
 Example configuration to output alerts from SandboxFilter plugins:
