@@ -1097,10 +1097,14 @@ Parameters:
 - cluster (string):
     ElasticSearch cluster name. Defaults to "elasticsearch"
 - index (string):
-    Name of the ES index into which the messages will be inserted. Defaults to
-    "heka-%{2006.01.02}".
+    Name of the ES index into which the messages will be inserted.
+    If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
+    are placed between within a %{}, it will be interpolated to their message value.
+    Defaults to "heka-%{2006.01.02}".
 - type_name (string):
     Name of ES record type to create. Defaults to "message".
+    If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
+    are placed between within a %{}, it will be interpolated to their message value. 
 - flush_interval (int):
     Interval at which accumulated messages should be bulk indexed into
     ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
