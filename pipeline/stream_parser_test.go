@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"bytes"
+	"github.com/mozilla-services/heka/message"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
 )
@@ -206,5 +207,38 @@ func StreamParserSpec(c gs.Context) {
 		c.Expect(n, gs.Equals, 72)
 		c.Expect(err, gs.IsNil)
 		c.Expect(string(record), gs.Equals, string(b[5:]))
+	})
+
+	c.Specify("max record size", func() {
+		b := make([]byte, message.MAX_RECORD_SIZE)
+		b[message.MAX_RECORD_SIZE-1] = '\t'
+		reader := bytes.NewReader(b)
+		p := NewTokenParser()
+		p.SetDelimiter('\t')
+		var n int
+		var record []byte
+		var err error
+		for err == nil && len(record) == 0 {
+			n, record, err = p.Parse(reader)
+		}
+		c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
+		c.Expect(string(record), gs.Equals, string(b))
+		c.Expect(err, gs.IsNil)
+	})
+
+	c.Specify("exceed max record size", func() {
+		b := make([]byte, message.MAX_RECORD_SIZE+1)
+		reader := bytes.NewReader(b)
+		p := NewTokenParser()
+		p.SetDelimiter('\t')
+		var n int
+		var record []byte
+		var err error
+		for err == nil {
+			n, record, err = p.Parse(reader)
+		}
+		c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
+		c.Expect(len(record), gs.Equals, 0)
+		c.Expect(err, gs.Equals, io.ErrShortBuffer)
 	})
 }
