@@ -10,6 +10,8 @@ Bug Handling
 Features
 --------
 
+* Make index type_name option for ElasticSearchOutput definable from Field value (issue #356)
+
 
 0.3.0 (2013-07-16)
 ==================
