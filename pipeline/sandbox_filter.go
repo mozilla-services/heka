@@ -149,8 +149,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = 50000 // duration in nanoseconds (20K msg/sec)
-		capacity             = cap(inChan) - 1
+		slowDuration   int64 = 100000 // duration in nanoseconds
+		duration       int64
+		capacity       = cap(inChan) - 1
 	)
 
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -219,8 +220,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			retval = this.sb.ProcessMessage(pack.Message)
 			if sample {
+				duration = time.Since(startTime).Nanoseconds()
 				this.reportLock.Lock()
-				this.processMessageDuration += time.Since(startTime).Nanoseconds()
+				this.processMessageDuration += duration
 				this.processMessageSamples++
 				if this.sbc.Profile {
 					this.profileMessageDuration = this.processMessageDuration
@@ -260,8 +262,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
 			}
+			duration = time.Since(startTime).Nanoseconds()
 			this.reportLock.Lock()
-			this.timerEventDuration += time.Since(startTime).Nanoseconds()
+			this.timerEventDuration += duration
 			this.timerEventSamples++
 			this.reportLock.Unlock()
 		}

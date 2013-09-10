@@ -119,8 +119,9 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) error {
 	}
 	retval := s.sb.ProcessMessage(s.pack.Message)
 	if s.sample {
+		duration := time.Since(startTime).Nanoseconds()
 		s.reportLock.Lock()
-		s.processMessageDuration += time.Since(startTime).Nanoseconds()
+		s.processMessageDuration += duration
 		s.processMessageSamples++
 		s.reportLock.Unlock()
 	}
