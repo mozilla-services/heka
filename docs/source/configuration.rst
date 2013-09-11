@@ -455,9 +455,6 @@ Parameters:
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
-- decoders (list of strings):
-    List of decoder names used to transform the log line into
-    a structured hekad message.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
@@ -477,7 +474,14 @@ Parameters:
     When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
-    default, hekad will resume reading from the start of file.  
+    default, hekad will resume reading from the start of file.
+.. versionchanged:: 0.4
+- decoder (string):
+    A decoder must be specified for the message.proto parser
+    (i.e. ProtobufDecoder) but is optional for token and regexp parsers (if no
+    decoder is specified the parsed data is available in the Heka message
+    payload).
+.. versionadded:: 0.4
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
