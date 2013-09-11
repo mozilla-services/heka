@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the LogfileInput decoders array configuration in favor of a single
+  decoder (issue #308)
+
 * SandboxManagerFilter now auto-generates a default working directory based on
   the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
 

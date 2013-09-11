@@ -17,7 +17,6 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/json"
-	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
@@ -68,9 +67,7 @@ func FileMonitorSpec(c gs.Context) {
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = NewMockInputRunner(ctrl)
-	ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-	ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
-	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
+	ith.Decoder = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
 	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
@@ -86,9 +83,8 @@ func FileMonitorSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			dName := "decoder-name"
-			lfInput.decoderNames = []string{dName}
+			lfInput.decoderName = dName
 			mockDecoderRunner := NewMockDecoderRunner(ctrl)
-			mockDecoder := NewMockDecoder(ctrl)
 
 			// Create pool of packs.
 			numLines := 95 // # of lines in the log file we're parsing.
@@ -101,21 +97,20 @@ func FileMonitorSpec(c gs.Context) {
 
 			// Expect InputRunner calls to get InChan and inject outgoing msgs
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
 			pbcall.Return(mockDecoderRunner, true)
-			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
-			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
-			decodeCall.Return(nil)
+			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
+			decodeCall.Return(ith.DecodeChan)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
-			for len(ith.PackSupply) > 0 {
+			for x := 0; x < numLines; x++ {
+				_ = <-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()

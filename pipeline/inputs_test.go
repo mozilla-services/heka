@@ -45,6 +45,7 @@ type InputTestHelper struct {
 	MockInputRunner *MockInputRunner
 	MockDecoderSet  *MockDecoderSet
 	Decoders        []DecoderRunner
+	Decoder         DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
 }
@@ -405,24 +406,18 @@ func InputsSpec(c gs.Context) {
 			tmpErr = os.RemoveAll(tmpDir)
 			c.Expect(tmpErr, gs.IsNil)
 		}()
-		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 		lfiConfig.SeekJournalName = "test-seekjournal"
-		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
 		lfiConfig.UseSeekJournal = true
-
+		lfiConfig.Decoder = "decoder-name"
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err = lfInput.Init(lfiConfig)
+		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
-
-		dName := "decoder-name"
-		lfInput.decoderNames = []string{dName}
 		mockDecoderRunner := NewMockDecoderRunner(ctrl)
-		mockDecoder := NewMockDecoder(ctrl)
 
 		// Create pool of packs.
 		numLines := 95 // # of lines in the log file we're parsing.
@@ -438,25 +433,25 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
-			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
-			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
-			decodeCall.Return(nil)
+			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
+			decodeCall.Return(ith.DecodeChan)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
-			for len(ith.PackSupply) > 0 {
+			for x := 0; x < numLines; x++ {
+				_ = <-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
 			}
+			close(lfInput.Monitor.stopChan)
 
 			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
@@ -469,8 +464,10 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
-			close(lfInput.Monitor.stopChan)
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -503,26 +500,21 @@ func InputsSpec(c gs.Context) {
 			tmpErr = os.RemoveAll(tmpDir)
 			c.Expect(tmpErr, gs.Equals, nil)
 		}()
-		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 		lfiConfig.SeekJournalName = "regex-seekjournal"
-		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
 		lfiConfig.ParserType = "regexp"
 		lfiConfig.Delimiter = "(\n)"
 		lfiConfig.UseSeekJournal = true
-
+		lfiConfig.Decoder = "decoder-name"
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err = lfInput.Init(lfiConfig)
+		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
-		dName := "decoder-name"
-		lfInput.decoderNames = []string{dName}
 		mockDecoderRunner := NewMockDecoderRunner(ctrl)
-		mockDecoder := NewMockDecoder(ctrl)
 
 		// Create pool of packs.
 		numLines := 95 // # of lines in the log file we're parsing.
@@ -538,25 +530,25 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
-			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
-			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
-			decodeCall.Return(nil)
+			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
+			decodeCall.Return(ith.DecodeChan)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
-			for len(ith.PackSupply) > 0 {
+			for x := 0; x < numLines; x++ {
+				_ = <-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
 			}
+			close(lfInput.Monitor.stopChan)
 
 			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
@@ -569,8 +561,10 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line+"\n")
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "zeus")
 			}
-			close(lfInput.Monitor.stopChan)
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f0b60af7f2cb35c3724151422e2f999af6e21fc0","last_len":300,"last_start":28650,"seek":28950}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -588,27 +582,22 @@ func InputsSpec(c gs.Context) {
 			tmpErr = os.RemoveAll(tmpDir)
 			c.Expect(tmpErr, gs.Equals, nil)
 		}()
-		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 		lfiConfig.SeekJournalName = "multiline-seekjournal"
-		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/multiline.log"
 		lfiConfig.Logger = "multiline"
 		lfiConfig.ParserType = "regexp"
 		lfiConfig.Delimiter = "\n(\\d{4}-\\d{2}-\\d{2})"
 		lfiConfig.DelimiterLocation = "start"
 		lfiConfig.UseSeekJournal = true
-
+		lfiConfig.Decoder = "decoder-name"
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err = lfInput.Init(lfiConfig)
+		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
-		dName := "decoder-name"
-		lfInput.decoderNames = []string{dName}
 		mockDecoderRunner := NewMockDecoderRunner(ctrl)
-		mockDecoder := NewMockDecoder(ctrl)
 
 		// Create pool of packs.
 		numLines := 4 // # of lines in the log file we're parsing.
@@ -624,25 +613,25 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
-			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
-			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
-			decodeCall.Return(nil)
+			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
+			decodeCall.Return(ith.DecodeChan)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
-			for len(ith.PackSupply) > 0 {
+			for x := 0; x < numLines; x++ {
+				_ = <-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
 			}
+			close(lfInput.Monitor.stopChan)
 
 			lines := []string{
 				"2012-07-13 18:48:01 debug    readSocket()",
@@ -654,8 +643,10 @@ func InputsSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetPayload(), gs.Equals, line)
 				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "multiline")
 			}
-			close(lfInput.Monitor.stopChan)
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"39e4c3e6e9c88a794b3e7c91c155682c34cf1a4a","last_len":41,"last_start":172,"seek":214}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
@@ -673,24 +664,19 @@ func InputsSpec(c gs.Context) {
 			tmpErr = os.RemoveAll(tmpDir)
 			c.Expect(tmpErr, gs.Equals, nil)
 		}()
-		var err error
 		lfInput := new(LogfileInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
 		lfiConfig.SeekJournalName = "protobuf-seekjournal"
-		c.Expect(err, gs.IsNil)
 		lfiConfig.LogFile = "../testsupport/protobuf.log"
 		lfiConfig.ParserType = "message.proto"
 		lfiConfig.UseSeekJournal = true
-
+		lfiConfig.Decoder = "decoder-name"
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err = lfInput.Init(lfiConfig)
+		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
 
-		dName := "decoder-name"
-		lfInput.decoderNames = []string{dName}
 		mockDecoderRunner := NewMockDecoderRunner(ctrl)
-		mockDecoder := NewMockDecoder(ctrl)
 
 		// Create pool of packs.
 		numLines := 7 // # of lines in the log file we're parsing.
@@ -702,29 +688,26 @@ func InputsSpec(c gs.Context) {
 		}
 
 		c.Specify("reads a log file", func() {
-			// Expect InputRunner calls to get InChan and inject outgoing msgs
+			// Expect InputRunner calls to get InChan and decode outgoing msgs
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).Times(numLines)
-			// Expect calls to get decoder and decode each message. Since the
-			// decoding is a no-op, the message payload will be the log file
-			// line, unchanged.
 			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
-			mockDecoderRunner.EXPECT().Decoder().Return(mockDecoder)
-			decodeCall := mockDecoder.EXPECT().Decode(gomock.Any()).Times(numLines)
-			decodeCall.Return(nil)
+			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
+			decodeCall.Return(ith.DecodeChan)
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
-			for len(ith.PackSupply) > 0 {
+			for x := 0; x < numLines; x++ {
+				_ = <-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
 			}
+			close(lfInput.Monitor.stopChan)
 
 			lines := []int{36230, 41368, 42310, 41343, 37171, 56727, 46492}
 			for i, line := range lines {
@@ -733,12 +716,37 @@ func InputsSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				c.Expect(packs[i].Message.GetType(), gs.Equals, "hekabench")
 			}
-			close(lfInput.Monitor.stopChan)
 
+			// Wait for the file update to hit the disk; better suggestions are welcome
+			runtime.Gosched()
+			time.Sleep(time.Millisecond * 250)
 			journalData := []byte(`{"last_hash":"f67dc6bbbbb6a91b59e661b6170de50c96eab100","last_len":46499,"last_start":255191,"seek":301690}`)
 			journalFile, err := ioutil.ReadFile(filepath.Join(tmpDir, "seekjournals", lfiConfig.SeekJournalName))
 			c.Expect(err, gs.IsNil)
 			c.Expect(bytes.Compare(journalData, journalFile), gs.Equals, 0)
 		})
+	})
+
+	c.Specify("A message.proto LogFileInput no decoder", func() {
+		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+		c.Expect(tmpErr, gs.Equals, nil)
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = tmpDir
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr = os.RemoveAll(tmpDir)
+			c.Expect(tmpErr, gs.Equals, nil)
+		}()
+		lfInput := new(LogfileInput)
+		lfiConfig := lfInput.ConfigStruct().(*LogfileInputConfig)
+		lfiConfig.SeekJournalName = "protobuf-seekjournal"
+		lfiConfig.LogFile = "../testsupport/protobuf.log"
+		lfiConfig.ParserType = "message.proto"
+		lfiConfig.UseSeekJournal = true
+		lfiConfig.Decoder = ""
+		lfiConfig.DiscoverInterval = 1
+		lfiConfig.StatInterval = 1
+		err := lfInput.Init(lfiConfig)
+		c.Expect(err, gs.Not(gs.IsNil))
 	})
 }
