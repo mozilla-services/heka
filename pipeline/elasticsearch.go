@@ -211,17 +211,17 @@ type ElasticSearchCoordinates struct {
 	ESIndexFromTimestamp bool
 }
 
-func (e *ElasticSearchCoordinates) String() string {
-	return string(e.Bytes())
+func (e *ElasticSearchCoordinates) String(m *message.Message) string {
+	return string(e.Bytes(m))
 }
 
 // Renders the coordinates of the ElasticSearch document as JSON
-func (e *ElasticSearchCoordinates) Bytes() []byte {
+func (e *ElasticSearchCoordinates) Bytes(m *message.Message) []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
-	buf.WriteString(strconv.Quote(cleanIndexName(e)))
+	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Index)))
 	buf.WriteString(`,"_type":`)
-	buf.WriteString(strconv.Quote(e.Type))
+	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Type)))
 	if len(e.Id) > 0 {
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(e.Id))
@@ -498,19 +498,20 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 
 	var document []byte
 	document, err = o.messageFormatter.Format(pack.Message)
-	pack.Recycle()
 	if err != nil {
+		pack.Recycle()
 		err = fmt.Errorf("Error in message conversion to %s format: %s", o.format, err)
 		return
 	}
 
 	// Write new bulk lines
-	*outBytes = append(*outBytes, coordinates.Bytes()...)
+	*outBytes = append(*outBytes, coordinates.Bytes(pack.Message)...)
 	*outBytes = append(*outBytes, NEWLINE)
 	*outBytes = append(*outBytes, document...)
 	*outBytes = append(*outBytes, NEWLINE)
 
 	document = document[:0]
+	pack.Recycle()
 	return
 }
 
@@ -531,25 +532,47 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
-func cleanIndexName(e *ElasticSearchCoordinates) (index string) {
-	name := e.Index
-	start := strings.Index(name, "%{")
-	end := strings.Index(name, "}")
+func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name string) (interpolatedValue string) {
+        iSlice := strings.Split(name, "%{")
 
-	if start > -1 && end > -1 {
-		layout := name[start+len("%{") : end]
-		var t time.Time
-		if e.ESIndexFromTimestamp && e.Timestamp != nil {
-			t = time.Unix(0, *e.Timestamp).UTC()
-		} else {
-			t = time.Now()
-		}
+        for i,element := range iSlice {
+                elEnd := strings.Index(element, "}")
 
-		index = name[:start] + t.Format(layout)
-	} else {
-		index = name
-	}
-	return
+                if elEnd > -1 {
+                        elVal := element[:elEnd]
+                        switch elVal {
+                        case "Type":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetType(), -1)
+                        case "Hostname":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetHostname(), -1)
+                        case "Pid":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetPid())), -1)
+                        case "UUID":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetUuidString(), -1)
+                        case "Logger":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetLogger(), -1)
+                        case "EnvVersion":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetEnvVersion(), -1)
+                        case "Severity":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetSeverity())), -1)
+                        default:
+                                if fname, ok := m.GetFieldValue(elVal); ok {
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], fname.(string), -1)
+                                } else {
+                                        var t time.Time
+                                        if e.ESIndexFromTimestamp && e.Timestamp != nil {
+                                          t = time.Unix(0, *e.Timestamp).UTC()
+                                        } else {
+                                          t = time.Now()
+                                        }
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
+                                }
+                        }
+                }
+        }
+
+        interpolatedValue = strings.Join(iSlice, "")
+        return
 }
 
 // A BulkIndexer is used to index documents in ElasticSearch
