@@ -24,6 +24,8 @@ describes a plugin named "tcp:5565", an instance of Heka's plugin type
 
     [tcp:5565]
     type = "TcpInput"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
     address = ":5565"
 
 If you choose a plugin name that also happens to be a plugin type name,
@@ -35,6 +37,8 @@ describes a plugin named "TcpInput", also of type "TcpInput":
 
     [TcpInput]
     address = ":5566"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
 Note that it's fine to have more than one instance of the same plugin
 type, as long as their configurations don't interfere with each other.
@@ -133,9 +137,11 @@ Example hekad.toml file
     plugin_chansize = 10
     poolsize = 100
 
-    # Listens for Heka protocol on TCP port 5565.
+    # Listens for Heka messages on TCP port 5565.
     [TcpInput]
     address = ":5565"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     # Writes output from `CounterFilter`, `lua_sandbox`, and Heka's internal
     # reports to stdout.
@@ -399,12 +405,33 @@ Parameters:
     - hmac_key (string):
         The hash key used to sign the message.
 
+.. versionadded:: 0.4
+- decoder (string):
+    A decoder must be specified for the message.proto parser 
+    (i.e. ProtobufDecoder) but is optional for token and regexp parsers (if no
+    decoder is specified the parsed data is available in the Heka message 
+    payload).
+- parser_type (string):
+    - token - splits the stream on a byte delimiter.
+    - regexp - splits the stream on a regexp delimiter.
+    - message.proto - splits the stream on protobuf message boundaries.
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the 
+    regexp delimiter a single capture group can be specified to preserve the 
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the message depending on the delimiter_location configuration. 
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of the message.
+    - end - the regexp delimiter occurs at the end of the message (default).
+
 Example:
 
 .. code-block:: ini
 
     [TcpInput]
     address = ":5565"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     [TcpInput.signer.ops_0]
     hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"

@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* TCPInput configuration now requires a parser_type and decoder to be specified
+  (issue #165)
+
 * Removed the LogfileInput decoders array configuration in favor of a single
   decoder (issue #308)
 
@@ -54,6 +57,8 @@ Bug Handling
 
 Features
 --------
+
+* Added stream parsing to TCPInput (issue #165)
 
 * Added SandboxDecoder (issue #370)
 
