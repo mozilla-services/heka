@@ -1,5 +1,7 @@
 [TcpInput]
 address = "127.0.0.1:5565"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [HostFilter]
 message_matcher = "Type != 'heka.counter-output'"
