@@ -1246,12 +1246,12 @@ Parameters:
 - index (string):
     Name of the ES index into which the messages will be inserted.
     If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
-    are placed between within a %{}, it will be interpolated to it's Field value.
+    are placed between within a %{}, it will be interpolated to its Field value.
     Defaults to "heka-%{2006.01.02}".
 - type_name (string):
     Name of ES record type to create. Defaults to "message".
     If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
-    are placed between within a %{}, it will be interpolated to it's Field value. 
+    are placed between within a %{}, it will be interpolated to its Field value. 
 - flush_interval (int):
     Interval at which accumulated messages should be bulk indexed into
     ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
@@ -1284,7 +1284,7 @@ Parameters:
 - id (string):
     Allows you to optionally specify the document id for ES to use.
     Useful for overwriting existing docs. If the value specified is placed within %{},
-    it will be interpolated to it's Field value. 
+    it will be interpolated to its Field value. 
     Default is allow ES to auto-generate the id.
 
 Example:
