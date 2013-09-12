@@ -49,6 +49,8 @@ type ElasticSearchOutput struct {
 	messageFormatter MessageFormatter
 	// The BulkIndexer used to index documents
 	bulkIndexer BulkIndexer
+	// Specify the document id or field name
+	id                   string
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -82,6 +84,8 @@ type ElasticSearchOutputConfig struct {
 	// When formating the Index use the Timestamp from the Message instead of
 	// Now.
 	ESIndexFromTimestamp bool
+	// Document ID
+	Id string
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -95,6 +99,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Timestamp:            "2006-01-02T15:04:05.000Z",
 		Server:               "http://localhost:9200",
 		ESIndexFromTimestamp: false,
+		Id:                   "",
 	}
 }
 
@@ -109,6 +114,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
 	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
+	o.id = conf.Id
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
@@ -222,9 +228,16 @@ func (e *ElasticSearchCoordinates) Bytes(m *message.Message) []byte {
 	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Index)))
 	buf.WriteString(`,"_type":`)
 	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Type)))
-	if len(e.Id) > 0 {
+
+	//Interpolate the Id flag
+	interpId := interpolateFlag(e, m, e.Id)
+
+	//Used to test if Id is unchanged from config. i.e. unsuccessfully interpolated. In that case do not specify id at all and default to auto-generated one.
+	testId := "%{" + interpId + "}"
+
+	if len(e.Id) > 0 && testId != e.Id {
 		buf.WriteString(`,"_id":`)
-		buf.WriteString(strconv.Quote(e.Id))
+		buf.WriteString(strconv.Quote(interpId))
 	}
 	if e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
@@ -491,6 +504,7 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 	coordinates := &ElasticSearchCoordinates{
 		Index:                o.indexName,
 		Type:                 o.typeName,
+		Id:                   o.id,
 		Timestamp:            pack.Message.Timestamp,
 		TimestampFormat:      o.timestamp,
 		ESIndexFromTimestamp: o.esIndexFromTimestamp,

@@ -13,6 +13,7 @@ func getTestMessageWithFunnyFields() *Message {
 	field, _ := NewField(`"foo`, "bar\n", "")
 	field1, _ := NewField(`"number`, 64, "")
 	field2, _ := NewField("\xa3", "\xa3", "")
+	field3, _ := NewField("idField", "1234", "")
 
 	msg := &Message{}
 	msg.SetType("TEST")
@@ -28,6 +29,7 @@ func getTestMessageWithFunnyFields() *Message {
 	msg.AddField(field)
 	msg.AddField(field1)
 	msg.AddField(field2)
+	msg.AddField(field3)
 
 	return msg
 }
@@ -90,4 +92,15 @@ func ElasticSearchOutputSpec(c gs.Context) {
                 c.Expect(interpolatedType, gs.Equals, "TEST")
         })
 
+	c.Specify("Should interpolate id specified in config", func() {
+		var conf ElasticSearchOutputConfig
+		conf.Id = "%{idField}"
+		interpolatedId := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), conf.Id)
+		c.Expect(interpolatedId, gs.Equals, "1234")
+
+                //Test if Id field does not interpolate
+                conf.Id = "%{idFail}"
+                unInterpolatedId := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), conf.Id)
+                c.Expect(unInterpolatedId, gs.Equals, "idFail")
+	})
 }

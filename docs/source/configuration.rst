@@ -1246,12 +1246,12 @@ Parameters:
 - index (string):
     Name of the ES index into which the messages will be inserted.
     If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
-    are placed between within a %{}, it will be interpolated to their message value.
+    are placed between within a %{}, it will be interpolated to it's Field value.
     Defaults to "heka-%{2006.01.02}".
 - type_name (string):
     Name of ES record type to create. Defaults to "message".
     If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
-    are placed between within a %{}, it will be interpolated to their message value. 
+    are placed between within a %{}, it will be interpolated to it's Field value. 
 - flush_interval (int):
     Interval at which accumulated messages should be bulk indexed into
     ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
@@ -1281,6 +1281,11 @@ Parameters:
 - ESIndexFromTimestamp (bool):
     When generating the index name use the timestamp from the message
     instead of the current time. Defaults to false.
+- id (string):
+    Allows you to optionally specify the document id for ES to use.
+    Useful for overwriting existing docs. If the value specified is placed within %{},
+    it will be interpolated to it's Field value. 
+    Default is allow ES to auto-generate the id.
 
 Example:
 
@@ -1289,12 +1294,13 @@ Example:
     [ElasticSearchOutput]
     message_matcher = "Type == 'sync.log'"
     cluster = "elasticsearch-cluster"
-    index = "synclog-%{2006.01.02.15.04.05}"
-    type_name = "sync.log.line"
+    index = "synclog-%{field1}-%{2006.01.02.15.04.05}"
+    type_name = "sync.log.line-%{field1}"
     server = "http://es-server:9200"
     format = "clean"
     flush_interval = 5000
     flush_count = 10
+    id = %{id}
 
 .. _config_whisper_output:
 
