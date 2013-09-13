@@ -77,6 +77,11 @@ func (g *GlobalConfigStruct) ShutDown() {
 	}()
 }
 
+// Log a message out
+func (g *GlobalConfigStruct) LogMessage(src, msg string) {
+	log.Printf("%s: %s", src, msg)
+}
+
 // Returns global pipeline config values. This function is overwritten by the
 // `pipeline.NewPipelineConfig` function. Globals are generally A Bad Idea, so
 // we're at least using a function instead of a struct for global state to
@@ -155,7 +160,8 @@ func (d *DiagnosticTracker) Run() {
 		name           string
 		count          int
 	)
-	idleMax := Globals().MaxPackIdle
+	g := Globals()
+	idleMax := g.MaxPackIdle
 	probablePacks := make([]*PipelinePack, 0, len(d.packs))
 	ticker := time.NewTicker(time.Duration(30) * time.Second)
 	for {
@@ -180,12 +186,12 @@ func (d *DiagnosticTracker) Run() {
 
 		// Drop a warning about how many packs have been idle
 		if len(probablePacks) > 0 {
-			log.Printf("(%s) Diagnostics: %d packs have been idle more than %d seconds.\n",
-				d.ChannelName, len(probablePacks), idleMax)
-			log.Printf("(%s) Plugin names and quantities found on idle packs:\n",
-				d.ChannelName)
+			g.LogMessage("Diagnostics", fmt.Sprintf("%d packs have been idle more than %d seconds.",
+				d.ChannelName, len(probablePacks), idleMax))
+			g.LogMessage("Diagnostics", fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
+				d.ChannelName))
 			for name, count = range pluginCounts {
-				log.Printf("\t%s: %d\n", name, count)
+				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", name, count))
 			}
 			log.Println("")
 		}
