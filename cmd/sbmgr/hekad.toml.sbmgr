@@ -4,12 +4,16 @@ base_dir = "."
 
 [TCP:5565]
 type = "TcpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[TCP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
 [UDP:5565]
 type = "UdpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[UDP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
@@ -123,7 +127,7 @@ instruction_limit = 1000000
 [SyncProxyInput]
 type = "LogfileInput"
 logfile = "./sync-proxy.log"
-decoders = ["SyncProxyDecoder"]
+decoder = "SyncProxyDecoder"
 seek_journal_name = "sync-proxy.journal"
 
 [SyncProxyDecoder]
@@ -170,7 +174,7 @@ output_limit = 64000
 [AuditLogInput]
 type = "LogfileInput"
 logfile = "./audit.log"
-decoders = ["AuditLogDecoder"]
+decoder = "AuditLogDecoder"
 seek_journal_name = "audit.journal"
 
 [AuditLogDecoder]

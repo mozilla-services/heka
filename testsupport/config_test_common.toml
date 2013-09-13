@@ -1,5 +1,7 @@
 [UdpInput]
 address = "127.0.0.1:5565"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [UdpInput.retries]
 max_delay = "30s"

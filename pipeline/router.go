@@ -234,8 +234,9 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 			// a sample so there will be a ballpark figure immediately. We could
 			// use a ticker to sample at a regular interval but that seems like
 			// overkill at this  point.
-			counter int = random
-			match   bool
+			counter  int = random
+			match    bool
+			duration int64
 		)
 
 		var capacity int64 = int64(cap(mr.inChan))
@@ -253,8 +254,9 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 
 				match = mr.spec.Match(pack.Message)
 
+				duration = time.Since(startTime).Nanoseconds()
 				mr.reportLock.Lock()
-				mr.matchDuration += time.Since(startTime).Nanoseconds()
+				mr.matchDuration += duration
 				mr.matchSamples++
 				mr.reportLock.Unlock()
 				if mr.matchSamples > capacity {

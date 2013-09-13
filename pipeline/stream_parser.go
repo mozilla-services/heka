@@ -29,13 +29,18 @@ type StreamParser interface {
 	// correlate to the record size since delimiters can be discarded and data
 	// corruption skipped which also means the record could empty even if bytes
 	// were read. 'record' will remain valid until the next call to Parse.
+	// bytesRead can be non zero even in an error condition i.e. ErrShortBuffer
 	Parse(reader io.Reader) (bytesRead int, record []byte, err error)
+
 	// Retrieves the remainder of the parse buffer.  This is the
 	// only way to fetch the last record in a stream that specifies a start of
 	// line  delimiter or contains a partial last line.  It should only be
 	// called when at the EOF and no additional data will be appended to
 	// the stream.
 	GetRemainingData() []byte
+
+	// Sets the internal buffer to at least 'size' bytes.
+	SetMinimumBufferSize(size int)
 }
 
 // Internal buffer management for the StreamParser
@@ -44,6 +49,7 @@ type streamParserBuffer struct {
 	readPos  int
 	scanPos  int
 	needData bool
+	err      string
 }
 
 func newStreamParserBuffer() (s *streamParserBuffer) {
@@ -56,7 +62,17 @@ func newStreamParserBuffer() (s *streamParserBuffer) {
 func (s *streamParserBuffer) GetRemainingData() (record []byte) {
 	if s.readPos-s.scanPos > 0 {
 		record = s.buf[s.scanPos:s.readPos]
-		s.scanPos = s.readPos
+	}
+	s.scanPos = 0
+	s.readPos = 0
+	return
+}
+
+func (s *streamParserBuffer) SetMinimumBufferSize(size int) {
+	if cap(s.buf) < size {
+		newSlice := make([]byte, size)
+		copy(newSlice, s.buf)
+		s.buf = newSlice
 	}
 	return
 }
@@ -64,9 +80,23 @@ func (s *streamParserBuffer) GetRemainingData() (record []byte) {
 func (s *streamParserBuffer) read(reader io.Reader) (n int, err error) {
 	if cap(s.buf)-s.readPos <= 1024*4 {
 		if s.scanPos == 0 { // line will not fit in the current buffer
-			newSlice := make([]byte, cap(s.buf)*2) // todo do we want to limit growth i.e. max message size?
-			copy(newSlice, s.buf)
-			s.buf = newSlice
+			newSize := cap(s.buf) * 2
+			if newSize > message.MAX_RECORD_SIZE {
+				if cap(s.buf) == message.MAX_RECORD_SIZE {
+					if s.readPos == cap(s.buf) {
+						s.scanPos = 0
+						s.readPos = 0
+						return cap(s.buf), io.ErrShortBuffer
+					} else {
+						newSize = 0 // don't allocate any more memory, just read into what is left
+					}
+				} else {
+					newSize = message.MAX_RECORD_SIZE
+				}
+			}
+			if newSize > 0 {
+				s.SetMinimumBufferSize(newSize)
+			}
 		} else { // reclaim the space at the beginning of the buffer
 			copy(s.buf, s.buf[s.scanPos:s.readPos])
 			s.readPos, s.scanPos = s.readPos-s.scanPos, 0
@@ -102,6 +132,10 @@ func (t *TokenParser) Parse(reader io.Reader) (bytesRead int, record []byte, err
 	if len(record) == 0 {
 		t.needData = true
 	} else {
+		if t.readPos == t.scanPos {
+			t.readPos = 0
+			t.scanPos = 0
+		}
 		t.needData = false
 	}
 	return
@@ -177,6 +211,10 @@ func (r *RegexpParser) Parse(reader io.Reader) (bytesRead int, record []byte, er
 	if len(record) == 0 {
 		r.needData = true
 	} else {
+		if r.readPos == r.scanPos {
+			r.readPos = 0
+			r.scanPos = 0
+		}
 		r.needData = false
 	}
 	return
@@ -218,20 +256,24 @@ func NewMessageProtoParser() (m *MessageProtoParser) {
 	return
 }
 
-func (t *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
-	if t.needData {
-		if bytesRead, err = t.read(reader); err != nil {
+func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
+	if m.needData {
+		if bytesRead, err = m.read(reader); err != nil {
 			return
 		}
 	}
-	t.readPos += bytesRead
+	m.readPos += bytesRead
 
-	bytesRead, record = t.findRecord(t.buf[t.scanPos:t.readPos])
-	t.scanPos += bytesRead
+	bytesRead, record = m.findRecord(m.buf[m.scanPos:m.readPos])
+	m.scanPos += bytesRead
 	if len(record) == 0 {
-		t.needData = true
+		m.needData = true
 	} else {
-		t.needData = false
+		if m.readPos == m.scanPos {
+			//m.readPos = 0
+			//m.scanPos = 0
+		}
+		m.needData = false
 	}
 	return
 }
@@ -243,15 +285,15 @@ func (m *MessageProtoParser) findRecord(buf []byte) (bytesRead int, record []byt
 		return // read more data to find the start of the next message
 	}
 
-	if len(buf) < bytesRead+2 { // recsep+len
+	if len(buf) < bytesRead+message.HEADER_DELIMITER_SIZE {
 		return // read more data to get the header length byte
 	}
 	headerLength := int(buf[bytesRead+1])
-	headerEnd := bytesRead + headerLength + 3 // recsep+len+header+unitsep
+	headerEnd := bytesRead + headerLength + message.HEADER_FRAMING_SIZE
 	if len(buf) < headerEnd {
 		return // read more data to get the remainder of the header
 	}
-	if m.header.MessageLength != nil || decodeHeader(buf[bytesRead+2:headerEnd], m.header) {
+	if m.header.MessageLength != nil || decodeHeader(buf[bytesRead+message.HEADER_DELIMITER_SIZE:headerEnd], m.header) {
 		messageEnd := headerEnd + int(m.header.GetMessageLength())
 		if len(buf) < messageEnd {
 			return // read more data to get the remainder of the message

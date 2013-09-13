@@ -15,10 +15,14 @@ ticker_interval = 1
 
 [TcpInput]
 address = "127.0.0.1:5565"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [TcpInput2]
 type = "TcpInput"
 address = "127.0.0.1:5566"
+parser_type = "token"
+delimiter = "\n"
 
 [CounterFilter]
 message_matcher = "Type != 'heka.counter-output'"
