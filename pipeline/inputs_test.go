@@ -21,7 +21,6 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
-	"encoding/json"
 	"errors"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
@@ -86,14 +85,20 @@ func (s *StoppingInput) Stop() {
 	return
 }
 
+func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
+	emsg = make([]byte, 3+len(hbytes)+len(mbytes))
+	emsg[0] = message.RECORD_SEPARATOR
+	emsg[1] = uint8(len(hbytes))
+	copy(emsg[2:], hbytes)
+	pos := 2 + len(hbytes)
+	emsg[pos] = message.UNIT_SEPARATOR
+	copy(emsg[pos+1:], mbytes)
+	return
+}
+
 func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	return func(msgBytes []byte) {
-		msgBytes[0] = message.RECORD_SEPARATOR
-		msgBytes[1] = uint8(len(hbytes))
-		copy(msgBytes[2:], hbytes)
-		pos := 2 + len(hbytes)
-		msgBytes[pos] = message.UNIT_SEPARATOR
-		copy(msgBytes[pos+1:], mbytes)
+		copy(msgBytes, encodeMessage(hbytes, mbytes))
 	}
 }
 
@@ -133,87 +138,40 @@ func InputsSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{ith.AddrStr, signers})
+		err := udpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+			Decoder:    "ProtobufDecoder",
+			ParserType: "message.proto"})
 		c.Assume(err, gs.IsNil)
 		realListener := (udpInput.listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
-		realListener.Close()
 
-		// replace the listener object w/ a mock listener
-		mockListener := ts.NewMockConn(ctrl)
-		udpInput.listener = mockListener
-
-		mbytes, _ := json.Marshal(ith.Msg)
+		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
-		header.SetMessageEncoding(message.Header_JSON)
 		header.SetMessageLength(uint32(len(mbytes)))
-		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
-		readCall := mockListener.EXPECT().Read(buf)
 
-		mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
-		ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
-		encCall.Return(ith.Decoders, nil)
+		encCall := ith.MockDecoderSet.EXPECT().ByName("ProtobufDecoder")
+		encCall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
 			hbytes, _ := proto.Marshal(header)
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, nil)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
 			go func() {
 				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
+			conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+			c.Assume(err, gs.IsNil)
+			buf := encodeMessage(hbytes, mbytes)
+			_, err = conn.Write(buf)
+			c.Assume(err, gs.IsNil)
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
+			udpInput.Stop()
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
-		})
-
-		c.Specify("reads a MD5 signed message from its connection", func() {
-			header.SetHmacHashFunction(message.Header_MD5)
-			header.SetHmacSigner(signer)
-			header.SetHmacKeyVersion(uint32(1))
-			hm := hmac.New(md5.New, []byte(key))
-			hm.Write(mbytes)
-			header.SetHmac(hm.Sum(nil))
-			hbytes, _ := proto.Marshal(header)
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
-			c.Expect(ith.Pack, gs.Equals, packRef)
-			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
-			c.Expect(ith.Pack.Signer, gs.Equals, "test")
-		})
-
-		c.Specify("invalid header", func() {
-			hbytes, _ := proto.Marshal(header)
-			hbytes[0] = 0
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, nil)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
-			go func() {
-				time.Sleep(100 * time.Millisecond)
-				timeout <- true
-			}()
-			select {
-			case packRef := <-mockDecoderRunner.InChan():
-				c.Expect(packRef, gs.IsNil)
-			case t := <-timeout:
-				c.Expect(t, gs.IsTrue)
-			}
 		})
 	})
 
