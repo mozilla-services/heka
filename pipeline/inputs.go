@@ -293,108 +293,105 @@ func networkMessageProtoParser(conn net.Conn,
 // Input plugin implementation that listens for Heka protocol messages on a
 // specified UDP socket.
 type UdpInput struct {
-	listener net.Conn
-	name     string
-	stopped  bool
-	config   *UdpInputConfig
+	listener      net.Conn
+	name          string
+	stopped       bool
+	config        *NetworkInputConfig
+	parser        StreamParser
+	parseFunction networkParseFunction
 }
 
-// ConfigStruct for UdpInput plugin.
-type UdpInputConfig struct {
-	// String representation of the address of the UDP connection on which
-	// the listener should be listening (e.g. "127.0.0.1:5565").
-	Address string `toml:"address"`
-	// Set of message signer objects, keyed by signer id string.
-	Signers map[string]Signer `toml:"signer"`
+func (u *UdpInput) ConfigStruct() interface{} {
+	return new(NetworkInputConfig)
 }
 
-func (self *UdpInput) ConfigStruct() interface{} {
-	return new(UdpInputConfig)
-}
-
-func (self *UdpInput) Init(config interface{}) error {
-	self.config = config.(*UdpInputConfig)
-	if len(self.config.Address) > 3 && self.config.Address[:3] == "fd:" {
+func (u *UdpInput) Init(config interface{}) (err error) {
+	u.config = config.(*NetworkInputConfig)
+	if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
 		// File descriptor
-		fdStr := self.config.Address[3:]
+		fdStr := u.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
 			log.Println(err)
-			return fmt.Errorf("Invalid file descriptor: %s", self.config.Address)
+			return fmt.Errorf("Invalid file descriptor: %s", u.config.Address)
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
-		self.listener, err = net.FileConn(udpFile)
+		u.listener, err = net.FileConn(udpFile)
 		if err != nil {
 			return fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
 		}
 	} else {
 		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", self.config.Address)
+		udpAddr, err := net.ResolveUDPAddr("udp", u.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
-		self.listener, err = net.ListenUDP("udp", udpAddr)
+		u.listener, err = net.ListenUDP("udp", udpAddr)
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
 	}
-	return nil
-}
-
-func (self *UdpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var decoders []DecoderRunner
-	if decoders, err = h.DecoderSet().ByEncodings(); err != nil {
-		return
-	}
-	buf := make([]byte, MAX_MESSAGE_SIZE+MAX_HEADER_SIZE+3)
-	header := &Header{}
-
-	var (
-		e        error
-		n        int
-		pack     *PipelinePack
-		msgOk    bool
-		decoder  DecoderRunner
-		encoding Header_MessageEncoding
-	)
-	for !self.stopped {
-		pack = <-ir.InChan()
-		if n, e = self.listener.Read(buf); e != nil {
-			if !strings.Contains(e.Error(), "use of closed") {
-				ir.LogError(fmt.Errorf("Read error: ", e))
-			}
-			pack.Recycle()
-			continue
+	if u.config.ParserType == "message.proto" {
+		mp := NewMessageProtoParser()
+		u.parser = mp
+		u.parseFunction = networkMessageProtoParser
+		if u.config.Decoder == "" {
+			return fmt.Errorf("The message.proto parser must have a decoder")
 		}
-		_, msgOk = findMessage(buf[:n], header, &(pack.MsgBytes))
-		if msgOk {
-			if authenticateMessage(self.config.Signers, header, pack.MsgBytes) {
-				pack.Signer = header.GetHmacSigner()
-				encoding = header.GetMessageEncoding()
-				if decoder = decoders[encoding]; decoder != nil {
-					decoder.InChan() <- pack
-				} else {
-					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
-						encoding.String()))
-					pack.Recycle()
-				}
-			} else {
-				pack.Recycle()
-			}
-		} else {
-			pack.Recycle()
+	} else if u.config.ParserType == "regexp" {
+		rp := NewRegexpParser()
+		u.parser = rp
+		u.parseFunction = networkPayloadParser
+		if err = rp.SetDelimiter(u.config.Delimiter); err != nil {
+			return err
 		}
-		header.Reset()
+		if err = rp.SetDelimiterLocation(u.config.DelimiterLocation); err != nil {
+			return err
+		}
+	} else if u.config.ParserType == "token" {
+		tp := NewTokenParser()
+		u.parser = tp
+		u.parseFunction = networkPayloadParser
+		switch len(u.config.Delimiter) {
+		case 0: // no value was set, the default provided by the StreamParser will be used
+		case 1:
+			tp.SetDelimiter(u.config.Delimiter[0])
+		default:
+			return fmt.Errorf("invalid delimiter: %s", u.config.Delimiter)
+		}
+	} else {
+		return fmt.Errorf("unknown parser type: %s", u.config.ParserType)
 	}
-
-	self.listener.Close()
+	u.parser.SetMinimumBufferSize(1024 * 64)
 	return
 }
 
-func (self *UdpInput) Stop() {
-	self.stopped = true
-	self.listener.Close()
+func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
+	var dr DecoderRunner
+	var ok bool
+	if u.config.Decoder != "" {
+		dr, ok = h.DecoderSet().ByName(u.config.Decoder)
+		if !ok {
+			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
+		}
+	}
+
+	var err error
+	for !u.stopped {
+		if err = u.parseFunction(u.listener, u.parser, ir, u.config, dr); err != nil {
+			if !strings.Contains(err.Error(), "use of closed") {
+				ir.LogError(fmt.Errorf("Read error: ", err))
+			}
+		}
+		u.parser.GetRemainingData() // reset the receiving buffer
+	}
+	return nil
+}
+
+func (u *UdpInput) Stop() {
+	u.stopped = true
+	u.listener.Close()
 }
 
 // Heka Message signer object.
@@ -452,6 +449,9 @@ func findMessage(buf []byte, header *Header, message *[]byte) (pos int, ok bool)
 	return
 }
 
+// TODO this code duplicates what is in the StreamParser and should be removed
+// AMQPInput is the only remaining consumer
+//
 // Returns true if the provided message is unsigned or has a valid signature
 // from one of the provided signers.
 func authenticateMessage(signers map[string]Signer, header *Header, msg []byte) bool {
@@ -497,8 +497,7 @@ type TcpInput struct {
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
-	c := new(NetworkInputConfig)
-	return c
+	return new(NetworkInputConfig)
 }
 
 // Listen on the provided TCP connection, extracting messages from the incoming
