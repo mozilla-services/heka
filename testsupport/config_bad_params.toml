@@ -1,5 +1,7 @@
 [UdpInput1]
 address = "127.0.0.1:29329"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [JsonDecoder1]
 type ="JsonDecoder"
