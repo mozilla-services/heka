@@ -81,7 +81,7 @@ func ReportSpec(c gs.Context) {
 	filter := new(CounterFilter)
 	fRunner := NewFORunner(fName, filter, nil)
 	var err error
-	fRunner.matcher, err = NewMatchRunner("Type == ''", "")
+	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner)
 	c.Assume(err, gs.IsNil)
 	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
 
