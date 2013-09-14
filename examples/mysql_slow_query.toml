@@ -1,0 +1,53 @@
+[hekad]
+maxprocs = 4
+base_dir = "."
+
+[Dashboard]
+type = "DashboardOutput"
+address = "127.0.0.1:4352"
+ticker_interval = 10
+working_directory = "dashboard"
+
+[MySqlSlowQueryLineInput]
+type = "LogfileInput"
+logfile = "mysql-slow.log"
+logger = "mysql-slow-singleline"
+seek_journal_name = "mysql-slow-singleline.journal"
+
+[MySqlSlowQuerySessionizerFilter]
+type = "SandboxFilter"
+message_matcher = "Logger == 'mysql-slow-singleline'"
+ticker_interval = 10
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/mysql_slow_query_sessionizer.lua"
+memory_limit = 1000000
+instruction_limit = 1000
+output_limit = 64000
+preserve_data = true
+
+[MySqlSlowQueryMultiLineInput]
+type = "LogfileInput"
+logfile = "mysql-slow.log"
+logger = "mysql-slow-multiline"
+seek_journal_name = "mysql-slow-multiline.journal"
+parser_type = "regexp"
+delimiter = "\n(# User@Host:)"
+delimiter_location = "start"
+decoder = "MySqlSlowQueryDecoder"
+
+[MySqlSlowQueryDecoder]
+type = "SandboxDecoder"
+pool_size = 1
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/mysql_slow_query_decoder.lua"
+
+[MySqlSlowQueryFilter]
+type = "SandboxFilter"
+message_matcher = "Logger == 'mysql-slow-multiline'"
+ticker_interval = 10
+script_type = "lua"
+filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/mysql_slow_query.lua"
+memory_limit = 1000000
+instruction_limit = 1000
+output_limit = 64000
+preserve_data = true
