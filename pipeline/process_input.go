@@ -67,7 +67,7 @@ type ProcessInput struct {
     runInterval time.Duration
     ir          InputRunner
     decoderName string
-    w           io.PipeWriter
+    w           io.Writer
     r           io.Reader
     outChan     chan *PipelinePack
     stopChan    chan bool
@@ -116,15 +116,11 @@ func (pi *ProcessInput) Init(config interface{}) error {
         rp.SetDelimiterLocation(conf.DelimiterLocation)
     }
 
-    // Pipe the commands together by stdin/stdout.
-    // last := len(pi.cmds)-1
-    for i, _ := range pi.cmds {
-        if i != 0 {
-            stdout, err := pi.cmds[i-1].StdoutPipe()
-            if err != nil { return err }
-            pi.cmds[i].Stdin = stdout
-        }
-    }
+    // This is the main pipe where command output is
+    // written to for parsing into messages.
+    r, w := io.Pipe()
+    pi.r = r
+    pi.w = w
 
     return nil
 }
@@ -136,17 +132,21 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
         ok      bool
     )
 
+    // So we can access our InputRunner outside of the Run function.
     pi.ir = ir
 
+    // Try to get the configured decoder.
     if pi.decoderName != "" {
         if dRunner, ok = h.DecoderSet().ByName(pi.decoderName); !ok {
             return fmt.Errorf("Decoder not found: %s", pi.decoderName)
         }
     }
 
-    // go pi.ParseOutput()
+    // Start the output parser and start running commands.
+    go pi.ParseOutput(pi.r)
     go pi.RunCmd()
 
+    // Wait for and route populated PipelinePacks.
     for pack = range pi.outChan {
         if dRunner == nil {
             pi.ir.Inject(pack)
@@ -177,13 +177,28 @@ func (pi *ProcessInput) RunCmd() (err error) {
             // Run all commands in the background.
             cmds := make([]exec.Cmd, len(pi.cmds))
             copy(cmds, pi.cmds)
-            r, w := io.Pipe()
-            cmds[len(cmds)-1].Stdout = w
+
+            // Pipe the commands together by stdin/stdout.
+            for i, _ := range cmds {
+                if i != 0 {
+                    cmds[i].Stdin = nil
+                    cmds[i-1].Stdout = nil
+                    stdout, err := cmds[i-1].StdoutPipe()
+                    if err != nil { return err }
+                    cmds[i].Stdin = stdout
+                }
+            }
+
+            // Stdout of the last command in the pipe gets
+            // sent for parsing.
+            cmds[len(cmds)-1].Stdout = pi.w
+
+            // Run all commands.
             for _, v := range cmds {
                 err = v.Start()
                 if err != nil { panic(err) }
             }
-            go pi.ParseOutput(r)
+
         }
     }
     return nil
@@ -197,6 +212,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
     )
 
     for {
+        // Use configured StreamParser to get output from commands.
         _, record, err = pi.parser.Parse(r)
         if err != nil {
             if err == io.EOF {
@@ -208,6 +224,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
                 panic(err)
             }
         }
+
         if len(record) > 0 {
             // Setup and send the Message
             pack = <-pi.ir.InChan()
