@@ -22,6 +22,7 @@ import (
     "fmt"
     "io"
     "time"
+    "bytes"
 )
 
 type ProcessInputConfig struct {
@@ -236,6 +237,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
             pack.Message.SetPid(0) // TODO: PID of commands?
             pack.Message.SetHostname("testhost") // TODO: Get OS hostname
             pack.Message.SetLogger(pi.ir.Name())
+            record = bytes.TrimRight(record, "\n")
             pack.Message.SetPayload(string(record))
             pi.outChan <-pack
         }
