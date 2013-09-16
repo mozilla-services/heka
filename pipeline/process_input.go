@@ -197,7 +197,7 @@ func (pi *ProcessInput) RunCmd() (err error) {
             // Run all commands.
             for _, v := range cmds {
                 err = v.Start()
-                if err != nil { panic(err) }
+                if err != nil { return err }
             }
 
         }
