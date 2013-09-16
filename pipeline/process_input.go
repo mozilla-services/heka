@@ -78,8 +78,6 @@ type ProcessInput struct {
 // defaults.
 func (pi *ProcessInput) ConfigStruct() interface{} {
     return &ProcessInputConfig {
-        Env:         nil,
-        Directory:   "",
         RunInterval: 5000,
         ParserType:  "token",
     }
@@ -122,19 +120,11 @@ func (pi *ProcessInput) Init(config interface{}) error {
     // last := len(pi.cmds)-1
     for i, _ := range pi.cmds {
         if i != 0 {
-            println("NOOOOOOOOOOOO")
-            // r, w := io.Pipe()
-            // pi.cmds[i-1].Stdout = w
-            // pi.cmds[i].Stdin = r
             stdout, err := pi.cmds[i-1].StdoutPipe()
             if err != nil { return err }
             pi.cmds[i].Stdin = stdout
         }
     }
-
-    // r, w := io.Pipe()
-    // pi.r = r
-    // pi.cmds[len(pi.cmds)-1].Stdout = w
 
     return nil
 }
@@ -185,16 +175,8 @@ func (pi *ProcessInput) RunCmd() (err error) {
             return nil
         case <-run:
             // Run all commands in the background.
-            println("Got a run tick")
             cmds := make([]exec.Cmd, len(pi.cmds))
             copy(cmds, pi.cmds)
-            // for i, _ := range cmds {
-            //     if i != 0 {
-            //         stdout, err := pi.cmds[i-1].StdoutPipe()
-            //         if err != nil { panic(err) }
-            //         cmds[i].Stdin = stdout
-            //     }
-            // }
             r, w := io.Pipe()
             cmds[len(cmds)-1].Stdout = w
             for _, v := range cmds {
@@ -202,10 +184,8 @@ func (pi *ProcessInput) RunCmd() (err error) {
                 if err != nil { panic(err) }
             }
             go pi.ParseOutput(r)
-            println("Ending a run tick")
         }
     }
-    println("returning from RunCmd")
     return nil
 }
 
@@ -216,27 +196,19 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
         err     error
     )
 
-    println("ParseOutput!")
-
     for {
-        println("ParseOutput for loop 1")
         _, record, err = pi.parser.Parse(r)
-        println("ParseOutput for loop 2")
         if err != nil {
             if err == io.EOF {
-                println("EOF Found")
                 record = pi.parser.GetRemainingData()
             } else if err == io.ErrShortBuffer {
-                println("ShortBuffer Found")
                 pi.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
                 err = nil // non-fatal, keep going
             } else {
                 panic(err)
             }
         }
-        println("ParseOutput for loop 3")
         if len(record) > 0 {
-            println("ParseOutput if len 1")
             // Setup and send the Message
             pack = <-pi.ir.InChan()
             pack.Message.SetUuid(uuid.NewRandom())
@@ -249,12 +221,8 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
             pack.Message.SetLogger(pi.ir.Name())
             pack.Message.SetPayload(string(record))
             pi.outChan <-pack
-        } else {
-            println("ParseOutput if len 2")
         }
-        println("ParseOutput for loop 4")
     }
-    println("ParseOutput exiting!")
 }
 
 // CleanupForRestart implements the Restarting interface.
