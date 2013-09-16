@@ -131,6 +131,11 @@ func (p *PacketTracking) PluginNames() (names []string) {
 	return
 }
 
+// Returns the names of the plugin runners that last access the packet
+func (p *PacketTracking) Runners() (runners []PluginRunner) {
+	return p.lastPlugins
+}
+
 // A diagnostic tracker that can track pipeline packs and do accounting
 // to determine possible leaks
 type DiagnosticTracker struct {
@@ -156,9 +161,9 @@ func (d *DiagnosticTracker) Run() {
 	var (
 		pack           *PipelinePack
 		earliestAccess time.Time
-		pluginCounts   map[string]int
-		name           string
+		pluginCounts   map[PluginRunner]int
 		count          int
+		runner         PluginRunner
 	)
 	g := Globals()
 	idleMax := g.MaxPackIdle
@@ -167,7 +172,7 @@ func (d *DiagnosticTracker) Run() {
 	for {
 		<-ticker.C
 		probablePacks = probablePacks[:0]
-		pluginCounts = make(map[string]int)
+		pluginCounts = make(map[PluginRunner]int)
 
 		// Locate all the packs that have not been touched in idleMax duration
 		// that are not recycled
@@ -178,8 +183,8 @@ func (d *DiagnosticTracker) Run() {
 			}
 			if pack.diagnostics.LastAccess.Before(earliestAccess) {
 				probablePacks = append(probablePacks, pack)
-				for _, pluginName := range pack.diagnostics.PluginNames() {
-					pluginCounts[pluginName] += 1
+				for _, runner = range pack.diagnostics.Runners() {
+					pluginCounts[runner] += 1
 				}
 			}
 		}
@@ -190,8 +195,9 @@ func (d *DiagnosticTracker) Run() {
 				d.ChannelName, len(probablePacks), idleMax))
 			g.LogMessage("Diagnostics", fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
 				d.ChannelName))
-			for name, count = range pluginCounts {
-				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", name, count))
+			for runner, count = range pluginCounts {
+				runner.SetLeakCount(count)
+				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", runner.Name(), count))
 			}
 			log.Println("")
 		}
@@ -227,6 +233,13 @@ type PluginRunner interface {
 	// Plugin Globals, these are the globals accepted for the plugin in the
 	// config file
 	PluginGlobals() *PluginGlobals
+
+	// Sets the amount of currently 'leaked' packs that have gone through
+	// this plugin. The new value will overwrite prior ones.
+	SetLeakCount(count int)
+
+	// Returns the current leak count
+	LeakCount() int
 }
 
 // Base struct for the specialized PluginRunners
@@ -235,6 +248,7 @@ type pRunnerBase struct {
 	plugin        Plugin
 	pluginGlobals *PluginGlobals
 	h             PluginHelper
+	leakCount     int
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -251,6 +265,14 @@ func (pr *pRunnerBase) Plugin() Plugin {
 
 func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
 	return pr.pluginGlobals
+}
+
+func (pr *pRunnerBase) SetLeakCount(count int) {
+	pr.leakCount = count
+}
+
+func (pr *pRunnerBase) LeakCount() int {
+	return pr.leakCount
 }
 
 // Retry helper, created with a RetryOptions struct
@@ -340,6 +362,7 @@ type foRunner struct {
 	inChan     chan *PipelinePack
 	h          PluginHelper
 	retainPack *PipelinePack
+	leakCount  int
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
