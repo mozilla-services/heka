@@ -84,6 +84,7 @@ func ReportSpec(c gs.Context) {
 	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner)
 	c.Assume(err, gs.IsNil)
 	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
+	fRunner.SetLeakCount(10)
 
 	iName := "udp"
 	input := new(UdpInput)
@@ -102,6 +103,14 @@ func ReportSpec(c gs.Context) {
 
 			c.Specify("adds the channel data", func() {
 				c.Expect(hasChannelData(msg), gs.IsTrue)
+			})
+
+			c.Specify("has its leak count set properly", func() {
+				leakVal, ok := msg.GetFieldValue("LeakCount")
+				c.Assume(ok, gs.IsTrue)
+				i, ok := leakVal.(int64)
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(int(i), gs.Equals, 10)
 			})
 		})
 

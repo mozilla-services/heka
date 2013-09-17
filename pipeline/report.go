@@ -75,6 +75,7 @@ func PopulateReportMsg(pr PluginRunner, msg *message.Message) (err error) {
 		newIntField(msg, "InChanLength", len(fRunner.InChan()), "count")
 		newIntField(msg, "MatchChanCapacity", cap(fRunner.MatchRunner().inChan), "count")
 		newIntField(msg, "MatchChanLength", len(fRunner.MatchRunner().inChan), "count")
+		newIntField(msg, "LeakCount", fRunner.LeakCount(), "count")
 		var tmp int64 = 0
 		fRunner.MatchRunner().reportLock.Lock()
 		if fRunner.MatchRunner().matchSamples > 0 {
