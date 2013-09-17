@@ -197,7 +197,7 @@ func DecodersSpec(c gospec.Context) {
 			var name, count interface{}
 			count, ok = pack.Message.GetFieldValue("StatCount")
 			c.Expect(ok, gs.Equals, true)
-			c.Expect(count, gs.Equals, "1.000000000")
+			c.Expect(count, gs.Equals, "1")
 
 			name, ok = pack.Message.GetFieldValue("StatName")
 			c.Expect(ok, gs.Equals, true)
