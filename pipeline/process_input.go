@@ -31,6 +31,11 @@ type ProcessInputConfig struct {
     // will be piped to the standard input of the next command.
     Command [][]string
 
+    // RunInterval is the number of milliseconds to wait between runnning
+    // Command.  In cases where the program is designed to run continuously
+    // RunInterval is essentially irrelevant. Default is 5000 (5 seconds).
+    RunInterval int `toml:"run_interval"`
+
     // EnvVars is used to set environment variables before Command is run.
     // Defaults to nil, which uses the current process's environment.
     Env []string `toml:"environment"`
@@ -38,11 +43,6 @@ type ProcessInputConfig struct {
     // Dir specifies the working directory of Command.  Defaults to
     // the directory where the program resides.
     Directory string
-
-    // RunInterval is the number of milliseconds to wait between runnning
-    // Command.  In cases where the program is designed to run continuously
-    // RunInterval is essentially irrelevant. Default is 500 (5 seconds).
-    RunInterval int `toml:"run_interval"`
 
     // Name of configured decoder instance.
     Decoder string
@@ -196,7 +196,7 @@ func (pi *ProcessInput) RunCmd() (err error) {
 
             // Run all commands.
             for _, v := range cmds {
-                err = v.Start()
+                err = v.Run()
                 if err != nil { return err }
             }
 
@@ -213,7 +213,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader) {
     )
 
     for {
-        // Use configured StreamParser to get output from commands.
+        // Use configured StreamParser to split output from commands.
         _, record, err = pi.parser.Parse(r)
         if err != nil {
             if err == io.EOF {
