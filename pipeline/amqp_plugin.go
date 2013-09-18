@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -77,10 +78,8 @@ type AMQPInputConfig struct {
 	// the routing key to bind the queue to the exchange with
 	// Defaults to empty string
 	RoutingKey string
-	// Names of configured `LoglineDecoder` instances used to decode this
-	//  message off the input. The message will be de-serialized per its
-	// content-type before this decoder is run.
-	Decoders []string
+	// Name of configured decoder instance used to decode the messages.
+	Decoder string
 	// How many messages should be pre-fetched before message acks
 	// See http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-measurements-part-2/
 	// for benchmarks showing the impact of low prefetch counts
@@ -403,6 +402,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
 		dRunner DecoderRunner
+		decoder Decoder
 		pack    *PipelinePack
 		e       error
 		ok      bool
@@ -412,26 +412,19 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	conf := ai.config
 
-	// Setup decoder sets for use with non-serialized messages
+	// Right now we have a kludgey and brittle way of mapping messages to
+	// decoders. A (protobuf) decoder is required if a message of type
+	// `application/hekad` is received. Any other message type doesn't require
+	// a decoder. In either case, the specified decoder must be able to handle
+	// the incoming data. This can (and will) be greatly improved once we
+	// abstract out the stream parsing code so it can used here w/o having to
+	// reimplement the entire stream_type -> stream parser mapping.
 	dSet := h.DecoderSet()
-	decoders := make([]Decoder, len(conf.Decoders))
-	for i, name := range conf.Decoders {
-		if dRunner, ok = dSet.ByName(name); !ok {
-			return fmt.Errorf("Decoder not found: %s", name)
+	if conf.Decoder != "" {
+		if dRunner, ok = dSet.ByName(conf.Decoder); !ok {
+			return fmt.Errorf("Decoder not found: %s", conf.Decoder)
 		}
-		decoders[i] = dRunner.Decoder()
-	}
-
-	// Setup decoders for serialized messages
-	var (
-		dRunners []DecoderRunner
-		msgOk    bool
-		decoder  DecoderRunner
-		encoding message.Header_MessageEncoding
-	)
-
-	if dRunners, err = h.DecoderSet().ByEncodings(); err != nil {
-		return
+		decoder = dRunner.Decoder()
 	}
 	header := &message.Header{}
 
@@ -442,43 +435,40 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	}
 readLoop:
 	for {
+		e = nil
 		pack = <-packSupply
 		msg, ok := <-stream
 		if !ok {
 			break readLoop
 		}
+
 		if msg.ContentType == "application/hekad" {
-			_, msgOk = findMessage(msg.Body, header, &(pack.MsgBytes))
+			if dRunner == nil {
+				pack.Recycle()
+				ir.LogError(errors.New("`application/hekad` messages require a decoder."))
+			}
+			_, msgOk := findMessage(msg.Body, header, &(pack.MsgBytes))
 			if msgOk {
-				encoding = header.GetMessageEncoding()
-				if decoder = dRunners[encoding]; decoder != nil {
-					decoder.InChan() <- pack
-				} else {
-					ir.LogError(fmt.Errorf("No decoder registered for encoding: %s",
-						encoding.String()))
-					pack.Recycle()
-				}
+				dRunner.InChan() <- pack
 			} else {
 				pack.Recycle()
+				ir.LogError(errors.New("Can't find Heka message."))
 			}
 			header.Reset()
 		} else {
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			for _, decoder := range decoders {
-				if e = decoder.Decode(pack); e == nil {
-					break
-				}
-			}
 			pack.Decoded = true
+			if decoder != nil {
+				e = decoder.Decode(pack)
+			}
 			if e == nil {
 				ir.Inject(pack)
 			} else {
 				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
 				pack.Recycle()
 			}
-			e = nil
 		}
 		msg.Ack(false)
 	}
