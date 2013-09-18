@@ -177,7 +177,9 @@ func RunCmd(cmds []exec.Cmd, msInterval int, stdout io.Writer, stopChan chan boo
 
     last = len(cmds)-1
 
-    if msInterval != 0 {
+    if msInterval == 0 {
+        run = time.Tick(time.Millisecond * time.Duration(1000))
+    } else {
         run = time.Tick(time.Millisecond * time.Duration(msInterval))
     }
 
@@ -195,22 +197,13 @@ func RunCmd(cmds []exec.Cmd, msInterval int, stdout io.Writer, stopChan chan boo
     // Stdout of the last command in the pipe gets sent to provided stdout.
     cmds[last].Stdout = stdout
 
-    // Start running commands.  Continuously if run_interval is 0.
-    for again := true; again; {
-        for _, v := range cmds {
-            err = v.Run()
-            if err != nil { return err }
-        }
-
-        if msInterval != 0 { again = false }
-    }
-
     // Here's where we continue running commands on an interval or stop.
     for {
         select {
         case <-stopChan:
             return nil
         case <-run:
+            // Start running commands.
             for _, v := range cmds {
                 err = v.Run()
                 if err != nil { return err }
