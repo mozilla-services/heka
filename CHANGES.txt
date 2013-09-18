@@ -4,14 +4,16 @@
 Backwards Incompatibilities
 ---------------------------
 
+* AMQPInput now only supports a single decoder to be specified (issue #414).
+
 * UdpInput configuration now requires a parser_type and decoder to be specified
-  (issue #411)
+  (issue #411).
 
 * TcpInput configuration now requires a parser_type and decoder to be specified
-  (issue #165)
+  (issue #165).
 
 * Removed the LogfileInput decoders array configuration in favor of a single
-  decoder (issue #308)
+  decoder (issue #308).
 
 * SandboxManagerFilter now auto-generates a default working directory based on
   the plugin name, in the ${BASE_DIR}/sbxmgrs folder.
