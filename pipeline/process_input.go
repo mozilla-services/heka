@@ -147,7 +147,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
     // Start the output parser and start running commands.
     go pi.ParseOutput(pi.r)
-    go pi.RunCmd()
+    go RunCmd(pi.cmds, pi.runInterval, pi.w, pi.stopChan)
 
     // Wait for and route populated PipelinePacks.
     for pack = range pi.outChan {
@@ -167,51 +167,51 @@ func (pi *ProcessInput) Stop() {
 }
 
 // RunCmd pipes multiple commands together, runs them
-// per the configured interval, and passes the output to
-// ParseOutput for processing into packs.
-func (pi *ProcessInput) RunCmd() (err error) {
+// per the configured msInterval, and passes the output to
+// the provided stdout.
+func RunCmd(cmds []exec.Cmd, msInterval int, stdout io.Writer, stopChan chan bool) (err error) {
     var (
         last int
         run  <-chan time.Time
     )
 
-    last = len(pi.cmds)-1
+    last = len(cmds)-1
 
-    if pi.runInterval != 0 {
-        run = time.Tick(time.Millisecond * time.Duration(pi.runInterval))
+    if msInterval != 0 {
+        run = time.Tick(time.Millisecond * time.Duration(msInterval))
     }
 
     // Pipe the commands together by stdin/stdout.
-    for i, _ := range pi.cmds {
+    for i, _ := range cmds {
         if i != 0 {
-            pi.cmds[i].Stdin = nil
-            pi.cmds[i-1].Stdout = nil
-            stdout, err := pi.cmds[i-1].StdoutPipe()
+            cmds[i].Stdin = nil
+            cmds[i-1].Stdout = nil
+            prevStdout, err := cmds[i-1].StdoutPipe()
             if err != nil { return err }
-            pi.cmds[i].Stdin = stdout
+            cmds[i].Stdin = prevStdout
         }
     }
 
-    // Stdout of the last command in the pipe gets sent for parsing.
-    pi.cmds[last].Stdout = pi.w
+    // Stdout of the last command in the pipe gets sent to provided stdout.
+    cmds[last].Stdout = stdout
 
     // Start running commands.  Continuously if run_interval is 0.
     for again := true; again; {
-        for _, v := range pi.cmds {
+        for _, v := range cmds {
             err = v.Run()
             if err != nil { return err }
         }
 
-        if pi.runInterval != 0 { again = false }
+        if msInterval != 0 { again = false }
     }
 
     // Here's where we continue running commands on an interval or stop.
     for {
         select {
-        case <-pi.stopChan:
+        case <-stopChan:
             return nil
         case <-run:
-            for _, v := range pi.cmds {
+            for _, v := range cmds {
                 err = v.Run()
                 if err != nil { return err }
             }
