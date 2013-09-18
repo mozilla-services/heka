@@ -65,7 +65,7 @@ type ProcessInputConfig struct {
 // the Router for delivery to matching Filter or Output plugins.
 type ProcessInput struct {
     cmds        []exec.Cmd
-    runInterval time.Duration
+    runInterval int
     ir          InputRunner
     decoderName string
     w           io.Writer
@@ -89,6 +89,7 @@ func (pi *ProcessInput) Init(config interface{}) error {
     pi.outChan  = make(chan *PipelinePack)
     pi.stopChan = make(chan bool)
     conf := config.(*ProcessInputConfig)
+    if conf.RunInterval  < 0 { return fmt.Errorf("Negative run_interval Configured") }
     if len(conf.Command) < 1 { return fmt.Errorf("No Command Configured") }
     pi.cmds = make([]exec.Cmd, len(conf.Command))
     for i, v := range conf.Command {
@@ -99,7 +100,8 @@ func (pi *ProcessInput) Init(config interface{}) error {
         }
         if conf.Env != nil { pi.cmds[i].Env = conf.Env }
     }
-    pi.runInterval = time.Millisecond * time.Duration(conf.RunInterval)
+
+    pi.runInterval = conf.RunInterval
     pi.decoderName = conf.Decoder
 
     switch conf.ParserType {
@@ -145,7 +147,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
     // Start the output parser and start running commands.
     go pi.ParseOutput(pi.r)
-    go pi.RunCmd()
+    go RunCmd(pi.cmds, pi.runInterval, pi.w, pi.stopChan)
 
     // Wait for and route populated PipelinePacks.
     for pack = range pi.outChan {
@@ -165,41 +167,47 @@ func (pi *ProcessInput) Stop() {
 }
 
 // RunCmd pipes multiple commands together, runs them
-// per the configured interval, and passes the output to
-// ParseOutput for processing into packs.
-func (pi *ProcessInput) RunCmd() (err error) {
-    run  := time.Tick(pi.runInterval)
+// per the configured msInterval, and passes the output to
+// the provided stdout.
+func RunCmd(cmds []exec.Cmd, msInterval int, stdout io.Writer, stopChan chan bool) (err error) {
+    var (
+        last int
+        run  <-chan time.Time
+    )
 
+    last = len(cmds)-1
+
+    if msInterval == 0 {
+        run = time.Tick(time.Millisecond * time.Duration(1000))
+    } else {
+        run = time.Tick(time.Millisecond * time.Duration(msInterval))
+    }
+
+    // Pipe the commands together by stdin/stdout.
+    for i, _ := range cmds {
+        if i != 0 {
+            cmds[i].Stdin = nil
+            cmds[i-1].Stdout = nil
+            prevStdout, err := cmds[i-1].StdoutPipe()
+            if err != nil { return err }
+            cmds[i].Stdin = prevStdout
+        }
+    }
+
+    // Stdout of the last command in the pipe gets sent to provided stdout.
+    cmds[last].Stdout = stdout
+
+    // Here's where we continue running commands on an interval or stop.
     for {
         select {
-        case <-pi.stopChan:
+        case <-stopChan:
             return nil
         case <-run:
-            // Run all commands in the background.
-            cmds := make([]exec.Cmd, len(pi.cmds))
-            copy(cmds, pi.cmds)
-
-            // Pipe the commands together by stdin/stdout.
-            for i, _ := range cmds {
-                if i != 0 {
-                    cmds[i].Stdin = nil
-                    cmds[i-1].Stdout = nil
-                    stdout, err := cmds[i-1].StdoutPipe()
-                    if err != nil { return err }
-                    cmds[i].Stdin = stdout
-                }
-            }
-
-            // Stdout of the last command in the pipe gets
-            // sent for parsing.
-            cmds[len(cmds)-1].Stdout = pi.w
-
-            // Run all commands.
+            // Start running commands.
             for _, v := range cmds {
                 err = v.Run()
                 if err != nil { return err }
             }
-
         }
     }
     return nil
