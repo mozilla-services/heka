@@ -31,8 +31,7 @@ type Client struct {
 }
 
 func NewClient(sender Sender, encoder Encoder) (self *Client) {
-	buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
-	self = &Client{sender, encoder, buf}
+	self = &Client{Sender: sender, Encoder: encoder}
 	return
 }
 

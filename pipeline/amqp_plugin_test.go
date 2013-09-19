@@ -68,10 +68,7 @@ func AMQPPluginSpec(c gs.Context) {
 		// set up mock helper, decoder set, and packSupply channel
 		ith.MockHelper = NewMockPluginHelper(ctrl)
 		ith.MockInputRunner = NewMockInputRunner(ctrl)
-		ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
 		mockDRunner := NewMockDecoderRunner(ctrl)
-		ith.Decoders[message.Header_PROTOCOL_BUFFER] = mockDRunner
-		ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
 		ith.PackSupply = make(chan *PipelinePack, 1)
 		ith.DecodeChan = make(chan *PipelinePack)
 		ith.MockDecoderSet = NewMockDecoderSet(ctrl)

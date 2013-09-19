@@ -5,8 +5,6 @@ parser_type = "message.proto"
 decoder = "ProtobufDecoder"
 
 [JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
 
 [WhatOutput]
 type ="WhatOutput"

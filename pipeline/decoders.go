@@ -33,16 +33,11 @@ type DecoderSet interface {
 	// Returns running DecoderRunner registered under the specified name, or
 	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
-	// Returns slice of running DecoderRunners, indexed by the Heka protocol
-	// encoding headers for which they're registered. Only returns the
-	// decoders that have been registered for a specific header.
-	ByEncodings() (decoders []DecoderRunner, err error)
 }
 
 type decoderSet struct {
 	chansByName map[string]chan DecoderRunner
 	byName      map[string]DecoderRunner
-	byEncoding  []DecoderRunner
 }
 
 // Creates and returns a decoderSet that exposes an API to access the
@@ -68,28 +63,6 @@ func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
 		dChan <- decoder
 		ds.byName[name] = decoder
 	}
-	return
-}
-
-func (ds *decoderSet) ByEncodings() (decoders []DecoderRunner, err error) {
-	if ds.byEncoding != nil {
-		return ds.byEncoding, nil
-	}
-	var (
-		dRunner DecoderRunner
-		ok      bool
-	)
-	length := int32(topHeaderMessageEncoding) + 1
-	decoders = make([]DecoderRunner, length)
-	for enc, name := range DecodersByEncoding {
-		if dRunner, ok = ds.ByName(name); !ok {
-			err = fmt.Errorf("Decoder '%s' registered for encoding '%s' not configured",
-				name, enc.String())
-			return
-		}
-		decoders[enc] = dRunner
-	}
-	ds.byEncoding = decoders
 	return
 }
 
