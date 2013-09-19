@@ -102,6 +102,9 @@ func createStream(msgBytes []byte, outBytes *[]byte, msc *message.MessageSigning
 	}
 	(*outBytes)[0] = message.RECORD_SEPARATOR
 	(*outBytes)[1] = uint8(headerSize)
+	// This looks odd but is correct; it effectively "seeks" the initial write
+	// position for the protobuf output to be at the
+	// `(*outBytes)[message.HEADER_DELIMITER_SIZE]` position.
 	pbuf := proto.NewBuffer((*outBytes)[message.HEADER_DELIMITER_SIZE:message.HEADER_DELIMITER_SIZE])
 	if err := pbuf.Marshal(h); err != nil {
 		return err
