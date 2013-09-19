@@ -15,7 +15,6 @@
 package pipeline
 
 import (
-	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"runtime"
@@ -49,11 +48,6 @@ func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
 		origGlobals := Globals
 
-		origDecodersByEncoding := make(map[message.Header_MessageEncoding]string)
-		for k, v := range DecodersByEncoding {
-			origDecodersByEncoding[k] = v
-		}
-
 		origAvailablePlugins := make(map[string]func() interface{})
 		for k, v := range AvailablePlugins {
 			origAvailablePlugins[k] = v
@@ -62,7 +56,6 @@ func LoadFromConfigSpec(c gs.Context) {
 		pipeConfig := NewPipelineConfig(nil)
 		defer func() {
 			Globals = origGlobals
-			DecodersByEncoding = origDecodersByEncoding
 			AvailablePlugins = origAvailablePlugins
 		}()
 
@@ -75,18 +68,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			// We use a set of Expect's rather than c.Specify because the
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
-
-			// and the decoders are loaded for the right encoding headers
-			dSet := pipeConfig.DecoderSet()
-			byEncodings, err := dSet.ByEncodings()
-			c.Assume(err, gs.IsNil)
-			dRunner := byEncodings[message.Header_JSON]
-			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(dRunner.Name(), gs.Equals, "JsonDecoder-0")
-
-			dRunner = byEncodings[message.Header_PROTOCOL_BUFFER]
-			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(dRunner.Name(), gs.Equals, "ProtobufDecoder-0")
 
 			// decoder channels are full
 			for _, dChan := range pipeConfig.decoderChannels {
@@ -118,9 +99,6 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// Decoders are loaded
 			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
-			c.Expect(DecodersByEncoding[message.Header_JSON], gs.Equals, "JsonDecoder")
-			c.Expect(DecodersByEncoding[message.Header_PROTOCOL_BUFFER], gs.Equals,
-				"ProtobufDecoder")
 		})
 
 		c.Specify("works w/ MultiDecoder", func() {

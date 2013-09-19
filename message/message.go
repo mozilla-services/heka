@@ -46,15 +46,6 @@ type MessageSigningConfig struct {
 	Version uint32 `toml:"version"`
 }
 
-func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
-	if h != nil {
-		if h.MessageEncoding == nil {
-			h.MessageEncoding = new(Header_MessageEncoding)
-		}
-		*h.MessageEncoding = v
-	}
-}
-
 func (h *Header) SetMessageLength(v uint32) {
 	if h != nil {
 		if h.MessageLength == nil {
