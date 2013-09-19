@@ -101,7 +101,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		err, e error
 	)
 
-	pack = pc.PipelinePack(0)
+	pack = <- pc.reportRecycleChan
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan), "count")
 	newIntField(msg, "InChanLength", len(pc.inputRecycleChan), "count")
@@ -109,7 +109,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	setNameField(msg, "inputRecycleChan")
 	reportChan <- pack
 
-	pack = pc.PipelinePack(0)
+	pack = <- pc.reportRecycleChan
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan), "count")
 	newIntField(msg, "InChanLength", len(pc.injectRecycleChan), "count")
@@ -117,7 +117,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	setNameField(msg, "injectRecycleChan")
 	reportChan <- pack
 
-	pack = pc.PipelinePack(0)
+	pack = <- pc.reportRecycleChan
 	msg = pack.Message
 	newIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
 	newIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
@@ -127,7 +127,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	reportChan <- pack
 
 	getReport := func(runner PluginRunner) (pack *PipelinePack) {
-		pack = pc.PipelinePack(0)
+		pack = <- pc.reportRecycleChan
 		if err = PopulateReportMsg(runner, pack.Message); err != nil {
 			msg = pack.Message
 			f, e = message.NewField("Error", err.Error(), "")
@@ -154,7 +154,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	}
 
 	for name, dChan := range pc.decoderChannels {
-		pack = pc.PipelinePack(0)
+		pack = <- pc.reportRecycleChan
 		msg = pack.Message
 		msg.SetType("heka.decoder-pool-report")
 		setNameField(msg, fmt.Sprintf("DecoderPool-%s", name))
