@@ -141,6 +141,8 @@ type PipelineConfig struct {
 	inputsLock sync.Mutex
 	// Is freed when all Input runners have stopped.
 	inputsWg sync.WaitGroup
+	// Internal reporting channel
+	reportRecycleChan chan *PipelinePack
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -169,6 +171,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.allDecoders = make([]DecoderRunner, 0, 10)
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
+	config.reportRecycleChan = make(chan *PipelinePack, 1)
 
 	return config
 }

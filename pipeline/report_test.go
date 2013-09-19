@@ -136,9 +136,7 @@ func ReportSpec(c gs.Context) {
 	c.Specify("PipelineConfig", func() {
 		pc := NewPipelineConfig(nil)
 		// Initialize all of the PipelinePacks that we'll need
-		for i := 0; i < Globals().PoolSize; i++ {
-			pc.injectRecycleChan <- NewPipelinePack(pc.injectRecycleChan)
-		}
+		pc.reportRecycleChan <- NewPipelinePack(pc.reportRecycleChan)
 
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
@@ -155,6 +153,7 @@ func ReportSpec(c gs.Context) {
 				c.Expect(ok, gs.IsTrue)
 				c.Expect(name, gs.Not(gs.Equals), "MISSING")
 				reports[name] = r
+				pc.reportRecycleChan <- NewPipelinePack(pc.reportRecycleChan)
 			}
 			fReport := reports[fName]
 			c.Expect(fReport, gs.Not(gs.IsNil))

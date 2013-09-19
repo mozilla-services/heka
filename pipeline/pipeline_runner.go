@@ -644,6 +644,9 @@ func Run(config *PipelineConfig) {
 	inputTracker := NewDiagnosticTracker("input")
 	injectTracker := NewDiagnosticTracker("inject")
 
+	// Create the report pipeline pack
+	config.reportRecycleChan <- NewPipelinePack(config.reportRecycleChan)
+
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < Globals().PoolSize; i++ {
 		inputPack := NewPipelinePack(config.inputRecycleChan)
