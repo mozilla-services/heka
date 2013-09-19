@@ -13,42 +13,6 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type Header_MessageEncoding int32
-
-const (
-	Header_PROTOCOL_BUFFER Header_MessageEncoding = 0
-	Header_JSON            Header_MessageEncoding = 1
-)
-
-var Header_MessageEncoding_name = map[int32]string{
-	0: "PROTOCOL_BUFFER",
-	1: "JSON",
-}
-var Header_MessageEncoding_value = map[string]int32{
-	"PROTOCOL_BUFFER": 0,
-	"JSON":            1,
-}
-
-func (x Header_MessageEncoding) Enum() *Header_MessageEncoding {
-	p := new(Header_MessageEncoding)
-	*p = x
-	return p
-}
-func (x Header_MessageEncoding) String() string {
-	return proto.EnumName(Header_MessageEncoding_name, int32(x))
-}
-func (x Header_MessageEncoding) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
-func (x *Header_MessageEncoding) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(Header_MessageEncoding_value, data, "Header_MessageEncoding")
-	if err != nil {
-		return err
-	}
-	*x = Header_MessageEncoding(value)
-	return nil
-}
-
 type Header_HmacHashFunction int32
 
 const (
@@ -132,7 +96,6 @@ func (x *Field_ValueType) UnmarshalJSON(data []byte) error {
 
 type Header struct {
 	MessageLength    *uint32                  `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
-	MessageEncoding  *Header_MessageEncoding  `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
 	HmacHashFunction *Header_HmacHashFunction `protobuf:"varint,3,opt,name=hmac_hash_function,enum=message.Header_HmacHashFunction,def=0" json:"hmac_hash_function,omitempty"`
 	HmacSigner       *string                  `protobuf:"bytes,4,opt,name=hmac_signer" json:"hmac_signer,omitempty"`
 	HmacKeyVersion   *uint32                  `protobuf:"varint,5,opt,name=hmac_key_version" json:"hmac_key_version,omitempty"`
@@ -144,7 +107,6 @@ func (m *Header) Reset()         { *m = Header{} }
 func (m *Header) String() string { return proto.CompactTextString(m) }
 func (*Header) ProtoMessage()    {}
 
-const Default_Header_MessageEncoding Header_MessageEncoding = Header_PROTOCOL_BUFFER
 const Default_Header_HmacHashFunction Header_HmacHashFunction = Header_MD5
 
 func (m *Header) GetMessageLength() uint32 {
@@ -152,13 +114,6 @@ func (m *Header) GetMessageLength() uint32 {
 		return *m.MessageLength
 	}
 	return 0
-}
-
-func (m *Header) GetMessageEncoding() Header_MessageEncoding {
-	if m != nil && m.MessageEncoding != nil {
-		return *m.MessageEncoding
-	}
-	return Default_Header_MessageEncoding
 }
 
 func (m *Header) GetHmacHashFunction() Header_HmacHashFunction {
@@ -352,7 +307,6 @@ func (m *Message) GetFields() []*Field {
 }
 
 func init() {
-	proto.RegisterEnum("message.Header_MessageEncoding", Header_MessageEncoding_name, Header_MessageEncoding_value)
 	proto.RegisterEnum("message.Header_HmacHashFunction", Header_HmacHashFunction_name, Header_HmacHashFunction_value)
 	proto.RegisterEnum("message.Field_ValueType", Field_ValueType_name, Field_ValueType_value)
 }
