@@ -136,9 +136,6 @@ func ReportSpec(c gs.Context) {
 	c.Specify("PipelineConfig", func() {
 		pc := NewPipelineConfig(nil)
 		// Initialize all of the PipelinePacks that we'll need
-		for i := 0; i < Globals().PoolSize; i++ {
-			pc.injectRecycleChan <- NewPipelinePack(pc.injectRecycleChan)
-		}
 		pc.reportRecycleChan <- NewPipelinePack(pc.reportRecycleChan)
 
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
