@@ -30,7 +30,8 @@ func JsonPathSpec(c gs.Context) {
 			},
 			{
 				"maz": "123",
-				"moo": 256
+				"moo": 256,
+				"muux": 2.10
 			}
 		],
 		"boo": {
@@ -65,7 +66,11 @@ func JsonPathSpec(c gs.Context) {
 
 		result, err = json_path.Find("$.foo.bar[1].moo")
 		c.Expect(err, gs.IsNil)
-		c.Expect(result, gs.Equals, "256.000000000")
+		c.Expect(result, gs.Equals, "256")
+
+		result, err = json_path.Find("$.foo.bar[1].muux")
+		c.Expect(err, gs.IsNil)
+		c.Expect(result, gs.Equals, "2.10")
 
 		result, err = json_path.Find("$.foo.boo.bag")
 		c.Expect(err, gs.IsNil)
@@ -87,7 +92,7 @@ func JsonPathSpec(c gs.Context) {
 		result, err = json_path.Find("$.foo.bar.3428")
 		c.Expect(err, gs.Not(gs.IsNil))
 
-		expected_data := `[{"baz":"こんにちわ世界","noo":"aaa"},{"maz":"123","moo":256}]`
+		expected_data := `[{"baz":"こんにちわ世界","noo":"aaa"},{"maz":"123","moo":256,"muux":2.10}]`
 		result_data, err := json_path.Find("$.foo.bar")
 		c.Expect(err, gs.IsNil)
 		c.Expect(result_data, gs.Equals, expected_data)

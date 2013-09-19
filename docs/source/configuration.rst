@@ -313,13 +313,13 @@ Parameters:
 - QueueAutoDelete (bool):
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
-- Decoders (list of strings):
-    List of decoder names used to transform a raw message body into
-    a structured hekad message. These are skipped for serialized hekad
-    messages.
+- Decoder (string):
+    Decoder name used to transform a raw message body into a structured hekad
+    message. Must be a decoder appropriate for the messages that come in from
+    the exchange.
 
-Since many of these parameters have sane defaults, a minimal
-configuration to consume serialized messages would look like:
+Since many of these parameters have sane defaults, a minimal configuration to
+consume serialized messages would look like:
 
 .. code-block:: ini
 
@@ -336,27 +336,31 @@ Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
-    decoders = ["logparser", "leftovers"]
+    decoder = "logparser"
 
     [logparser]
-    type = "PayloadRegexDecoder"
-    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
+    type = "MultiDecoder"
+    order = ["logline", "leftovers"]
 
-    [logparser.MessageFields]
-    Type = "amqplogline"
-    Hostname = "myhost"
-    Reporter = "%Reporter%"
-    Remaining = "%Remaining%"
-    Logger = "%Logger%"
-    Payload = "%Remaining%"
+      [logparser.subs.logline]
+      type = "PayloadRegexDecoder"
+      MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P Remaining>.*)'
 
-    [leftovers]
-    type = "PayloadRegexDecoder"
-    MatchRegex = '.*'
+        [logparser.subs.logline.MessageFields]
+        Type = "amqplogline"
+        Hostname = "myhost"
+        Reporter = "%Reporter%"
+        Remaining = "%Remaining%"
+        Logger = "%Logger%"
+        Payload = "%Remaining%"
 
-    [leftovers.MessageFields]
-    Type = "drop"
-    Payload = ""
+      [leftovers]
+      type = "PayloadRegexDecoder"
+      MatchRegex = '.*'
+
+        [leftovers.MessageFields]
+        Type = "drop"
+        Payload = ""
 
 .. _config_udp_input:
 
