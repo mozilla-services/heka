@@ -204,6 +204,85 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(name, gs.Equals, "some.counter")
 		})
 	})
+	c.Specify("A PayloadXmlDecoder", func() {
+		decoder := new(PayloadXmlDecoder)
+		conf := decoder.ConfigStruct().(*PayloadXmlDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			xml_data := `<library>
+    <!-- Great book. -->
+    <book id="b0836217462" available="true">
+        <isbn>0836217462</isbn>
+        <title lang="en">Being a Dog Is a Full-Time Job</title>
+        <quote>I'd dog paddle the deepest ocean.</quote>
+        <author id="CMS">
+            <?echo "go rocks"?>
+            <name>Charles M Schulz</name>
+            <born>1922-11-26</born>
+            <dead>2000-02-12</dead>
+        </author>
+        <character id="PP">
+            <name>Peppermint Patty</name>
+            <born>1966-08-22</born>
+            <qualificati>bold, brash and tomboyish</qualificati>
+        </character>
+        <character id="Snoopy">
+            <name>Snoopy</name>
+            <born>1950-10-04</born>
+            <qualificati>extroverted beagle</qualificati>
+        </character>
+    </book>
+</library>`
+
+			conf.XPathMapConfig = map[string]string{"Isbn": "library/*/isbn",
+				"Name":    "/library/book/character[born='1950-10-04']/name",
+				"Patty":   "/library/book//node()[@id='PP']/name",
+				"Title":   "//book[author/@id='CMS']/title",
+				"Comment": "/library/book/preceding::comment()",
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"Isbn":    "%Isbn%",
+				"Name":    "%Name%",
+				"Patty":   "%Patty%",
+				"Title":   "%Title%",
+				"Comment": "%Comment%",
+			}
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(xml_data)
+			err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			var isbn, name, patty, title, comment interface{}
+			var ok bool
+
+			isbn, ok = pack.Message.GetFieldValue("Isbn")
+			c.Expect(ok, gs.Equals, true)
+
+			name, ok = pack.Message.GetFieldValue("Name")
+			c.Expect(ok, gs.Equals, true)
+
+			patty, ok = pack.Message.GetFieldValue("Patty")
+			c.Expect(ok, gs.Equals, true)
+
+			title, ok = pack.Message.GetFieldValue("Title")
+			c.Expect(ok, gs.Equals, true)
+
+			comment, ok = pack.Message.GetFieldValue("Comment")
+			c.Expect(ok, gs.Equals, true)
+
+			c.Expect(isbn, gs.Equals, "0836217462")
+			c.Expect(name, gs.Equals, "Snoopy")
+			c.Expect(patty, gs.Equals, "Peppermint Patty")
+			c.Expect(title, gs.Equals, "Being a Dog Is a Full-Time Job")
+			c.Expect(comment, gs.Equals, " Great book. ")
+		})
+	})
 
 	c.Specify("A PayloadRegexDecoder", func() {
 		decoder := new(PayloadRegexDecoder)
