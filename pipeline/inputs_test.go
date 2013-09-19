@@ -43,7 +43,6 @@ type InputTestHelper struct {
 	MockHelper      *MockPluginHelper
 	MockInputRunner *MockInputRunner
 	MockDecoderSet  *MockDecoderSet
-	Decoders        []DecoderRunner
 	Decoder         DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
@@ -126,9 +125,6 @@ func InputsSpec(c gs.Context) {
 	ith.MockHelper = NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = NewMockInputRunner(ctrl)
 	ith.Decoder = NewMockDecoderRunner(ctrl)
-	ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-	ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
-	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
 	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
