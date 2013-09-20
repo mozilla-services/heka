@@ -102,16 +102,19 @@ func DecodersSpec(c gospec.Context) {
 		pack := NewPipelinePack(supply)
 
 		conf.Name = "MyMultiDecoder"
-		conf.Order = []string{"syncraw"}
 		conf.Subs = make(map[string]interface{}, 0)
-		conf.Subs["syncraw"] = make(map[string]interface{}, 0)
-		syncraw := conf.Subs["syncraw"].(map[string]interface{})
-		syncraw["type"] = "PayloadRegexDecoder"
-		syncraw["match_regex"] = "^(?P<TheData>m.*)"
 
-		syncraw["message_fields"] = make(map[string]interface{}, 0)
-		message_fields := syncraw["message_fields"].(map[string]interface{})
-		message_fields["Somedata"] = "%TheData%"
+		conf.Subs["StartsWithM"] = make(map[string]interface{}, 0)
+		withM := conf.Subs["StartsWithM"].(map[string]interface{})
+		withM["type"] = "PayloadRegexDecoder"
+		withM["match_regex"] = "^(?P<TheData>m.*)"
+		withMFields := make(map[string]interface{}, 0)
+		withMFields["StartsWithM"] = "%TheData%"
+		withM["message_fields"] = withMFields
+
+		conf.Order = []string{"StartsWithM"}
+
+		errMsg := "Unable to decode message with any contained decoder."
 
 		c.Specify("decodes simple messages", func() {
 			err := decoder.Init(conf)
@@ -125,7 +128,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Assume(err, gs.IsNil)
 
 			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
-			value, ok := pack.Message.GetFieldValue("Somedata")
+			value, ok := pack.Message.GetFieldValue("StartsWithM")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, regex_data)
 		})
@@ -139,7 +142,7 @@ func DecodersSpec(c gospec.Context) {
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
 			err = decoder.Decode(pack)
-			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
+			c.Expect(err.Error(), gs.Equals, errMsg)
 		})
 
 		c.Specify("logs subdecoder failures when configured to do so", func() {
@@ -153,10 +156,124 @@ func DecodersSpec(c gospec.Context) {
 			pack.Message.SetPayload(regex_data)
 
 			// Expect that we log an error for undecoded message.
-			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'syncraw' decode error: No match"))
+			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'StartsWithM' decode error: No match"))
 
 			err = decoder.Decode(pack)
-			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
+			c.Expect(err.Error(), gs.Equals, errMsg)
+		})
+
+		c.Specify("with multiple registered decoders", func() {
+			conf.Subs["StartsWithS"] = make(map[string]interface{}, 0)
+			withS := conf.Subs["StartsWithS"].(map[string]interface{})
+			withS["type"] = "PayloadRegexDecoder"
+			withS["match_regex"] = "^(?P<TheData>s.*)"
+			withSFields := make(map[string]interface{}, 0)
+			withSFields["StartsWithS"] = "%TheData%"
+			withS["message_fields"] = withSFields
+
+			conf.Subs["StartsWithM2"] = make(map[string]interface{}, 0)
+			withM2 := conf.Subs["StartsWithM2"].(map[string]interface{})
+			withM2["type"] = "PayloadRegexDecoder"
+			withM2["match_regex"] = "^(?P<TheData>m.*)"
+			withM2Fields := make(map[string]interface{}, 0)
+			withM2Fields["StartsWithM2"] = "%TheData%"
+			withM2["message_fields"] = withM2Fields
+
+			conf.Order = append(conf.Order, "StartsWithS", "StartsWithM2")
+
+			dRunner := NewMockDecoderRunner(ctrl)
+			var ok bool
+
+			c.Specify("defaults to `first-wins` cascading", func() {
+				err := decoder.Init(conf)
+				c.Assume(err, gs.IsNil)
+				decoder.SetDecoderRunner(dRunner)
+
+				c.Specify("on a first match condition", func() {
+					regexData := "match first"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("and a second match condition", func() {
+					regexData := "second match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("returning an error if they all fail", func() {
+					regexData := "won't match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err.Error(), gs.Equals, errMsg)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+			})
+
+			c.Specify("and using `all` cascading", func() {
+				conf.CascadeStrategy = "all"
+				err := decoder.Init(conf)
+				c.Assume(err, gs.IsNil)
+				decoder.SetDecoderRunner(dRunner)
+
+				c.Specify("matches multiples when appropriate", func() {
+					regexData := "matches twice"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsTrue)
+				})
+
+				c.Specify("matches singles when appropriate", func() {
+					regexData := "second match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("returns an error if they all fail", func() {
+					regexData := "won't match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err.Error(), gs.Equals, errMsg)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+			})
 		})
 	})
 
