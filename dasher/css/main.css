@@ -1,0 +1,32 @@
+body {
+  padding-top: 50px;
+}
+
+h1.page-title {
+  font-size: 280%;
+  margin-bottom: 15px;
+}
+
+.stat-widgets {
+  margin-bottom: 20px;
+}
+/*
+.stat-widget {
+  text-align: center;
+}*/
+
+table.reports .plugin {
+  width: 25%;
+}
+
+table.reports .in-channel, table.reports .match-channel {
+  width: 18%;
+}
+
+table.reports .avg-match-duration, table.reports .processed, table.reports .injected {
+  text-align: right;
+}
+
+table.reports .progress {
+  margin-bottom: 0;
+}

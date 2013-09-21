@@ -1,64 +1,43 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>heka dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="css/normalize.css">
-    <link rel="stylesheet" href="css/bootstrap.min.css" rel="stylesheet" media="screen">
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/bootstrap-theme.min.css">
-    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
-    <!--[if lt IE 9]>
-        <script src="/javascript/html5shiv.js"></script>
-        <script src="/javascript/respond.min.js"></script>
-    <![endif]-->
-</head>
-<body>
+  <head>
+    <meta charset="utf-8">
+    <title>heka</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="stylesheet" href="css/bootstrap.min.css" rel="stylesheet" media="screen">
+      <link rel="stylesheet" src="bower_components/jquery.easy-pie-chart/jquery.easy-pie-chart.css">
+      <link rel="stylesheet" href="css/main.css">
+      <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+      <!--[if lt IE 9]>
+        <script src="javascript/vendor/html5shiv.js"></script>
+        <script src="javascript/vendor/respond.js"></script>
+      <![endif]-->
+    </head>
+  <body>
     <div class="container">
-
-    <script type="text/x-handlebars">
-    <nav class="navbar navbar-default navbar-fixed-top" role="navigation">
+      <nav class="navbar navbar-default navbar-fixed-top" role="navigation">
         <div class="navbar-header">
-            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-ex1-collapse">
-            <span class="sr-only">Toggle navigation</span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            </button>
-            <a class="navbar-brand" href="#">heka</a>
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-ex1-collapse">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">heka</a>
         </div>
-
         <div class="collapse navbar-collapse navbar-ex1-collapse">
-            <ul class="nav navbar-nav">
-                <li>{{#linkTo 'health'}}Health{{/linkTo}}</li>
-                <li>{{#linkTo 'sandboxes'}}Sandboxes{{/linkTo}}</li>
-            </ul>
-            <ul class="nav navbar-nav navbar-right">
-                <li><a href="#"><span class="glyphicon glyphicon-wrench"></span></a></li>
-            </ul>
+          <ul class="nav navbar-nav">
+            <li><a href="#health">Health</a></li>
+            <li><a href="#sandboxes">Sandboxes</a></li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <!--li><a href="#"><span class="glyphicon glyphicon-wrench"></span></a></li-->
+          </ul>
         </div>
-    </nav>
-    {{outlet}}
-    </script>
-
-    <script type="text/x-handlebars" data-template-name="index">
-    </script>
-
-    <script type="text/x-handlebars" data-template-name="health">
-        <h1>Hi there!</h1>
-    </script>
-
-    <script type="text/x-handlebars" data-template-name="sandboxes">
-        <h1>Hi there Sandboxes!</h1>
-    </script>
-
-
+      </nav>
+      <div id="content"><!-- backbone --></div>
     </div>
-    <script src="javascript/libs/jquery-1.9.1.js"></script>
-    <script src="javascript/libs/handlebars-1.0.0.js"></script>
-    <script src="javascript/libs/ember-1.0.0-rc.7.js"></script>
-    <script src="javascript/app.js"></script>
-    <script src="javascript/bootstrap.min.js"></script>
-</body>
+
+    <script data-main="javascript/main" src="javascript/vendor/require.js"></script>
+  </body>
 </html>

@@ -1,0 +1,299 @@
+{
+  "reports": [
+    {
+      "Plugin": "inputRecycleChan",
+      "InChanCapacity": {
+        "value": "100",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "100",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "injectRecycleChan",
+      "InChanCapacity": {
+        "value": "100",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "98",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "Router",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      },
+      "ProcessMessageCount": {
+        "value": "72360452",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "TelemetryInput"
+    },
+    {
+      "Plugin": "TelemetryDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "TelemetryDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "TelemetryDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "TelemetryDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "JsonDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "JsonDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "JsonDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "JsonDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "ProtobufDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "ProtobufDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "ProtobufDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "ProtobufDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "DecoderPool-TelemetryDecoder",
+      "InChanCapacity": {
+        "value": "4",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "4",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "DecoderPool-JsonDecoder",
+      "InChanCapacity": {
+        "value": "4",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "4",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "DecoderPool-ProtobufDecoder",
+      "InChanCapacity": {
+        "value": "4",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "4",
+        "representation": "count"
+      }
+    },
+    {
+      "Plugin": "TelemetryFilter",
+      "Memory": {
+        "value": "197307",
+        "representation": "B"
+      },
+      "MaxMemory": {
+        "value": "242230",
+        "representation": "B"
+      },
+      "MaxInstructions": {
+        "value": "65",
+        "representation": "count"
+      },
+      "MaxOutput": {
+        "value": "42693",
+        "representation": "B"
+      },
+      "ProcessMessageCount": {
+        "value": "72281661",
+        "representation": "count"
+      },
+      "ProcessMessageFailures": {
+        "value": "0",
+        "representation": "count"
+      },
+      "InjectMessageCount": {
+        "value": "6060",
+        "representation": "count"
+      },
+      "ProcessMessageSamples": {
+        "value": "118",
+        "representation": "count"
+      },
+      "TimerEventSamples": {
+        "value": "6060",
+        "representation": "count"
+      },
+      "ProcessMessageAvgDuration": {
+        "value": "20888",
+        "representation": "ns"
+      },
+      "TimerEventAvgDuration": {
+        "value": "5691502",
+        "representation": "ns"
+      },
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      },
+      "MatchChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "MatchChanLength": {
+        "value": "0",
+        "representation": "count"
+      },
+      "MatchAvgDuration": {
+        "value": "1693",
+        "representation": "ns"
+      }
+    },
+    {
+      "Plugin": "Dashboard",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      },
+      "MatchChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "MatchChanLength": {
+        "value": "0",
+        "representation": "count"
+      },
+      "MatchAvgDuration": {
+        "value": "1517",
+        "representation": "ns"
+      }
+    }
+  ]
+}
