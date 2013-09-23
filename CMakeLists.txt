@@ -58,7 +58,7 @@ elseif(UNIX)
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
     if (DPKG_EXECUTABLE)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "DEB")
-        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14")
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
     endif()
 
     find_program(RPMBUILD_EXECUTABLE rpmbuild PATH_SUFFIXES bin)
