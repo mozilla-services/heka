@@ -57,7 +57,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Name = md.Config.Name
 
 	var ok bool
-	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; ok {
+	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; !ok {
 		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
 
