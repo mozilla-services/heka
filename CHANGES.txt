@@ -63,6 +63,9 @@ Bug Handling
 Features
 --------
 
+* MultiDecoder now supports `cascade_strategy` config options of `first-wins`
+  and `all`, defaults to `first-wins`.
+
 * Added stream parsing to UdpInput (issue #411)
 
 * Added stream parsing to TcpInput (issue #165)
