@@ -21,10 +21,11 @@ import (
 )
 
 type MultiDecoder struct {
-	Config   *MultiDecoderConfig
-	Name     string
-	Decoders map[string]Decoder
-	dRunner  DecoderRunner
+	Config    *MultiDecoderConfig
+	Name      string
+	Decoders  map[string]Decoder
+	dRunner   DecoderRunner
+	CascStrat int
 }
 
 type MultiDecoderConfig struct {
@@ -36,7 +37,12 @@ type MultiDecoderConfig struct {
 	CascadeStrategy string `toml:"cascade_strategy"`
 }
 
-var mdStrategies = map[string]bool{"first-wins": false, "all": false}
+const (
+	CASC_FIRST_WINS = iota
+	CASC_ALL
+)
+
+var mdStrategies = map[string]int{"first-wins": CASC_FIRST_WINS, "all": CASC_ALL}
 
 func (md *MultiDecoder) ConfigStruct() interface{} {
 	subs := make(map[string]interface{})
@@ -50,7 +56,8 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Decoders = make(map[string]Decoder, 0)
 	md.Name = md.Config.Name
 
-	if _, ok := mdStrategies[md.Config.CascadeStrategy]; !ok {
+	var ok bool
+	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; ok {
 		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
 
@@ -157,7 +164,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 		d = md.Decoders[decoder_name]
 
 		if err = d.Decode(pack); err == nil {
-			if md.Config.CascadeStrategy == "first-wins" {
+			if md.CascStrat == CASC_FIRST_WINS {
 				return
 			} else { // cascade_strategy == "all"
 				anyMatch = true
