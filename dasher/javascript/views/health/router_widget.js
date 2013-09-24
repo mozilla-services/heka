@@ -1,8 +1,8 @@
-define(["views/base_view", "presenters/report_presenter", "hgn!templates/router_widget"], function(BaseView, ReportPresenter, RouterWidgetTemplate) {
+define(["views/base_view", "presenters/plugin_presenter", "hgn!templates/health/router_widget"], function(BaseView, PluginPresenter, RouterWidgetTemplate) {
   "use strict";
 
   var RouterWidget = BaseView.extend({
-    presenter: ReportPresenter,
+    presenter: PluginPresenter,
     template: RouterWidgetTemplate,
 
     initialize: function() {

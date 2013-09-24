@@ -1,8 +1,8 @@
-define(["backbone", "models/report"], function(Backbone, Report) {
+define(["backbone", "models/plugin"], function(Backbone, Plugin) {
   "use strict";
 
-  var Reports = Backbone.Collection.extend({
-    model: Report,
+  var Plugins = Backbone.Collection.extend({
+    model: Plugin,
 
     getRouter: function() {
       return this.findWhere({ id: "Router" });
@@ -17,5 +17,5 @@ define(["backbone", "models/report"], function(Backbone, Report) {
     }
   });
 
-  return Reports;
+  return Plugins;
 });

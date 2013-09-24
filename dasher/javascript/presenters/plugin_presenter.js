@@ -1,11 +1,11 @@
 define(["underscore", "numeral"], function(_, numeral) {
   "use strict";
 
-  var ReportPresenter = function (report) {
-    _.extend(this, report.attributes);
+  var PluginPresenter = function (plugin) {
+    _.extend(this, plugin.attributes);
   };
 
-  _.extend(ReportPresenter.prototype, {
+  _.extend(PluginPresenter.prototype, {
     InChanPercent: function() {
       if (this.InChanLength && this.InChanCapacity) {
         return (this.InChanLength.value / this.InChanCapacity.value) * 100;
@@ -35,5 +35,5 @@ define(["underscore", "numeral"], function(_, numeral) {
     }
   });
 
-  return ReportPresenter;
+  return PluginPresenter;
 });

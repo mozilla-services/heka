@@ -1,8 +1,8 @@
-define(["views/base_view", "presenters/report_presenter", "hgn!templates/recycle_chan_widget"], function(BaseView, ReportPresenter, RecycleChanWidgetTemplate) {
+define(["views/base_view", "presenters/plugin_presenter", "hgn!templates/health/recycle_chan_widget"], function(BaseView, PluginPresenter, RecycleChanWidgetTemplate) {
   "use strict";
 
   var RecycleChanWidget = BaseView.extend({
-    presenter: ReportPresenter,
+    presenter: PluginPresenter,
     template: RecycleChanWidgetTemplate,
 
     initialize: function() {

@@ -7,7 +7,7 @@ define(["backbone"], function(Backbone) {
     },
 
     render: function() {
-      console.log("render");
+      console.log("render", this);
 
       var context = new this.presenter(this.model);
 
@@ -18,8 +18,22 @@ define(["backbone"], function(Backbone) {
       return this;
     },
 
+    renderCollection: function(itemView, selector) {
+      var els = this.collection.collect(function(item) {
+        return new itemView({ model: item }).render().el;
+      });
+
+      this.$(selector).html(els);
+    },
+
     afterRender: function() {
       // Implement in subclasses
+    },
+
+    assign: function(view, selector) {
+      view.setElement(this.$(selector)).render();
+
+      return this;
     }
   });
 

@@ -1,4 +1,4 @@
-define(["jquery", "backbone", "views/reports_index"], function($, Backbone, ReportsIndex) {
+define(["jquery", "backbone", "views/health/health_index"], function($, Backbone, HealthIndex) {
   "use strict";
 
   var Router = Backbone.Router.extend({
@@ -9,13 +9,13 @@ define(["jquery", "backbone", "views/reports_index"], function($, Backbone, Repo
     },
 
     initialize: function() {
-      this.reportsIndex = new ReportsIndex();
+      this.healthIndex = new HealthIndex();
 
-      this.reportsIndex.render();
+      this.healthIndex.render();
     },
 
     health: function() {
-      this.updateContent(this.reportsIndex);
+      this.updateContent(this.healthIndex);
     },
 
     sandboxes: function() {
