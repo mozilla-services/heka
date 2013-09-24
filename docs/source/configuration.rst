@@ -1028,6 +1028,26 @@ implemented by the `xmlpath <http://launchpad.net/xmlpath>`_ library.
     * Only a single predicate is supported per path step
     * Richer expressions and namespaces are not supported
 
+.. _config_statstofieldsdecoder:
+
+.. versionadded:: 0.4
+StatsToFieldsDecoder
+--------------------
+
+The StatsToFieldsDecoder will parse statsd data in the graphite `string format
+<http://graphite.wikidot.com/getting-your-data-into- graphite#toc4>`_ and
+encode the data into the message fields, in the same format produced by a
+:ref:`config_stataccuminput` plugin with the `emit_in_fields` value set to
+true. This is useful if you have externally generated statsd string data
+flowing through Heka that you'd like to process using sandboxed Lua filters
+(or any other means, really). without having to do the necessary string
+parsing.
+
+This decoder has no configuration options, it simply expects to be passed a
+message with statsd string data in the payload. Incorrect or malformed content
+will cause a decoding error, dropping the message. Currently limited to
+messages where every stat has the same timestamp.
+
 .. _config_multidecoder:
 
 MultiDecoder

@@ -190,6 +190,68 @@ func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
 	return proto.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
+// Decoder that expects statsd string format data in the message payload,
+// converts that to identical statsd format data in the message fields, in the
+// same format that a StatAccumInput w/ `emit_in_fields` set to true would
+// use.
+type StatsToFieldsDecoder struct{}
+
+func (d *StatsToFieldsDecoder) Init(config interface{}) error {
+	return nil
+}
+
+func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
+	lines := strings.Split(strings.Trim(pack.Message.GetPayload(), "\n"), "\n")
+	var timestamp uint64
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		// sanity check
+		if len(fields) != 3 {
+			return fmt.Errorf("malformed statmetric line: '%s'", line)
+		}
+		// check timestamp validity
+		var unixTime uint64
+		unixTime, err = strconv.ParseUint(fields[2], 0, 32)
+		if err != nil {
+			return fmt.Errorf("invalid timestamp: '%s'", line)
+		}
+		// track timestamp set
+		if timestamp != unixTime {
+			if timestamp == uint64(0) {
+				timestamp = unixTime
+			} else {
+				// TODO: Create a separate message for each distinct timestamp.
+				return fmt.Errorf(
+					"StatsToFieldsDecoder only supports one timestamp per message")
+			}
+		}
+		// check value validity
+		var value float64
+		if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
+			return fmt.Errorf("invalid value: '%s'", line)
+		}
+		// add stat field
+		if err = d.addStatField(pack, fields[0], value); err != nil {
+			return fmt.Errorf("error adding field '%s': %s", line, err)
+		}
+	}
+	// add timestamp field
+	if err = d.addStatField(pack, "timestamp", int64(timestamp)); err != nil {
+		return fmt.Errorf("error adding field 'timestamp': %s", err)
+	}
+
+	return
+}
+
+func (d *StatsToFieldsDecoder) addStatField(pack *PipelinePack, name string,
+	value interface{}) error {
+	field, err := message.NewField(name, value, "")
+	if err == nil {
+		pack.Message.AddField(field)
+	}
+	return err
+}
+
 // Populated by the init function, this regex matches the MessageFields values
 // to interpolate variables from capture groups or other parts of the existing
 // message.

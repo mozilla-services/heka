@@ -28,6 +28,7 @@ import (
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -321,6 +322,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(name, gs.Equals, "some.counter")
 		})
 	})
+
 	c.Specify("A PayloadXmlDecoder", func() {
 		decoder := new(PayloadXmlDecoder)
 		conf := decoder.ConfigStruct().(*PayloadXmlDecoderConfig)
@@ -643,6 +645,92 @@ func DecodersSpec(c gospec.Context) {
 			err = decoder.Decode(pack)
 			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+		})
+	})
+
+	c.Specify("A StatsToFieldsDecoder", func() {
+		decoder := new(StatsToFieldsDecoder)
+		pack := NewPipelinePack(config.inputRecycleChan)
+
+		mergeStats := func(stats [][]string) string {
+			lines := make([]string, len(stats))
+			for i, line := range stats {
+				lines[i] = strings.Join(line, " ")
+			}
+			return strings.Join(lines, "\n")
+		}
+
+		c.Specify("correctly converts stats to fields", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047333"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+
+			for i, stats := range stats {
+				value, ok := pack.Message.GetFieldValue(stats[0])
+				c.Expect(ok, gs.IsTrue)
+				expected := float64(i + 1)
+				c.Expect(value.(float64), gs.Equals, expected)
+			}
+
+			value, ok := pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err := strconv.ParseInt(stats[0][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+		})
+
+		c.Specify("fails w/ multiple timestamps", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals,
+				"StatsToFieldsDecoder only supports one timestamp per message")
+		})
+
+		c.Specify("fails w/ invalid timestamp", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333c"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := fmt.Sprintf("invalid timestamp: '%s'",
+				strings.Join(stats[2], " "))
+			c.Expect(err.Error(), gs.Equals, expected)
+		})
+
+		c.Specify("fails w/ invalid value", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333"},
+				{"stat.four", "4d", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := fmt.Sprintf("invalid value: '%s'",
+				strings.Join(stats[3], " "))
+			c.Expect(err.Error(), gs.Equals, expected)
 		})
 	})
 }
