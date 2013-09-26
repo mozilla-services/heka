@@ -60,6 +60,8 @@ Bug Handling
 
 * Fixed a CarbonOutput memory / socket leak.
 
+* Fixed panic caused by an invalid config file path.
+
 Features
 --------
 
