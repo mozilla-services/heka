@@ -650,6 +650,12 @@ func DecodersSpec(c gospec.Context) {
 
 	c.Specify("A StatsToFieldsDecoder", func() {
 		decoder := new(StatsToFieldsDecoder)
+		router := NewMessageRouter()
+		router.inChan = make(chan *PipelinePack, 5)
+		dRunner := NewMockDecoderRunner(ctrl)
+		decoder.runner = dRunner
+		dRunner.EXPECT().Router().Return(router)
+
 		pack := NewPipelinePack(config.inputRecycleChan)
 
 		mergeStats := func(stats [][]string) string {
@@ -686,19 +692,43 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(value.(int64), gs.Equals, expected)
 		})
 
-		c.Specify("fails w/ multiple timestamps", func() {
+		c.Specify("generates multiple messages for multiple timestamps", func() {
 			stats := [][]string{
 				{"stat.one", "1", "1380047333"},
 				{"stat.two", "2", "1380047333"},
-				{"stat.three", "3", "1380047333"},
+				{"stat.three", "3", "1380047331"},
 				{"stat.four", "4", "1380047333"},
 				{"stat.five", "5", "1380047332"},
 			}
+			// Prime the pack supply w/ two new packs.
+			dRunner.EXPECT().NewPack().Return(NewPipelinePack(nil))
+			dRunner.EXPECT().NewPack().Return(NewPipelinePack(nil))
+
+			// Decode and check the main pack.
 			pack.Message.SetPayload(mergeStats(stats))
 			err := decoder.Decode(pack)
-			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), gs.Equals,
-				"StatsToFieldsDecoder only supports one timestamp per message")
+			c.Expect(err, gs.IsNil)
+			value, ok := pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err := strconv.ParseInt(stats[0][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+
+			// Check the first extra.
+			pack = <-router.inChan
+			value, ok = pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err = strconv.ParseInt(stats[2][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+
+			// Check the second extra.
+			pack = <-router.inChan
+			value, ok = pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err = strconv.ParseInt(stats[4][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
 		})
 
 		c.Specify("fails w/ invalid timestamp", func() {

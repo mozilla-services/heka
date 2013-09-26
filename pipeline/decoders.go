@@ -81,12 +81,20 @@ type DecoderRunner interface {
 	// UUID to distinguish the duplicate instances of the same registered
 	// Decoder plugin type from each other.
 	UUID() string
+	// Returns the running Heka router for direct use by decoder plugins.
+	Router() MessageRouter
+	// Fetches a new pack from the input supply and returns it to the caller,
+	// for decoders that generate multiple messages from a single input
+	// message.
+	NewPack() *PipelinePack
 }
 
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
 	uuid   string
+	router *messageRouter
+	h      PluginHelper
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -109,6 +117,8 @@ func (dr *dRunner) Decoder() Decoder {
 }
 
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
+	dr.h = h
+	dr.router = h.PipelineConfig().router
 	go func() {
 		var pack *PipelinePack
 
@@ -141,6 +151,14 @@ func (dr *dRunner) UUID() string {
 	return dr.uuid
 }
 
+func (dr *dRunner) Router() MessageRouter {
+	return dr.router
+}
+
+func (dr *dRunner) NewPack() *PipelinePack {
+	return <-dr.h.PipelineConfig().inputRecycleChan
+}
+
 func (dr *dRunner) LogError(err error) {
 	log.Printf("Decoder '%s' error: %s", dr.name, err)
 }
@@ -149,7 +167,7 @@ func (dr *dRunner) LogMessage(msg string) {
 	log.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
-// Any decoder that needs access to its DecoderRunner  can implement this
+// Any decoder that needs access to its DecoderRunner can implement this
 // interface and it will be provided at DecoderRunner start time.
 type WantsDecoderRunner interface {
 	SetDecoderRunner(dr DecoderRunner)
@@ -190,54 +208,104 @@ func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
 	return proto.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
+type extraStatMessage struct {
+	timestamp uint64
+	pack      *PipelinePack
+}
+
 // Decoder that expects statsd string format data in the message payload,
 // converts that to identical statsd format data in the message fields, in the
 // same format that a StatAccumInput w/ `emit_in_fields` set to true would
 // use.
-type StatsToFieldsDecoder struct{}
+type StatsToFieldsDecoder struct {
+	runner DecoderRunner
+	helper PluginHelper
+}
 
 func (d *StatsToFieldsDecoder) Init(config interface{}) error {
 	return nil
 }
 
+// Implement `WantsDecoderRunner`
+func (d *StatsToFieldsDecoder) SetDecoderRunner(dr DecoderRunner) {
+	d.runner = dr
+}
+
 func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
+	var (
+		timestamp uint64
+		extras    []*extraStatMessage
+	)
+
 	lines := strings.Split(strings.Trim(pack.Message.GetPayload(), "\n"), "\n")
-	var timestamp uint64
+	routerChan := d.runner.Router().InChan()
 	for _, line := range lines {
 		fields := strings.Fields(line)
-		// sanity check
+		// Sanity check.
 		if len(fields) != 3 {
 			return fmt.Errorf("malformed statmetric line: '%s'", line)
 		}
-		// check timestamp validity
+		// Check timestamp validity.
 		var unixTime uint64
 		unixTime, err = strconv.ParseUint(fields[2], 0, 32)
 		if err != nil {
 			return fmt.Errorf("invalid timestamp: '%s'", line)
 		}
-		// track timestamp set
-		if timestamp != unixTime {
-			if timestamp == uint64(0) {
-				timestamp = unixTime
-			} else {
-				// TODO: Create a separate message for each distinct timestamp.
-				return fmt.Errorf(
-					"StatsToFieldsDecoder only supports one timestamp per message")
-			}
-		}
-		// check value validity
+		// Check value validity.
 		var value float64
 		if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
 			return fmt.Errorf("invalid value: '%s'", line)
 		}
-		// add stat field
+		if timestamp != unixTime {
+			if timestamp == uint64(0) {
+				timestamp = unixTime
+			} else {
+				// Multiple timestamps in one stat set. Generate a separate
+				// message for each one.
+				var sMsg *extraStatMessage
+				// Check if we've seen this one already.
+				found := false
+				for _, sMsg = range extras {
+					if unixTime == sMsg.timestamp {
+						// We've got it.
+						found = true
+						break
+					}
+				}
+				if !found {
+					// No existing message, create one.
+					sMsg = &extraStatMessage{
+						timestamp: unixTime,
+						pack:      d.runner.NewPack(),
+					}
+					// Copy the original message, but clear out the payload and the fields.
+					pack.Message.Copy(sMsg.pack.Message)
+					sMsg.pack.Message.Fields = make([]*message.Field, 0, 2)
+					sMsg.pack.Message.SetPayload("")
+					if err = d.addStatField(sMsg.pack, "timestamp", int64(unixTime)); err != nil {
+						return
+					}
+					extras = append(extras, sMsg)
+				}
+				// Add field to the extra message.
+				if err = d.addStatField(sMsg.pack, fields[0], value); err != nil {
+					return
+				}
+			}
+		}
+		// Add field to the main message.
 		if err = d.addStatField(pack, fields[0], value); err != nil {
-			return fmt.Errorf("error adding field '%s': %s", line, err)
+			return
 		}
 	}
-	// add timestamp field
+	// Add timestamp field to the main message.
 	if err = d.addStatField(pack, "timestamp", int64(timestamp)); err != nil {
-		return fmt.Errorf("error adding field 'timestamp': %s", err)
+		return
+	}
+	if extras != nil {
+		for _, sMsg := range extras {
+			routerChan <- sMsg.pack
+		}
 	}
 
 	return
@@ -245,11 +313,13 @@ func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
 
 func (d *StatsToFieldsDecoder) addStatField(pack *PipelinePack, name string,
 	value interface{}) error {
+
 	field, err := message.NewField(name, value, "")
-	if err == nil {
-		pack.Message.AddField(field)
+	if err != nil {
+		return fmt.Errorf("error adding field '%s': %s", name, err)
 	}
-	return err
+	pack.Message.AddField(field)
+	return nil
 }
 
 // Populated by the init function, this regex matches the MessageFields values
