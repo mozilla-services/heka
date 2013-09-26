@@ -28,7 +28,7 @@ func HttpInputSpec(c gs.Context) {
 
 	pConfig := NewPipelineConfig(nil)
 
-	json_post := `{"uuid": "xxBI3zyeXU+spG8Uiveumw==", "timestamp": 1372966886023588, "hostname": "Victors-MacBook-Air.local", "pid": 40183, "fields": [{"representation": "", "value_type": "STRING", "name": "cef_meta.syslog_priority", "value_string": [""]}, {"representation": "", "value_type": "STRING", "name": "cef_meta.syslog_ident", "value_string": [""]}, {"representation": "", "value_type": "STRING", "name": "cef_meta.syslog_facility", "value_string": [""]}, {"representation": "", "value_type": "STRING", "name": "cef_meta.syslog_options", "value_string": [""]}], "logger": "", "env_version": "0.8", "type": "cef", "payload": "Jul 04 15:41:26 Victors-MacBook-Air.local CEF:0|mozilla|weave|3|xx\\\\|x|xx\\\\|x|5|cs1Label=requestClientApplication cs1=MySuperBrowser requestMethod=GET request=/ src=127.0.0.1 dest=127.0.0.1 suser=none", "severity": 6}'`
+	response_data := `some_http_response_content`
 
 	c.Specify("A HttpInput", func() {
 
@@ -53,13 +53,13 @@ func HttpInputSpec(c gs.Context) {
 			ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
 			// Spin up a http server
-			server, err := ts.NewOneHttpServer(json_post, "localhost", 9876)
+			server, err := ts.NewOneHttpServer(response_data, "localhost", 9876)
 			c.Expect(err, gs.IsNil)
 			go server.Start("/")
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "JsonDecoder"
+			decoderName := "PayloadJsonDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)

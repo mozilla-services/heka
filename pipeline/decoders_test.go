@@ -19,7 +19,6 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
@@ -45,30 +44,6 @@ func DecodersSpec(c gospec.Context) {
 
 	msg := getTestMessage()
 	config := NewPipelineConfig(nil)
-
-	c.Specify("A JsonDecoder", func() {
-		encoded, err := json.Marshal(msg)
-		c.Assume(err, gs.IsNil)
-		pack := NewPipelinePack(config.inputRecycleChan)
-		decoder := new(JsonDecoder)
-
-		c.Specify("decodes a json message", func() {
-			pack.MsgBytes = encoded
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.IsNil)
-			c.Expect(pack.Message, gs.Equals, msg)
-			v, ok := pack.Message.GetFieldValue("foo")
-			c.Expect(ok, gs.IsTrue)
-			c.Expect(v, gs.Equals, "bar")
-		})
-
-		c.Specify("returns an error for bunk encoding", func() {
-			bunk := append([]byte{'}'}, encoded...)
-			pack.MsgBytes = bunk
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.Not(gs.IsNil))
-		})
-	})
 
 	c.Specify("A ProtobufDecoder", func() {
 		encoded, err := proto.Marshal(msg)
@@ -647,26 +622,6 @@ func DecodersSpec(c gospec.Context) {
 	})
 }
 
-func BenchmarkDecodeJSON(b *testing.B) {
-	b.StopTimer()
-	msg := getTestMessage()
-	var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-	timestampJson, _ := json.Marshal(time.Unix(*msg.Timestamp/1e9, *msg.Timestamp%1e9))
-	fieldsJson := `{"foo":"bar"}`
-	uuid := msg.GetUuidString()
-	jsonString := fmt.Sprintf(fmtString, uuid, *msg.Type,
-		timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
-		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
-
-	config := NewPipelineConfig(nil)
-	pipelinePack := NewPipelinePack(config.inputRecycleChan)
-	pipelinePack.MsgBytes = []byte(jsonString)
-	jsonDecoder := new(JsonDecoder)
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		jsonDecoder.Decode(pipelinePack)
-	}
-}
 
 func BenchmarkEncodeProtobuf(b *testing.B) {
 	b.StopTimer()

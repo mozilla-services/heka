@@ -47,8 +47,8 @@ Any values other than "type" in a section, such as "address" in the
 above examples, will be passed through to the plugin for internal
 configuration (see :ref:`plugin_config`).
 
-A JsonDecoder and ProtobufDecoder will be automatically setup if not
-specified explicitly in the configuration file.
+A ProtobufDecoder will be automatically setup if not specified
+explicitly in the configuration file.
 
 If a plugin fails to load during startup, hekad will exit at startup.
 When hekad is running, if a plugin should fail (due to connection loss,
@@ -705,7 +705,7 @@ Example:
     [HttpInput]
     url = "http://localhost:9876/"
     ticker_interval = 5
-    decoder = "JsonDecoder"
+    decoder = "ProtobufDecoder"
 
 .. end-inputs
 
@@ -715,26 +715,23 @@ Decoders
 ========
 
 A decoder may be specified for each encoding type defined in message.pb.go.
-Unless you are using a custom decoder you probably won't need to specify these
-by hand, by default the JsonDecoder and ProtobufDecoder will be configured as
-if you had included the following configuration.
+Unless you are using a custom decoder you probably won't need to specify this
+by hand.  By default the ProtobufDecoder will be configured as if you
+had included the following configuration.
 
 Example:
 
 .. code-block:: ini
 
-    [JsonDecoder]
-    encoding_name = "JSON"
-
     [ProtobufDecoder]
     encoding_name = "PROTOCOL_BUFFER"
 
-The JsonDecoder converts JSON serialized Heka messages to `Message` struct
-objects. The `encoding_name` setting means that this decoder should be used
-for any Heka protocol messages that have the encoding header of JSON. The
-ProtobufDecoder converts protocol buffers serialized messages to `Message`
-struct objects. The hekad protocol buffers message schema in defined in the
-`message.proto` file in the `message` package.
+The ProtobufDecoder converts protocol buffers serialized messages to
+`Message` struct objects.  The `encoding_name` setting means that this
+decoder should be used for any Heka protocol messages that have the
+encoding header of PROTOCOL_BUFFER.  The hekad protocol buffers
+message schema in defined in the `message.proto` file in the `message`
+package.
 
 .. note::
 

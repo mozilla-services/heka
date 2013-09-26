@@ -328,8 +328,6 @@ type PluginGlobals struct {
 
 // Default Decoders configuration.
 var defaultDecoderTOML = `
-[JsonDecoder]
-
 [ProtobufDecoder]
 `
 
@@ -624,15 +622,11 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		errcnt += self.loadSection(name, conf)
 	}
 
-	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
+	// Add PROTOCOL_BUFFER decoder if none were configured
 	var configDefault ConfigFile
 	toml.Decode(defaultDecoderTOML, &configDefault)
 	dWrappers := self.DecoderWrappers
 
-	if _, ok := dWrappers["JsonDecoder"]; !ok {
-		log.Println("Loading: [JsonDecoder]")
-		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
-	}
 	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
 		log.Println("Loading: [ProtobufDecoder]")
 		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
@@ -657,9 +651,6 @@ func init() {
 	})
 	RegisterPlugin("MultiDecoder", func() interface{} {
 		return new(MultiDecoder)
-	})
-	RegisterPlugin("JsonDecoder", func() interface{} {
-		return new(JsonDecoder)
 	})
 	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)

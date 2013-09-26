@@ -18,7 +18,6 @@ package pipeline
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"log"
@@ -166,17 +165,6 @@ type Decoder interface {
 	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
 	// and use it to populated pack.Message message object.
 	Decode(pack *PipelinePack) error
-}
-
-// Decoder for converting JSON strings into Message objects.
-type JsonDecoder struct{}
-
-func (self *JsonDecoder) Init(config interface{}) error {
-	return nil
-}
-
-func (self *JsonDecoder) Decode(pack *PipelinePack) error {
-	return json.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
 // Decoder for converting ProtocolBuffer data into Message objects.

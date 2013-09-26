@@ -21,6 +21,7 @@ func NewOneHttpServer(response_data string, hostname string, port int) (server *
 }
 
 func (o *OneHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/octet-stream")
 	fmt.Fprintf(w, o.response_data)
 	o.listener.Close()
 }
