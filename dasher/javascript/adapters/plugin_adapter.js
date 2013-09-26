@@ -19,7 +19,7 @@ define(["underscore", "backbone", "jquery", "models/plugin", "collections/plugin
         this.parseArrayIntoCollection(response.outputs, this.outputs);
       }, this));
 
-      // TODO: Connect to event source for updates
+      this.listenForUpdates();
     },
 
     parseArrayIntoCollection: function(array, collection) {
@@ -48,6 +48,10 @@ define(["underscore", "backbone", "jquery", "models/plugin", "collections/plugin
     // Callback takes a response param.
     fetch: function(callback) {
       $.getJSON("sample_data/heka_report_new.json").then(callback);
+    },
+
+    listenForUpdates: function() {
+      setTimeout(_.bind(function() { this.fill(); }, this), 5000);
     }
   });
 
