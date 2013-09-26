@@ -10,23 +10,40 @@ h1.page-title {
 .stat-widgets {
   margin-bottom: 20px;
 }
-/*
+
+.well {
+  background-color: #fafafa;
+}
+
 .stat-widget {
   text-align: center;
-}*/
+}
 
-table.reports .plugin {
+#globals-index h3 {
+  margin: 0;
+}
+
+table.plugins .name {
   width: 25%;
 }
 
-table.reports .in-channel, table.reports .match-channel {
+table.plugins .in-channel, table.plugins .match-channel {
   width: 18%;
 }
 
-table.reports .avg-match-duration, table.reports .processed, table.reports .injected {
+/*table.plugins .avg-match-duration, table.plugins .processed, table.plugins .injected {
   text-align: right;
+}*/
+
+table.plugins tr.decoder td.name {
+  padding-left: 29px;
 }
 
-table.reports .progress {
+table.plugins td.name span.glyphicon {
+  color: #444;
+  margin-right: 4px;
+}
+
+table .progress {
   margin-bottom: 0;
 }

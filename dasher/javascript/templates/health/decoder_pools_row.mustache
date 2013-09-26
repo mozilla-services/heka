@@ -1,1 +1,16 @@
-<td class="plugin">{{Plugin}}</td>
+<tr>
+  <td class="name" colspan="3"><span class="glyphicon glyphicon-import"></span> {{Name}}</td>
+</tr>
+{{#decoders}}
+  <tr class="decoder">
+    <td class="name">{{Name}}</td>
+    <td class="in-channel">
+      <div class="progress" title="{{InChanLength.value}}/{{InChanCapacity.value}}">
+        <div class="progress-bar" role="progressbar" aria-valuenow="{{InChanLength.value}}" aria-valuemin="0" aria-valuemax="{{InChanCapacity.value}}" style="width: {{InChanPercent}}%;">
+          <span class="sr-only">{{InChanPercent}}% Complete</span>
+        </div>
+      </div>
+    </td>
+    <td></td>
+  </tr>
+{{/decoders}}

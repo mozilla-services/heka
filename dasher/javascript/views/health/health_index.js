@@ -1,7 +1,5 @@
 define(
   [
-    "jquery",
-    "underscore",
     "views/base_view",
     "adapters/plugin_adapter",
     "views/health/globals_index",
@@ -11,7 +9,7 @@ define(
     "views/health/outputs_index",
     "hgn!templates/health/health_index"
   ],
-  function($, _, BaseView, PluginAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
+  function(BaseView, PluginAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
     "use strict";
 
     var HealthIndex = BaseView.extend({

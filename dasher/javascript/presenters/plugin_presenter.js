@@ -6,6 +6,17 @@ define(["underscore", "numeral"], function(_, numeral) {
   };
 
   _.extend(PluginPresenter.prototype, {
+    Name: function() {
+      var output = this.Plugin;
+
+      output = output.replace(/DecoderPool-/, "");
+      // output = output.replace(/([A-Z])/g, " $1");
+      // output = output.replace(/^\s+|\s+$/, "");
+      // output = output.replace(/(Input|Decoder|Filter)$/, "")
+
+      return output;
+    },
+
     InChanPercent: function() {
       if (this.InChanLength && this.InChanCapacity) {
         return (this.InChanLength.value / this.InChanCapacity.value) * 100;

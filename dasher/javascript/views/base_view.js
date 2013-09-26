@@ -23,7 +23,7 @@ define(["backbone"], function(Backbone) {
         return new itemView({ model: item }).render().el;
       });
 
-      this.$(selector).html(els);
+      this.$(selector).append(els);
     },
 
     afterRender: function() {

@@ -12,21 +12,31 @@ define(["underscore", "backbone", "jquery", "models/plugin", "collections/plugin
   _.extend(PluginAdapter.prototype, {
     fill: function() {
       this.fetch(_.bind(function(response) {
-        this.parseArrayIntoCollection(this.globals, response.globals);
-        this.parseArrayIntoCollection(this.inputs, response.inputs);
-        this.parseArrayIntoCollection(this.decoderPools, response.decoderPools);
-        this.parseArrayIntoCollection(this.filters, response.filters);
-        this.parseArrayIntoCollection(this.outputs, response.outputs);
+        this.parseArrayIntoCollection(response.globals, this.globals);
+        this.parseArrayIntoCollection(response.inputs, this.inputs);
+        this.parseArrayIntoCollection(response.decoderPools, this.decoderPools);
+        this.parseArrayIntoCollection(response.filters, this.filters);
+        this.parseArrayIntoCollection(response.outputs, this.outputs);
       }, this));
 
       // TODO: Connect to event source for updates
     },
 
-    parseArrayIntoCollection: function(collection, array) {
-      var plugins = _.collect(array, function(plugin) {
+    parseArrayIntoCollection: function(array, collection) {
+      var plugins = _.collect(array, _.bind(function(p) {
         // Use plugin name as its id
-        return new Plugin(_.extend(plugin, { id: plugin.Plugin }));
-      });
+        var plugin = new Plugin(_.extend(p, { id: p.Plugin }));
+
+        if (plugin.has("decoders")) {
+          var decoders = new Plugins();
+
+          this.parseArrayIntoCollection(plugin.get("decoders"), decoders);
+
+          plugin.set("decoders", decoders);
+        }
+
+        return plugin;
+      }, this));
 
       if (collection.length > 0) {
         collection.set(plugins);

@@ -15,7 +15,7 @@ define(
       },
 
       afterRender: function() {
-        this.renderCollection(DecodersRow, ".decoder-pools tbody");
+        this.renderCollection(DecodersRow, ".decoder-pools");
       }
     });
 
