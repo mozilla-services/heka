@@ -10,6 +10,9 @@ define(["underscore", "numeral", "presenters/plugin_presenter"], function(_, num
   };
 
   _.extend(DecoderPoolPluginPresenter.prototype, PluginPresenter.prototype, {
+    Name: function() {
+      return this.Plugin.replace(/DecoderPool-/, "");
+    },
   });
 
   return DecoderPoolPluginPresenter;
