@@ -10,9 +10,8 @@ require.config({
     "hgn":                   "vendor/hgn",
     "hogan":                 "vendor/hogan",
     "numeral":               "vendor/numeral",
-    "raphael":               "vendor/raphael",
-    "justgage":              "vendor/justgage",
-    "jquery.animateNumbers": "vendor/jquery.animateNumbers"
+    "jquery.animateNumbers": "vendor/jquery.animateNumbers",
+    "dygraph":               "vendor/dygraph-combined"
   },
 
   shim: {
@@ -25,18 +24,13 @@ require.config({
       exports: "Backbone"
     },
 
-    "raphael": {
-      exports: "Raphael"
-    },
-
-    "justgage": {
-      deps: ["raphael"],
-      exports: "JustGage"
-    },
-
     "jquery.animateNumbers": {
       deps: ["jquery"],
       exports: "jQuery.fn.animateNumbers"
+    },
+
+    "dygraph": {
+      exports: "Dygraph"
     }
   }
 });

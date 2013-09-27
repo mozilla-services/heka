@@ -1,4 +1,4 @@
-define(["jquery", "backbone", "views/health/health_index"], function($, Backbone, HealthIndex) {
+define(["jquery", "backbone", "views/health/health_index", "views/sandboxes/sandboxes_index"], function($, Backbone, HealthIndex, SandboxesIndex) {
   "use strict";
 
   var Router = Backbone.Router.extend({
@@ -10,8 +10,10 @@ define(["jquery", "backbone", "views/health/health_index"], function($, Backbone
 
     initialize: function() {
       this.healthIndex = new HealthIndex();
+      this.sandboxesIndex = new SandboxesIndex();
 
       this.healthIndex.render();
+      this.sandboxesIndex.render();
     },
 
     health: function() {
@@ -19,7 +21,7 @@ define(["jquery", "backbone", "views/health/health_index"], function($, Backbone
     },
 
     sandboxes: function() {
-      $("#content").html("Sandboxes!");
+      this.updateContent(this.sandboxesIndex);
     },
 
     updateContent: function(view) {
