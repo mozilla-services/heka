@@ -6,7 +6,12 @@ define(["views/base_view", "presenters/plugin_presenter", "hgn!templates/health/
     template: ChannelCountTemplate,
 
     initialize: function() {
-      this.listenTo(this.model, "change", this.render, this);
+      this.listenTo(this.model, "change", this.updateCounts, this);
+    },
+
+    updateCounts: function() {
+      this.$(".in-chan-length").animateNumbers(this.model.get("InChanLength").value);
+      this.$(".in-chan-capacity").animateNumbers(this.model.get("InChanCapacity").value);
     }
   });
 
