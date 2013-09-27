@@ -34,6 +34,14 @@ define(["underscore", "numeral"], function(_, numeral) {
       }
     },
 
+    InChanDescription: function() {
+      if (this.Plugin === "inputRecycleChan" || this.Plugin === "injectRecycleChan") {
+        return "Messages Available";
+      } else {
+        return "Messages in Channel";
+      }
+    },
+
     hasMatchChannel: function() {
       return _.has(this, "MatchChanLength");
     }
