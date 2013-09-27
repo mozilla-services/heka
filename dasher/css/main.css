@@ -19,6 +19,19 @@ h1.page-title {
   text-align: center;
 }
 
+.stat-widget h3 {
+  font-size: 18px;
+}
+
+.stat-widget h4 {
+  font-size: 28px;
+}
+
+.stat-widget h5 {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
 #globals-index h3 {
   margin: 0;
 }
