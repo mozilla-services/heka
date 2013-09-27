@@ -634,6 +634,99 @@ func (fm *FileMonitor) setupJournalling(journalName string) (err error) {
 	return fm.recoverSeekPosition()
 }
 
+// Abstracts how the file located for reading is located. An implementation could read
+// many files in a row in a variety of directory layouts rather than strictly tailing
+// a single file, etc.
+type FileReader interface {
+	// Method that initializes the FileReader with the config options given, an arbitrary TOML
+	// config section.
+	LoadConfig(config interface{}) error
+	// Given a previously loaded file name location and hash data for the line, locate and
+	// return the file descriptor with the seek appropriately set such that the next section
+	// can be parsed. An error should be returned if there's no appropriate file at the
+	// moment to read in which case this will be called at the discovery interval.
+	SeekFile(filename, hash string, start, len float64) (error, *os.File)
+}
+
+// Match translation map for a matched section that maps the string value to the integer to
+// sort on.
+type MatchTranslationMap map[string]int
+
+// SubmatchTranslationMap holds a map of MatchTranslationMap's for every submatch that
+// should be translated to an int.
+type SubmatchTranslationMap map[string]MatchTranslationMap
+
+// Sort pattern is a construct used to return an ordered list of filenames based
+// on the supplied sorting criteria
+//
+// Example:
+//
+//     Assume that all logfiles are named '2013/August/08/xyz-11.log'. First a
+// FileMatch pattern is needed to recognize these parts, which would look like:
+//
+//     (?P<Year>\d{4})/(?P<MonthName>\w+)/(?P<Day>\d+)/\w+-(?P<Seq>\d+).log
+//
+//     The above pattern will match the logfiles and break them down to 4 key parts
+// used to sort the list. The Year, MonthName (which will be converted to ints), Day,
+// and Seq. No Translation mapping is needed in this case, as standard English month
+// and day names are translated to integers. The priority for sorting should be done
+// with Year first, then MonthName, Day, and finally Seq, so the Priority would be
+//
+//     ["Year", "MonthName", "Day", "Seq"]
+type SortPattern struct {
+	// Regular expression for the files to match and parts of the filename to use for
+	// sorting. All parts to be sorted on must be captured and named. Special handling is
+	// provided for parts with names: MonthName, DayName.
+	// These names will be translated from short/long month/day names to the appropriate
+	// integer value.
+	FileMatch string
+	// Translation is used for custom ordering lookups where a custom value needs to be
+	// translated to a value for sorting. ie. a different tool using weekdays with values
+	// causing the wrong day of the week to be parsed first
+	Translation SubmatchTranslationMap
+	// Priority list which should be provided to determine the most important parts of
+	// the matches to sort on. Most important captured name should be first.
+	Priority []string
+}
+
+// An internal type used during sorting to represent a file match and its extracted
+// portions ready for sorting
+type logfileMatch struct {
+	// The actual filename this match corresponds to
+	FileName string
+	// The matched portions of the filename and their translated integer value
+	matchParts map[string]int
+}
+
+type logfileMatches []*logfileMatch
+
+// Implement two of the sort.Interface methods needed
+func (l logfileMatches) Len() int      { return len(l) }
+func (l logfileMatches) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+
+// ByPriority implements the final method of the sort.Interface so that the embedded
+// logfileMatches may be sorted by the priority of their matches parts
+type ByPriority struct {
+	logfileMatches
+	Priority []string
+}
+
+// Determine based on priority if which of the two is 'less' than the other
+func (b ByPriority) Less(i, j int) bool {
+	first := b.logfileMatches[i]
+	second := b.logfileMatches[j]
+	for _, part := range b.Priority {
+		if first.matchParts[part] < second.matchParts[part] {
+			return true
+		} else if first.matchParts[part] > second.matchParts[part] {
+			return false
+		}
+	}
+	// If we get here, it means all the parts are exactly equal, consider
+	// the first not less than the second
+	return false
+}
+
 type LogfileDirectoryManagerInput struct {
 	conf    *LogfileInputConfig
 	stopped chan bool
