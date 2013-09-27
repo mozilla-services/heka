@@ -3,15 +3,16 @@ require.config({
   baseUrl: "javascript",
 
   paths: {
-    jquery:     "vendor/jquery",
-    underscore: "vendor/underscore",
-    backbone:   "vendor/backbone",
-    text:       "vendor/text",
-    hgn:        "vendor/hgn",
-    hogan:      "vendor/hogan",
-    numeral:    "vendor/numeral",
-    raphael:    "vendor/raphael",
-    justgage:   "vendor/justgage"
+    "jquery":                "vendor/jquery",
+    "underscore":            "vendor/underscore",
+    "backbone":              "vendor/backbone",
+    "text":                  "vendor/text",
+    "hgn":                   "vendor/hgn",
+    "hogan":                 "vendor/hogan",
+    "numeral":               "vendor/numeral",
+    "raphael":               "vendor/raphael",
+    "justgage":              "vendor/justgage",
+    "jquery.animateNumbers": "vendor/jquery.animateNumbers"
   },
 
   shim: {
@@ -31,6 +32,11 @@ require.config({
     "justgage": {
       deps: ["raphael"],
       exports: "JustGage"
+    },
+
+    "jquery.animateNumbers": {
+      deps: ["jquery"],
+      exports: "jQuery.fn.animateNumbers"
     }
   }
 });
