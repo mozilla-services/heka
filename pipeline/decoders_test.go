@@ -165,6 +165,26 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(err.Error(), gs.Equals, errMsg)
 		})
 
+		c.Specify("sets subdecoder runner correctly", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			// Call LogError to appease the angry gomock gods.
+			dRunner.LogError(errors.New("foo"))
+
+			// Now create a real *dRunner, pass it in, make sure a wrapper
+			// gets handed to the subdecoder.
+			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals))
+			decoder.SetDecoderRunner(dr)
+			sub := decoder.Decoders["StartsWithM"]
+			subRunner := sub.(*PayloadRegexDecoder).dRunner
+			subRunner, ok := subRunner.(*mDRunner)
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(subRunner.Name(), gs.Equals,
+				fmt.Sprintf("%s-StartsWithM", decoder.Name))
+			c.Expect(subRunner.Decoder(), gs.Equals, sub)
+		})
+
 		c.Specify("with multiple registered decoders", func() {
 			conf.Subs["StartsWithS"] = make(map[string]interface{}, 0)
 			withS := conf.Subs["StartsWithS"].(map[string]interface{})
