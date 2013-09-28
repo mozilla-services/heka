@@ -117,11 +117,15 @@ func DecodersSpec(c gospec.Context) {
 
 		errMsg := "Unable to decode message with any contained decoder."
 
+		dRunner := NewMockDecoderRunner(ctrl)
+		// An error will be spit out b/c there's no real *dRunner in there;
+		// doesn't impact the tests.
+		dRunner.EXPECT().LogError(gomock.Any())
+
 		c.Specify("decodes simple messages", func() {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "matching text"
 			pack.Message.SetPayload(regex_data)
@@ -138,7 +142,6 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
@@ -151,7 +154,6 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
@@ -182,8 +184,10 @@ func DecodersSpec(c gospec.Context) {
 
 			conf.Order = append(conf.Order, "StartsWithS", "StartsWithM2")
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			var ok bool
+
+			// Two more subdecoders means two more LogError calls.
+			dRunner.EXPECT().LogError(gomock.Any()).Times(2)
 
 			c.Specify("defaults to `first-wins` cascading", func() {
 				err := decoder.Init(conf)
