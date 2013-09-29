@@ -15,7 +15,6 @@
 package pipeline
 
 import (
-    // "github.com/davecgh/go-spew/spew"
     "github.com/mozilla-services/heka/message"
     "code.google.com/p/go-uuid/uuid"
     "os/exec"
