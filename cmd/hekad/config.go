@@ -59,7 +59,13 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	var configFile map[string]toml.Primitive
 	var filename string
 	p, err := os.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("Error opening config file: %s", err)
+	}
 	fi, err := p.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching config file info: %s", err)
+	}
 
 	if fi.IsDir() {
 		files, _ := ioutil.ReadDir(configPath)
