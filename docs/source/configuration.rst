@@ -685,7 +685,7 @@ Executes an external program on an interval, creating messages from the output.
 In the event the program returns a bad exit code, ProcessInput will stop 
 citing the exit error.
 
-For programs meant to run continuously `fail_on_timeout` should be set to true.
+For programs meant to run continuously `fail_on_timeout` should be set to false.
 
 Parameters:
 
@@ -696,22 +696,24 @@ Parameters:
 - ticker_interval (uint):
     The number of seconds to wait between runnning `command`. In cases where
     the program is designed to run continuously this is irrelevant, and
-    FailOnTimeout should be false. Default is 15 seconds.
+    `fail_on_timeout` should be false. Default is 15 seconds.
 - stdout (bool):
     Capture stdout from `command`.  Defaults to true.
 - stderr (bool):
     Capture stderr from `command`.  Defaults to false.
 - tolerate_failures (bool):
-    Prevents ProcessInput from stopping due to command failure.
+    When true this prevents a ProcessInput from stopping due to command failure.
+    Default is false.
 - fail_on_timeout (bool):
-    A timeout condition is when `command` has not exited before the next
+    A timeout condition occurs when `command` has not exited before the next
     `tick_interval`.  If `fail_on_timeout` is true then ProcessInput will treat
-    a timeout as a failure.  Defaults to true.
+    a timeout as a failure. If set to false command execution will be postponed
+    and attempted again at the next tick.  Default is false.
 - environment ([]string):
-    Used to set environment variables before `command` is run. Defaults to nil,
-    which uses the current process's environment.
+    Used to set environment variables before `command` is run. Default is nil,
+    which uses the heka process's environment.
 - directory (string):
-    Specifies the working directory of Command.  Defaults to the directory
+    Specifies the working directory of Command.  Default is the directory
     where the program resides.
 - decoder (string):
     Name of the decoder instance to send messages to.  Default is to inject
