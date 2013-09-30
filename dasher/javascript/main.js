@@ -35,10 +35,16 @@ require.config({
   }
 });
 
-define(["backbone", "router"], function (Backbone, Router) {
-  "use strict";
+define(
+  [
+    "backbone",
+    "router"
+  ],
+  function (Backbone, Router) {
+    "use strict";
 
-  var router = new Router();
+    var router = new Router();
 
-  Backbone.history.start();
-});
+    Backbone.history.start();
+  }
+);

@@ -1,7 +1,12 @@
-define(["backbone"], function(Backbone) {
-  "use strict";
+define(
+  [
+    "backbone"
+  ],
+  function(Backbone) {
+    "use strict";
 
-  var Plugin = Backbone.Model.extend({});
+    var Plugin = Backbone.Model.extend({});
 
-  return Plugin;
-});
+    return Plugin;
+  }
+);

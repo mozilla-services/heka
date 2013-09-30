@@ -1,12 +1,19 @@
-define(["views/base_view", "hgn!templates/sandboxes/sandboxes_show"], function(BaseView, SandboxesShowTemplate) {
-  "use strict";
+define(
+  [
+    "views/base_view",
+    "hgn!templates/sandboxes/sandboxes_show"
+  ],
+  function(BaseView, SandboxesShowTemplate) {
+    "use strict";
 
-  var SandboxesShow = BaseView.extend({
-    template: SandboxesShowTemplate,
+    var SandboxesShow = BaseView.extend({
+      template: SandboxesShowTemplate,
 
-    initialize: function() {
-    }
-  });
+      initialize: function() {
 
-  return SandboxesShow;
-});
+      }
+    });
+
+    return SandboxesShow;
+  }
+);
