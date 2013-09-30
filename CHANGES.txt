@@ -37,6 +37,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Added mDRunner so MultiDecoder will work with sub-decoders that implement
+  the WantsDecoderRunner interface.
+
 * Removed all code that attempted to catch and recover from panics in called
   plugin code, since a) the recovery often left Heka in an undefined, broken
   state b) the safety was a lie, any panic in a separate goroutine would not
