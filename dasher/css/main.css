@@ -60,3 +60,16 @@ table.plugins td.name span.glyphicon {
 table .progress {
   margin-bottom: 0;
 }
+
+.sandboxes-show {
+  margin-top: 3em;
+}
+
+.sandbox-graph {
+  width: 100% !important;
+}
+
+.sandbox-graph .dygraph-axis-label {
+  color: #777;
+  font-size: 11px;
+}

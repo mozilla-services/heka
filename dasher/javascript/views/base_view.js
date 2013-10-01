@@ -10,12 +10,16 @@ define(
         return model ? model.attributes : null;
       },
 
+      getPresentation: function() {
+        return new this.presenter(this.model);
+      },
+
       render: function() {
         console.log("render", this);
 
-        var context = new this.presenter(this.model);
+        var presentation = this.getPresentation();
 
-        this.$el.html(this.template(context));
+        this.$el.html(this.template(presentation));
 
         this.afterRender();
 
