@@ -204,8 +204,6 @@ func OutputsSpec(c gs.Context) {
 				err := fileOutput.handleMessage(pack, &outData)
 				c.Expect(err, gs.IsNil)
 				b := []byte{30, 2, 8, uint8(proto.Size(pack.Message)), 31, 10, 16} // sanity check the header and the start of the protocol buffer
-				fmt.Println("b: ", b)
-				fmt.Println("outData[:len(b)]: ", outData[:len(b)])
 				c.Expect(bytes.Equal(b, outData[:len(b)]), gs.IsTrue)
 			})
 		})
@@ -323,8 +321,6 @@ func OutputsSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			b := []byte{30, 2, 8, uint8(proto.Size(pack.Message)), 31, 10, 16} // sanity check the header and the start of the protocol buffer
-			fmt.Println("b: ", b)
-			fmt.Println("outBytes[:len(b)]: ", outBytes[:len(b)])
 			c.Expect(bytes.Equal(b, (outBytes)[:len(b)]), gs.IsTrue)
 		})
 
