@@ -137,6 +137,8 @@ func (pi *ProcessInput) Init(config interface{}) error {
         rp.SetDelimiter(pi.config.Delimiter)
         rp.SetDelimiterLocation(pi.config.DelimiterLocation)
         pi.parser = rp
+    default:
+        return fmt.Errorf("unknown parser type: %s", conf.ParserType)
     }
 
     // These are pipes where command output is written to for parsing
