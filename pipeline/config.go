@@ -485,8 +485,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 	wrapper.configCreator = func() interface{} { return config }
-	if WantsName, ok := plugin.(WantsName); ok {
-		WantsName.SetName(sectionName)
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(sectionName)
 	}
 
 	// Apply configuration to instantiated plugin.

@@ -107,8 +107,8 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	wrapper.configCreator = func() interface{} { return config }
 	conf := config.(*sandbox.SandboxConfig)
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
-	if WantsName, ok := plugin.(WantsName); ok {
-		WantsName.SetName(wrapper.name)
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(wrapper.name)
 	}
 
 	// Apply configuration to instantiated plugin.
