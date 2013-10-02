@@ -67,9 +67,28 @@ table .progress {
 
 .sandbox-graph {
   width: 100% !important;
+  height: 250px !important;
 }
 
 .sandbox-graph .dygraph-axis-label {
   color: #777;
   font-size: 11px;
+}
+
+.sandbox-graph-legend {
+  background: #f3f3f3;
+  border-top: 1px solid #ccc;
+  margin-top: 1em;
+  padding: 0.5em;
+  text-align: right;
+}
+
+.sandbox-graph-legend-control {
+  display: inline-block;
+  margin-right: 0.5em;
+}
+
+.sandbox-graph-legend-control label {
+  font-size: 12px;
+  font-weight: normal;
 }

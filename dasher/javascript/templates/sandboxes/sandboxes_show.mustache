@@ -1,3 +1,8 @@
 <h3>{{name}}</h3>
 
 <div class="sandbox-graph"></div>
+<div class="sandbox-graph-legend">
+  {{#legendLabels}}
+    <span class="sandbox-graph-legend-control"><label><input type="checkbox" checked="checked" data-label-id="{{id}}" /> {{name}}</labels></span>
+  {{/legendLabels}}
+</div>
