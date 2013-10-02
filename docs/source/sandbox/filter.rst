@@ -34,6 +34,9 @@ SandboxFilter Settings
 - profile (bool): 
     When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
 
+- config (object):
+    A map of configuration variables available to the sandbox via read_config.  The map consists of a string key with: string, bool, int64, or float64 values.
+
 Example
 
 .. code-block:: ini
@@ -49,3 +52,9 @@ Example
     instruction_limit = 1000
     output_limit = 1024
     profile = false
+
+    [hekabench_counter.config]
+    rows = 1440
+    sec_per_row = 60
+
+

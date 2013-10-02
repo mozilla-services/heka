@@ -138,6 +138,33 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 	return 0, unsafe.Pointer(nil), 0
 }
 
+//export go_lua_read_config
+func go_lua_read_config(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer, int) {
+	name := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.config == nil {
+		return 0, unsafe.Pointer(nil), 0
+	}
+
+	v := lsb.config[name]
+	switch v.(type) {
+	case string:
+		s := v.(string)
+		cs := C.CString(s) // freed by the caller
+		return int(message.Field_STRING), unsafe.Pointer(cs), len(s)
+	case bool:
+		b := v.(bool)
+		return int(message.Field_BOOL), unsafe.Pointer(&b), 0
+	case int64:
+		d := float64(v.(int64))
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
+	case float64:
+		d := v.(float64)
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
+	}
+	return 0, unsafe.Pointer(nil), 0
+}
+
 //export go_lua_inject_message
 func go_lua_inject_message(ptr unsafe.Pointer, payload *C.char,
 	payload_len C.int, payload_type, payload_name *C.char) int {
@@ -151,6 +178,7 @@ type LuaSandbox struct {
 	msg           *message.Message
 	output        func(s string)
 	injectMessage func(payload, payload_type, payload_name string) int
+	config        map[string]interface{}
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
@@ -171,6 +199,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 		log.Printf("payload_type: %s\npayload_name: %s\npayload: %s\n", pt, pn, p)
 		return 0
 	}
+	lsb.config = conf.Config
 	return lsb, nil
 }
 
