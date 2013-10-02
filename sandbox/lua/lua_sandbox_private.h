@@ -346,4 +346,14 @@ int inject_message(lua_State* lua);
  */
 int require_library(lua_State* lua);
 
+/** 
+ * Reads a configuration variable provided in the Heka toml and returns the 
+ * value. 
+ * 
+ * @param lua Pointer to the Lua state.
+ * 
+ * @return int Returns one value on the stack.
+ */
+int read_config(lua_State* lua);
+
 #endif

@@ -299,8 +299,9 @@ func TestAPIErrors(t *testing.T) {
 		"read_message() incorrect field name type",
 		"read_message() negative field index",
 		"read_message() negative array index",
-		"output limit exceeded"}
-
+		"output limit exceeded",
+		"read_config() must have a single argument",
+	}
 	msgs := []string{
 		"process_message() ./testsupport/errors.lua:11: library 'unknown' is not available",
 		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
@@ -313,7 +314,9 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
 		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (field index must be >= 0)",
 		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (array index must be >= 0)",
-		"process_message() ./testsupport/errors.lua:37: output_limit exceeded"}
+		"process_message() ./testsupport/errors.lua:37: output_limit exceeded",
+		"process_message() ./testsupport/errors.lua:40: read_config() must have a single argument",
+	}
 
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/errors.lua"
@@ -954,6 +957,45 @@ func TestLpeg(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestReadConfig(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/read_config.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.Config = make(map[string]interface{})
+	sbc.Config["string"] = "widget"
+	sbc.Config["int64"] = int64(99)
+	sbc.Config["double"] = 99.123
+	sbc.Config["bool"] = true
+	sbc.Config["array"] = []int{1, 2, 3}
+	sbc.Config["object"] = map[string]string{"item": "test"}
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.Destroy("")
+}
+
+func TestReadNilConfig(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/read_config_nil.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.Destroy("")
+}
+
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/serialize.lua"
@@ -1157,9 +1199,9 @@ func BenchmarkSandboxLpegDecoder(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/decoder.lua"
-	sbc.MemoryLimit = 1024*1024*8
+	sbc.MemoryLimit = 1024 * 1024 * 8
 	sbc.InstructionLimit = 1e6
-	sbc.OutputLimit = 1024*63
+	sbc.OutputLimit = 1024 * 63
 	msg := getTestMessage()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
 	sb.Init("")

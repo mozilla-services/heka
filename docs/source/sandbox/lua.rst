@@ -42,8 +42,17 @@ Functions that must be exposed from the Lua sandbox
 Heka functions that are exposed to the Lua sandbox
 ---------------------------------------------------
 
+**read_config(variableName)**
+    Provides access to the sandbox configuration variables.
+
+    *Arguments*
+        - variableName (string)
+
+    *Return*
+        number, string, bool, nil depending on the type of variable requested
+
 **read_message(variableName, fieldIndex, arrayIndex)**
-    Provides access to the Heka message data
+    Provides access to the Heka message data.
 
     *Arguments*
         - variableName (string)

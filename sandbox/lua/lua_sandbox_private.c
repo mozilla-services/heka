@@ -872,6 +872,9 @@ int read_message(lua_State* lua)
         case 4:
             lua_pushboolean(lua, *((GoInt8*)gr.r1));
             break;
+        default:
+          lua_pushnil(lua);
+          break;
         }
     }
     return 1;
@@ -944,6 +947,46 @@ int require_library(lua_State* lua)
         luaL_error(lua, "library '%s' is not available", name);
     }
     return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int read_config(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "read_config() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    if (lua_gettop(lua) != 1) {
+        luaL_error(lua, "read_config() must have a single argument");
+    }
+    const char* name = luaL_checkstring(lua, 1);
+
+    struct go_lua_read_config_return gr;
+    // Cast away constness of the Lua string, the value is not modified
+    // and it will save a copy.
+    gr = go_lua_read_config(lsb->m_go, (char*)name);
+    if (gr.r1 == NULL) {
+        lua_pushnil(lua);
+    } else {
+        switch (gr.r0) {
+        case 0:
+            lua_pushlstring(lua, gr.r1, gr.r2);
+            free(gr.r1);
+            break;
+        case 3:
+            lua_pushnumber(lua, *((GoFloat64*)gr.r1));
+            break;
+        case 4:
+            lua_pushboolean(lua, *((GoInt8*)gr.r1));
+            break;
+        default:
+          lua_pushnil(lua);
+          break;
+        }
+    }
+    return 1;
 }
 
 // todo split the protobuf code out to a separate source file when
