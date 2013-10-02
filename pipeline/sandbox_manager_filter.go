@@ -107,6 +107,9 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	wrapper.configCreator = func() interface{} { return config }
 	conf := config.(*sandbox.SandboxConfig)
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(wrapper.name)
+	}
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(Plugin).Init(config); err != nil {
@@ -123,7 +126,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher != "" {
 		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
-			pluginGlobals.Signer); err != nil {
+			pluginGlobals.Signer, runner); err != nil {
 			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
 				wrapper.name, err)
 		}

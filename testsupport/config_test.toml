@@ -1,13 +1,13 @@
 [UdpInput]
 address = "127.0.0.1:29329"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [JsonDecoder]
 type ="JsonDecoder"
-encoding_name = "JSON"
 
 [ProtobufDecoder]
 type = "ProtobufDecoder"
-encoding_name = "PROTOCOL_BUFFER"
 
 [LogOutput]
 type = "LogOutput"

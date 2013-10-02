@@ -23,6 +23,7 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"io"
 	"os"
 	"path/filepath"
@@ -42,8 +43,8 @@ type LogfileInputConfig struct {
 	// Interval btn reads from open file handles, in milliseconds, default
 	// 500.
 	StatInterval int `toml:"stat_interval"`
-	// Names of configured `LoglineDecoder` instances.
-	Decoders []string
+	// Name of configured decoder instance.
+	Decoder string
 	// Specifies whether to use a seek journal to keep track of where we are
 	// in a file to be able to resume parsing from the same location upon
 	// restart. Defaults to true.
@@ -78,9 +79,9 @@ type LogfileInputConfig struct {
 // matching Filter or Output plugins.
 type LogfileInput struct {
 	// Encapsulates actual file finding / listening / reading mechanics.
-	Monitor      *FileMonitor
-	stopped      bool
-	decoderNames []string
+	Monitor     *FileMonitor
+	stopped     bool
+	decoderName string
 }
 
 func getDefaultLogfileInputConfig() interface{} {
@@ -103,7 +104,7 @@ func (lw *LogfileInput) Init(config interface{}) (err error) {
 	if err = lw.Monitor.Init(conf); err != nil {
 		return err
 	}
-	lw.decoderNames = conf.Decoders
+	lw.decoderName = conf.Decoder
 
 	return nil
 }
@@ -112,7 +113,6 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
 		pack    *PipelinePack
 		dRunner DecoderRunner
-		e       error
 		ok      bool
 	)
 	lw.Monitor.ir = ir
@@ -130,26 +130,17 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	lw.Monitor.pendingMessages = make([]string, 0)
 	lw.Monitor.pendingErrors = make([]string, 0)
 
-	dSet := h.DecoderSet()
-	decoders := make([]Decoder, len(lw.decoderNames))
-	for i, name := range lw.decoderNames {
-		if dRunner, ok = dSet.ByName(name); !ok {
-			return fmt.Errorf("Decoder not found: %s", name)
+	if lw.decoderName != "" {
+		if dRunner, ok = h.DecoderSet().ByName(lw.decoderName); !ok {
+			return fmt.Errorf("Decoder not found: %s", lw.decoderName)
 		}
-		decoders[i] = dRunner.Decoder()
 	}
 
 	for pack = range lw.Monitor.outChan {
-		for _, decoder := range decoders {
-			if e = decoder.Decode(pack); e == nil {
-				break
-			}
-		}
-		if e == nil {
+		if dRunner == nil {
 			ir.Inject(pack)
 		} else {
-			ir.LogError(fmt.Errorf("Couldn't parse log line: %s", pack.Message.GetPayload()))
-			pack.Recycle()
+			dRunner.InChan() <- pack
 		}
 	}
 	return
@@ -367,8 +358,13 @@ func payloadParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
 	)
 	for err == nil {
 		n, record, err = fm.parser.Parse(fm.fd)
-		if err == io.EOF && isRotated {
-			record = fm.parser.GetRemainingData()
+		if err != nil {
+			if err == io.EOF && isRotated {
+				record = fm.parser.GetRemainingData()
+			} else if err == io.ErrShortBuffer {
+				fm.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				err = nil // non-fatal, keep going
+			}
 		}
 		if len(record) > 0 {
 			payload := string(record)
@@ -400,7 +396,7 @@ func messageProtoParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err e
 	)
 	for err == nil {
 		n, record, err = fm.parser.Parse(fm.fd)
-		if len(record) > 2 {
+		if len(record) > 0 {
 			pack = <-fm.ir.InChan()
 			headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
 			messageLen := len(record) - headerLen
@@ -539,6 +535,9 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 		mp := NewMessageProtoParser()
 		fm.parser = mp
 		fm.parseFunction = messageProtoParser
+		if conf.Decoder == "" {
+			return fmt.Errorf("The message.proto parser must have a decoder")
+		}
 	} else {
 		return fmt.Errorf("unknown parser type: %s", conf.ParserType)
 	}

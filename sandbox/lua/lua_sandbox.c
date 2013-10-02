@@ -18,8 +18,7 @@
 
 static const char* disable_base_functions[] = { "collectgarbage", "coroutine",
     "dofile", "getfenv", "getmetatable", "load", "loadfile", "loadstring",
-    "module", "print", "rawequal", "rawget", "rawset", "require", "setfenv",
-    NULL };
+    "module", "print", "rawequal", "require", "setfenv", NULL };
 
 static const char* disable_os_functions[] = { "execute", "exit", "remove",
     "rename", "setlocale",  "tmpname", NULL };
@@ -221,6 +220,10 @@ int lua_sandbox_init(lua_sandbox* lsb, const char* data_file)
 
     lua_pushcfunction(lsb->m_lua, &require_library);
     lua_setglobal(lsb->m_lua, "require");
+
+    lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
+    lua_pushcclosure(lsb->m_lua, &read_config, 1);
+    lua_setglobal(lsb->m_lua, "read_config");
 
     lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
     lua_pushcclosure(lsb->m_lua, &read_message, 1);

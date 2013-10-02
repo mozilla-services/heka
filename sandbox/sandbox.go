@@ -61,4 +61,5 @@ type SandboxConfig struct {
 	InstructionLimit uint   `toml:"instruction_limit"`
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
+	Config           map[string]interface{}
 }

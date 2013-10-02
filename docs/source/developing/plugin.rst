@@ -235,6 +235,15 @@ called `TickerInterval`, that will be used as a default ticker interval value
 contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
+There is an optional configuration interface called WantsName.  It provides a
+a plug-in access to its configured name before the runner has started. The 
+Sandbox filter plug-in uses the name to locate/load any preserved state
+before being run.
+
+    type WantsName interface {
+        SetName(name string)
+    }
+
 .. _inputs:
 
 Inputs
@@ -326,6 +335,20 @@ As with inputs, the `Decoder` interface is quite simple::
 
     type Decoder interface {
             Decode(pack *PipelinePack) error
+    }
+
+There are two optional Decoder interfaces.  The first provides the Decoder
+access to its DecoderRunner object when it is started.
+
+    type WantsDecoderRunner interface {
+        SetDecoderRunner(dr DecoderRunner)
+    }
+
+The second provides a notification to the Decoder when the DecoderRunner is 
+exiting.
+
+    type WantsDecoderRunnerShutdown interface {
+        Shutdown()
     }
 
 A decoder's `Decode` method should extract the raw message data from

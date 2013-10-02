@@ -81,4 +81,13 @@ func ElasticSearchOutputSpec(c gs.Context) {
 		c.Expect(string(b), gs.Equals, jsonPayload)
 	})
 
+        c.Specify("Should interpolate fields and message attributes for index and type names", func() {
+                interpolatedIndex := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), "heka-%{Pid}-%{\"foo}-%{2006.01.02}")
+                interpolatedType := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), "%{Type}")
+                t := time.Now()
+
+                c.Expect(interpolatedIndex, gs.Equals, "heka-14098-bar\n-" + t.Format("2006.01.02"))
+                c.Expect(interpolatedType, gs.Equals, "TEST")
+        })
+
 }
