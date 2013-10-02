@@ -19,19 +19,19 @@ define(
 
     _.extend(PluginAdapter.prototype, {
       fill: function() {
-        this.fetch(_.bind(function(response) {
+        this.fetch(function(response) {
           this.parseArrayIntoCollection(response.globals, this.globals);
           this.parseArrayIntoCollection(response.inputs, this.inputs);
           this.parseArrayIntoCollection(response.decoderPools, this.decoderPools);
           this.parseArrayIntoCollection(response.filters, this.filters);
           this.parseArrayIntoCollection(response.outputs, this.outputs);
-        }, this));
+        }.bind(this));
 
         this.listenForUpdates();
       },
 
       parseArrayIntoCollection: function(array, collection) {
-        var plugins = _.collect(array, _.bind(function(p) {
+        var plugins = _.collect(array, function(p) {
           // Use plugin name as its id
           var plugin = new Plugin(_.extend(p, { id: p.Plugin }));
 
@@ -44,7 +44,7 @@ define(
           }
 
           return plugin;
-        }, this));
+        }.bind(this));
 
         if (collection.length > 0) {
           collection.set(plugins);
@@ -59,7 +59,7 @@ define(
       },
 
       listenForUpdates: function() {
-        setTimeout(_.bind(function() { this.fill(); }, this), 5000);
+        setTimeout(function() { this.fill(); }.bind(this), 5000);
       }
     });
 
