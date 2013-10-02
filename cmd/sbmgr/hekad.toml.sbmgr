@@ -86,7 +86,7 @@ message_matcher = "Type == 'hekabench' || Logger == 'LoopToOtherB'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [LoopToOtherB]
 type = "SandboxFilter"
@@ -94,7 +94,7 @@ message_matcher = "Logger == 'LoopToOtherA'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [Counter]
 type = "CounterFilter"

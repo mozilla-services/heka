@@ -1,3 +1,4 @@
+_G["_VERSION"] = "Lua 5.1"
 _G["kvp"] = {}
 _G["kvp"]["a"] = "foo"
 _G["kvp"]["r"] = {}
@@ -19,7 +20,6 @@ _G["cycleb"]["a"] = {}
 _G["cycleb"]["a"]["b"] = _G["cycleb"]
 _G["cycleb"]["a"]["type"] = "cycle a"
 _G["cycleb"]["type"] = "cycle b"
-_G["rates"] = _G["kvp"]["r"]
 if _G["dataRef"] == nil then _G["dataRef"] = circular_buffer.new(3, 3, 1) end
 _G["dataRef"]:set_header(1, "Column_1", "count", "sum")
 _G["dataRef"]:set_header(2, "Column_2", "count", "sum")
@@ -62,5 +62,5 @@ _G["nested"]["cb"]:set_header(4, "Column_4", "count", "sum")
 _G["nested"]["cb"]:set_header(5, "Column_5", "count", "sum")
 _G["nested"]["cb"]:set_header(6, "Column_6", "count", "sum")
 _G["nested"]["cb"]:fromstring("1 1 0 0 0 0 0 0 0 0 0 0 0 0")
+_G["rates"] = _G["kvp"]["r"]
 _G["rate"] = 0.12345678
-_G["_VERSION"] = "Lua 5.1"
