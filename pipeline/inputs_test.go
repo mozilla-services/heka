@@ -666,6 +666,12 @@ func InputsSpec(c gs.Context) {
 	})
 
 	c.Specify("A Regex Multiline LogFileInput", func() {
+		var newline string
+		if runtime.GOOS == "windows" {
+			newline = "\r\n"
+		} else {
+			newline = "\n"
+		}
 		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
 		c.Expect(tmpErr, gs.Equals, nil)
 		origBaseDir := Globals().BaseDir
@@ -681,7 +687,7 @@ func InputsSpec(c gs.Context) {
 		lfiConfig.LogFile = "../testsupport/multiline.log"
 		lfiConfig.Logger = "multiline"
 		lfiConfig.ParserType = "regexp"
-		lfiConfig.Delimiter = "\n(\\d{4}-\\d{2}-\\d{2})"
+		lfiConfig.Delimiter = newline + "(\\d{4}-\\d{2}-\\d{2})"
 		lfiConfig.DelimiterLocation = "start"
 		lfiConfig.UseSeekJournal = true
 		lfiConfig.Decoder = "decoder-name"
@@ -729,7 +735,7 @@ func InputsSpec(c gs.Context) {
 			lines := []string{
 				"2012-07-13 18:48:01 debug    readSocket()",
 				"2012-07-13 18:48:21 info     Processing queue id 3496 -> subm id 2817 from site ms",
-				"2012-07-13 18:48:25 debug    line0\nline1\nline2",
+				"2012-07-13 18:48:25 debug    line0" + newline + "line1" + newline + "line2",
 				"2012-07-13 18:48:26 debug    readSocket()",
 			}
 			for i, line := range lines {
