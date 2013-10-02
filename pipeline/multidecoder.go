@@ -20,6 +20,39 @@ import (
 	"log"
 )
 
+// DecoderRunner wrapper that the MultiDecoder will hand to any subs that ask
+// for one. Shadows some data and methods, but doesn't spin up any goroutines.
+type mDRunner struct {
+	*dRunner
+	decoder Decoder
+	name    string
+	subName string
+}
+
+func (mdr *mDRunner) Name() string {
+	return mdr.name
+}
+
+func (mdr *mDRunner) SetName(name string) {
+	mdr.name = name
+}
+
+func (mdr *mDRunner) Plugin() Plugin {
+	return mdr.decoder.(Plugin)
+}
+
+func (mdr *mDRunner) Decoder() Decoder {
+	return mdr.decoder
+}
+
+func (mdr *mDRunner) LogError(err error) {
+	log.Printf("SubDecoder '%s' error: %s", mdr.name, err)
+}
+
+func (mdr *mDRunner) LogMessage(msg string) {
+	log.Printf("SubDecoder '%s': %s", mdr.name, msg)
+}
+
 type MultiDecoder struct {
 	Config    *MultiDecoderConfig
 	Name      string
@@ -140,9 +173,42 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	return
 }
 
-// Heka will call this to give us access to the runner.
+// Heka will call this to give us access to the runner. We'll store it for
+// ourselves, but also have to pass on a wrapped version to any subdecoders
+// that might need it.
 func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	md.dRunner = dr
+	for subName, decoder := range md.Decoders {
+		if wanter, ok := decoder.(WantsDecoderRunner); ok {
+			// It wants a DecoderRunner, have to create one. But first we need
+			// to get our hands on a *dRunner.
+			var realDRunner *dRunner
+			if realDRunner, ok = dr.(*dRunner); !ok {
+				// It's not a *dRunner, maybe it's an *mDRunner?
+				var mdr *mDRunner
+				if mdr, ok = dr.(*mDRunner); ok {
+					// Bingo, we can grab its *dRunner.
+					realDRunner = mdr.dRunner
+				}
+			}
+			if realDRunner == nil {
+				// Couldn't get a *dRunner. Just log an error and pass the
+				// outer DecoderRunner through.
+				dr.LogError(fmt.Errorf("Can't create nested DecoderRunner for '%s'",
+					subName))
+				wanter.SetDecoderRunner(dr)
+				continue
+			}
+			// We have a *dRunner, use it to create an *mDRunner.
+			subRunner := &mDRunner{
+				realDRunner,
+				decoder,
+				fmt.Sprintf("%s-%s", realDRunner.name, subName),
+				subName,
+			}
+			wanter.SetDecoderRunner(subRunner)
+		}
+	}
 }
 
 // Runs the message payload against each of the decoders.
