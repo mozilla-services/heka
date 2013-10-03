@@ -122,7 +122,7 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	err, stat := parseMessage(message)
+	stat, err := parseMessage(message)
 	if err != nil {
 		s.ir.LogError(fmt.Errorf("Can not parse message: %s", message))
 		return
@@ -133,7 +133,7 @@ func (s *StatsdInput) handleMessage(message []byte) {
 	}
 }
 
-func parseMessage(message []byte) (error, Stat) {
+func parseMessage(message []byte) (Stat, error) {
 	message = bytes.TrimRight(message, "\n")
 
 	var stat Stat
@@ -142,26 +142,26 @@ func parseMessage(message []byte) (error, Stat) {
 
 	colonPos := bytes.IndexByte(message, ':')
 	if colonPos == -1 {
-		return fmt.Errorf(errFmt, message), stat
+		return stat, fmt.Errorf(errFmt, message)
 	}
 
 	pipePos := bytes.IndexByte(message, '|')
 	if pipePos == -1 {
-		return fmt.Errorf(errFmt, message), stat
+		return stat, fmt.Errorf(errFmt, message)
 	}
 
 	bucket := message[:colonPos]
 	value := message[colonPos+1 : pipePos]
-	err, modifier := extractModifier(message, pipePos+1)
+	modifier, err := extractModifier(message, pipePos+1)
 
 	if err != nil {
-		return err, stat
+		return stat, err
 	}
 
 	sampleRate := float32(1)
-	err, sampleRate = extractSampleRate(message)
+	sampleRate, err = extractSampleRate(message)
 	if err != nil {
-		return err, stat
+		return stat, err
 	}
 
 	stat.Bucket = string(bucket)
@@ -169,10 +169,10 @@ func parseMessage(message []byte) (error, Stat) {
 	stat.Modifier = string(modifier)
 	stat.Sampling = sampleRate
 
-	return nil, stat
+	return stat, nil
 }
 
-func extractModifier(message []byte, startAt int) (error, []byte) {
+func extractModifier(message []byte, startAt int) ([]byte, error) {
 	modifier := message[startAt:]
 
 	l := len(modifier)
@@ -180,36 +180,36 @@ func extractModifier(message []byte, startAt int) (error, []byte) {
 	if l == 1 {
 		for _, m := range []byte{'g', 'h', 'm', 'c'} {
 			if modifier[0] == m {
-				return nil, modifier
+				return modifier, nil
 			}
 		}
 	}
 
 	if l >= 2 {
 		if bytes.HasPrefix(modifier, []byte("ms")) {
-			return nil, []byte("ms")
+			return []byte("ms"), nil
 		}
 
 		if modifier[0] == 'c' {
-			return nil, []byte("c")
+			return []byte("c"), nil
 		}
 	}
 
-	return fmt.Errorf("Can not find modifier in message %s", message), []byte{}
+	return []byte{}, fmt.Errorf("Can not find modifier in message %s", message)
 }
 
-func extractSampleRate(message []byte) (error, float32) {
+func extractSampleRate(message []byte) (float32, error) {
 	atPos := bytes.IndexByte(message, '@')
 
 	// no sample rate
 	if atPos == -1 {
-		return nil, 1
+		return 1, nil
 	}
 
 	sampleRate, err := strconv.ParseFloat(string(message[atPos+1:]), 32)
 	if err != nil {
-		return err, 1
+		return 1, err
 	}
 
-	return nil, float32(sampleRate)
+	return float32(sampleRate), nil
 }
