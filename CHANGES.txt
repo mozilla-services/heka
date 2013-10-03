@@ -37,6 +37,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Statsd messages are now parsed manually (issue #44).
+
 * Added mDRunner so MultiDecoder will work with sub-decoders that implement
   the WantsDecoderRunner interface.
 
@@ -88,7 +90,7 @@ Features
   through to ES unchanged.
 
 * Allow LogfileInput to use configurable delimiters including regexp (issue #263)
-  This includes a backwards incompatible change for the journal file, old 
+  This includes a backwards incompatible change for the journal file, old
   journals will not be honored and the new journal will overwrite it.
 
 * Allow add_external_plugin to specify sub-packages (issue #384)
