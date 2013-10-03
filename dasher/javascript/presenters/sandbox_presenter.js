@@ -39,6 +39,31 @@ define(
         });
 
         return labelsWithID;
+      },
+
+      hasHeader: function() {
+        return _.has(this, "header");
+      },
+
+      secondsPerRow: function() {
+        if (this.hasHeader()) {
+          return this.header.seconds_per_row;
+        }
+      },
+
+      numberOfHours: function() {
+        if (this.hasHeader()) {
+          var secondsInAnHour = 3600;
+
+          var hours = (this.header.seconds_per_row * this.header.rows) / secondsInAnHour;
+          var numberOfHours = hours.toString() + " hour";
+
+          if (hours != 1) {
+            numberOfHours += "s";
+          }
+
+          return numberOfHours;
+        }
       }
     });
 

@@ -44,10 +44,6 @@ table.plugins .in-channel, table.plugins .match-channel {
   width: 18%;
 }
 
-/*table.plugins .avg-match-duration, table.plugins .processed, table.plugins .injected {
-  text-align: right;
-}*/
-
 table.plugins tr.decoder td.name {
   padding-left: 29px;
 }
