@@ -360,7 +360,7 @@ static double compute_sd(circular_buffer* cb, unsigned column,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static double compute_min(circular_buffer* cb, unsigned column, 
+static double compute_min(circular_buffer* cb, unsigned column,
                           unsigned start_row, unsigned end_row)
 {
     double result = DBL_MAX;
@@ -508,7 +508,7 @@ int output_circular_buffer(circular_buffer* cb, output_data* output)
             if (column_idx != 0) {
                 if (dynamic_snprintf(output, "\t")) return 1;
             }
-            if (dynamic_snprintf(output, "%0.9g",
+            if (serialize_double(output,
                                  cb->m_values[(row_idx * cb->m_columns) + column_idx])) {
                 return 1;
             }
@@ -532,7 +532,7 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
                          cb->m_seconds_per_row)) {
         return 1;
     }
-
+    
     unsigned column_idx;
     for (column_idx = 0; column_idx < cb->m_columns; ++column_idx) {
         if (dynamic_snprintf(output, "%s:set_header(%d, \"%s\", \"%s\", \"%s\")\n",
@@ -553,7 +553,8 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
     }
     for (unsigned row_idx = 0; row_idx < cb->m_rows; ++row_idx) {
         for (column_idx = 0; column_idx < cb->m_columns; ++column_idx) {
-            if (dynamic_snprintf(output, " %0.9g",
+            if (dynamic_snprintf(output, " ")) return 1;
+            if (serialize_double(output,
                                  cb->m_values[(row_idx * cb->m_columns) + column_idx])) {
                 return 1;
             }
