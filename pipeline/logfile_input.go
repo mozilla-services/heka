@@ -634,18 +634,9 @@ func (fm *FileMonitor) setupJournalling(journalName string) (err error) {
 	return fm.recoverSeekPosition()
 }
 
-// Abstracts how the file located for reading is located. An implementation could read
-// many files in a row in a variety of directory layouts rather than strictly tailing
-// a single file, etc.
-type FileReader interface {
-	// Method that initializes the FileReader with the config options given, an arbitrary TOML
-	// config section.
-	LoadConfig(config interface{}) error
-	// Given a previously loaded file name location and hash data for the line, locate and
-	// return the file descriptor with the seek appropriately set such that the next section
-	// can be parsed. An error should be returned if there's no appropriate file at the
-	// moment to read in which case this will be called at the discovery interval.
-	SeekFile(filename, hash string, start, len float64) (error, *os.File)
+// Represents a single logstream which may or may not be spread over many
+// individual log files.
+type LogStream struct {
 }
 
 // Match translation map for a matched section that maps the string value to the integer to
@@ -685,8 +676,16 @@ type SortPattern struct {
 	// causing the wrong day of the week to be parsed first
 	Translation SubmatchTranslationMap
 	// Priority list which should be provided to determine the most important parts of
-	// the matches to sort on. Most important captured name should be first.
+	// the matches to sort on. Most important captured name should be first. These will
+	// be sorted in ascending order representing *oldest first*. If this portions value
+	// increasing means its *older*, then it should be sorted in descending order by
+	// adding a ^ to the beginning.
 	Priority []string
+	// Differentiators are used on portions of the file match to indicate unique
+	// non-changing portions that combined will yield an identifier for this 'logfile'
+	// If the name is not a subregex name, its raw value will be used to identify
+	// the log stream.
+	Differentiator []string
 }
 
 // An internal type used during sorting to represent a file match and its extracted
@@ -695,37 +694,68 @@ type logfileMatch struct {
 	// The actual filename this match corresponds to
 	FileName string
 	// The matched portions of the filename and their translated integer value
-	matchParts map[string]int
+	MatchParts map[string]int
 }
 
-type logfileMatches []*logfileMatch
+// Represents a slice of LogfileMatches and the parts of the regex matching ready to be
+// used for sorting the slice into ascending order (newest first)
+type LogfileMatches []*logfileMatch
 
 // Implement two of the sort.Interface methods needed
-func (l logfileMatches) Len() int      { return len(l) }
-func (l logfileMatches) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+func (l LogfileMatches) Len() int      { return len(l) }
+func (l LogfileMatches) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+
+// Locate the index of a given filename if its present in the logfiles for this stream
+// Returns -1 if the filename is not present
+func (l LogfileMatches) IndexOf(s string) int {
+	for i := 0; i < len(l); i++ {
+		if l[i].FileName == s {
+			return i
+		}
+	}
+	return -1
+}
 
 // ByPriority implements the final method of the sort.Interface so that the embedded
-// logfileMatches may be sorted by the priority of their matches parts
+// LogfileMatches may be sorted by the priority of their matches parts
 type ByPriority struct {
-	logfileMatches
+	LogfileMatches
 	Priority []string
 }
 
 // Determine based on priority if which of the two is 'less' than the other
 func (b ByPriority) Less(i, j int) bool {
-	first := b.logfileMatches[i]
-	second := b.logfileMatches[j]
+	var convert func(bool) bool
+	first := b.LogfileMatches[i]
+	second := b.LogfileMatches[j]
 	for _, part := range b.Priority {
-		if first.matchParts[part] < second.matchParts[part] {
-			return true
-		} else if first.matchParts[part] > second.matchParts[part] {
-			return false
+		convert = func(a bool) { return a }
+		if "^" == part[0] {
+			part = part[1:]
+			convert = func(a bool) { return !a }
+		}
+		if first.MatchParts[part] < second.MatchParts[part] {
+			return convert(true)
+		} else if first.MatchParts[part] > second.MatchParts[part] {
+			return convert(false)
 		}
 	}
 	// If we get here, it means all the parts are exactly equal, consider
 	// the first not less than the second
 	return false
 }
+
+// CollectFileNames will collect all matches using a glob if a '*' is in the
+// dirname, otherwise it walks an entire dirname contents and subdirectories
+// collecting all the filenames found.
+func CollectFileNames(dirname string) []string {}
+
+type LogfileLists map[string]LogfileMatches
+
+// ParseCollectedFileNames parses a slice of strings representing all the
+// filenames found against the SortPattern to return a map keyed by the
+// combined differentiator with the value of LogfileMatches
+func ParseCollectedFileNames(filenames []string, pattern *SortPattern) LogfileLists {}
 
 type LogfileDirectoryManagerInput struct {
 	conf    *LogfileInputConfig
