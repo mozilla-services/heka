@@ -75,6 +75,14 @@ table .progress {
   font-size: 11px;
 }
 
+.dygraph-legend {
+  background: rgba(255,255,255, 0.9) !important;
+  left: auto !important;
+  right: 0;
+  text-align: right !important;
+  width: 90% !important;
+}
+
 .sandbox-graph-legend {
   background: #f3f3f3;
   border-top: 1px solid #ccc;
