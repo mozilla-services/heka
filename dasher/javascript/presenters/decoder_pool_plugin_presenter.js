@@ -15,11 +15,7 @@ define(
       });
     };
 
-    _.extend(DecoderPoolPluginPresenter.prototype, PluginPresenter.prototype, {
-      Name: function() {
-        return this.Plugin.replace(/DecoderPool-/, "");
-      },
-    });
+    _.extend(DecoderPoolPluginPresenter.prototype, PluginPresenter.prototype);
 
     return DecoderPoolPluginPresenter;
   }
