@@ -6,29 +6,29 @@ define(
     "use strict";
 
     var CircularBufferParser = {
-      parse: function(data) {
+      parse: function(input) {
         var circularBuffer = {};
-        var lines = data.split("\n");
-        var start = 1;
+        var lines = input.split("\n");
+        var dataStartLine = 1;
 
-        var obj = JSON.parse(lines[0]);
+        var details = JSON.parse(lines[0]);
 
-        if (obj.annotations) {
-          circularBuffer.annotations = obj.annotations;
+        if (details.annotations) {
+          circularBuffer.annotations = details.annotations;
           circularBuffer.header = $.parseJSON(lines[1]);
-          start = 2;
+          dataStartLine = 2;
         } else {
-          circularBuffer.header = obj;
+          circularBuffer.header = details;
         }
 
         circularBuffer.data = [];
 
-        for (var i = start; i < lines.length; i++) {
+        for (var i = dataStartLine; i < lines.length; i++) {
           var line = lines[i];
           var inFields = line.split("\t");
           var fields = [];
 
-          fields[0] = new Date((circularBuffer.header.time + (circularBuffer.header.seconds_per_row * (i - start))) * 1000);
+          fields[0] = new Date((circularBuffer.header.time + (circularBuffer.header.seconds_per_row * (i - dataStartLine))) * 1000);
 
           for (var j = 0; j < inFields.length; j++) {
             fields[j + 1] = parseFloat(inFields[j]);
