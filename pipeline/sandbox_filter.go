@@ -157,7 +157,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = 100000 // duration in nanoseconds
+		slowDuration   int64 = int64(Globals().MaxMsgProcessDuration)
 		duration       int64
 		capacity       = cap(inChan) - 1
 	)
