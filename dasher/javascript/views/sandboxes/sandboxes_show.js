@@ -39,9 +39,12 @@ define(
         this.$el.html(this.template(presentation));
 
         if (presentation.data) {
-          this.dygraph = new Dygraph(this.$(".sandbox-graph")[0], presentation.data, { labels: presentation.labels() });
-
-          this.setLegendColors(this.dygraph.getColors());
+          // Fixes drawing problem in Firefox
+          // TODO: Find something better ...
+          setTimeout(function() {
+            this.dygraph = new Dygraph(this.$(".sandbox-graph")[0], presentation.data, { labels: presentation.labels() });
+            this.setLegendColors(this.dygraph.getColors());
+          }.bind(this), 10);
         }
 
         return this;

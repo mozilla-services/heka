@@ -32,7 +32,7 @@ define(
       },
 
       updateContent: function(view) {
-        $("#content").html(view.el);
+        $("#content").html(view.render().el);
       }
     });
 
