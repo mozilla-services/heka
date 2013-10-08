@@ -1,7 +1,7 @@
 {
   "globals": [
     {
-      "Plugin": "inputRecycleChan",
+      "Name": "inputRecycleChan",
       "InChanCapacity": {
         "value": "100",
         "representation": "count"
@@ -12,7 +12,7 @@
       }
     },
     {
-      "Plugin": "injectRecycleChan",
+      "Name": "injectRecycleChan",
       "InChanCapacity": {
         "value": "100",
         "representation": "count"
@@ -23,7 +23,7 @@
       }
     },
     {
-      "Plugin": "Router",
+      "Name": "Router",
       "InChanCapacity": {
         "value": "50",
         "representation": "count"
@@ -40,12 +40,12 @@
   ],
   "inputs": [
     {
-      "Plugin": "TelemetryInput"
+      "Name": "TelemetryInput"
     }
   ],
   "decoderPools": [
     {
-      "Plugin": "DecoderPool-TelemetryDecoder",
+      "Name": "DecoderPool-TelemetryDecoder",
       "InChanCapacity": {
         "value": "4",
         "representation": "count"
@@ -56,7 +56,7 @@
       },
       "decoders": [
         {
-          "Plugin": "TelemetryDecoder-0",
+          "Name": "TelemetryDecoder-0",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -67,7 +67,7 @@
           }
         },
         {
-          "Plugin": "TelemetryDecoder-1",
+          "Name": "TelemetryDecoder-1",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -78,7 +78,7 @@
           }
         },
         {
-          "Plugin": "TelemetryDecoder-2",
+          "Name": "TelemetryDecoder-2",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -89,7 +89,7 @@
           }
         },
         {
-          "Plugin": "TelemetryDecoder-3",
+          "Name": "TelemetryDecoder-3",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -102,7 +102,7 @@
       ]
     },
     {
-      "Plugin": "DecoderPool-JsonDecoder",
+      "Name": "DecoderPool-JsonDecoder",
       "InChanCapacity": {
         "value": "4",
         "representation": "count"
@@ -113,7 +113,7 @@
       },
       "decoders": [
         {
-          "Plugin": "JsonDecoder-0",
+          "Name": "JsonDecoder-0",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -124,7 +124,7 @@
           }
         },
         {
-          "Plugin": "JsonDecoder-1",
+          "Name": "JsonDecoder-1",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -135,7 +135,7 @@
           }
         },
         {
-          "Plugin": "JsonDecoder-2",
+          "Name": "JsonDecoder-2",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -146,7 +146,7 @@
           }
         },
         {
-          "Plugin": "JsonDecoder-3",
+          "Name": "JsonDecoder-3",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -159,7 +159,7 @@
       ]
     },
     {
-      "Plugin": "DecoderPool-ProtobufDecoder",
+      "Name": "DecoderPool-ProtobufDecoder",
       "InChanCapacity": {
         "value": "4",
         "representation": "count"
@@ -170,7 +170,7 @@
       },
       "decoders": [
         {
-          "Plugin": "ProtobufDecoder-0",
+          "Name": "ProtobufDecoder-0",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -181,7 +181,7 @@
           }
         },
         {
-          "Plugin": "ProtobufDecoder-1",
+          "Name": "ProtobufDecoder-1",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -192,7 +192,7 @@
           }
         },
         {
-          "Plugin": "ProtobufDecoder-2",
+          "Name": "ProtobufDecoder-2",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -203,7 +203,7 @@
           }
         },
         {
-          "Plugin": "ProtobufDecoder-3",
+          "Name": "ProtobufDecoder-3",
           "InChanCapacity": {
             "value": "50",
             "representation": "count"
@@ -218,7 +218,7 @@
   ],
   "filters": [
     {
-      "Plugin": "TelemetryFilter",
+      "Name": "TelemetryFilter",
       "Memory": {
         "value": "197307",
         "representation": "B"
@@ -287,7 +287,7 @@
   ],
   "outputs": [
     {
-      "Plugin": "Dashboard",
+      "Name": "Dashboard",
       "InChanCapacity": {
         "value": "50",
         "representation": "count"

@@ -33,7 +33,7 @@ define(
       parseArrayIntoCollection: function(array, collection) {
         var plugins = _.collect(array, function(p) {
           // Use plugin name as its id
-          var plugin = new Plugin(_.extend(p, { id: p.Plugin }));
+          var plugin = new Plugin(_.extend(p, { id: p.Name }));
 
           if (plugin.has("decoders")) {
             var decoders = new Plugins();

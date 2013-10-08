@@ -11,10 +11,6 @@ define(
     };
 
     _.extend(PluginPresenter.prototype, {
-      Name: function() {
-        return this.Plugin;
-      },
-
       InChanPercent: function() {
         if (this.InChanLength && this.InChanCapacity) {
           return (this.InChanLength.value / this.InChanCapacity.value) * 100;
@@ -40,7 +36,7 @@ define(
       },
 
       InChanDescription: function() {
-        if (this.Plugin === "inputRecycleChan" || this.Plugin === "injectRecycleChan") {
+        if (this.Name === "inputRecycleChan" || this.Name === "injectRecycleChan") {
           return "Messages Available";
         } else {
           return "Messages in Channel";
