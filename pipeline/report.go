@@ -167,7 +167,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		msg = pack.Message
 		msg.SetType("heka.decoder-pool-report")
 		newStringField(msg, "name", fmt.Sprintf("DecoderPool-%s", name))
-		newStringField(msg, "key", "decoder-pools")
+		newStringField(msg, "key", "decoderPools")
 		newIntField(msg, "InChanCapacity", cap(dChan), "count")
 		newIntField(msg, "InChanLength", len(dChan), "count")
 		reportChan <- pack
@@ -215,7 +215,6 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 		} else if key, ok = iKey.(string); !ok {
 			key = MISSING
 		}
-		fmt.Println("key: ", key)
 		if iName, ok = pack.Message.GetFieldValue("name"); !ok {
 			name = MISSING
 		} else if name, ok = iName.(string); !ok {

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -32,6 +33,10 @@ type DashboardOutputConfig struct {
 	// IP address of the Dashboard HTTP interface (defaults to all interfaces on
 	// port 4352 (HEKA))
 	Address string `toml:"address"`
+	// Directory where the static dashboard content is stored. Relative paths
+	// will be evaluated relative to the Heka base dir. Defaults to
+	// "static/dashboard".
+	StaticDirectory string `toml:"static_directory"`
 	// Working directory where the Dashboard output is written to; it also
 	// serves as the root for the HTTP fileserver.  This directory is created
 	// if necessary and if it exists the previous output is wiped clean. *DO
@@ -48,6 +53,7 @@ type DashboardOutputConfig struct {
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
+		StaticDirectory:  "dashboard_static",
 		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
@@ -55,31 +61,79 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 }
 
 type DashboardOutput struct {
+	staticDirectory  string
 	workingDirectory string
+	dataDirectory    string
 	server           *http.Server
+}
+
+type dashTmplSubs struct {
+	DataPath string
 }
 
 func (self *DashboardOutput) Init(config interface{}) (err error) {
 	conf := config.(*DashboardOutputConfig)
 
+	self.staticDirectory = GetHekaConfigDir(conf.StaticDirectory)
 	self.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
-	if err = os.MkdirAll(self.workingDirectory, 0700); err != nil {
-		return fmt.Errorf("Can't create the working directory for the dashboard output: %s",
-			err.Error())
+	self.dataDirectory = filepath.Join(self.workingDirectory, "data")
+
+	if err = os.MkdirAll(self.dataDirectory, 0700); err != nil {
+		return fmt.Errorf("DashboardOutput: Can't create working directory: %s", err)
 	}
 
-	// delete all previous output
+	// Delete all previous output.
 	if matches, err := filepath.Glob(filepath.Join(self.workingDirectory, "*.*")); err == nil {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
 	}
-	// test we have write permission on the first file only
-	if err = overwriteFile(filepath.Join(self.workingDirectory, "heka_report.html"), getReportHtml()); err != nil {
+
+	// Copy the static content from the static dir to the working directory.
+	// This function does the copying, will be passed in to filepath.Walk.
+	copier := func(path string, info os.FileInfo, err error) (e error) {
+		if err != nil {
+			return err
+		}
+
+		var (
+			relPath, destPath string
+			inFile, outFile   *os.File
+			fi                os.FileInfo
+		)
+		if relPath, e = filepath.Rel(self.staticDirectory, path); e != nil {
+			return
+		}
+		destPath = filepath.Join(self.workingDirectory, relPath)
+
+		if fi, e = os.Stat(path); e != nil {
+			return fmt.Errorf("can't stat '%s': %s", path, e)
+		}
+
+		// Is this a directory?
+		if fi.IsDir() {
+			// Yes, create it in the destination spot.
+			if e = os.MkdirAll(destPath, 0700); e != nil {
+				return fmt.Errorf("can't create folder '%s': %s", destPath, e)
+			}
+		} else {
+			// Not a directory, create the new file.
+			if outFile, e = os.Create(destPath); e != nil {
+				return fmt.Errorf("can't create destination file '%s': %s", destPath, e)
+			}
+			if inFile, e = os.Open(path); e != nil {
+				return fmt.Errorf("can't open '%s': %s", path, e)
+			}
+			if _, e = io.Copy(outFile, inFile); e != nil {
+				return fmt.Errorf("can't copy to '%s': %s", destPath, e)
+			}
+		}
 		return
 	}
-	overwriteFile(filepath.Join(self.workingDirectory, "heka_sandbox_termination.html"), getSandboxTerminationHtml())
-	overwriteFile(filepath.Join(self.workingDirectory, "heka.js"), getHekaJs())
+
+	if err = filepath.Walk(self.staticDirectory, copier); err != nil {
+		return fmt.Errorf("Error copying static dashboard files: %s", err)
+	}
 
 	h := http.FileServer(http.Dir(self.workingDirectory))
 	self.server = &http.Server{
@@ -113,8 +167,8 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			msg = pack.Message
 			switch msg.GetType() {
 			case "heka.all-report":
-				fn := filepath.Join(self.workingDirectory, "heka_report.json")
-				createPluginPages(self.workingDirectory, msg.GetPayload())
+				fn := filepath.Join(self.dataDirectory, "heka_report.json")
+				createPluginPages(self.dataDirectory, msg.GetPayload())
 				overwriteFile(fn, msg.GetPayload())
 			case "heka.sandbox-output":
 				tmp, _ := msg.GetFieldValue("payload_type")
@@ -131,10 +185,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 					payloadType = reNotWord.ReplaceAllString(payloadType, "")
 					fn := msg.GetLogger() + nameExt + "." + payloadType
-					ofn := filepath.Join(self.workingDirectory, fn)
+					ofn := filepath.Join(self.dataDirectory, fn)
 					if payloadType == "cbuf" {
 						html := msg.GetLogger() + nameExt + ".html"
-						ohtml := filepath.Join(self.workingDirectory, html)
+						ohtml := filepath.Join(self.dataDirectory, html)
 						_, err := os.Stat(ohtml)
 						if err != nil {
 							overwriteFile(ohtml, fmt.Sprintf(getCbufTemplate(),
@@ -143,14 +197,14 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 								fn))
 						}
 						overwriteFile(ofn, msg.GetPayload())
-						updatePluginMetadata(self.workingDirectory, msg.GetLogger(), html, payloadName)
+						updatePluginMetadata(self.dataDirectory, msg.GetLogger(), html, payloadName)
 					} else {
 						overwriteFile(ofn, msg.GetPayload())
-						updatePluginMetadata(self.workingDirectory, msg.GetLogger(), fn, payloadName)
+						updatePluginMetadata(self.dataDirectory, msg.GetLogger(), fn, payloadName)
 					}
 				}
 			case "heka.sandbox-terminated":
-				fn := filepath.Join(self.workingDirectory, "heka_sandbox_termination.tsv")
+				fn := filepath.Join(self.dataDirectory, "heka_sandbox_termination.tsv")
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
 					var line string
 					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {

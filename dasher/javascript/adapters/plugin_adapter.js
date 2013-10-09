@@ -72,7 +72,7 @@ define(
 
       // Callback takes a response param.
       fetch: function(callback) {
-        $.ajax("sample_data/heka_report_new.json", { cache: false }).then(callback);
+        $.ajax("data/heka_report.json", { cache: false }).then(callback);
       },
 
       listenForUpdates: function() {
