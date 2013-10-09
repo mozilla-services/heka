@@ -1413,6 +1413,11 @@ Parameters:
     which it will serve HTTP. The Heka process must have read / write access
     to this directory. Relative paths will be evaluated relative to the Heka
     base directory. Defaults to "dashboard" (i.e. "$(BASE_DIR)/dashboard").
+- static_directory (string):
+    File system directory where the Heka dashboard source code can be found.
+    The Heka process must have read access to this directory. Relative paths
+    will be evaluated relative to the Heka base directory. Defaults to
+    "dashboard_static" (i.e. "$(BASE_DIR)/dashboard_static").
 
 Example:
 
