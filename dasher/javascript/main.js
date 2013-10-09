@@ -6,6 +6,7 @@ require.config({
     "jquery":                "vendor/jquery",
     "underscore":            "vendor/underscore",
     "backbone":              "vendor/backbone",
+    "bootstrap":             "vendor/bootstrap.min",
     "text":                  "vendor/text",
     "hgn":                   "vendor/hgn",
     "hogan":                 "vendor/hogan",
@@ -24,6 +25,12 @@ require.config({
       exports: "Backbone"
     },
 
+    "bootstrap": {
+      deps: ["jquery"],
+      // this is misleading, but we have to export something and bootstrap contains many plugins
+      exports: "$.fn.alert"
+    },
+
     "jquery.animateNumbers": {
       deps: ["jquery"],
       exports: "jQuery.fn.animateNumbers"
@@ -38,7 +45,8 @@ require.config({
 define(
   [
     "backbone",
-    "router"
+    "router",
+    "bootstrap"
   ],
   function (Backbone, Router) {
     "use strict";
