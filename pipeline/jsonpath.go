@@ -32,15 +32,31 @@ type JsonPath struct {
 var json_re = regexp.MustCompile(`^([^0-9\s\[][^\s\[]*)?(\[[0-9]+\])?$`)
 
 func (j *JsonPath) SetJsonText(json_text string) (err error) {
+	if json_text == "" {
+		return fmt.Errorf("No JSON detected")
+	}
+
 	j.json_text = json_text
 	dec := json.NewDecoder(strings.NewReader(json_text))
 	dec.UseNumber()
 	err = dec.Decode(&j.json_data)
+
+	// We need to check that we've actually got some actual JSON data.
+	// There are cases where the json_data pointer can be set to nil,
+	// but the error is not actually set.
+	if j.json_data == nil {
+		return fmt.Errorf("Error decoding JSON")
+	}
+
 	return
 }
 
 func (j *JsonPath) Find(jp string) (result string, err error) {
 	var ok bool
+
+	if j.json_data == nil {
+		return "", fmt.Errorf("JSON data is nil")
+	}
 
 	if jp == "" || strings.HasPrefix("$.", jp) {
 		return result, errors.New("invalid path")
