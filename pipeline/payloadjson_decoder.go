@@ -100,11 +100,17 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	captures = make(map[string]string)
 
 	jp := new(JsonPath)
-	jp.SetJsonText(s)
+	err := jp.SetJsonText(s)
+	if err != nil {
+		ld.dRunner.LogError(err)
+		// Invalid JSON should return an empty capture
+		return
+	}
 
 	for capture_group, jpath := range ld.JsonMap {
 		node_val, err := jp.Find(jpath)
 		if err != nil {
+			// Invalid JSONPath should silently skip data
 			continue
 		}
 		captures[capture_group] = node_val
