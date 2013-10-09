@@ -22,7 +22,10 @@ define(
         this.fetch(function(response) {
           this.parseArrayIntoCollection(response.globals, this.globals);
           this.parseArrayIntoCollection(response.inputs, this.inputs);
+
+          this.mapDecodersToPools(response.decoderPools, response.decoders);
           this.parseArrayIntoCollection(response.decoderPools, this.decoderPools);
+
           this.parseArrayIntoCollection(response.filters, this.filters);
           this.parseArrayIntoCollection(response.outputs, this.outputs);
         }.bind(this));
@@ -51,6 +54,20 @@ define(
         } else {
           collection.reset(plugins);
         }
+      },
+
+      mapDecodersToPools: function(decoderPools, decoders) {
+        _.each(decoderPools, function(decoderPool) {
+          decoderPool.decoders = [];
+
+          var basePoolName = decoderPool.Name.replace(/^DecoderPool\-/, "");
+
+          _.each(decoders, function(decoder) {
+            if (decoder.Name.indexOf(basePoolName) >= 0) {
+              decoderPool.decoders.push(decoder);
+            }
+          });
+        }.bind(this));
       },
 
       // Callback takes a response param.

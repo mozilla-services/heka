@@ -53,53 +53,7 @@
       "InChanLength": {
         "value": "4",
         "representation": "count"
-      },
-      "decoders": [
-        {
-          "Name": "TelemetryDecoder-0",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "TelemetryDecoder-1",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "TelemetryDecoder-2",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "TelemetryDecoder-3",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        }
-      ]
+      }
     },
     {
       "Name": "DecoderPool-JsonDecoder",
@@ -110,53 +64,7 @@
       "InChanLength": {
         "value": "4",
         "representation": "count"
-      },
-      "decoders": [
-        {
-          "Name": "JsonDecoder-0",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "JsonDecoder-1",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "JsonDecoder-2",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "JsonDecoder-3",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        }
-      ]
+      }
     },
     {
       "Name": "DecoderPool-ProtobufDecoder",
@@ -167,53 +75,141 @@
       "InChanLength": {
         "value": "4",
         "representation": "count"
+      }
+    }
+  ],
+  "decoders": [
+    {
+      "Name": "TelemetryDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
       },
-      "decoders": [
-        {
-          "Name": "ProtobufDecoder-0",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "ProtobufDecoder-1",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "ProtobufDecoder-2",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        },
-        {
-          "Name": "ProtobufDecoder-3",
-          "InChanCapacity": {
-            "value": "50",
-            "representation": "count"
-          },
-          "InChanLength": {
-            "value": "0",
-            "representation": "count"
-          }
-        }
-      ]
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "TelemetryDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "TelemetryDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "TelemetryDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "JsonDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "JsonDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "JsonDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "JsonDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "ProtobufDecoder-0",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "ProtobufDecoder-1",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "ProtobufDecoder-2",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
+    },
+    {
+      "Name": "ProtobufDecoder-3",
+      "InChanCapacity": {
+        "value": "50",
+        "representation": "count"
+      },
+      "InChanLength": {
+        "value": "0",
+        "representation": "count"
+      }
     }
   ],
   "filters": [
