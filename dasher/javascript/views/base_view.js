@@ -55,8 +55,6 @@ define(
       },
 
       leave: function() {
-        console.log("Leaving view", this);
-
         this.stopListening();
         this.leaveSubviews();
         this.$el.off();

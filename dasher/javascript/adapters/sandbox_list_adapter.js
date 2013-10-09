@@ -33,7 +33,7 @@ define(
 
       // Callback takes a response param.
       fetch: function(callback) {
-        $.getJSON("sample_data/sandboxes.json").then(callback);
+        $.ajax("sample_data/sandboxes.json", { cache: false }).then(callback);
       }
     });
 

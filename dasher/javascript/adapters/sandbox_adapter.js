@@ -40,7 +40,7 @@ define(
 
       // Callback takes a response param.
       fetchHistoricalData: function(endpoint, callback) {
-        $.get(endpoint).then(callback);
+        $.ajax(endpoint, { cache: false }).then(callback);
       }
     });
 

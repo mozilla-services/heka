@@ -72,11 +72,11 @@ define(
 
       // Callback takes a response param.
       fetch: function(callback) {
-        $.getJSON("sample_data/heka_report_new.json").then(callback);
+        $.ajax("sample_data/heka_report_new.json", { cache: false }).then(callback);
       },
 
       listenForUpdates: function() {
-        setTimeout(function() { this.fill(); }.bind(this), 5000);
+        setTimeout(function() { this.fill(); }.bind(this), 2000);
       }
     });
 
