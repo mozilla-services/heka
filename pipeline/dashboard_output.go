@@ -46,7 +46,7 @@ type DashboardOutputConfig struct {
 	WorkingDirectory string `toml:"working_directory"`
 	// Default interval at which dashboard will update is 5 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
-	// Default message matcher
+	// Default message matcher.
 	MessageMatcher string
 }
 
@@ -87,6 +87,11 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
+	}
+
+	err = overwriteFile(filepath.Join(self.dataDirectory, "heka.js"), getHekaJs())
+	if err != nil {
+		return
 	}
 
 	// Copy the static content from the static dir to the working directory.
