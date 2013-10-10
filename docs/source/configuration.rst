@@ -89,6 +89,11 @@ Parameters:
     The maximum number of messages that a sandbox filter's ProcessMessage
     function can inject in a single call; the default is 1.
 
+- max_process_duration (uint64):
+    The maximum number of nanoseconds that a sandbox filter's ProcessMessage
+    function can consume in a single call before being terminated; the default
+    is 100000.
+
 - max_timer_inject (uint):
     The maximum number of messages that a sandbox filter's TimerEvent
     function can inject in a single call; the default is 10.

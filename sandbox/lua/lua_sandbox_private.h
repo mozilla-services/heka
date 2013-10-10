@@ -139,6 +139,16 @@ int realloc_output(output_data* output, size_t needed);
  */
 int preserve_global_data(lua_sandbox* lsb, const char* data_file);
 
+/**
+ * More efficient serialization of a double to a string
+ * 
+ * @param output Pointer the output collector.
+ * @param d Double value to convert to a string.
+ * 
+ * @return int Zero on success, non-zero on failure.
+ */
+int serialize_double(output_data* output, double d);
+
 /** 
  * Serializes a Lua table structure.
  * 
