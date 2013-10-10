@@ -12,7 +12,7 @@ define(
       template: GlobalsIndexTemplate,
 
       initialize: function() {
-        this.listenTo(this.collection, "reset", this.render, this);
+        this.listenTo(this.collection, "add remove reset", this.render, this);
       },
 
       afterRender: function() {

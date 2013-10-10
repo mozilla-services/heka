@@ -16,7 +16,7 @@ define(
         this.sandboxListAdapter = new SandboxListAdapter();
         this.collection = this.sandboxListAdapter.sandboxes;
 
-        this.listenTo(this.collection, "reset", this.render, this);
+        this.listenTo(this.collection, "add remove reset", this.render, this);
 
         this.sandboxListAdapter.fill();
       },
