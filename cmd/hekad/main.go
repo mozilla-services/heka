@@ -47,6 +47,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	memProfName := config.MemProfName
 	maxMsgLoops := config.MaxMsgLoops
 	maxMsgProcessInject := config.MaxMsgProcessInject
+	maxMsgProcessDuration := config.MaxMsgProcessDuration
 	maxMsgTimerInject := config.MaxMsgTimerInject
 
 	runtime.GOMAXPROCS(maxprocs)
@@ -60,6 +61,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 		globals.MaxMsgLoops = 1
 	}
 	globals.MaxMsgProcessInject = maxMsgProcessInject
+	globals.MaxMsgProcessDuration = maxMsgProcessDuration
 	globals.MaxMsgTimerInject = maxMsgTimerInject
 	globals.BaseDir = config.BaseDir
 
