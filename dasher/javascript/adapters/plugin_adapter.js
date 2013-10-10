@@ -76,7 +76,7 @@ define(
       },
 
       listenForUpdates: function() {
-        setTimeout(function() { this.fill(); }.bind(this), 2000);
+        setTimeout(function() { this.fill(); }.bind(this), 1000);
       }
     });
 
