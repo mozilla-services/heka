@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -63,12 +64,9 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 type DashboardOutput struct {
 	staticDirectory  string
 	workingDirectory string
+	relDataPath      string
 	dataDirectory    string
 	server           *http.Server
-}
-
-type dashTmplSubs struct {
-	DataPath string
 }
 
 func (self *DashboardOutput) Init(config interface{}) (err error) {
@@ -76,7 +74,8 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 
 	self.staticDirectory = GetHekaConfigDir(conf.StaticDirectory)
 	self.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
-	self.dataDirectory = filepath.Join(self.workingDirectory, "data")
+	self.relDataPath = "data"
+	self.dataDirectory = filepath.Join(self.workingDirectory, self.relDataPath)
 
 	if err = os.MkdirAll(self.dataDirectory, 0700); err != nil {
 		return fmt.Errorf("DashboardOutput: Can't create working directory: %s", err)
@@ -162,6 +161,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		msg  *message.Message
 	)
 
+	// Maps sandbox names to plugin list items used to generate the
+	// sandboxes.json file.
+	sandboxes := make(map[string]*DashPluginListItem)
+	sbxsLock := new(sync.Mutex)
 	reNotWord, _ := regexp.Compile("\\W")
 	for ok {
 		select {
@@ -175,6 +178,12 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				fn := filepath.Join(self.dataDirectory, "heka_report.json")
 				createPluginPages(self.dataDirectory, msg.GetPayload())
 				overwriteFile(fn, msg.GetPayload())
+				sbxsLock.Lock()
+				if err := overwritePluginListFile(self.dataDirectory, sandboxes); err != nil {
+					or.LogError(fmt.Errorf("Can't write plugin list file to '%s': %s",
+						self.dataDirectory, err))
+				}
+				sbxsLock.Unlock()
 			case "heka.sandbox-output":
 				tmp, _ := msg.GetFieldValue("payload_type")
 				if payloadType, ok := tmp.(string); ok {
@@ -189,31 +198,31 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					nameExt = "." + nameExt
 
 					payloadType = reNotWord.ReplaceAllString(payloadType, "")
-					fn := msg.GetLogger() + nameExt + "." + payloadType
+					filterName := msg.GetLogger()
+					fn := filterName + nameExt + "." + payloadType
 					ofn := filepath.Join(self.dataDirectory, fn)
-					if payloadType == "cbuf" {
-						html := msg.GetLogger() + nameExt + ".html"
-						ohtml := filepath.Join(self.dataDirectory, html)
-						_, err := os.Stat(ohtml)
-						if err != nil {
-							overwriteFile(ohtml, fmt.Sprintf(getCbufTemplate(),
-								msg.GetLogger(),
-								payloadName,
-								fn))
+					relPath := path.Join(self.relDataPath, fn) // Used for generating HTTP URLs.
+					overwriteFile(ofn, msg.GetPayload())
+					updatePluginMetadata(self.dataDirectory, msg.GetLogger(), relPath, payloadName)
+					sbxsLock.Lock()
+					if _, ok := sandboxes[filterName]; !ok {
+						// We won't notice if the metadata path changes while
+						// Heka is running. Do we care?
+						sandboxes[filterName] = &DashPluginListItem{
+							Name:         filterName,
+							MetadataPath: path.Join(self.relDataPath, filterName+".json"),
 						}
-						overwriteFile(ofn, msg.GetPayload())
-						updatePluginMetadata(self.dataDirectory, msg.GetLogger(), html, payloadName)
-					} else {
-						overwriteFile(ofn, msg.GetPayload())
-						updatePluginMetadata(self.dataDirectory, msg.GetLogger(), fn, payloadName)
 					}
+					sbxsLock.Unlock()
 				}
 			case "heka.sandbox-terminated":
 				fn := filepath.Join(self.dataDirectory, "heka_sandbox_termination.tsv")
+				filterName := msg.GetLogger()
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
 					var line string
 					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {
-						line = fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9, msg.GetLogger(), msg.GetPayload())
+						line = fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9,
+							msg.GetLogger(), msg.GetPayload())
 					} else {
 						pmc, _ := msg.GetFieldValue("ProcessMessageCount")
 						pms, _ := msg.GetFieldValue("ProcessMessageSamples")
@@ -233,12 +242,15 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 							" MatchChanLength:%v"+
 							" RouterChanLength:%v\n",
 							msg.GetTimestamp()/1e9,
-							msg.GetLogger(), msg.GetPayload(), pmc, pms, pmd,
+							filterName, msg.GetPayload(), pmc, pms, pmd,
 							ms, mad, fcl, mcl, rcl)
 					}
 					file.WriteString(line)
 					file.Close()
 				}
+				sbxsLock.Lock()
+				delete(sandboxes, filterName)
+				sbxsLock.Unlock()
 			}
 			pack.Recycle()
 		case <-ticker:
@@ -254,16 +266,40 @@ func overwriteFile(filename, s string) (err error) {
 		file.WriteString(s)
 		file.Close()
 	}
-	return err
+	return
+}
+
+type DashPluginListItem struct {
+	Name         string
+	MetadataPath string `json:"metadata_path"`
+}
+
+func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (err error) {
+	sbxSlice := make([]*DashPluginListItem, len(sbxs))
+	i := 0
+	for _, item := range sbxs {
+		sbxSlice[i] = item
+		i++
+	}
+	output := map[string][]*DashPluginListItem{
+		"sandboxes": sbxSlice,
+	}
+	var file *os.File
+	filename := filepath.Join(dir, "sandboxes.json")
+	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
+		enc := json.NewEncoder(file)
+		err = enc.Encode(output)
+	}
+	return
+}
+
+type PluginMetadata struct {
+	Outputs []PluginOutput
 }
 
 type PluginOutput struct {
 	Filename string
 	Name     string
-}
-
-type PluginMetadata struct {
-	Outputs []PluginOutput
 }
 
 func getPluginMetadataPath(dir, logger string) string {
