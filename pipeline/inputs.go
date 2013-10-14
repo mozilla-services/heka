@@ -239,7 +239,7 @@ func networkPayloadParser(conn net.Conn,
 		pack.Message.SetPid(0)
 		// Only TCP packets have a remote address.
 		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
-			pack.Message.SetHostname(conn.RemoteAddr().String())
+			pack.Message.SetHostname(remoteAddr.String())
 		}
 		pack.Message.SetLogger(ir.Name())
 		pack.Message.SetPayload(string(record))
