@@ -980,6 +980,29 @@ func TestReadConfig(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestCJson(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/cjson.lua"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	msg := getTestMessage()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	msg.SetPayload("[ true, { \"foo\": \"bar\" } ]")
+	r := sb.ProcessMessage(msg)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+	}
+	sb.Destroy("")
+}
+
 func TestReadNilConfig(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/read_config_nil.lua"

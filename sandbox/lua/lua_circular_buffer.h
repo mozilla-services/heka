@@ -42,8 +42,10 @@ int serialize_circular_buffer(const char* key, circular_buffer* cb,
  * 
  * @param lua Lua state
  * 
+ * @return 1 on success
+ * 
  */
-void luaopen_circular_buffer(lua_State *lua);
+int luaopen_circular_buffer(lua_State *lua);
 
 
 #endif
