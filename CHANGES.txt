@@ -37,6 +37,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Added check for nil RemoteAddr value since UDP connections won't have one
+  (issue #462).
+
 * Statsd messages are now parsed manually (issue #44).
 
 * Added mDRunner so MultiDecoder will work with sub-decoders that implement
