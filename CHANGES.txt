@@ -69,6 +69,8 @@ Bug Handling
 
 Features
 --------
+* Added json decoding to the Lua sandbox (issue #463). If you have an old build
+  directory you will have to run make clean to pick up the new patch.
 
 * Added a 'config' variable section to the Sandbox decoder/filter plugin (issue #444)
 
