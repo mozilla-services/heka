@@ -264,7 +264,12 @@ func (pc *PipelineConfig) allReportsStdout() {
 
 func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
 
-	header := []string{"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength", "MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory", "MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration", "TimerEventAvgDuration"}
+	header := []string{
+		"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength",
+		"MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory",
+		"MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration",
+		"TimerEventAvgDuration",
+	}
 
 	///////////
 
@@ -274,7 +279,8 @@ func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
 	fullReport := make([]string, 0)
 	for _, row := range m["reports"].([]interface{}) {
 		pluginReport := make([]string, 0)
-		pluginReport = append(pluginReport, fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
+		pluginReport = append(pluginReport,
+			fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
 		for _, colname := range header {
 			data := row.(map[string]interface{})[colname]
 			if data != nil {
