@@ -37,9 +37,6 @@ func (x Header_HmacHashFunction) Enum() *Header_HmacHashFunction {
 func (x Header_HmacHashFunction) String() string {
 	return proto.EnumName(Header_HmacHashFunction_name, int32(x))
 }
-func (x Header_HmacHashFunction) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
 func (x *Header_HmacHashFunction) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Header_HmacHashFunction_value, data, "Header_HmacHashFunction")
 	if err != nil {
@@ -81,9 +78,6 @@ func (x Field_ValueType) Enum() *Field_ValueType {
 }
 func (x Field_ValueType) String() string {
 	return proto.EnumName(Field_ValueType_name, int32(x))
-}
-func (x Field_ValueType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
 }
 func (x *Field_ValueType) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Field_ValueType_value, data, "Field_ValueType")
