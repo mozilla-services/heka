@@ -24,8 +24,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -176,7 +174,6 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			switch msg.GetType() {
 			case "heka.all-report":
 				fn := filepath.Join(self.dataDirectory, "heka_report.json")
-				createPluginPages(self.dataDirectory, msg.GetPayload())
 				overwriteFile(fn, msg.GetPayload())
 				sbxsLock.Lock()
 				if err := overwritePluginListFile(self.dataDirectory, sandboxes); err != nil {
@@ -203,14 +200,33 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					ofn := filepath.Join(self.dataDirectory, fn)
 					relPath := path.Join(self.relDataPath, fn) // Used for generating HTTP URLs.
 					overwriteFile(ofn, msg.GetPayload())
-					updatePluginMetadata(self.dataDirectory, msg.GetLogger(), relPath, payloadName)
+					//updatePluginMetadata(self.dataDirectory, msg.GetLogger(), relPath, payloadName)
 					sbxsLock.Lock()
-					if _, ok := sandboxes[filterName]; !ok {
-						// We won't notice if the metadata path changes while
-						// Heka is running. Do we care?
+					if listItem, ok := sandboxes[filterName]; !ok {
+						// First time we've seen this sandbox, add it to the set.
+						output := &DashPluginOutput{
+							Name:     payloadName,
+							Filename: relPath,
+						}
 						sandboxes[filterName] = &DashPluginListItem{
-							Name:         filterName,
-							MetadataPath: path.Join(self.relDataPath, filterName+".json"),
+							Name:    filterName,
+							Outputs: []*DashPluginOutput{output},
+						}
+					} else {
+						// We've seen the sandbox, see if we already have this output.
+						found := false
+						for _, output := range listItem.Outputs {
+							if output.Name == payloadName {
+								found = true
+								break
+							}
+						}
+						if !found {
+							output := &DashPluginOutput{
+								Name:     payloadName,
+								Filename: relPath,
+							}
+							listItem.Outputs = append(listItem.Outputs, output)
 						}
 					}
 					sbxsLock.Unlock()
@@ -269,9 +285,14 @@ func overwriteFile(filename, s string) (err error) {
 	return
 }
 
+type DashPluginOutput struct {
+	Name     string
+	Filename string
+}
+
 type DashPluginListItem struct {
-	Name         string
-	MetadataPath string `json:"metadata_path"`
+	Name    string
+	Outputs []*DashPluginOutput
 }
 
 func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (err error) {
@@ -291,129 +312,6 @@ func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (e
 		err = enc.Encode(output)
 	}
 	return
-}
-
-type PluginMetadata struct {
-	Outputs []PluginOutput
-}
-
-type PluginOutput struct {
-	Filename string
-	Name     string
-}
-
-func getPluginMetadataPath(dir, logger string) string {
-	return filepath.Join(dir, logger+".json")
-}
-
-func updatePluginMetadata(dir, logger, fn, name string) {
-	pimd := getPluginMetadata(dir, logger)
-	if pimd == nil {
-		pimd = new(PluginMetadata)
-	}
-	found := false
-	for _, v := range pimd.Outputs {
-		if v.Filename == fn {
-			found = true
-			break
-		}
-	}
-	if !found {
-		pout := PluginOutput{Filename: fn, Name: name}
-		pimd.Outputs = append(pimd.Outputs, pout)
-		writePluginMetadata(dir, logger, pimd)
-	}
-}
-
-func writePluginMetadata(dir, logger string, pimd *PluginMetadata) {
-	fn := getPluginMetadataPath(dir, logger)
-	if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
-		enc := json.NewEncoder(file)
-		enc.Encode(pimd)
-		file.Close()
-	}
-}
-
-func getPluginMetadata(dir, logger string) *PluginMetadata {
-	var pimd *PluginMetadata
-	fn := getPluginMetadataPath(dir, logger)
-	if file, err := os.Open(fn); err == nil {
-		pimd = new(PluginMetadata)
-		dec := json.NewDecoder(file)
-		dec.Decode(pimd)
-		file.Close()
-	}
-	return pimd
-}
-
-func createOutputTable(dir, logger string) (table string) {
-	pimd := getPluginMetadata(dir, logger)
-	if pimd == nil {
-		return
-	}
-
-	outputs := make([]string, 0, 1)
-	for _, v := range pimd.Outputs {
-		if len(v.Name) == 0 {
-			v.Name = "- none -"
-		}
-		outputs = append(outputs, fmt.Sprintf("<tr><td><a href=\"%s\">%s</a></td><td>%s</td></tr>",
-			v.Filename,
-			v.Name,
-			path.Ext(v.Filename)))
-	}
-	sort.Strings(outputs)
-	table = fmt.Sprintf("<table class=\"outputs\"><caption>Plugin Outputs</caption>"+
-		"<thead><tr><th>Name</th><th>Type</th></tr></thead>"+
-		"<tbody>\n%s\n</tbody></table>",
-		strings.Join(outputs, "\n"))
-	return
-}
-
-func createPluginPages(dir, payload string) {
-	var (
-		f      interface{}
-		r      []interface{}
-		m, p   map[string]interface{}
-		ok     bool
-		logger string
-	)
-	if err := json.Unmarshal([]byte(payload), &f); err != nil {
-		return
-	}
-	if m, ok = f.(map[string]interface{}); !ok {
-		return
-	}
-	if r, ok = m["reports"].([]interface{}); !ok {
-		return
-	}
-	for _, plugin := range r {
-		if p, ok = plugin.(map[string]interface{}); !ok {
-			continue
-		}
-		if logger, ok = p["Plugin"].(string); !ok {
-			continue
-		}
-		fn := filepath.Join(dir, logger+".html")
-		props := make([]string, 0, 5)
-		for k, v := range p {
-			mv, ok := v.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			props = append(props, fmt.Sprintf("<tr><td>%s</td><td>%v</td><td>%v</td></tr>",
-				k,
-				mv["value"],
-				mv["representation"]))
-		}
-		sort.Strings(props)
-		ptable := fmt.Sprintf("<table class=\"properties\"><caption>Properties</caption>"+
-			"<thead><tr><th>Name</th><th>Value</th><th>Representation</th></tr></thead>"+
-			"<tbody>\n%s\n</tbody></table>",
-			strings.Join(props, "\n"))
-		otable := createOutputTable(dir, logger)
-		overwriteFile(fn, fmt.Sprintf(getPluginTemplate(), logger, ptable, otable))
-	}
 }
 
 // TODO make the JS libraries part of the local deployment the HTML has them wired up to public web sites
