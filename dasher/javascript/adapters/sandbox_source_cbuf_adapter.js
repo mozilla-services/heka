@@ -9,13 +9,13 @@ define(
   function(_, Backbone, $, Sandbox, CircularBufferParser) {
     "use strict";
 
-    var SandboxAdapter = function(sandbox) {
+    var SandboxSourceCbufAdapter = function(sandbox) {
       this.sandbox = sandbox;
     };
 
-    _.extend(SandboxAdapter.prototype, {
+    _.extend(SandboxSourceCbufAdapter.prototype, {
       fill: function() {
-        this.fetchHistoricalData(this.sandbox.get("historicalEndpoint"), function(response) {
+        this.fetch(this.sandbox.get("Filename"), function(response) {
           var circularBuffer = CircularBufferParser.parse(response);
 
           this.sandbox.set({
@@ -24,26 +24,20 @@ define(
             data: circularBuffer.data
           });
         }.bind(this));
-      },
 
-      parseArrayIntoCollection: function(array, collection) {
-        var sandboxes = _.collect(array, function(s) {
-          return new Sandbox(s);
-        });
-
-        if (collection.length > 0) {
-          collection.set(sandboxes);
-        } else {
-          collection.reset(sandboxes);
-        }
+        this.listenForUpdates();
       },
 
       // Callback takes a response param.
-      fetchHistoricalData: function(endpoint, callback) {
+      fetch: function(endpoint, callback) {
         $.ajax(endpoint, { cache: false }).then(callback);
+      },
+
+      listenForUpdates: function() {
+        setTimeout(function() { this.fill(); }.bind(this), 1000);
       }
     });
 
-    return SandboxAdapter;
+    return SandboxSourceCbufAdapter;
   }
 );

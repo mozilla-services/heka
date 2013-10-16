@@ -1,7 +1,7 @@
 define(
   [
     "views/base_view",
-    "adapters/plugin_adapter",
+    "adapters/plugins_adapter",
     "views/health/globals_index",
     "views/health/inputs_index",
     "views/health/decoder_pools_index",
@@ -9,22 +9,22 @@ define(
     "views/health/outputs_index",
     "hgn!templates/health/health_index"
   ],
-  function(BaseView, PluginAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
+  function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
     "use strict";
 
     var HealthIndex = BaseView.extend({
       template: HealthIndexTemplate,
 
       initialize: function() {
-        this.pluginAdapter = new PluginAdapter();
+        this.pluginsAdapter = new PluginsAdapter();
 
-        this.globalsIndex = new GlobalsIndex({ collection: this.pluginAdapter.globals });
-        this.inputsIndex = new InputsIndex({ collection: this.pluginAdapter.inputs });
-        this.decoderPoolsIndex = new DecoderPoolsIndex({ collection: this.pluginAdapter.decoderPools });
-        this.filtersIndex = new FiltersIndex({ collection: this.pluginAdapter.filters });
-        this.outputsIndex = new OutputsIndex({ collection: this.pluginAdapter.outputs });
+        this.globalsIndex = new GlobalsIndex({ collection: this.pluginsAdapter.globals });
+        this.inputsIndex = new InputsIndex({ collection: this.pluginsAdapter.inputs });
+        this.decoderPoolsIndex = new DecoderPoolsIndex({ collection: this.pluginsAdapter.decoderPools });
+        this.filtersIndex = new FiltersIndex({ collection: this.pluginsAdapter.filters });
+        this.outputsIndex = new OutputsIndex({ collection: this.pluginsAdapter.outputs });
 
-        this.pluginAdapter.fill();
+        this.pluginsAdapter.fill();
       },
 
       afterRender: function() {

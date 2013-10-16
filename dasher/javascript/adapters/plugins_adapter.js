@@ -9,7 +9,7 @@ define(
   function(_, Backbone, $, Plugin, Plugins) {
     "use strict";
 
-    var PluginAdapter = function() {
+    var PluginsAdapter = function() {
       this.globals = new Plugins();
       this.inputs = new Plugins();
       this.decoderPools = new Plugins();
@@ -17,7 +17,7 @@ define(
       this.outputs = new Plugins();
     };
 
-    _.extend(PluginAdapter.prototype, {
+    _.extend(PluginsAdapter.prototype, {
       fill: function() {
         this.fetch(function(response) {
           this.parseArrayIntoCollection(response.globals, this.globals);
@@ -80,6 +80,6 @@ define(
       }
     });
 
-    return PluginAdapter;
+    return PluginsAdapter;
   }
 );

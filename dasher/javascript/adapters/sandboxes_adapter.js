@@ -8,11 +8,11 @@ define(
   function(_, Backbone, $, Sandbox) {
     "use strict";
 
-    var SandboxListAdapter = function() {
+    var SandboxesAdapter = function() {
       this.sandboxes = new Backbone.Collection();
     };
 
-    _.extend(SandboxListAdapter.prototype, {
+    _.extend(SandboxesAdapter.prototype, {
       fill: function() {
         this.fetch(function(response) {
           this.parseArrayIntoCollection(response.sandboxes, this.sandboxes);
@@ -21,7 +21,7 @@ define(
 
       parseArrayIntoCollection: function(array, collection) {
         var sandboxes = _.collect(array, function(s) {
-          return new Sandbox(s);
+          return new Sandbox(_.extend(s, { id: s.Name, Outputs: new Backbone.Collection(s.Outputs) }));
         });
 
         if (collection.length > 0) {
@@ -37,6 +37,6 @@ define(
       }
     });
 
-    return SandboxListAdapter;
+    return SandboxesAdapter;
   }
 );
