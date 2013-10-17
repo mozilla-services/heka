@@ -15,19 +15,19 @@ define(
         "sandboxes": "sandboxes"  // #sandboxes
       },
 
-      initialize: function() {
-        this.healthIndex = new HealthIndex();
-        this.sandboxesIndex = new SandboxesIndex();
-
-        this.healthIndex.render();
-        this.sandboxesIndex.render();
-      },
-
       health: function() {
+        if (!this.healthIndex) {
+          this.healthIndex = new HealthIndex();
+        }
+
         this.updateContent(this.healthIndex);
       },
 
       sandboxes: function() {
+        if (!this.sandboxesIndex) {
+          this.sandboxesIndex = new SandboxesIndex();
+        }
+
         this.updateContent(this.sandboxesIndex);
       },
 
