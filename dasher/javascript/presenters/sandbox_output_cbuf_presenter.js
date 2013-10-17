@@ -5,11 +5,11 @@ define(
   function(_) {
     "use strict";
 
-    var SandboxSourceCbufPresnter = function (sandbox) {
-      _.extend(this, sandbox.attributes);
+    var SandboxOutputCbufPresenter = function (sandboxOutput) {
+      _.extend(this, sandboxOutput.attributes);
     };
 
-    _.extend(SandboxSourceCbufPresnter.prototype, {
+    _.extend(SandboxOutputCbufPresenter.prototype, {
       labels: function() {
         var labels = [];
 
@@ -67,6 +67,6 @@ define(
       }
     });
 
-    return SandboxSourceCbufPresnter;
+    return SandboxOutputCbufPresenter;
   }
 );

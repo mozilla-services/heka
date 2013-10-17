@@ -5,8 +5,8 @@ define(
   function(Backbone) {
     "use strict";
 
-    var SandboxSource = Backbone.Model.extend({});
+    var SandboxOutput = Backbone.Model.extend({});
 
-    return SandboxSource;
+    return SandboxOutput;
   }
 );

@@ -3,24 +3,24 @@ define(
     "jquery",
     "dygraph",
     "views/base_view",
-    "hgn!templates/sandboxes/sandbox_source_cbuf_show",
-    "presenters/sandbox_source_cbuf_presenter",
-    "adapters/sandbox_source_cbuf_adapter"
+    "hgn!templates/sandboxes/sandbox_output_cbuf_show",
+    "presenters/sandbox_output_cbuf_presenter",
+    "adapters/sandbox_output_cbuf_adapter"
   ],
-  function($, Dygraph, BaseView, SanboxSourceCbufShowTemplate, SandboxSourceCbufPresenter, SandboxSourceCbufAdapter) {
+  function($, Dygraph, BaseView, SandboxOutputCbufShowTemplate, SandboxOutputCbufPresenter, SandboxOutputCbufAdapter) {
     "use strict";
 
-    var SanboxSourceCbufShow = BaseView.extend({
-      template: SanboxSourceCbufShowTemplate,
-      presenter: SandboxSourceCbufPresenter,
-      className: "sandboxes-source-cbuf",
+    var SandboxOutputCbufShow = BaseView.extend({
+      template: SandboxOutputCbufShowTemplate,
+      presenter: SandboxOutputCbufPresenter,
+      className: "sandboxes-output-cbuf",
 
       events: {
         "click .sandbox-graph-legend-control input": "toggleSeries"
       },
 
       initialize: function() {
-        this.adapter = new SandboxSourceCbufAdapter(this.model);
+        this.adapter = new SandboxOutputCbufAdapter(this.model);
 
         this.listenTo(this.model, "change:data", this.updateDygraph, this);
 
@@ -65,6 +65,6 @@ define(
       }
     });
 
-    return SanboxSourceCbufShow;
+    return SandboxOutputCbufShow;
   }
 );

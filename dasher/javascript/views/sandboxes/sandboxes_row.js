@@ -5,10 +5,10 @@ define(
     "views/base_view",
     "hgn!templates/sandboxes/sandboxes_row",
     "presenters/sandbox_presenter",
-    "views/sandboxes/sandbox_source_cbuf_show",
-    "views/sandboxes/sandbox_source_txt_show"
+    "views/sandboxes/sandbox_output_cbuf_show",
+    "views/sandboxes/sandbox_output_txt_show"
   ],
-  function($, Dygraph, BaseView, SandboxesRowTemplate, SandboxPresenter, SandboxSourceCbufShow, SandboxSourceTxtShow) {
+  function($, Dygraph, BaseView, SandboxesRowTemplate, SandboxPresenter, SandboxOutputCbufShow, SandboxOutputTxtShow) {
     "use strict";
 
     var SandboxesRow = BaseView.extend({
@@ -17,7 +17,6 @@ define(
       className: "sandboxes-row",
 
       initialize: function() {
-        console.log("I AM SANDBOX ROW HEAR ME ROAR")
         //this.sandboxAdapter = new SandboxAdapter(this.model);
 
         //this.listenTo(this.model, "change:Outputs", this.render, this);
@@ -26,17 +25,13 @@ define(
       },
 
       afterRender: function() {
-        console.log("AFTER RENDER", this.model);
-
         var els = this.model.get("Outputs").collect(function(output) {
           var subview;
 
-          console.log("OUTPUT", output);
-
           if (output.get("Filename").match(/\.cbuf$/)) {
-            subview = new SandboxSourceCbufShow({ model: output });
+            subview = new SandboxOutputCbufShow({ model: output });
           } else {
-            subview = new SandboxSourceTxtShow({ model: output });
+            subview = new SandboxOutputTxtShow({ model: output });
           }
 
           return this.trackSubview(subview).render().el;

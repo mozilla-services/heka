@@ -7,14 +7,14 @@ define(
   function(_, Backbone, $) {
     "use strict";
 
-    var SandboxSourceTxtAdapter = function(sandboxSource) {
-      this.sandboxSource = sandboxSource;
+    var SandboxOutputTxtAdapter = function(sandboxOutput) {
+      this.sandboxOutput = sandboxOutput;
     };
 
-    _.extend(SandboxSourceTxtAdapter.prototype, {
+    _.extend(SandboxOutputTxtAdapter.prototype, {
       fill: function() {
-        this.fetch(this.sandboxSource.get("Filename"), function(response) {
-          this.sandboxSource.set("data", response);
+        this.fetch(this.sandboxOutput.get("Filename"), function(response) {
+          this.sandboxOutput.set("data", response);
 
           this.listenForUpdates();
         }.bind(this));
@@ -30,6 +30,6 @@ define(
       }
     });
 
-    return SandboxSourceTxtAdapter;
+    return SandboxOutputTxtAdapter;
   }
 );
