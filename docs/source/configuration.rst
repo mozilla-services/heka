@@ -681,6 +681,77 @@ Parameters:
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
 
+.. _config_process_input:
+
+ProcessInput
+------------
+
+Executes an external program on an interval, creating messages from the output.
+In the event the program returns a bad exit code, ProcessInput will stop 
+citing the exit error.
+
+For programs meant to run continuously `fail_on_timeout` should be set to false.
+
+Parameters:
+
+- command ([]string):
+    The command is split into argument strings.  The first string is the name
+    or full path to the program you wish to execute.  Subsequent strings are
+    arguments to that program.
+- ticker_interval (uint):
+    The number of seconds to wait between runnning `command`. In cases where
+    the program is designed to run continuously this is irrelevant, and
+    `fail_on_timeout` should be false. Default is 15 seconds.
+- stdout (bool):
+    Capture stdout from `command`.  Defaults to true.
+- stderr (bool):
+    Capture stderr from `command`.  Defaults to false.
+- tolerate_failures (bool):
+    When true this prevents a ProcessInput from stopping due to command failure.
+    Default is false.
+- fail_on_timeout (bool):
+    A timeout condition occurs when `command` has not exited before the next
+    `tick_interval`.  If `fail_on_timeout` is true then ProcessInput will treat
+    a timeout as a failure. If set to false command execution will be postponed
+    and attempted again at the next tick.  Default is false.
+- environment ([]string):
+    Used to set environment variables before `command` is run. Default is nil,
+    which uses the heka process's environment.
+- directory (string):
+    Specifies the working directory of Command.  Default is the directory
+    where the program resides.
+- decoder (string):
+    Name of the decoder instance to send messages to.  Default is to inject
+    messages back into the main heka router.
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
+
+.. code-block:: ini
+
+    [ProcessInput]
+    command = ["df", "-h", "/"]
+
+.. code-block:: ini
+
+    [ProcessInput]
+    command = ["mongo", "localhost", "/opt/long_query_csv.js"]
+    ticker_interval = 10
+    stderr = true
+    fail_on_timeout = false
+    parser_type = "token"
+    delimiter = ","
+
 .. _config_http_input:
 
 HttpInput
