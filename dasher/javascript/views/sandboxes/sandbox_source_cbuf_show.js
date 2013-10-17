@@ -22,7 +22,7 @@ define(
       initialize: function() {
         this.adapter = new SandboxSourceCbufAdapter(this.model);
 
-        this.listenTo(this.model, "change:data", this.render, this);
+        this.listenTo(this.model, "change:data", this.updateDygraph, this);
 
         this.adapter.fill();
       },
@@ -48,6 +48,14 @@ define(
         }
 
         return this;
+      },
+
+      updateDygraph: function() {
+        if (this.dygraph) {
+          this.dygraph.updateOptions({ file: this.model.get("data") });
+        } else {
+          this.render();
+        }
       },
 
       setLegendColors: function(colors) {
