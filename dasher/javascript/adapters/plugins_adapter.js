@@ -3,10 +3,11 @@ define(
     "underscore",
     "backbone",
     "jquery",
+    "adapters/base_adapter",
     "models/plugin",
     "collections/plugins"
   ],
-  function(_, Backbone, $, Plugin, Plugins) {
+  function(_, Backbone, $, BaseAdapter, Plugin, Plugins) {
     "use strict";
 
     var PluginsAdapter = function() {
@@ -17,9 +18,9 @@ define(
       this.outputs = new Plugins();
     };
 
-    _.extend(PluginsAdapter.prototype, {
+    _.extend(PluginsAdapter.prototype, new BaseAdapter(), {
       fill: function() {
-        this.fetch(function(response) {
+        this.fetch("data/heka_report.json", function(response) {
           this.parseArrayIntoCollection(response.globals, this.globals);
           this.parseArrayIntoCollection(response.inputs, this.inputs);
 
@@ -68,15 +69,6 @@ define(
             }
           });
         }.bind(this));
-      },
-
-      // Callback takes a response param.
-      fetch: function(callback) {
-        $.ajax("data/heka_report.json", { cache: false }).then(callback);
-      },
-
-      listenForUpdates: function() {
-        setTimeout(function() { this.fill(); }.bind(this), 1000);
       }
     });
 

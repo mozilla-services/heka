@@ -22,8 +22,6 @@ define(
       },
 
       render: function() {
-        //console.log("render", this);
-
         this.leaveSubviews();
 
         var presentation = this.getPresentation();
@@ -55,6 +53,15 @@ define(
       },
 
       leave: function() {
+        if (this.beforeLeave) {
+          this.beforeLeave();
+        }
+
+        // Turn off adapter polling
+        if (this.adapter && this.adapter.stopListeningForUpdates) {
+          this.adapter.stopListeningForUpdates();
+        }
+
         this.stopListening();
         this.leaveSubviews();
         this.$el.off();

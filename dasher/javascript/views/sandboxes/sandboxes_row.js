@@ -17,11 +17,7 @@ define(
       className: "sandboxes-row",
 
       initialize: function() {
-        //this.sandboxAdapter = new SandboxAdapter(this.model);
-
-        //this.listenTo(this.model, "change:Outputs", this.render, this);
-
-        //this.sandboxAdapter.fill();
+        this.listenTo(this.model, "change:Outputs", this.render, this);
       },
 
       afterRender: function() {

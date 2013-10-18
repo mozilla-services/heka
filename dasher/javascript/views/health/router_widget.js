@@ -1,12 +1,11 @@
 define(
   [
     "jquery",
-    "jquery.animateNumbers",
     "views/base_view",
     "presenters/plugin_presenter",
     "hgn!templates/health/router_widget"
   ],
-  function($, animateNumbers, BaseView, PluginPresenter, RouterWidgetTemplate) {
+  function($, BaseView, PluginPresenter, RouterWidgetTemplate) {
     "use strict";
 
     var RouterWidget = BaseView.extend({
@@ -14,11 +13,11 @@ define(
       template: RouterWidgetTemplate,
 
       initialize: function() {
-        this.listenTo(this.model, "change:ProcessMessageCount", this.updateProcessMessageCount, this);
+        this.listenTo(this.model, "change:ProcessMessageCount.value", this.render, this);
       },
 
       updateProcessMessageCount: function() {
-        this.$("h4 strong").animateNumbers(this.model.get("ProcessMessageCount").value);
+        this.$("h4 strong").html(this.model.get("ProcessMessageCount.value"));
       }
     });
 

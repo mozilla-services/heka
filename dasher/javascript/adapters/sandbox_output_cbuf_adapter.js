@@ -3,16 +3,17 @@ define(
     "underscore",
     "backbone",
     "jquery",
+    "adapters/base_adapter",
     "lib/circular_buffer_parser"
   ],
-  function(_, Backbone, $, CircularBufferParser) {
+  function(_, Backbone, $, BaseAdapter, CircularBufferParser) {
     "use strict";
 
     var SandboxOutputCbufAdapter = function(sandboxOutput) {
       this.sandboxOutput = sandboxOutput;
     };
 
-    _.extend(SandboxOutputCbufAdapter.prototype, {
+    _.extend(SandboxOutputCbufAdapter.prototype, new BaseAdapter(), {
       fill: function() {
         this.fetch(this.sandboxOutput.get("Filename"), function(response) {
           var circularBuffer = CircularBufferParser.parse(response);
@@ -25,15 +26,6 @@ define(
         }.bind(this));
 
         this.listenForUpdates();
-      },
-
-      // Callback takes a response param.
-      fetch: function(endpoint, callback) {
-        $.ajax(endpoint, { cache: false }).then(callback);
-      },
-
-      listenForUpdates: function() {
-        setTimeout(function() { this.fill(); }.bind(this), 1000);
       }
     });
 

@@ -13,12 +13,12 @@ define(
       template: SandboxesIndexTemplate,
 
       initialize: function() {
-        this.sandboxesAdapter = new SandboxesAdapter();
-        this.collection = this.sandboxesAdapter.sandboxes;
+        this.adapter = new SandboxesAdapter();
+        this.collection = this.adapter.sandboxes;
 
         this.listenTo(this.collection, "add remove reset", this.render, this);
 
-        this.sandboxesAdapter.fill();
+        this.adapter.fill();
       },
 
       afterRender: function() {

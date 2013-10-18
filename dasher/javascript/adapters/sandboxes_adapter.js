@@ -3,19 +3,22 @@ define(
     "underscore",
     "backbone",
     "jquery",
+    "adapters/base_adapter",
     "models/sandbox"
   ],
-  function(_, Backbone, $, Sandbox) {
+  function(_, Backbone, $, BaseAdapter, Sandbox) {
     "use strict";
 
     var SandboxesAdapter = function() {
       this.sandboxes = new Backbone.Collection();
     };
 
-    _.extend(SandboxesAdapter.prototype, {
+    _.extend(SandboxesAdapter.prototype, new BaseAdapter(), {
       fill: function() {
-        this.fetch(function(response) {
+        this.fetch("data/sandboxes.json", function(response) {
           this.parseArrayIntoCollection(response.sandboxes, this.sandboxes);
+
+          this.listenForUpdates();
         }.bind(this));
       },
 
@@ -29,11 +32,6 @@ define(
         } else {
           collection.reset(sandboxes);
         }
-      },
-
-      // Callback takes a response param.
-      fetch: function(callback) {
-        $.ajax("data/sandboxes.json", { cache: false }).then(callback);
       }
     });
 

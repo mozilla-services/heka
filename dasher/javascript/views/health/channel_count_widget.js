@@ -12,16 +12,16 @@ define(
       template: ChannelCountTemplate,
 
       initialize: function() {
-        this.listenTo(this.model, "change:InChanLength", this.updateInChanLength, this);
-        this.listenTo(this.model, "change:InChanCapacity", this.updateInChanCapacity, this);
+        this.listenTo(this.model, "change:InChanLength.value", this.render, this);
+        this.listenTo(this.model, "change:InChanCapacity.value", this.render, this);
       },
 
       updateInChanLength: function() {
-        this.$(".in-chan-length").animateNumbers(this.model.get("InChanLength").value);
+        this.$(".in-chan-length").html(this.model.get("InChanLength.value"));
       },
 
       updateInChanCapacity: function() {
-        this.$(".in-chan-capacity").animateNumbers(this.model.get("InChanCapacity").value);
+        this.$(".in-chan-capacity").html(this.model.get("InChanCapacity.value"));
       }
     });
 

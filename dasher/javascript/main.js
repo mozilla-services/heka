@@ -11,8 +11,9 @@ require.config({
     "hgn":                   "vendor/hgn",
     "hogan":                 "vendor/hogan",
     "numeral":               "vendor/numeral",
-    "jquery.animateNumbers": "vendor/jquery.animateNumbers",
-    "dygraph":               "vendor/dygraph-combined"
+    "dygraph":               "vendor/dygraph-combined",
+    "deepModel":             "vendor/deep-model",
+    "crc32":                 "vendor/crc32"
   },
 
   shim: {
@@ -31,13 +32,12 @@ require.config({
       exports: "$.fn.alert"
     },
 
-    "jquery.animateNumbers": {
-      deps: ["jquery"],
-      exports: "jQuery.fn.animateNumbers"
-    },
-
     "dygraph": {
       exports: "Dygraph"
+    },
+
+    "crc32": {
+      exports: "crc32"
     }
   }
 });

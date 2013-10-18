@@ -16,9 +16,18 @@ define(
       initialize: function() {
         this.adapter = new SandboxOutputTxtAdapter(this.model);
 
-        this.listenTo(this.model, "change:data", this.render, this);
+        this.listenTo(this.model, "change:Name", this.updateName, this);
+        this.listenTo(this.model, "change:data", this.updateData, this);
 
         this.adapter.fill();
+      },
+
+      updateName: function() {
+        this.$("h4").html(this.model.get("Name"));
+      },
+
+      updateData: function() {
+        this.$("pre").html(this.model.get("data"));
       }
     });
 

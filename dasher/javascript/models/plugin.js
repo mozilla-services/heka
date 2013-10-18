@@ -1,11 +1,12 @@
 define(
   [
-    "backbone"
+    "backbone",
+    "deepModel"
   ],
   function(Backbone) {
     "use strict";
 
-    var Plugin = Backbone.Model.extend({});
+    var Plugin = Backbone.DeepModel.extend({});
 
     return Plugin;
   }

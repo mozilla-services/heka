@@ -51,6 +51,7 @@ define(
       },
 
       updateDygraph: function() {
+        // TODO: rerender if there are major changes to the graph
         if (this.dygraph) {
           this.dygraph.updateOptions({ file: this.model.get("data") });
         } else {

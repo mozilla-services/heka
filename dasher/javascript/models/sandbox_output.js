@@ -1,11 +1,12 @@
 define(
   [
-    "backbone"
+    "backbone",
+    "deepModel"
   ],
   function(Backbone) {
     "use strict";
 
-    var SandboxOutput = Backbone.Model.extend({});
+    var SandboxOutput = Backbone.DeepModel.extend({});
 
     return SandboxOutput;
   }

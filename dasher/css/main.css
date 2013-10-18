@@ -96,3 +96,7 @@ table .progress {
   font-size: 12px;
   font-weight: normal;
 }
+
+.sandboxes-output-txt pre {
+  line-height: 1.8em !important;
+}
