@@ -80,7 +80,7 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// and the decoders sections load
 			_, ok = pipeConfig.DecoderWrappers["JsonDecoder"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.Equals, false)
 			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
@@ -97,8 +97,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 
-			// Decoders are loaded
-			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
+			// Only the ProtobufDecoder is loaded
+			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 1)
 		})
 
 		c.Specify("works w/ MultiDecoder", func() {
@@ -106,8 +106,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			hasSyncDecoder := false
 
-			// JSONDecoder and ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 3)
+			// ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
 
 			// Check that the MultiDecoder actually loaded
 			for k, _ := range pipeConfig.DecoderWrappers {
