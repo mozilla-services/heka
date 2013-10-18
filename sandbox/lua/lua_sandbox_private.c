@@ -565,7 +565,7 @@ int serialize_kvp(lua_sandbox* lsb, serialization_data* data, size_t parent)
                 seen = add_table_ref(&data->m_tables, ud, pos);
                 if (seen != NULL) {
                     data->m_keys.m_pos += 1;
-                    result = serialize_circular_buffer(
+                    result = serialize_circular_buffer(lsb->m_lua,
                       data->m_keys.m_data + pos,
                       (circular_buffer*)ud, &lsb->m_output);
                     if (result == 0) {
@@ -880,7 +880,7 @@ int output(lua_State* lua)
         case LUA_TUSERDATA:
             ud = lua_touserdata(lua, i);
             if (heka_circular_buffer == userdata_type(lua, ud, i)) {
-                if (output_circular_buffer((circular_buffer*)ud,
+                if (output_circular_buffer(lua, (circular_buffer*)ud,
                                            &lsb->m_output)) {
                     result = 1;
                 }
@@ -967,31 +967,45 @@ int inject_message(lua_State* lua)
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
+    void* ud = NULL;
     const char* type = default_type;
     const char* name = default_name;
     switch (lua_gettop(lua)) {
     case 0:
         break;
+    case 2:
+        name = luaL_checkstring(lua, 2);
+        // fallthru
     case 1:
-        if (lua_istable(lua, 1) == 1) {
+        switch (lua_type(lua, 1)) {
+        case LUA_TSTRING:
+            type = lua_tostring(lua, 1);
+            if (strlen(type) == 0) type = default_type;
+            break;
+        case LUA_TTABLE:
             type = "";
-            int result = serialize_table_as_pb(lsb);
-            if (result != 0) {
-                lsb->m_output.m_pos = 0;
+            if (serialize_table_as_pb(lsb) != 0) {
                 luaL_error(lua, "inject_message() cound not encode protobuf - %s",
                            lsb->m_error_message);
             }
-        } else if (lua_isstring(lua, 1) == 1) {
-            type = luaL_checkstring(lua, 1);
-            if (strlen(type) == 0) type = default_type;
-        } else {
-            luaL_error(lua, "inject_message() must have a table or string as the first argument");
+            break;
+        case LUA_TUSERDATA:
+            ud = lua_touserdata(lua, 1);
+            if (heka_circular_buffer == userdata_type(lua, ud, 1)) {
+                circular_buffer* cb = (circular_buffer*)ud;
+                type = get_output_format(cb);
+                lsb->m_output.m_pos = 0;
+                if (output_circular_buffer(lua, cb, &lsb->m_output)) {
+                    luaL_error(lua, lsb->m_error_message);
+                }
+            } else {
+                luaL_typerror(lua, 1, "circular_buffer");
+            }
+            break;
+        default:
+            luaL_typerror(lua, 1, "string, table, or circular_buffer");
+            break;
         }
-        break;
-    case 2:
-        type = luaL_checkstring(lua, 1);
-        if (strlen(type) == 0) type = default_type;
-        name = luaL_checkstring(lua, 2);
         break;
     default:
         luaL_error(lua, "inject_message() takes a maximum of 2 arguments");
