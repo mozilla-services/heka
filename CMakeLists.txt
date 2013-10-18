@@ -54,7 +54,7 @@ elseif(APPLE)
     set(LDFLAGS "-ldflags=\"-linkmode=external\"")
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
-    
+
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
     if (DPKG_EXECUTABLE)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "DEB")
@@ -111,6 +111,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/examples" "${HEK
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA_PATH}/message"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sandbox" "${HEKA_PATH}/sandbox"
+COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/input" "${HEKA_PATH}/input"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/testsupport" "${HEKA_PATH}/testsupport"
 DEPENDS lua-5_1_5 GoPackages ${MESSAGE_PROTO_OUT}
 )
@@ -122,7 +123,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 )
 add_dependencies(mocks message_matcher_parser)
 
-add_custom_target(hekad ALL 
+add_custom_target(hekad ALL
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
@@ -151,21 +152,25 @@ endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
 
-add_custom_target(flood ALL 
+add_custom_target(flood ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/flood
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
 
-add_custom_target(sbmgr ALL 
+add_custom_target(sbmgr ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgr
 DEPENDS hekad)
 
 install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 
-add_custom_target(sbmgrload ALL 
+add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
+DEPENDS hekad)
+
+add_custom_target(input ALL
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/input/logstream
 DEPENDS hekad)
 
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
