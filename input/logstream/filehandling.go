@@ -59,14 +59,15 @@ func (b ByPriority) Less(i, j int) bool {
 	first := b.Logfiles[i]
 	second := b.Logfiles[j]
 	for _, part := range b.Priority {
+		p := SubexpName(part)
 		convert = func(a bool) bool { return a }
-		if "^" == part[0] {
-			part = part[1:]
+		if `^` == p[0] {
+			p = p[1:]
 			convert = func(a bool) bool { return !a }
 		}
-		if first.MatchParts[part] < second.MatchParts[part] {
+		if first.MatchParts[p] < second.MatchParts[p] {
 			return convert(true)
-		} else if first.MatchParts[part] > second.MatchParts[part] {
+		} else if first.MatchParts[p] > second.MatchParts[p] {
 			return convert(false)
 		}
 	}
@@ -76,7 +77,7 @@ func (b ByPriority) Less(i, j int) bool {
 }
 
 func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Logfiles {
-	files := make(Logfiles)
+	files := make(Logfiles, 0)
 	filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
@@ -84,6 +85,7 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 		if fileMatch.MatchString(path) {
 			files = append(files, &Logfile{FileName: path})
 		}
+		return nil
 	})
 	return files
 }
@@ -91,6 +93,8 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 type MultipleLogstreamFileList map[string]Logfiles
 
 func FilterMultipleStreamFiles(files Logfiles, fileMatch string, diferentiator []string) MultipleLogstreamFileList {
+	mfs := make(MultipleLogstreamFileList)
+	return mfs
 }
 
 type LogstreamLocation struct {
@@ -101,11 +105,17 @@ type LogstreamLocation struct {
 	Hash         string
 }
 
-func NewLogstreamLocationFromJSONFile(path string) *LogstreamLocation {}
+func NewLogstreamLocationFromJSONFile(path string) *LogstreamLocation {
+	return &LogstreamLocation{}
+}
 
-func (l *LogstreamLocation) SaveProgressToJSONFile(path string) error {}
+func (l *LogstreamLocation) SaveProgressToJSONFile(path string) error {
+	return nil
+}
 
-func LocatePriorLocation(files LogstreamFileList, position LogstreamLocation) (*os.File, error) {}
+func LocatePriorLocation(files Logfiles, position LogstreamLocation) (*os.File, error) {
+	return nil, nil
+}
 
 // Match translation map for a matched section that maps the string value to the integer to
 // sort on.
@@ -155,15 +165,3 @@ type SortPattern struct {
 	// the log stream.
 	Differentiator []string
 }
-
-// CollectFileNames will collect all matches using a glob if a '*' is in the
-// dirname, otherwise it walks an entire dirname contents and subdirectories
-// collecting all the filenames found.
-func CollectFileNames(dirname string) []string {}
-
-type LogfileLists map[string]LogfileMatches
-
-// ParseCollectedFileNames parses a slice of strings representing all the
-// filenames found against the SortPattern to return a map keyed by the
-// combined differentiator with the value of LogfileMatches
-func ParseCollectedFileNames(filenames []string, pattern *SortPattern) LogfileLists {}
