@@ -20,13 +20,10 @@ import (
 	"regexp"
 )
 
-type SubexpName string
-type SortValue int
-
 type Logfile struct {
 	FileName string
 	// The matched portions of the filename and their translated integer value
-	MatchParts map[SubexpName]SortValue
+	MatchParts map[string]int
 }
 
 type Logfiles []*Logfile
@@ -59,15 +56,14 @@ func (b ByPriority) Less(i, j int) bool {
 	first := b.Logfiles[i]
 	second := b.Logfiles[j]
 	for _, part := range b.Priority {
-		p := SubexpName(part)
 		convert = func(a bool) bool { return a }
-		if `^` == p[0] {
-			p = p[1:]
+		if "^" == part[:1] {
+			part = part[1:]
 			convert = func(a bool) bool { return !a }
 		}
-		if first.MatchParts[p] < second.MatchParts[p] {
+		if first.MatchParts[part] < second.MatchParts[part] {
 			return convert(true)
-		} else if first.MatchParts[p] > second.MatchParts[p] {
+		} else if first.MatchParts[part] > second.MatchParts[part] {
 			return convert(false)
 		}
 	}
