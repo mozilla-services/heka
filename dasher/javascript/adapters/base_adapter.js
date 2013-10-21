@@ -27,7 +27,7 @@ define(
 
       listenForUpdates: function() {
         if (!this.updateTimer) {
-          this.updateTimer = setInterval(function() { this.fill(); }.bind(this), 1000);
+          this.updateTimer = setInterval(function() { this.fill(); }.bind(this), 2000);
         }
       },
 
