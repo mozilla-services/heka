@@ -2,6 +2,10 @@ body {
   padding-top: 50px;
 }
 
+a:focus {
+  outline: none;
+}
+
 h1.page-title {
   font-size: 280%;
   margin-bottom: 15px;
@@ -99,4 +103,22 @@ table .progress {
 
 .sandboxes-output-txt pre {
   line-height: 1.8em !important;
+}
+
+html.embed body {
+  padding-top: 15px !important;
+}
+
+html.embed .container {
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+html.embed .navbar {
+  display: none;
+}
+
+html.embed .sandboxes-output h4 {
+  display: none;
 }

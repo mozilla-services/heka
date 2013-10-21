@@ -13,7 +13,7 @@ define(
     var SandboxOutputCbufShow = BaseView.extend({
       template: SandboxOutputCbufShowTemplate,
       presenter: SandboxOutputCbufPresenter,
-      className: "sandboxes-output-cbuf",
+      className: "sandboxes-output sandboxes-output-cbuf",
 
       events: {
         "click .sandbox-graph-legend-control input": "toggleSeries"

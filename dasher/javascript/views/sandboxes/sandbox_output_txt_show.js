@@ -11,7 +11,7 @@ define(
 
     var SandboxOutputTxtShow = BaseView.extend({
       template: SandboxOutputTxtShowTemplate,
-      className: "sandboxes-output-txt",
+      className: "sandboxes-output sandboxes-output-txt",
 
       initialize: function() {
         this.adapter = new SandboxOutputTxtAdapter(this.model);
