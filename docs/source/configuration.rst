@@ -683,8 +683,8 @@ ProcessInput
 
 Executes one or more external programs on an interval, creating
 messages from the output.  If a chain of commands is used, stdout is
-piped into the next command's stdin In the event the program returns a
-bad exit code, ProcessInput will stop logging the exit error.
+piped into the next command's stdin. In the event the program returns a
+non-zero exit code, ProcessInput will stop, logging the exit error.
 
 Parameters:
 Each command is defined with the following parameters:
