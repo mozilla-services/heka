@@ -4,16 +4,14 @@ define(
     "dygraph",
     "views/base_view",
     "hgn!templates/sandboxes/sandboxes_row",
-    "presenters/sandbox_presenter",
     "views/sandboxes/sandbox_output_cbuf_show",
     "views/sandboxes/sandbox_output_txt_show"
   ],
-  function($, Dygraph, BaseView, SandboxesRowTemplate, SandboxPresenter, SandboxOutputCbufShow, SandboxOutputTxtShow) {
+  function($, Dygraph, BaseView, SandboxesRowTemplate, SandboxOutputCbufShow, SandboxOutputTxtShow) {
     "use strict";
 
     var SandboxesRow = BaseView.extend({
       template: SandboxesRowTemplate,
-      presenter: SandboxPresenter,
       className: "sandboxes-row",
 
       initialize: function() {

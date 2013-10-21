@@ -1,15 +1,16 @@
 define(
   [
-    "underscore"
+    "underscore",
+    "presenters/sandbox_output_presenter"
   ],
-  function(_) {
+  function(_, SandboxOutputPresenter) {
     "use strict";
 
     var SandboxOutputCbufPresenter = function (sandboxOutput) {
       _.extend(this, sandboxOutput.attributes);
     };
 
-    _.extend(SandboxOutputCbufPresenter.prototype, {
+    _.extend(SandboxOutputCbufPresenter.prototype, SandboxOutputPresenter.prototype, {
       labels: function() {
         var labels = [];
 
@@ -51,19 +52,36 @@ define(
         }
       },
 
-      numberOfHours: function() {
+      timespanDescription: function() {
         if (this.hasHeader()) {
+          var secondsInAMinute = 60;
           var secondsInAnHour = 3600;
 
-          var hours = (this.header.seconds_per_row * this.header.rows) / secondsInAnHour;
-          var numberOfHours = hours.toString() + " hour";
+          var seconds = this.header.seconds_per_row * this.header.rows;
+          var numericValue;
+          var timespanDescription;
 
-          if (hours != 1) {
-            numberOfHours += "s";
+          if (seconds < secondsInAMinute) {
+            numericValue = seconds;
+            timespanDescription = numericValue.toString() + " second";
+          } else if (seconds < secondsInAnHour) {
+            numericValue = this.round(seconds / secondsInAMinute);
+            timespanDescription = numericValue.toString() + " minute";
+          } else {
+            numericValue = this.round(seconds / secondsInAnHour);
+            timespanDescription = numericValue.toString() + " hour";
           }
 
-          return numberOfHours;
+          if (numericValue != 1) {
+            timespanDescription += "s";
+          }
+
+          return timespanDescription;
         }
+      },
+
+      round: function(number) {
+        return Math.round(number * 100) / 100;
       }
     });
 

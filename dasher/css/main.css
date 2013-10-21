@@ -66,8 +66,8 @@ table .progress {
 }
 
 .sandbox-graph {
-  width: 100% !important;
   height: 250px !important;
+  width: 100% !important;
 }
 
 .sandbox-graph .dygraph-axis-label {
@@ -83,11 +83,18 @@ table .progress {
   width: 90% !important;
 }
 
+.sandbox-graph-help {
+  color: #999;
+  font-size: 11px;
+  margin-bottom: 15px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
 .sandbox-graph-legend {
-  background: #f3f3f3;
-  border-top: 1px solid #ccc;
-  margin-top: 1em;
-  padding: 0.5em;
+  border-top: 1px solid #ddd;
+  margin-top: 15px;
+  padding: 15px;
   text-align: right;
 }
 
@@ -99,6 +106,18 @@ table .progress {
 .sandbox-graph-legend-control label {
   font-size: 12px;
   font-weight: normal;
+}
+
+.sandboxes-output + .sandboxes-output {
+  margin-top: 15px;
+}
+
+.sandboxes-output-header {
+  margin-bottom: 15px;
+}
+
+.sandboxes-output-header h4 {
+  margin: 4px 0 0 0 !important;
 }
 
 .sandboxes-output-txt pre {

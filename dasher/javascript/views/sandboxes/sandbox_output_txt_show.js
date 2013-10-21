@@ -4,13 +4,15 @@ define(
     "dygraph",
     "views/base_view",
     "hgn!templates/sandboxes/sandbox_output_txt_show",
-    "adapters/sandbox_output_txt_adapter"
+    "adapters/sandbox_output_txt_adapter",
+    "presenters/sandbox_output_presenter"
   ],
-  function($, Dygraph, BaseView, SandboxOutputTxtShowTemplate, SandboxOutputTxtAdapter) {
+  function($, Dygraph, BaseView, SandboxOutputTxtShowTemplate, SandboxOutputTxtAdapter, SandboxOutputPresenter) {
     "use strict";
 
     var SandboxOutputTxtShow = BaseView.extend({
       template: SandboxOutputTxtShowTemplate,
+      presenter: SandboxOutputPresenter,
       className: "sandboxes-output sandboxes-output-txt",
 
       initialize: function() {
