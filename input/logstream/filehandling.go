@@ -12,18 +12,115 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstreaminput
+package logstream
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 )
+
+var MonthLookup = map[string]int{
+	"january":   1,
+	"jan":       1,
+	"february":  2,
+	"feb":       2,
+	"march":     3,
+	"mar":       3,
+	"april":     4,
+	"apr":       4,
+	"may":       5,
+	"june":      6,
+	"jun":       6,
+	"july":      7,
+	"jul":       7,
+	"august":    8,
+	"aug":       8,
+	"september": 9,
+	"sep":       9,
+	"october":   10,
+	"oct":       10,
+	"november":  11,
+	"nov":       11,
+	"december":  12,
+	"dec":       12,
+}
+
+var DayLookup = map[string]int{
+	"monday":    0,
+	"mon":       0,
+	"tuesday":   1,
+	"tue":       1,
+	"wednesday": 2,
+	"wed":       2,
+	"thursday":  3,
+	"thu":       3,
+	"friday":    4,
+	"fri":       4,
+	"saturday":  5,
+	"sat":       5,
+	"sunday":    6,
+	"sun":       6,
+}
+
+var digitRegex = regexp.MustCompile(`^\d+$`)
+
+// Custom multiple error type that satisfies Go error interface but has
+// alternate printing options
+type MultipleError []string
+
+func NewMultipleError() MultipleError {
+	return make(MultipleError, 0)
+}
+
+func (m MultipleError) Error() string {
+	return strings.Join(m, " :: ")
+}
+
+func (m MultipleError) AddMessage(s string) {
+	m = append(m, s)
+}
 
 type Logfile struct {
 	FileName string
 	// The matched portions of the filename and their translated integer value
 	MatchParts map[string]int
+}
+
+func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation SubmatchTranslationMap) error {
+	var score int
+	var ok bool
+	if l.MatchParts == nil {
+		l.MatchParts = make(map[string]int)
+	}
+	for i, name := range subexpNames {
+		matchValue := matches[i]
+		lowerValue := strings.ToLower(matchValue)
+		score = -1
+		if name == "" {
+			continue
+		}
+		if name == "MonthName" {
+			if score, ok = MonthLookup[lowerValue]; !ok {
+				return errors.New("Unable to locate month name: " + matchValue)
+			}
+		} else if name == "DayName" {
+			if score, ok = DayLookup[lowerValue]; !ok {
+				return errors.New("Unable to locate day name : " + matchValue)
+			}
+		} else if submap, ok := translation[name]; ok {
+			if score, ok = submap[matchValue]; !ok {
+				return errors.New("Unable to locate value: (" + matchValue + ") in translation map: " + name)
+			}
+		} else if digitRegex.MatchString(matchValue) {
+			score, _ = strconv.Atoi(matchValue)
+		}
+		l.MatchParts[name] = score
+	}
+	return nil
 }
 
 type Logfiles []*Logfile
@@ -41,6 +138,23 @@ func (l Logfiles) IndexOf(s string) int {
 		}
 	}
 	return -1
+}
+
+// Provided the fileMatch regexp and translation map, populate all the Logfile
+// matchparts for use in sorting.
+func (l Logfiles) PopulateMatchParts(fileMatch *regexp.Regexp, translation SubmatchTranslationMap) error {
+	errors := NewMultipleError()
+	subexpNames := fileMatch.SubexpNames()
+	for _, logfile := range l {
+		matches := fileMatch.FindStringSubmatch(logfile.FileName)
+		if err := logfile.PopulateMatchParts(subexpNames, matches, translation); err != nil {
+			errors.AddMessage(err.Error())
+		}
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return errors
 }
 
 // ByPriority implements the final method of the sort.Interface so that the embedded

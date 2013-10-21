@@ -14,7 +14,7 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstreaminput
+package logstream
 
 // Represents a single logstream.
 type LogStream struct {
