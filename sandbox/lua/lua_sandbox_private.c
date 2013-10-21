@@ -1188,7 +1188,7 @@ int encode_int(lua_sandbox* lsb, output_data* d, char id, const char* name)
     lua_getfield(lsb->m_lua, 1, name);
     if (lua_isnumber(lsb->m_lua, -1)) {
         long long i = (long long)lua_tonumber(lsb->m_lua, -1);
-        if ((result == pb_write_tag(d, id, 0))) {
+        if (!(result = pb_write_tag(d, id, 0))) {
             result = pb_write_varint(d, i);
         }
     }
