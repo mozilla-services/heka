@@ -87,6 +87,12 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
+// Indicates a plug-in needs its name before it has access to the runner interface.
+type WantsName interface {
+	// Passes the toml section name into the plugin at configuration time.
+	SetName(name string)
+}
+
 // Indicates a plug-in can handle being restart should it exit before
 // heka is shut-down.
 type Restarting interface {
@@ -328,8 +334,6 @@ type PluginGlobals struct {
 
 // Default Decoders configuration.
 var defaultDecoderTOML = `
-[JsonDecoder]
-
 [ProtobufDecoder]
 `
 
@@ -479,6 +483,9 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		return
 	}
 	wrapper.configCreator = func() interface{} { return config }
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(sectionName)
+	}
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(Plugin).Init(config); err != nil {
@@ -629,10 +636,6 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	toml.Decode(defaultDecoderTOML, &configDefault)
 	dWrappers := self.DecoderWrappers
 
-	if _, ok := dWrappers["JsonDecoder"]; !ok {
-		log.Println("Loading: [JsonDecoder]")
-		errcnt += self.loadSection("JsonDecoder", configDefault["JsonDecoder"])
-	}
 	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
 		log.Println("Loading: [ProtobufDecoder]")
 		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
@@ -657,9 +660,6 @@ func init() {
 	})
 	RegisterPlugin("MultiDecoder", func() interface{} {
 		return new(MultiDecoder)
-	})
-	RegisterPlugin("JsonDecoder", func() interface{} {
-		return new(JsonDecoder)
 	})
 	RegisterPlugin("ProtobufDecoder", func() interface{} {
 		return new(ProtobufDecoder)

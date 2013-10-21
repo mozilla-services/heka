@@ -23,6 +23,8 @@ import (
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,6 +56,7 @@ type SandboxFilter struct {
 	timerEventSamples      int64
 	timerEventDuration     int64
 	reportLock             sync.Mutex
+	name                   string
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -62,6 +65,11 @@ func (this *SandboxFilter) ConfigStruct() interface{} {
 		InstructionLimit: 1000,
 		OutputLimit:      1024,
 	}
+}
+
+func (this *SandboxFilter) SetName(name string) {
+	re := regexp.MustCompile("\\W")
+	this.name = re.ReplaceAllString(name, "_")
 }
 
 // Determines the script type and creates interpreter sandbox.
@@ -82,7 +90,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	this.preservationFile = this.sbc.ScriptFilename + ".data"
+	this.preservationFile = filepath.Join(filepath.Dir(this.sbc.ScriptFilename), this.name+".data")
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
 		err = this.sb.Init(this.preservationFile)
 	} else {
@@ -149,7 +157,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = 100000 // duration in nanoseconds
+		slowDuration   int64 = int64(Globals().MaxMsgProcessDuration)
 		duration       int64
 		capacity       = cap(inChan) - 1
 	)

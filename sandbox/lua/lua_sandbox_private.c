@@ -23,8 +23,7 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
                   const char** disable)
 {
     lua_pushcfunction(lua, f);
-    lua_pushstring(lua, table);
-    lua_call(lua, 1, 0);
+    lua_call(lua, 0, 1);
 
     if (strlen(table) == 0) { // Handle the special "" base table.
         for (int i = 0; disable[i] != NULL; ++i) {
@@ -32,7 +31,6 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
             lua_setfield(lua, LUA_GLOBALSINDEX, disable[i]);
         }
     } else {
-        lua_getglobal(lua, table);
         for (int i = 0; disable[i] != NULL; ++i) {
             lua_pushnil(lua);
             lua_setfield(lua, -2, disable[i]);
@@ -41,7 +39,6 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
         // preservation.
         lua_newtable(lua);
         lua_setmetatable(lua, -2);
-        lua_pop(lua, 1); // Remove the library table from the stack.
     }
 }
 
@@ -181,6 +178,88 @@ int preserve_global_data(lua_sandbox* lsb, const char* data_file)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int serialize_double(output_data* output, double d)
+{
+    if (d > INT_MAX) {
+        return dynamic_snprintf(output, "%0.9g", d);
+    }
+
+    const int precision = 8;
+    const unsigned magnitude = 100000000;
+    char buffer[20];
+    char* p = buffer;
+    int negative = 0;
+
+    if (d < 0) {
+        negative = 1;
+        d = -d;
+    }
+
+    int number = (int)d;
+    double tmp = (d - number) * magnitude;
+    unsigned fraction = (unsigned)tmp;
+    double diff = tmp - fraction;
+
+    if (diff > 0.5) {
+        ++fraction;
+        if (fraction >= magnitude) {
+            fraction = 0;
+            ++number;
+        }
+    } else if (diff == 0.5 && ((fraction == 0) || (fraction & 1))) {
+        // bankers rounding
+        ++fraction;
+    }
+
+    // output decimal fraction
+    if (fraction != 0) {
+        int nodigits = 1;
+        char c = 0;
+        for (int x = 0; x < precision; ++x) {
+            c = fraction % 10;
+            if (!(c == 0 && nodigits)) {
+                *p++ = c + '0';
+                nodigits = 0;
+            }
+            fraction /= 10;
+        }
+        *p++ = '.';
+    }
+
+    // output number
+    do {
+        *p++ = (number % 10) + '0';
+        number /= 10;
+    }
+    while (number > 0);
+
+    size_t remaining = output->m_size - output->m_pos;
+    size_t len = (p - buffer) + negative;
+    if (len >= remaining) {
+        size_t newsize = output->m_size * 2;
+        while (len >= newsize - output->m_pos) {
+            newsize *= 2;
+        }
+        void* ptr = realloc(output->m_data, newsize);
+        if (ptr == NULL) return 1;
+        output->m_data = ptr;
+        output->m_size = newsize;
+    }
+
+    if (negative) {
+        output->m_data[output->m_pos++] = '-';
+    }
+    do {
+        --p;
+        output->m_data[output->m_pos++] = *p;
+    }
+    while (p != buffer);
+    output->m_data[output->m_pos] = 0;
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent)
 {
     int result = 0;
@@ -284,8 +363,7 @@ int serialize_data(lua_sandbox* lsb, int index, output_data* output)
     output->m_pos = 0;
     switch (lua_type(lsb->m_lua, index)) {
     case LUA_TNUMBER:
-        if (dynamic_snprintf(output, "%0.9g",
-                             lua_tonumber(lsb->m_lua, index))) {
+        if (serialize_double(output, lua_tonumber(lsb->m_lua, index))) {
             return 1;
         }
         break;
@@ -349,8 +427,7 @@ int serialize_data_as_json(lua_sandbox* lsb, int index, output_data* output)
     size_t escaped_len = 0;
     switch (lua_type(lsb->m_lua, index)) {
     case LUA_TNUMBER:
-        if (dynamic_snprintf(output, "%0.9g",
-                             lua_tonumber(lsb->m_lua, index))) {
+        if (serialize_double(output, lua_tonumber(lsb->m_lua, index))) {
             return 1;
         }
         break;
@@ -749,8 +826,7 @@ int output(lua_State* lua)
     for (int i = 1; result == 0 && i <= n; ++i) {
         switch (lua_type(lua, i)) {
         case LUA_TNUMBER:
-            if (dynamic_snprintf(&lsb->m_output, "%0.9g",
-                                 lua_tonumber(lua, i))) {
+            if (serialize_double(&lsb->m_output, lua_tonumber(lua, i))) {
                 result = 1;
             }
             break;
@@ -872,6 +948,9 @@ int read_message(lua_State* lua)
         case 4:
             lua_pushboolean(lua, *((GoInt8*)gr.r1));
             break;
+        default:
+            lua_pushnil(lua);
+            break;
         }
     }
     return 1;
@@ -933,17 +1012,65 @@ int inject_message(lua_State* lua)
     return 0;
 }
 
+LUALIB_API int (luaopen_cjson_safe) (lua_State *L);
 ////////////////////////////////////////////////////////////////////////////////
 int require_library(lua_State* lua)
 {
-    const char *name = luaL_checkstring(lua, 1);
+    const char* name = luaL_checkstring(lua, 1);
     if (strcmp(name, LUA_LPEGLIBNAME) == 0) {
         const char* disable[] = { NULL };
         load_library(lua, name, luaopen_lpeg, disable);
+    } else if (strcmp(name, "cjson") == 0) {
+        const char* disable[] = { "encode",  "encode_sparse_array", 
+            "encode_max_depth", "encode_number_precision", "encode_keep_buffer",
+            "encode_invalid_numbers", NULL};
+        load_library(lua, name, luaopen_cjson_safe, disable);
+        lua_pushvalue(lua, -1);
+        lua_setglobal(lua, name);
     } else {
         luaL_error(lua, "library '%s' is not available", name);
     }
-    return 0;
+    return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int read_config(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "read_config() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    if (lua_gettop(lua) != 1) {
+        luaL_error(lua, "read_config() must have a single argument");
+    }
+    const char* name = luaL_checkstring(lua, 1);
+
+    struct go_lua_read_config_return gr;
+    // Cast away constness of the Lua string, the value is not modified
+    // and it will save a copy.
+    gr = go_lua_read_config(lsb->m_go, (char*)name);
+    if (gr.r1 == NULL) {
+        lua_pushnil(lua);
+    } else {
+        switch (gr.r0) {
+        case 0:
+            lua_pushlstring(lua, gr.r1, gr.r2);
+            free(gr.r1);
+            break;
+        case 3:
+            lua_pushnumber(lua, *((GoFloat64*)gr.r1));
+            break;
+        case 4:
+            lua_pushboolean(lua, *((GoInt8*)gr.r1));
+            break;
+        default:
+            lua_pushnil(lua);
+            break;
+        }
+    }
+    return 1;
 }
 
 // todo split the protobuf code out to a separate source file when

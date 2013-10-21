@@ -42,8 +42,17 @@ Functions that must be exposed from the Lua sandbox
 Heka functions that are exposed to the Lua sandbox
 ---------------------------------------------------
 
+**read_config(variableName)**
+    Provides access to the sandbox configuration variables.
+
+    *Arguments*
+        - variableName (string)
+
+    *Return*
+        number, string, bool, nil depending on the type of variable requested
+
 **read_message(variableName, fieldIndex, arrayIndex)**
-    Provides access to the Heka message data
+    Provides access to the Heka message data.
 
     *Arguments*
         - variableName (string)
@@ -127,9 +136,10 @@ Heka functions that are exposed to the Lua sandbox
     *Arguments*
         - libraryName (string)
             - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
+            - **cjson** loaded the cjson.safe module in a global cjson table, exposing the decoding functions only. http://www.kyne.com.au/~mark/software/lua-cjson-manual.html.
 
     *Return*
-        none, the library is exposed as a global table with the library name.
+        a table (which is also globally registered with the library name).
 
 Sample Lua Message Structure
 ----------------------------

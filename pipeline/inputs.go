@@ -237,7 +237,10 @@ func networkPayloadParser(conn net.Conn,
 		pack.Message.SetSeverity(int32(0))
 		pack.Message.SetEnvVersion("0.8")
 		pack.Message.SetPid(0)
-		pack.Message.SetHostname(conn.RemoteAddr().String())
+		// Only TCP packets have a remote address.
+		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
+			pack.Message.SetHostname(remoteAddr.String())
+		}
 		pack.Message.SetLogger(ir.Name())
 		pack.Message.SetPayload(string(record))
 		if dr == nil {
@@ -485,15 +488,13 @@ func authenticateMessage(signers map[string]Signer, header *Header, msg []byte) 
 // Input plugin implementation that listens for Heka protocol messages on a
 // specified TCP socket. Creates a separate goroutine for each TCP connection.
 type TcpInput struct {
-	listener      net.Listener
-	name          string
-	wg            sync.WaitGroup
-	stopChan      chan bool
-	ir            InputRunner
-	h             PluginHelper
-	config        *NetworkInputConfig
-	parser        StreamParser
-	parseFunction networkParseFunction
+	listener net.Listener
+	name     string
+	wg       sync.WaitGroup
+	stopChan chan bool
+	ir       InputRunner
+	h        PluginHelper
+	config   *NetworkInputConfig
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
@@ -518,6 +519,27 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		}
 	}
 
+	var parser StreamParser
+	var parseFunction networkParseFunction
+	if t.config.ParserType == "message.proto" {
+		mp := NewMessageProtoParser()
+		parser = mp
+		parseFunction = networkMessageProtoParser
+	} else if t.config.ParserType == "regexp" {
+		rp := NewRegexpParser()
+		parser = rp
+		parseFunction = networkPayloadParser
+		rp.SetDelimiter(t.config.Delimiter)
+		rp.SetDelimiterLocation(t.config.DelimiterLocation)
+	} else if t.config.ParserType == "token" {
+		tp := NewTokenParser()
+		parser = tp
+		parseFunction = networkPayloadParser
+		if len(t.config.Delimiter) == 1 {
+			tp.SetDelimiter(t.config.Delimiter[0])
+		}
+	}
+
 	var err error
 	stopped := false
 	for !stopped {
@@ -526,7 +548,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		case <-t.stopChan:
 			stopped = true
 		default:
-			if err = t.parseFunction(conn, t.parser, t.ir, t.config, dr); err != nil {
+			if err = parseFunction(conn, parser, t.ir, t.config, dr); err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					// keep the connection open, we are just checking to see if
 					// we are shutting down: Issue #354
@@ -546,16 +568,11 @@ func (t *TcpInput) Init(config interface{}) error {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
 	if t.config.ParserType == "message.proto" {
-		mp := NewMessageProtoParser()
-		t.parser = mp
-		t.parseFunction = networkMessageProtoParser
 		if t.config.Decoder == "" {
 			return fmt.Errorf("The message.proto parser must have a decoder")
 		}
 	} else if t.config.ParserType == "regexp" {
-		rp := NewRegexpParser()
-		t.parser = rp
-		t.parseFunction = networkPayloadParser
+		rp := NewRegexpParser() // temporary parser to test the config
 		if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
 			return err
 		}
@@ -563,14 +580,7 @@ func (t *TcpInput) Init(config interface{}) error {
 			return err
 		}
 	} else if t.config.ParserType == "token" {
-		tp := NewTokenParser()
-		t.parser = tp
-		t.parseFunction = networkPayloadParser
-		switch len(t.config.Delimiter) {
-		case 0: // no value was set, the default provided by the StreamParser will be used
-		case 1:
-			tp.SetDelimiter(t.config.Delimiter[0])
-		default:
+		if len(t.config.Delimiter) > 1 {
 			return fmt.Errorf("invalid delimiter: %s", t.config.Delimiter)
 		}
 	} else {

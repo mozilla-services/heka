@@ -235,6 +235,15 @@ called `TickerInterval`, that will be used as a default ticker interval value
 contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
+There is an optional configuration interface called WantsName.  It provides a
+a plug-in access to its configured name before the runner has started. The 
+Sandbox filter plug-in uses the name to locate/load any preserved state
+before being run.
+
+    type WantsName interface {
+        SetName(name string)
+    }
+
 .. _inputs:
 
 Inputs
@@ -488,7 +497,6 @@ itself::
 
     RegisterPlugin("UdpInput", func() interface{} {return new(UdpInput)})
     RegisterPlugin("TcpInput", func() interface{} {return new(TcpInput)})
-    RegisterPlugin("JsonDecoder", func() interface{} {return new(JsonDecoder)})
     RegisterPlugin("ProtobufDecoder", func() interface{} {return new(ProtobufDecoder)})
     RegisterPlugin("CounterFilter", func() interface{} {return new(CounterFilter)})
     RegisterPlugin("StatFilter", func() interface{} {return new(StatFilter)})

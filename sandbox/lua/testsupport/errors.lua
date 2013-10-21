@@ -36,6 +36,8 @@ function process_message ()
         for i=1,15 do
             output("012345678901234567890123456789010123456789012345678901234567890123456789012345678901234567890123456789")
         end
+    elseif msg == "read_config() must have a single argument" then
+        read_config()
     end
     return 0
 end

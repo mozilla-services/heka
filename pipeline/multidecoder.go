@@ -20,39 +20,83 @@ import (
 	"log"
 )
 
+// DecoderRunner wrapper that the MultiDecoder will hand to any subs that ask
+// for one. Shadows some data and methods, but doesn't spin up any goroutines.
+type mDRunner struct {
+	*dRunner
+	decoder Decoder
+	name    string
+	subName string
+}
+
+func (mdr *mDRunner) Name() string {
+	return mdr.name
+}
+
+func (mdr *mDRunner) SetName(name string) {
+	mdr.name = name
+}
+
+func (mdr *mDRunner) Plugin() Plugin {
+	return mdr.decoder.(Plugin)
+}
+
+func (mdr *mDRunner) Decoder() Decoder {
+	return mdr.decoder
+}
+
+func (mdr *mDRunner) LogError(err error) {
+	log.Printf("SubDecoder '%s' error: %s", mdr.name, err)
+}
+
+func (mdr *mDRunner) LogMessage(msg string) {
+	log.Printf("SubDecoder '%s': %s", mdr.name, msg)
+}
+
 type MultiDecoder struct {
-	Decoders     map[string]Decoder
-	Order        []string
-	dRunner      DecoderRunner
-	Name         string
-	LogSubErrors bool
+	Config    *MultiDecoderConfig
+	Name      string
+	Decoders  map[string]Decoder
+	dRunner   DecoderRunner
+	CascStrat int
 }
 
 type MultiDecoderConfig struct {
 	// subs is an ordered dictionary of other decoders
-	Subs         map[string]interface{}
-	Order        []string
-	Name         string
-	LogSubErrors bool `toml:"log_sub_errors"`
+	Subs            map[string]interface{}
+	Order           []string
+	Name            string
+	LogSubErrors    bool   `toml:"log_sub_errors"`
+	CascadeStrategy string `toml:"cascade_strategy"`
 }
+
+const (
+	CASC_FIRST_WINS = iota
+	CASC_ALL
+)
+
+var mdStrategies = map[string]int{"first-wins": CASC_FIRST_WINS, "all": CASC_ALL}
 
 func (md *MultiDecoder) ConfigStruct() interface{} {
 	subs := make(map[string]interface{})
 	order := make([]string, 0)
 	name := fmt.Sprintf("MultiDecoder-%p", md)
-	return &MultiDecoderConfig{subs, order, name, false}
+	return &MultiDecoderConfig{subs, order, name, false, "first-wins"}
 }
 
 func (md *MultiDecoder) Init(config interface{}) (err error) {
-	conf := config.(*MultiDecoderConfig)
-	md.Order = conf.Order
+	md.Config = config.(*MultiDecoderConfig)
 	md.Decoders = make(map[string]Decoder, 0)
-	md.Name = conf.Name
-	md.LogSubErrors = conf.LogSubErrors
+	md.Name = md.Config.Name
+
+	var ok bool
+	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; !ok {
+		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
+	}
 
 	// run PrimitiveDecode against each subsection here and bind
 	// it into the md.Decoders map
-	for name, conf := range conf.Subs {
+	for name, conf := range md.Config.Subs {
 		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name, name))
 		decoder, err := md.loadSection(name, conf)
 		if err != nil {
@@ -129,15 +173,50 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	return
 }
 
-// Heka will call this to give us access to the runner.
+// Heka will call this to give us access to the runner. We'll store it for
+// ourselves, but also have to pass on a wrapped version to any subdecoders
+// that might need it.
 func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	md.dRunner = dr
+	for subName, decoder := range md.Decoders {
+		if wanter, ok := decoder.(WantsDecoderRunner); ok {
+			// It wants a DecoderRunner, have to create one. But first we need
+			// to get our hands on a *dRunner.
+			var realDRunner *dRunner
+			if realDRunner, ok = dr.(*dRunner); !ok {
+				// It's not a *dRunner, maybe it's an *mDRunner?
+				var mdr *mDRunner
+				if mdr, ok = dr.(*mDRunner); ok {
+					// Bingo, we can grab its *dRunner.
+					realDRunner = mdr.dRunner
+				}
+			}
+			if realDRunner == nil {
+				// Couldn't get a *dRunner. Just log an error and pass the
+				// outer DecoderRunner through.
+				dr.LogError(fmt.Errorf("Can't create nested DecoderRunner for '%s'",
+					subName))
+				wanter.SetDecoderRunner(dr)
+				continue
+			}
+			// We have a *dRunner, use it to create an *mDRunner.
+			subRunner := &mDRunner{
+				realDRunner,
+				decoder,
+				fmt.Sprintf("%s-%s", realDRunner.name, subName),
+				subName,
+			}
+			wanter.SetDecoderRunner(subRunner)
+		}
+	}
 }
 
 // Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
-	var d Decoder
-	var newType string
+	var (
+		d       Decoder
+		newType string
+	)
 
 	if pack.Message.GetType() == "" {
 		newType = fmt.Sprintf("heka.%s", md.Name)
@@ -146,17 +225,27 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 	pack.Message.SetType(newType)
 
-	for _, decoder_name := range md.Order {
+	anyMatch := false
+	for _, decoder_name := range md.Config.Order {
 		d = md.Decoders[decoder_name]
+
 		if err = d.Decode(pack); err == nil {
-			return
+			if md.CascStrat == CASC_FIRST_WINS {
+				return
+			} else { // cascade_strategy == "all"
+				anyMatch = true
+			}
 		}
-		if md.LogSubErrors {
+		if md.Config.LogSubErrors && err != nil {
 			err = fmt.Errorf("Subdecoder '%s' decode error: %s", decoder_name, err)
 			md.dRunner.LogError(err)
 		}
 	}
 
+	// `anyMatch` can only be set to true if cascade_strategy == "all".
+	if anyMatch {
+		return nil
+	}
 	pack.Recycle()
 	return fmt.Errorf("Unable to decode message with any contained decoder.")
 }

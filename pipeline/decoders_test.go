@@ -19,7 +19,6 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
@@ -28,6 +27,7 @@ import (
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -45,30 +45,6 @@ func DecodersSpec(c gospec.Context) {
 
 	msg := getTestMessage()
 	config := NewPipelineConfig(nil)
-
-	c.Specify("A JsonDecoder", func() {
-		encoded, err := json.Marshal(msg)
-		c.Assume(err, gs.IsNil)
-		pack := NewPipelinePack(config.inputRecycleChan)
-		decoder := new(JsonDecoder)
-
-		c.Specify("decodes a json message", func() {
-			pack.MsgBytes = encoded
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.IsNil)
-			c.Expect(pack.Message, gs.Equals, msg)
-			v, ok := pack.Message.GetFieldValue("foo")
-			c.Expect(ok, gs.IsTrue)
-			c.Expect(v, gs.Equals, "bar")
-		})
-
-		c.Specify("returns an error for bunk encoding", func() {
-			bunk := append([]byte{'}'}, encoded...)
-			pack.MsgBytes = bunk
-			err := decoder.Decode(pack)
-			c.Expect(err, gs.Not(gs.IsNil))
-		})
-	})
 
 	c.Specify("A ProtobufDecoder", func() {
 		encoded, err := proto.Marshal(msg)
@@ -102,22 +78,29 @@ func DecodersSpec(c gospec.Context) {
 		pack := NewPipelinePack(supply)
 
 		conf.Name = "MyMultiDecoder"
-		conf.Order = []string{"syncraw"}
 		conf.Subs = make(map[string]interface{}, 0)
-		conf.Subs["syncraw"] = make(map[string]interface{}, 0)
-		syncraw := conf.Subs["syncraw"].(map[string]interface{})
-		syncraw["type"] = "PayloadRegexDecoder"
-		syncraw["match_regex"] = "^(?P<TheData>m.*)"
 
-		syncraw["message_fields"] = make(map[string]interface{}, 0)
-		message_fields := syncraw["message_fields"].(map[string]interface{})
-		message_fields["Somedata"] = "%TheData%"
+		conf.Subs["StartsWithM"] = make(map[string]interface{}, 0)
+		withM := conf.Subs["StartsWithM"].(map[string]interface{})
+		withM["type"] = "PayloadRegexDecoder"
+		withM["match_regex"] = "^(?P<TheData>m.*)"
+		withMFields := make(map[string]interface{}, 0)
+		withMFields["StartsWithM"] = "%TheData%"
+		withM["message_fields"] = withMFields
+
+		conf.Order = []string{"StartsWithM"}
+
+		errMsg := "Unable to decode message with any contained decoder."
+
+		dRunner := NewMockDecoderRunner(ctrl)
+		// An error will be spit out b/c there's no real *dRunner in there;
+		// doesn't impact the tests.
+		dRunner.EXPECT().LogError(gomock.Any())
 
 		c.Specify("decodes simple messages", func() {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "matching text"
 			pack.Message.SetPayload(regex_data)
@@ -125,7 +108,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Assume(err, gs.IsNil)
 
 			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
-			value, ok := pack.Message.GetFieldValue("Somedata")
+			value, ok := pack.Message.GetFieldValue("StartsWithM")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, regex_data)
 		})
@@ -134,12 +117,11 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
 			err = decoder.Decode(pack)
-			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
+			c.Expect(err.Error(), gs.Equals, errMsg)
 		})
 
 		c.Specify("logs subdecoder failures when configured to do so", func() {
@@ -147,16 +129,151 @@ func DecodersSpec(c gospec.Context) {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
-			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
 
 			// Expect that we log an error for undecoded message.
-			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'syncraw' decode error: No match"))
+			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'StartsWithM' decode error: No match"))
 
 			err = decoder.Decode(pack)
-			c.Assume(err.Error(), gs.Equals, "Unable to decode message with any contained decoder.")
+			c.Expect(err.Error(), gs.Equals, errMsg)
+		})
+
+		c.Specify("sets subdecoder runner correctly", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			// Call LogError to appease the angry gomock gods.
+			dRunner.LogError(errors.New("foo"))
+
+			// Now create a real *dRunner, pass it in, make sure a wrapper
+			// gets handed to the subdecoder.
+			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals))
+			decoder.SetDecoderRunner(dr)
+			sub := decoder.Decoders["StartsWithM"]
+			subRunner := sub.(*PayloadRegexDecoder).dRunner
+			subRunner, ok := subRunner.(*mDRunner)
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(subRunner.Name(), gs.Equals,
+				fmt.Sprintf("%s-StartsWithM", decoder.Name))
+			c.Expect(subRunner.Decoder(), gs.Equals, sub)
+		})
+
+		c.Specify("with multiple registered decoders", func() {
+			conf.Subs["StartsWithS"] = make(map[string]interface{}, 0)
+			withS := conf.Subs["StartsWithS"].(map[string]interface{})
+			withS["type"] = "PayloadRegexDecoder"
+			withS["match_regex"] = "^(?P<TheData>s.*)"
+			withSFields := make(map[string]interface{}, 0)
+			withSFields["StartsWithS"] = "%TheData%"
+			withS["message_fields"] = withSFields
+
+			conf.Subs["StartsWithM2"] = make(map[string]interface{}, 0)
+			withM2 := conf.Subs["StartsWithM2"].(map[string]interface{})
+			withM2["type"] = "PayloadRegexDecoder"
+			withM2["match_regex"] = "^(?P<TheData>m.*)"
+			withM2Fields := make(map[string]interface{}, 0)
+			withM2Fields["StartsWithM2"] = "%TheData%"
+			withM2["message_fields"] = withM2Fields
+
+			conf.Order = append(conf.Order, "StartsWithS", "StartsWithM2")
+
+			var ok bool
+
+			// Two more subdecoders means two more LogError calls.
+			dRunner.EXPECT().LogError(gomock.Any()).Times(2)
+
+			c.Specify("defaults to `first-wins` cascading", func() {
+				err := decoder.Init(conf)
+				c.Assume(err, gs.IsNil)
+				decoder.SetDecoderRunner(dRunner)
+
+				c.Specify("on a first match condition", func() {
+					regexData := "match first"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("and a second match condition", func() {
+					regexData := "second match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("returning an error if they all fail", func() {
+					regexData := "won't match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err.Error(), gs.Equals, errMsg)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+			})
+
+			c.Specify("and using `all` cascading", func() {
+				conf.CascadeStrategy = "all"
+				err := decoder.Init(conf)
+				c.Assume(err, gs.IsNil)
+				decoder.SetDecoderRunner(dRunner)
+
+				c.Specify("matches multiples when appropriate", func() {
+					regexData := "matches twice"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsTrue)
+				})
+
+				c.Specify("matches singles when appropriate", func() {
+					regexData := "second match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err, gs.IsNil)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsTrue)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+
+				c.Specify("returns an error if they all fail", func() {
+					regexData := "won't match"
+					pack.Message.SetPayload(regexData)
+					err = decoder.Decode(pack)
+					c.Expect(err.Error(), gs.Equals, errMsg)
+					_, ok = pack.Message.GetFieldValue("StartsWithM")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithS")
+					c.Expect(ok, gs.IsFalse)
+					_, ok = pack.Message.GetFieldValue("StartsWithM2")
+					c.Expect(ok, gs.IsFalse)
+				})
+			})
 		})
 	})
 
@@ -204,6 +321,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(name, gs.Equals, "some.counter")
 		})
 	})
+
 	c.Specify("A PayloadXmlDecoder", func() {
 		decoder := new(PayloadXmlDecoder)
 		conf := decoder.ConfigStruct().(*PayloadXmlDecoderConfig)
@@ -528,27 +646,122 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 		})
 	})
-}
 
-func BenchmarkDecodeJSON(b *testing.B) {
-	b.StopTimer()
-	msg := getTestMessage()
-	var fmtString = `{"uuid":"%s","type":"%s","timestamp":%s,"logger":"%s","severity":%d,"payload":"%s","fields":%s,"env_version":"%s","metlog_pid":%d,"metlog_hostname":"%s"}`
-	timestampJson, _ := json.Marshal(time.Unix(*msg.Timestamp/1e9, *msg.Timestamp%1e9))
-	fieldsJson := `{"foo":"bar"}`
-	uuid := msg.GetUuidString()
-	jsonString := fmt.Sprintf(fmtString, uuid, *msg.Type,
-		timestampJson, *msg.Logger, *msg.Severity, *msg.Payload,
-		fieldsJson, *msg.EnvVersion, *msg.Pid, *msg.Hostname)
+	c.Specify("A StatsToFieldsDecoder", func() {
+		decoder := new(StatsToFieldsDecoder)
+		router := NewMessageRouter()
+		router.inChan = make(chan *PipelinePack, 5)
+		dRunner := NewMockDecoderRunner(ctrl)
+		decoder.runner = dRunner
+		dRunner.EXPECT().Router().Return(router)
 
-	config := NewPipelineConfig(nil)
-	pipelinePack := NewPipelinePack(config.inputRecycleChan)
-	pipelinePack.MsgBytes = []byte(jsonString)
-	jsonDecoder := new(JsonDecoder)
-	b.StartTimer()
-	for i := 0; i < b.N; i++ {
-		jsonDecoder.Decode(pipelinePack)
-	}
+		pack := NewPipelinePack(config.inputRecycleChan)
+
+		mergeStats := func(stats [][]string) string {
+			lines := make([]string, len(stats))
+			for i, line := range stats {
+				lines[i] = strings.Join(line, " ")
+			}
+			return strings.Join(lines, "\n")
+		}
+
+		c.Specify("correctly converts stats to fields", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047333"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+
+			for i, stats := range stats {
+				value, ok := pack.Message.GetFieldValue(stats[0])
+				c.Expect(ok, gs.IsTrue)
+				expected := float64(i + 1)
+				c.Expect(value.(float64), gs.Equals, expected)
+			}
+
+			value, ok := pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err := strconv.ParseInt(stats[0][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+		})
+
+		c.Specify("generates multiple messages for multiple timestamps", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047331"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			// Prime the pack supply w/ two new packs.
+			dRunner.EXPECT().NewPack().Return(NewPipelinePack(nil))
+			dRunner.EXPECT().NewPack().Return(NewPipelinePack(nil))
+
+			// Decode and check the main pack.
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			value, ok := pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err := strconv.ParseInt(stats[0][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+
+			// Check the first extra.
+			pack = <-router.inChan
+			value, ok = pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err = strconv.ParseInt(stats[2][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+
+			// Check the second extra.
+			pack = <-router.inChan
+			value, ok = pack.Message.GetFieldValue("timestamp")
+			c.Expect(ok, gs.IsTrue)
+			expected, err = strconv.ParseInt(stats[4][2], 0, 32)
+			c.Assume(err, gs.IsNil)
+			c.Expect(value.(int64), gs.Equals, expected)
+		})
+
+		c.Specify("fails w/ invalid timestamp", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333c"},
+				{"stat.four", "4", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := fmt.Sprintf("invalid timestamp: '%s'",
+				strings.Join(stats[2], " "))
+			c.Expect(err.Error(), gs.Equals, expected)
+		})
+
+		c.Specify("fails w/ invalid value", func() {
+			stats := [][]string{
+				{"stat.one", "1", "1380047333"},
+				{"stat.two", "2", "1380047333"},
+				{"stat.three", "3", "1380047333"},
+				{"stat.four", "4d", "1380047333"},
+				{"stat.five", "5", "1380047332"},
+			}
+			pack.Message.SetPayload(mergeStats(stats))
+			err := decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := fmt.Sprintf("invalid value: '%s'",
+				strings.Join(stats[3], " "))
+			c.Expect(err.Error(), gs.Equals, expected)
+		})
+	})
 }
 
 func BenchmarkEncodeProtobuf(b *testing.B) {

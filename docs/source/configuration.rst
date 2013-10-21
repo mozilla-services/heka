@@ -47,8 +47,8 @@ Any values other than "type" in a section, such as "address" in the
 above examples, will be passed through to the plugin for internal
 configuration (see :ref:`plugin_config`).
 
-A JsonDecoder and ProtobufDecoder will be automatically setup if not
-specified explicitly in the configuration file.
+A ProtobufDecoder will be automatically setup if not specified
+explicitly in the configuration file.
 
 If a plugin fails to load during startup, hekad will exit at startup.
 When hekad is running, if a plugin should fail (due to connection loss,
@@ -88,6 +88,11 @@ Parameters:
 - max_process_inject (uint):
     The maximum number of messages that a sandbox filter's ProcessMessage
     function can inject in a single call; the default is 1.
+
+- max_process_duration (uint64):
+    The maximum number of nanoseconds that a sandbox filter's ProcessMessage
+    function can consume in a single call before being terminated; the default
+    is 100000.
 
 - max_timer_inject (uint):
     The maximum number of messages that a sandbox filter's TimerEvent
@@ -705,7 +710,7 @@ Example:
     [HttpInput]
     url = "http://localhost:9876/"
     ticker_interval = 5
-    decoder = "JsonDecoder"
+    decoder = "ProtobufDecoder"
 
 .. end-inputs
 
@@ -716,25 +721,19 @@ Decoders
 
 A decoder may be specified for each encoding type defined in message.pb.go.
 Unless you are using a custom decoder you probably won't need to specify these
-by hand, by default the JsonDecoder and ProtobufDecoder will be configured as
-if you had included the following configuration.
+by hand, by default the ProtobufDecoder will be configured as if you
+had included the following configuration.
 
 Example:
 
 .. code-block:: ini
 
-    [JsonDecoder]
-    encoding_name = "JSON"
-
     [ProtobufDecoder]
     encoding_name = "PROTOCOL_BUFFER"
 
-The JsonDecoder converts JSON serialized Heka messages to `Message` struct
-objects. The `encoding_name` setting means that this decoder should be used
-for any Heka protocol messages that have the encoding header of JSON. The
-ProtobufDecoder converts protocol buffers serialized messages to `Message`
-struct objects. The hekad protocol buffers message schema in defined in the
-`message.proto` file in the `message` package.
+The ProtobufDecoder converts protocol buffers serialized messages to
+`Message` struct objects. The hekad protocol buffers message schema in
+defined in the `message.proto` file in the `message` package.
 
 .. note::
 
@@ -1028,6 +1027,30 @@ implemented by the `xmlpath <http://launchpad.net/xmlpath>`_ library.
     * Only a single predicate is supported per path step
     * Richer expressions and namespaces are not supported
 
+.. _config_statstofieldsdecoder:
+
+.. versionadded:: 0.4
+StatsToFieldsDecoder
+--------------------
+
+The StatsToFieldsDecoder will parse statsd data in the `graphite message
+format <http://graphite.wikidot.com/getting-your-data-into-graphite#toc4>`_
+and encode the data into the message fields, in the same format produced by a
+:ref:`config_stat_accum_input` plugin with the `emit_in_fields` value set to
+true. This is useful if you have externally generated statsd string data
+flowing through Heka that you'd like to process without having to roll your
+own string parsing code.
+
+This decoder has no configuration options, it simply expects to be passed a
+message with statsd string data in the payload. Incorrect or malformed content
+will cause a decoding error, dropping the message.
+
+The fields format only contains a single "timestamp" field, so any payloads
+containing multiple timestamps will end up generating a separate message for
+each timestamp. Extra messages will be a copy of the original message except
+a) the payload will be empty and b) the unique timestamp and related stats
+will be the only message fields.
+
 .. _config_multidecoder:
 
 MultiDecoder
@@ -1054,6 +1077,15 @@ Parameters:
 - log_sub_errors (bool):
     If true, the DecoderRunner will log the errors returned whenever a
     delegate decoder fails to decode a message. Defaults to false.
+
+- cascade_strategy (string):
+    Specifies behavior the MultiDecoder should exhibit with regard to
+    cascading through the listed decoders. Supports only two valid values:
+    "first-wins" and "all". With "first-wins", each decoder will be tried in
+    turn until there is a successful decoding, after which decoding will be
+    stopped. With "all", all listed decoders will be applied whether or not
+    they succeed. In each case, decoding will only be considered to have
+    failed if *none* of the sub-decoders succeed.
 
 Example (Two PayloadRegexDecoder delegates):
 
