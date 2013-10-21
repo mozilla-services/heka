@@ -22,7 +22,7 @@ define(
       },
 
       render: function() {
-        this.leaveSubviews();
+        this.destroySubviews();
 
         var presentation = this.getPresentation();
 
@@ -52,9 +52,9 @@ define(
         return this;
       },
 
-      leave: function() {
-        if (this.beforeLeave) {
-          this.beforeLeave();
+      destroy: function() {
+        if (this.beforeDestroy) {
+          this.beforeDestroy();
         }
 
         // Turn off adapter polling
@@ -63,7 +63,7 @@ define(
         }
 
         this.stopListening();
-        this.leaveSubviews();
+        this.destroySubviews();
         this.$el.off();
       },
 
@@ -75,8 +75,8 @@ define(
         return view;
       },
 
-      leaveSubviews: function() {
-        _.invoke(this.subviews, "leave");
+      destroySubviews: function() {
+        _.invoke(this.subviews, "destroy");
       }
     });
 

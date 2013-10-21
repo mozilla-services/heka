@@ -16,15 +16,15 @@ define(
       template: HealthIndexTemplate,
 
       initialize: function() {
-        this.pluginsAdapter = new PluginsAdapter();
+        this.adapter = new PluginsAdapter();
 
-        this.globalsIndex = new GlobalsIndex({ collection: this.pluginsAdapter.globals });
-        this.inputsIndex = new InputsIndex({ collection: this.pluginsAdapter.inputs });
-        this.decoderPoolsIndex = new DecoderPoolsIndex({ collection: this.pluginsAdapter.decoderPools });
-        this.filtersIndex = new FiltersIndex({ collection: this.pluginsAdapter.filters });
-        this.outputsIndex = new OutputsIndex({ collection: this.pluginsAdapter.outputs });
+        this.globalsIndex = new GlobalsIndex({ collection: this.adapter.globals });
+        this.inputsIndex = new InputsIndex({ collection: this.adapter.inputs });
+        this.decoderPoolsIndex = new DecoderPoolsIndex({ collection: this.adapter.decoderPools });
+        this.filtersIndex = new FiltersIndex({ collection: this.adapter.filters });
+        this.outputsIndex = new OutputsIndex({ collection: this.adapter.outputs });
 
-        this.pluginsAdapter.fill();
+        this.adapter.fill();
       },
 
       afterRender: function() {

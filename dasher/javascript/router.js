@@ -16,23 +16,21 @@ define(
       },
 
       health: function() {
-        if (!this.healthIndex) {
-          this.healthIndex = new HealthIndex();
-        }
-
-        this.updateContent(this.healthIndex);
+        this.switch(new HealthIndex());
       },
 
       sandboxes: function() {
-        if (!this.sandboxesIndex) {
-          this.sandboxesIndex = new SandboxesIndex();
-        }
-
-        this.updateContent(this.sandboxesIndex);
+        this.switch(new SandboxesIndex());
       },
 
-      updateContent: function(view) {
-        $("#content").html(view.render().el);
+      switch: function(view) {
+        if (this.currentView) {
+          this.currentView.destroy();
+        }
+
+        this.currentView = view;
+
+        $("#content").html(this.currentView.render().el);
       }
     });
 
