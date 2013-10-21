@@ -18,10 +18,6 @@ address = "127.0.0.1:5565"
 	[UDP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
-[JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
-
 [ProtobufDecoder]
 type = "ProtobufDecoder"
 encoding_name = "PROTOCOL_BUFFER"

@@ -59,7 +59,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "JsonDecoder"
+			decoderName := "PayloadJsonDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
