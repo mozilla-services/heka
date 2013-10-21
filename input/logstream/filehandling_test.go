@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 )
 
 func FilehandlingSpec(c gs.Context) {
@@ -95,8 +96,25 @@ func FilehandlingSpec(c gs.Context) {
 	})
 
 	c.Specify("Sorting logfiles", func() {
+		translation := make(SubmatchTranslationMap)
 		matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log\.?(?P<FileNumber>.*)?`)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
+		err := logfiles.PopulateMatchParts(matchRegex, translation)
+		c.Assume(err, gs.Not(gs.IsNil))
+		c.Expect(len(logfiles), gs.Equals, 3)
 
+		c.Specify("can be sorted newest to oldest", func() {
+			byp := ByPriority{Logfiles: logfiles, Priority: []string{"FileNumber"}}
+			sort.Sort(byp)
+			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, -1)
+			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+		})
+
+		c.Specify("can be sorted oldest to newest", func() {
+			byp := ByPriority{Logfiles: logfiles, Priority: []string{"^FileNumber"}}
+			sort.Sort(byp)
+			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, 2)
+			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+		})
 	})
 }
