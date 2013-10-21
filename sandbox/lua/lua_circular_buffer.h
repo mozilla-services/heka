@@ -15,10 +15,6 @@ extern const char* heka_circular_buffer;
 extern const char* heka_circular_buffer_table;
 typedef struct circular_buffer circular_buffer;
 
-extern const char* heka_circular_buffer_delta;
-extern const char* heka_circular_buffer_delta_table;
-typedef struct circular_buffer circular_buffer_delta;
-
 /**
  * Output the circular buffer user data
  * 
