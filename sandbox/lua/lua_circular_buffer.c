@@ -188,6 +188,7 @@ static int check_column(lua_State* lua, circular_buffer* cb, int arg)
 static void circular_buffer_add_delta(lua_State* lua, circular_buffer* cb, 
                                       double ns, int column, double value)
 {
+    if (0 == value) return;
     // Storing the deltas in a Lua table allows the sandbox to account for the
     // memory usage. todo: if too inefficient use a C data struct and report 
     // memory usage back to the sandbox
@@ -293,7 +294,7 @@ static int circular_buffer_set(lua_State* lua)
         cb->m_values[i] = value;
         lua_pushnumber(lua, value);
         if (cb->m_delta) {
-            circular_buffer_add_delta(lua, cb, ns, column, value-old);
+            circular_buffer_add_delta(lua, cb, ns, column, value - old);
         }
     } else {
         lua_pushnil(lua);

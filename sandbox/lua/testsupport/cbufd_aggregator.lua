@@ -25,12 +25,12 @@ local cbufd = l.Ct(header * row^1) * -1
 --1
 --    1=12075 (number)
 --    2=159901 (number)
---    time=1379660520 (number)
+--    time=1379660520000000000 (number)
 --
 --2
 --    1=11837 (number)
 --    2=154880 (number)
---    time=1379660280 (number)
+--    time=1379660280000000000 (number)
 --
 --header={"time":1379574900,"rows":1440,"columns":2,"seconds_per_row":60,"column_info":[{"name":"Requests","unit":"count","aggregation":"sum"},{"name":"Total_Size","unit":"KiB","aggregation":"sum"}]}
 
