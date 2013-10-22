@@ -23,7 +23,6 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"errors"
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -137,10 +136,27 @@ func InputsSpec(c gs.Context) {
 	c.Specify("A ProcessInput", func() {
 		pInput := ProcessInput{}
 
-		c.Specify("reads a message from ProcessInput", func() {
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
+		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
+		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
 
-			// Try to read a file with cat
-			config := pInput.ConfigStruct().(*ProcessInputConfig)
+		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
+		enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
+
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
+
+		config := pInput.ConfigStruct().(*ProcessInputConfig)
+		config.Command = make(map[string]cmd_config)
+
+		pConfig := NewPipelineConfig(nil)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		tickChan := make(chan time.Time)
+		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+		c.Specify("reads a message from ProcessInput", func() {
 
 			config.Name = "SimpleTest"
 			config.Decoder = "RegexpDecoder"
@@ -148,26 +164,9 @@ func InputsSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command = make(map[string]cmd_config)
 			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/process_input_test.txt"}}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
-
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
-			ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-			enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
-			enccall.Return(ith.Decoder, true)
-
-			mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
-			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
-
-			pConfig := NewPipelineConfig(nil)
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			tickChan := make(chan time.Time)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			go func() {
 				pInput.Run(ith.MockInputRunner, ith.MockHelper)
@@ -197,9 +196,6 @@ func InputsSpec(c gs.Context) {
 
 		c.Specify("handles bad arguments", func() {
 
-			// Try to read a file with cat
-			config := pInput.ConfigStruct().(*ProcessInputConfig)
-
 			config.Name = "BadArgs"
 			config.ParseStdout = false
 			config.ParseStderr = true
@@ -208,27 +204,10 @@ func InputsSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command = make(map[string]cmd_config)
 			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/not_a_file.txt"}}
 
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
-
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
-			ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-			enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
-			enccall.Return(ith.Decoder, true)
-
-			mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
-			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
-
-			pConfig := NewPipelineConfig(nil)
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			tickChan := make(chan time.Time)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			go func() {
@@ -238,42 +217,24 @@ func InputsSpec(c gs.Context) {
 
 			ith.PackSupply <- ith.Pack
 			<-ith.DecodeChan
-			fmt.Printf("Go payload: %s\n", ith.Pack.Message.Payload)
 			runtime.Gosched()
 
 			pInput.Stop()
 		})
 
 		c.Specify("can pipe multiple commands together", func() {
-			// Try to read a file with cat
-			config := pInput.ConfigStruct().(*ProcessInputConfig)
 
 			config.Name = "PipedCmd"
 			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
+			// Overload the delimiter
 			config.Delimiter = " "
 
 			// Note that no working directory is explicitly specified
-			config.Command = make(map[string]cmd_config)
 			config.Command["0"] = cmd_config{Bin: "cat", Args: []string{"../testsupport/process_input_pipes_test.txt"}}
 			config.Command["1"] = cmd_config{Bin: "grep", Args: []string{"ignore"}}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
-			ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-			enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
-			enccall.Return(ith.Decoder, true)
-
-			mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
-			mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
-
-			pConfig := NewPipelineConfig(nil)
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			tickChan := make(chan time.Time)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			go func() {
 				pInput.Run(ith.MockInputRunner, ith.MockHelper)
