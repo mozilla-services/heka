@@ -88,9 +88,6 @@ type ProcessInput struct {
 	ir          InputRunner
 	decoderName string
 
-	stdout_r io.ReadCloser
-	stderr_r io.ReadCloser
-
 	parseStdout bool
 	parseStderr bool
 
@@ -285,6 +282,7 @@ func (pi *ProcessInput) Stop() {
 // per the configured msInterval, and passes the output to
 // the provided stdout.
 func (pi *ProcessInput) RunCmd() {
+	var err error
 	if pi.tickInterval == 0 {
 		pi.runOnce()
 	} else {
@@ -294,7 +292,11 @@ func (pi *ProcessInput) RunCmd() {
 			case <-tickChan:
 				// No need to spin up a new goroutine as we've already
 				// detached from the main thread
-				pi.cc.reset()
+				pi.cc = pi.cc.clone()
+
+				if err != nil {
+					pi.ir.LogError(fmt.Errorf("Error cloning CommandChain: [%s]", err.Error()))
+				}
 				pi.runOnce()
 			case <-pi.stopChan:
 				return
@@ -305,23 +307,29 @@ func (pi *ProcessInput) RunCmd() {
 
 func (pi *ProcessInput) runOnce() {
 	// Stdout of the last command in the pipe gets sent to provided stdout.
-	stdout_reader, err := pi.cc.StdoutPipe()
+	var err error
+
+	var stdout_chan chan string
+	var stderr_chan chan string
+
+	stdout_chan, err = pi.cc.StdoutChan()
 	if err != nil {
-		pi.ir.LogError(fmt.Errorf("Error grabbing stdout pipe: %s", err.Error()))
+		pi.ir.LogError(err)
 	}
-	pi.stdout_r = stdout_reader
+
+	stderr_chan, err = pi.cc.StderrChan()
+	if err != nil {
+		pi.ir.LogError(err)
+	}
+
+	stdout_reader := &StringChannelReader{input: stdout_chan}
+	stderr_reader := &StringChannelReader{input: stderr_chan}
 
 	if pi.parseStdout {
-		go pi.ParseOutput(pi.stdout_r, pi.stdoutChan)
+		go pi.ParseOutput(stdout_reader, pi.stdoutChan)
 	}
-
-	stderr_reader, err := pi.cc.StderrPipe()
-	if err != nil {
-		pi.ir.LogError(fmt.Errorf("Error grabbing stderr pipe: %s", err.Error()))
-	}
-	pi.stderr_r = stderr_reader
 	if pi.parseStderr {
-		go pi.ParseOutput(pi.stderr_r, pi.stderrChan)
+		go pi.ParseOutput(stderr_reader, pi.stderrChan)
 	}
 
 	err = pi.cc.Start()

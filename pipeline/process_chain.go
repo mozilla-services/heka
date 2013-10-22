@@ -48,6 +48,12 @@ type ManagedCmd struct {
 	// very close to the timeout interval, it is possible that the
 	// timeout may only occur *after* the command has been restarted.
 	timeout_duration time.Duration
+
+	Stdout_r *io.PipeReader
+	Stderr_r *io.PipeReader
+
+	Stdout_chan chan string
+	Stderr_chan chan string
 }
 
 func (mc *ManagedCmd) Init() (err error) {
@@ -56,34 +62,101 @@ func (mc *ManagedCmd) Init() (err error) {
 	mc.Cmd = *exec.Command(mc.Path, mc.Args...)
 	mc.Cmd.Env = mc.Env
 	mc.Cmd.Dir = mc.Dir
+
+	mc.Stdout_chan = make(chan string)
+	mc.Stderr_chan = make(chan string)
 	return nil
+}
+
+func (mc *ManagedCmd) Start(redirectToChannels bool) (err error) {
+	if redirectToChannels {
+		var stdout_w *io.PipeWriter
+		var stderr_w *io.PipeWriter
+
+		mc.Stdout_r, stdout_w = io.Pipe()
+		mc.Stderr_r, stderr_w = io.Pipe()
+
+		mc.Cmd.Stdout = stdout_w
+		mc.Cmd.Stderr = stderr_w
+
+		// Process stdout
+		go func() {
+			var err error
+			var buffer []byte
+			var bytes_read int
+
+			buffer = make([]byte, 500)
+			for {
+				bytes_read, err = mc.Stdout_r.Read(buffer)
+				if bytes_read > 0 {
+					mc.Stdout_chan <- string(buffer[:bytes_read])
+				}
+				if err != nil {
+					close(mc.Stdout_chan)
+					return
+				}
+			}
+		}()
+
+		// Process stderr
+		go func() {
+			var err error
+			var buffer []byte
+			var bytes_read int
+
+			buffer = make([]byte, 1000)
+			for {
+				bytes_read, err = mc.Stderr_r.Read(buffer)
+				if bytes_read > 0 {
+					mc.Stderr_chan <- string(buffer[:bytes_read])
+				}
+				if err != nil {
+					close(mc.Stderr_chan)
+					return
+				}
+			}
+		}()
+	}
+
+	return mc.Cmd.Start()
 }
 
 // We overload the Wait() method to enable subprocess termination if a
 // timeout has been exceeded.
 func (mc *ManagedCmd) Wait() (err error) {
 	go func() {
-		// Note that this will close the pipe on StdoutPipe()
-		// as documented in :
-		// http://code.google.com/p/go/issues/detail?id=2266
-		// http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
 		mc.done <- mc.Cmd.Wait()
 	}()
 
 	if mc.timeout_duration != 0 {
 		select {
 		case <-mc.Stopchan:
-			return fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
+			err = fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
 		case <-time.After(mc.timeout_duration):
-			return fmt.Errorf("CommandChain timedout with error: [%s]", mc.kill())
+			err = fmt.Errorf("CommandChain timedout with error: [%s]", mc.kill())
 		case err = <-mc.done:
-			return err
 		}
 	} else {
-		err = <-mc.done
-		return err
+		select {
+		case <-mc.Stopchan:
+			err = fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
+		case err = <-mc.done:
+		}
 	}
-	return nil
+
+	var writer *io.PipeWriter
+	var ok bool
+
+	writer, ok = mc.Stdout.(*io.PipeWriter)
+	if ok {
+		writer.Close()
+	}
+	writer, ok = mc.Stderr.(*io.PipeWriter)
+	if ok {
+		writer.Close()
+	}
+
+	return err
 }
 
 // Kill the current process. This will always return an error code.
@@ -98,16 +171,21 @@ func (mc *ManagedCmd) kill() (err error) {
 
 // This resets a command so that we can run the command again.
 // Usually so that a chain can be restarted.
-func (mc *ManagedCmd) reset() {
-	mc.Cmd = exec.Cmd{
-		Path: mc.Cmd.Path,
-		Args: mc.Cmd.Args,
-		Env:  mc.Cmd.Env,
-		Dir:  mc.Cmd.Dir,
+func (mc *ManagedCmd) clone() (clone *ManagedCmd, err error) {
+	clone = &ManagedCmd{
+		Path: mc.Path,
+		Args: mc.Args,
 	}
+	err = clone.Init()
+	return clone, err
+}
 
-	mc.done = make(chan error)
-	mc.Stopchan = make(chan bool, 1)
+func (mc *ManagedCmd) StdoutChan() (stream chan string) {
+	return mc.Stdout_chan
+}
+
+func (mc *ManagedCmd) StderrChan() (stream chan string) {
+	return mc.Stderr_chan
 }
 
 // A CommandChain lets you execute an ordered set of subprocesses
@@ -148,28 +226,36 @@ func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 	return cmd
 }
 
-func (cc *CommandChain) StdoutPipe() (r io.ReadCloser, err error) {
+func (cc *CommandChain) StdoutChan() (stream chan string, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
 	}
-	return cc.Cmds[len(cc.Cmds)-1].StdoutPipe()
+	return cc.Cmds[len(cc.Cmds)-1].Stdout_chan, nil
 }
 
-func (cc *CommandChain) StderrPipe() (r io.ReadCloser, err error) {
+func (cc *CommandChain) StderrChan() (stream chan string, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
 	}
-	return cc.Cmds[len(cc.Cmds)-1].StderrPipe()
+	return cc.Cmds[len(cc.Cmds)-1].Stderr_chan, nil
 }
 
 func (cc *CommandChain) Start() (err error) {
 	/* This is a bit subtle.  You want to spin up all the commands in
 	   order by calling Start().  */
 
-	for _, cmd := range cc.Cmds {
-		err = cmd.Start()
+	for idx, cmd := range cc.Cmds {
+		if idx == (len(cc.Cmds) - 1) {
+			err = cmd.Start(true)
+		} else {
+			err = cmd.Start(false)
+		}
+
 		if err != nil {
-			return fmt.Errorf("Command [%s %s] triggered an error: [%s]", cmd.Path, strings.Join(cmd.Args, " "), err.Error())
+			return fmt.Errorf("Command [%s %s] triggered an error: [%s]",
+				cmd.Path,
+				strings.Join(cmd.Args, " "),
+				err.Error())
 		}
 	}
 	return nil
@@ -180,21 +266,21 @@ func (cc *CommandChain) Wait() (err error) {
 	   stage in order, except that you do *not* want to close the last
 	   output pipe as we need to use that to get the final results.  */
 	go func() {
+		var subcmd_err error
 		for i, cmd := range cc.Cmds {
-			err = cmd.Wait()
-			if err != nil {
-				cc.done <- err
+			subcmd_err = cmd.Wait()
+			if subcmd_err != nil {
+				cc.done <- subcmd_err
 				return
 			}
 			if i < (len(cc.Cmds) - 1) {
-				err = cmd.Stdout.(*io.PipeWriter).Close()
-				if err != nil {
-					cc.done <- err
+				subcmd_err = cmd.Stdout.(*io.PipeWriter).Close()
+				if subcmd_err != nil {
+					cc.done <- subcmd_err
 					return
 				}
 			}
 		}
-
 		cc.done <- nil
 	}()
 
@@ -202,7 +288,8 @@ func (cc *CommandChain) Wait() (err error) {
 	case err = <-cc.done:
 		return err
 	case <-cc.Stopchan:
-		for _, cmd := range cc.Cmds {
+		for i := len(cc.Cmds) - 1; i >= 0; i-- {
+			cmd := cc.Cmds[i]
 			cmd.Stopchan <- true
 		}
 		return fmt.Errorf("Chain stopped")
@@ -210,19 +297,41 @@ func (cc *CommandChain) Wait() (err error) {
 	return nil
 }
 
-// This resets a command chain so that we can rereun
-func (cc *CommandChain) reset() {
-	for i, cmd := range cc.Cmds {
-		cmd.reset()
+// This resets a command so that we can run the command again.
+// Usually so that a chain can be restarted.
+func (cc *CommandChain) clone() (clone *CommandChain) {
+	clone = &CommandChain{timeout_duration: cc.timeout_duration}
+	clone.Init()
+	for _, cmd := range cc.Cmds {
+		clone.AddStep(cmd.Path, cmd.Args...)
+	}
+	return clone
+}
 
-		if i > 0 {
-			// Reconnect the previous command's stdout to this
-			// command's stdin
-			r, w := io.Pipe()
-			cc.Cmds[i-1].Stdout = w
-			cmd.Stdin = r
+type StringChannelReader struct {
+	input  chan string
+	buffer string
+}
+
+func (scr *StringChannelReader) Read(p []byte) (n int, err error) {
+	// This call blocks until we get some data
+	select {
+	case inbound := <-scr.input:
+		if len(inbound) > 0 {
+			scr.buffer += inbound
+		} else {
+			// The channel is closed
+			err = io.EOF
+			break
 		}
 	}
-	cc.done = make(chan error)
-	cc.Stopchan = make(chan bool, 1)
+
+	if len(scr.buffer) <= len(p) {
+		n = copy(p, []byte(scr.buffer))
+		scr.buffer = ""
+	} else {
+		n = copy(p, []byte(scr.buffer[:len(p)]))
+		scr.buffer = scr.buffer[len(p):]
+	}
+	return n, err
 }
