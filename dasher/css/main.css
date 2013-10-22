@@ -67,6 +67,10 @@ table.plugins td.name span.glyphicon {
   margin-right: 4px;
 }
 
+.sandboxes-row + .sandboxes-row {
+  margin-top: 15px;
+}
+
 .sandboxes-show {
   margin-top: 3em;
 }
