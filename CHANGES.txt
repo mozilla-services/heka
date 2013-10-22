@@ -40,6 +40,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Added check for nil RemoteAddr value since UDP connections won't have one
+  (issue #462).
+
 * Statsd messages are now parsed manually (issue #44).
 
 * Added mDRunner so MultiDecoder will work with sub-decoders that implement
@@ -72,6 +75,8 @@ Bug Handling
 
 Features
 --------
+* Added json decoding to the Lua sandbox (issue #463). If you have an old build
+  directory you will have to run make clean to pick up the new patch.
 
 * Added a 'config' variable section to the Sandbox decoder/filter plugin (issue #444)
 

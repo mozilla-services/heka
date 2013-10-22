@@ -586,17 +586,12 @@ static const struct luaL_reg circular_bufferlib_m[] =
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-void luaopen_circular_buffer(lua_State* lua)
+int luaopen_circular_buffer(lua_State* lua)
 {
     luaL_newmetatable(lua, heka_circular_buffer);
-    lua_pushliteral(lua, "__index");
-    lua_pushvalue(lua, -2);
-    lua_rawset(lua, -3);
+    lua_pushvalue(lua, -1);
+    lua_setfield(lua, -2, "__index");
     luaL_register(lua, NULL, circular_bufferlib_m);
     luaL_register(lua, heka_circular_buffer_table, circular_bufferlib_f);
-
-    // Add an empty metatable to identify core libraries during preservation.
-    lua_newtable(lua);
-    lua_setmetatable(lua, -2);
-    lua_pop(lua, 2); // remove the two circular buffer metatables
+    return 1;
 }

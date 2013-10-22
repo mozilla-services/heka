@@ -23,8 +23,7 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
                   const char** disable)
 {
     lua_pushcfunction(lua, f);
-    lua_pushstring(lua, table);
-    lua_call(lua, 1, 0);
+    lua_call(lua, 0, 1);
 
     if (strlen(table) == 0) { // Handle the special "" base table.
         for (int i = 0; disable[i] != NULL; ++i) {
@@ -32,7 +31,6 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
             lua_setfield(lua, LUA_GLOBALSINDEX, disable[i]);
         }
     } else {
-        lua_getglobal(lua, table);
         for (int i = 0; disable[i] != NULL; ++i) {
             lua_pushnil(lua);
             lua_setfield(lua, -2, disable[i]);
@@ -41,7 +39,6 @@ void load_library(lua_State* lua, const char* table, lua_CFunction f,
         // preservation.
         lua_newtable(lua);
         lua_setmetatable(lua, -2);
-        lua_pop(lua, 1); // Remove the library table from the stack.
     }
 }
 
@@ -1015,6 +1012,7 @@ int inject_message(lua_State* lua)
     return 0;
 }
 
+LUALIB_API int (luaopen_cjson_safe) (lua_State *L);
 ////////////////////////////////////////////////////////////////////////////////
 int require_library(lua_State* lua)
 {
@@ -1022,10 +1020,17 @@ int require_library(lua_State* lua)
     if (strcmp(name, LUA_LPEGLIBNAME) == 0) {
         const char* disable[] = { NULL };
         load_library(lua, name, luaopen_lpeg, disable);
+    } else if (strcmp(name, "cjson") == 0) {
+        const char* disable[] = { "encode",  "encode_sparse_array", 
+            "encode_max_depth", "encode_number_precision", "encode_keep_buffer",
+            "encode_invalid_numbers", NULL};
+        load_library(lua, name, luaopen_cjson_safe, disable);
+        lua_pushvalue(lua, -1);
+        lua_setglobal(lua, name);
     } else {
         luaL_error(lua, "library '%s' is not available", name);
     }
-    return 0;
+    return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
