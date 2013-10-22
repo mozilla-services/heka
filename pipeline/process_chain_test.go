@@ -175,7 +175,6 @@ func ProcessChainSpec(c gs.Context) {
 
 			chain := &CommandChain{timeout_duration: 0}
 			chain.Init()
-			// tail -f will never terminate
 			chain.AddStep("cat", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
 
