@@ -1,4 +1,4 @@
-/***** BEGIN LICENSE BLOCK *****
+/***** iEGIN LICENSE BLOCK *****
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -231,7 +231,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 		select {
 		case data := <-pi.stdoutChan:
 			pack = <-packSupply
-			pi.writetopack(data, pack, "stdout")
+			pi.writeToPack(data, pack, "stdout")
 
 			if router_shortcircuit {
 				pConfig.router.InChan() <- pack
@@ -241,7 +241,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 		case data := <-pi.stderrChan:
 			pack = <-packSupply
-			pi.writetopack(data, pack, "stderr")
+			pi.writeToPack(data, pack, "stderr")
 
 			if router_shortcircuit {
 				pConfig.router.InChan() <- pack
@@ -257,7 +257,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	return nil
 }
 
-func (pi *ProcessInput) writetopack(data string, pack *PipelinePack, stream_name string) {
+func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name string) {
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("ProcessInput")
