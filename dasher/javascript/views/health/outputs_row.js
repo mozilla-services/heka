@@ -7,6 +7,14 @@ define(
   function(BaseView, PluginPresenter, OutputsRowTemplate) {
     "use strict";
 
+    /**
+    * Row view for output plugins.
+    *
+    * @class OutputsRow
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var OutputsRow = BaseView.extend({
       tagName: "tr",
       presenter: PluginPresenter,

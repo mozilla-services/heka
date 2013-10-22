@@ -6,6 +6,12 @@ a:focus {
   outline: none;
 }
 
+.navbar-brand {
+  font-weight: bold;
+  padding-top: 14px !important;
+  text-transform: uppercase;
+}
+
 h1.page-title {
   font-size: 280%;
   margin-bottom: 15px;
@@ -138,6 +144,6 @@ html.embed .navbar {
   display: none;
 }
 
-html.embed .sandboxes-output h4 {
+html.embed .sandboxes-output-header {
   display: none;
 }

@@ -12,6 +12,14 @@ define(
   function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
     "use strict";
 
+    /**
+    * Index view for health views. This is a top level view that's loaded by the router.
+    *
+    * @class HealthIndex
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var HealthIndex = BaseView.extend({
       template: HealthIndexTemplate,
 
@@ -27,6 +35,12 @@ define(
         this.adapter.fill();
       },
 
+      /**
+      * Renders globalsIndex, inputsIndex, decoderPoolsIndex, filtersIndex, outputsIndex into the
+      * corresponding DOM elements.
+      *
+      * @method afterRender
+      */
       afterRender: function() {
         this.assign(this.globalsIndex, "#globals-index");
         this.assign(this.inputsIndex, "#inputs-index");

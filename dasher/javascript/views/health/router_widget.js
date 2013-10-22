@@ -8,16 +8,20 @@ define(
   function($, BaseView, PluginPresenter, RouterWidgetTemplate) {
     "use strict";
 
+    /**
+    * Widget for router processed count.
+    *
+    * @class RouterWidget
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var RouterWidget = BaseView.extend({
       presenter: PluginPresenter,
       template: RouterWidgetTemplate,
 
       initialize: function() {
         this.listenTo(this.model, "change:ProcessMessageCount.value", this.render, this);
-      },
-
-      updateProcessMessageCount: function() {
-        this.$("h4 strong").html(this.model.get("ProcessMessageCount.value"));
       }
     });
 

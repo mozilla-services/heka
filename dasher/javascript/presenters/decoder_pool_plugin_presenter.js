@@ -1,12 +1,21 @@
 define(
   [
     "underscore",
-    "numeral",
     "presenters/plugin_presenter"
   ],
-  function(_, numeral, PluginPresenter) {
+  function(_, PluginPresenter) {
     "use strict";
 
+    /**
+    * Presents a decoder pool Plugin for use in a view.
+    *
+    * @class DecoderPoolPluginPresenter
+    * @extends PluginPresenter
+    *
+    * @constructor
+    *
+    * @param {Plugin} plugin Plugin to be presented.
+    */
     var DecoderPoolPluginPresenter = function (plugin) {
       _.extend(this, plugin.attributes);
 

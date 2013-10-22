@@ -1,15 +1,21 @@
 define(
   [
-    "jquery",
-    "dygraph",
     "views/base_view",
     "hgn!templates/sandboxes/sandbox_output_txt_show",
     "adapters/sandbox_output_txt_adapter",
     "presenters/sandbox_output_presenter"
   ],
-  function($, Dygraph, BaseView, SandboxOutputTxtShowTemplate, SandboxOutputTxtAdapter, SandboxOutputPresenter) {
+  function(BaseView, SandboxOutputTxtShowTemplate, SandboxOutputTxtAdapter, SandboxOutputPresenter) {
     "use strict";
 
+    /**
+    * Show view for text based sandbox outputs.
+    *
+    * @class SandboxOutputTxtShow
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var SandboxOutputTxtShow = BaseView.extend({
       template: SandboxOutputTxtShowTemplate,
       presenter: SandboxOutputPresenter,
@@ -24,10 +30,20 @@ define(
         this.adapter.fill();
       },
 
+      /**
+      * Efficiently updates the name.
+      *
+      * @method updateName
+      */
       updateName: function() {
         this.$("h4").html(this.model.get("Name"));
       },
 
+      /**
+      * Efficiently updates the preformatted data.
+      *
+      * @method updateData
+      */
       updateData: function() {
         this.$("pre").html(this.model.get("data"));
       }

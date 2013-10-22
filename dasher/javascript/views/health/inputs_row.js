@@ -7,6 +7,14 @@ define(
   function(BaseView, PluginPresenter, InputsRowTemplate) {
     "use strict";
 
+    /**
+    * Row view for input plugins.
+    *
+    * @class InputsRow
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var InputsRow = BaseView.extend({
       tagName: "tr",
       presenter: PluginPresenter,

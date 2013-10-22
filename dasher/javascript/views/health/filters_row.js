@@ -7,6 +7,14 @@ define(
   function(BaseView, PluginPresenter, FiltersRowTemplate) {
     "use strict";
 
+    /**
+    * Row view for filter plugins.
+    *
+    * @class FiltersRow
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var FiltersRow = BaseView.extend({
       tagName: "tr",
       presenter: PluginPresenter,

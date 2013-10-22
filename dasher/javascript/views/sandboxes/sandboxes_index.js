@@ -9,6 +9,14 @@ define(
   function(BaseView, SandboxesIndexTemplate, Sandbox, SandboxesAdapter, SandboxesRow) {
     "use strict";
 
+    /**
+    * Index view for sandboxes. This is a top level view that's loaded by the router.
+    *
+    * @class SandboxesIndex
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var SandboxesIndex = BaseView.extend({
       template: SandboxesIndexTemplate,
 
@@ -21,6 +29,11 @@ define(
         this.adapter.fill();
       },
 
+      /**
+      * Renders SandboxesRow into #sandboxes after render.
+      *
+      * @method afterRender
+      */
       afterRender: function() {
         this.renderCollection(SandboxesRow, "#sandboxes");
       }

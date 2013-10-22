@@ -7,6 +7,14 @@ define(
   function(BaseView, DecoderPoolPluginPresenter, DecoderPoolsRowTemplate) {
     "use strict";
 
+    /**
+    * Row view for decoder pool plugins.
+    *
+    * @class DecoderPoolsRow
+    * @extends BaseView
+    *
+    * @constructor
+    */
     var DecoderPoolsRow = BaseView.extend({
       tagName: "tbody",
       presenter: DecoderPoolPluginPresenter,

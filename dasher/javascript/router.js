@@ -10,6 +10,20 @@ define(
   function($, Backbone, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow) {
     "use strict";
 
+    /**
+    * Router for the dashboard.
+    *
+    * Provides the following routes:
+    *
+    * - \#
+    * - \#health
+    * - \#sandboxes
+    * - \#sandboxes/embed/:filename
+    *
+    * @class Router
+    *
+    * @constructor
+    */
     var Router = Backbone.Router.extend({
       routes: {
         "":          "health",    // #
@@ -18,14 +32,30 @@ define(
         "sandboxes/embed/:filename": "embeddedSandboxOutput" // #sandboxes/embed/msgtype_counter.MessageTypeCounts.cbuf
       },
 
+      /**
+      * Loads and navigates to the health index.
+      *
+      * @method health
+      */
       health: function() {
-        this.switch(new HealthIndex());
+        this._switch(new HealthIndex());
       },
 
+      /**
+      * Loads and navigates to the sandboxes index.
+      *
+      * @method sandboxes
+      */
       sandboxes: function() {
-        this.switch(new SandboxesIndex());
+        this._switch(new SandboxesIndex());
       },
 
+      /**
+      * Loads the correct sandbox output show view based the Filename extension. These views
+      * stand-alone without navigation and are used for embedding.
+      *
+      * @method embeddedSandboxOutput
+      */
       embeddedSandboxOutput: function(filename) {
         var model = new Backbone.Model({ Filename: "data/" + filename });
         var outputView;
@@ -36,10 +66,16 @@ define(
           outputView = new SandboxOutputTxtShow({ model: model });
         }
 
-        this.switch(outputView);
+        this._switch(outputView);
       },
 
-      switch: function(view) {
+      /**
+      * Destroys the previous view and switches to the new one.
+      *
+      * @method _switch
+      * @private
+      */
+      _switch: function(view) {
         // Destroy previous view
         if (this.currentView) {
           this.currentView.destroy();

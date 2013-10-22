@@ -6,11 +6,27 @@ define(
   function(_, SandboxOutputPresenter) {
     "use strict";
 
+    /**
+    * Presents a circular buffer SandboxOutput for use in a view.
+    *
+    * @class SandboxOutputCbufPresenter
+    * @extends SandboxOutputPresenter
+    *
+    * @constructor
+    *
+    * @param {SandboxOutput} sandboxOutput SandboxOutput to be presented.
+    */
     var SandboxOutputCbufPresenter = function (sandboxOutput) {
       _.extend(this, sandboxOutput.attributes);
     };
 
     _.extend(SandboxOutputCbufPresenter.prototype, SandboxOutputPresenter.prototype, {
+      /**
+      * Labels for graph.
+      *
+      * @method labels
+      * @return {String[]} graph labels
+      */
       labels: function() {
         var labels = [];
 
@@ -25,7 +41,12 @@ define(
         return labels;
       },
 
-      // These IDs are meaninful to Dygraph
+      /**
+      * Legend labels with IDs for use with Dygraph.
+      *
+      * @method legendLabels
+      * @return {Object[]} legend labels with id and name attributes.
+      */
       legendLabels: function() {
         var labels = this.labels();
 
@@ -42,16 +63,34 @@ define(
         return labelsWithID;
       },
 
+      /**
+      * Checks existence of header.
+      *
+      * @method hasHeader
+      * @return {Boolean}
+      */
       hasHeader: function() {
         return _.has(this, "header");
       },
 
+      /**
+      * Number of seconds per row. Only returns a value if the header is present.
+      *
+      * @method secondsPerRow
+      * @return {Number} seconds
+      */
       secondsPerRow: function() {
         if (this.hasHeader()) {
           return this.header.seconds_per_row;
         }
       },
 
+      /**
+      * Friendly description of the timespan in seconds, minutes, or hours.
+      *
+      * @method timespanDescription
+      * @return {String} description
+      */
       timespanDescription: function() {
         if (this.hasHeader()) {
           var secondsInAMinute = 60;
@@ -65,10 +104,10 @@ define(
             numericValue = seconds;
             timespanDescription = numericValue.toString() + " second";
           } else if (seconds < secondsInAnHour) {
-            numericValue = this.round(seconds / secondsInAMinute);
+            numericValue = this._round(seconds / secondsInAMinute);
             timespanDescription = numericValue.toString() + " minute";
           } else {
-            numericValue = this.round(seconds / secondsInAnHour);
+            numericValue = this._round(seconds / secondsInAnHour);
             timespanDescription = numericValue.toString() + " hour";
           }
 
@@ -80,7 +119,14 @@ define(
         }
       },
 
-      round: function(number) {
+      /**
+      * Rounds numbers to two decimal places if necessary.
+      *
+      * @method _round
+      * @return {Number} rounded number
+      * @private
+      */
+      _round: function(number) {
         return Math.round(number * 100) / 100;
       }
     });
