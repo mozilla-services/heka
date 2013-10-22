@@ -153,10 +153,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 			return fmt.Errorf("Expected to find a command at index [%s][%d]", conf.Name, idx)
 		}
 
-		cmd, err := pi.cc.AddStep(cmd_cfg.Bin, cmd_cfg.Args...)
-		if err != nil {
-			return err
-		}
+		cmd := pi.cc.AddStep(cmd_cfg.Bin, cmd_cfg.Args...)
 
 		if cmd_cfg.Directory != "" {
 			cmd.Dir = cmd_cfg.Directory

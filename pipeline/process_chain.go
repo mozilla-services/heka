@@ -99,14 +99,12 @@ func (mc *ManagedCmd) kill() (err error) {
 // This resets a command so that we can run the command again.
 // Usually so that a chain can be restarted.
 func (mc *ManagedCmd) reset() {
-	newCmd := &exec.Cmd{
+	mc.Cmd = exec.Cmd{
 		Path: mc.Cmd.Path,
 		Args: mc.Cmd.Args,
 		Env:  mc.Cmd.Env,
 		Dir:  mc.Cmd.Dir,
 	}
-
-	mc.Cmd = *newCmd
 
 	mc.done = make(chan error)
 	mc.Stopchan = make(chan bool, 1)
@@ -133,7 +131,7 @@ func (cc *CommandChain) Init() {
 
 // Add a single command to our command chain, piping stdout to stdin
 // for each stage.
-func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd, err error) {
+func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 	cmd = &ManagedCmd{
 		Path:             Path,
 		Args:             Args,
@@ -146,12 +144,10 @@ func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd, e
 		r, w := io.Pipe()
 		cc.Cmds[len(cc.Cmds)-2].Stdout = w
 		cc.Cmds[len(cc.Cmds)-1].Stdin = r
-
 	}
-	return cmd, nil
+	return cmd
 }
 
-// Return the StdoutPipe from the last command in our chain
 func (cc *CommandChain) StdoutPipe() (r io.ReadCloser, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
@@ -159,7 +155,6 @@ func (cc *CommandChain) StdoutPipe() (r io.ReadCloser, err error) {
 	return cc.Cmds[len(cc.Cmds)-1].StdoutPipe()
 }
 
-// Return the StderrPipe from the last command in our chain
 func (cc *CommandChain) StderrPipe() (r io.ReadCloser, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
@@ -167,8 +162,6 @@ func (cc *CommandChain) StderrPipe() (r io.ReadCloser, err error) {
 	return cc.Cmds[len(cc.Cmds)-1].StderrPipe()
 }
 
-// Run a chain to completion.  This call will block until the chain
-// has completed.
 func (cc *CommandChain) Start() (err error) {
 	/* This is a bit subtle.  You want to spin up all the commands in
 	   order by calling Start().  */
@@ -176,7 +169,7 @@ func (cc *CommandChain) Start() (err error) {
 	for _, cmd := range cc.Cmds {
 		err = cmd.Start()
 		if err != nil {
-			return err
+			return fmt.Errorf("Command [%s %s] triggered an error: [%s]", cmd.Path, strings.Join(cmd.Args, " "), err.Error())
 		}
 	}
 	return nil
