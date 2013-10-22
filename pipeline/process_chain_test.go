@@ -232,7 +232,7 @@ func ProcessChainSpec(c gs.Context) {
 
 			end := time.Now()
 			actual_duration := end.Sub(start)
-			c.Expect(strings.Contains(err.Error(), "timeout error:"), gs.Equals, true)
+			c.Expect(strings.Contains(err.Error(), "timedout"), gs.Equals, true)
 			c.Expect(actual_duration >= timeout, gs.Equals, true)
 		})
 

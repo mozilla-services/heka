@@ -73,9 +73,9 @@ func (mc *ManagedCmd) Wait() (err error) {
 	if mc.timeout_duration != 0 {
 		select {
 		case <-mc.Stopchan:
-			return mc.kill()
+			return fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
 		case <-time.After(mc.timeout_duration):
-			return mc.kill()
+			return fmt.Errorf("CommandChain timedout with error: [%s]", mc.kill())
 		case err = <-mc.done:
 			return err
 		}
@@ -86,14 +86,14 @@ func (mc *ManagedCmd) Wait() (err error) {
 	return nil
 }
 
-// Kill the current process
+// Kill the current process. This will always return an error code.
 func (mc *ManagedCmd) kill() (err error) {
 	if err := mc.Process.Kill(); err != nil {
-		return fmt.Errorf("timeout error: failed to kill subprocess: %s", err.Error())
+		return fmt.Errorf("failed to kill subprocess: %s", err.Error())
 	}
 	// killing process will make Wait() return
 	<-mc.done
-	return fmt.Errorf("timeout error: [%s %s]", mc.Path, strings.Join(mc.Args, " "))
+	return fmt.Errorf("subprocess was killed: [%s %s]", mc.Path, strings.Join(mc.Args, " "))
 }
 
 // This resets a command so that we can run the command again.
