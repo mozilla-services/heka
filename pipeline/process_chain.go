@@ -180,27 +180,22 @@ func (cc *CommandChain) Wait() (err error) {
 	   stage in order, except that you do *not* want to close the last
 	   output pipe as we need to use that to get the final results.  */
 	go func() {
-		no_error := true
 		for i, cmd := range cc.Cmds {
 			err = cmd.Wait()
 			if err != nil {
 				cc.done <- err
-				no_error = false
-				break
+				return
 			}
 			if i < (len(cc.Cmds) - 1) {
 				err = cmd.Stdout.(*io.PipeWriter).Close()
 				if err != nil {
 					cc.done <- err
-					no_error = false
-					break
+					return
 				}
 			}
 		}
 
-		if no_error {
-			cc.done <- nil
-		}
+		cc.done <- nil
 	}()
 
 	select {
