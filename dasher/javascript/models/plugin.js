@@ -16,7 +16,7 @@ define(
     var Plugin = Backbone.DeepModel.extend({});
 
     /**
-    * Unique identifier for the plugin (same as Name)
+    * Unique identifier for the plugin (same as `Name`)
     *
     * @property {String} id
     */

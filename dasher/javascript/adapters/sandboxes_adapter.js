@@ -10,7 +10,9 @@ define(
     "use strict";
 
     /**
-    * Adapter for getting sandboxes from the server. Consumes /data/sandboxes.json.
+    * Adapter for retrieving sandboxes from the server.
+    *
+    * Consumes `/data/sandboxes.json`.
     *
     * @class SandboxesAdapter
     * @extends BaseAdapter
@@ -45,13 +47,13 @@ define(
       * Parses array returned from the server into a collection.
       *
       * @method parseArrayIntoCollection
-      * @param {Object[]} array Array to be parsed.
-      * @param {Backbone.Collection} collection Collection to be filled from parsed array.
+      * @param {Object[]} array Array to be parsed
+      * @param {Backbone.Collection} collection Collection to be filled from parsed array
       */
       parseArrayIntoCollection: function(array, collection) {
         var sandboxes = _.collect(array, function(s) {
           var outputs = new Backbone.Collection(s.Outputs, { model: SandboxOutput });
-          // No id is provided but the name is unique so use it as the id.
+          // No id is provided but the name is unique so use it as the id
           return new Sandbox(_.extend(s, {id: s.Name, Outputs: outputs }));
         });
 

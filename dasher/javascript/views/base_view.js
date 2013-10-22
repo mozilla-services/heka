@@ -8,7 +8,7 @@ define(
 
     /**
     * Base class for views that provides common rendering, model presentation, DOM assignment,
-    * subview tracking, and teardown.
+    * subview tracking, and tear-down.
     *
     * @class BaseView
     *
@@ -94,18 +94,15 @@ define(
       * @param {Backbone.View} view to assign
       * @param {String} selector jQuery selector for the element to be assigned
       * @return {BaseView} this
-      * @chainable
       */
       assign: function(view, selector) {
         view.setElement(this.$(selector));
         view.render();
-
-        return this;
       },
 
       /**
-      * Destroys view by stop listening to Backbone events, destroying subviews, and disabling
-      * jQuery events.
+      * Destroys view by stopping Backbone event listeners, disabling jQuery events, and destroying
+      * subviews.
       *
       * @method destroy
       */

@@ -2,11 +2,10 @@ define(
   [
     "views/base_view",
     "hgn!templates/sandboxes/sandboxes_index",
-    "models/sandbox",
     "adapters/sandboxes_adapter",
     "views/sandboxes/sandboxes_row"
   ],
-  function(BaseView, SandboxesIndexTemplate, Sandbox, SandboxesAdapter, SandboxesRow) {
+  function(BaseView, SandboxesIndexTemplate, SandboxesAdapter, SandboxesRow) {
     "use strict";
 
     /**
@@ -30,7 +29,7 @@ define(
       },
 
       /**
-      * Renders SandboxesRow into #sandboxes after render.
+      * Renders SandboxesRow into `#sandboxes` after render.
       *
       * @method afterRender
       */

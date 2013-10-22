@@ -8,7 +8,7 @@ define(
     "use strict";
 
     /**
-    * Base adapter for fetching data via XHR and polling for periodic changes.
+    * Base adapter handles fetching data via XHR and polling for changes.
     *
     * @class BaseAdapter
     * @constructor
@@ -31,10 +31,10 @@ define(
       *
       * @method fetch
       * @param {String} url URL of the resource to be fetched
-      * @param {Function} callback Function called when new data is received from the server.
-      * @param {Object} callback.data Data returned from the request.
-      * @param {String} callback.textStatus Status returned from the request.
-      * @param {jqXHR} callback.jqXHR jQuery XHR object representing the request.
+      * @param {Function} callback Function called when new data is received from the server
+      * @param {Object} callback.data Data returned from the request
+      * @param {String} callback.textStatus Status returned from the request
+      * @param {jqXHR} callback.jqXHR jQuery XHR object representing the request
       */
       fetch: function(url, callback) {
         $.ajax(url, { cache: false }).then(function(data, textStatus, jqXHR) {
@@ -49,7 +49,7 @@ define(
       },
 
       /**
-      * Calls fill every 2 seconds to check for new data. Only allows one timer to be running.
+      * Calls `fill` every 2 seconds to check for new data. Only allows one timer to be running.
       *
       * @method pollForUpdates
       */
@@ -60,7 +60,7 @@ define(
       },
 
       /**
-      * Stops calling fill.
+      * Stops calling `fill`.
       *
       * @method stopPollingForUpdates
       */

@@ -22,7 +22,7 @@ define(
 
     _.extend(SandboxOutputCbufPresenter.prototype, SandboxOutputPresenter.prototype, {
       /**
-      * Labels for graph.
+      * Labels for Dygraph.
       *
       * @method labels
       * @return {String[]} graph labels
@@ -45,7 +45,7 @@ define(
       * Legend labels with IDs for use with Dygraph.
       *
       * @method legendLabels
-      * @return {Object[]} legend labels with id and name attributes.
+      * @return {Object[]} legend labels with id and name attributes
       */
       legendLabels: function() {
         var labels = this.labels();
@@ -53,7 +53,6 @@ define(
         // Remove "Date"
         labels.shift();
 
-        // Start at 1 since we removed zero
         var i = 0;
 
         var labelsWithID = _.collect(labels, function(label) {

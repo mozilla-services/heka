@@ -6,6 +6,10 @@ a:focus {
   outline: none;
 }
 
+table .progress {
+  margin-bottom: 0;
+}
+
 .navbar-brand {
   font-weight: bold;
   padding-top: 14px !important;
@@ -61,10 +65,6 @@ table.plugins tr.decoder td.name {
 table.plugins td.name span.glyphicon {
   color: #444;
   margin-right: 4px;
-}
-
-table .progress {
-  margin-bottom: 0;
 }
 
 .sandboxes-show {
@@ -129,6 +129,8 @@ table .progress {
 .sandboxes-output-txt pre {
   line-height: 1.8em !important;
 }
+
+/* Embeds */
 
 html.embed body {
   padding-top: 15px !important;

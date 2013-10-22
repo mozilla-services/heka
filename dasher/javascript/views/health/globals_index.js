@@ -25,7 +25,7 @@ define(
 
       /**
       * Renders routerWidget, routerChannelCountWidget, inputRecycleChannelCountWidget,
-      * injectRecycleChannelCountWidget into corresponding DOM elements by ID after render.
+      * injectRecycleChannelCountWidget into corresponding DOM elements after render.
       *
       * Only renders data if the router is available since the first time this is rendered there's
       * no data available.

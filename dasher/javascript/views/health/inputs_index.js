@@ -23,7 +23,7 @@ define(
       },
 
       /**
-      * Renders InputsRow into .inputs tbody after render.
+      * Renders InputsRow into `.inputs tbody` after render.
       *
       * @method afterRender
       */

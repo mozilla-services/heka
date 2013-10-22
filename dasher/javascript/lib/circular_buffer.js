@@ -40,7 +40,7 @@ define(
     *
     * @method parse
     *
-    * @param {String} input Circular buffer data which includes JSON and CSV data.
+    * @param {String} input Circular buffer data which includes JSON and CSV data
     *
     * @return {Object} circularBuffer
     * @static

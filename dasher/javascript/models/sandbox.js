@@ -16,7 +16,7 @@ define(
     var Sandbox = Backbone.DeepModel.extend({});
 
     /**
-    * Unique identifier for the sandbox (same as Name).
+    * Unique identifier for the sandbox (same as `Name`).
     *
     * @property {String} id
     */

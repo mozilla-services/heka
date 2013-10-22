@@ -69,7 +69,7 @@ define(
       },
 
       /**
-      * Updates the data in the Dygraph when the data attribute changes.
+      * Updates the data in the Dygraph or triggers `render` if the graph doesn't exist yet.
       *
       * @method updateDygraph
       */

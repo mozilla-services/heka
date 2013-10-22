@@ -23,7 +23,7 @@ define(
       },
 
       /**
-      * Renders FiltersRow into .filters tbody after render.
+      * Renders FiltersRow into `.filters tbody` after render.
       *
       * @method afterRender
       */

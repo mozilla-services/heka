@@ -1,3 +1,4 @@
+// Require.js configuration. Provides short names for vendor libs and shims for non AMD libs.
 require.config({
   enforceDefine: true,
   baseUrl: "javascript",
@@ -42,6 +43,7 @@ require.config({
   }
 });
 
+// Sets up the router and starts the history which inserts the appropriate Backbone view into #content.
 define(
   [
     "backbone",

@@ -21,7 +21,7 @@ define(
 
     _.extend(SandboxOutputPresenter.prototype, {
       /**
-      * Filename without the leading "data/".
+      * Filename without the leading `data/`.
       *
       * @method ShortFilename
       * @return {String} shortened Filename

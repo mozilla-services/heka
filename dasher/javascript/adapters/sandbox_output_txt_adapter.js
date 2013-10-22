@@ -7,9 +7,11 @@ define(
     "use strict";
 
     /**
-    * Adapter for getting plain text data from sandbox outputs. Consumes /data/*.txt.
+    * Adapter for retrieving plain text data from sandbox outputs.
     *
-    * Note: This is the fallback sandbox output adapter so it will fetch any type of document that
+    * Consumes `/data/*.txt`.
+    *
+    * Note: This is the fallback sandbox output adapter so it can fetch any type of document that
     * isn't a circular buffer.
     *
     * @class SandboxOutputTxtAdapter
@@ -17,7 +19,7 @@ define(
     *
     * @constructor
     *
-    * @param {SandboxOutput} sandboxOutput SandboxOutput to be filled by the adapter.
+    * @param {SandboxOutput} sandboxOutput SandboxOutput to be filled by the adapter
     */
     var SandboxOutputTxtAdapter = function(sandboxOutput) {
       /**

@@ -23,7 +23,7 @@ define(
       },
 
       /**
-      * Renders OutputsRow into .outputs tbody after render.
+      * Renders OutputsRow into `.outputs tbody` after render.
       *
       * @method afterRender
       */

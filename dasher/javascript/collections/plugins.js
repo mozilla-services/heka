@@ -20,7 +20,7 @@ define(
       *
       * @method getRouter
       *
-      * @return {Plugin} Router plugin.
+      * @return {Plugin} Router plugin
       */
       getRouter: function() {
         return this.findWhere({ id: "Router" });
@@ -31,7 +31,7 @@ define(
       *
       * @method getInputRecycleChan
       *
-      * @return {Plugin} InputRecycleChan plugin.
+      * @return {Plugin} InputRecycleChan plugin
       */
       getInputRecycleChan: function() {
         return this.findWhere({ id: "inputRecycleChan" });
@@ -42,7 +42,7 @@ define(
       *
       * @method getInjectRecycleChan
       *
-      * @return {Plugin} InjectRecycleChan plugin.
+      * @return {Plugin} InjectRecycleChan plugin
       */
       getInjectRecycleChan: function() {
         return this.findWhere({ id: "injectRecycleChan" });

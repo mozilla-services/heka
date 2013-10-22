@@ -28,7 +28,7 @@ define(
 
       /**
       * Renders sandbox outputs according to their Filename extension. Cbuf is looked for specifically
-      * while all others will fallback to text. Appends elements to .sandbox-ouputs.
+      * while all others will fallback to text. Appends elements to `.sandbox-ouputs`.
       *
       * @method afterRender
       */

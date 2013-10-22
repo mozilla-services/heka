@@ -14,7 +14,7 @@ define(
     *
     * @constructor
     *
-    * @param {Plugin} plugin Plugin to be presented.
+    * @param {Plugin} plugin Plugin to be presented
     */
     var PluginPresenter = function (plugin) {
       _.extend(this, plugin.attributes);
@@ -84,7 +84,7 @@ define(
       },
 
       /**
-      * Checks existence of a match channel
+      * Checks existence of a match channel.
       *
       * @method hasMatchChannel
       * @return {Boolean}

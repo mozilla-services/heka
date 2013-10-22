@@ -9,14 +9,16 @@ define(
     "use strict";
 
     /**
-    * Adapter for getting circular buffer data from sandbox outputs. Consumes /data/*.cbuf.
+    * Adapter for retrieving circular buffer data from sandbox outputs.
+    *
+    * Consumes `/data/*.cbuf`.
     *
     * @class SandboxOutputCbufAdapter
     * @extends BaseAdapter
     *
     * @constructor
     *
-    * @param {SandboxOutput} sandboxOutput SandboxOutput to be filled by the adapter.
+    * @param {SandboxOutput} sandboxOutput SandboxOutput to be filled by the adapter
     */
     var SandboxOutputCbufAdapter = function(sandboxOutput) {
       /**

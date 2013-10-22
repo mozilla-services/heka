@@ -15,10 +15,10 @@ define(
     *
     * Provides the following routes:
     *
-    * - \#
-    * - \#health
-    * - \#sandboxes
-    * - \#sandboxes/embed/:filename
+    * - `/#`
+    * - `/#health`
+    * - `/#sandboxes`
+    * - `/#sandboxes/embed/:filename`
     *
     * @class Router
     *
@@ -51,7 +51,7 @@ define(
       },
 
       /**
-      * Loads the correct sandbox output show view based the Filename extension. These views
+      * Loads the correct sandbox output show view based on the Filename extension. These views
       * stand-alone without navigation and are used for embedding.
       *
       * @method embeddedSandboxOutput

@@ -23,7 +23,7 @@ define(
       },
 
       /**
-      * Renders DecodersRow into .decoder-pools after render.
+      * Renders DecodersRow into `.decoder-pools` after render.
       *
       * @method afterRender
       */

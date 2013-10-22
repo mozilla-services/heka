@@ -22,7 +22,7 @@ define(
     */
 
     /**
-    * Filename of the sandbox output. These are relative paths that start with data/*.
+    * Filename of the sandbox output. These are relative paths that start with `data/*`.
     *
     * @property {String} Filename
     */

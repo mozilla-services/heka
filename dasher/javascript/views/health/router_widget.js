@@ -1,11 +1,10 @@
 define(
   [
-    "jquery",
     "views/base_view",
     "presenters/plugin_presenter",
     "hgn!templates/health/router_widget"
   ],
-  function($, BaseView, PluginPresenter, RouterWidgetTemplate) {
+  function(BaseView, PluginPresenter, RouterWidgetTemplate) {
     "use strict";
 
     /**

@@ -9,7 +9,9 @@ define(
     "use strict";
 
     /**
-    * Adapter for getting plugins from the server. Consumes /data/heka_report.json.
+    * Adapter for retrieving plugins from the server.
+    *
+    * Consumes `/data/heka_report.json`.
     *
     * @class PluginsAdapter
     * @extends BaseAdapter

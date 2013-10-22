@@ -14,7 +14,7 @@ define(
     *
     * @constructor
     *
-    * @param {Plugin} plugin Plugin to be presented.
+    * @param {Plugin} plugin Plugin to be presented
     */
     var DecoderPoolPluginPresenter = function (plugin) {
       _.extend(this, plugin.attributes);
