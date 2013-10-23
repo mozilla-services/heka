@@ -72,16 +72,21 @@ var digitRegex = regexp.MustCompile(`^\d+$`)
 // alternate printing options
 type MultipleError []string
 
-func NewMultipleError() MultipleError {
-	return make(MultipleError, 0)
+func NewMultipleError() *MultipleError {
+	me := make(MultipleError, 0)
+	return &me
 }
 
 func (m MultipleError) Error() string {
 	return strings.Join(m, " :: ")
 }
 
-func (m MultipleError) AddMessage(s string) {
-	m = append(m, s)
+func (m *MultipleError) AddMessage(s string) {
+	*m = append(*m, s)
+}
+
+func (m MultipleError) IsError() bool {
+	return len(m) > 0
 }
 
 type Logfile struct {
@@ -143,18 +148,18 @@ func (l Logfiles) IndexOf(s string) int {
 // Provided the fileMatch regexp and translation map, populate all the Logfile
 // matchparts for use in sorting.
 func (l Logfiles) PopulateMatchParts(fileMatch *regexp.Regexp, translation SubmatchTranslationMap) error {
-	errors := NewMultipleError()
+	errorlist := NewMultipleError()
 	subexpNames := fileMatch.SubexpNames()
 	for _, logfile := range l {
 		matches := fileMatch.FindStringSubmatch(logfile.FileName)
 		if err := logfile.PopulateMatchParts(subexpNames, matches, translation); err != nil {
-			errors.AddMessage(err.Error())
+			errorlist.AddMessage(err.Error())
 		}
 	}
-	if len(errors) == 0 {
-		return nil
+	if errorlist.IsError() {
+		return errorlist
 	}
-	return errors
+	return nil
 }
 
 // ByPriority implements the final method of the sort.Interface so that the embedded
@@ -205,26 +210,6 @@ type MultipleLogstreamFileList map[string]Logfiles
 func FilterMultipleStreamFiles(files Logfiles, fileMatch string, diferentiator []string) MultipleLogstreamFileList {
 	mfs := make(MultipleLogstreamFileList)
 	return mfs
-}
-
-type LogstreamLocation struct {
-	Filename     string
-	SeekPosition float64
-	Start        float64
-	Length       float64
-	Hash         string
-}
-
-func NewLogstreamLocationFromJSONFile(path string) *LogstreamLocation {
-	return &LogstreamLocation{}
-}
-
-func (l *LogstreamLocation) SaveProgressToJSONFile(path string) error {
-	return nil
-}
-
-func LocatePriorLocation(files Logfiles, position LogstreamLocation) (*os.File, error) {
-	return nil, nil
 }
 
 // Match translation map for a matched section that maps the string value to the integer to

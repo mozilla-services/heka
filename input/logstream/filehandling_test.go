@@ -90,8 +90,6 @@ func FilehandlingSpec(c gs.Context) {
 			err := logfiles.PopulateMatchParts(matchRegex, translation)
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(len(logfiles), gs.Equals, 3)
-			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, -1)
-			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
 		})
 	})
 
@@ -100,7 +98,7 @@ func FilehandlingSpec(c gs.Context) {
 		matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log\.?(?P<FileNumber>.*)?`)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
 		err := logfiles.PopulateMatchParts(matchRegex, translation)
-		c.Assume(err, gs.Not(gs.IsNil))
+		c.Assume(err, gs.IsNil)
 		c.Expect(len(logfiles), gs.Equals, 3)
 
 		c.Specify("can be sorted newest to oldest", func() {
