@@ -660,7 +660,7 @@ int output_circular_buffer_cbufd(lua_State *lua, circular_buffer* cb,
 
         // delete the delta table
         lua_pushnil(lua);
-        lua_rawseti(lua, -1, cb->m_ref);
+        lua_rawseti(lua, -2, cb->m_ref);
         cb->m_ref = LUA_NOREF;
     } else {
         luaL_error(lua, "Could not find table %s", heka_circular_buffer_table);
@@ -738,7 +738,7 @@ int serialize_circular_buffer_delta(lua_State *lua, circular_buffer* cb,
 
         // delete the delta table
         lua_pushnil(lua);
-        lua_rawseti(lua, -1, cb->m_ref);
+        lua_rawseti(lua, -2, cb->m_ref);
         cb->m_ref = LUA_NOREF;
     } else {
         luaL_error(lua, "Could not find table %s", heka_circular_buffer_table);
