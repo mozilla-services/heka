@@ -101,7 +101,7 @@ func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.Fi
 	fileIndex := files.IndexOf(position.Filename)
 	if fileIndex != -1 {
 		fd, err = SeekInFile(position.Filename, position)
-		if err != nil {
+		if err == nil {
 			return
 		}
 		// Check to see whether its a file permission error, return if it is
@@ -116,11 +116,16 @@ func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.Fi
 	// shuffled around.
 	for _, logfile := range files {
 		fd, err = SeekInFile(logfile.FileName, position)
-		if err != nil {
+		if err == nil {
 			// Located the position! Update the filename in the position
 			position.Filename = logfile.FileName
 			return
 		}
+		// Check to see whether its a file permission error, return if it is
+		if os.IsPermission(err) {
+			return
+		}
+		err = nil // Reset our error to nil
 	}
 	return
 }
