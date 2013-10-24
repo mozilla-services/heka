@@ -347,13 +347,6 @@ int serialize_table_as_pb(lua_sandbox* lsb)
     if (encode_string(lsb, d, 9, "Hostname")) return 1;
     if (encode_fields(lsb, d, 10, "Fields")) return 1;
     // if we go above 15 pb_write_tag will need to start varint encoding
-
-    update_output_stats(lsb);
-    if (lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
-        > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
-        snprintf(lsb->m_error_message, ERROR_SIZE, "output_limit exceeded");
-        return 1;
-    }
     return 0;
 }
 
@@ -1013,6 +1006,14 @@ int inject_message(lua_State* lua)
     }
 
     if (lsb->m_output.m_pos != 0) {
+        update_output_stats(lsb);
+        if (lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_CURRENT]
+            > lsb->m_usage[USAGE_TYPE_OUTPUT][USAGE_STAT_LIMIT]) {
+            if (lsb->m_error_message[0] == 0) {
+                luaL_error(lua, "output_limit exceeded");
+            }
+            luaL_error(lua, lsb->m_error_message);
+        }
         int result = go_lua_inject_message(lsb->m_go,
                                            lsb->m_output.m_data,
                                            (int)(lsb->m_output.m_pos),
