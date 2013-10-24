@@ -170,6 +170,15 @@ func (l Logfiles) PopulateMatchParts(fileMatch *regexp.Regexp, translation Subma
 	return nil
 }
 
+// Returns a list of all the filenames in their current order
+func (l Logfiles) FileNames() []string {
+	s := make([]string, len(l))
+	for _, logfile := range l {
+		s = append(s, logfile.FileName)
+	}
+	return s
+}
+
 // ByPriority implements the final method of the sort.Interface so that the embedded
 // LogfileMatches may be sorted by the priority of their matches parts
 type ByPriority struct {
