@@ -65,6 +65,5 @@ function process_message ()
 end
 
 function timer_event(ns)
-    output(data)
-    inject_message("cbuf", "Statistics")
+    inject_message(data, "Statistics")
 end

@@ -75,12 +75,10 @@ function timer_event(ns)
     -- status:add(ns, 1, 0) 
     -- request:add(ns, 1, 0)
 
-    output(status)
-    inject_message("cbuf", "HTTP Status")
+    inject_message(status, "HTTP Status")
 
     if newest - interval - oldest < sliding_window * 2 then
-        output(request)
-        inject_message("cbuf", "Request Statistics")
+        inject_message(request, "Request Statistics")
         return -- not enough data to check for anomalies
     end
 
