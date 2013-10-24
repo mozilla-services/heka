@@ -82,6 +82,7 @@ func FilehandlingSpec(c gs.Context) {
 			c.Expect(len(logfiles), gs.Equals, 3)
 			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, -1)
 			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+			c.Expect(logfiles[1].StringMatchParts["FileNumber"], gs.Equals, "1")
 		})
 
 		c.Specify("returns errors", func() {
@@ -113,6 +114,53 @@ func FilehandlingSpec(c gs.Context) {
 			sort.Sort(byp)
 			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, 2)
 			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+		})
+	})
+
+	c.Specify("Sorting out a directory of access/error logs", func() {
+		translation := make(SubmatchTranslationMap)
+		matchRegex := regexp.MustCompile(dirPath + `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`)
+		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
+		err := logfiles.PopulateMatchParts(matchRegex, translation)
+		c.Assume(err, gs.IsNil)
+		c.Expect(len(logfiles), gs.Equals, 52)
+
+		c.Specify("can result in multiple logfile streams", func() {
+			mfs := FilterMultipleStreamFiles(logfiles, []string{"Type"})
+			c.Expect(len(mfs), gs.Equals, 2)
+			access, ok := mfs["access"]
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(access), gs.Equals, 26)
+			error, ok := mfs["error"]
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(error), gs.Equals, 26)
+
+			c.Specify("can be individually sorted properly by access", func() {
+				byp := ByPriority{Logfiles: mfs["access"], Priority: []string{"Year", "Month", "^Seq"}}
+				sort.Sort(byp)
+				lf := mfs["access"]
+				c.Expect(lf[0].FileName, gs.Equals, dirPath+"/2010/05/access.log.3")
+				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+"/2013/08/access.log")
+			})
+
+			c.Specify("can be individually sorted properly by error", func() {
+				byp := ByPriority{Logfiles: mfs["error"], Priority: []string{"Year", "Month", "^Seq"}}
+				sort.Sort(byp)
+				lf := mfs["error"]
+				c.Expect(lf[0].FileName, gs.Equals, dirPath+"/2010/07/error.log.2")
+				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+"/2013/08/error.log")
+			})
+		})
+
+		c.Specify("Can result in multiple logfile streams with a prefix", func() {
+			mfs := FilterMultipleStreamFiles(logfiles, []string{"website-", "Type"})
+			c.Expect(len(mfs), gs.Equals, 2)
+			access, ok := mfs["website-access"]
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(access), gs.Equals, 26)
+			error, ok := mfs["website-error"]
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(error), gs.Equals, 26)
 		})
 	})
 }

@@ -93,6 +93,8 @@ type Logfile struct {
 	FileName string
 	// The matched portions of the filename and their translated integer value
 	MatchParts map[string]int
+	// The raw string matches from the filename
+	StringMatchParts map[string]string
 }
 
 func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation SubmatchTranslationMap) error {
@@ -101,8 +103,14 @@ func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation 
 	if l.MatchParts == nil {
 		l.MatchParts = make(map[string]int)
 	}
+	if l.StringMatchParts == nil {
+		l.StringMatchParts = make(map[string]string)
+	}
 	for i, name := range subexpNames {
 		matchValue := matches[i]
+		// Store the raw string
+		l.StringMatchParts[name] = matchValue
+
 		lowerValue := strings.ToLower(matchValue)
 		score = -1
 		if name == "" {
@@ -191,6 +199,7 @@ func (b ByPriority) Less(i, j int) bool {
 	return false
 }
 
+// Scans a directory recursively filtering out files that match the fileMatch regexp
 func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Logfiles {
 	files := make(Logfiles, 0)
 	filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
@@ -207,9 +216,31 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 
 type MultipleLogstreamFileList map[string]Logfiles
 
-func FilterMultipleStreamFiles(files Logfiles, fileMatch string, diferentiator []string) MultipleLogstreamFileList {
+// Filter a single Logfiles into a MultipleLogstreamFileList keyed by the
+// differentiator.
+func FilterMultipleStreamFiles(files Logfiles, differentiator []string) MultipleLogstreamFileList {
 	mfs := make(MultipleLogstreamFileList)
+	for _, logfile := range files {
+		name := ResolveDifferentiatedName(logfile, differentiator)
+		_, ok := mfs[name]
+		if !ok {
+			mfs[name] = make(Logfiles, 0)
+		}
+		mfs[name] = append(mfs[name], logfile)
+	}
 	return mfs
+}
+
+// Resolve a differentiated name from a Logfile and return it.
+func ResolveDifferentiatedName(l *Logfile, differentiator []string) (name string) {
+	for _, d := range differentiator {
+		if value, ok := l.StringMatchParts[d]; ok {
+			name += value
+		} else {
+			name += d
+		}
+	}
+	return
 }
 
 // Match translation map for a matched section that maps the string value to the integer to
@@ -236,7 +267,12 @@ type SubmatchTranslationMap map[string]MatchTranslationMap
 // and day names are translated to integers. The priority for sorting should be done
 // with Year first, then MonthName, Day, and finally Seq, so the Priority would be
 //
-//     ["Year", "MonthName", "Day", "Seq"]
+//     ["Year", "MonthName", "Day", "^Seq"]
+//
+// Note that "Seq" had "^" prefixed to it. This indicates that it should be sorted in
+// descending order rather than the default of ascending order because in our case the
+// sequence of the log number indicates how many removed from *current* it is, while the
+// higher the year, month, day indicates how close it is to *current*.
 type SortPattern struct {
 	// Regular expression for the files to match and parts of the filename to use for
 	// sorting. All parts to be sorted on must be captured and named. Special handling is
