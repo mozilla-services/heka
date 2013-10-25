@@ -56,7 +56,8 @@ type ManagedCmd struct {
 	Stderr_chan chan string
 }
 
-func (mc *ManagedCmd) Init() (err error) {
+func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *ManagedCmd) {
+	mc = &ManagedCmd{Path: path, Args: args, timeout_duration: timeout}
 	mc.done = make(chan error)
 	mc.Stopchan = make(chan bool, 1)
 	mc.Cmd = *exec.Command(mc.Path, mc.Args...)
@@ -65,7 +66,7 @@ func (mc *ManagedCmd) Init() (err error) {
 
 	mc.Stdout_chan = make(chan string)
 	mc.Stderr_chan = make(chan string)
-	return nil
+	return mc
 }
 
 func (mc *ManagedCmd) Start(redirectToChannels bool) (err error) {
@@ -171,13 +172,9 @@ func (mc *ManagedCmd) kill() (err error) {
 
 // This resets a command so that we can run the command again.
 // Usually so that a chain can be restarted.
-func (mc *ManagedCmd) clone() (clone *ManagedCmd, err error) {
-	clone = &ManagedCmd{
-		Path: mc.Path,
-		Args: mc.Args,
-	}
-	err = clone.Init()
-	return clone, err
+func (mc *ManagedCmd) clone() (clone *ManagedCmd) {
+	clone = NewManagedCmd(mc.Path, mc.Args, mc.timeout_duration)
+	return clone
 }
 
 func (mc *ManagedCmd) StdoutChan() (stream chan string) {
@@ -202,20 +199,17 @@ type CommandChain struct {
 	Stopchan chan bool
 }
 
-func (cc *CommandChain) Init() {
+func NewCommandChain(timeout time.Duration) (cc *CommandChain) {
+	cc = &CommandChain{timeout_duration: timeout}
 	cc.done = make(chan error)
 	cc.Stopchan = make(chan bool, 1)
+	return cc
 }
 
 // Add a single command to our command chain, piping stdout to stdin
 // for each stage.
 func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
-	cmd = &ManagedCmd{
-		Path:             Path,
-		Args:             Args,
-		timeout_duration: cc.timeout_duration,
-	}
-	cmd.Init()
+	cmd = NewManagedCmd(Path, Args, cc.timeout_duration)
 
 	cc.Cmds = append(cc.Cmds, cmd)
 	if len(cc.Cmds) > 1 {
@@ -300,8 +294,7 @@ func (cc *CommandChain) Wait() (err error) {
 // This resets a command so that we can run the command again.
 // Usually so that a chain can be restarted.
 func (cc *CommandChain) clone() (clone *CommandChain) {
-	clone = &CommandChain{timeout_duration: cc.timeout_duration}
-	clone.Init()
+	clone = NewCommandChain(cc.timeout_duration)
 	for _, cmd := range cc.Cmds {
 		clone.AddStep(cmd.Path, cmd.Args...)
 	}

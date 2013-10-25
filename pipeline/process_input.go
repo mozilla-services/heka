@@ -140,7 +140,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("No Command Configured")
 	}
 
-	pi.cc = &CommandChain{timeout_duration: time.Duration(conf.TimeoutSeconds) * time.Second}
+	pi.cc = NewCommandChain(time.Duration(conf.TimeoutSeconds) * time.Second)
 
 	// We need to mangle the indexes to be integers
 	for idx := 0; idx < len(conf.Command); idx++ {

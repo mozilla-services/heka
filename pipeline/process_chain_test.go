@@ -45,11 +45,7 @@ func ProcessChainSpec(c gs.Context) {
 	c.Specify("A ManagedCommand", func() {
 		c.Specify("can run a single command", func() {
 			Path := "cat"
-			cmd := &ManagedCmd{
-				Path: Path,
-				Args: []string{PIPE_TEST_FILE},
-			}
-			cmd.Init()
+			cmd := NewManagedCmd(Path, []string{PIPE_TEST_FILE}, 0)
 
 			output_chan := cmd.StdoutChan()
 			output := make(chan string)
@@ -63,12 +59,7 @@ func ProcessChainSpec(c gs.Context) {
 		c.Specify("honors nonzero timeouts", func() {
 			Path := "tail"
 			timeout := time.Second * 1
-			cmd := &ManagedCmd{
-				Path:             Path,
-				Args:             []string{"-f", PIPE_TEST_FILE},
-				timeout_duration: timeout,
-			}
-			cmd.Init()
+			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
 
 			output_chan := cmd.StdoutChan()
 			output := make(chan string)
@@ -88,11 +79,7 @@ func ProcessChainSpec(c gs.Context) {
 
 		c.Specify("reads process stderr properly", func() {
 			Path := "tail"
-			cmd := &ManagedCmd{
-				Path: Path,
-				Args: []string{"not_a_file.txt"},
-			}
-			cmd.Init()
+			cmd := NewManagedCmd(Path, []string{"not_a_file.txt"}, 0)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -114,12 +101,7 @@ func ProcessChainSpec(c gs.Context) {
 		c.Specify("can be terminated before timeout occurs", func() {
 			Path := "tail"
 			timeout := time.Second * 3
-			cmd := &ManagedCmd{
-				Path:             Path,
-				Args:             []string{"-f", PIPE_TEST_FILE},
-				timeout_duration: timeout,
-			}
-			cmd.Init()
+			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -138,14 +120,8 @@ func ProcessChainSpec(c gs.Context) {
 		})
 
 		c.Specify("can reset commands to run again", func() {
-			var err error
-
 			Path := "tail"
-			cmd := &ManagedCmd{
-				Path: Path,
-				Args: []string{PIPE_TEST_FILE},
-			}
-			cmd.Init()
+			cmd := NewManagedCmd(Path, []string{PIPE_TEST_FILE}, 0)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -157,8 +133,7 @@ func ProcessChainSpec(c gs.Context) {
 			c.Expect(<-stdout_results, gs.Equals, PIPE_TEST_OUTPUT)
 
 			// Reset and rerun it
-			cmd, err = cmd.clone()
-			c.Expect(err, gs.IsNil)
+			cmd = cmd.clone()
 
 			stdout_chan = cmd.StdoutChan()
 			stdout_results = make(chan string, 1)
@@ -176,8 +151,7 @@ func ProcessChainSpec(c gs.Context) {
 			// This test assumes cat and grep
 			var err error
 
-			chain := &CommandChain{timeout_duration: 0}
-			chain.Init()
+			chain := NewCommandChain(0)
 			chain.AddStep("cat", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
 
@@ -207,8 +181,7 @@ func ProcessChainSpec(c gs.Context) {
 			var err error
 
 			timeout := time.Second * 1
-			chain := &CommandChain{timeout_duration: timeout}
-			chain.Init()
+			chain := NewCommandChain(timeout)
 			// tail -f will never terminate
 			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
@@ -230,8 +203,7 @@ func ProcessChainSpec(c gs.Context) {
 			var err error
 
 			timeout := time.Second * 5
-			chain := &CommandChain{timeout_duration: timeout}
-			chain.Init()
+			chain := NewCommandChain(timeout)
 			// tail -f will never terminate
 			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
@@ -253,8 +225,7 @@ func ProcessChainSpec(c gs.Context) {
 			// This test assumes tail and grep
 			var err error
 
-			chain := &CommandChain{timeout_duration: 0}
-			chain.Init()
+			chain := NewCommandChain(0)
 			chain.AddStep("cat", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
 
@@ -305,8 +276,7 @@ func ProcessChainSpec(c gs.Context) {
 			// This test assumes cat and grep
 			var err error
 
-			chain := &CommandChain{timeout_duration: 0}
-			chain.Init()
+			chain := NewCommandChain(0)
 			chain.AddStep("cat", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
 
