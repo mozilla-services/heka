@@ -25,7 +25,7 @@ import (
 func FilehandlingSpec(c gs.Context) {
 	here, err := os.Getwd()
 	c.Assume(err, gs.IsNil)
-	dirPath := filepath.Join(here, "testdir")
+	dirPath := filepath.Join(here, "testdir", "filehandling")
 
 	c.Specify("The directory scanner", func() {
 
