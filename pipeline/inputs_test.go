@@ -23,6 +23,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"errors"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -209,7 +210,9 @@ func InputsSpec(c gs.Context) {
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
-			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
+			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [exit status 1]")
+			ith.MockInputRunner.EXPECT().LogError(expected_err)
+
 			go func() {
 				pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()

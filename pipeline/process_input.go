@@ -295,7 +295,9 @@ func (pi *ProcessInput) RunCmd() {
 				pi.cc = pi.cc.clone()
 
 				if err != nil {
-					pi.ir.LogError(fmt.Errorf("Error cloning CommandChain: [%s]", err.Error()))
+					pi.ir.LogError(fmt.Errorf("%s Error cloning CommandChain: [%s]",
+						pi.ProcessName,
+						err.Error()))
 				}
 				pi.runOnce()
 			case <-pi.stopChan:
@@ -334,12 +336,12 @@ func (pi *ProcessInput) runOnce() {
 
 	err = pi.cc.Start()
 	if err != nil {
-		pi.ir.LogError(err)
+		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]", pi.ProcessName, err.Error()))
 	}
 
 	err = pi.cc.Wait()
 	if err != nil {
-		pi.ir.LogError(err)
+		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]", pi.ProcessName, err.Error()))
 	}
 }
 
@@ -380,7 +382,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 			// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
 			if !strings.Contains(err.Error(), "read |0: bad file descriptor") &&
 				(err != io.EOF) {
-				pi.ir.LogError(err)
+				pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
 			}
 			return
 		}
