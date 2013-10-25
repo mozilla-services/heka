@@ -9,8 +9,6 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
-#   Rob Miller (rmiller@mozilla.com)
-#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
