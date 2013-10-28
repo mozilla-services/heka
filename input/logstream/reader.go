@@ -16,13 +16,17 @@ package logstream
 
 import (
 	"bufio"
+	"bytes"
+	"code.google.com/p/go-uuid/uuid"
 	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
+	p "github.com/mozilla-services/heka/pipeline"
 	"io"
-	"io/ioutil"
 	"os"
+	"time"
 )
 
 // A location in a logstream indicating the farthest that has been read
@@ -52,7 +56,9 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 		}
 		return
 	}
-	seekJournal.Close()
+	contents := bytes.NewBuffer(nil)
+	defer seekJournal.Close()
+	io.Copy(contents, seekJournal)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -60,8 +66,7 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 		}
 	}()
 
-	contents, err := ioutil.ReadFile(l.JournalPath)
-	err = json.Unmarshal(contents, l)
+	err = json.Unmarshal(contents.Bytes(), l)
 	return
 }
 
@@ -69,9 +74,13 @@ func (l *LogstreamLocation) Save() error {
 	// Note: We can't serialize the stat.pinfo in a cross platform way.
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
-	h := sha1.New()
-	io.WriteString(h, l.LastLogline)
-	l.Hash = fmt.Sprintf("%x", h.Sum(nil))
+	if l.LastLogline != "" {
+		h := sha1.New()
+		io.WriteString(h, l.LastLogline)
+		l.Hash = fmt.Sprintf("%x", h.Sum(nil))
+	} else {
+		l.Hash = ""
+	}
 	l.LastLoglineLength = int64(len(l.LastLogline))
 
 	b, err := json.Marshal(l)
@@ -152,4 +161,73 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 		}
 	}
 	return nil, errors.New("Unable to locate position")
+}
+
+type Logger interface {
+	LogError(err error)
+	LogMessage(msg string)
+}
+
+type PackCreator interface {
+	ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error)
+	PopulatePack(record []byte, pack *p.PipelinePack)
+}
+
+type NewPackCreator func(log Logger) PackCreator
+
+type TextPackCreator struct {
+	log         Logger
+	loggerIdent string
+	hostname    string
+}
+
+func NewTextPackCreator(log Logger, loggerIdent, hostname string) *TextPackCreator {
+	return &TextPackCreator{log: log, loggerIdent: loggerIdent, hostname: hostname}
+}
+
+func (t *TextPackCreator) ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error) {
+	n, record, err = parser.Parse(fd)
+	if err != nil {
+		if err == io.EOF && isRotated {
+			record = parser.GetRemainingData()
+		} else if err == io.ErrShortBuffer {
+			t.log.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+			err = nil // non-fatal, keep going
+		}
+	}
+	return
+}
+
+func (t *TextPackCreator) PopulatePack(record []byte, pack *p.PipelinePack) {
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetTimestamp(time.Now().UnixNano())
+	pack.Message.SetType("logfile")
+	pack.Message.SetSeverity(int32(0))
+	pack.Message.SetEnvVersion("0.8")
+	pack.Message.SetPid(0)
+	pack.Message.SetHostname(t.hostname)
+	pack.Message.SetLogger(t.loggerIdent)
+	pack.Message.SetPayload(string(record))
+}
+
+type ProtobufPackCreator struct{}
+
+func NewProtobufPackCreator(log Logger, loggerIdent, hostname string) *ProtobufPackCreator {
+	return new(ProtobufPackCreator)
+}
+
+func (p *ProtobufPackCreator) ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error) {
+	n, record, err = parser.Parse(fd)
+	return
+}
+
+func (p *ProtobufPackCreator) PopulatePack(record []byte, pack *p.PipelinePack) {
+	headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
+	messageLen := len(record) - headerLen
+	// ignore authentication headers
+	if messageLen > cap(pack.MsgBytes) {
+		pack.MsgBytes = make([]byte, messageLen)
+	}
+	pack.MsgBytes = pack.MsgBytes[:messageLen]
+	copy(pack.MsgBytes, record[headerLen:])
 }

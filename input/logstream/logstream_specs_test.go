@@ -22,6 +22,6 @@ import (
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.AddSpec(FilehandlingSpec)
-	//r.AddSpec(ReaderSpec)
+	r.AddSpec(ReaderSpec)
 	gospec.MainGoTest(r, t)
 }
