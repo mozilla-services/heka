@@ -682,6 +682,9 @@ func init() {
 	RegisterPlugin("LogfileInput", func() interface{} {
 		return new(LogfileInput)
 	})
+	RegisterPlugin("ProcessInput", func() interface{} {
+		return new(ProcessInput)
+	})
 	RegisterPlugin("TcpOutput", func() interface{} {
 		return new(TcpOutput)
 	})
