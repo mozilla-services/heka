@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -22,6 +23,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"errors"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -131,6 +133,139 @@ func InputsSpec(c gs.Context) {
 	key := "testkey"
 	signers := map[string]Signer{"test_1": {key}}
 	signer := "test"
+
+	c.Specify("A ProcessInput", func() {
+		pInput := ProcessInput{}
+
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
+		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
+		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
+
+		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
+		enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
+
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
+
+		config := pInput.ConfigStruct().(*ProcessInputConfig)
+		config.Command = make(map[string]cmd_config)
+
+		pConfig := NewPipelineConfig(nil)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		tickChan := make(chan time.Time)
+		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+		c.Specify("reads a message from ProcessInput", func() {
+
+			config.Name = "SimpleTest"
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			config.Delimiter = "|"
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/process_input_test.txt"}}
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			expected_payloads := []string{"this|", "is|", "a|", "test|"}
+			actual_payloads := []string{}
+
+			for x := 0; x < 4; x++ {
+				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
+				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				c.Expect(fPInputName.ValueString[0], gs.Equals, "SimpleTest.stdout")
+				// Free up the scheduler
+				runtime.Gosched()
+			}
+
+			for x := 0; x < 4; x++ {
+				c.Expect(expected_payloads[x], gs.Equals, actual_payloads[x])
+			}
+
+			pInput.Stop()
+		})
+
+		c.Specify("handles bad arguments", func() {
+
+			config.Name = "BadArgs"
+			config.ParseStdout = false
+			config.ParseStderr = true
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			config.Delimiter = "|"
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/not_a_file.txt"}}
+
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [exit status 1]")
+			ith.MockInputRunner.EXPECT().LogError(expected_err)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			ith.PackSupply <- ith.Pack
+			<-ith.DecodeChan
+			runtime.Gosched()
+
+			pInput.Stop()
+		})
+
+		c.Specify("can pipe multiple commands together", func() {
+
+			config.Name = "PipedCmd"
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			// Overload the delimiter
+			config.Delimiter = " "
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: "cat", Args: []string{"../testsupport/process_input_pipes_test.txt"}}
+			config.Command["1"] = cmd_config{Bin: "grep", Args: []string{"ignore"}}
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			expected_payloads := []string{"ignore ", "this ", "line"}
+			actual_payloads := []string{}
+
+			for x := 0; x < 3; x++ {
+				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
+				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")
+				// Free up the scheduler
+				runtime.Gosched()
+			}
+
+			for x := 0; x < 3; x++ {
+				c.Expect(actual_payloads[x], gs.Equals, expected_payloads[x])
+			}
+
+			pInput.Stop()
+		})
+
+	})
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}

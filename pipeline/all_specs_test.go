@@ -59,6 +59,8 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(HttpInputSpec)
 	r.AddSpec(ElasticSearchOutputSpec)
 	r.AddSpec(StreamParserSpec)
+	r.AddSpec(ProcessChainSpec)
+
 	gospec.MainGoTest(r, t)
 }
 
@@ -76,7 +78,6 @@ func getTestMessage() *Message {
 	msg.SetPid(int32(os.Getpid()))
 	msg.SetHostname(hostname)
 	msg.AddField(field)
-
 	return msg
 }
 

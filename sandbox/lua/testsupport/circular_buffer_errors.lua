@@ -63,6 +63,15 @@ function process_message ()
     elseif msg == "compute() start > end" then
         local cb = circular_buffer.new(2, 1, 1)
         cb:compute("sum", 1, 2e9, 1e9)
+    elseif msg == "format() invalid" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format("invalid")
+    elseif msg == "format() extra" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format("cbuf", true)
+    elseif msg == "format() missing" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format()
     end
 return 0
 end

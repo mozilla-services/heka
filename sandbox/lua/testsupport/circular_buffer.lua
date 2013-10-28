@@ -18,8 +18,8 @@ end
 
 function timer_event(ns)
     if ns == 0 then
-        output(data)
-        inject_message("cbuf", "Method tests")
+
+        inject_message(data, "Method tests")
     elseif ns == 1 then
         cbufs = {}
         for i=1,3,1 do

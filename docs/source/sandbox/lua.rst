@@ -79,18 +79,21 @@ Heka functions that are exposed to the Lua sandbox
     configuration parameter.
 
     *Arguments*
-        - arg (number, string, bool, nil, table) Lua variable or literal to be appended the output buffer
+        - arg (number, string, bool, nil, table, circular_buffer) Lua variable or literal to be appended the output buffer
 
     *Return*
         none
     
     *Notes*
+
         Outputting a Lua table will serialize it to JSON according to the following guidelines/restrictions:
             - Tables cannot contain internal of circular references.
             - Keys starting with an underscore are considered private and will not be serialized.
                 - '_name' is a special private key that can be used to specify the the name of the top level JSON object, if not provided the default is 'table'.
             - Arrays only use contiguous numeric keys starting with an index of 1. Private keys are the exception i.e. local a = {1,2,3,_name="my_name"} will be serialized as: ``{"my_name":[1,2,3]}\n``
             - Hashes only use string keys (numeric keys will not be quoted and the JSON output will be invalid). Note: the hash keys are output in an arbitrary order i.e. local a = {x = 1, y = 2} will be serialized as: ``{"table":{"y":2,"x":1}}\n``.
+
+        In most cases circular buffers should be directly output using inject_message.  However, in order to create graph annotations the annotation table has to be written to the output buffer followed by the circular buffer.  The output function is the only way to combine this data before injection (use a unique payload_type when injecting a message with a non-standard circular buffer mashups).
 
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
@@ -108,9 +111,24 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         none
 
+**inject_message(circular_buffer, payload_name)**
+    Creates a new Heka message placing the circular buffer output in the message payload (overwriting whatever is in the output buffer).
+    The payload_type is set to the circular buffer output format string. i.e., Fields[payload_type] == 'cbuf'.
+    The Fields[payload_name] is set to the provided payload_name.  
+
+    *Arguments*
+        - circular_buffer (circular_buffer)
+        - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
+
+    *Return*
+        none
+
+    *Notes*
+        - injection limits are enforced as described above
+
 **inject_message(message_table)**
     Creates a new Heka protocol buffer message using the contents of the
-    specified Lua table (injection limits are enforced as described above).
+    specified Lua table (overwriting whatever is in the output buffer).
     Notes about message fields:
 
     * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
@@ -129,6 +147,9 @@ Heka functions that are exposed to the Lua sandbox
 
     *Return*
         none
+
+    *Notes*
+        - injection limits are enforced as described above
 
 **require(libraryName)**
     Loads optional sandbox libraries
@@ -170,12 +191,13 @@ the ``circular_buffer`` table.
 
 Constructor
 -----------
-circular_buffer.\ **new**\ (rows, columns, seconds_per_row)
+circular_buffer.\ **new**\ (rows, columns, seconds_per_row, enable_delta)
 
     *Arguments*
         - rows (unsigned) The number of rows in the buffer (must be > 1)
         - columns (unsigned)The number of columns in the buffer (must be > 0)
         - seconds_per_row (unsigned) The number of seconds each row represents (must be > 0).
+        - enable_delta (**optional, default false** bool) When true the changes made to the circular buffer between delta outputs are tracked.
 
     *Return*
         A circular buffer object.
@@ -242,13 +264,26 @@ double **compute**\ (function, column, start, end)
     *Return*
         The result of the computation for the specifed column over the given range or nil if the range fell outside of the buffer.
 
+cbuf **format**\ (format)
+    Sets an internal flag to control the output format of the circular buffer data structure; if deltas are not enabled or there haven't been any modifications, nothing is output.
+
+    *Arguments*
+        - format (string)
+            - **cbuf** The circular buffer full data set format.
+            - **cbufd** The circular buffer delta data set format.
+
+    *Return*
+        The circular buffer object.
+
 Output
 ------
-The circular buffer can be passed to the output() function.  The output will
-consist newline delimited rows starting with a json header row followed by the
-data rows with tab delimited columns. The time in the header corresponds to the 
-time of the first data row, the time for the other rows is calculated using the
-seconds_per_row header value.
+The circular buffer can be passed to the output() function. The output format
+can be selected using the format() function.
+
+The cbuf (full data set) output format consists of newline delimited rows
+starting with a json header row followed by the data rows with tab delimited
+columns. The time in the header corresponds to the time of the first data row,
+the time for the other rows is calculated using the seconds_per_row header value.
 
 .. code-block:: txt
 
@@ -259,8 +294,20 @@ seconds_per_row header value.
     .
     rowN_col1\trowN_col2\n
 
-Sample Output
--------------
+The cbufd (delta) output format consists of newline delimited rows starting with
+a json header row followed by the data rows with tab delimited columns. The
+first column is the timestamp for the row (time_t). The cbufd output will only
+contain the rows that have changed and the corresponding delta values for each
+column.
+
+.. code-block:: txt
+
+    {json header}
+    row14_timestamp\trow14_col1\trow14_col2\n
+    row10_timestamp\trow10_col1\trow10_col2\n
+
+Sample Cbuf Output
+------------------
 .. code-block:: txt
 
     {"time":2,"rows":3,"columns":3,"seconds_per_row":60,"column_info":[{"name":"HTTP_200","unit":"count","aggregation":"sum"},{"name":"HTTP_400","unit":"count","aggregation":"sum"},{"name":"HTTP_500","unit":"count","aggregation":"sum"}]}

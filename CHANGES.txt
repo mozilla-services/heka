@@ -75,6 +75,9 @@ Bug Handling
 
 Features
 --------
+
+* Add delta output to circular buffers (issue #467)
+
 * Added json decoding to the Lua sandbox (issue #463). If you have an old build
   directory you will have to run make clean to pick up the new patch.
 
