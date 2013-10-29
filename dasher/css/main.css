@@ -6,6 +6,12 @@ a:focus {
   outline: none;
 }
 
+div.empty-list {
+  border-top: 2px solid #eee;
+  color: #999;
+  padding: 10px;
+}
+
 table .progress {
   margin-bottom: 0;
 }
@@ -67,6 +73,8 @@ table.plugins td.name span.glyphicon {
   margin-right: 4px;
 }
 
+table.plugin-attributes .key {}
+
 .sandboxes-row + .sandboxes-row {
   margin-top: 15px;
 }
@@ -76,7 +84,7 @@ table.plugins td.name span.glyphicon {
 }
 
 .sandbox-graph {
-  height: 250px !important;
+  height: 350px !important;
   width: 100% !important;
 }
 
@@ -146,10 +154,29 @@ html.embed .container {
   width: 100% !important;
 }
 
+html.embed h2 {
+  display: none;
+}
+
+html.embed .well {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: none;
+}
+
 html.embed .navbar {
   display: none;
 }
 
 html.embed .sandboxes-output-header {
   display: none;
+}
+
+html.embed .sandbox-graph-help {
+  display: none;
+}
+
+html.embed .sandbox-graph {
+  height: 250px !important;
 }

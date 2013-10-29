@@ -91,6 +91,15 @@ define(
         this.$(".sandbox-graph-legend-control label").each(function(i, label) {
           $(label).css({ color: colors[i] });
         });
+      },
+
+      /**
+      * Stops polling for updates before being destroyed.
+      *
+      * @method beforeDestroy
+      */
+      beforeDestroy: function() {
+        this.adapter.stopPollingForUpdates();
       }
     });
 

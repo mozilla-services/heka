@@ -13,7 +13,27 @@ define(
     *
     * @constructor
     */
-    var Sandbox = Backbone.DeepModel.extend({});
+    var Sandbox = Backbone.DeepModel.extend({
+      /**
+      * Finds sandbox output by its short filename.
+      *
+      * @method findOutputByShortFilename
+      *
+      * @param {String} shortFilename Filename without `data/`.
+      */
+      findOutputByShortFilename: function(shortFilename) {
+        var fileName = "data/" + shortFilename;
+        var sandboxOutput;
+
+        this.get("Outputs").forEach(function(o) {
+          if (o.get("Filename") === fileName) {
+            sandboxOutput = o;
+          }
+        });
+
+        return sandboxOutput;
+      }
+    });
 
     /**
     * Unique identifier for the sandbox (same as `Name`).

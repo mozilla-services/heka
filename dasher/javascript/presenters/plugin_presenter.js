@@ -1,9 +1,10 @@
 define(
   [
     "underscore",
-    "numeral"
+    "numeral",
+    "presenters/sandbox_output_presenter"
   ],
-  function(_, numeral) {
+  function(_, numeral, SandboxOutputPresenter) {
     "use strict";
 
     /**
@@ -17,7 +18,20 @@ define(
     * @param {Plugin} plugin Plugin to be presented
     */
     var PluginPresenter = function (plugin) {
+      this.plugin = plugin;
+
+      // Used for nested contexts with name collisions
+      this.PluginName = plugin.get("Name");
+
+      // Copy plugin attributes
       _.extend(this, plugin.attributes);
+
+      // Load presenters for each output
+      if (this.Outputs) {
+        this.Outputs = this.Outputs.collect(function(sandboxOutput) {
+          return new SandboxOutputPresenter(sandboxOutput);
+        });
+      }
     };
 
     _.extend(PluginPresenter.prototype, {
@@ -84,6 +98,36 @@ define(
       },
 
       /**
+      * Glyphicon CSS class based on the plugin type.
+      *
+      * @method typeCSSClass
+      * @return {String} cssClass
+      */
+      typeCSSClass: function() {
+        var cssClass = "glyphicon-";
+
+        switch (this.Type) {
+          case "Input":
+            cssClass += "log-in";
+            break;
+          case "DecoderPool":
+          case "Decoder":
+            cssClass += "import";
+            break;
+          case "Filter":
+            cssClass += "filter";
+            break;
+          case "Output":
+            cssClass += "log-out";
+            break;
+          default:
+            cssClass = "no-icon";
+        }
+
+        return cssClass;
+      },
+
+      /**
       * Checks existence of a match channel.
       *
       * @method hasMatchChannel
@@ -91,6 +135,50 @@ define(
       */
       hasMatchChannel: function() {
         return _.has(this, "MatchChanLength");
+      },
+
+      /**
+      * Checks existence of outputs.
+      *
+      * @method hasOutputs
+      * @return {Boolean}
+      */
+      hasOutputs: function() {
+        return _.has(this, "Outputs");
+      },
+
+      /**
+      * Checks existence of keys and values.
+      *
+      * @method hasKeysAndValues
+      * @return {Boolean}
+      */
+      hasKeysAndValues: function() {
+        return this.keysAndValues().length > 0;
+      },
+
+      /**
+      * Array of properties and formatted keys and values.
+      *
+      * @method keysAndValues
+      * @return {Object[]} keysAndValues
+      */
+      keysAndValues: function() {
+        var keysAndValues = [];
+
+        _.each(this.plugin.attributes, function(value, key) {
+          if (key != "Name" && key != "id" && key != "Outputs" && key != "Type") {
+            var formattedValue = numeral(value.value).format("0,0");
+
+            if (value.representation && value.representation != "count") {
+              formattedValue += " " + value.representation;
+            }
+
+            keysAndValues.push({ key: key, value: formattedValue });
+          }
+        });
+
+        return keysAndValues;
       }
     });
 

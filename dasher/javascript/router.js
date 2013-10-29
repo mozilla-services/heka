@@ -2,12 +2,16 @@ define(
   [
     "jquery",
     "backbone",
+    "adapters/plugins_adapter",
+    "adapters/sandboxes_adapter",
     "views/health/health_index",
     "views/sandboxes/sandboxes_index",
     "views/sandboxes/sandbox_output_cbuf_show",
-    "views/sandboxes/sandbox_output_txt_show"
+    "views/sandboxes/sandbox_output_txt_show",
+    "views/sandboxes/sandboxes_show",
+    "views/health/plugins_show"
   ],
-  function($, Backbone, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow) {
+  function($, Backbone, PluginsAdapter, SandboxesAdapter, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow, SandboxesShow, PluginsShow) {
     "use strict";
 
     /**
@@ -18,7 +22,16 @@ define(
     * - `/#`
     * - `/#health`
     * - `/#sandboxes`
-    * - `/#sandboxes/embed/:filename`
+    *
+    * - `/#plugins/inputs/:name`
+    * - `/#plugins/decoderPools/:name`
+    * - `/#plugins/decoders/:name`
+    * - `/#plugins/filters/:name`
+    * - `/#plugins/outputs/:name`
+    *
+    * - `/#sandboxes`
+    * - `/#sandboxes/:sandboxName/outputs/:shortFileName`
+    * - `/#sandboxes/:sandboxName/outputs/:shortFileName/embed`
     *
     * @class Router
     *
@@ -26,10 +39,18 @@ define(
     */
     var Router = Backbone.Router.extend({
       routes: {
-        "":          "health",    // #
-        "health":    "health",    // #health
-        "sandboxes": "sandboxes",  // #sandboxes
-        "sandboxes/embed/:filename": "embeddedSandboxOutput" // #sandboxes/embed/msgtype_counter.MessageTypeCounts.cbuf
+        "": "health",
+        "health": "health",
+
+        "plugins/inputs/:name": "showInput",
+        "plugins/decoderPools/:name": "showDecoderPool",
+        "plugins/decoders/:name": "showDecoder",
+        "plugins/filters/:name": "showFilter",
+        "plugins/outputs/:name": "showOutput",
+
+        "sandboxes": "sandboxes",
+        "sandboxes/:sandboxName/outputs/:shortFileName": "showSandboxOutput",
+        "sandboxes/:sandboxName/outputs/:shortFileName/embed": "showSandboxOutput"
       },
 
       /**
@@ -42,6 +63,61 @@ define(
       },
 
       /**
+      * Loads input plugin by name and navigates to plugin's show.
+      *
+      * @method showInput
+      */
+      showInput: function(name) {
+        PluginsAdapter.instance().findInputWhere({ Name: name }, function(input) {
+          this._switch(new PluginsShow({ model: input }));
+        }.bind(this));
+      },
+
+      /**
+      * Loads decoder pool plugin by name and navigates to plugin's show.
+      *
+      * @method showDecoderPool
+      */
+      showDecoderPool: function(name) {
+        PluginsAdapter.instance().findDecoderPoolWhere({ Name: name }, function(decoderPool) {
+          this._switch(new PluginsShow({ model: decoderPool }));
+        }.bind(this));
+      },
+
+      /**
+      * Loads decoder plugin by name and navigates to plugin's show.
+      *
+      * @method showDecoder
+      */
+      showDecoder: function(name) {
+        PluginsAdapter.instance().findDecoderWhere({ Name: name }, function(decoder) {
+          this._switch(new PluginsShow({ model: decoder }));
+        }.bind(this));
+      },
+
+      /**
+      * Loads filter plugin by name and navigates to plugin's show.
+      *
+      * @method showInput
+      */
+      showFilter: function(name) {
+        PluginsAdapter.instance().findFilterWhere({ Name: name }, function(filter) {
+          this._switch(new PluginsShow({ model: filter }));
+        }.bind(this));
+      },
+
+      /**
+      * Loads output plugin by name and navigates to plugin's show.
+      *
+      * @method showInput
+      */
+      showOutput: function(name) {
+        PluginsAdapter.instance().findOutputWhere({ Name: name }, function(output) {
+          this._switch(new PluginsShow({ model: output }));
+        }.bind(this));
+      },
+
+      /**
       * Loads and navigates to the sandboxes index.
       *
       * @method sandboxes
@@ -51,22 +127,26 @@ define(
       },
 
       /**
-      * Loads the correct sandbox output show view based on the Filename extension. These views
-      * stand-alone without navigation and are used for embedding.
+      * Loads the correct sandbox output show view based on the Filename extension.
       *
-      * @method embeddedSandboxOutput
+      * @method showSandboxOutput
       */
-      embeddedSandboxOutput: function(filename) {
-        var model = new Backbone.Model({ Filename: "data/" + filename });
-        var outputView;
+      showSandboxOutput: function(sandboxName, shortFilename) {
+        SandboxesAdapter.instance().findSandboxWhere({ Name: sandboxName }, function(sandbox) {
+          var sandboxOutput = sandbox.findOutputByShortFilename(shortFilename);
 
-        if (filename.match(/\.cbuf$/)) {
-          outputView = new SandboxOutputCbufShow({ model: model });
-        } else {
-          outputView = new SandboxOutputTxtShow({ model: model });
-        }
+          if (sandboxOutput) {
+            var outputView;
 
-        this._switch(outputView);
+            if (shortFilename.match(/\.cbuf$/)) {
+              outputView = new SandboxOutputCbufShow({ model: sandboxOutput, sandbox: sandbox });
+            } else {
+              outputView = new SandboxOutputTxtShow({ model: sandboxOutput, sandbox: sandbox });
+            }
+
+            this._switch(outputView);
+          }
+        }.bind(this));
       },
 
       /**
@@ -87,7 +167,7 @@ define(
         $("#content").html(this.currentView.render().el);
 
         // Add embed class if the url contains embed
-        if (window.location.href.match(/embed/)) {
+        if (window.location.href.match(/\/embed$/)) {
           $("html").addClass("embed");
         } else {
           $("html").removeClass("embed");

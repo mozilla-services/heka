@@ -46,6 +46,15 @@ define(
       */
       updateData: function() {
         this.$("pre").html(this.model.get("data"));
+      },
+
+      /**
+      * Stops polling for updates before being destroyed.
+      *
+      * @method beforeDestroy
+      */
+      beforeDestroy: function() {
+        this.adapter.stopPollingForUpdates();
       }
     });
 

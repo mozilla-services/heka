@@ -28,6 +28,20 @@ define(
       */
       ShortFilename: function() {
         return this.Filename.replace(/^data\//, "");
+      },
+
+      /**
+      * Type of sandbox output based on the file extension.
+      *
+      * @method Type
+      * @return {String} Uppercase file extension
+      */
+      Type: function() {
+        var match = this.Filename.match(/\.([a-z]+)$/);
+
+        if (match) {
+          return match[1].toUpperCase();
+        }
       }
     });
 

@@ -20,21 +20,12 @@ define(
       template: SandboxesIndexTemplate,
 
       initialize: function() {
-        this.adapter = new SandboxesAdapter();
+        this.adapter = new SandboxesAdapter.instance();
         this.collection = this.adapter.sandboxes;
 
         this.listenTo(this.collection, "add remove reset", this.render, this);
 
         this.adapter.fill();
-      },
-
-      /**
-      * Renders SandboxesRow into `#sandboxes` after render.
-      *
-      * @method afterRender
-      */
-      afterRender: function() {
-        this.renderCollection(SandboxesRow, "#sandboxes");
       }
     });
 

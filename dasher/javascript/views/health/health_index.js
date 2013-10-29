@@ -24,7 +24,7 @@ define(
       template: HealthIndexTemplate,
 
       initialize: function() {
-        this.adapter = new PluginsAdapter();
+        this.adapter = PluginsAdapter.instance();
 
         this.globalsIndex = new GlobalsIndex({ collection: this.adapter.globals });
         this.inputsIndex = new InputsIndex({ collection: this.adapter.inputs });

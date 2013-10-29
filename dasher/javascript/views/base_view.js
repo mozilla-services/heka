@@ -34,13 +34,25 @@ define(
       },
 
       /**
-      * Applies configured presenter to local model
+      * Applies configured presenter to local model or collection.
       *
       * @method getPresentation
-      * @return {Object} model presentation
+      * @return {Object}
       */
       getPresentation: function() {
-        return new this.presenter(this.model);
+        var presentation;
+
+        if (this.model) {
+          presentation = new this.presenter(this.model);
+        } else if (this.collection) {
+          var presentedCollection = this.collection.collect(function(i) {
+            return new this.presenter(i);
+          }.bind(this));
+
+          presentation = { collection: presentedCollection };
+        }
+
+        return presentation;
       },
 
       /**
@@ -109,11 +121,6 @@ define(
       destroy: function() {
         if (this.beforeDestroy) {
           this.beforeDestroy();
-        }
-
-        // Turn off adapter polling
-        if (this.adapter && this.adapter.stopPollingForUpdates) {
-          this.adapter.stopPollingForUpdates();
         }
 
         this.stopListening();

@@ -17,6 +17,25 @@ define(
 
     _.extend(BaseAdapter.prototype, {
       /**
+      * Finds an element in a collection asynchronously.
+      *
+      * @method findWhere
+      *
+      * @param {Backbone.Collection} collection Collection to be searched
+      * @param {Object} options Search options that are passed to `Backbone.Collection.findWhere`
+      * @param {Function} callback Function called when find is complete
+      * @param {String} callback.result Model found from the search.
+      */
+      findWhere: function(collection, options, callback) {
+        if (collection.length > 0) {
+          callback(collection.findWhere(options));
+        } else {
+          this.fill().done(function() {
+            callback(collection.findWhere(options));
+          });
+        }
+      },
+      /**
       * Fills local variables with data fetched from the server. Should be implemented by
       * subclasses.
       *
@@ -53,9 +72,12 @@ define(
       *
       * @method pollForUpdates
       */
-      pollForUpdates: function() {
+      pollForUpdates: function(ms) {
+        // default to 2 seconds
+        ms = ms || 2000;
+
         if (!this.updateTimer) {
-          this.updateTimer = setInterval(function() { this.fill(); }.bind(this), 2000);
+          this.updateTimer = setInterval(function() { this.fill(); }.bind(this), ms);
         }
       },
 

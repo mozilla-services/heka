@@ -1,3 +1,18 @@
 <h1 class="page-title">Sandboxes</h1>
 
-<div id="sandboxes"></div>
+{{#collection.length}}
+<table id="sandboxes" class="table">
+  <thead>
+    <th>Name</th>
+    <th>Outputs</th>
+  </thead>
+  <tbody>
+    {{#collection}}
+      <tr>
+        <td><span class="glyphicon glyphicon-filter"></span>  <a href="#plugins/filters/{{Name}}">{{Name}}</a></td>
+        <td>{{Outputs.length}}</td>
+      </tr>
+    {{/collection}}
+  </tbody>
+</table>
+{{/collection.length}}
