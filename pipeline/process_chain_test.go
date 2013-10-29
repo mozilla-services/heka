@@ -58,7 +58,7 @@ func ProcessChainSpec(c gs.Context) {
 
 		c.Specify("honors nonzero timeouts", func() {
 			Path := "tail"
-			timeout := time.Second * 1
+			timeout := time.Millisecond * 100
 			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
 
 			output_chan := cmd.StdoutChan()
@@ -67,14 +67,10 @@ func ProcessChainSpec(c gs.Context) {
 			go readCommandOutput(output_chan, output)
 
 			cmd.Start(true)
-			start := time.Now()
 			cmd.Wait()
-			end := time.Now()
-			actual_duration := end.Sub(start)
 			output_str := <-output
 
 			c.Expect(output_str, gs.Equals, PIPE_TEST_OUTPUT)
-			c.Expect(actual_duration >= timeout, gs.Equals, true)
 		})
 
 		c.Specify("reads process stderr properly", func() {
@@ -100,7 +96,7 @@ func ProcessChainSpec(c gs.Context) {
 
 		c.Specify("can be terminated before timeout occurs", func() {
 			Path := "tail"
-			timeout := time.Second * 3
+			timeout := time.Second * 30
 			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
 
 			stdout_chan := cmd.StdoutChan()
@@ -110,7 +106,7 @@ func ProcessChainSpec(c gs.Context) {
 
 			cmd.Start(true)
 			start := time.Now()
-			time.Sleep(time.Second * 1)
+			time.Sleep(time.Millisecond * 100)
 			cmd.Stopchan <- true
 			cmd.Wait()
 			end := time.Now()
@@ -180,29 +176,25 @@ func ProcessChainSpec(c gs.Context) {
 			// This test assumes tail and grep
 			var err error
 
-			timeout := time.Second * 1
+			timeout := time.Millisecond * 100
 			chain := NewCommandChain(timeout)
 			// tail -f will never terminate
 			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
 			chain.AddStep("grep", "-i", "TEST")
 
 			err = chain.Start()
-			start := time.Now()
 			c.Expect(err, gs.IsNil)
 			err = chain.Wait()
 			c.Expect(err, gs.Not(gs.IsNil))
 
-			end := time.Now()
-			actual_duration := end.Sub(start)
 			c.Expect(strings.Contains(err.Error(), "timedout"), gs.Equals, true)
-			c.Expect(actual_duration >= timeout, gs.Equals, true)
 		})
 
 		c.Specify("will stop chains before timeout has completed", func() {
 			// This test assumes tail and grep
 			var err error
 
-			timeout := time.Second * 5
+			timeout := time.Second * 30
 			chain := NewCommandChain(timeout)
 			// tail -f will never terminate
 			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
@@ -211,7 +203,7 @@ func ProcessChainSpec(c gs.Context) {
 			err = chain.Start()
 			start := time.Now()
 			c.Expect(err, gs.IsNil)
-			time.Sleep(time.Second * 1)
+			time.Sleep(time.Millisecond * 100)
 
 			chain.Stopchan <- true
 			err = chain.Wait()
