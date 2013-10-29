@@ -33,7 +33,7 @@ define(
       * @property {Object[]} data
       */
       this.data = null;
-    }
+    };
 
     /**
     * Parses circular buffer data (files ending in cbuf).
@@ -42,7 +42,7 @@ define(
     *
     * @param {String} input Circular buffer data which includes JSON and CSV data
     *
-    * @return {Object} circularBuffer
+    * @return {CircularBuffer}
     * @static
     */
     CircularBuffer.parse = function(input) {
@@ -77,7 +77,7 @@ define(
       }
 
       return circularBuffer;
-    }
+    };
 
     return CircularBuffer;
   }

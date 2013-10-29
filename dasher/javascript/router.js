@@ -9,9 +9,10 @@ define(
     "views/sandboxes/sandbox_output_cbuf_show",
     "views/sandboxes/sandbox_output_txt_show",
     "views/sandboxes/sandboxes_show",
-    "views/health/plugins_show"
+    "views/health/plugins_show",
+    "views/termination_report/termination_report_index"
   ],
-  function($, Backbone, PluginsAdapter, SandboxesAdapter, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow, SandboxesShow, PluginsShow) {
+  function($, Backbone, PluginsAdapter, SandboxesAdapter, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow, SandboxesShow, PluginsShow, TerminationReportIndex) {
     "use strict";
 
     /**
@@ -50,7 +51,9 @@ define(
 
         "sandboxes": "sandboxes",
         "sandboxes/:sandboxName/outputs/:shortFileName": "showSandboxOutput",
-        "sandboxes/:sandboxName/outputs/:shortFileName/embed": "showSandboxOutput"
+        "sandboxes/:sandboxName/outputs/:shortFileName/embed": "showSandboxOutput",
+
+        "termination_report": "showTerminationReportIndex"
       },
 
       /**
@@ -147,6 +150,10 @@ define(
             this._switch(outputView);
           }
         }.bind(this));
+      },
+
+      showTerminationReportIndex: function() {
+        this._switch(new TerminationReportIndex());
       },
 
       /**

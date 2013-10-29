@@ -23,7 +23,7 @@ define(
         this.adapter = new SandboxesAdapter.instance();
         this.collection = this.adapter.sandboxes;
 
-        this.listenTo(this.collection, "add remove reset", this.render, this);
+        this.listenTo(this.collection, "add remove reset change", this.render, this);
 
         this.adapter.fill();
       }

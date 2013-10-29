@@ -16,6 +16,10 @@ table .progress {
   margin-bottom: 0;
 }
 
+.navbar-fixed-top {
+  background: rgba(255,255,255,0.96) !important;
+}
+
 .navbar-brand {
   font-weight: bold;
   padding-top: 14px !important;

@@ -14,7 +14,8 @@ require.config({
     "numeral":               "vendor/numeral",
     "dygraph":               "vendor/dygraph-combined",
     "deepModel":             "vendor/deep-model",
-    "crc32":                 "vendor/crc32"
+    "crc32":                 "vendor/crc32",
+    "moment":                "vendor/moment.min"
   },
 
   shim: {
