@@ -82,6 +82,14 @@ table.plugins td.name span.glyphicon {
   margin-right: 4px;
 }
 
+table.sandboxes tbody th {
+  background: #fafafa;
+}
+
+table.sandboxes td.name {
+  padding-left: 26px;
+}
+
 .sandboxes-row + .sandboxes-row {
   margin-top: 15px;
 }

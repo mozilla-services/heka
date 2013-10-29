@@ -2,9 +2,10 @@ define(
   [
     "views/base_view",
     "hgn!templates/sandboxes/sandboxes_index",
-    "adapters/sandboxes_adapter"
+    "adapters/sandboxes_adapter",
+    "presenters/plugin_presenter"
   ],
-  function(BaseView, SandboxesIndexTemplate, SandboxesAdapter) {
+  function(BaseView, SandboxesIndexTemplate, SandboxesAdapter, PluginPresenter) {
     "use strict";
 
     /**
@@ -16,6 +17,7 @@ define(
     * @constructor
     */
     var SandboxesIndex = BaseView.extend({
+      presenter: PluginPresenter,
       template: SandboxesIndexTemplate,
 
       initialize: function() {

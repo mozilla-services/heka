@@ -1,17 +1,22 @@
 <h1 class="page-title">Sandboxes</h1>
 
 {{#collection.length}}
-<table id="sandboxes" class="table">
+<table class="sandboxes table">
   <thead>
-    <th>Name</th>
-    <th>Outputs</th>
+    <th class="name">Name</th>
+    <th class="type">Type</th>
   </thead>
   <tbody>
     {{#collection}}
       <tr>
-        <td><span class="glyphicon glyphicon-filter"></span>  <a href="#plugins/filters/{{Name}}">{{Name}}</a></td>
-        <td>{{Outputs.length}}</td>
+        <th class="name" colspan="2"><span class="glyphicon glyphicon-filter"></span>  <a href="#plugins/filters/{{Name}}">{{Name}}</a></th>
       </tr>
+      {{#Outputs}}
+        <tr>
+          <td class="name"><a href="#sandboxes/{{PluginName}}/outputs/{{ShortFilename}}">{{Name}}{{^Name}}[Untitled]{{/Name}}</a></td>
+          <td class="type"><small>{{Type}}</small></td>
+        </tr>
+      {{/Outputs}}
     {{/collection}}
   </tbody>
 </table>
