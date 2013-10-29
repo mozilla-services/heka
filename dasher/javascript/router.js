@@ -8,11 +8,10 @@ define(
     "views/sandboxes/sandboxes_index",
     "views/sandboxes/sandbox_output_cbuf_show",
     "views/sandboxes/sandbox_output_txt_show",
-    "views/sandboxes/sandboxes_show",
     "views/health/plugins_show",
     "views/termination_report/termination_report_index"
   ],
-  function($, Backbone, PluginsAdapter, SandboxesAdapter, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow, SandboxesShow, PluginsShow, TerminationReportIndex) {
+  function($, Backbone, PluginsAdapter, SandboxesAdapter, HealthIndex, SandboxesIndex, SandboxOutputCbufShow, SandboxOutputTxtShow, PluginsShow, TerminationReportIndex) {
     "use strict";
 
     /**

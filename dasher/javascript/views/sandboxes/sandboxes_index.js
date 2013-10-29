@@ -2,10 +2,9 @@ define(
   [
     "views/base_view",
     "hgn!templates/sandboxes/sandboxes_index",
-    "adapters/sandboxes_adapter",
-    "views/sandboxes/sandboxes_row"
+    "adapters/sandboxes_adapter"
   ],
-  function(BaseView, SandboxesIndexTemplate, SandboxesAdapter, SandboxesRow) {
+  function(BaseView, SandboxesIndexTemplate, SandboxesAdapter) {
     "use strict";
 
     /**
