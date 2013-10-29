@@ -100,7 +100,7 @@ func ProcessChainSpec(c gs.Context) {
 
 		c.Specify("can be terminated before timeout occurs", func() {
 			Path := "tail"
-			timeout := time.Second * 3
+			timeout := time.Second * 30
 			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
 
 			stdout_chan := cmd.StdoutChan()
@@ -202,7 +202,7 @@ func ProcessChainSpec(c gs.Context) {
 			// This test assumes tail and grep
 			var err error
 
-			timeout := time.Second * 5
+			timeout := time.Second * 30
 			chain := NewCommandChain(timeout)
 			// tail -f will never terminate
 			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
