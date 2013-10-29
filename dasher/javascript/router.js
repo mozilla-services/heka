@@ -21,7 +21,6 @@ define(
     *
     * - `/#`
     * - `/#health`
-    * - `/#sandboxes`
     *
     * - `/#plugins/inputs/:name`
     * - `/#plugins/decoderPools/:name`
@@ -33,14 +32,16 @@ define(
     * - `/#sandboxes/:sandboxName/outputs/:shortFileName`
     * - `/#sandboxes/:sandboxName/outputs/:shortFileName/embed`
     *
+    * - `/#termination_report`
+    *
     * @class Router
     *
     * @constructor
     */
     var Router = Backbone.Router.extend({
       routes: {
-        "": "health",
-        "health": "health",
+        "": "showHealthIndex",
+        "health": "showHealthIndex",
 
         "plugins/inputs/:name": "showInput",
         "plugins/decoderPools/:name": "showDecoderPool",
@@ -48,7 +49,7 @@ define(
         "plugins/filters/:name": "showFilter",
         "plugins/outputs/:name": "showOutput",
 
-        "sandboxes": "sandboxes",
+        "sandboxes": "showSandboxesIndex",
         "sandboxes/:sandboxName/outputs/:shortFileName": "showSandboxOutput",
         "sandboxes/:sandboxName/outputs/:shortFileName/embed": "showSandboxOutput",
 
@@ -58,9 +59,9 @@ define(
       /**
       * Loads and navigates to the health index.
       *
-      * @method health
+      * @method showHealthIndex
       */
-      health: function() {
+      showHealthIndex: function() {
         this._switch(new HealthIndex());
       },
 
@@ -122,9 +123,9 @@ define(
       /**
       * Loads and navigates to the sandboxes index.
       *
-      * @method sandboxes
+      * @method showSandboxesIndex
       */
-      sandboxes: function() {
+      showSandboxesIndex: function() {
         this._switch(new SandboxesIndex());
       },
 
@@ -151,6 +152,11 @@ define(
         }.bind(this));
       },
 
+      /**
+      * Loads and navigates to the termination report index.
+      *
+      * @method showTerminationReportIndex
+      */
       showTerminationReportIndex: function() {
         this._switch(new TerminationReportIndex());
       },
@@ -180,7 +186,7 @@ define(
         }
 
         // Make sure we're scrolled to the top
-        window.scrollTo(0, 0);
+        window.scrollTo(0, 1);
 
         // Close navbars
         if ($(window).width() <= 768 && $(".navbar-collapse").is(":visible")) {
