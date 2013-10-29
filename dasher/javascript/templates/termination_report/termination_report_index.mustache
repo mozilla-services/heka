@@ -1,7 +1,7 @@
 <h1 class="page-title">Termination Report</h1>
 
 {{#collection.length}}
-<table class="table">
+<table class="table table-striped table-collapsible">
   <thead>
     <th>Date</th>
     <th>Plugin</th>
@@ -10,9 +10,9 @@
   <tbody>
     {{#collection}}
       <tr>
-        <td>{{formattedTime}}</td>
-        <td>{{plugin}}</td>
-        <td>{{message}}</td>
+        <td data-title="Date">{{formattedTime}}</td>
+        <td data-title="Plugin">{{plugin}}</td>
+        <td data-title="Message">{{message}}</td>
       </tr>
     {{/collection}}
   </tbody>

@@ -178,6 +178,14 @@ define(
         } else {
           $("html").removeClass("embed");
         }
+
+        // Make sure we're scrolled to the top
+        window.scrollTo(0, 0);
+
+        // Close navbars
+        if ($(window).width() <= 768 && $(".navbar-collapse").is(":visible")) {
+          $(".navbar-collapse").collapse("hide");
+        }
       }
     });
 
