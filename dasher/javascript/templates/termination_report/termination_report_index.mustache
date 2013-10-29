@@ -1,0 +1,24 @@
+<h1 class="page-title">Termination Report</h1>
+
+{{#collection.length}}
+<table class="table table-striped table-collapsible">
+  <thead>
+    <th>Date</th>
+    <th>Plugin</th>
+    <th>Message</th>
+  </thead>
+  <tbody>
+    {{#collection}}
+      <tr>
+        <td data-title="Date">{{formattedTime}}</td>
+        <td data-title="Plugin">{{plugin}}</td>
+        <td data-title="Message">{{message}}</td>
+      </tr>
+    {{/collection}}
+  </tbody>
+</table>
+{{/collection.length}}
+
+{{^collection.length}}
+  <div class="empty-list">No plugins have been terminated</div>
+{{/collection.length}}

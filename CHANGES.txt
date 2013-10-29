@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* DashboardOutput now needs a `static_directory` setting to specify where the
+  Heka dashboard source code can be found.
+
 * AMQPInput now only supports a single decoder to be specified (issue #414).
 
 * UdpInput configuration now requires a parser_type and decoder to be specified
