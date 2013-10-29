@@ -26,6 +26,7 @@ import (
 	p "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -70,7 +71,21 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	return
 }
 
+func (l *LogstreamLocation) Reset() {
+	l.Filename = ""
+	l.SeekPosition = int64(0)
+	l.LastLoglineStart = int64(0)
+	l.LastLogline = ""
+	l.LastLoglineLength = ""
+	l.Hash = ""
+}
+
 func (l *LogstreamLocation) Save() error {
+	// If we don't have a JournalPath, ignore
+	if l.JournalPath == "" {
+		return
+	}
+
 	// Note: We can't serialize the stat.pinfo in a cross platform way.
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
@@ -100,6 +115,27 @@ func (l *LogstreamLocation) Save() error {
 	return nil
 }
 
+// Determine given a position and logfiles whether there's a newer logfile available and
+// we've read to the end of the prior.
+//
+// Rationale: This functionality is not built into LocatePriorLocation because we don't
+// want to have to keep opening/closing a file when we don't know if there is another file
+// available that is newer yet. This way we can keep attempting to read the last file we
+// have open until we know there's a newer one and we've hit the end of the older one.
+func (l *LogstreamLocation) ShouldUseNewer(files Logfiles) bool {
+	lastFilename := files[len(files)-1].FileName
+	if lastFilename == l.Filename {
+		return false
+	}
+	// There are newer files, see if we're at the end of the file of our
+	// position
+	finfo, err := os.Stat(l.Filename)
+	if err != nil {
+		return false
+	}
+	return l.SeekPosition >= finfo.Size()
+}
+
 // Locate and return a file handle seeked to the appropriate location. An error will be
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
@@ -121,7 +157,7 @@ func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.Fi
 	// Unable to locate the file, or the position wasn't where we thought it should be.
 	// Start systematically searching all the files for this location to see if it was
 	// shuffled around.
-	for _, logfile := range files {
+	for i, logfile := range files {
 		fd, err = SeekInFile(logfile.FileName, position)
 		if err == nil {
 			// Located the position! Update the filename in the position
@@ -163,6 +199,8 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 	return nil, errors.New("Unable to locate position")
 }
 
+// TODO:: Refactor into a different heka package for use by all plugins
+// and have PluginRunner inherit from it
 type Logger interface {
 	LogError(err error)
 	LogMessage(msg string)
@@ -230,4 +268,107 @@ func (p *ProtobufPackCreator) PopulatePack(record []byte, pack *p.PipelinePack) 
 	}
 	pack.MsgBytes = pack.MsgBytes[:messageLen]
 	copy(pack.MsgBytes, record[headerLen:])
+}
+
+// A logfile resumer holds information on the logfiles that are available
+// and where in the logstream to start reading.
+type LogfileResumer struct {
+	// Internally used so that logfiles will only be used by a single
+	// goroutine at a time. This allows external updates via the
+	// UpdateLogfiles call.
+	updateMutex *sync.Mutex
+	logfiles    Logfiles
+	position    *LogstreamLocation
+	// A duration string suitable for time.ParseDuration
+	oldestDuration time.Duration
+}
+
+func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
+	oldestDuration string) (l *LogfileResumer, err error) {
+	var d time.Duration
+	if oldestDuration != nil {
+		d, err = time.ParseDuration(oldestDuration)
+		if err != nil {
+			return
+		}
+	}
+	l = &LogfileResumer{
+		updateMutex:    new(sync.Mutex),
+		logfiles:       logfiles,
+		position:       position,
+		oldestDuration: d,
+	}
+	return
+}
+
+// Finds the file to start reading from, resumes position in the file
+// if possible, returns a file descriptor ready for reading.
+func (l *LogfileResumer) ResumeFileReading() (f *os.File, err error) {
+	l.updateMutex.Lock()
+	defer l.updateMutex.Unlock()
+
+	if l.position.Filename != "" {
+		f, err = LocatePriorLocation(l.logfiles, l.position)
+		if err == nil {
+			return
+		}
+		// Unable to locate prior location, clear out error
+		err = nil
+	}
+
+	// No prior location, ensure we're reset
+	l.position.Reset()
+
+	// If we have a oldest duration, filter the logfiles and grab the
+	// oldest, otherwise start with the most recent
+	var filename string
+
+}
+
+// Updates the logfiles safely
+func (l *LogfileResumer) UpdateLogfiles(files Logfiles) {
+	l.updateMutex.Lock()
+	defer l.updateMutex.Unlock()
+	l.logfiles = files
+}
+
+// Main abstraction used by the plugin that is responsible for returning
+// populated packs from the logfiles read. The PackGenerator generates packs
+// based on the Logfiles supplied. It works in lockstep such that it will
+// only read more lines when a pack is available. Closing the PackFeed will
+// halt the PackGenerator and its position will be saved if it has a Position
+// set.
+type PackGenerator struct {
+	log         Logger
+	loggerIdent string
+	hostname    string
+	// Same as for the plugin config
+	discoverInterval int
+	statInterval     int
+
+	lfr LogfileResumer
+	pc  PackCreator
+	// How many packs are read at once before the position is saved
+	saveInterval int
+}
+
+func NewPackGenerator(log Logger, loggerIdent, hostname string, discoverInterval,
+	statInterval, saveInterval int, logfiles Logfiles, packCreator PackCreator,
+	resumeFromStart bool, position *LogstreamLocation) *PackGenerator {
+	return &PackGenerator{
+		log:              log,
+		loggerIdent:      loggerIdent,
+		hostname:         hostname,
+		discoverInterval: discoverInterval,
+		statInterval:     statInterval,
+		saveInterval:     saveInterval,
+		logfiles:         logfiles,
+		packCreator:      packCreator,
+		position:         position,
+		resumeFromStart:  resumeFromStart,
+	}
+}
+
+func (p *PackGenerator) Run(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+
 }

@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var MonthLookup = map[string]int{
@@ -70,6 +71,8 @@ var digitRegex = regexp.MustCompile(`^\d+$`)
 
 // Custom multiple error type that satisfies Go error interface but has
 // alternate printing options
+// TODO:: Refactor into a utility package so that other plugins can use
+// this instead of everyone inventing their own version
 type MultipleError []string
 
 func NewMultipleError() *MultipleError {
@@ -177,6 +180,19 @@ func (l Logfiles) FileNames() []string {
 		s = append(s, logfile.FileName)
 	}
 	return s
+}
+
+// Returns a Logfiles only containing logfiles newer than oldTime
+// based on the files last modified file attribute
+func (l Logfiles) FilterOld(oldTime time.Time) Logfiles {
+	f := make(Logfiles, 0)
+	for _, logfile := range l {
+		finfo := os.Stat(logfile.FileName)
+		if finfo.ModTime().After(oldTime) {
+			f = append(f, logfile)
+		}
+	}
+	return f
 }
 
 // ByPriority implements the final method of the sort.Interface so that the embedded
