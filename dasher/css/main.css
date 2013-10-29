@@ -105,11 +105,18 @@ table.plugin-attributes .key {}
   width: 90% !important;
 }
 
+.sandbox-graph-options {
+  text-align: right;
+}
+
+.sandbox-graph-options label {
+  font-weight: normal;
+}
+
 .sandbox-graph-help {
   color: #999;
   font-size: 11px;
   margin-bottom: 15px;
-  text-align: right;
   text-transform: uppercase;
 }
 
@@ -174,10 +181,6 @@ html.embed .navbar {
 }
 
 html.embed .sandboxes-output-header {
-  display: none;
-}
-
-html.embed .sandbox-graph-help {
   display: none;
 }
 

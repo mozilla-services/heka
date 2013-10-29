@@ -11,15 +11,20 @@
   </div>
 </div>
 <div class="sandbox-graph-container well">
-  <div class="sandbox-graph-help">
-    <span class="glyphicon glyphicon-zoom-in"></span> Click and drag to zoom |
-    <span class="glyphicon glyphicon-resize-horizontal"></span> Shift-drag to pan |
-    <span class="glyphicon glyphicon-zoom-out"></span> Double-click to zoom out
+  <div class="row">
+    <div class="col-sm-9 sandbox-graph-help">
+      <span class="glyphicon glyphicon-zoom-in"></span> Click and drag to zoom |
+      <span class="glyphicon glyphicon-resize-horizontal"></span> Shift-drag to pan |
+      <span class="glyphicon glyphicon-zoom-out"></span> Double-click to zoom out
+    </div>
+    <div class="col-sm-3 sandbox-graph-options">
+      <label><input type="checkbox" class="toggle-log-scale" /> Log scale</label>
+    </div>
   </div>
   <div class="sandbox-graph"></div>
   <div class="sandbox-graph-legend">
     {{#legendLabels}}
-      <span class="sandbox-graph-legend-control"><label><input type="checkbox" checked="checked" data-label-id="{{id}}" /> {{name}}</labels></span>
+      <span class="sandbox-graph-legend-control"><label><input type="checkbox" checked="checked" data-label-id="{{id}}" /> {{name}}</label></span>
     {{/legendLabels}}
   </div>
 </div>

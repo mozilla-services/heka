@@ -24,7 +24,8 @@ define(
       className: "sandboxes-output sandboxes-output-cbuf",
 
       events: {
-        "click .sandbox-graph-legend-control input": "toggleSeries"
+        "click .sandbox-graph-legend-control input": "toggleSeries",
+        "click .toggle-log-scale": "toggleLogScale"
       },
 
       initialize: function() {
@@ -44,6 +45,17 @@ define(
         var $target = $(event.target);
 
         this.dygraph.setVisibility($target.attr("data-label-id"), $target.is(":checked"));
+      },
+
+      /**
+      * Toggles log scale on the graph.
+      *
+      * @method toggleLogScale
+      */
+      toggleLogScale: function(event) {
+        var $target = $(event.target);
+
+        this.dygraph.updateOptions({ logscale: $target.is(":checked") });
       },
 
       /**
