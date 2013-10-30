@@ -173,10 +173,8 @@ define(
           this.currentView.destroy();
         }
 
-        // Assign new view and render
+        // Assign new view
         this.currentView = view;
-
-        $("#content").html(this.currentView.render().el);
 
         // Add embed class if the url contains embed
         if (window.location.href.match(/\/embed$/)) {
@@ -187,6 +185,9 @@ define(
 
         // Make sure we're scrolled to the top
         window.scrollTo(0, 1);
+
+        // Render and insert the element
+        $("#content").html(this.currentView.render().el);
 
         // Close navbars
         if ($(window).width() <= 768 && $(".navbar-collapse").is(":visible")) {

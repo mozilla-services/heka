@@ -36,6 +36,14 @@ h2 .glyphicon {
   font-size: 80%;
 }
 
+#content .spinner {
+  left: 50%;
+  margin-left: -16px;
+  margin-top: -16px;
+  position: absolute;
+  top: 50%;
+}
+
 .stat-widgets {
   margin-bottom: 20px;
 }
@@ -66,7 +74,7 @@ h2 .glyphicon {
 }
 
 table.plugins .name {
-  width: 25%;
+  width: 30%;
 }
 
 table.plugins .in-channel, table.plugins .match-channel {
@@ -228,7 +236,7 @@ html.embed .sandbox-graph {
     border: none;
     border-bottom: 1px solid #eee;
     position: relative;
-    padding-left: 50% !important;
+    padding-left: 45% !important;
     white-space: normal;
     text-align:left;
   }
@@ -239,7 +247,7 @@ html.embed .sandbox-graph {
     /* Top/left values mimic padding */
     top: 6px;
     left: 6px;
-    width: 45%;
+    width: 40%;
     padding-right: 10px;
     white-space: nowrap;
     text-align:left;
