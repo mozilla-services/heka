@@ -21,7 +21,7 @@ define(
       template: SandboxesIndexTemplate,
 
       initialize: function() {
-        this.adapter = new SandboxesAdapter.instance();
+        this.adapter = SandboxesAdapter.instance();
         this.collection = this.adapter.sandboxes;
 
         this.listenTo(this.collection, "add remove reset change", this.render, this);
