@@ -323,6 +323,18 @@ func (l *LogfileResumer) ResumeFileReading() (f *os.File, err error) {
 	// oldest, otherwise start with the most recent
 	var filename string
 
+	if l.oldestDuration != nil {
+		files := l.logfiles.FilterOld(time.Now().Add(-l.oldestDuration))
+		if len(files) < 1 {
+			return nil, errors.New("No file has new enough modifications to read.")
+		}
+		filename = files[0].FileName
+	} else {
+		filename = l.logfiles[len(l.logfiles)-1].FileName
+	}
+	l.position.Filename = filename
+	f, err = LocatePriorLocation(files, l.position)
+	return
 }
 
 // Updates the logfiles safely
@@ -332,43 +344,109 @@ func (l *LogfileResumer) UpdateLogfiles(files Logfiles) {
 	l.logfiles = files
 }
 
-// Main abstraction used by the plugin that is responsible for returning
-// populated packs from the logfiles read. The PackGenerator generates packs
-// based on the Logfiles supplied. It works in lockstep such that it will
-// only read more lines when a pack is available. Closing the PackFeed will
-// halt the PackGenerator and its position will be saved if it has a Position
-// set.
+// PackGenerator will continue to return packs given a LogfileResumer and
+// PackCreator as long as the file its reading from hasn't moved. If the file
+// its reading gets truncated, it will reset to the beginning of the file. The
+// user of PackGenerator should occasionally determine if there's a newer file
+// that can be read using ShouldUseNewer and make a new PackGenerator in that
+// case after updating the position.
 type PackGenerator struct {
-	log         Logger
-	loggerIdent string
-	hostname    string
-	// Same as for the plugin config
-	discoverInterval int
-	statInterval     int
-
-	lfr LogfileResumer
-	pc  PackCreator
-	// How many packs are read at once before the position is saved
-	saveInterval int
+	lfr          LogfileResumer
+	pc           PackCreator
+	statInterval int
+	fd           *os.File
 }
 
-func NewPackGenerator(log Logger, loggerIdent, hostname string, discoverInterval,
-	statInterval, saveInterval int, logfiles Logfiles, packCreator PackCreator,
-	resumeFromStart bool, position *LogstreamLocation) *PackGenerator {
-	return &PackGenerator{
-		log:              log,
-		loggerIdent:      loggerIdent,
-		hostname:         hostname,
-		discoverInterval: discoverInterval,
-		statInterval:     statInterval,
-		saveInterval:     saveInterval,
-		logfiles:         logfiles,
-		packCreator:      packCreator,
-		position:         position,
-		resumeFromStart:  resumeFromStart,
+func NewPackGenerator(lfr LogfileResumer, pc PackCreator, statInterval int) *PackGenerator {
+	return &PackGenerator{lfr: lfr, pc: pc, statInterval: statInterval}
+}
+
+func (pg *PackGenerator) Run(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+	packReturn := make(chan *p.PipelinePack, 1)
+	go pg.ReadFile(packFeed, packReturn)
+	return packReturn
+}
+
+func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+	var (
+		ok, shouldStat bool
+		pack           *p.PipelinePack
+		fd             *os.File
+		err            error
+		position       *LogstreamLocation
+		record         []byte
+		bytesRead      int
+		priorRead      int
+	)
+
+	// Check that we haven't been rotated, if we have, update the filename
+	// to reflect our new location.
+	fd, err = pg.lfr.ResumeFileReading()
+	if err != nil {
+		close(packReturn)
+		return
+	}
+	position = pg.lfr.position
+	record = make([]byte, 0, 200)
+
+	if pg.IsTruncated() {
+		fd.Seek(0, 0)
+		position.SeekPosition = 0
+	}
+
+	newFilename, isRotated := pg.IsRotated()
+	if isRotated {
+		position.Filename = newFilename
+	}
+
+	for err != nil {
+		record = record[:0]
+		priorRead = bytesRead
+
+		pack, ok = <-packFeed
+		// Told to close down?
+		if !ok {
+			err = errors.New("Pack channel closed")
+			continue
+		}
+
+		bytesRead, err = pg.pc.ReadRecord(record, parser, isRotated, fd)
+		if err == nil {
+			position.LastLogline = string(record)
+			position.LastLoglineStart += priorRead
+			pg.pc.PopulatePack(record, pack)
+			packReturn <- pack
+			pack = nil
+			shouldStat = false
+		} else {
+			<-time.After(time.Duration(pg.statInterval) * time.Millisecond)
+			shouldStat = true
+		}
+	}
+	// If we have a pack, return it
+	if pack != nil {
+		packReturn <- pack
 	}
 }
 
-func (p *PackGenerator) Run(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+func (pg *PackGenerator) IsTruncated() bool {
+	// Determine if we're farther into the file than possible (truncate)
+	finfo, err := fd.Stat()
+	if err == nil {
+		return finfo.Size() < position.SeekPosition
+	}
+	return false
+}
 
+// Check that we haven't been rotated, if we have, update the filename
+// to reflect our new location.
+func (pg *PackGenerator) IsRotated() (filename string, rotated bool) {
+	pinfo, err := os.Stat(position.Filename)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		filename = pinfo.Name()
+		if position.ShouldUseNewer(pg.lfr.logfiles) {
+			rotated = true
+		}
+	}
+	return
 }
