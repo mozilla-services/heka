@@ -21,7 +21,7 @@ import (
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
-	"sync"
+	"path/filepath"
 	"time"
 )
 
@@ -35,16 +35,6 @@ func NewFilterTestHelper(ctrl *gomock.Controller) (fth *FilterTestHelper) {
 	fth.MockHelper = NewMockPluginHelper(ctrl)
 	fth.MockFilterRunner = NewMockFilterRunner(ctrl)
 	return
-}
-
-type PanicFilter struct{}
-
-func (p *PanicFilter) Init(config interface{}) (err error) {
-	panic("PANICFILTER")
-}
-
-func (p *PanicFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
-	panic("PANICFILTER")
 }
 
 func FiltersSpec(c gs.Context) {
@@ -113,7 +103,15 @@ func FiltersSpec(c gs.Context) {
 		sbmFilter := new(SandboxManagerFilter)
 		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
 		config.MaxFilters = 1
-		config.WorkingDirectory = os.TempDir()
+
+		origBaseDir := Globals().BaseDir
+		Globals().BaseDir = os.TempDir()
+		sbxMgrsDir := filepath.Join(Globals().BaseDir, "sbxmgrs")
+		defer func() {
+			Globals().BaseDir = origBaseDir
+			tmpErr := os.RemoveAll(sbxMgrsDir)
+			c.Expect(tmpErr, gs.IsNil)
+		}()
 
 		msg := getTestMessage()
 		pack := NewPipelinePack(pConfig.inputRecycleChan)
@@ -121,6 +119,7 @@ func FiltersSpec(c gs.Context) {
 		pack.Decoded = true
 
 		c.Specify("Control message in the past", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -131,6 +130,7 @@ func FiltersSpec(c gs.Context) {
 		})
 
 		c.Specify("Control message in the future", func() {
+			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() + 5.9e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
@@ -140,14 +140,17 @@ func FiltersSpec(c gs.Context) {
 			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
 
-	})
+		c.Specify("Generates the right default working directory", func() {
+			sbmFilter.Init(config)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			name := "SandboxManagerFilter"
+			fth.MockFilterRunner.EXPECT().Name().Return(name)
+			close(inChan)
+			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(sbmFilter.workingDirectory, gs.Equals, sbxMgrsDir)
+			_, err := os.Stat(sbxMgrsDir)
+			c.Expect(err, gs.IsNil)
+		})
 
-	c.Specify("Runner recovers from panic in filter's `Run()` method", func() {
-		filter := new(PanicFilter)
-		fRunner := NewFORunner("panic", filter, nil)
-		var wg sync.WaitGroup
-		wg.Add(1)
-		fRunner.Start(fth.MockHelper, &wg) // no panic => success
-		wg.Wait()
 	})
 }

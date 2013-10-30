@@ -45,12 +45,16 @@ type SandboxManagerFilterConfig struct {
 	// manage.
 	MaxFilters int `toml:"max_filters"`
 	// Path to file system directory the sandbox manager can use for storing
-	// dynamic filter scripts and data.
+	// dynamic filter scripts and data. Relative paths will be relative to the
+	// Heka base_dir. Defaults to a directory in ${BASE_DIR}/sbxmgrs that is
+	// auto-generated based on the plugin name.
 	WorkingDirectory string `toml:"working_directory"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
-	return new(SandboxManagerFilterConfig)
+	return &SandboxManagerFilterConfig{
+		WorkingDirectory: "sbxmgrs",
+	}
 }
 
 // Creates the working directory to store the submitted scripts,
@@ -58,11 +62,9 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
-	this.workingDirectory, _ = filepath.Abs(conf.WorkingDirectory)
-	if err = os.MkdirAll(this.workingDirectory, 0700); err != nil {
-		return err
-	}
-	return nil
+	this.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
+	err = os.MkdirAll(this.workingDirectory, 0700)
+	return
 }
 
 // Adds running filters count to the report output.
@@ -104,20 +106,13 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	}
 	wrapper.configCreator = func() interface{} { return config }
 	conf := config.(*sandbox.SandboxConfig)
-	conf.ScriptFilename = path.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
+	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(wrapper.name)
+	}
 
 	// Apply configuration to instantiated plugin.
-	configPlugin := func() (err error) {
-		defer func() {
-			// Slight protection against Init call into plugin code.
-			if r := recover(); r != nil {
-				err = fmt.Errorf("Init() panicked: %s", r)
-			}
-		}()
-		err = plugin.(Plugin).Init(config)
-		return
-	}
-	if err = configPlugin(); err != nil {
+	if err = plugin.(Plugin).Init(config); err != nil {
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
@@ -131,7 +126,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher != "" {
 		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
-			pluginGlobals.Signer); err != nil {
+			pluginGlobals.Signer, runner); err != nil {
 			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
 				wrapper.name, err)
 		}
@@ -160,7 +155,7 @@ func getSandboxName(managerName, sandboxName string) (name string) {
 
 // Cleans up the script and configuration files on unload or load failure.
 func removeAll(dir, glob string) {
-	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
+	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
 			os.Remove(fn)
 		}
@@ -184,7 +179,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 					return fmt.Errorf("loadSandbox failed: %s is already running", name)
 				}
 				fr.LogMessage(fmt.Sprintf("Loading: %s", name))
-				confFile := path.Join(dir, fmt.Sprintf("%s.toml", name))
+				confFile := filepath.Join(dir, fmt.Sprintf("%s.toml", name))
 				err = ioutil.WriteFile(confFile, []byte(config), 0600)
 				if err != nil {
 					return
@@ -193,7 +188,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
 					return fmt.Errorf("loadSandbox failed: %s\n", err)
 				}
-				scriptFile := path.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
+				scriptFile := filepath.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
 				err = ioutil.WriteFile(scriptFile, []byte(msg.GetPayload()), 0600)
 				if err != nil {
 					removeAll(dir, fmt.Sprintf("%s.*", name))
@@ -221,7 +216,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 // directory.
 func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelper, dir string) {
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
-	if matches, err := filepath.Glob(path.Join(dir, glob)); err == nil {
+	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
 			var configFile ConfigFile
 			if _, err = toml.DecodeFile(fn, &configFile); err != nil {
@@ -257,6 +252,7 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 	var ok = true
 	var pack *PipelinePack
 	var delta int64
+
 	this.restoreSandboxes(fr, h, this.workingDirectory)
 	for ok {
 		select {
@@ -280,7 +276,8 @@ func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err erro
 						fr.LogError(err)
 					}
 				} else {
-					fr.LogError(fmt.Errorf("%s attempted to load more than %d filters", fr.Name(), this.maxFilters))
+					fr.LogError(fmt.Errorf("%s attempted to load more than %d filters",
+						fr.Name(), this.maxFilters))
 				}
 			case "unload":
 				fv, _ := pack.Message.GetFieldValue("name")

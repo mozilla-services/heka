@@ -21,6 +21,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"encoding/json"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"hash"
 )
@@ -45,7 +46,7 @@ func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 func (self *JsonEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
 	msgBytes, err := self.EncodeMessage(msg)
 	if err == nil {
-		err = createStream(msgBytes, message.Header_JSON, outBytes, self.signer)
+		err = createStream(msgBytes, outBytes, self.signer)
 	}
 	return
 }
@@ -58,25 +59,21 @@ func NewProtobufEncoder(signer *message.MessageSigningConfig) *ProtobufEncoder {
 	return &ProtobufEncoder{signer}
 }
 
-func (self *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
+func (p *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	return proto.Marshal(msg)
 }
 
-func (self *ProtobufEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
-	msgBytes, err := self.EncodeMessage(msg) // TODO if we compute the size of the header first this can be marshaled directly to outBytes
+func (p *ProtobufEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
+	msgBytes, err := p.EncodeMessage(msg) // TODO if we compute the size of the header first this can be marshaled directly to outBytes
 	if err == nil {
-		err = createStream(msgBytes, message.Header_PROTOCOL_BUFFER, outBytes, self.signer)
+		err = createStream(msgBytes, outBytes, p.signer)
 	}
 	return
 }
 
-func createStream(msgBytes []byte, encoding message.Header_MessageEncoding,
-	outBytes *[]byte, msc *message.MessageSigningConfig) error {
+func createStream(msgBytes []byte, outBytes *[]byte, msc *message.MessageSigningConfig) error {
 	h := &message.Header{}
 	h.SetMessageLength(uint32(len(msgBytes)))
-	if encoding != message.Default_Header_MessageEncoding {
-		h.SetMessageEncoding(encoding)
-	}
 	if msc != nil {
 		h.SetHmacSigner(msc.Name)
 		h.SetHmacKeyVersion(msc.Version)
@@ -92,21 +89,27 @@ func createStream(msgBytes []byte, encoding message.Header_MessageEncoding,
 		hm.Write(msgBytes)
 		h.SetHmac(hm.Sum(nil))
 	}
-	headerSize := uint8(proto.Size(h))
-	requiredSize := int(3 + headerSize)
+	headerSize := proto.Size(h)
+	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
+	if requiredSize > message.MAX_RECORD_SIZE {
+		return fmt.Errorf("Message too big, requires %d (MAX_RECORD_SIZE = %d)",
+			message.MAX_RECORD_SIZE, requiredSize)
+	}
 	if cap(*outBytes) < requiredSize {
-		*outBytes = make([]byte, requiredSize, requiredSize+len(msgBytes))
+		*outBytes = make([]byte, requiredSize)
 	} else {
 		*outBytes = (*outBytes)[:requiredSize]
 	}
 	(*outBytes)[0] = message.RECORD_SEPARATOR
 	(*outBytes)[1] = uint8(headerSize)
-	pbuf := proto.NewBuffer((*outBytes)[2:2])
-	err := pbuf.Marshal(h)
-	if err != nil {
+	// This looks odd but is correct; it effectively "seeks" the initial write
+	// position for the protobuf output to be at the
+	// `(*outBytes)[message.HEADER_DELIMITER_SIZE]` position.
+	pbuf := proto.NewBuffer((*outBytes)[message.HEADER_DELIMITER_SIZE:message.HEADER_DELIMITER_SIZE])
+	if err := pbuf.Marshal(h); err != nil {
 		return err
 	}
-	(*outBytes)[headerSize+2] = message.UNIT_SEPARATOR
-	*outBytes = append(*outBytes, msgBytes...)
+	(*outBytes)[headerSize+message.HEADER_DELIMITER_SIZE] = message.UNIT_SEPARATOR
+	copy((*outBytes)[message.HEADER_FRAMING_SIZE+headerSize:], msgBytes)
 	return nil
 }

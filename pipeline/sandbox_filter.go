@@ -16,12 +16,15 @@
 package pipeline
 
 import (
+	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +47,7 @@ type SandboxFilter struct {
 	sbc                    *sandbox.SandboxConfig
 	preservationFile       string
 	processMessageCount    int64
+	processMessageFailures int64
 	injectMessageCount     int64
 	processMessageSamples  int64
 	processMessageDuration int64
@@ -52,6 +56,7 @@ type SandboxFilter struct {
 	timerEventSamples      int64
 	timerEventDuration     int64
 	reportLock             sync.Mutex
+	name                   string
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -62,13 +67,18 @@ func (this *SandboxFilter) ConfigStruct() interface{} {
 	}
 }
 
+func (this *SandboxFilter) SetName(name string) {
+	re := regexp.MustCompile("\\W")
+	this.name = re.ReplaceAllString(name, "_")
+}
+
 // Determines the script type and creates interpreter sandbox.
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
 		return nil // no-op already initialized
 	}
-	conf := config.(*sandbox.SandboxConfig)
-	this.sbc = conf
+	this.sbc = config.(*sandbox.SandboxConfig)
+	this.sbc.ScriptFilename = GetHekaConfigDir(this.sbc.ScriptFilename)
 
 	switch this.sbc.ScriptType {
 	case "lua":
@@ -80,7 +90,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	this.preservationFile = this.sbc.ScriptFilename + ".data"
+	this.preservationFile = filepath.Join(filepath.Dir(this.sbc.ScriptFilename), this.name+".data")
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
 		err = this.sb.Init(this.preservationFile)
 	} else {
@@ -105,6 +115,7 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
 		sandbox.STAT_MAXIMUM)), "B")
 	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
+	newInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&this.processMessageFailures), "count")
 	newInt64Field(msg, "InjectMessageCount", atomic.LoadInt64(&this.injectMessageCount), "count")
 	newInt64Field(msg, "ProcessMessageSamples", this.processMessageSamples, "count")
 	newInt64Field(msg, "TimerEventSamples", this.timerEventSamples, "count")
@@ -146,8 +157,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = 50000 // duration in nanoseconds (20K msg/sec)
-		capacity             = cap(inChan) - 1
+		slowDuration   int64 = int64(Globals().MaxMsgProcessDuration)
+		duration       int64
+		capacity       = cap(inChan) - 1
 	)
 
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -162,13 +174,26 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				Globals().MaxMsgLoops))
 			return 1
 		}
-		pack.Message.SetType("heka.sandbox-output")
-		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetPayload(payload)
-		ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
-		pack.Message.AddField(ptype)
-		pname, _ := message.NewField("payload_name", payload_name, "")
-		pack.Message.AddField(pname)
+		if len(payload_type) == 0 { // heka protobuf message
+			hostname := pack.Message.GetHostname()
+			err := proto.Unmarshal([]byte(payload), pack.Message)
+			if err == nil {
+				// do not allow filters to override the following
+				pack.Message.SetType("heka.sandbox." + pack.Message.GetType())
+				pack.Message.SetLogger(fr.Name())
+				pack.Message.SetHostname(hostname)
+			} else {
+				return 1
+			}
+		} else {
+			pack.Message.SetType("heka.sandbox-output")
+			pack.Message.SetLogger(fr.Name())
+			pack.Message.SetPayload(payload)
+			ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
+			pack.Message.AddField(ptype)
+			pname, _ := message.NewField("payload_name", payload_name, "")
+			pack.Message.AddField(pname)
+		}
 		if !fr.Inject(pack) {
 			return 1
 		}
@@ -203,8 +228,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			retval = this.sb.ProcessMessage(pack.Message)
 			if sample {
+				duration = time.Since(startTime).Nanoseconds()
 				this.reportLock.Lock()
-				this.processMessageDuration += time.Since(startTime).Nanoseconds()
+				this.processMessageDuration += duration
 				this.processMessageSamples++
 				if this.sbc.Profile {
 					this.profileMessageDuration = this.processMessageDuration
@@ -219,7 +245,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				}
 				this.reportLock.Unlock()
 			}
-			if retval == 0 {
+			if retval <= 0 {
 				if backpressure && this.processMessageSamples >= int64(capacity) {
 					fr.MatchRunner().reportLock.Lock()
 					if this.processMessageDuration/this.processMessageSamples > slowDuration ||
@@ -228,6 +254,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 						blocking = true
 					}
 					fr.MatchRunner().reportLock.Unlock()
+				}
+				if retval < 0 {
+					atomic.AddInt64(&this.processMessageFailures, 1)
 				}
 				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
 			} else {
@@ -241,8 +270,9 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
 			}
+			duration = time.Since(startTime).Nanoseconds()
 			this.reportLock.Lock()
-			this.timerEventDuration += time.Since(startTime).Nanoseconds()
+			this.timerEventDuration += duration
 			this.timerEventSamples++
 			this.reportLock.Unlock()
 		}
@@ -255,6 +285,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				// no lock on the ProcessMessage variables here because there are no active writers
 				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
+				newInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures, "count")
 				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
 				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration/this.processMessageSamples, "ns")

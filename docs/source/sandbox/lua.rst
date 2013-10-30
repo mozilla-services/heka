@@ -1,6 +1,5 @@
 .. _lua:
 
-===========
 Lua Sandbox
 ===========
 
@@ -11,7 +10,7 @@ restrictions.
 .. seealso:: `Lua Reference Manual <http://www.lua.org/manual/5.1/>`_
 
 API
-===
+---
 
 Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
@@ -24,11 +23,15 @@ Functions that must be exposed from the Lua sandbox
         none
 
     *Return*
-        0 for success, non zero for failure
+        - < 0 for non-fatal failure (increments ProcessMessageFailures)
+        - 0 for success
+        - > 0 for fatal error (terminates the sandbox)
 
 **timer_event(ns)**
     Called by Heka when the ticker_interval expires.  The instruction_limit 
-    configuration parameter is applied to this function call.
+    configuration parameter is applied to this function call.  This function
+    is only required in SandboxFilters (SandboxDecoders do not support timer
+    events).
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch
@@ -39,8 +42,17 @@ Functions that must be exposed from the Lua sandbox
 Heka functions that are exposed to the Lua sandbox
 ---------------------------------------------------
 
+**read_config(variableName)**
+    Provides access to the sandbox configuration variables.
+
+    *Arguments*
+        - variableName (string)
+
+    *Return*
+        number, string, bool, nil depending on the type of variable requested
+
 **read_message(variableName, fieldIndex, arrayIndex)**
-    Provides access to the Heka message data
+    Provides access to the Heka message data.
 
     *Arguments*
         - variableName (string)
@@ -67,18 +79,21 @@ Heka functions that are exposed to the Lua sandbox
     configuration parameter.
 
     *Arguments*
-        - arg (number, string, bool, nil, table) Lua variable or literal to be appended the output buffer
+        - arg (number, string, bool, nil, table, circular_buffer) Lua variable or literal to be appended the output buffer
 
     *Return*
         none
     
     *Notes*
+
         Outputting a Lua table will serialize it to JSON according to the following guidelines/restrictions:
             - Tables cannot contain internal of circular references.
             - Keys starting with an underscore are considered private and will not be serialized.
                 - '_name' is a special private key that can be used to specify the the name of the top level JSON object, if not provided the default is 'table'.
             - Arrays only use contiguous numeric keys starting with an index of 1. Private keys are the exception i.e. local a = {1,2,3,_name="my_name"} will be serialized as: ``{"my_name":[1,2,3]}\n``
             - Hashes only use string keys (numeric keys will not be quoted and the JSON output will be invalid). Note: the hash keys are output in an arbitrary order i.e. local a = {x = 1, y = 2} will be serialized as: ``{"table":{"y":2,"x":1}}\n``.
+
+        In most cases circular buffers should be directly output using inject_message.  However, in order to create graph annotations the annotation table has to be written to the output buffer followed by the circular buffer.  The output function is the only way to combine this data before injection (use a unique payload_type when injecting a message with a non-standard circular buffer mashups).
 
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
@@ -96,19 +111,93 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         none
 
-Circular Buffer Library
-=======================
+**inject_message(circular_buffer, payload_name)**
+    Creates a new Heka message placing the circular buffer output in the message payload (overwriting whatever is in the output buffer).
+    The payload_type is set to the circular buffer output format string. i.e., Fields[payload_type] == 'cbuf'.
+    The Fields[payload_name] is set to the provided payload_name.  
+
+    *Arguments*
+        - circular_buffer (circular_buffer)
+        - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
+
+    *Return*
+        none
+
+    *Notes*
+        - injection limits are enforced as described above
+
+**inject_message(message_table)**
+    Creates a new Heka protocol buffer message using the contents of the
+    specified Lua table (overwriting whatever is in the output buffer).
+    Notes about message fields:
+
+    * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
+    * UUID is automatically generated, anything provided by the user is ignored.
+    * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
+    * Type is prepended with "heka.sandbox." by the SandboxFilter to avoid data confusion/mis-representation.
+    * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
+        * name=value i.e., foo="bar"; foo=1; foo=true
+        * name={array} i.e., foo={"b", "a", "r"}
+        * name={object} i.e. foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, representation="ms"}
+            * value (required) may be a single value or an array of values
+            * representation (optional) metadata for display and unit management
+
+    *Arguments*
+        - message_table A table with the proper message structure.
+
+    *Return*
+        none
+
+    *Notes*
+        - injection limits are enforced as described above
+
+**require(libraryName)**
+    Loads optional sandbox libraries
+
+    *Arguments*
+        - libraryName (string)
+            - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
+            - **cjson** loaded the cjson.safe module in a global cjson table, exposing the decoding functions only. http://www.kyne.com.au/~mark/software/lua-cjson-manual.html.
+
+    *Return*
+        a table (which is also globally registered with the library name).
+
+Sample Lua Message Structure
+----------------------------
+.. code-block:: lua
+
+    {
+    Uuid        = "data",               -- always ignored
+    Logger      = "nginx",              -- ignored in the SandboxFilter
+    Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
+
+    Timestamp   = 1e9,                   
+    Type        = "TEST",               -- will become "heka.sandbox.TEST" in the SandboxFilter
+    Papload     = "Test Payload",
+    EnvVersion  = "0.8",
+    Pid         = 1234, 
+    Severity    = 6, 
+    Fields      = {
+                http_status     = 200, 
+                request_size    = {value=1413, representation="B"}
+                }
+    }
+
+Lua Circular Buffer Library
+===========================
+
 The library is a sliding window time series data store and is implemented in
 the ``circular_buffer`` table.
 
 Constructor
 -----------
-circular_buffer.\ **new**\ (rows, columns, seconds_per_row)
+circular_buffer.\ **new**\ (rows, columns, seconds_per_row, enable_delta)
 
     *Arguments*
         - rows (unsigned) The number of rows in the buffer (must be > 1)
         - columns (unsigned)The number of columns in the buffer (must be > 0)
         - seconds_per_row (unsigned) The number of seconds each row represents (must be > 0).
+        - enable_delta (**optional, default false** bool) When true the changes made to the circular buffer between delta outputs are tracked.
 
     *Return*
         A circular buffer object.
@@ -175,13 +264,26 @@ double **compute**\ (function, column, start, end)
     *Return*
         The result of the computation for the specifed column over the given range or nil if the range fell outside of the buffer.
 
+cbuf **format**\ (format)
+    Sets an internal flag to control the output format of the circular buffer data structure; if deltas are not enabled or there haven't been any modifications, nothing is output.
+
+    *Arguments*
+        - format (string)
+            - **cbuf** The circular buffer full data set format.
+            - **cbufd** The circular buffer delta data set format.
+
+    *Return*
+        The circular buffer object.
+
 Output
 ------
-The circular buffer can be passed to the output() function.  The output will
-consist newline delimited rows starting with a json header row followed by the
-data rows with tab delimited columns. The time in the header corresponds to the 
-time of the first data row, the time for the other rows is calculated using the
-seconds_per_row header value.
+The circular buffer can be passed to the output() function. The output format
+can be selected using the format() function.
+
+The cbuf (full data set) output format consists of newline delimited rows
+starting with a json header row followed by the data rows with tab delimited
+columns. The time in the header corresponds to the time of the first data row,
+the time for the other rows is calculated using the seconds_per_row header value.
 
 .. code-block:: txt
 
@@ -192,8 +294,20 @@ seconds_per_row header value.
     .
     rowN_col1\trowN_col2\n
 
-Sample Output
--------------
+The cbufd (delta) output format consists of newline delimited rows starting with
+a json header row followed by the data rows with tab delimited columns. The
+first column is the timestamp for the row (time_t). The cbufd output will only
+contain the rows that have changed and the corresponding delta values for each
+column.
+
+.. code-block:: txt
+
+    {json header}
+    row14_timestamp\trow14_col1\trow14_col2\n
+    row10_timestamp\trow10_col1\trow10_col2\n
+
+Sample Cbuf Output
+------------------
 .. code-block:: txt
 
     {"time":2,"rows":3,"columns":3,"seconds_per_row":60,"column_info":[{"name":"HTTP_200","unit":"count","aggregation":"sum"},{"name":"HTTP_400","unit":"count","aggregation":"sum"},{"name":"HTTP_500","unit":"count","aggregation":"sum"}]}
@@ -247,8 +361,8 @@ containing a graphical view of the data.
 
 .. _lua_tutorials:
 
-Tutorials
-=========
+Lua Sandbox Tutorial
+====================
 
 How to create a simple sandbox filter
 -------------------------------------

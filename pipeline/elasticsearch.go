@@ -34,15 +34,16 @@ import (
 // Output plugin that index messages to an elasticsearch cluster.
 // Largely based on FileOutput plugin.
 type ElasticSearchOutput struct {
-	clusterName   string
-	indexName     string
-	typeName      string
-	flushInterval uint32
-	flushCount    int
-	batchChan     chan []byte
-	backChan      chan []byte
-	format        string
-	timestamp     string
+	clusterName          string
+	indexName            string
+	typeName             string
+	flushInterval        uint32
+	flushCount           int
+	batchChan            chan []byte
+	backChan             chan []byte
+	format               string
+	timestamp            string
+	esIndexFromTimestamp bool
 	// The Message Formatter to use when converting
 	// Heka messages to ElasticSearch documents
 	messageFormatter MessageFormatter
@@ -78,18 +79,22 @@ type ElasticSearchOutputConfig struct {
 	// be done with the UDP Bulk API of ElasticSearch.
 	// (default to "http://localhost:9200")
 	Server string
+	// When formating the Index use the Timestamp from the Message instead of
+	// Now.
+	ESIndexFromTimestamp bool
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 	return &ElasticSearchOutputConfig{
-		Cluster:       "elasticsearch",
-		Index:         "heka-%{2006.01.02}",
-		TypeName:      "message",
-		FlushInterval: 1000,
-		FlushCount:    10,
-		Format:        "clean",
-		Timestamp:     "2006-01-02T15:04:05.000Z",
-		Server:        "http://localhost:9200",
+		Cluster:              "elasticsearch",
+		Index:                "heka-%{2006.01.02}",
+		TypeName:             "message",
+		FlushInterval:        1000,
+		FlushCount:           10,
+		Format:               "clean",
+		Timestamp:            "2006-01-02T15:04:05.000Z",
+		Server:               "http://localhost:9200",
+		ESIndexFromTimestamp: false,
 	}
 }
 
@@ -103,11 +108,16 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
+	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
 		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
+	case "logstash_v0":
+		o.messageFormatter = new(KibanaFormatter)
+	case "payload":
+		o.messageFormatter = new(PayloadFormatter)
 	default:
 		o.messageFormatter = NewRawMessageFormatter()
 	}
@@ -115,7 +125,8 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	if serverUrl, err := url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
-			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host, o.flushCount)
+			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
+				o.flushCount)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		}
@@ -192,29 +203,30 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 // ElasticSearchCoordinates stores the coordinates (_index, _type, _id)
 // of an ElasticSearch document
 type ElasticSearchCoordinates struct {
-	Index           string
-	Type            string
-	Id              string
-	Timestamp       *int64
-	TimestampFormat string
+	Index                string
+	Type                 string
+	Id                   string
+	Timestamp            *int64
+	TimestampFormat      string
+	ESIndexFromTimestamp bool
 }
 
-func (e *ElasticSearchCoordinates) String() string {
-	return string(e.Bytes())
+func (e *ElasticSearchCoordinates) String(m *message.Message) string {
+	return string(e.Bytes(m))
 }
 
 // Renders the coordinates of the ElasticSearch document as JSON
-func (e *ElasticSearchCoordinates) Bytes() []byte {
+func (e *ElasticSearchCoordinates) Bytes(m *message.Message) []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
-	buf.WriteString(strconv.Quote(cleanIndexName(e.Index)))
+	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Index)))
 	buf.WriteString(`,"_type":`)
-	buf.WriteString(strconv.Quote(e.Type))
+	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Type)))
 	if len(e.Id) > 0 {
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(e.Id))
 	}
-	if e != nil && e.Timestamp != nil {
+	if e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
 		buf.WriteString(`,"_timestamp":"`)
 		buf.WriteString(t.Format(e.TimestampFormat))
@@ -243,12 +255,23 @@ func (r *RawMessageFormatter) Format(m *message.Message) (doc []byte, err error)
 	return json.Marshal(m)
 }
 
-// Clean message formatter reformats the Heka message in a
-// more friendly ElasticSearch/Kibana way
+// Payload message formatter just returns the contents of the message payload.
+type PayloadFormatter struct {
+}
+
+func (pf *PayloadFormatter) Format(m *message.Message) (doc []byte, err error) {
+	return []byte(m.GetPayload()), nil
+}
+
+// Clean message formatter reformats the Heka message in a more friendly
+// ElasticSearch/Kibana way.
 type CleanMessageFormatter struct {
 	// Field names to include in ElasticSearch document for "clean" format
 	fields          []string
 	timestampFormat string
+}
+
+type KibanaFormatter struct {
 }
 
 func NewCleanMessageFormatter(fields []string, timestampFormat string) *CleanMessageFormatter {
@@ -284,6 +307,127 @@ func writeField(b *bytes.Buffer, name string, value string) {
 	b.WriteString(value)
 }
 
+const lowerhex = "0123456789abcdef"
+
+func writeUTF16Escape(b *bytes.Buffer, c rune) {
+	b.WriteString(`\u`)
+	b.WriteByte(lowerhex[(c>>12)&0xF])
+	b.WriteByte(lowerhex[(c>>8)&0xF])
+	b.WriteByte(lowerhex[(c>>4)&0xF])
+	b.WriteByte(lowerhex[c&0xF])
+}
+
+// go json encoder will blow up on invalid utf8
+// so we use this custom json encoder
+// also, go json encoder generates these funny \U escapes
+// which i don't think are valid json
+
+// also note that  invalid utf-8 sequences get encoded as U+FFFD
+// this is feature :)
+
+func writeQuotedString(b *bytes.Buffer, str string) {
+	b.WriteString(`"`)
+
+	// string = quotation-mark *char quotation-mark
+
+	// char = unescaped /
+	//        escape (
+	//            %x22 /          ; "    quotation mark  U+0022
+	//            %x5C /          ; \    reverse solidus U+005C
+	//            %x2F /          ; /    solidus         U+002F
+	//            %x62 /          ; b    backspace       U+0008
+	//            %x66 /          ; f    form feed       U+000C
+	//            %x6E /          ; n    line feed       U+000A
+	//            %x72 /          ; r    carriage return U+000D
+	//            %x74 /          ; t    tab             U+0009
+	//            %x75 4HEXDIG )  ; uXXXX                U+XXXX
+
+	// escape = %x5C              ; \
+
+	// quotation-mark = %x22      ; "
+
+	// unescaped = %x20-21 / %x23-5B / %x5D-10FFFF
+
+	for _, c := range str {
+		if c == 0x20 || c == 0x21 || (c >= 0x23 && c <= 0x5B) || (c >= 0x5D) {
+			b.WriteRune(c)
+		} else {
+
+			// all runes should be < 16 bits because of the (c >= 0x5D) guard above
+			// however, runes are int32 so it is possible to have negative values
+			// that won't be correctly outputted. however, afaik these values are
+			/// not part of the unicode standard.
+			writeUTF16Escape(b, c)
+		}
+
+	}
+	b.WriteString(`"`)
+
+}
+
+func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
+	if !first {
+		b.WriteString(`,`)
+	}
+	writeQuotedString(b, name)
+	b.WriteString(`:`)
+	writeQuotedString(b, value)
+}
+
+func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
+	if !first {
+		b.WriteString(`,`)
+	}
+	writeQuotedString(b, name)
+	b.WriteString(`:`)
+	b.WriteString(value)
+
+}
+
+func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
+	buf := bytes.Buffer{}
+	buf.WriteString(`{`)
+
+	writeStringField(true, &buf, `@uuid`, m.GetUuidString())
+	t := time.Unix(0, m.GetTimestamp()) // time.Unix gives local time back
+	writeStringField(false, &buf, `@timestamp`, t.UTC().Format("2006-01-02T15:04:05.000Z"))
+	writeStringField(false, &buf, `@type`, m.GetType())
+	writeStringField(false, &buf, `@logger`, m.GetLogger())
+	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))
+	writeStringField(false, &buf, `@message`, m.GetPayload())
+	writeRawField(false, &buf, `@envversion`, strconv.Quote(m.GetEnvVersion()))
+	writeRawField(false, &buf, `@pid`, strconv.Itoa(int(m.GetPid())))
+	writeStringField(false, &buf, `@source_host`, m.GetHostname())
+
+	buf.WriteString(`,"@fields":{`)
+	first := true
+	for _, field := range m.Fields {
+		switch field.GetValueType() {
+		case message.Field_STRING:
+			writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+			first = false
+		case message.Field_BYTES:
+			data := field.GetValue().([]byte)[:]
+			writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
+			first = false
+		case message.Field_INTEGER:
+			writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+			first = false
+		case message.Field_DOUBLE:
+			writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+				'g', -1, 64))
+			first = false
+		case message.Field_BOOL:
+			writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+			first = false
+		}
+	}
+	buf.WriteString(`}`) // end of fields
+	buf.WriteString(`}`)
+	doc = buf.Bytes()
+	return
+}
+
 func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err error) {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{`)
@@ -293,7 +437,7 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 		case "uuid":
 			writeField(&buf, f, strconv.Quote(m.GetUuidString()))
 		case "timestamp":
-			t := time.Unix(0, m.GetTimestamp())
+			t := time.Unix(0, m.GetTimestamp()).UTC()
 			writeField(&buf, f, strconv.Quote(t.Format(c.timestampFormat)))
 		case "type":
 			writeField(&buf, f, strconv.Quote(m.GetType()))
@@ -322,7 +466,8 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 				case message.Field_INTEGER:
 					writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
 				case message.Field_DOUBLE:
-					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+						'g', -1, 64))
 				case message.Field_BOOL:
 					writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
 				}
@@ -344,27 +489,29 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 
 	// Builds ElasticSearch document coordinates (1st line of bulk indexing)
 	coordinates := &ElasticSearchCoordinates{
-		Index:           o.indexName,
-		Type:            o.typeName,
-		Timestamp:       pack.Message.Timestamp,
-		TimestampFormat: o.timestamp,
+		Index:                o.indexName,
+		Type:                 o.typeName,
+		Timestamp:            pack.Message.Timestamp,
+		TimestampFormat:      o.timestamp,
+		ESIndexFromTimestamp: o.esIndexFromTimestamp,
 	}
 
 	var document []byte
 	document, err = o.messageFormatter.Format(pack.Message)
-	pack.Recycle()
 	if err != nil {
+		pack.Recycle()
 		err = fmt.Errorf("Error in message conversion to %s format: %s", o.format, err)
 		return
 	}
 
 	// Write new bulk lines
-	*outBytes = append(*outBytes, coordinates.Bytes()...)
+	*outBytes = append(*outBytes, coordinates.Bytes(pack.Message)...)
 	*outBytes = append(*outBytes, NEWLINE)
 	*outBytes = append(*outBytes, document...)
 	*outBytes = append(*outBytes, NEWLINE)
 
 	document = document[:0]
+	pack.Recycle()
 	return
 }
 
@@ -385,17 +532,47 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
-func cleanIndexName(name string) (index string) {
-	start := strings.Index(name, "%{")
-	end := strings.Index(name, "}")
+func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name string) (interpolatedValue string) {
+        iSlice := strings.Split(name, "%{")
 
-	if start > -1 && end > -1 {
-		layout := name[start+len("%{") : end]
-		index = name[:start] + time.Now().Format(layout)
-	} else {
-		index = name
-	}
-	return
+        for i,element := range iSlice {
+                elEnd := strings.Index(element, "}")
+
+                if elEnd > -1 {
+                        elVal := element[:elEnd]
+                        switch elVal {
+                        case "Type":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetType(), -1)
+                        case "Hostname":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetHostname(), -1)
+                        case "Pid":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetPid())), -1)
+                        case "UUID":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetUuidString(), -1)
+                        case "Logger":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetLogger(), -1)
+                        case "EnvVersion":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], m.GetEnvVersion(), -1)
+                        case "Severity":
+                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], strconv.Itoa(int(m.GetSeverity())), -1)
+                        default:
+                                if fname, ok := m.GetFieldValue(elVal); ok {
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], fname.(string), -1)
+                                } else {
+                                        var t time.Time
+                                        if e.ESIndexFromTimestamp && e.Timestamp != nil {
+                                          t = time.Unix(0, *e.Timestamp).UTC()
+                                        } else {
+                                          t = time.Now()
+                                        }
+                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
+                                }
+                        }
+                }
+        }
+
+        interpolatedValue = strings.Join(iSlice, "")
+        return
 }
 
 // A BulkIndexer is used to index documents in ElasticSearch

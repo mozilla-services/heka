@@ -18,32 +18,46 @@ typedef struct circular_buffer circular_buffer;
 /**
  * Output the circular buffer user data
  * 
+ * @param lua Lua state.
  * @param cb Circular buffer userdata object.
  * @param output Output stream where the data is written.
  * @return Zero on success
  * 
  */
-int output_circular_buffer(circular_buffer* cb, output_data* output);
+int output_circular_buffer(lua_State *lua, circular_buffer* cb, 
+                           output_data* output);
+
+/** 
+ * Get the current output format string.
+ * 
+ * @param cb Circular buffer userdata object.
+ * 
+ * @return const char*
+ */
+const char* get_output_format(circular_buffer* cb);
 
 /**
  * Serialize the circular buffer user data
- *  
+ * 
+ * @param lua Lua state.
  * @param key Lua variable name.
  * @param cb  Circular buffer userdata object.
  * @param output Output stream where the data is written.
  * @return Zero on success
  * 
  */
-int serialize_circular_buffer(const char* key, circular_buffer* cb, 
-                              output_data* output);
+int serialize_circular_buffer(lua_State *lua, const char* key, 
+                              circular_buffer* cb, output_data* output);
 
 /**
  * Circular buffer library loader
  * 
- * @param lua Lua state
+ * @param lua Lua state.
+ * 
+ * @return 1 on success
  * 
  */
-void luaopen_circular_buffer(lua_State *lua);
+int luaopen_circular_buffer(lua_State *lua);
 
 
 #endif

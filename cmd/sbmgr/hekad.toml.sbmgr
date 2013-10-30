@@ -1,18 +1,22 @@
+[hekad]
+maxprocs = 4
+base_dir = "."
+
 [TCP:5565]
 type = "TcpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[TCP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
 [UDP:5565]
 type = "UdpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[UDP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-
-[JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
 
 [ProtobufDecoder]
 type = "ProtobufDecoder"
@@ -78,7 +82,7 @@ message_matcher = "Type == 'hekabench' || Logger == 'LoopToOtherB'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [LoopToOtherB]
 type = "SandboxFilter"
@@ -86,7 +90,7 @@ message_matcher = "Logger == 'LoopToOtherA'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [Counter]
 type = "CounterFilter"
@@ -119,15 +123,15 @@ instruction_limit = 1000000
 [SyncProxyInput]
 type = "LogfileInput"
 logfile = "./sync-proxy.log"
-decoders = ["SyncProxyDecoder"]
-seekjournal = "./sync-proxy.journal"
+decoder = "SyncProxyDecoder"
+seek_journal_name = "sync-proxy.journal"
 
 [SyncProxyDecoder]
-type = "LoglineDecoder"
-matchRegex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:(\d+\.\d+|\-) req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
-timestamplayout = "02/Jan/2006:15:04:05 -0700"
+type = "PayloadRegexDecoder"
+match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:(\d+\.\d+|\-) req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
+timestamp_layout = "02/Jan/2006:15:04:05 -0700"
 
-[SyncProxyDecoder.MessageFields]
+[SyncProxyDecoder.message_fields]
 Type = "SyncProxyLog"
 RemoteIP|ipv4 = "%RemoteIP%"
 User = "%User%"
@@ -166,14 +170,14 @@ output_limit = 64000
 [AuditLogInput]
 type = "LogfileInput"
 logfile = "./audit.log"
-decoders = ["AuditLogDecoder"]
-seekjournal = "./audit.journal"
+decoder = "AuditLogDecoder"
+seek_journal_name = "audit.journal"
 
 [AuditLogDecoder]
-type = "LoglineDecoder"
-matchRegex = '^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)'
+type = "PayloadRegexDecoder"
+match_regex = '^type=(?P<AuditType>[A-Z_]+) msg=audit\((?P<AuditTime>\d+\.\d+)'
 
-[AuditLogDecoder.MessageFields]
+[AuditLogDecoder.message_fields]
 Type = "AuditLog"
 AuditType = "%AuditType%"
 AuditTime|s = "%AuditTime%"

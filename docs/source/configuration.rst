@@ -24,6 +24,8 @@ describes a plugin named "tcp:5565", an instance of Heka's plugin type
 
     [tcp:5565]
     type = "TcpInput"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
     address = ":5565"
 
 If you choose a plugin name that also happens to be a plugin type name,
@@ -35,6 +37,8 @@ describes a plugin named "TcpInput", also of type "TcpInput":
 
     [TcpInput]
     address = ":5566"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
 Note that it's fine to have more than one instance of the same plugin
 type, as long as their configurations don't interfere with each other.
@@ -43,8 +47,8 @@ Any values other than "type" in a section, such as "address" in the
 above examples, will be passed through to the plugin for internal
 configuration (see :ref:`plugin_config`).
 
-A JsonDecoder and ProtobufDecoder will be automatically setup if not
-specified explicitly in the configuration file.
+A ProtobufDecoder will be automatically setup if not specified
+explicitly in the configuration file.
 
 If a plugin fails to load during startup, hekad will exit at startup.
 When hekad is running, if a plugin should fail (due to connection loss,
@@ -58,6 +62,11 @@ Restarting interface (see :ref:`restarting_plugins`). Plugins
 supporting Restarting can have :ref:`their restarting behavior
 configured <configuring_restarting>`.
 
+An internal diagnostic runner runs every 30 seconds to sweep the packs
+used for messages so that possible bugs in heka plugins can be reported
+and pinned down to a likely plugin(s) that failed to properly recycle
+the pack.
+
 .. end-hekad-config
 
 Global configuration options
@@ -68,46 +77,62 @@ file to configure some global options for the heka daemon.
 
 Parameters:
 
-- cpuprof (string `output_file`)
+- cpuprof (string `output_file`):
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
 
-- max_message_loops (uint)
+- max_message_loops (uint):
     The maximum number of times a message can be re-injected into the system.
     This is used to prevent infinite message loops from filter to filter;
     the default is 4.
 
-- max_process_inject (uint)
+- max_process_inject (uint):
     The maximum number of messages that a sandbox filter's ProcessMessage
     function can inject in a single call; the default is 1.
 
-- max_timer_inject (uint)
+- max_process_duration (uint64):
+    The maximum number of nanoseconds that a sandbox filter's ProcessMessage
+    function can consume in a single call before being terminated; the default
+    is 100000.
+
+- max_timer_inject (uint):
     The maximum number of messages that a sandbox filter's TimerEvent
     function can inject in a single call; the default is 10.
 
-- maxprocs (int)
+- max_pack_idle (string):
+    A time duration string (e.x. "2s", "2m", "2h") indicating how long a
+    message pack can be 'idle' before its considered leaked by heka. If too
+    many packs leak from a bug in a filter or output then heka will eventually
+    halt. This setting indicates when that is considered to have occurred.
+
+- maxprocs (int):
     Enable multi-core usage; the default is 1 core. More cores will generally
     increase message throughput. Best performance is usually attained by
     setting this to 2 x (number of cores). This assumes each core is
     hyper-threaded.
 
-- memprof (string `output_file`)
+- memprof (string `output_file`):
     Enable memory profiling; output is logged to the `output_file`.
 
-- poolsize (int)
+- poolsize (int):
     Specify the pool size of maximum messages that can exist; default is 100
     which is usually sufficient and of optimal performance.
 
-- decoder_poolsize (int)
+- decoder_poolsize (int):
     Specify the number of decoder sets to spin up for use converting input
     data to Heka's Message objects. Default is 4, optimal value is variable,
     depending on number of total running plugins, number of expected
     concurrent connections, amount of expected traffic, and number of
     available cores on the host.
 
-- plugin_chansize (int)
+- plugin_chansize (int):
     Specify the buffer size for the input channel for the various Heka
     plugins. Defaults to 50, which is usually sufficient and of optimal
     performance.
+
+- base_dir (string):
+    Base working directory Heka will use for persistent storage through
+    process and server restarts. Defaults to `/var/cache/hekad` (or
+    `c:\var\cache\hekad` on windows).
 
 
 Example hekad.toml file
@@ -128,9 +153,11 @@ Example hekad.toml file
     plugin_chansize = 10
     poolsize = 100
 
-    # Listens for Heka protocol on TCP port 5565.
+    # Listens for Heka messages on TCP port 5565.
     [TcpInput]
     address = ":5565"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     # Writes output from `CounterFilter`, `lua_sandbox`, and Heka's internal
     # reports to stdout.
@@ -232,6 +259,8 @@ illustrative purposes only):
 
     [UdpInput]
     address = "127.0.0.1:4880"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     [UdpInput.retries]
     max_delay = 30s
@@ -253,7 +282,7 @@ AMQPInput
 Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from
 the specified queue. If the message is serialized by hekad's AMQPOutput
 then the message will be de-serialized, otherwise the message will be
-run through the specified LoglineDecoder's. As AMQP is dynamically
+run through the specified PayloadRegexDecoder's. As AMQP is dynamically
 programmable, the broker topology needs to be specified.
 
 Parameters:
@@ -289,22 +318,13 @@ Parameters:
 - QueueAutoDelete (bool):
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
-- Decoders (list of strings):
-    List of logline decoder names used to transform a raw message body into
-    a structured hekad message. These are skipped for serialized hekad
-    messages.
+- Decoder (string):
+    Decoder name used to transform a raw message body into a structured hekad
+    message. Must be a decoder appropriate for the messages that come in from
+    the exchange.
 
-Since many of these parameters have sane defaults, a minimal
-configuration to consume serialized messages would look like:
-
-.. code-block:: ini
-
-    [AMQPInput]
-    url = "amqp://guest:guest@rabbitmq/"
-    exchange = "testout"
-    exchangeType = "fanout"
-
-Or if using a logline decoder to parse OSX syslog messages may look like:
+Since many of these parameters have sane defaults, a minimal configuration to
+consume serialized messages would look like:
 
 .. code-block:: ini
 
@@ -312,27 +332,40 @@ Or if using a logline decoder to parse OSX syslog messages may look like:
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
-    decoders = ["logparser", "leftovers"]
+
+Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
+
+.. code-block:: ini
+
+    [AMQPInput]
+    url = "amqp://guest:guest@rabbitmq/"
+    exchange = "testout"
+    exchangeType = "fanout"
+    decoder = "logparser"
 
     [logparser]
-    type = "LoglineDecoder"
-    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P<Remaining>.*)'
+    type = "MultiDecoder"
+    order = ["logline", "leftovers"]
 
-    [logparser.MessageFields]
-    Type = "amqplogline"
-    Hostname = "myhost"
-    Reporter = "%Reporter%"
-    Remaining = "%Remaining%"
-    Logger = "%Logger%"
-    Payload = "%Remaining%"
+      [logparser.subs.logline]
+      type = "PayloadRegexDecoder"
+      MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P Remaining>.*)'
 
-    [leftovers]
-    type = "LoglineDecoder"
-    MatchRegex = '.*'
+        [logparser.subs.logline.MessageFields]
+        Type = "amqplogline"
+        Hostname = "myhost"
+        Reporter = "%Reporter%"
+        Remaining = "%Remaining%"
+        Logger = "%Logger%"
+        Payload = "%Remaining%"
 
-    [leftovers.MessageFields]
-    Type = "drop"
-    Payload = ""
+      [leftovers]
+      type = "PayloadRegexDecoder"
+      MatchRegex = '.*'
+
+        [leftovers.MessageFields]
+        Type = "drop"
+        Payload = ""
 
 .. _config_udp_input:
 
@@ -345,6 +378,11 @@ the signature is not valid the message is discarded otherwise the signer name
 is added to the pipeline pack and can be use to accept messages using the
 message_signer configuration option.
 
+.. note::
+
+    The UDP payload is not restricted to a single message; since the stream
+    parser is being used multiple messages can be sent in a single payload.
+
 Parameters:
 
 - address (string):
@@ -356,12 +394,33 @@ Parameters:
     - hmac_key (string):
         The hash key used to sign the message.
 
+.. versionadded:: 0.4
+- decoder (string):
+    A decoder must be specified for the message.proto parser
+    (i.e. ProtobufDecoder) but is optional for token and regexp parsers (if no
+    decoder is specified the parsed data is available in the Heka message
+    payload).
+- parser_type (string):
+    - token - splits the stream on a byte delimiter.
+    - regexp - splits the stream on a regexp delimiter.
+    - message.proto - splits the stream on protobuf message boundaries.
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the message depending on the delimiter_location configuration.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of the message.
+    - end - the regexp delimiter occurs at the end of the message (default).
+
 Example:
 
 .. code-block:: ini
 
     [UdpInput]
     address = "127.0.0.1:4880"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     [UdpInput.signer.ops_0]
     hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
@@ -394,12 +453,33 @@ Parameters:
     - hmac_key (string):
         The hash key used to sign the message.
 
+.. versionadded:: 0.4
+- decoder (string):
+    A decoder must be specified for the message.proto parser
+    (i.e. ProtobufDecoder) but is optional for token and regexp parsers (if no
+    decoder is specified the parsed data is available in the Heka message
+    payload).
+- parser_type (string):
+    - token - splits the stream on a byte delimiter.
+    - regexp - splits the stream on a regexp delimiter.
+    - message.proto - splits the stream on protobuf message boundaries.
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the message depending on the delimiter_location configuration.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of the message.
+    - end - the regexp delimiter occurs at the end of the message (default).
+
 Example:
 
 .. code-block:: ini
 
     [TcpInput]
     address = ":5565"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
 
     [TcpInput.signer.ops_0]
     hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
@@ -415,16 +495,22 @@ Example:
 LogfileInput
 ------------
 
-Tails logfiles, creating a message for each line in each logfile being
-monitored. Logfiles are read in their entirety, and watched for
-changes. This input gracefully handles log rotation via the file moving
-but may lose a few log lines of using the truncation method of log
-rotation. It's recommended to use log rotation schemes that move the
-logfile to another location to avoid possible loss of log lines.
+Tails a single log file, creating a message for each line in the file being
+monitored. Files are read in their entirety, and watched for changes. This
+input gracefully handles log rotation via the file moving but may lose a few
+log lines if using the "truncation" method of log rotation. It's recommended
+to use log rotation schemes that move the file to another location to avoid
+possible loss of log lines.
 
-In the event the logfile does not currently exist, it will be placed in
-an internal discover list, and checked for existence every
-`discoverInterval` milliseconds (5000ms or 5s) by default.
+In the event the log file does not currently exist, it will be placed in an
+internal discover list, and checked for existence every `discover_interval`
+milliseconds (5000ms or 5s by default).
+
+A single LogfileInput can only be used to read a single file. If you have
+multiple identical files spread across multiple directories (e.g. a
+`/var/log/hosts/<HOSTNAME>/app.log` structure, where each <HOSTNAME> folder
+contains a log file originating from a separate host), you'll want to use the
+:ref:`config_logfile_directory_manager_input`.
 
 Parameters:
 
@@ -435,33 +521,55 @@ Parameters:
     machines qualified hostname. This can be set explicitly to ensure
     its the correct name in the event the machine has multiple
     interfaces/hostnames.
-- discoverInterval (int):
+- discover_interval (int):
     During logfile rotation, or if the logfile is not originally
     present on the system, this interval is how often the existence of
     the logfile will be checked for. The default of 5 seconds is
     usually fine. This interval is in milliseconds.
-- statInterval (int):
+- stat_interval (int):
     How often the file descriptors for each file should be checked to
     see if new log data has been written. Defaults to 500 milliseconds.
     This interval is in milliseconds.
-- decoders (list of strings):
-    List of logline decoder names used to transform the log line into
-    a structured hekad message.
 - logger (string):
     Each LogfileInput may specify a logger name to use in the case an
     error occurs during processing of a particular line of logging
     text.  By default, the logger name is set to the logfile name.
-- seekjournal (string)
-    Heka will write out a journal to keep track of the last known read
-    position of a logfile.  By default, this will default to writing
-    in /var/run/hekad/seekjournals/.  The journal name will be the
-    logger name with path separators and periods replaced with
-    underscores.
-- resumeFromStart(bool)
+- use_seek_journal (bool):
+    Specifies whether to use a seek journal to keep track of where we are
+    in a file to be able to resume parsing from the same location upon
+    restart. Defaults to true.
+- seek_journal_name (string):
+    Name to use for the seek journal file, if one is used. Only refers to
+    the file name itself, not the full path; Heka will store all seek
+    journals in a `seekjournal` folder relative to the Heka base directory.
+    Defaults to a sanitized version of the `logger` value (which itself
+    defaults to the filesystem path of the input file). This value is
+    ignored if `use_seek_journal` is set to false.
+- resume_from_start (bool):
     When heka restarts, if a logfile cannot safely resume reading from
     the last known position, this flag will determine whether hekad
     will force the seek position to be 0 or the end of file. By
     default, hekad will resume reading from the start of file.
+.. versionadded:: 0.4
+- decoder (string):
+    A decoder must be specified for the message.proto parser
+    (i.e. ProtobufDecoder) but is optional for token and regexp parsers (if no
+    decoder is specified the parsed data is available in the Heka message
+    payload).
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+    - message.proto - splits the log on protobuf message boundaries
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
 
 .. code-block:: ini
 
@@ -473,6 +581,45 @@ Parameters:
 
     [LogfileInput]
     logfile = "/var/log/opendirectoryd.log"
+
+.. _config_logfile_directory_manager_input:
+
+LogfileDirectoryManagerInput
+----------------------------
+
+Scans for log files in a globbed directory path and when a new file matching
+the specified path is discovered it will start an instance of the LogfileInput
+plugin to process it. Each LogfileInput will inherit its configuration from
+the manager's settings with the logfile property properly adjusted.
+
+Parameters: (identical to LogfileInput with the following exceptions)
+
+- logfile (string):
+    A path with a globbed directory component pointing to a common (statically
+    named) log file. Note that only directories can be globbed; the file itself
+    must have the same name in each directory.
+- seek_journal_name (string):
+    With a LogfileInput it is possible to specify a particular name for the
+    seek journal file that will be used. This is not possible with the
+    LogfileDirectoryManagerInput; the seek_journal_name will always be auto-
+    generated, and any attempt to specify a hard coded seek_journal_name will
+    be treated as a configuration error.
+- ticker_interval (uint):
+    Time interval (in seconds) between directory scans for new log files.
+    Defaults to 0 (only scans once on startup).
+
+.. code-block:: ini
+
+    [vhosts]
+    type = "LogfileDirectoryManagerInput"
+    logfile = "/var/log/vhost/*/apache.log"
+
+.. note::
+
+    The spawned LogfileInput plugins are named `manager_name`-`logfile` i.e.,
+
+    - vhosts-/var/log/www/apache.log
+    - vhosts-/var/log/internal/apache.log
 
 .. _config_statsd_input:
 
@@ -518,10 +665,10 @@ Parameters:
     Specifies whether or not the aggregated stat information should be emitted
     in the payload of the generated messages, in the format accepted by the
     `carbon <http://graphite.wikidot.com/carbon>`_ portion of the `graphite
-    <http://graphite.wikidot.com/>`_ graphing software. Defaults to false.
+    <http://graphite.wikidot.com/>`_ graphing software. Defaults to true.
 - emit_in_fields (bool):
     Specifies whether or not the aggregated stat information should be emitted
-    in the message fields of the generated messages. Defaults to true. *NOTE*:
+    in the message fields of the generated messages. Defaults to false. *NOTE*:
     At least one of 'emit_in_payload' or 'emit_in_fields' *must* be true or it
     will be considered a configuration error and the input won't start.
 - percent_threshold (int):
@@ -533,6 +680,95 @@ Parameters:
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
+
+.. _config_process_input:
+
+ProcessInput
+------------
+
+Executes one or more external programs on an interval, creating
+messages from the output.  If a chain of commands is used, stdout is
+piped into the next command's stdin. In the event the program returns a
+non-zero exit code, ProcessInput will stop, logging the exit error.
+
+Parameters:
+Each command is defined with the following parameters:
+
+
+- Name (string):
+  Each ProcessInput *must* have a name defined for logging purposes.
+  The messages will be tagged with `name`.stdout or `name`.stderr in
+  the `ProcessInputName` field of the heka message.
+
+- Command (map[uint]cmd_config):
+    The command is a structure that contains the full path to the
+    binary, command line arguments, optional enviroment variables and
+    an optional working directory. See the `cmd_config` definition
+    below.  ProcessInput expects the commands to be indexed by
+    integers starting with 0.
+- ticker_interval (uint):
+    The number of seconds to wait between runnning `command`. 
+    Defaults to 15.  A ticker_interval of 0 indicates that the command
+    is run once.
+- stdout (bool):
+    Capture stdout from `command`.  Defaults to true.
+- stderr (bool):
+    Capture stderr from `command`.  Defaults to false.
+- decoder (string):
+    Name of the decoder instance to send messages to.  Default is to inject
+    messages back into the main heka router.
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
+- timeout (uint):
+  Timeout in seconds before any one of the commands in the chain is
+  terminated.
+- trim (bool) :
+  Trim a single trailing newline character if one exists. Default is
+  true.
+
+cmd_config structure ::
+
+- bin (string):
+    The full path to the binary that will be executed.
+- args ([]string):
+    Command line arguments to pass into the executable.
+- environment ([]string):
+    Used to set environment variables before `command` is run. Default is nil,
+    which uses the heka process's environment.
+- directory (string):
+    Used to set the working directory of `Bin` Default is "", which
+    uses the heka process's working directory.
+
+.. code-block:: ini
+
+    [ProcessInput]
+    name = "DemoProcessInput"
+    ticker_interval = 2
+    parser_type = "token"
+    delimiter = " "
+    stdout = true
+    stderr = false
+    trim = true
+
+    [ProcessInput.Command.0]
+    bin = "/bin/cat"
+    Args = ["../testsupport/process_input_pipes_test.txt"]
+
+    [ProcessInput.Command.1]
+    bin = "/usr/bin/grep"
+    Args = ["ignore"]
+
 
 .. _config_http_input:
 
@@ -547,7 +783,7 @@ are not fatal for the plugin.
 Parameters:
 
 - url (string):
-    A HTTP URL which this plugin will regularly poll for data. 
+    A HTTP URL which this plugin will regularly poll for data.
     No default URL is specified.
 - ticker_interval (uint):
     Time interval (in seconds) between attempts to poll for new data.
@@ -563,7 +799,7 @@ Example:
     [HttpInput]
     url = "http://localhost:9876/"
     ticker_interval = 5
-    decoder = "JsonDecoder"
+    decoder = "ProtobufDecoder"
 
 .. end-inputs
 
@@ -574,25 +810,19 @@ Decoders
 
 A decoder may be specified for each encoding type defined in message.pb.go.
 Unless you are using a custom decoder you probably won't need to specify these
-by hand, by default the JsonDecoder and ProtobufDecoder will be configured as
-if you had included the following configuration.
+by hand, by default the ProtobufDecoder will be configured as if you
+had included the following configuration.
 
 Example:
 
 .. code-block:: ini
 
-    [JsonDecoder]
-    encoding_name = "JSON"
-
     [ProtobufDecoder]
     encoding_name = "PROTOCOL_BUFFER"
 
-The JsonDecoder converts JSON serialized Heka messages to `Message` struct
-objects. The `encoding_name` setting means that this decoder should be used
-for any Heka protocol messages that have the encoding header of JSON. The
-ProtobufDecoder converts protocol buffers serialized messages to `Message`
-struct objects. The hekad protocol buffers message schema in defined in the
-`message.proto` file in the `message` package.
+The ProtobufDecoder converts protocol buffers serialized messages to
+`Message` struct objects. The hekad protocol buffers message schema in
+defined in the `message.proto` file in the `message` package.
 
 .. note::
 
@@ -603,9 +833,9 @@ struct objects. The hekad protocol buffers message schema in defined in the
 .. seealso:: `Protocol Buffers - Google's data interchange format
    <http://code.google.com/p/protobuf/>`_
 
-.. _config_logline_decoder:
+.. _config_payloadregex_decoder:
 
-LoglineDecoder
+PayloadRegexDecoder
 --------------
 
 Decoder plugin that accepts messages of a specified form and generates new
@@ -628,8 +858,8 @@ Parameters:
     that should be used. Valid interpolated values are any captured in a regex
     in the message_matcher, and any other field that exists in the message. In
     the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at 
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  = 
+    name's value will be used. Optional representation metadata can be added at
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
@@ -661,7 +891,7 @@ Example (Parsing Apache Combined Log Format):
 .. code-block:: ini
 
     [apache_transform_decoder]
-    type = "LoglineDecoder"
+    type = "PayloadRegexDecoder"
     match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
@@ -679,6 +909,315 @@ Example (Parsing Apache Combined Log Format):
     RequestSize|B = "%RequestSize%"
     Referer = "%Referer%"
     Browser = "%Browser%"
+
+.. _config_payloadjson_decoder:
+
+PayloadJsonDecoder
+------------------
+
+This decoder plugin accepts JSON blobs and allows you to map parts
+of the JSON into Field attributes of the pipelinepack message using
+JSONPath syntax.
+
+Parameters:
+
+- json_map:
+    A subsection defining a capture name that maps to a JSONPath expression.
+    Each expression can fetch a single value, if the expression does
+    not resolve to a valid node in the JSON message, the capture group
+    will be assigned an empty string value.
+- severity_map:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
+- message_fields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in a JSONPath
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used. Optional representation metadata can be added at
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
+    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
+    bytes.  Adding a representation string to a standard message header name
+    will cause it to be added as a user defined field i.e., Payload|json will
+    create Fields[Payload] with a json representation.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_decoder.message_fields]
+        Type = "%Type%Decoded"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Decoded` appended.
+- timestamp_layout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    constants>`_.  The default layout is ISO8601 - the same as
+    Javascript.
+
+- timestamp_location (string):
+    Time zone in which the timestamps in the text are presumed to be in.
+    Should be a location name corresponding to a file in the IANA Time Zone
+    database (e.g. "America/Los_Angeles"), as parsed by Go's
+    `time.LoadLocation()` function (see
+    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
+    if valid time zone info is embedded in every parsed timestamp, since those
+    can be parsed as specified in the `timestamp_layout`.
+
+Example:
+
+.. code-block:: ini
+
+    [myjson_decoder]
+    type = "PayloadJsonDecoder"
+
+    [myjson_decoder.json_map]
+    Count = "$.statsd.count"
+    Name = "$.statsd.name"
+    Pid = "$.pid"
+    Timestamp = "$.timestamp"
+
+    [myjson_decoder.severity_map]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [myjson_decoder.message_fields]
+    Pid = "%Pid%"
+    StatCount = "%Count%"
+    StatName =  "%Name%"
+    Timestamp = "%Timestamp%"
+
+PayloadJsonDecoder's json_map config subsection  only supports a small
+subset of valid JSONPath expressions.
+
+========     =========================================
+JSONPath     Description
+========     =========================================
+$            the root object/element
+.            child operator
+[]           subscript operator to iterate over arrays
+========     =========================================
+
+Examples:
+---------
+
+.. code-block:: javascript
+
+    var s = {
+        "foo": {
+            "bar": [
+                {
+                    "baz": "こんにちわ世界",
+                    "noo": "aaa"
+                },
+                {
+                    "maz": "123",
+                    "moo": 256
+                }
+            ],
+            "boo": {
+                "bag": true,
+                "bug": false
+            }
+        }
+    }
+
+    # Valid paths
+    $.foo.bar[0].baz
+    $.foo.bar
+
+PayloadXmlDecoder
+-----------------
+
+This decoder plugin accepts XML blobs in the message payload and
+allows you to map parts of the XML into Field attributes of the
+pipelinepack message using XPath syntax using the `xmlpath
+<http://launchpad.net/xmlpath>`_ library.
+
+Parameters:
+
+- xpath_map:
+    A subsection defining a capture name that maps to an XPath expression.
+    Each expression can fetch a single value, if the expression does
+    not resolve to a valid node in the XML blob, the capture group
+    will be assigned an empty string value.
+- severity_map:
+    Subsection defining severity strings and the numerical value they should
+    be translated to. hekad uses numerical severity codes, so a severity of
+    `WARNING` can be translated to `3` by settings in this section.
+- message_fields:
+    Subsection defining message fields to populate and the interpolated values
+    that should be used. Valid interpolated values are any captured in an XPath
+    in the message_matcher, and any other field that exists in the message. In
+    the event that a captured name overlaps with a message field, the captured
+    name's value will be used. Optional representation metadata can be added at
+    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
+    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
+    bytes.  Adding a representation string to a standard message header name
+    will cause it to be added as a user defined field i.e., Payload|json will
+    create Fields[Payload] with a json representation.
+
+    Interpolated values should be surrounded with `%` signs, for example::
+
+        [my_decoder.message_fields]
+        Type = "%Type%Decoded"
+
+    This will result in the new message's Type being set to the old messages
+    Type with `Decoded` appended.
+- timestamp_layout (string):
+    A formatting string instructing hekad how to turn a time string into the
+    actual time representation used internally. Example timestamp layouts can
+    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    constants>`_.  The default layout is ISO8601 - the same as
+    Javascript.
+
+- timestamp_location (string):
+    Time zone in which the timestamps in the text are presumed to be in.
+    Should be a location name corresponding to a file in the IANA Time Zone
+    database (e.g. "America/Los_Angeles"), as parsed by Go's
+    `time.LoadLocation()` function (see
+    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
+    if valid time zone info is embedded in every parsed timestamp, since those
+    can be parsed as specified in the `timestamp_layout`.
+
+Example:
+
+.. code-block:: ini
+
+    [myxml_decoder]
+    type = "PayloadXmlDecoder"
+
+    [myxml_decoder.xpath_map]
+    Count = "/some/path/count"
+    Name = "/some/path/name"
+    Pid = "//pid"
+    Timestamp = "//timestamp"
+
+    [myxml_decoder.severity_map]
+    DEBUG = 1
+    WARNING = 2
+    INFO = 3
+
+    [myxml_decoder.message_fields]
+    Pid = "%Pid%"
+    StatCount = "%Count%"
+    StatName =  "%Name%"
+    Timestamp = "%Timestamp%"
+
+PayloadXmlDecoder's xpath_map config subsection supports XPath as
+implemented by the `xmlpath <http://launchpad.net/xmlpath>`_ library.
+
+    * All axes are supported ("child", "following-sibling", etc)
+    * All abbreviated forms are supported (".", "//", etc)
+    * All node types except for namespace are supported
+    * Predicates are restricted to [N], [path], and [path=literal] forms
+    * Only a single predicate is supported per path step
+    * Richer expressions and namespaces are not supported
+
+.. _config_statstofieldsdecoder:
+
+.. versionadded:: 0.4
+StatsToFieldsDecoder
+--------------------
+
+The StatsToFieldsDecoder will parse statsd data in the `graphite message
+format <http://graphite.wikidot.com/getting-your-data-into-graphite#toc4>`_
+and encode the data into the message fields, in the same format produced by a
+:ref:`config_stat_accum_input` plugin with the `emit_in_fields` value set to
+true. This is useful if you have externally generated statsd string data
+flowing through Heka that you'd like to process without having to roll your
+own string parsing code.
+
+This decoder has no configuration options, it simply expects to be passed a
+message with statsd string data in the payload. Incorrect or malformed content
+will cause a decoding error, dropping the message.
+
+The fields format only contains a single "timestamp" field, so any payloads
+containing multiple timestamps will end up generating a separate message for
+each timestamp. Extra messages will be a copy of the original message except
+a) the payload will be empty and b) the unique timestamp and related stats
+will be the only message fields.
+
+.. _config_multidecoder:
+
+MultiDecoder
+------------
+
+This decoder plugin allows you to specify an ordered list of delegate
+decoders.  The MultiDecoder will pass the PipelinePack to be decoded to each
+of the delegate decoders in turn until decode succeeds.  In the case of
+failure to decode, MultiDecoder will return an error and recycle the message.
+
+Parameters:
+
+- subs:
+    A subsection is used to declare the TOML configuration for any delegate
+    decoders. The default is that no delegate decoders are defined.
+
+- order (list of strings):
+    PipelinePack objects will be passed in order to each decoder in this list.
+    Default is an empty list.
+
+- name (string):
+    Defaults to MultiDecoder-<address of multidecoder>.
+
+- log_sub_errors (bool):
+    If true, the DecoderRunner will log the errors returned whenever a
+    delegate decoder fails to decode a message. Defaults to false.
+
+- cascade_strategy (string):
+    Specifies behavior the MultiDecoder should exhibit with regard to
+    cascading through the listed decoders. Supports only two valid values:
+    "first-wins" and "all". With "first-wins", each decoder will be tried in
+    turn until there is a successful decoding, after which decoding will be
+    stopped. With "all", all listed decoders will be applied whether or not
+    they succeed. In each case, decoding will only be considered to have
+    failed if *none* of the sub-decoders succeed.
+
+Example (Two PayloadRegexDecoder delegates):
+
+.. code-block:: ini
+
+        [syncdecoder]
+        type = "MultiDecoder"
+        order = ['syncformat', 'syncraw']
+
+        [syncdecoder.subs.syncformat]
+        type = "PayloadRegexDecoder"
+        match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
+        timestamp_layout = "02/Jan/2006:15:04:05 -0700"
+
+        [syncdecoder.subs.syncformat.message_fields]
+        RemoteIP|ipv4 = "%RemoteIP%"
+        User = "%User%"
+        Method = "%Method%"
+        Url|uri = "%Url%"
+        StatusCode = "%StatusCode%"
+        RequestSize|B= "%RequestSize%"
+        Referer = "%Referer%"
+        Browser = "%Browser%"
+        ResponseTime|s = "%ResponseTime%"
+        ResponseSize|B = "%ResponseSize%"
+        Payload = ""
+
+        [syncdecoder.subs.syncraw]
+        type = "PayloadRegexDecoder"
+        match_regex = '^(?P<TheData>.*)'
+
+        [syncdecoder.subs.syncraw.message_fields]
+        Somedata = "%TheData%"
+
+.. _config_sandboxdecoder:
+
+Sandbox Decoder
+---------------
+
+The sandbox decoder provides an isolated execution environment for data parsing
+and complex transformations without the need to recompile Heka.
+
+:ref:`sandboxdecoder_settings`
 
 .. end-decoders
 
@@ -949,21 +1488,31 @@ Parameters:
 
 - ticker_interval (uint):
     Specifies how often, in seconds, the dashboard files should be updated.
-- address (string, optional):
+    Defaults to 5.
+- message_matcher (string):
+    Defaults to `"Type == 'heka.all-report' || Type == 'heka.sandbox-output'
+    || Type == 'heka.sandbox-terminated'"`. Not recommended to change this
+    unless you know what you're doing.
+- address (string):
     An IP address:port on which we will serve output via HTTP. Defaults to
     "0.0.0.0:4352".
-- working_directory (string, optional):
+- working_directory (string):
     File system directory into which the plugin will write data files and from
     which it will serve HTTP. The Heka process must have read / write access
-    to this directory. Defaults to "./dashboard".
+    to this directory. Relative paths will be evaluated relative to the Heka
+    base directory. Defaults to "dashboard" (i.e. "$(BASE_DIR)/dashboard").
+- static_directory (string):
+    File system directory where the Heka dashboard source code can be found.
+    The Heka process must have read access to this directory. Relative paths
+    will be evaluated relative to the Heka base directory. Defaults to
+    "dashboard_static" (i.e. "$(BASE_DIR)/dashboard_static").
 
 Example:
 
 .. code-block:: ini
 
     [DashboardOutput]
-    ticker_interval = 60
-    message_matcher = "Type == 'heka.all-report' || Type == 'heka.sandbox-output' || Type == 'heka.sandbox-terminated'"
+    ticker_interval = 30
 
 .. _config_elasticsearch_output:
 
@@ -978,10 +1527,14 @@ Parameters:
 - cluster (string):
     ElasticSearch cluster name. Defaults to "elasticsearch"
 - index (string):
-    Name of the ES index into which the messages will be inserted. Defaults to
-    "heka-%{2006.01.02}".
+    Name of the ES index into which the messages will be inserted.
+    If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
+    are placed between within a %{}, it will be interpolated to their message value.
+    Defaults to "heka-%{2006.01.02}".
 - type_name (string):
     Name of ES record type to create. Defaults to "message".
+    If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
+    are placed between within a %{}, it will be interpolated to their message value.
 - flush_interval (int):
     Interval at which accumulated messages should be bulk indexed into
     ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
@@ -989,8 +1542,12 @@ Parameters:
     Number of messages that, if processed, will trigger them to be bulk
     indexed into ElasticSearch. Defaults to 10.
 - format (string):
-    Message serialization format, either "clean" or "raw", where "clean" is
-    a more concise JSON representation of the message. Defaults to "clean".
+    Message serialization format, either "clean", "logstash_v0", "payload" or
+    "raw". "clean" is a more concise JSON representation of the message,
+    "logstash_v0" outputs in a format similar to Logstash's original (i.e.
+    "version 0") ElasticSearch schema, "payload" passes the message payload
+    directly into ElasticSearch, and "raw" is a full JSON representation of
+    the message. Defaults to "clean".
 - fields ([]string):
     If the format is "clean", then the 'fields' parameter can be used to
     specify that only specific message data should be indexed into
@@ -1004,6 +1561,9 @@ Parameters:
 - server (string):
     ElasticSearch server URL. Supports http://, https:// and udp:// urls.
     Defaults to "http://localhost:9200".
+- ESIndexFromTimestamp (bool):
+    When generating the index name use the timestamp from the message
+    instead of the current time. Defaults to false.
 
 Example:
 
@@ -1024,17 +1584,19 @@ Example:
 WhisperOutput
 -------------
 
-WhisperOutput plugins parse the "stat metric" messages generated by a
+WhisperOutput plugins parse the "statmetric" messages generated by a
 StatAccumulator and write the extracted counter, timer, and gauge data out to
 a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 <http://graphite.wikidot.com/whisper>`_ file tree structure.
 
 Parameters:
 
-- base_path (string, optional):
-    Path to the base directory where the whisper file tree will be written. Defaults
-    to "/var/run/hekad/whisper".
-- default_agg_method (int, optional):
+- base_path (string):
+    Path to the base directory where the whisper file tree will be written.
+    Absolute paths will be honored, relative paths will be calculated relative
+    to the Heka base directory. Defaults to "whisper" (i.e.
+    "$(BASE_DIR)/whisper").
+- default_agg_method (int):
     Default aggregation method to use for each whisper output file. Supports
     the following values:
 
@@ -1044,7 +1606,7 @@ Parameters:
     3. Aggregate using last received value.
     4. Aggregate using maximum value.
     5. Aggregate using minimum value.
-- default_archive_info ([][]int, optional):
+- default_archive_info ([][]int):
     Default specification for new whisper db archives. Should be a sequence of
     3-tuples, where each tuple describes a time interval's storage policy:
     [<offset> <# of secs per datapoint> <# of datapoints>] (see `whisper docs
@@ -1061,7 +1623,7 @@ Parameters:
     third uses one hour for each of 168 data points, or 7 days of retention.
     Finally, the fourth uses 12 hours for each of 1456 data points,
     representing two years of data.
-- folder_perm (string, optional):
+- folder_perm (string):
     Permission mask to be applied to folders created in the whisper database
     file tree. Must be a string representation of an octal integer. Defaults
     to "700".
@@ -1099,7 +1661,7 @@ Parameters:
 - password (string, optional):
     Password used to authenticate with the Nagios web interface. Defaults to "".
 - responseheadertimeout (uint, optional):
-    Specifies the amount of time, in seconds, to wait for a server's response 
+    Specifies the amount of time, in seconds, to wait for a server's response
     headers after fully writing the request. Defaults to 2.
 
 Example configuration to output alerts from SandboxFilter plugins:

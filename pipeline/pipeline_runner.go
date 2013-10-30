@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Ben Bangert (bbangert@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -39,25 +40,31 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
-	PoolSize            int
-	DecoderPoolSize     int
-	PluginChanSize      int
-	MaxMsgLoops         uint
-	MaxMsgProcessInject uint
-	MaxMsgTimerInject   uint
-	Stopping            bool
-	sigChan             chan os.Signal
+	PoolSize              int
+	DecoderPoolSize       int
+	PluginChanSize        int
+	MaxMsgLoops           uint
+	MaxMsgProcessInject   uint
+	MaxMsgProcessDuration uint64
+	MaxMsgTimerInject     uint
+	MaxPackIdle           time.Duration
+	Stopping              bool
+	BaseDir               string
+	sigChan               chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
+	idle, _ := time.ParseDuration("2m")
 	return &GlobalConfigStruct{
-		PoolSize:            100,
-		DecoderPoolSize:     2,
-		PluginChanSize:      50,
-		MaxMsgLoops:         4,
-		MaxMsgProcessInject: 1,
-		MaxMsgTimerInject:   10,
+		PoolSize:              100,
+		DecoderPoolSize:       2,
+		PluginChanSize:        50,
+		MaxMsgLoops:           4,
+		MaxMsgProcessInject:   1,
+		MaxMsgProcessDuration: 1000000,
+		MaxMsgTimerInject:     10,
+		MaxPackIdle:           idle,
 	}
 }
 
@@ -72,11 +79,132 @@ func (g *GlobalConfigStruct) ShutDown() {
 	}()
 }
 
+// Log a message out
+func (g *GlobalConfigStruct) LogMessage(src, msg string) {
+	log.Printf("%s: %s", src, msg)
+}
+
 // Returns global pipeline config values. This function is overwritten by the
 // `pipeline.NewPipelineConfig` function. Globals are generally A Bad Idea, so
 // we're at least using a function instead of a struct for global state to
 // make it easier to change the underlying implementation.
 var Globals func() *GlobalConfigStruct
+
+// Diagnostic object for packet tracking
+type PacketTracking struct {
+	// Records last accessed time
+	LastAccess time.Time
+
+	// Records the plugins the packet has been handed to
+	lastPlugins []PluginRunner
+}
+
+// Create a new blank PacketTracking
+func NewPacketTracking() *PacketTracking {
+	return &PacketTracking{time.Now(), make([]PluginRunner, 0, 8)}
+}
+
+// Stamps a packet with the tracking data for the plugin its handed to,
+// clearing any existing stamps
+func (p *PacketTracking) Stamp(pluginRunner PluginRunner) {
+	p.lastPlugins = p.lastPlugins[:0]
+	p.lastPlugins = append(p.lastPlugins, pluginRunner)
+	p.LastAccess = time.Now()
+}
+
+// Adds a stamp to the packet
+func (p *PacketTracking) AddStamp(pluginRunner PluginRunner) {
+	p.lastPlugins = append(p.lastPlugins, pluginRunner)
+	p.LastAccess = time.Now()
+}
+
+// Resets the packet stamping
+func (p *PacketTracking) Reset() {
+	p.lastPlugins = p.lastPlugins[:0]
+	p.LastAccess = time.Now()
+}
+
+// Returns the names of the plugins that have last accessed the packet
+func (p *PacketTracking) PluginNames() (names []string) {
+	names = make([]string, 0, 4)
+	for _, pr := range p.lastPlugins {
+		names = append(names, pr.Name())
+	}
+	return
+}
+
+// Returns the names of the plugin runners that last access the packet
+func (p *PacketTracking) Runners() (runners []PluginRunner) {
+	return p.lastPlugins
+}
+
+// A diagnostic tracker that can track pipeline packs and do accounting
+// to determine possible leaks
+type DiagnosticTracker struct {
+	// Track all the packs that have been created
+	packs []*PipelinePack
+
+	// Identify the name of the recycle channel it monitors packs for
+	ChannelName string
+}
+
+// Create and return a new diagnostic tracker
+func NewDiagnosticTracker(channelName string) *DiagnosticTracker {
+	return &DiagnosticTracker{make([]*PipelinePack, 0, 50), channelName}
+}
+
+// Add a pipeline pack for monitoring
+func (d *DiagnosticTracker) AddPack(pack *PipelinePack) {
+	d.packs = append(d.packs, pack)
+}
+
+// Run the monitoring routine, this should be spun up in a new goroutine
+func (d *DiagnosticTracker) Run() {
+	var (
+		pack           *PipelinePack
+		earliestAccess time.Time
+		pluginCounts   map[PluginRunner]int
+		count          int
+		runner         PluginRunner
+	)
+	g := Globals()
+	idleMax := g.MaxPackIdle
+	probablePacks := make([]*PipelinePack, 0, len(d.packs))
+	ticker := time.NewTicker(time.Duration(30) * time.Second)
+	for {
+		<-ticker.C
+		probablePacks = probablePacks[:0]
+		pluginCounts = make(map[PluginRunner]int)
+
+		// Locate all the packs that have not been touched in idleMax duration
+		// that are not recycled
+		earliestAccess = time.Now().Add(-idleMax)
+		for _, pack = range d.packs {
+			if len(pack.diagnostics.lastPlugins) == 0 {
+				continue
+			}
+			if pack.diagnostics.LastAccess.Before(earliestAccess) {
+				probablePacks = append(probablePacks, pack)
+				for _, runner = range pack.diagnostics.Runners() {
+					pluginCounts[runner] += 1
+				}
+			}
+		}
+
+		// Drop a warning about how many packs have been idle
+		if len(probablePacks) > 0 {
+			g.LogMessage("Diagnostics", fmt.Sprintf("%d packs have been idle more than %d seconds.",
+				d.ChannelName, len(probablePacks), idleMax))
+			g.LogMessage("Diagnostics", fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
+				d.ChannelName))
+			for runner, count = range pluginCounts {
+				runner.SetLeakCount(count)
+				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", runner.Name(), count))
+			}
+			log.Println("")
+		}
+	}
+}
 
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
@@ -107,6 +235,13 @@ type PluginRunner interface {
 	// Plugin Globals, these are the globals accepted for the plugin in the
 	// config file
 	PluginGlobals() *PluginGlobals
+
+	// Sets the amount of currently 'leaked' packs that have gone through
+	// this plugin. The new value will overwrite prior ones.
+	SetLeakCount(count int)
+
+	// Returns the current leak count
+	LeakCount() int
 }
 
 // Base struct for the specialized PluginRunners
@@ -115,6 +250,7 @@ type pRunnerBase struct {
 	plugin        Plugin
 	pluginGlobals *PluginGlobals
 	h             PluginHelper
+	leakCount     int
 }
 
 func (pr *pRunnerBase) Name() string {
@@ -131,6 +267,14 @@ func (pr *pRunnerBase) Plugin() Plugin {
 
 func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
 	return pr.pluginGlobals
+}
+
+func (pr *pRunnerBase) SetLeakCount(count int) {
+	pr.leakCount = count
+}
+
+func (pr *pRunnerBase) LeakCount() int {
+	return pr.leakCount
 }
 
 // Retry helper, created with a RetryOptions struct
@@ -220,6 +364,7 @@ type foRunner struct {
 	inChan     chan *PipelinePack
 	h          PluginHelper
 	retainPack *PipelinePack
+	leakCount  int
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -254,11 +399,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	)
 	globals := Globals()
 	defer func() {
-		if r := recover(); r != nil {
-			// Only recovers from panics in the main `Run` method
-			// goroutine, but better than nothing.
-			foRunner.LogError(fmt.Errorf("PANIC: %s", r))
-		}
 		wg.Done()
 	}()
 
@@ -424,6 +564,8 @@ type PipelinePack struct {
 	// Number of times the current message chain has generated new messages
 	// and inserted them into the pipeline.
 	MsgLoopCount uint
+	// Used internally to stamp diagnostic information onto a packet
+	diagnostics *PacketTracking
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the
@@ -439,6 +581,7 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 		Decoded:      false,
 		RefCount:     int32(1),
 		MsgLoopCount: uint(0),
+		diagnostics:  NewPacketTracking(),
 	}
 }
 
@@ -449,6 +592,7 @@ func (p *PipelinePack) Zero() {
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""
+	p.diagnostics.Reset()
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
@@ -471,7 +615,6 @@ func (p *PipelinePack) Recycle() {
 func Run(config *PipelineConfig) {
 	log.Println("Starting hekad...")
 
-	var inputsWg sync.WaitGroup
 	var outputsWg sync.WaitGroup
 	var err error
 
@@ -499,19 +642,33 @@ func Run(config *PipelineConfig) {
 		log.Println("Filter started: ", name)
 	}
 
+	// Setup the diagnostic trackers
+	inputTracker := NewDiagnosticTracker("input")
+	injectTracker := NewDiagnosticTracker("inject")
+
+	// Create the report pipeline pack
+	config.reportRecycleChan <- NewPipelinePack(config.reportRecycleChan)
+
 	// Initialize all of the PipelinePacks that we'll need
 	for i := 0; i < Globals().PoolSize; i++ {
-		config.inputRecycleChan <- NewPipelinePack(config.inputRecycleChan)
-		config.injectRecycleChan <- NewPipelinePack(config.injectRecycleChan)
+		inputPack := NewPipelinePack(config.inputRecycleChan)
+		inputTracker.AddPack(inputPack)
+		config.inputRecycleChan <- inputPack
+
+		injectPack := NewPipelinePack(config.injectRecycleChan)
+		injectTracker.AddPack(injectPack)
+		config.injectRecycleChan <- injectPack
 	}
 
+	go inputTracker.Run()
+	go injectTracker.Run()
 	config.router.Start()
 
 	for name, input := range config.InputRunners {
-		inputsWg.Add(1)
-		if err = input.Start(config, &inputsWg); err != nil {
+		config.inputsWg.Add(1)
+		if err = input.Start(config, &config.inputsWg); err != nil {
 			log.Printf("Input '%s' failed to start: %s", name, err)
-			inputsWg.Done()
+			config.inputsWg.Done()
 			continue
 		}
 		log.Printf("Input started: %s\n", name)
@@ -539,16 +696,13 @@ func Run(config *PipelineConfig) {
 		}
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("PANIC during shutdown: %s", r)
-		}
-	}()
+	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {
 		input.Input().Stop()
 		log.Printf("Stop message sent to input '%s'", input.Name())
 	}
-	inputsWg.Wait()
+	config.inputsLock.Unlock()
+	config.inputsWg.Wait()
 
 	log.Println("Waiting for decoders shutdown")
 	for _, decoder := range config.allDecoders {

@@ -235,6 +235,15 @@ called `TickerInterval`, that will be used as a default ticker interval value
 contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
+There is an optional configuration interface called WantsName.  It provides a
+a plug-in access to its configured name before the runner has started. The 
+Sandbox filter plug-in uses the name to locate/load any preserved state
+before being run.
+
+    type WantsName interface {
+        SetName(name string)
+    }
+
 .. _inputs:
 
 Inputs
@@ -326,6 +335,20 @@ As with inputs, the `Decoder` interface is quite simple::
 
     type Decoder interface {
             Decode(pack *PipelinePack) error
+    }
+
+There are two optional Decoder interfaces.  The first provides the Decoder
+access to its DecoderRunner object when it is started.
+
+    type WantsDecoderRunner interface {
+        SetDecoderRunner(dr DecoderRunner)
+    }
+
+The second provides a notification to the Decoder when the DecoderRunner is 
+exiting.
+
+    type WantsDecoderRunnerShutdown interface {
+        Shutdown()
     }
 
 A decoder's `Decode` method should extract the raw message data from
@@ -474,7 +497,6 @@ itself::
 
     RegisterPlugin("UdpInput", func() interface{} {return new(UdpInput)})
     RegisterPlugin("TcpInput", func() interface{} {return new(TcpInput)})
-    RegisterPlugin("JsonDecoder", func() interface{} {return new(JsonDecoder)})
     RegisterPlugin("ProtobufDecoder", func() interface{} {return new(ProtobufDecoder)})
     RegisterPlugin("CounterFilter", func() interface{} {return new(CounterFilter)})
     RegisterPlugin("StatFilter", func() interface{} {return new(StatFilter)})
@@ -485,7 +507,5 @@ It is recommended that `RegisterPlugin` calls be put in your Go package's
 `init() function <http://golang.org/doc/effective_go.html#init>`_ so that you
 can simply import your package when building `hekad` and the package's plugins
 will be registered and available for use in your Heka config file. This is
-made a bit easier if you use `heka build`_, see
+made a bit easier if you use `plugin_loader.cmake`_, see
 :ref:`build_include_externals`.
-
-.. _heka build: https://github.com/mozilla-services/heka-build

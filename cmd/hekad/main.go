@@ -26,20 +26,59 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 )
 
 const (
-	VERSION = "0.3.0"
+	VERSION = "0.4.0"
 )
 
+func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
+	maxprocs := config.Maxprocs
+	poolSize := config.PoolSize
+	decoderPoolSize := config.DecoderPoolSize
+	chanSize := config.ChanSize
+	cpuProfName := config.CpuProfName
+	memProfName := config.MemProfName
+	maxMsgLoops := config.MaxMsgLoops
+	maxMsgProcessInject := config.MaxMsgProcessInject
+	maxMsgProcessDuration := config.MaxMsgProcessDuration
+	maxMsgTimerInject := config.MaxMsgTimerInject
+
+	runtime.GOMAXPROCS(maxprocs)
+
+	globals := pipeline.DefaultGlobals()
+	globals.PoolSize = poolSize
+	globals.DecoderPoolSize = decoderPoolSize
+	globals.PluginChanSize = chanSize
+	globals.MaxMsgLoops = maxMsgLoops
+	if globals.MaxMsgLoops == 0 {
+		globals.MaxMsgLoops = 1
+	}
+	globals.MaxMsgProcessInject = maxMsgProcessInject
+	globals.MaxMsgProcessDuration = maxMsgProcessDuration
+	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.BaseDir = config.BaseDir
+
+	return globals, cpuProfName, memProfName
+}
+
 func main() {
-	configFile := flag.String("config", "/etc/hekad.toml", "Config file")
+	configPath := flag.String("config", filepath.FromSlash("/etc/hekad.toml"),
+		"Config file or directory. If directory is specified then all files "+
+			"in the directory will be loaded.")
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
+
+	config := &HekadConfig{}
+	var err error
+	var cpuProfName string
+	var memProfName string
 
 	if flag.NFlag() == 0 {
 		flag.PrintDefaults()
@@ -51,22 +90,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	config, err := LoadHekadConfig(*configFile)
+	config, err = LoadHekadConfig(*configPath)
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
+	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
-	maxprocs := config.Maxprocs
-	poolSize := config.PoolSize
-	decoderPoolSize := config.DecoderPoolSize
-	chanSize := config.ChanSize
-	cpuProfName := config.CpuProfName
-	memProfName := config.MemProfName
-	maxMsgLoops := config.MaxMsgLoops
-	maxMsgProcessInject := config.MaxMsgProcessInject
-	maxMsgTimerInject := config.MaxMsgTimerInject
-
-	runtime.GOMAXPROCS(maxprocs)
+	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
+		log.Fatalf("Error creating base_dir %s: %s", config.BaseDir, err)
+	}
 
 	if cpuProfName != "" {
 		profFile, err := os.Create(cpuProfName)
@@ -90,19 +122,19 @@ func main() {
 	}
 
 	// Set up and load the pipeline configuration and start the daemon.
-	globals := pipeline.DefaultGlobals()
-	globals.PoolSize = poolSize
-	globals.DecoderPoolSize = decoderPoolSize
-	globals.PluginChanSize = chanSize
-	globals.MaxMsgLoops = maxMsgLoops
-	if globals.MaxMsgLoops == 0 {
-		globals.MaxMsgLoops = 1
-	}
-	globals.MaxMsgProcessInject = maxMsgProcessInject
-	globals.MaxMsgTimerInject = maxMsgTimerInject
 	pipeconf := pipeline.NewPipelineConfig(globals)
+	p, err := os.Open(*configPath)
+	fi, err := p.Stat()
 
-	err = pipeconf.LoadFromConfigFile(*configFile)
+	if fi.IsDir() {
+		files, _ := ioutil.ReadDir(*configPath)
+		for _, f := range files {
+			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, f.Name()))
+		}
+	} else {
+		err = pipeconf.LoadFromConfigFile(*configPath)
+	}
+
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}

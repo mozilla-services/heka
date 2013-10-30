@@ -1,3 +1,7 @@
-cmd/hekad/plugin_loader.go
 docs/build
-sandbox/lua/lua_sandbox.go
+sandbox/lua/lua_sandbox.go.in
+build
+cmake/plugin_loader.cmake
+etc/
+var/
+*.sw?

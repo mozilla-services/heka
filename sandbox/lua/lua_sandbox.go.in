@@ -22,205 +22,234 @@ package lua
 import "C"
 
 import (
-    "fmt"
-    "github.com/mozilla-services/heka/message"
-    "github.com/mozilla-services/heka/sandbox"
-    "log"
-    "strings"
-    "unsafe"
+	"fmt"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/sandbox"
+	"log"
+	"strings"
+	"unsafe"
 )
 
 func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
-    unsafe.Pointer, int) {
+	unsafe.Pointer, int) {
 
-    var field *message.Field
-    if fi != 0 {
-        fields := msg.FindAllFields(fn)
-        if fi >= len(fields) {
-            return 0, unsafe.Pointer(nil), 0
-        }
-        field = fields[fi]
-    } else {
-        if field = msg.FindFirstField(fn); field == nil {
-            return 0, unsafe.Pointer(nil), 0
-        }
-    }
-    fieldType := int(field.GetValueType())
-    switch field.GetValueType() {
-    case message.Field_STRING:
-        if ai >= len(field.ValueString) {
-            return fieldType, unsafe.Pointer(nil), 0
-        }
-        value := field.ValueString[ai]
-        cs := C.CString(value) // freed by the caller
-        return fieldType, unsafe.Pointer(cs), len(value)
-    case message.Field_BYTES:
-        if ai >= len(field.ValueBytes) {
-            return fieldType, unsafe.Pointer(nil), 0
-        }
-        value := field.ValueBytes[ai]
-        return fieldType, unsafe.Pointer(&field.ValueBytes[ai][0]), len(value)
-    case message.Field_INTEGER:
-        if ai >= len(field.ValueInteger) {
-            return fieldType, unsafe.Pointer(nil), 0
-        }
-        return fieldType, unsafe.Pointer(&field.ValueInteger[ai]), 0
-    case message.Field_DOUBLE:
-        if ai >= len(field.ValueDouble) {
-            return fieldType, unsafe.Pointer(nil), 0
-        }
-        return fieldType, unsafe.Pointer(&field.ValueDouble[ai]), 0
-    case message.Field_BOOL:
-        if ai >= len(field.ValueBool) {
-            return fieldType, unsafe.Pointer(nil), 0
-        }
-        return fieldType, unsafe.Pointer(&field.ValueBool[ai]), 0
-    }
-    return 0, unsafe.Pointer(nil), 0
+	var field *message.Field
+	if fi != 0 {
+		fields := msg.FindAllFields(fn)
+		if fi >= len(fields) {
+			return 0, unsafe.Pointer(nil), 0
+		}
+		field = fields[fi]
+	} else {
+		if field = msg.FindFirstField(fn); field == nil {
+			return 0, unsafe.Pointer(nil), 0
+		}
+	}
+	fieldType := int(field.GetValueType())
+	switch field.GetValueType() {
+	case message.Field_STRING:
+		if ai >= len(field.ValueString) {
+			return fieldType, unsafe.Pointer(nil), 0
+		}
+		value := field.ValueString[ai]
+		cs := C.CString(value) // freed by the caller
+		return fieldType, unsafe.Pointer(cs), len(value)
+	case message.Field_BYTES:
+		if ai >= len(field.ValueBytes) {
+			return fieldType, unsafe.Pointer(nil), 0
+		}
+		value := field.ValueBytes[ai]
+		return fieldType, unsafe.Pointer(&field.ValueBytes[ai][0]), len(value)
+	case message.Field_INTEGER:
+		if ai >= len(field.ValueInteger) {
+			return fieldType, unsafe.Pointer(nil), 0
+		}
+		return fieldType, unsafe.Pointer(&field.ValueInteger[ai]), 0
+	case message.Field_DOUBLE:
+		if ai >= len(field.ValueDouble) {
+			return fieldType, unsafe.Pointer(nil), 0
+		}
+		return fieldType, unsafe.Pointer(&field.ValueDouble[ai]), 0
+	case message.Field_BOOL:
+		if ai >= len(field.ValueBool) {
+			return fieldType, unsafe.Pointer(nil), 0
+		}
+		return fieldType, unsafe.Pointer(&field.ValueBool[ai]), 0
+	}
+	return 0, unsafe.Pointer(nil), 0
 }
 
 //export go_lua_read_message
 func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe.Pointer,
-    int) {
-    fieldName := C.GoString(c)
-    var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-    if lsb.msg != nil {
-        switch fieldName {
-        case "Type":
-            value := lsb.msg.GetType()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "Logger":
-            value := lsb.msg.GetLogger()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "Payload":
-            value := lsb.msg.GetPayload()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "EnvVersion":
-            value := lsb.msg.GetEnvVersion()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "Hostname":
-            value := lsb.msg.GetHostname()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "Uuid":
-            value := lsb.msg.GetUuidString()
-            cs := C.CString(value) // freed by the caller
-            return int(message.Field_STRING), unsafe.Pointer(cs),
-                len(value)
-        case "Timestamp":
-            return int(message.Field_INTEGER),
-                unsafe.Pointer(lsb.msg.Timestamp), 0
-        case "Severity":
-            return int(message.Field_INTEGER),
-                unsafe.Pointer(lsb.msg.Severity), 0
-        case "Pid":
-            return int(message.Field_INTEGER),
-                unsafe.Pointer(lsb.msg.Pid), 0
-        default:
-            l := len(fieldName)
-            if l > 0 && fieldName[l-1] == ']' {
-                if strings.HasPrefix(fieldName, "Fields[") {
-                    t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
-                    return t, p, l
-                }
-            }
-        }
-    }
-    return 0, unsafe.Pointer(nil), 0
+	int) {
+	fieldName := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.msg != nil {
+		switch fieldName {
+		case "Type":
+			value := lsb.msg.GetType()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "Logger":
+			value := lsb.msg.GetLogger()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "Payload":
+			value := lsb.msg.GetPayload()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "EnvVersion":
+			value := lsb.msg.GetEnvVersion()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "Hostname":
+			value := lsb.msg.GetHostname()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "Uuid":
+			value := lsb.msg.GetUuidString()
+			cs := C.CString(value) // freed by the caller
+			return int(message.Field_STRING), unsafe.Pointer(cs),
+				len(value)
+		case "Timestamp":
+			return int(message.Field_INTEGER),
+				unsafe.Pointer(lsb.msg.Timestamp), 0
+		case "Severity":
+			return int(message.Field_INTEGER),
+				unsafe.Pointer(lsb.msg.Severity), 0
+		case "Pid":
+			return int(message.Field_INTEGER),
+				unsafe.Pointer(lsb.msg.Pid), 0
+		default:
+			l := len(fieldName)
+			if l > 0 && fieldName[l-1] == ']' {
+				if strings.HasPrefix(fieldName, "Fields[") {
+					t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
+					return t, p, l
+				}
+			}
+		}
+	}
+	return 0, unsafe.Pointer(nil), 0
+}
+
+//export go_lua_read_config
+func go_lua_read_config(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer, int) {
+	name := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.config == nil {
+		return 0, unsafe.Pointer(nil), 0
+	}
+
+	v := lsb.config[name]
+	switch v.(type) {
+	case string:
+		s := v.(string)
+		cs := C.CString(s) // freed by the caller
+		return int(message.Field_STRING), unsafe.Pointer(cs), len(s)
+	case bool:
+		b := v.(bool)
+		return int(message.Field_BOOL), unsafe.Pointer(&b), 0
+	case int64:
+		d := float64(v.(int64))
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
+	case float64:
+		d := v.(float64)
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
+	}
+	return 0, unsafe.Pointer(nil), 0
 }
 
 //export go_lua_inject_message
-func go_lua_inject_message(ptr unsafe.Pointer, payload, payload_type,
-    payload_name *C.char) int {
-    var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-    return lsb.injectMessage(C.GoString(payload), C.GoString(payload_type),
-        C.GoString(payload_name))
+func go_lua_inject_message(ptr unsafe.Pointer, payload *C.char,
+	payload_len C.int, payload_type, payload_name *C.char) int {
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	return lsb.injectMessage(C.GoStringN(payload, payload_len),
+		C.GoString(payload_type), C.GoString(payload_name))
 }
 
 type LuaSandbox struct {
-    lsb           *C.lua_sandbox
-    msg           *message.Message
-    output        func(s string)
-    injectMessage func(payload, payload_type, payload_name string) int
+	lsb           *C.lua_sandbox
+	msg           *message.Message
+	output        func(s string)
+	injectMessage func(payload, payload_type, payload_name string) int
+	config        map[string]interface{}
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
-    error) {
-    lsb := new(LuaSandbox)
-    cs := C.CString(conf.ScriptFilename)
-    defer C.free(unsafe.Pointer(cs))
-    lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
-        cs,
-        C.uint(conf.MemoryLimit),
-        C.uint(conf.InstructionLimit),
-        C.uint(conf.OutputLimit))
-    if lsb.lsb == nil {
-        return nil, fmt.Errorf("Sandbox creation failed")
-    }
-    lsb.output = func(s string) { log.Println(s) }
-    lsb.injectMessage = func(p, pt, pn string) int {
-        log.Printf("payload_type: %s\npayload_name: %s\npayload: %s\n", pt, pn, p)
-        return 0
-    }
-    return lsb, nil
+	error) {
+	lsb := new(LuaSandbox)
+	cs := C.CString(conf.ScriptFilename)
+	defer C.free(unsafe.Pointer(cs))
+	lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
+		cs,
+		C.uint(conf.MemoryLimit),
+		C.uint(conf.InstructionLimit),
+		C.uint(conf.OutputLimit))
+	if lsb.lsb == nil {
+		return nil, fmt.Errorf("Sandbox creation failed")
+	}
+	lsb.output = func(s string) { log.Println(s) }
+	lsb.injectMessage = func(p, pt, pn string) int {
+		log.Printf("payload_type: %s\npayload_name: %s\npayload: %s\n", pt, pn, p)
+		return 0
+	}
+	lsb.config = conf.Config
+	return lsb, nil
 }
 
 func (this *LuaSandbox) Init(dataFile string) error {
-    cs := C.CString(dataFile)
-    defer C.free(unsafe.Pointer(cs))
-    r := int(C.lua_sandbox_init(this.lsb, cs))
-    if r != 0 {
-        return fmt.Errorf("Init() %s", this.LastError())
-    }
-    return nil
+	cs := C.CString(dataFile)
+	defer C.free(unsafe.Pointer(cs))
+	r := int(C.lua_sandbox_init(this.lsb, cs))
+	if r != 0 {
+		return fmt.Errorf("Init() %s", this.LastError())
+	}
+	return nil
 }
 
 func (this *LuaSandbox) Destroy(dataFile string) error {
-    cs := C.CString(dataFile)
-    defer C.free(unsafe.Pointer(cs))
-    c := C.lua_sandbox_destroy(this.lsb, cs)
-    if c != nil {
-        err := C.GoString(c)
-        C.free(unsafe.Pointer(c))
-        return fmt.Errorf("Destroy() %s", err)
-    }
-    return nil
+	cs := C.CString(dataFile)
+	defer C.free(unsafe.Pointer(cs))
+	c := C.lua_sandbox_destroy(this.lsb, cs)
+	if c != nil {
+		err := C.GoString(c)
+		C.free(unsafe.Pointer(c))
+		return fmt.Errorf("Destroy() %s", err)
+	}
+	return nil
 }
 
 func (this *LuaSandbox) Status() int {
-    return int(C.lua_sandbox_status(this.lsb))
+	return int(C.lua_sandbox_status(this.lsb))
 }
 
 func (this *LuaSandbox) LastError() string {
-    return C.GoString(C.lua_sandbox_last_error(this.lsb))
+	return C.GoString(C.lua_sandbox_last_error(this.lsb))
 }
 
 func (this *LuaSandbox) Usage(utype, ustat int) uint {
-    return uint(C.lua_sandbox_usage(this.lsb, C.sandbox_usage_type(utype),
-        C.sandbox_usage_stat(ustat)))
+	return uint(C.lua_sandbox_usage(this.lsb, C.sandbox_usage_type(utype),
+		C.sandbox_usage_stat(ustat)))
 }
 
 func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
-    this.msg = msg
-    r := int(C.lua_sandbox_process_message(this.lsb))
-    this.msg = nil
-    return r
+	this.msg = msg
+	r := int(C.lua_sandbox_process_message(this.lsb))
+	this.msg = nil
+	return r
 }
 
 func (this *LuaSandbox) TimerEvent(ns int64) int {
-    return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
+	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
 }
 
 func (this *LuaSandbox) InjectMessage(f func(payload, payload_type,
-    payload_name string) int) {
-    this.injectMessage = f
+	payload_name string) int) {
+	this.injectMessage = f
 }

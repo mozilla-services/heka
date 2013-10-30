@@ -39,7 +39,6 @@ function process_message ()
 end
 
 function timer_event(ns)
-    output(data)
-    inject_message("cbuf", "Counts by type")
+    inject_message(data, "Counts by type")
 end
 

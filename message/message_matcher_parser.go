@@ -1,9 +1,9 @@
+
 //line message_matcher_parser.y:2
 package message
-
 import __yyfmt__ "fmt"
-
 //line message_matcher_parser.y:2
+		
 import (
 	"fmt"
 	"log"
@@ -65,15 +65,16 @@ func (s *stack) pop() (node *tree) {
 
 var nodes []*tree
 
+
 //line message_matcher_parser.y:67
 type yySymType struct {
-	yys        int
-	tokenId    int
-	token      string
-	double     float64
-	fieldIndex int
-	arrayIndex int
-	regexp     *regexp.Regexp
+	yys int
+   tokenId     int
+   token       string
+   double      float64
+   fieldIndex  int
+   arrayIndex  int
+   regexp      *regexp.Regexp
 }
 
 const OP_EQ = 57346
@@ -136,12 +137,14 @@ const yyErrCode = 2
 const yyMaxDepth = 200
 
 //line message_matcher_parser.y:177
+
+
 type MatcherSpecificationParser struct {
 	spec     string
 	sym      string
 	peekrune rune
 	lexPos   int
-	reToken  *regexp.Regexp
+    reToken *regexp.Regexp
 }
 
 func parseMatcherSpecification(ms *MatcherSpecification) error {
@@ -400,12 +403,12 @@ regexpstring:
 		m.sym += string(c)
 	}
 	m.sym = m.reToken.ReplaceAllStringFunc(m.sym,
-		func(match string) string {
-			replace, ok := HelperRegexSubs[match[1:len(match)-1]]
-			if !ok {
-				return match
-			}
-			return replace
+		func(match string) string {            
+            replace, ok := HelperRegexSubs[match[1:len(match)-1]]
+            if !ok {
+                return match
+            } 
+            return replace
 		})
 	yylval.regexp, err = regexp.Compile(m.sym)
 	if err != nil {
@@ -771,68 +774,68 @@ yydefault:
 	case 20:
 		//line message_matcher_parser.y:115
 		{
-			//fmt.Println("string_test", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	       //fmt.Println("string_test", $1, $2, $3)
+       nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	       }
 	case 21:
 		//line message_matcher_parser.y:120
 		{
-			//fmt.Println("string_test regexp", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	       //fmt.Println("string_test regexp", $1, $2, $3)
+       nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	       }
 	case 22:
 		//line message_matcher_parser.y:126
 		{
-			//fmt.Println("numeric_test", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	   //fmt.Println("numeric_test", $1, $2, $3)
+   nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	   }
 	case 23:
 		//line message_matcher_parser.y:132
 		{
-			//fmt.Println("field_test numeric", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	      //fmt.Println("field_test numeric", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	      }
 	case 24:
 		//line message_matcher_parser.y:137
 		{
-			//fmt.Println("field_test string", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	      //fmt.Println("field_test string", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	      }
 	case 25:
 		//line message_matcher_parser.y:142
 		{
-			//fmt.Println("field_test boolean", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	      //fmt.Println("field_test boolean", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	      }
 	case 26:
 		//line message_matcher_parser.y:147
 		{
-			//fmt.Println("field_test regexp", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
-		}
+	      //fmt.Println("field_test regexp", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{yyS[yypt-2], yyS[yypt-1], yyS[yypt-0]}})
+	      }
 	case 29:
 		//line message_matcher_parser.y:154
 		{
-			yyVAL = yyS[yypt-1]
-		}
+	      yyVAL = yyS[yypt-1]
+	      }
 	case 30:
 		//line message_matcher_parser.y:158
 		{
-			//fmt.Println("and", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
-		}
+	      //fmt.Println("and", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{op:yyS[yypt-1]}})
+	      }
 	case 31:
 		//line message_matcher_parser.y:163
 		{
-			//fmt.Println("or", $1, $2, $3)
-			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-1]}})
-		}
+	      //fmt.Println("or", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{op:yyS[yypt-1]}})
+	      }
 	case 35:
 		//line message_matcher_parser.y:171
 		{
-			//fmt.Println("boolean", $1)
-			nodes = append(nodes, &tree{stmt: &Statement{op: yyS[yypt-0]}})
-		}
+	         //fmt.Println("boolean", $1)
+         nodes = append(nodes, &tree{stmt:&Statement{op:yyS[yypt-0]}})
+	      }
 	}
 	goto yystack /* stack new state and value */
 }

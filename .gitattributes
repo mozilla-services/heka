@@ -1,0 +1,2 @@
+*.data text eol=lf
+multiline.log text eol=lf

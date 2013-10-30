@@ -7,8 +7,8 @@ data = ""
 function process_message ()
     local msg = read_message("Payload")
 
-    if msg == "inject_message() incorrect number of args" then
-        inject_message(1, 2, 3)
+    if msg == "require unknown" then
+        require("unknown")
     elseif msg == "output() no arg" then
         output()
     elseif msg == "out of memory" then
@@ -36,6 +36,8 @@ function process_message ()
         for i=1,15 do
             output("012345678901234567890123456789010123456789012345678901234567890123456789012345678901234567890123456789")
         end
+    elseif msg == "read_config() must have a single argument" then
+        read_config()
     end
     return 0
 end

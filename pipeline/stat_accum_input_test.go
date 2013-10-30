@@ -46,6 +46,8 @@ func StatAccumInputSpec(c gs.Context) {
 
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
+		config.EmitInFields = true
+		config.EmitInPayload = false
 		err := statAccumInput.Init(config)
 		c.Expect(err, gs.IsNil)
 
@@ -142,7 +144,7 @@ func StatAccumInputSpec(c gs.Context) {
 		tickChan := make(chan time.Time)
 
 		c.Specify("must emit data in payload and/or message fields", func() {
-			config.EmitInFields = false
+			config.EmitInPayload = false
 			err := statAccumInput.Init(config)
 			c.Expect(err, gs.Not(gs.IsNil))
 			expected := "One of either `EmitInPayload` or `EmitInFields` must be set to true."
@@ -234,7 +236,7 @@ func StatAccumInputSpec(c gs.Context) {
 				statAccumInput.tickChan = tickChan
 			}
 
-			c.Specify("emits data in fields by default", func() {
+			c.Specify("emits data in payload by default", func() {
 				err := statAccumInput.Init(config)
 				c.Assume(err, gs.IsNil)
 
@@ -242,37 +244,36 @@ func StatAccumInputSpec(c gs.Context) {
 				statAccumInput.statChan <- testStat
 				close(statAccumInput.statChan)
 				wg.Wait()
+
+				validateMsgPayload(ith.Pack.Message)
+			})
+
+			c.Specify("emits data in fields when specified", func() {
+				config.EmitInFields = true
+				err := statAccumInput.Init(config)
+				c.Assume(err, gs.IsNil)
+
+				startAndSwapTickChan()
+				statAccumInput.statChan <- testStat
+				close(statAccumInput.statChan)
+				wg.Wait()
+				validateMsgFields(ith.Pack.Message)
+				validateMsgPayload(ith.Pack.Message)
+			})
+
+			c.Specify("omits data in payload when specified", func() {
+				config.EmitInPayload = false
+				config.EmitInFields = true
+				err := statAccumInput.Init(config)
+				c.Assume(err, gs.IsNil)
+
+				startAndSwapTickChan()
+				statAccumInput.statChan <- testStat
+				close(statAccumInput.statChan)
+				wg.Wait()
+
 				validateMsgFields(ith.Pack.Message)
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "")
-			})
-
-			c.Specify("emits data in payload when specified", func() {
-				config.EmitInPayload = true
-				err := statAccumInput.Init(config)
-				c.Assume(err, gs.IsNil)
-
-				startAndSwapTickChan()
-				statAccumInput.statChan <- testStat
-				close(statAccumInput.statChan)
-				wg.Wait()
-
-				validateMsgFields(ith.Pack.Message)
-				validateMsgPayload(ith.Pack.Message)
-			})
-
-			c.Specify("omits data in fields when specified", func() {
-				config.EmitInFields = false
-				config.EmitInPayload = true
-				err := statAccumInput.Init(config)
-				c.Assume(err, gs.IsNil)
-
-				startAndSwapTickChan()
-				statAccumInput.statChan <- testStat
-				close(statAccumInput.statChan)
-				wg.Wait()
-
-				validateMsgPayload(ith.Pack.Message)
-				c.Expect(len(ith.Pack.Message.Fields), gs.Equals, 0)
 			})
 
 			c.Specify("honors time ticker to flush", func() {
@@ -282,7 +283,7 @@ func StatAccumInputSpec(c gs.Context) {
 				startAndSwapTickChan()
 				statAccumInput.statChan <- testStat
 				tickChan <- time.Now()
-				validateMsgFields(ith.Pack.Message)
+				validateMsgPayload(ith.Pack.Message)
 
 				ith.PackSupply <- ith.Pack
 				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
@@ -297,6 +298,7 @@ func StatAccumInputSpec(c gs.Context) {
 						statAccumInput.statChan <- Stat{"sample.timer", strconv.Itoa(int(v)), "ms", float32(1)}
 					}
 				}
+				config.EmitInFields = true
 				err := statAccumInput.Init(config)
 				c.Assume(err, gs.IsNil)
 				startAndSwapTickChan()

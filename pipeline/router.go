@@ -143,16 +143,19 @@ func (self *messageRouter) Start() {
 				if !ok {
 					break
 				}
+				pack.diagnostics.Reset()
 				atomic.AddInt64(&self.processMessageCount, 1)
 				for _, matcher = range self.fMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
+						pack.diagnostics.AddStamp(matcher.pluginRunner)
 						matcher.inChan <- pack
 					}
 				}
 				for _, matcher = range self.oMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
+						pack.diagnostics.AddStamp(matcher.pluginRunner)
 						matcher.inChan <- pack
 					}
 				}
@@ -178,6 +181,7 @@ type MatchRunner struct {
 	spec          *message.MatcherSpecification
 	signer        string
 	inChan        chan *PipelinePack
+	pluginRunner  PluginRunner
 	matchSamples  int64
 	matchDuration int64
 	reportLock    sync.Mutex
@@ -185,15 +189,16 @@ type MatchRunner struct {
 
 // Creates and returns a new MatchRunner if possible, or a relevant error if
 // not.
-func NewMatchRunner(filter, signer string) (matcher *MatchRunner, err error) {
+func NewMatchRunner(filter, signer string, runner PluginRunner) (matcher *MatchRunner, err error) {
 	var spec *message.MatcherSpecification
 	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
 		return
 	}
 	matcher = &MatchRunner{
-		spec:   spec,
-		signer: signer,
-		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
+		spec:         spec,
+		signer:       signer,
+		inChan:       make(chan *PipelinePack, Globals().PluginChanSize),
+		pluginRunner: runner,
 	}
 	return
 }
@@ -229,8 +234,9 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 			// a sample so there will be a ballpark figure immediately. We could
 			// use a ticker to sample at a regular interval but that seems like
 			// overkill at this  point.
-			counter int = random
-			match   bool
+			counter  int = random
+			match    bool
+			duration int64
 		)
 
 		var capacity int64 = int64(cap(mr.inChan))
@@ -248,8 +254,9 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 
 				match = mr.spec.Match(pack.Message)
 
+				duration = time.Since(startTime).Nanoseconds()
 				mr.reportLock.Lock()
-				mr.matchDuration += time.Since(startTime).Nanoseconds()
+				mr.matchDuration += duration
 				mr.matchSamples++
 				mr.reportLock.Unlock()
 				if mr.matchSamples > capacity {

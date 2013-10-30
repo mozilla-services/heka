@@ -8,6 +8,7 @@
 #ifndef lua_sandbox_private_h_
 #define lua_sandbox_private_h_
 
+#include <stdio.h>
 #include <lua.h>
 #include "lua_sandbox.h"
 
@@ -108,6 +109,23 @@ size_t instruction_usage(lua_sandbox* lsb);
  */
 void sandbox_terminate(lua_sandbox* lsb);
 
+/** 
+ * Helper function to update the output statistics.
+ * 
+ * @param lsb Pointer to the sandbox.
+ */
+void update_output_stats(lua_sandbox* lsb);
+
+/** 
+ * Resize the output buffer when more space is needed.
+ * 
+ * @param output Output buffer to resize.
+ * @param needed Number of additional bytes needed.
+ * 
+ * @return int Zero on success, non-zero on failure.
+ */
+int realloc_output(output_data* output, size_t needed);
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Sandbox global data preservation functions.
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,6 +138,16 @@ void sandbox_terminate(lua_sandbox* lsb);
  * @return int Zero on success, non-zero on failure.
  */
 int preserve_global_data(lua_sandbox* lsb, const char* data_file);
+
+/**
+ * More efficient serialization of a double to a string
+ * 
+ * @param output Pointer the output collector.
+ * @param d Double value to convert to a string.
+ * 
+ * @return int Zero on success, non-zero on failure.
+ */
+int serialize_double(output_data* output, double d);
 
 /** 
  * Serializes a Lua table structure.
@@ -144,6 +172,15 @@ int serialize_table(lua_sandbox* lsb, serialization_data* data, size_t parent);
 int serialize_table_as_json(lua_sandbox* lsb,
                             serialization_data* data,
                             int isHash);
+
+/** 
+ * Serialize a specific Lua table structure as Protobuf
+ * 
+ * @param lsb Pointer to the sandbox.
+ * 
+ * @return int Zero on success, non-zero on failure.
+ */
+int serialize_table_as_pb(lua_sandbox* lsb);
 
 /** 
  * Serializes a Lua data value.
@@ -284,7 +321,7 @@ int dynamic_snprintf(output_data* output, const char* fmt, ...);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns zero values on the stack.
  */
 int output(lua_State* lua);
 
@@ -296,7 +333,7 @@ int output(lua_State* lua);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns one value on the stack.
  */
 int read_message(lua_State* lua);
 
@@ -306,8 +343,27 @@ int read_message(lua_State* lua);
  * 
  * @param lua Pointer to the Lua state.
  * 
- * @return int Zero on success, non-zero if out of memory.
+ * @return int Returns zero values on the stack.
  */
 int inject_message(lua_State* lua);
+
+/** 
+ * Overridden 'require' used to load optional sandbox libraries in global space.
+ * 
+ * @param lua Pointer to the Lua state.
+ * 
+ * @return int Returns zero values on the stack.
+ */
+int require_library(lua_State* lua);
+
+/** 
+ * Reads a configuration variable provided in the Heka toml and returns the 
+ * value. 
+ * 
+ * @param lua Pointer to the Lua state.
+ * 
+ * @return int Returns one value on the stack.
+ */
+int read_config(lua_State* lua);
 
 #endif

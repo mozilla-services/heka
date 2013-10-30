@@ -18,8 +18,8 @@ end
 
 function timer_event(ns)
     if ns == 0 then
-        output(data)
-        inject_message("cbuf", "Method tests")
+
+        inject_message(data, "Method tests")
     elseif ns == 1 then
         cbufs = {}
         for i=1,3,1 do
@@ -44,7 +44,7 @@ function timer_event(ns)
             error(string.format("no range avg = %G", t))
         end
         t = stats:compute("sd", 1)
-        if math.sqrt(2) ~= t then
+        if math.abs(math.sqrt(2)-t) > 0.00001 then
             error(string.format("no range sd = %G", t))
         end
         t = stats:compute("min", 1)

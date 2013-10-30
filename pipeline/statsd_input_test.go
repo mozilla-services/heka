@@ -21,6 +21,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"strconv"
 	"sync"
+	"testing"
 )
 
 func StatsdInputSpec(c gs.Context) {
@@ -82,4 +83,108 @@ func StatsdInputSpec(c gs.Context) {
 			wg.Wait()
 		})
 	})
+}
+
+func TestParseMessage(t *testing.T) {
+	testData := map[string]Stat{
+		// without sample rate ----------------------------------
+
+		"sample.gauge:123|g": Stat{
+			"sample.gauge",
+			"123",
+			"g",
+			float32(1),
+		},
+
+		"sample.count:303|c": Stat{
+			"sample.count",
+			"303",
+			"c",
+			float32(1),
+		},
+
+		"sample.timer:1234|ms": Stat{
+			"sample.timer",
+			"1234",
+			"ms",
+			float32(1),
+		},
+
+		"sample.histogram:1234|h": Stat{
+			"sample.histogram",
+			"1234",
+			"h",
+			float32(1),
+		},
+
+		"sample.meter:1234|m": Stat{
+			"sample.meter",
+			"1234",
+			"m",
+			float32(1),
+		},
+
+		// with sample rate ----------------------------------
+
+		"sample.count.w.rate:123|c|@0.9": Stat{
+			"sample.count.w.rate",
+			"123",
+			"c",
+			float32(0.9),
+		},
+
+		"sample.timer.w.rate:1234|ms|@0.5": Stat{
+			"sample.timer.w.rate",
+			"1234",
+			"ms",
+			float32(0.5),
+		},
+	}
+
+	for msg, expected := range testData {
+		obtained, err := parseMessage([]byte(msg + "\n"))
+
+		if err != nil {
+			t.Fatalf("error should be nil, got %s", err)
+		}
+
+		if obtained.Bucket != expected.Bucket {
+			t.Fatalf("expected %s, got %s", expected.Bucket, obtained.Bucket)
+		}
+
+		if obtained.Value != expected.Value {
+			t.Fatalf("expected %s, got %s", expected.Value, obtained.Value)
+		}
+
+		if obtained.Modifier != expected.Modifier {
+			t.Fatalf("expected %s, got %s", expected.Modifier, obtained.Modifier)
+		}
+
+		if obtained.Sampling != expected.Sampling {
+			t.Fatalf("expected %f, got %f", expected.Sampling, obtained.Sampling)
+		}
+	}
+}
+
+func TestParseMessageInvalid(t *testing.T) {
+	messages := []string{
+		"foo.bar.baz:",
+		"foo.bar.baz|",
+		"foo.bar.baz:1234|x",
+	}
+
+	for _, m := range messages {
+		_, err := parseMessage([]byte(m + "\n"))
+
+		if err == nil {
+			t.Fatalf("err should not be nil, got : %s", err.Error())
+		}
+	}
+}
+
+func BenchmarkMessageParser(b *testing.B) {
+	msg := []byte("sample.gauge:123|g\n")
+	for i := 0; i < b.N; i++ {
+		parseMessage(msg)
+	}
 }

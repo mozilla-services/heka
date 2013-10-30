@@ -13,42 +13,6 @@ var _ = proto.Marshal
 var _ = &json.SyntaxError{}
 var _ = math.Inf
 
-type Header_MessageEncoding int32
-
-const (
-	Header_PROTOCOL_BUFFER Header_MessageEncoding = 0
-	Header_JSON            Header_MessageEncoding = 1
-)
-
-var Header_MessageEncoding_name = map[int32]string{
-	0: "PROTOCOL_BUFFER",
-	1: "JSON",
-}
-var Header_MessageEncoding_value = map[string]int32{
-	"PROTOCOL_BUFFER": 0,
-	"JSON":            1,
-}
-
-func (x Header_MessageEncoding) Enum() *Header_MessageEncoding {
-	p := new(Header_MessageEncoding)
-	*p = x
-	return p
-}
-func (x Header_MessageEncoding) String() string {
-	return proto.EnumName(Header_MessageEncoding_name, int32(x))
-}
-func (x Header_MessageEncoding) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
-func (x *Header_MessageEncoding) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(Header_MessageEncoding_value, data, "Header_MessageEncoding")
-	if err != nil {
-		return err
-	}
-	*x = Header_MessageEncoding(value)
-	return nil
-}
-
 type Header_HmacHashFunction int32
 
 const (
@@ -72,9 +36,6 @@ func (x Header_HmacHashFunction) Enum() *Header_HmacHashFunction {
 }
 func (x Header_HmacHashFunction) String() string {
 	return proto.EnumName(Header_HmacHashFunction_name, int32(x))
-}
-func (x Header_HmacHashFunction) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
 }
 func (x *Header_HmacHashFunction) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Header_HmacHashFunction_value, data, "Header_HmacHashFunction")
@@ -118,9 +79,6 @@ func (x Field_ValueType) Enum() *Field_ValueType {
 func (x Field_ValueType) String() string {
 	return proto.EnumName(Field_ValueType_name, int32(x))
 }
-func (x Field_ValueType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(x.String())
-}
 func (x *Field_ValueType) UnmarshalJSON(data []byte) error {
 	value, err := proto.UnmarshalJSONEnum(Field_ValueType_value, data, "Field_ValueType")
 	if err != nil {
@@ -132,7 +90,6 @@ func (x *Field_ValueType) UnmarshalJSON(data []byte) error {
 
 type Header struct {
 	MessageLength    *uint32                  `protobuf:"varint,1,req,name=message_length" json:"message_length,omitempty"`
-	MessageEncoding  *Header_MessageEncoding  `protobuf:"varint,2,opt,name=message_encoding,enum=message.Header_MessageEncoding,def=0" json:"message_encoding,omitempty"`
 	HmacHashFunction *Header_HmacHashFunction `protobuf:"varint,3,opt,name=hmac_hash_function,enum=message.Header_HmacHashFunction,def=0" json:"hmac_hash_function,omitempty"`
 	HmacSigner       *string                  `protobuf:"bytes,4,opt,name=hmac_signer" json:"hmac_signer,omitempty"`
 	HmacKeyVersion   *uint32                  `protobuf:"varint,5,opt,name=hmac_key_version" json:"hmac_key_version,omitempty"`
@@ -140,51 +97,43 @@ type Header struct {
 	XXX_unrecognized []byte                   `json:"-"`
 }
 
-func (this *Header) Reset()         { *this = Header{} }
-func (this *Header) String() string { return proto.CompactTextString(this) }
-func (*Header) ProtoMessage()       {}
+func (m *Header) Reset()         { *m = Header{} }
+func (m *Header) String() string { return proto.CompactTextString(m) }
+func (*Header) ProtoMessage()    {}
 
-const Default_Header_MessageEncoding Header_MessageEncoding = Header_PROTOCOL_BUFFER
 const Default_Header_HmacHashFunction Header_HmacHashFunction = Header_MD5
 
-func (this *Header) GetMessageLength() uint32 {
-	if this != nil && this.MessageLength != nil {
-		return *this.MessageLength
+func (m *Header) GetMessageLength() uint32 {
+	if m != nil && m.MessageLength != nil {
+		return *m.MessageLength
 	}
 	return 0
 }
 
-func (this *Header) GetMessageEncoding() Header_MessageEncoding {
-	if this != nil && this.MessageEncoding != nil {
-		return *this.MessageEncoding
-	}
-	return Default_Header_MessageEncoding
-}
-
-func (this *Header) GetHmacHashFunction() Header_HmacHashFunction {
-	if this != nil && this.HmacHashFunction != nil {
-		return *this.HmacHashFunction
+func (m *Header) GetHmacHashFunction() Header_HmacHashFunction {
+	if m != nil && m.HmacHashFunction != nil {
+		return *m.HmacHashFunction
 	}
 	return Default_Header_HmacHashFunction
 }
 
-func (this *Header) GetHmacSigner() string {
-	if this != nil && this.HmacSigner != nil {
-		return *this.HmacSigner
+func (m *Header) GetHmacSigner() string {
+	if m != nil && m.HmacSigner != nil {
+		return *m.HmacSigner
 	}
 	return ""
 }
 
-func (this *Header) GetHmacKeyVersion() uint32 {
-	if this != nil && this.HmacKeyVersion != nil {
-		return *this.HmacKeyVersion
+func (m *Header) GetHmacKeyVersion() uint32 {
+	if m != nil && m.HmacKeyVersion != nil {
+		return *m.HmacKeyVersion
 	}
 	return 0
 }
 
-func (this *Header) GetHmac() []byte {
-	if this != nil {
-		return this.Hmac
+func (m *Header) GetHmac() []byte {
+	if m != nil {
+		return m.Hmac
 	}
 	return nil
 }
@@ -201,31 +150,66 @@ type Field struct {
 	XXX_unrecognized []byte           `json:"-"`
 }
 
-func (this *Field) Reset()         { *this = Field{} }
-func (this *Field) String() string { return proto.CompactTextString(this) }
-func (*Field) ProtoMessage()       {}
+func (m *Field) Reset()         { *m = Field{} }
+func (m *Field) String() string { return proto.CompactTextString(m) }
+func (*Field) ProtoMessage()    {}
 
 const Default_Field_ValueType Field_ValueType = Field_STRING
 
-func (this *Field) GetName() string {
-	if this != nil && this.Name != nil {
-		return *this.Name
+func (m *Field) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }
 
-func (this *Field) GetValueType() Field_ValueType {
-	if this != nil && this.ValueType != nil {
-		return *this.ValueType
+func (m *Field) GetValueType() Field_ValueType {
+	if m != nil && m.ValueType != nil {
+		return *m.ValueType
 	}
 	return Default_Field_ValueType
 }
 
-func (this *Field) GetRepresentation() string {
-	if this != nil && this.Representation != nil {
-		return *this.Representation
+func (m *Field) GetRepresentation() string {
+	if m != nil && m.Representation != nil {
+		return *m.Representation
 	}
 	return ""
+}
+
+func (m *Field) GetValueString() []string {
+	if m != nil {
+		return m.ValueString
+	}
+	return nil
+}
+
+func (m *Field) GetValueBytes() [][]byte {
+	if m != nil {
+		return m.ValueBytes
+	}
+	return nil
+}
+
+func (m *Field) GetValueInteger() []int64 {
+	if m != nil {
+		return m.ValueInteger
+	}
+	return nil
+}
+
+func (m *Field) GetValueDouble() []float64 {
+	if m != nil {
+		return m.ValueDouble
+	}
+	return nil
+}
+
+func (m *Field) GetValueBool() []bool {
+	if m != nil {
+		return m.ValueBool
+	}
+	return nil
 }
 
 type Message struct {
@@ -242,75 +226,81 @@ type Message struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (this *Message) Reset()         { *this = Message{} }
-func (this *Message) String() string { return proto.CompactTextString(this) }
-func (*Message) ProtoMessage()       {}
+func (m *Message) Reset()         { *m = Message{} }
+func (m *Message) String() string { return proto.CompactTextString(m) }
+func (*Message) ProtoMessage()    {}
 
-func (this *Message) GetUuid() []byte {
-	if this != nil {
-		return this.Uuid
+func (m *Message) GetUuid() []byte {
+	if m != nil {
+		return m.Uuid
 	}
 	return nil
 }
 
-func (this *Message) GetTimestamp() int64 {
-	if this != nil && this.Timestamp != nil {
-		return *this.Timestamp
+func (m *Message) GetTimestamp() int64 {
+	if m != nil && m.Timestamp != nil {
+		return *m.Timestamp
 	}
 	return 0
 }
 
-func (this *Message) GetType() string {
-	if this != nil && this.Type != nil {
-		return *this.Type
+func (m *Message) GetType() string {
+	if m != nil && m.Type != nil {
+		return *m.Type
 	}
 	return ""
 }
 
-func (this *Message) GetLogger() string {
-	if this != nil && this.Logger != nil {
-		return *this.Logger
+func (m *Message) GetLogger() string {
+	if m != nil && m.Logger != nil {
+		return *m.Logger
 	}
 	return ""
 }
 
-func (this *Message) GetSeverity() int32 {
-	if this != nil && this.Severity != nil {
-		return *this.Severity
+func (m *Message) GetSeverity() int32 {
+	if m != nil && m.Severity != nil {
+		return *m.Severity
 	}
 	return 0
 }
 
-func (this *Message) GetPayload() string {
-	if this != nil && this.Payload != nil {
-		return *this.Payload
+func (m *Message) GetPayload() string {
+	if m != nil && m.Payload != nil {
+		return *m.Payload
 	}
 	return ""
 }
 
-func (this *Message) GetEnvVersion() string {
-	if this != nil && this.EnvVersion != nil {
-		return *this.EnvVersion
+func (m *Message) GetEnvVersion() string {
+	if m != nil && m.EnvVersion != nil {
+		return *m.EnvVersion
 	}
 	return ""
 }
 
-func (this *Message) GetPid() int32 {
-	if this != nil && this.Pid != nil {
-		return *this.Pid
+func (m *Message) GetPid() int32 {
+	if m != nil && m.Pid != nil {
+		return *m.Pid
 	}
 	return 0
 }
 
-func (this *Message) GetHostname() string {
-	if this != nil && this.Hostname != nil {
-		return *this.Hostname
+func (m *Message) GetHostname() string {
+	if m != nil && m.Hostname != nil {
+		return *m.Hostname
 	}
 	return ""
+}
+
+func (m *Message) GetFields() []*Field {
+	if m != nil {
+		return m.Fields
+	}
+	return nil
 }
 
 func init() {
-	proto.RegisterEnum("message.Header_MessageEncoding", Header_MessageEncoding_name, Header_MessageEncoding_value)
 	proto.RegisterEnum("message.Header_HmacHashFunction", Header_HmacHashFunction_name, Header_HmacHashFunction_value)
 	proto.RegisterEnum("message.Field_ValueType", Field_ValueType_name, Field_ValueType_value)
 }

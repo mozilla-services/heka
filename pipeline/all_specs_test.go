@@ -55,12 +55,17 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(StatAccumInputSpec)
 	r.AddSpec(CarbonOutputSpec)
 	r.AddSpec(DashboardOutputSpec)
+	r.AddSpec(JsonPathSpec)
 	r.AddSpec(HttpInputSpec)
+	r.AddSpec(ElasticSearchOutputSpec)
+	r.AddSpec(StreamParserSpec)
+	r.AddSpec(ProcessChainSpec)
+
 	gospec.MainGoTest(r, t)
 }
 
 func getTestMessage() *Message {
-	hostname, _ := os.Hostname()
+	hostname := "my.host.name"
 	field, _ := NewField("foo", "bar", "")
 	msg := &Message{}
 	msg.SetType("TEST")
@@ -73,7 +78,6 @@ func getTestMessage() *Message {
 	msg.SetPid(int32(os.Getpid()))
 	msg.SetHostname(hostname)
 	msg.AddField(field)
-
 	return msg
 }
 

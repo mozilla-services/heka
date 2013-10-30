@@ -18,7 +18,6 @@ package pipeline
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"log"
@@ -33,16 +32,11 @@ type DecoderSet interface {
 	// Returns running DecoderRunner registered under the specified name, or
 	// nil and ok == false if no such name is registered.
 	ByName(name string) (decoder DecoderRunner, ok bool)
-	// Returns slice of running DecoderRunners, indexed by the Heka protocol
-	// encoding headers for which they're registered. Only returns the
-	// decoders that have been registered for a specific header.
-	ByEncodings() (decoders []DecoderRunner, err error)
 }
 
 type decoderSet struct {
 	chansByName map[string]chan DecoderRunner
 	byName      map[string]DecoderRunner
-	byEncoding  []DecoderRunner
 }
 
 // Creates and returns a decoderSet that exposes an API to access the
@@ -71,28 +65,6 @@ func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
 	return
 }
 
-func (ds *decoderSet) ByEncodings() (decoders []DecoderRunner, err error) {
-	if ds.byEncoding != nil {
-		return ds.byEncoding, nil
-	}
-	var (
-		dRunner DecoderRunner
-		ok      bool
-	)
-	length := int32(topHeaderMessageEncoding) + 1
-	decoders = make([]DecoderRunner, length)
-	for enc, name := range DecodersByEncoding {
-		if dRunner, ok = ds.ByName(name); !ok {
-			err = fmt.Errorf("Decoder '%s' registered for encoding '%s' not configured",
-				name, enc.String())
-			return
-		}
-		decoders[enc] = dRunner
-	}
-	ds.byEncoding = decoders
-	return
-}
-
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
 // so these runners handle a bit more than the others.
 type DecoderRunner interface {
@@ -108,12 +80,20 @@ type DecoderRunner interface {
 	// UUID to distinguish the duplicate instances of the same registered
 	// Decoder plugin type from each other.
 	UUID() string
+	// Returns the running Heka router for direct use by decoder plugins.
+	Router() MessageRouter
+	// Fetches a new pack from the input supply and returns it to the caller,
+	// for decoders that generate multiple messages from a single input
+	// message.
+	NewPack() *PipelinePack
 }
 
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
 	uuid   string
+	router *messageRouter
+	h      PluginHelper
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -136,22 +116,10 @@ func (dr *dRunner) Decoder() Decoder {
 }
 
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
+	dr.h = h
+	dr.router = h.PipelineConfig().router
 	go func() {
 		var pack *PipelinePack
-
-		defer func() {
-			if r := recover(); r != nil {
-				dr.LogError(fmt.Errorf("PANIC: %s", r))
-				if pack != nil {
-					pack.Recycle()
-				}
-				if Globals().Stopping {
-					wg.Done()
-				} else {
-					dr.Start(h, wg)
-				}
-			}
-		}()
 
 		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
 			wanter.SetDecoderRunner(dr)
@@ -166,6 +134,9 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 			pack.Decoded = true
 			h.PipelineConfig().router.InChan() <- pack
 		}
+		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
+			wanter.Shutdown()
+		}
 		dr.LogMessage("stopped")
 		wg.Done()
 	}()
@@ -179,6 +150,14 @@ func (dr *dRunner) UUID() string {
 	return dr.uuid
 }
 
+func (dr *dRunner) Router() MessageRouter {
+	return dr.router
+}
+
+func (dr *dRunner) NewPack() *PipelinePack {
+	return <-dr.h.PipelineConfig().inputRecycleChan
+}
+
 func (dr *dRunner) LogError(err error) {
 	log.Printf("Decoder '%s' error: %s", dr.name, err)
 }
@@ -187,10 +166,16 @@ func (dr *dRunner) LogMessage(msg string) {
 	log.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
-// Any decoder that needs access to its DecoderRunner  can implement this
+// Any decoder that needs access to its DecoderRunner can implement this
 // interface and it will be provided at DecoderRunner start time.
 type WantsDecoderRunner interface {
 	SetDecoderRunner(dr DecoderRunner)
+}
+
+// Any decoder that needs to know when the DecoderRunner is exiting can
+// implement this interface and it will called on DecoderRunner exit.
+type WantsDecoderRunnerShutdown interface {
+	Shutdown()
 }
 
 // Heka Decoder plugin interface.
@@ -198,17 +183,6 @@ type Decoder interface {
 	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
 	// and use it to populated pack.Message message object.
 	Decode(pack *PipelinePack) error
-}
-
-// Decoder for converting JSON strings into Message objects.
-type JsonDecoder struct{}
-
-func (self *JsonDecoder) Init(config interface{}) error {
-	return nil
-}
-
-func (self *JsonDecoder) Decode(pack *PipelinePack) error {
-	return json.Unmarshal(pack.MsgBytes, pack.Message)
 }
 
 // Decoder for converting ProtocolBuffer data into Message objects.
@@ -220,6 +194,120 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 
 func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
 	return proto.Unmarshal(pack.MsgBytes, pack.Message)
+}
+
+type extraStatMessage struct {
+	timestamp uint64
+	pack      *PipelinePack
+}
+
+// Decoder that expects statsd string format data in the message payload,
+// converts that to identical statsd format data in the message fields, in the
+// same format that a StatAccumInput w/ `emit_in_fields` set to true would
+// use.
+type StatsToFieldsDecoder struct {
+	runner DecoderRunner
+	helper PluginHelper
+}
+
+func (d *StatsToFieldsDecoder) Init(config interface{}) error {
+	return nil
+}
+
+// Implement `WantsDecoderRunner`
+func (d *StatsToFieldsDecoder) SetDecoderRunner(dr DecoderRunner) {
+	d.runner = dr
+}
+
+func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
+	var (
+		timestamp uint64
+		extras    []*extraStatMessage
+	)
+
+	lines := strings.Split(strings.Trim(pack.Message.GetPayload(), "\n"), "\n")
+	routerChan := d.runner.Router().InChan()
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		// Sanity check.
+		if len(fields) != 3 {
+			return fmt.Errorf("malformed statmetric line: '%s'", line)
+		}
+		// Check timestamp validity.
+		var unixTime uint64
+		unixTime, err = strconv.ParseUint(fields[2], 0, 32)
+		if err != nil {
+			return fmt.Errorf("invalid timestamp: '%s'", line)
+		}
+		// Check value validity.
+		var value float64
+		if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
+			return fmt.Errorf("invalid value: '%s'", line)
+		}
+		if timestamp != unixTime {
+			if timestamp == uint64(0) {
+				timestamp = unixTime
+			} else {
+				// Multiple timestamps in one stat set. Generate a separate
+				// message for each one.
+				var sMsg *extraStatMessage
+				// Check if we've seen this one already.
+				found := false
+				for _, sMsg = range extras {
+					if unixTime == sMsg.timestamp {
+						// We've got it.
+						found = true
+						break
+					}
+				}
+				if !found {
+					// No existing message, create one.
+					sMsg = &extraStatMessage{
+						timestamp: unixTime,
+						pack:      d.runner.NewPack(),
+					}
+					// Copy the original message, but clear out the payload and the fields.
+					pack.Message.Copy(sMsg.pack.Message)
+					sMsg.pack.Message.Fields = make([]*message.Field, 0, 2)
+					sMsg.pack.Message.SetPayload("")
+					if err = d.addStatField(sMsg.pack, "timestamp", int64(unixTime)); err != nil {
+						return
+					}
+					extras = append(extras, sMsg)
+				}
+				// Add field to the extra message.
+				if err = d.addStatField(sMsg.pack, fields[0], value); err != nil {
+					return
+				}
+			}
+		}
+		// Add field to the main message.
+		if err = d.addStatField(pack, fields[0], value); err != nil {
+			return
+		}
+	}
+	// Add timestamp field to the main message.
+	if err = d.addStatField(pack, "timestamp", int64(timestamp)); err != nil {
+		return
+	}
+	if extras != nil {
+		for _, sMsg := range extras {
+			routerChan <- sMsg.pack
+		}
+	}
+
+	return
+}
+
+func (d *StatsToFieldsDecoder) addStatField(pack *PipelinePack, name string,
+	value interface{}) error {
+
+	field, err := message.NewField(name, value, "")
+	if err != nil {
+		return fmt.Errorf("error adding field '%s': %s", name, err)
+	}
+	pack.Message.AddField(field)
+	return nil
 }
 
 // Populated by the init function, this regex matches the MessageFields values
@@ -248,7 +336,8 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 		case "Hostname":
 			msg.SetHostname(val)
 		case "Pid":
-			pid, err := strconv.ParseInt(val, 10, 32)
+			int_part := strings.Split(val, ".")[0]
+			pid, err := strconv.ParseInt(int_part, 10, 32)
 			if err != nil {
 				return err
 			}
@@ -290,5 +379,5 @@ func InterpolateString(formatRegexp string, subs map[string]string) (newString s
 
 // Initialize the varMatcher for use in InterpolateString
 func init() {
-	varMatcher, _ = regexp.Compile("%[A-Za-z]+%")
+	varMatcher, _ = regexp.Compile("%\\w+%")
 }

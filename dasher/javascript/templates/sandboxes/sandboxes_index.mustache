@@ -1,0 +1,27 @@
+<h1 class="page-title">Sandboxes</h1>
+
+{{#collection.length}}
+<table class="sandboxes table">
+  <thead>
+    <th class="name">Name</th>
+    <th class="type">Type</th>
+  </thead>
+  <tbody>
+    {{#collection}}
+      <tr>
+        <th class="name" colspan="2"><span class="glyphicon glyphicon-filter"></span>  <a href="#plugins/filters/{{Name}}">{{Name}}</a></th>
+      </tr>
+      {{#Outputs}}
+        <tr>
+          <td class="name"><a href="#sandboxes/{{PluginName}}/outputs/{{ShortFilename}}">{{Name}}{{^Name}}[Untitled]{{/Name}}</a></td>
+          <td class="type"><small>{{Type}}</small></td>
+        </tr>
+      {{/Outputs}}
+    {{/collection}}
+  </tbody>
+</table>
+{{/collection.length}}
+
+{{^collection.length}}
+  <div class="empty-list">No sandboxes are configured</div>
+{{/collection.length}}

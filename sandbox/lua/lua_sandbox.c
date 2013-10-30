@@ -8,19 +8,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
 #include "lua_sandbox.h"
 #include "lua_sandbox_private.h"
 #include "lua_circular_buffer.h"
-#include "_cgo_export.h"
-
 
 static const char* disable_base_functions[] = { "collectgarbage", "coroutine",
     "dofile", "getfenv", "getmetatable", "load", "loadfile", "loadstring",
-    "module", "print", "rawequal", "rawget", "rawset", "require", "setfenv",
-    NULL };
+    "module", "print", "rawequal", "require", "setfenv", NULL };
 
 static const char* disable_os_functions[] = { "execute", "exit", "remove",
     "rename", "setlocale",  "tmpname", NULL };
@@ -62,6 +60,7 @@ lua_sandbox* lua_sandbox_create(void* go,
         return NULL;
     }
     strcpy(lsb->m_lua_file, lua_file);
+    srand(time(NULL));
     return lsb;
 }
 
@@ -213,11 +212,25 @@ int lua_sandbox_init(lua_sandbox* lsb, const char* data_file)
     }
 
     load_library(lsb->m_lua, "", luaopen_base, disable_base_functions);
+    lua_pop(lsb->m_lua, 1);
     load_library(lsb->m_lua, LUA_MATHLIBNAME, luaopen_math, disable_none);
+    lua_pop(lsb->m_lua, 1);
     load_library(lsb->m_lua, LUA_OSLIBNAME, luaopen_os, disable_os_functions);
+    lua_pop(lsb->m_lua, 1);
     load_library(lsb->m_lua, LUA_STRLIBNAME, luaopen_string, disable_none);
+    lua_pop(lsb->m_lua, 1);
     load_library(lsb->m_lua, LUA_TABLIBNAME, luaopen_table, disable_none);
-    luaopen_circular_buffer(lsb->m_lua);
+    lua_pop(lsb->m_lua, 1);
+    load_library(lsb->m_lua, heka_circular_buffer_table, 
+                 luaopen_circular_buffer, disable_none);
+    lua_pop(lsb->m_lua, 1);
+
+    lua_pushcfunction(lsb->m_lua, &require_library);
+    lua_setglobal(lsb->m_lua, "require");
+
+    lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
+    lua_pushcclosure(lsb->m_lua, &read_config, 1);
+    lua_setglobal(lsb->m_lua, "read_config");
 
     lua_pushlightuserdata(lsb->m_lua, (void*)lsb);
     lua_pushcclosure(lsb->m_lua, &read_message, 1);

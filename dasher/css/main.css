@@ -1,0 +1,261 @@
+body {
+  padding-top: 50px;
+}
+
+a:focus {
+  outline: none;
+}
+
+div.empty-list {
+  border-top: 2px solid #eee;
+  color: #999;
+  padding: 10px;
+}
+
+table .progress {
+  margin-bottom: 0;
+}
+
+.navbar-fixed-top {
+  background: rgba(250,250,250,0.96) !important;
+}
+
+.navbar-brand {
+  font-weight: bold;
+  padding-top: 14px !important;
+  text-transform: uppercase;
+}
+
+h1.page-title {
+  font-size: 280%;
+  margin-bottom: 15px;
+}
+
+h2 .glyphicon {
+  color: #555;
+  font-size: 80%;
+}
+
+#content .spinner {
+  left: 50%;
+  margin-left: -16px;
+  margin-top: -16px;
+  position: absolute;
+  top: 50%;
+}
+
+.stat-widgets {
+  margin-bottom: 20px;
+}
+
+.well {
+  background-color: #fafafa;
+}
+
+.stat-widget {
+  text-align: center;
+}
+
+.stat-widget h3 {
+  font-size: 18px;
+}
+
+.stat-widget h4 {
+  font-size: 28px;
+}
+
+.stat-widget h5 {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+#globals-index h3 {
+  margin: 0;
+}
+
+table.plugins .name {
+  width: 30%;
+}
+
+table.plugins .in-channel, table.plugins .match-channel {
+  width: 18%;
+}
+
+table.plugins tr.decoder td.name {
+  padding-left: 29px;
+}
+
+table.plugins td.name span.glyphicon {
+  color: #555;
+  margin-right: 4px;
+}
+
+table.sandboxes tbody th {
+  background: #fafafa;
+}
+
+table.sandboxes td.name {
+  padding-left: 26px;
+}
+
+.sandboxes-row + .sandboxes-row {
+  margin-top: 15px;
+}
+
+.sandboxes-show {
+  margin-top: 3em;
+}
+
+.sandbox-graph {
+  height: 300px !important;
+  width: 100% !important;
+}
+
+.sandbox-graph .dygraph-axis-label {
+  color: #777;
+  font-size: 11px;
+}
+
+.dygraph-legend {
+  background: rgba(255,255,255, 0.9) !important;
+  left: auto !important;
+  right: 0;
+  text-align: right !important;
+  width: 90% !important;
+}
+
+.sandbox-graph-options {
+  text-align: right;
+}
+
+.sandbox-graph-options label {
+  font-weight: normal;
+}
+
+.sandbox-graph-help {
+  color: #999;
+  font-size: 11px;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+}
+
+.sandbox-graph-legend {
+  border-top: 1px solid #ddd;
+  margin-top: 15px;
+  padding: 15px;
+  text-align: right;
+}
+
+.sandbox-graph-legend-control {
+  display: inline-block;
+  margin-right: 0.5em;
+}
+
+.sandbox-graph-legend-control label {
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.sandboxes-output + .sandboxes-output {
+  margin-top: 15px;
+}
+
+.sandboxes-output-header {
+  margin-bottom: 15px;
+}
+
+.sandboxes-output-header h4 {
+  margin: 4px 0 0 0 !important;
+}
+
+.sandboxes-output-txt pre {
+  line-height: 1.8em !important;
+}
+
+/* Embeds */
+
+html.embed body {
+  padding-top: 15px !important;
+}
+
+html.embed .container {
+  margin: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+html.embed h2 {
+  display: none;
+}
+
+html.embed .well {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: none;
+}
+
+html.embed .navbar {
+  display: none;
+}
+
+html.embed .sandboxes-output-header {
+  display: none;
+}
+
+html.embed .sandbox-graph {
+  height: 250px !important;
+}
+
+/* Responsive tables */
+
+@media only screen and (max-width: 768px) {
+  /* Force table to not be like tables anymore */
+  table.table-collapsible,
+  table.table-collapsible thead,
+  table.table-collapsible tbody,
+  table.table-collapsible th,
+  table.table-collapsible td,
+  table.table-collapsible tr {
+    display: block;
+  }
+
+  /* Hide table headers (but not display: none for accessibility) */
+  table.table-collapsible thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  table.table-collapsible tr {
+    border-top: 1px solid #ccc !important;
+  }
+
+  table.table-collapsible td {
+    /* Behave like a "row" */
+    border: none;
+    border-bottom: 1px solid #eee;
+    position: relative;
+    padding-left: 45% !important;
+    white-space: normal;
+    text-align:left;
+  }
+
+  table.table-collapsible td:before {
+    /* Now like a table header */
+    position: absolute;
+    /* Top/left values mimic padding */
+    top: 6px;
+    left: 6px;
+    width: 40%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align:left;
+    font-weight: bold;
+  }
+
+  /* Label the data */
+  table.table-collapsible td:before {
+    content: attr(data-title);
+  }
+}

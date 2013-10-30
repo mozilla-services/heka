@@ -9,93 +9,104 @@ Installing
 Binaries
 ========
 
-`hekad` `releases are available on the Mozilla Services website
-<https://docs.services.mozilla.com/_static/binaries/hekad-0.2/>`_.
+`hekad` `releases are available on the Github project releases page
+<https://github.com/mozilla-services/heka/releases>`_.
 Binaries are available for Linux and OSX, with packages for Debian and
 RPM based distributions.
 
 .. _from_source:
 
-From Source (*nix)
-==================
+From Source
+===========
 
 `hekad` requires a Go work environment to be setup for the binary to be
-built. This task has been automated in the `heka build`_ repository. To
-create a working `hekad` binary for your platform you'll need to
-install some prerequisites. Many of these are standard on modern linux
-distributions and OSX.
+built; this task is automated by the build process. The build script will
+override the Go environment for the shell window it is executed in. This creates
+an isolated environment that is intended specifically for building and 
+developing Heka.  The build script should be be run every time a new shell is 
+opened for Heka development to ensure the correct dependencies are found and 
+being used. To create a working `hekad` binary for your platform you'll need to
+install some prerequisites. Many of these are standard on modern Unix 
+distributions and all are available for installation on Windows systems.
 
-Prerequisites:
+Prerequisites (all systems):
 
-- cmake 2.8 or greater
+- CMake 2.8.7 or greater http://www.cmake.org/cmake/resources/software.html
+- Git http://git-scm.com/download
+- Go 1.1 or greater (1.1.1 recommended) http://code.google.com/p/go/downloads/list
+- Mercurial http://mercurial.selenic.com/downloads/
+- Protobuf 2.3 or greater (optional - only needed if message.proto is modified) http://code.google.com/p/protobuf/downloads/list
+- Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
+
+Prerequisites (Unix):
+
 - make
 - gcc
-- g++
-- git
-- go 1.1 or greater (1.1.1 recommended)
-- python 2.6 or greater
 - patch
-- mercurial
+- dpkg (optional)
+- rpmbuild (optional)
+- packagemaker (optional)
 
-1. Check out the `heka build`_ repository:
+Prerequisites (Windows):
 
-    .. code-block:: bash
-
-        git clone https://github.com/mozilla-services/heka-build.git
-
-2. Run `make` in the heka-build directory (builds the current release (master
-   branch); if you have go installed in a non-standard location, you may need
-   to set the GOROOT environment variable):
-
-    .. code-block:: bash
-
-        cd heka-build
-        make
-
-You will now have a `hekad` binary in the `heka-build/bin` directory.
-
-3. (Optional) Run the tests to ensure a functioning `hekad`:
-
-    .. code-block:: bash
-
-        make test
-
-4. (Optional) If you want to build the latest code in development, run `make
-   dev` to switch to the dev branch and then run `make`. If you need to revert
-   back to the master branch at some point run `make undev`.
-
-
-From Source (Windows)
-=====================
-
-Prerequisites (manual setup):
-
-- Go 1.1+ (1.1.1 recommended) http://code.google.com/p/go/downloads/list
-- Cmake 2.8+ http://www.cmake.org/cmake/resources/software.html
-- Git http://code.google.com/p/msysgit/downloads/list
-- Mercurial http://mercurial.selenic.com/downloads/
 - MinGW http://sourceforge.net/projects/tdm-gcc/
 
-1. From a Git shell check out the `heka build`_ repository:
+.. _build_instructions:
+
+Build Instructions
+------------------
+
+1. Check out the `heka`_ repository:
 
     .. code-block:: bash
 
-        git clone https://github.com/mozilla-services/heka-build.git
+        git clone https://github.com/mozilla-services/heka
 
-2. From a MinGW shell run `build.bat` in the heka-build directory:
-
-    .. code-block:: bash
-
-        cd heka-build
-        build
-
-3. (Optional) Run the tests to ensure a functioning `hekad`:
+2. Run `build` in the heka directory
 
     .. code-block:: bash
 
-        mingw32-make test
+        cd heka
+        source build.sh # Unix (this file must be sourced to properly setup the environment)
+        build.bat  # Windows
 
-You will now have a `hekad` binary in the `release/heka-0_2_0_w(32|64)/bin` directory.
+You will now have a `hekad` binary in the `build/heka/bin` directory.
+
+3. (Optional) Run the tests to ensure a functioning `hekad`.
+
+    .. code-block:: bash
+
+        ctest             # All, see note
+        # Or use the makefile target
+        make test         # Unix
+        mingw32-make test # Windows
+
+.. note::
+
+    In addition to the standard test build target, ctest can be called directly
+    providing much greater control over the tests being run and the generated
+    output (see ctest --help). i.e., 'ctest -R pi' will only run the pipeline
+    unit test.
+
+.. _build_clean:
+
+Clean Targets
+-------------
+- clean-heka - Use this target any time you change branches or pull from the Heka repository, it will ensure the Go workspace is in sync with the repository tree.
+- clean - You will never want to use this target (it is autogenerated by cmake), it will cause all external dependencies to be re-fetched and re-built.  The best way to 'clean-all' is to delete the build directory and re-run the build.(sh|bat) script.
+
+.. _build_options:
+
+Build Options
+-------------
+
+There are two build customization options that can be specified during the cmake generation process.
+
+- INCLUDE_MOZSVC (bool) Include the Mozilla services plugins (default Unix: true, Windows: false).
+- BENCHMARK (bool) Enable the benchmark tests (default false)
+
+For example: to enable the benchmark tests in addition to the standard unit tests
+type 'cmake -DBENCHMARK=true ..' in the build directory.
 
 .. _build_include_externals:
 
@@ -105,50 +116,46 @@ Building `hekad` with External Plugins
 It is possible to extend `hekad` by writing input, decoder, filter, or output
 plugins in Go (see :ref:`plugins`). Because Go only supports static linking of
 Go code, your plugins must be included with and registered into Heka at
-compile time. `heka build`_ supports the use of a `{heka-build-
-root}/etc/plugin_packages.json` file to specify which packages you'd like to
-include in your build. The JSON should be an object with a single
-`plugin_packages` attribute, with the value an array of package paths. For
-example:
+compile time. The build process supports this through the use of an optional 
+cmake file `{heka root}/cmake/plugin_loader.cmake`.  A cmake function has been
+provided `add_external_plugin` taking the repository type (git, hg, or svn), 
+repository URL, the repository tag to fetch, and an optional list of 
+sub-packages to be initialized.
 
-    .. code-block:: json
+    .. code-block:: txt
 
-        {"plugin_packages": ["github.com/mozilla-services/heka-mozsvc-plugins"]}
+        add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
+        add_external_plugin(git https://github.com/example/path dev util filepath)
 
-would cause the `github.com/mozilla-services/heka-mozsvc-plugins` package to
-be imported into `hekad` when you run `make`. By adding an `init() function
-<http://golang.org/doc/effective_go.html#init>`_ in your package you can make
-calls into `pipeline.RegisterPlugin` to register your plugins with Heka's
-configuration system.
+The preceeding entry clones the `heka-mozsvc-plugins` git repository into the Go
+work environment, checks out the dev branch, and imports the package into 
+`hekad` when `make` is run. By adding an `init() function <http://golang.org/doc/effective_go.html#init>`_ 
+in your package you can make calls into `pipeline.RegisterPlugin` to register 
+your plugins with Heka's configuration system.
 
-.. _build_rpm_deb_pkgs:
+.. _build_pkgs:
 
-Creating RPM/Deb Packages
-=========================
+Creating Packages
+=================
 
 Installing packages on a system is generally the easiest way to deploy
 `hekad`. These packages can be easily created after following the above
 :ref:`From Source <from_source>` directions:
 
-1. Install fpm:
+1. Run `cpack` to build the appropriate package(s) for the current
+system:
 
     .. code-block:: bash
 
-        gem install fpm
+        cpack                # All
+        # Or use the makefile target
+        make package         # Unix
+        mingw32-make package # Windows
 
-2. Run `make debs` (or `rpms`) to build the appropriate package (in the
-`heka-build` directory):
-
-    .. code-block:: bash
-
-        make debs
-
-The packages will be in the `debs` or `rpms` directory.
+The packages will be created in the build directory.
 
 .. note::
 
     You will need `rpmbuild` installed to build the rpms.
 
     .. seealso:: `Setting up an rpm-build environment <http://wiki.centos.org/HowTos/SetupRpmBuildEnvironment>`_
-
-.. _heka build: https://github.com/mozilla-services/heka-build
