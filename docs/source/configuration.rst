@@ -1505,7 +1505,7 @@ Parameters:
     File system directory where the Heka dashboard source code can be found.
     The Heka process must have read access to this directory. Relative paths
     will be evaluated relative to the Heka base directory. Defaults to
-    "dashboard_static" (i.e. "$(BASE_DIR)/dashboard_static").
+    "/usr/share/heka/dasher".
 
 Example:
 

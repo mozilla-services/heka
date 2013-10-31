@@ -1,14 +1,11 @@
-0.5.0 (2014-??-??)
+0.4.1 (2013-??-??)
 ==================
-
-Backwards Incompatibilities
----------------------------
 
 Bug Handling
 ------------
 
-Features
---------
+* Changed default DashboardOutput.StaticDirectory value to
+  `/usr/share/heka/dasher`, to match where the packages put the files.
 
 0.4.0 (2013-10-30)
 ==================
@@ -16,8 +13,8 @@ Features
 Backwards Incompatibilities
 ---------------------------
 
-* DashboardOutput now needs a `static_directory` setting to specify where the
-  Heka dashboard source code can be found.
+* DashboardOutput now requires a `static_directory` setting to specify where
+  the Heka dashboard source code can be found.
 
 * AMQPInput now only supports a single decoder to be specified (issue #414).
 
@@ -88,12 +85,18 @@ Bug Handling
 Features
 --------
 
-* Add delta output to circular buffers (issue #467)
+* Added ProcessInput. (issue #406)
+
+* Replaced DashboardOutput UI with new Backbone.js-based `dasher` interface.
+  (issue #378)
+
+* Add delta output to circular buffers. (issue #467)
 
 * Added json decoding to the Lua sandbox (issue #463). If you have an old build
   directory you will have to run make clean to pick up the new patch.
 
-* Added a 'config' variable section to the Sandbox decoder/filter plugin (issue #444)
+* Added a 'config' variable section to the Sandbox decoder/filter plugin.
+  (issue #444)
 
 * Added StatsToFieldsDecoder that will convert a message with statsd formatted
   string in the payload to one that also has the data available as message
@@ -103,13 +106,13 @@ Features
 * MultiDecoder now supports `cascade_strategy` config options of `first-wins`
   and `all`, defaults to `first-wins`.
 
-* Added stream parsing to UdpInput (issue #411)
+* Added stream parsing to UdpInput. (issue #411)
 
-* Added stream parsing to TcpInput (issue #165)
+* Added stream parsing to TcpInput. (issue #165)
 
-* Added SandboxDecoder (issue #370)
+* Added SandboxDecoder. (issue #370)
 
-* Support Heka protobuf message data in the LogfileInput plugin (issue #261)
+* Support Heka protobuf message data in the LogfileInput plugin. (issue #261)
 
 * Added "payload" format option to ElasticSearchOutput to pass message payload
   through to ES unchanged.
@@ -118,7 +121,7 @@ Features
   This includes a backwards incompatible change for the journal file, old
   journals will not be honored and the new journal will overwrite it.
 
-* Allow add_external_plugin to specify sub-packages (issue #384)
+* Allow add_external_plugin to specify sub-packages. (issue #384)
 
 * Added `base_dir` global (i.e. `[hekad]` section) config option to specify a
   single location Heka plugins should use to persist data to the file system.
