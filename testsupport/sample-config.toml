@@ -1,5 +1,5 @@
 [hekad]
-cpuprof = "/var/log/hekad/cpuprofile.log"
+cpuprof = "/var/log/hekad/cpuprof.log"
 decoder_poolsize = 10
 max_message_loops = 4
 max_process_inject = 10
@@ -48,10 +48,10 @@ message_matcher = "Type == 'heka.counter-output'"
 payload_only = true
 
 [WhisperOutput]
-base_path = "/var/cache/hekad/whisper/db"
 message_matcher = "Type == 'heka.statmetric'"
 default_agg_method = 1
 default_archive_info = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
 
 [DashboardOutput]
 ticker_interval = 5
+static_directory = "/usr/share/heka/dasher"
