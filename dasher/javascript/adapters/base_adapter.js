@@ -56,7 +56,7 @@ define(
       * @param {jqXHR} callback.jqXHR jQuery XHR object representing the request
       */
       fetch: function(url, callback) {
-        $.ajax(url, { cache: false }).then(function(data, textStatus, jqXHR) {
+        $.ajax(url, { dataType: "json", cache: false }).then(function(data, textStatus, jqXHR) {
           var responseTextCode = crc32(jqXHR.responseText);
 
           if (this.lastFetchResponseCode !== responseTextCode) {
