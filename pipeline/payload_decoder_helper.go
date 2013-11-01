@@ -22,11 +22,9 @@ import (
 )
 
 type PayloadDecoderHelper struct {
-	Captures        map[string]string
-	dRunner         DecoderRunner
-	TimestampLayout string
-	TzLocation      *time.Location
-	SeverityMap     map[string]int32
+	Captures    map[string]string
+	dRunner     DecoderRunner
+	SeverityMap map[string]int32
 }
 
 /*
@@ -35,22 +33,25 @@ back to the Message as nanoseconds into the Timestamp field.
 In the case that a timestamp string is not in the capture map, no
 timestamp is written and the default of 0 is used.
 */
-func (pdh *PayloadDecoderHelper) DecodeTimestamp(pack *PipelinePack) {
-	if timeStamp, ok := pdh.Captures["Timestamp"]; ok {
-		val, err := ForgivingTimeParse(pdh.TimestampLayout, timeStamp, pdh.TzLocation)
-		if err != nil {
-			pdh.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
-		}
-		// If we only get a timestamp, use the current date
-		if val.Year() == 0 && val.Month() == 1 && val.Day() == 1 {
-			now := time.Now()
-			val = val.AddDate(now.Year(), int(now.Month()-1), now.Day()-1)
-		} else if val.Year() == 0 {
-			// If there's no year, use current year
-			val = val.AddDate(time.Now().Year(), 0, 0)
-		}
-		pack.Message.SetTimestamp(val.UnixNano())
+func DecodeTimestamp(pack *PipelinePack,
+	timeStamp string,
+	timestampLayout string,
+	tzLocation *time.Location) (err error) {
+
+	val, err := ForgivingTimeParse(timestampLayout, timeStamp, tzLocation)
+	if err != nil {
+		return fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp)
 	}
+	// If we only get a timestamp, use the current date
+	if val.Year() == 0 && val.Month() == 1 && val.Day() == 1 {
+		now := time.Now()
+		val = val.AddDate(now.Year(), int(now.Month()-1), now.Day()-1)
+	} else if val.Year() == 0 {
+		// If there's no year, use current year
+		val = val.AddDate(time.Now().Year(), 0, 0)
+	}
+	pack.Message.SetTimestamp(val.UnixNano())
+	return err
 }
 
 /*

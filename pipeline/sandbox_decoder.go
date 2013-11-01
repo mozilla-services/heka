@@ -43,9 +43,10 @@ type SandboxDecoder struct {
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
 	return &sandbox.SandboxConfig{
-		MemoryLimit:      8 * 1024 * 1024,
-		InstructionLimit: 1e6,
-		OutputLimit:      63 * 1024,
+		MemoryLimit:       8 * 1024 * 1024,
+		InstructionLimit:  1e6,
+		OutputLimit:       63 * 1024,
+		TimestampLocation: "UTC",
 	}
 }
 
@@ -56,6 +57,10 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*sandbox.SandboxConfig)
 	s.sbc.ScriptFilename = GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
+
+	if s.sbc.TzLocation, err = time.LoadLocation(s.sbc.TimestampLocation); err != nil {
+		return fmt.Errorf("unknown TimestampLocation='%s', err=%s", s.sbc.TimestampLocation, err)
+	}
 
 	switch s.sbc.ScriptType {
 	case "lua":
@@ -115,6 +120,10 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 	atomic.AddInt64(&s.processMessageCount, 1)
 
 	var startTime time.Time
+	var timestamp string
+	var f *message.Field
+	var ok bool
+
 	if s.sample {
 		startTime = time.Now()
 	}
@@ -135,6 +144,20 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 		atomic.AddInt64(&s.processMessageFailures, 1)
 		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
 		return
+	}
+
+	if retval == 0 {
+		if s.sbc.TimestampField != "" {
+			f = pack.Message.FindFirstField(s.sbc.TimestampField)
+			timestamp, ok = f.GetValue().(string)
+			if !ok {
+				return fmt.Errorf("Can't coerce timestamp field into a string")
+			}
+			err = DecodeTimestamp(pack, timestamp, s.sbc.TimestampLayout, s.sbc.TzLocation)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	packs = []*PipelinePack{pack}
 	err = s.err

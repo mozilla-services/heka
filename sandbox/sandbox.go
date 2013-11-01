@@ -19,7 +19,10 @@ package sandbox
 */
 import "C"
 
-import "github.com/mozilla-services/heka/message"
+import (
+	"github.com/mozilla-services/heka/message"
+	"time"
+)
 
 const (
 	STATUS_UNKNOWN    = C.STATUS_UNKNOWN
@@ -62,4 +65,9 @@ type SandboxConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+
+	TimestampField    string `toml:"timestamp_field"`
+	TimestampLayout   string `toml:"timestamp_layout"`
+	TimestampLocation string `toml:"timestamp_location"`
+	TzLocation        *time.Location
 }
