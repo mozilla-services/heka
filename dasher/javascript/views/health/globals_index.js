@@ -35,7 +35,7 @@ define(
       * @method afterRender
       */
       afterRender: function() {
-        console.log("GlobalsIndex.afterRender", this.collection.getRouter());
+        console.log("GlobalsIndex.afterRender", this.collection);
 
         if (this.collection.getRouter()) {
           this.routerWidget = new RouterWidget({ model: this.collection.getRouter() });

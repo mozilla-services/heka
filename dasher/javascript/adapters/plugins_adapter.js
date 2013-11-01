@@ -170,7 +170,7 @@ define(
         var deferred = $.Deferred();
 
         this.fetch("data/heka_report.json", function(response) {
-          console.log("PluginsAdapter.fill", response);
+          console.log("PluginsAdapter.fill: response", response);
 
           this.parseArrayIntoCollection(response.globals, this.globals, "Global");
           this.parseArrayIntoCollection(response.inputs, this.inputs, "Input");
@@ -183,6 +183,8 @@ define(
           this.mapSandboxOutputsToFilters(this.filters);
 
           this.parseArrayIntoCollection(response.outputs, this.outputs, "Output");
+
+          console.log("PluginsAdapter.fill: collections", this.globals, this.inputs, this.decoderPools, this.decoders, this.filters, this.outputs);
 
           deferred.resolve(this.globals, this.inputs, this.decoderPools, this.decoders, this.filters, this.outputs);
 
@@ -200,6 +202,8 @@ define(
       * @param {Plugins} collection Collection to be filled from parsed array.
       */
       parseArrayIntoCollection: function(array, collection, type) {
+        console.log("PluginsAdapter.parseArrayIntoCollection", array, collection, type);
+
         var plugins = _.collect(array, function(p) {
           // No id is provided but the name is unique so use it as the id.
           var plugin = new Plugin(_.extend(p, { id: p.Name, Type: type }));
