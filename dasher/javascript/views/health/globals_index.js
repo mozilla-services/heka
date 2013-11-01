@@ -20,6 +20,8 @@ define(
       template: GlobalsIndexTemplate,
 
       initialize: function() {
+        console.log("GlobalsIndex.initialize", this.collection);
+
         this.listenTo(this.collection, "reset", this.render, this);
       },
 
@@ -33,6 +35,8 @@ define(
       * @method afterRender
       */
       afterRender: function() {
+        console.log("GlobalsIndex.afterRender", this.collection.getRouter());
+
         if (this.collection.getRouter()) {
           this.routerWidget = new RouterWidget({ model: this.collection.getRouter() });
           this.routerChannelCountWidget = new ChannelCountWidget({ model: this.collection.getRouter() });

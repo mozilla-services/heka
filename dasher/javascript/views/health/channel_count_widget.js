@@ -20,6 +20,8 @@ define(
       template: ChannelCountWidgetTemplate,
 
       initialize: function() {
+        console.log("ChannelCountWidget.initialize", this.model);
+
         this.listenTo(this.model, "change:InChanLength.value", this.render, this);
         this.listenTo(this.model, "change:InChanCapacity.value", this.render, this);
       },

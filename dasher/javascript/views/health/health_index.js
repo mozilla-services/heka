@@ -24,6 +24,8 @@ define(
       template: HealthIndexTemplate,
 
       initialize: function() {
+        console.log("HealthIndex.initialize");
+
         this.adapter = PluginsAdapter.instance();
 
         this.globalsIndex = new GlobalsIndex({ collection: this.adapter.globals });
@@ -42,6 +44,8 @@ define(
       * @method afterRender
       */
       afterRender: function() {
+        console.log("HealthIndex.afterRender", this.globalsIndex, this.inputsIndex, this.decoderPoolsIndex, this.filtersIndex, this.outputsIndex);
+
         this.assign(this.globalsIndex, "#globals-index");
         this.assign(this.inputsIndex, "#inputs-index");
         this.assign(this.decoderPoolsIndex, "#decoder-pools-index");

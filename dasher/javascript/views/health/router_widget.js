@@ -20,6 +20,8 @@ define(
       template: RouterWidgetTemplate,
 
       initialize: function() {
+        console.log("RouterWidget.initialize", this.model);
+
         this.listenTo(this.model, "change:ProcessMessageCount.value", this.render, this);
       }
     });

@@ -19,6 +19,8 @@ define(
       template: InputsIndexTemplate,
 
       initialize: function() {
+        console.log("InputsIndex.initialize", this.collection);
+
         this.listenTo(this.collection, "add remove reset", this.render, this);
       },
 

@@ -21,6 +21,8 @@ define(
       template: InputsRowTemplate,
 
       initialize: function() {
+        console.log("InputsRow.initialize", this.model);
+
         this.listenTo(this.model, "change", this.render, this);
       }
     });

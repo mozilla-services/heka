@@ -170,6 +170,8 @@ define(
         var deferred = $.Deferred();
 
         this.fetch("data/heka_report.json", function(response) {
+          console.log("PluginsAdapter.fill", response);
+
           this.parseArrayIntoCollection(response.globals, this.globals, "Global");
           this.parseArrayIntoCollection(response.inputs, this.inputs, "Input");
 
