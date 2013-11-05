@@ -4,6 +4,10 @@
 Bug Handling
 ------------
 
+* Updated Mozilla Sphinx theme submodule reference and configuration paths to
+  work around bug in ReadTheDocs rendering (see
+  https://github.com/rtfd/readthedocs.org/issues/529).
+
 * Changed default DashboardOutput.StaticDirectory value to
   `/usr/share/heka/dasher`, to match where the packages put the files.
 
