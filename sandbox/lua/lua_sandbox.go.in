@@ -15,9 +15,10 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
-#cgo LDFLAGS: -L@LUA_LIB_PATH@ -llua -lm
+#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -lluajit-5.1 -llpeg -lcjson -lm -ldl
 #include <stdlib.h>
-#include "lua_sandbox.h"
+#include <lua_sandbox.h>
+#include "lua_sandbox_interface.h" 
 */
 import "C"
 
@@ -186,7 +187,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	lsb := new(LuaSandbox)
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
-	lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
+	lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
 		cs,
 		C.uint(conf.MemoryLimit),
 		C.uint(conf.InstructionLimit),
@@ -206,7 +207,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 func (this *LuaSandbox) Init(dataFile string) error {
 	cs := C.CString(dataFile)
 	defer C.free(unsafe.Pointer(cs))
-	r := int(C.lua_sandbox_init(this.lsb, cs))
+	r := int(C.sandbox_init(this.lsb, cs))
 	if r != 0 {
 		return fmt.Errorf("Init() %s", this.LastError())
 	}
@@ -216,7 +217,7 @@ func (this *LuaSandbox) Init(dataFile string) error {
 func (this *LuaSandbox) Destroy(dataFile string) error {
 	cs := C.CString(dataFile)
 	defer C.free(unsafe.Pointer(cs))
-	c := C.lua_sandbox_destroy(this.lsb, cs)
+	c := C.lsb_destroy(this.lsb, cs)
 	if c != nil {
 		err := C.GoString(c)
 		C.free(unsafe.Pointer(c))
@@ -226,27 +227,27 @@ func (this *LuaSandbox) Destroy(dataFile string) error {
 }
 
 func (this *LuaSandbox) Status() int {
-	return int(C.lua_sandbox_status(this.lsb))
+	return int(C.lsb_get_state(this.lsb))
 }
 
 func (this *LuaSandbox) LastError() string {
-	return C.GoString(C.lua_sandbox_last_error(this.lsb))
+	return C.GoString(C.lsb_get_error(this.lsb))
 }
 
 func (this *LuaSandbox) Usage(utype, ustat int) uint {
-	return uint(C.lua_sandbox_usage(this.lsb, C.sandbox_usage_type(utype),
-		C.sandbox_usage_stat(ustat)))
+	return uint(C.lsb_usage(this.lsb, C.lsb_usage_type(utype),
+		C.lsb_usage_stat(ustat)))
 }
 
 func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
 	this.msg = msg
-	r := int(C.lua_sandbox_process_message(this.lsb))
+	r := int(C.process_message(this.lsb))
 	this.msg = nil
 	return r
 }
 
 func (this *LuaSandbox) TimerEvent(ns int64) int {
-	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
+	return int(C.timer_event(this.lsb, C.longlong(ns)))
 }
 
 func (this *LuaSandbox) InjectMessage(f func(payload, payload_type,

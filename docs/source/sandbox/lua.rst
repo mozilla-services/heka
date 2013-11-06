@@ -152,12 +152,17 @@ Heka functions that are exposed to the Lua sandbox
         - injection limits are enforced as described above
 
 **require(libraryName)**
-    Loads optional sandbox libraries
+    By default only the base library is loaded additional libraries must be explicitly specified.
 
     *Arguments*
         - libraryName (string)
-            - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
             - **cjson** loaded the cjson.safe module in a global cjson table, exposing the decoding functions only. http://www.kyne.com.au/~mark/software/lua-cjson-manual.html.
+            - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
+            - **math**
+            - **os**
+            - **string**
+            - **table**
+            - **circular_buffer** see below
 
     *Return*
         a table (which is also globally registered with the library name).

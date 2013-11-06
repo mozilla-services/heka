@@ -112,7 +112,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sandbox" "${HEKA_PATH}/sandbox"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/testsupport" "${HEKA_PATH}/testsupport"
-DEPENDS lua-5_1_5 GoPackages ${MESSAGE_PROTO_OUT}
+DEPENDS luasandbox-0_1_0 GoPackages ${MESSAGE_PROTO_OUT}
 )
 
 add_custom_target(message_matcher_parser ALL
