@@ -1,0 +1,19 @@
+<td class="name"><span class="glyphicon glyphicon-log-out"></span> <a href="#plugins/outputs/{{Name}}">{{Name}}</a></td>
+<td class="in-channel hidden-xs">
+  <div class="progress" title="{{InChanLength.value}}/{{InChanCapacity.value}}">
+    <div class="progress-bar" role="progressbar" aria-valuenow="{{InChanLength.value}}" aria-valuemin="0" aria-valuemax="{{InChanCapacity.value}}" style="width: {{InChanPercent}}%;">
+      <span class="sr-only">{{InChanPercent}}% Complete</span>
+    </div>
+  </div>
+</td>
+<td class="match-channel hidden-xs">
+  {{#hasMatchChannel}}
+  <div class="progress" title="{{MatchChanLength.value}}/{{MatchChanCapacity.value}}">
+    <div class="progress-bar" role="progressbar" aria-valuenow="{{MatchChanLength.value}}" aria-valuemin="0" aria-valuemax="{{MatchChanCapacity.value}}" style="width: {{MatchChanPercent}}%;">
+      <span class="sr-only">{{MatchChanPercent}}% Complete</span>
+    </div>
+  </div>
+  {{/hasMatchChannel}}
+</td>
+<td class="avg-match-duration hidden-xs">{{MatchAvgDurationFormatted}} {{MatchAvgDuration.representation}}</td>
+<td class="processed hidden-xs">{{ProcessMessageCountFormatted}}</td>

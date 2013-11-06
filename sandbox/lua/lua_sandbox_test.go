@@ -591,8 +591,11 @@ func TestCircularBufferErrors(t *testing.T) {
 		"compute() incorrect # args",
 		"compute() incorrect function",
 		"compute() incorrect column",
-		"compute() start > end"}
-
+		"compute() start > end",
+		"format() invalid",
+		"format() extra",
+		"format() missing",
+	}
 	msgs := []string{
 		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #-1 to 'new' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:11: bad argument #1 to 'new' (number expected, got nil)",
@@ -616,6 +619,9 @@ func TestCircularBufferErrors(t *testing.T) {
 		"process_message() ./testsupport/circular_buffer_errors.lua:59: bad argument #1 to 'compute' (invalid option 'func')",
 		"process_message() ./testsupport/circular_buffer_errors.lua:62: bad argument #2 to 'compute' (column out of range)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:65: bad argument #4 to 'compute' (end must be >= start)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:68: bad argument #1 to 'format' (invalid option 'invalid')",
+		"process_message() ./testsupport/circular_buffer_errors.lua:71: bad argument #-1 to 'format' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:74: bad argument #-1 to 'format' (incorrect number of arguments)",
 	}
 
 	var sbc SandboxConfig
@@ -893,7 +899,7 @@ func TestInjectMessageError(t *testing.T) {
 		"process_message() not enough memory",
 		"process_message() ./testsupport/inject_message.lua:80: inject_message() cound not encode protobuf - array has mixed types",
 		"process_message() ./testsupport/inject_message.lua:83: inject_message() cound not encode protobuf - unsupported type 0",
-		"process_message() ./testsupport/inject_message.lua:85: inject_message() must have a table or string as the first argument",
+		"process_message() ./testsupport/inject_message.lua:85: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:87: bad argument #2 to 'inject_message' (string expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:89: inject_message() takes a maximum of 2 arguments",
 	}
@@ -1016,6 +1022,115 @@ func TestReadNilConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
+	sb.Destroy("")
+}
+
+func TestCircularBufferDelta(t *testing.T) {
+	msg := getTestMessage()
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/circular_buffer_delta.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 32767
+	payload_type := []string{"cbuf", "cbufd", "cbuf"}
+	payload_name := "Method tests"
+
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	output := []string{
+		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+1	1	1
+2	1	2
+3	1	3
+`,
+		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+1	2	1	2
+2	3	1	3
+0	1	1	1
+`,
+		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+1	1	1
+2	1	2
+3	1	3
+`,
+	}
+	cnt := 0
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != output[cnt] {
+			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
+				output[cnt], p)
+		}
+		if pt != payload_type[cnt] {
+			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
+		}
+		if pn != "Method tests" {
+			t.Errorf("cnt: %d name should be \"%s\", received \"%s\"", cnt, payload_name, pn)
+		}
+		cnt++
+		return 0
+	})
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	msg.SetTimestamp(0)
+	r := sb.ProcessMessage(msg)
+	if r != 0 {
+		t.Errorf("ProcessMessage failed: %s", sb.LastError())
+	}
+	msg.SetTimestamp(1e9)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
+	msg.SetTimestamp(2e9)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
+	sb.ProcessMessage(msg)
+	sb.TimerEvent(0)
+	sb.TimerEvent(0) // should only produce the full set
+	sb.ProcessMessage(msg)
+	sb.Destroy("/tmp/circular_buffer_delta.lua.data")
+	if cnt != len(output) {
+		t.Errorf("only %d of %d tests were run", cnt, len(output))
+	}
+}
+
+func TestCircularBufferDeltaRestore(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/circular_buffer_delta.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 32767
+
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	output := []string{
+		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+1	1	1
+2	1	2
+4	1	4
+`,
+		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+2	1	0	1
+`,
+	}
+	cnt := 0
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != output[cnt] {
+			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
+				output[cnt], p)
+		}
+		cnt++
+		return 0
+	})
+	err = sb.Init("./testsupport/circular_buffer_delta.lua.data")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	sb.TimerEvent(0)
 	sb.Destroy("")
 }
 

@@ -1,0 +1,16 @@
+{
+  // Documentation: http://www.jshint.com/docs/
+  "browser": true,
+  "esnext": true,
+  "globals": {
+    "require": true,
+    "console": true,
+    "define": true
+  },
+  "globalstrict": true,
+  "quotmark": true,
+  "smarttabs": true,
+  "trailing": true,
+  "undef": true,
+  "unused": true
+}
