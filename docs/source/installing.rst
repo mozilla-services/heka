@@ -56,7 +56,7 @@ Prerequisites (Windows):
 Build Instructions
 ------------------
 
-1. Check out the `heka`_ repository:
+1. Check out the `heka` repository:
 
     .. code-block:: bash
 
