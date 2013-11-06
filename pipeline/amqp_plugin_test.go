@@ -156,9 +156,6 @@ func AMQPPluginSpec(c gs.Context) {
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
 
-				// Expect the injected packet
-				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
-
 				// Increase the usage since Run decrements it on close
 				ug.Add(1)
 

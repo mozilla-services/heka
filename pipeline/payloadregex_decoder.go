@@ -121,11 +121,12 @@ func tryMatch(re *regexp.Regexp, s string) (match bool, captures map[string]stri
 // Runs the message payload against decoder's regex. If there's a match, the
 // message will be populated based on the decoder's message template, with
 // capture values interpolated into the message template values.
-func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
+func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
 	// First try to match the regex.
 	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
-		return fmt.Errorf("No match")
+		err = fmt.Errorf("No match")
+		return
 	}
 
 	pdh := &PayloadDecoderHelper{
@@ -141,5 +142,8 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (err error) {
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	return ld.MessageFields.PopulateMessage(pack.Message, captures)
+	if err = ld.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
+		packs = []*PipelinePack{pack}
+	}
+	return
 }

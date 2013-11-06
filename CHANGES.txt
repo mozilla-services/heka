@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Changed `Decoder` interface to support one input pack generating multiple
+  output packs.
+
 Bug Handling
 ------------
 

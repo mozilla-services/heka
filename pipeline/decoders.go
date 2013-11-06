@@ -119,20 +119,23 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	dr.h = h
 	dr.router = h.PipelineConfig().router
 	go func() {
-		var pack *PipelinePack
-
+		var (
+			pack  *PipelinePack
+			packs []*PipelinePack
+			err   error
+		)
 		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
 			wanter.SetDecoderRunner(dr)
 		}
-		var err error
 		for pack = range dr.inChan {
-			if err = dr.Decoder().Decode(pack); err != nil {
+			if packs, err = dr.Decoder().Decode(pack); err != nil {
 				dr.LogError(err)
 				pack.Recycle()
 				continue
 			}
-			pack.Decoded = true
-			h.PipelineConfig().router.InChan() <- pack
+			for _, p := range packs {
+				h.PipelineConfig().router.InChan() <- p
+			}
 		}
 		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
 			wanter.Shutdown()
@@ -181,8 +184,11 @@ type WantsDecoderRunnerShutdown interface {
 // Heka Decoder plugin interface.
 type Decoder interface {
 	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
-	// and use it to populated pack.Message message object.
-	Decode(pack *PipelinePack) error
+	// and use it to populate pack.Message message objects. If decoding
+	// succeeds (i.e. `err` is nil), the original pack will be mutated and
+	// returned as the first item in the `packs` return slice. If there is an
+	// error, `packs` should be returned as nil.
+	Decode(pack *PipelinePack) (packs []*PipelinePack, err error)
 }
 
 // Decoder for converting ProtocolBuffer data into Message objects.
@@ -192,8 +198,13 @@ func (self *ProtobufDecoder) Init(config interface{}) error {
 	return nil
 }
 
-func (self *ProtobufDecoder) Decode(pack *PipelinePack) error {
-	return proto.Unmarshal(pack.MsgBytes, pack.Message)
+func (self *ProtobufDecoder) Decode(pack *PipelinePack) (
+	packs []*PipelinePack, err error) {
+
+	if err = proto.Unmarshal(pack.MsgBytes, pack.Message); err == nil {
+		packs = []*PipelinePack{pack}
+	}
+	return
 }
 
 type extraStatMessage struct {
@@ -219,30 +230,34 @@ func (d *StatsToFieldsDecoder) SetDecoderRunner(dr DecoderRunner) {
 	d.runner = dr
 }
 
-func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
+func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
+	err error) {
+
 	var (
 		timestamp uint64
 		extras    []*extraStatMessage
 	)
 
 	lines := strings.Split(strings.Trim(pack.Message.GetPayload(), "\n"), "\n")
-	routerChan := d.runner.Router().InChan()
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		// Sanity check.
 		if len(fields) != 3 {
-			return fmt.Errorf("malformed statmetric line: '%s'", line)
+			err = fmt.Errorf("malformed statmetric line: '%s'", line)
+			return
 		}
 		// Check timestamp validity.
 		var unixTime uint64
 		unixTime, err = strconv.ParseUint(fields[2], 0, 32)
 		if err != nil {
-			return fmt.Errorf("invalid timestamp: '%s'", line)
+			err = fmt.Errorf("invalid timestamp: '%s'", line)
+			return
 		}
 		// Check value validity.
 		var value float64
 		if value, err = strconv.ParseFloat(fields[1], 64); err != nil {
-			return fmt.Errorf("invalid value: '%s'", line)
+			err = fmt.Errorf("invalid value: '%s'", line)
+			return
 		}
 		if timestamp != unixTime {
 			if timestamp == uint64(0) {
@@ -290,12 +305,16 @@ func (d *StatsToFieldsDecoder) Decode(pack *PipelinePack) (err error) {
 	if err = d.addStatField(pack, "timestamp", int64(timestamp)); err != nil {
 		return
 	}
-	if extras != nil {
-		for _, sMsg := range extras {
-			routerChan <- sMsg.pack
+
+	if extras == nil {
+		packs = []*PipelinePack{pack}
+	} else {
+		packs = make([]*PipelinePack, len(extras)+1)
+		packs[0] = pack
+		for i, e := range extras {
+			packs[i+1] = e.pack
 		}
 	}
-
 	return
 }
 
