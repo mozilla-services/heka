@@ -187,7 +187,10 @@ func (l Logfiles) FileNames() []string {
 func (l Logfiles) FilterOld(oldTime time.Time) Logfiles {
 	f := make(Logfiles, 0)
 	for _, logfile := range l {
-		finfo := os.Stat(logfile.FileName)
+		finfo, err := os.Stat(logfile.FileName)
+		if err != nil {
+			continue
+		}
 		if finfo.ModTime().After(oldTime) {
 			f = append(f, logfile)
 		}

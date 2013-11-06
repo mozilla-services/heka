@@ -76,14 +76,14 @@ func (l *LogstreamLocation) Reset() {
 	l.SeekPosition = int64(0)
 	l.LastLoglineStart = int64(0)
 	l.LastLogline = ""
-	l.LastLoglineLength = ""
+	l.LastLoglineLength = int64(0)
 	l.Hash = ""
 }
 
 func (l *LogstreamLocation) Save() error {
 	// If we don't have a JournalPath, ignore
 	if l.JournalPath == "" {
-		return
+		return nil
 	}
 
 	// Note: We can't serialize the stat.pinfo in a cross platform way.
@@ -286,7 +286,7 @@ type LogfileResumer struct {
 func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
 	oldestDuration string) (l *LogfileResumer, err error) {
 	var d time.Duration
-	if oldestDuration != nil {
+	if oldestDuration != "" {
 		d, err = time.ParseDuration(oldestDuration)
 		if err != nil {
 			return
@@ -322,9 +322,10 @@ func (l *LogfileResumer) ResumeFileReading() (f *os.File, err error) {
 	// If we have a oldest duration, filter the logfiles and grab the
 	// oldest, otherwise start with the most recent
 	var filename string
+	files := l.logfiles
 
-	if l.oldestDuration != nil {
-		files := l.logfiles.FilterOld(time.Now().Add(-l.oldestDuration))
+	if l.oldestDuration != 0 {
+		files = l.logfiles.FilterOld(time.Now().Add(-l.oldestDuration))
 		if len(files) < 1 {
 			return nil, errors.New("No file has new enough modifications to read.")
 		}
@@ -362,21 +363,20 @@ func NewPackGenerator(lfr LogfileResumer, pc PackCreator, statInterval int) *Pac
 }
 
 func (pg *PackGenerator) Run(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
-	packReturn := make(chan *p.PipelinePack, 1)
 	go pg.ReadFile(packFeed, packReturn)
-	return packReturn
+	return
 }
 
 func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
 	var (
-		ok, shouldStat bool
-		pack           *p.PipelinePack
-		fd             *os.File
-		err            error
-		position       *LogstreamLocation
-		record         []byte
-		bytesRead      int
-		priorRead      int
+		ok, shouldStat, isRotated bool
+		pack                      *p.PipelinePack
+		fd                        *os.File
+		err                       error
+		position                  *LogstreamLocation
+		record                    []byte
+		bytesRead                 int
+		priorRead                 int
 	)
 
 	// Check that we haven't been rotated, if we have, update the filename
@@ -389,9 +389,19 @@ func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn ch
 	position = pg.lfr.position
 	record = make([]byte, 0, 200)
 
-	if pg.IsTruncated() {
+	// Determine if we're farther into the file than possible (truncate)
+	finfo, err := fd.Stat()
+	if err == nil && finfo.Size() < position.SeekPosition {
 		fd.Seek(0, 0)
 		position.SeekPosition = 0
+	}
+
+	pinfo, err := os.Stat(pg.lfr.position.Filename)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		filename = pinfo.Name()
+		if position.ShouldUseNewer(pg.lfr.logfiles) {
+			isRotated = true
+		}
 	}
 
 	newFilename, isRotated := pg.IsRotated()
@@ -427,26 +437,4 @@ func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn ch
 	if pack != nil {
 		packReturn <- pack
 	}
-}
-
-func (pg *PackGenerator) IsTruncated() bool {
-	// Determine if we're farther into the file than possible (truncate)
-	finfo, err := fd.Stat()
-	if err == nil {
-		return finfo.Size() < position.SeekPosition
-	}
-	return false
-}
-
-// Check that we haven't been rotated, if we have, update the filename
-// to reflect our new location.
-func (pg *PackGenerator) IsRotated() (filename string, rotated bool) {
-	pinfo, err := os.Stat(position.Filename)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		filename = pinfo.Name()
-		if position.ShouldUseNewer(pg.lfr.logfiles) {
-			rotated = true
-		}
-	}
-	return
 }
