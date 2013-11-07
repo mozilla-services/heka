@@ -77,7 +77,7 @@ the config system is (unsurprisingly) `Plugin`, defined in `pipeline_runner.go
 services/heka/blob/master/pipeline/pipeline_runner.go>`_::
 
     type Plugin interface {
-            Init(config interface{}) error
+        Init(config interface{}) error
     }
 
 During Heka initialization an instance of every input, filter, and output
@@ -183,7 +183,7 @@ the `HasConfigStruct` interface defined in the `config.go
 file::
 
     type HasConfigStruct interface {
-            ConfigStruct() interface{}
+        ConfigStruct() interface{}
     }
 
 Any plugin that implements this method should return a struct that can act as
@@ -256,8 +256,8 @@ listening for incoming network data or actively scanning external sources
 is::
 
     type Input interface {
-            Run(ir InputRunner, h PluginHelper) (err error)
-            Stop()
+        Run(ir InputRunner, h PluginHelper) (err error)
+        Stop()
     }
 
 The `Run` method is called when Heka starts and, if all is functioning as
@@ -334,7 +334,7 @@ data into actual `Message` struct objects that the Heka pipeline can process.
 As with inputs, the `Decoder` interface is quite simple::
 
     type Decoder interface {
-            Decode(pack *PipelinePack) error
+        Decode(pack *PipelinePack) (packs []*PipelinePack, err error)
     }
 
 There are two optional Decoder interfaces.  The first provides the Decoder
@@ -358,10 +358,16 @@ attribute. Again, to minimize GC churn, take care to reuse the already
 allocated memory rather than creating new objects and overwriting the existing
 ones.
 
-If the message bytes are decoded successfully then `Decode` should return
-`nil`. If not, then an appropriate error should be returned, in which case the
-error message will be logged and the message will be dropped, no further
-pipeline processing will occur.
+If the message bytes are decoded successfully then `Decode` should return a
+slice of PipelinePack pointers and a nil error value. The first item in the
+returned slice (i.e. `packs[0]`) should be the pack that was passed in to the
+method. If the decoding process produces more than one output pack, additonal
+packs can be appended to the slice.
+
+If decoding fails for any reason, then `Decode` should return a nil value for
+the PipelinePack slice and an appropriate error. in this case the error
+message will be logged and the message will be dropped, no further pipeline
+processing will occur.
 
 .. _filters:
 
@@ -375,7 +381,7 @@ those contents in real time as messages are flowing through the Heka system.
 The filter plugin interface is just a single method::
 
     type Filter interface {
-            Run(r FilterRunner, h PluginHelper) (err error)
+        Run(r FilterRunner, h PluginHelper) (err error)
     }
 
 Like input plugins, filters have a `Run` method which accepts a runner and a
@@ -458,7 +464,7 @@ Heka messages and using them to generate interactions with the outside world.
 The `Output` interface is nearly identical to the `Filter` interface::
 
     type Output interface {
-            Run(or OutputRunner, h PluginHelper) (err error)
+        Run(or OutputRunner, h PluginHelper) (err error)
     }
 
 In fact, there is very little difference between filter and output plugins,

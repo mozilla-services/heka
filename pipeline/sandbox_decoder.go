@@ -106,9 +106,10 @@ func (s *SandboxDecoder) Shutdown() {
 	}
 }
 
-func (s *SandboxDecoder) Decode(pack *PipelinePack) error {
+func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
 	if s.sb == nil {
-		return s.err
+		err = s.err
+		return
 	}
 	s.pack = pack
 	atomic.AddInt64(&s.processMessageCount, 1)
@@ -132,9 +133,12 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) error {
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		return fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		return
 	}
-	return s.err
+	packs = []*PipelinePack{pack}
+	err = s.err
+	return
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

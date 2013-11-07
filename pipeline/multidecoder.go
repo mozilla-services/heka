@@ -15,6 +15,7 @@
 package pipeline
 
 import (
+	"errors"
 	"fmt"
 	"github.com/bbangert/toml"
 	"log"
@@ -57,6 +58,7 @@ type MultiDecoder struct {
 	Config    *MultiDecoderConfig
 	Name      string
 	Decoders  map[string]Decoder
+	ordered   []Decoder
 	dRunner   DecoderRunner
 	CascStrat int
 }
@@ -89,7 +91,11 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Decoders = make(map[string]Decoder, 0)
 	md.Name = md.Config.Name
 
-	var ok bool
+	var (
+		ok      bool
+		decoder Decoder
+	)
+
 	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; !ok {
 		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
@@ -98,12 +104,21 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	// it into the md.Decoders map
 	for name, conf := range md.Config.Subs {
 		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name, name))
-		decoder, err := md.loadSection(name, conf)
-		if err != nil {
-			return err
+		if decoder, err = md.loadSection(name, conf); err != nil {
+			return
 		}
 		md.Decoders[name] = decoder
 	}
+
+	md.ordered = make([]Decoder, len(md.Config.Order))
+	for i, name := range md.Config.Order {
+		if decoder, ok = md.Decoders[name]; !ok {
+			return fmt.Errorf("Non-existent sub-decoder named '%s' specified in oroder",
+				name)
+		}
+		md.ordered[i] = decoder
+	}
+
 	return nil
 }
 
@@ -211,13 +226,42 @@ func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	}
 }
 
-// Runs the message payload against each of the decoders.
-func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
-	var (
-		d       Decoder
-		newType string
-	)
+// Recurses through a decoder chain, decoding the original pack and returning
+// it and any generated extra packs.
+func (md *MultiDecoder) getDecodedPacks(chain []Decoder, pack *PipelinePack) (
+	packs []*PipelinePack, anyMatch bool) {
 
+	var inPacks []*PipelinePack
+	lastIndex := len(chain) - 1
+	if lastIndex == 0 {
+		// Inner-most loop.
+		inPacks = []*PipelinePack{pack}
+	} else {
+		inPacks, anyMatch = md.getDecodedPacks(chain[:lastIndex], pack)
+	}
+
+	decoder := chain[lastIndex]
+	for _, p := range inPacks {
+		if ps, err := decoder.Decode(p); err == nil {
+			anyMatch = true
+			packs = append(packs, ps...)
+		} else {
+			if md.Config.LogSubErrors {
+				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
+					md.Config.Order[lastIndex], err)
+				md.dRunner.LogError(err)
+			}
+			packs = inPacks
+			break
+		}
+	}
+
+	return
+}
+
+// Runs the message payload against each of the decoders.
+func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
+	var newType string
 	if pack.Message.GetType() == "" {
 		newType = fmt.Sprintf("heka.%s", md.Name)
 	} else {
@@ -225,27 +269,30 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (err error) {
 	}
 	pack.Message.SetType(newType)
 
-	anyMatch := false
-	for _, decoder_name := range md.Config.Order {
-		d = md.Decoders[decoder_name]
-
-		if err = d.Decode(pack); err == nil {
-			if md.CascStrat == CASC_FIRST_WINS {
+	if md.CascStrat == CASC_FIRST_WINS {
+		for i, d := range md.ordered {
+			if packs, err = d.Decode(pack); err == nil {
 				return
-			} else { // cascade_strategy == "all"
-				anyMatch = true
+			}
+			if md.Config.LogSubErrors {
+				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Order[i],
+					err)
+				md.dRunner.LogError(err)
 			}
 		}
-		if md.Config.LogSubErrors && err != nil {
-			err = fmt.Errorf("Subdecoder '%s' decode error: %s", decoder_name, err)
-			md.dRunner.LogError(err)
+		// If we got this far none of the decoders succeeded.
+		err = errors.New("All subdecoders failed.")
+		packs = nil
+		pack.Recycle()
+	} else {
+		// If we get here we know cascade_strategy == "all.
+		var anyMatch bool
+		packs, anyMatch = md.getDecodedPacks(md.ordered, pack)
+		if !anyMatch {
+			err = errors.New("All subdecoders failed.")
+			packs = nil
+			pack.Recycle()
 		}
 	}
-
-	// `anyMatch` can only be set to true if cascade_strategy == "all".
-	if anyMatch {
-		return nil
-	}
-	pack.Recycle()
-	return fmt.Errorf("Unable to decode message with any contained decoder.")
+	return
 }
