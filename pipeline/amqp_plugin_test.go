@@ -140,7 +140,8 @@ func AMQPPluginSpec(c gs.Context) {
 			mockDRunner.EXPECT().Decoder().Return(mockDecoder)
 
 			c.Specify("consumes a message", func() {
-				mockDecoder.EXPECT().Decode(gomock.Any())
+				packs := []*PipelinePack{ith.Pack}
+				mockDecoder.EXPECT().Decode(ith.Pack).Return(packs, nil)
 
 				// Create a channel to send data to the input
 				// Drop a message on there and close the channel
@@ -155,6 +156,9 @@ func AMQPPluginSpec(c gs.Context) {
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
+
+				// Expect the injected packet
+				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
 
 				// Increase the usage since Run decrements it on close
 				ug.Add(1)
