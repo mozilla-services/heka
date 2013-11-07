@@ -175,5 +175,6 @@ endif()
 
 install(FILES "${HEKA_PATH}/cmd/sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
+install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/syslog_decoder.lua" DESTINATION bin)
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
