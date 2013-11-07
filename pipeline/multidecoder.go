@@ -113,7 +113,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.ordered = make([]Decoder, len(md.Config.Order))
 	for i, name := range md.Config.Order {
 		if decoder, ok = md.Decoders[name]; !ok {
-			return fmt.Errorf("Non-existent sub-decoder named '%s' specified in oroder",
+			return fmt.Errorf("Non-existent subdecoder '%s' in `order` config value.",
 				name)
 		}
 		md.ordered[i] = decoder
