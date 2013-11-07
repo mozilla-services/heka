@@ -151,11 +151,11 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 			f = pack.Message.FindFirstField(s.sbc.TimestampField)
 			timestamp, ok = f.GetValue().(string)
 			if !ok {
-				return fmt.Errorf("Can't coerce timestamp field into a string")
+				return nil, fmt.Errorf("Can't coerce timestamp field into a string")
 			}
 			err = DecodeTimestamp(pack, timestamp, s.sbc.TimestampLayout, s.sbc.TzLocation)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}

@@ -670,7 +670,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(syslog_rfc3339)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			f := pack.Message.FindFirstField("program")
@@ -699,7 +699,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(syslog_traditional_format)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			f := pack.Message.FindFirstField("program")
@@ -732,7 +732,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(syslog_traditional_format)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			f := pack.Message.FindFirstField("program")
