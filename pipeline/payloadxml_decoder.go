@@ -127,14 +127,17 @@ func (pxd *PayloadXmlDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 	captures := pxd.match(pack.Message.GetPayload())
 
 	pdh := &PayloadDecoderHelper{
-		Captures:        captures,
-		dRunner:         pxd.dRunner,
-		TimestampLayout: pxd.TimestampLayout,
-		TzLocation:      pxd.tzLocation,
-		SeverityMap:     pxd.SeverityMap,
+		Captures:    captures,
+		dRunner:     pxd.dRunner,
+		SeverityMap: pxd.SeverityMap,
 	}
 
-	pdh.DecodeTimestamp(pack)
+	if timeStamp, ok := captures["Timestamp"]; ok {
+		if ts_err := DecodeTimestamp(pack, timeStamp, pxd.TimestampLayout, pxd.tzLocation); ts_err != nil {
+			pxd.dRunner.LogError(ts_err)
+		}
+	}
+
 	pdh.DecodeSeverity(pack)
 
 	// Update the new message fields based on the fields we should

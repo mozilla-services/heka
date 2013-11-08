@@ -130,14 +130,16 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack
 	}
 
 	pdh := &PayloadDecoderHelper{
-		Captures:        captures,
-		dRunner:         ld.dRunner,
-		TimestampLayout: ld.TimestampLayout,
-		TzLocation:      ld.tzLocation,
-		SeverityMap:     ld.SeverityMap,
+		Captures:    captures,
+		dRunner:     ld.dRunner,
+		SeverityMap: ld.SeverityMap,
 	}
 
-	pdh.DecodeTimestamp(pack)
+	if timeStamp, ok := captures["Timestamp"]; ok {
+		if ts_err := DecodeTimestamp(pack, timeStamp, ld.TimestampLayout, ld.tzLocation); ts_err != nil {
+			ld.dRunner.LogError(ts_err)
+		}
+	}
 	pdh.DecodeSeverity(pack)
 
 	// Update the new message fields based on the fields we should
