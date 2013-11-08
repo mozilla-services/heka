@@ -59,7 +59,6 @@ diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 +)
 +include_directories("${CMAKE_SOURCE_DIR}/src")
 +add_definitions(-DUSE_INTERNAL_FPCONV)
-+add_definitions(-DMULTIPLE_THREADS)
 +include(TestBigEndian)
 +TEST_BIG_ENDIAN(IEEE_BIG_ENDIAN)
 +if(IEEE_BIG_ENDIAN)
@@ -81,6 +80,7 @@ diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 +        set_target_properties(lua PROPERTIES LINK_FLAGS "-s -m32")
 +    endif()
 +    set_source_files_properties(${LPEG_SOURCE} PROPERTIES COMPILE_DEFINITIONS LUA_CORE)
++    set_source_files_properties(${LUA_CJSON_SOURCE} PROPERTIES COMPILE_DEFINITIONS LUA_CORE)
 +    add_definitions(-DLUA_BUILD_AS_DLL)
 +    # Windows sprintf()/strtod() handle NaN/inf differently. Not supported.
 +	 add_definitions(-DDISABLE_INVALID_NUMBERS)
