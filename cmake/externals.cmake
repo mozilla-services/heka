@@ -26,6 +26,7 @@ externalproject_add(
     lua-cjson-2_1_0
     URL http://www.kyne.com.au/~mark/software/download/lua-cjson-2.1.0.tar.gz
     URL_MD5 24f270663e9f6ca8ba2a02cef19f7963
+    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lua-cjson-2_1_0.patch
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
