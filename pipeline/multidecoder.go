@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -228,32 +229,30 @@ func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 
 // Recurses through a decoder chain, decoding the original pack and returning
 // it and any generated extra packs.
-func (md *MultiDecoder) getDecodedPacks(chain []Decoder, pack *PipelinePack) (
+func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack) (
 	packs []*PipelinePack, anyMatch bool) {
 
-	var inPacks []*PipelinePack
-	lastIndex := len(chain) - 1
-	if lastIndex == 0 {
-		// Inner-most loop.
-		inPacks = []*PipelinePack{pack}
-	} else {
-		inPacks, anyMatch = md.getDecodedPacks(chain[:lastIndex], pack)
-	}
-
-	decoder := chain[lastIndex]
+	decoder := chain[0]
 	for _, p := range inPacks {
 		if ps, err := decoder.Decode(p); err == nil {
 			anyMatch = true
 			packs = append(packs, ps...)
 		} else {
 			if md.Config.LogSubErrors {
+				idx := len(md.ordered) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
-					md.Config.Order[lastIndex], err)
+					md.Config.Order[idx], err)
 				md.dRunner.LogError(err)
 			}
 			packs = inPacks
 			break
 		}
+	}
+
+	if len(chain) > 1 {
+		var otherMatch bool
+		packs, otherMatch = md.getDecodedPacks(chain[1:], packs)
+		anyMatch = anyMatch || otherMatch
 	}
 
 	return
@@ -287,7 +286,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 	} else {
 		// If we get here we know cascade_strategy == "all.
 		var anyMatch bool
-		packs, anyMatch = md.getDecodedPacks(md.ordered, pack)
+		packs, anyMatch = md.getDecodedPacks(md.ordered, []*PipelinePack{pack})
 		if !anyMatch {
 			err = errors.New("All subdecoders failed.")
 			packs = nil
