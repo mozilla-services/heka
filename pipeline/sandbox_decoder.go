@@ -149,12 +149,17 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 	if retval == 0 {
 		if s.sbc.TimestampField != "" {
 			f = pack.Message.FindFirstField(s.sbc.TimestampField)
-			timestamp, ok = f.GetValue().(string)
-			if !ok {
-				return nil, fmt.Errorf("Can't coerce timestamp field into a string")
-			}
-			err = DecodeTimestamp(pack, timestamp, s.sbc.TimestampLayout, s.sbc.TzLocation)
-			if err != nil {
+			if f != nil {
+				timestamp, ok = f.GetValue().(string)
+				if !ok {
+					return nil, fmt.Errorf("Can't coerce timestamp field into a string")
+				}
+				err = DecodeTimestamp(pack, timestamp, s.sbc.TimestampLayout, s.sbc.TzLocation)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				err = fmt.Errorf("ERROR: Can't find timestamp from : [%s]\n", s.pack.Message.GetPayload())
 				return nil, err
 			}
 		}

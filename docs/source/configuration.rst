@@ -1225,8 +1225,13 @@ syslog_decoder
 
 A syslog decoder is provided in the form of a SandboxDecoder written
 in Lua.  The code includes an LPeg grammar that should be sufficient
-to parse any message a variety of syslog implementations including
-syslog, rsyslog and syslog-ng.
+to parse any message in a variety of syslog implementations including
+syslog, rsyslog and syslog-ng.  The current implementation of the
+SandboxDecoder can only decode the `Payload` field of the Message
+contained in the PipelinePack. 
+
+In practice this means you should use the syslog_decoder with the
+:ref:`config_logfile_input`.
 
 The decoder will attempt to parse out the following fields from syslog:
 
@@ -1256,9 +1261,32 @@ out a format that is slightly different, you can modify the behavior
 of the decoder by editting the `syslog_decoder.lua` code to fit your
 own needs.
 
+The Payload key from the message is copied into the newly decoded
+message.
+
 Note that you will also need to set the parsing options in the `SandboxDecoder`
 to properly process the `syslog_ts` field into proper timestamps.
 See: :ref:`sandboxdecoder_settings` for details.
+
+Example:
+
+
+.. code-block:: ini
+    [LogfileInput]
+    logfile = "/var/log/syslog.log"
+    logger = "syslog"
+    use_seek_journal = false
+    decoder = "syslog_sandbox"
+
+    [syslog_sandbox]
+    type = "SandboxDecoder"
+    script_type = "lua"
+    filename = "lua/syslog_decoder.lua"
+    timestamp_field = "syslog_ts"
+    timestamp_layout = "Jan _2 15:04:05"
+    timestamp_location = "America/Toronto"
+
+.. _config_stat_filter:
 
 .. end-decoders
 

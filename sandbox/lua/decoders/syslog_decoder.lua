@@ -82,10 +82,11 @@ function decode(payload)
     local keyset = {}
     local captures = grammar:match(payload)
     local t = {}
+    t["Payload"] = payload
 
     if captures == nil then
         -- Return the empty table if parsing went badly
-        return t
+        return nil
     end
 
     for k, v in pairs(captures) do
