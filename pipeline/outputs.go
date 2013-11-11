@@ -126,15 +126,15 @@ const NEWLINE byte = 10
 
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
-	path          string
-	format        string
-	prefix_ts     bool
-	perm          os.FileMode
-	flushInterval uint32
-	file          *os.File
-	batchChan     chan []byte
-	backChan      chan []byte
-	folderPerm    os.FileMode
+	path          	string
+	format        	string
+	prefix_ts     	bool
+	perm          	os.FileMode
+	flushThresholds [2]int
+	file          	*os.File
+	batchChan     	chan []byte
+	backChan      	chan []byte
+	folderPerm	  	os.FileMode
 }
 
 // ConfigStruct for FileOutput plugin.
@@ -152,9 +152,22 @@ type FileOutputConfig struct {
 	// Output file permissions (default "644").
 	Perm string
 
-	// Interval at which accumulated file data should be written to disk, in
-	// milliseconds (default 1000, i.e. 1 second).
-	FlushInterval uint32
+	// Will write the accumulated file data to disk, if *both* the given 
+	// number of time in milliseconds and the given number of received 
+	// messages occurred. Expects an array of two integer values with 
+	// the first one representing the interval in milliseconds (default 
+	// 1000, i.e. 1 second, set to 0 to ignore this requirement) and the 
+	// second one representing the number of messages (default 1). 
+	//
+	// In the examples below the behaviour will be to write data to 
+	// disk:
+	// [ 1000, 1 ] 		=> after 1 sec if at least 1 message was 
+	// received (default)
+	// [ 60000, 10000 ]	=> after 60 sec if at least 10000 messages were 
+	// received
+	// [ 300000, 10 ] 	=> after 300 sec (5 min) if at least 10 messages 
+	// were received
+	FlushThresholds []int `toml:"flush_thresholds"`
 
 	// Permissions to apply to directories created for FileOutput's
 	// parent directory if it doesn't exist.  Must be a string
@@ -166,7 +179,7 @@ func (o *FileOutput) ConfigStruct() interface{} {
 	return &FileOutputConfig{
 		Format:        "text",
 		Perm:          "644",
-		FlushInterval: 1000,
+		FlushThresholds: []int {1000, 1},
 		FolderPerm:    "700",
 	}
 }
@@ -200,8 +213,23 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
 		return
 	}
-
-	o.flushInterval = conf.FlushInterval
+	
+	if len(conf.FlushThresholds) != 2 {
+		err = fmt.Errorf("flush_thresholds needs to be an array with two members like e.g. [ 1000, 1 ]")
+		return
+	}
+	if conf.FlushThresholds[0] < 0 {
+		err = fmt.Errorf("Flush threshold for time inteval needs to be 0 or greater, currently it is set to %d", 
+			conf.FlushThresholds[0])
+		return
+	}
+	if conf.FlushThresholds[1] < 1 {
+		err = fmt.Errorf("Flush threshold for number of messages needs to be 1 or greater, currently it is set to %d", 
+			conf.FlushThresholds[1])
+		return
+	}
+	copy(o.flushThresholds[0:], conf.FlushThresholds[:])
+	
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2) // Never block on the hand-back
 	return
@@ -234,8 +262,15 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 	var pack *PipelinePack
 	var e error
+	var ticker <-chan time.Time
+	if o.flushThresholds[0] > 0 {
+		ticker = time.Tick(time.Duration(o.flushThresholds[0]) * time.Millisecond)
+	} else {
+		// The select statement will always block for this channel
+		ticker = nil
+	}
 	ok := true
-	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
+	msgCounter := 0
 	outBatch := make([]byte, 0, 10000)
 	outBytes := make([]byte, 0, 1000)
 	inChan := or.InChan()
@@ -255,15 +290,27 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
+				msgCounter++
 			}
 			outBytes = outBytes[:0]
 			pack.Recycle()
-		case <-ticker:
-			if len(outBatch) > 0 {
+			
+			// Trigger immediately when the message count threshold has 
+			// been reached if the time ticker is disabled
+			if o.flushThresholds[0] <= 0 && msgCounter >= o.flushThresholds[1] {
 				// This will block until the other side is ready to accept
 				// this batch, freeing us to start on the next one.
 				o.batchChan <- outBatch
 				outBatch = <-o.backChan
+				msgCounter = 0
+			}
+		case <-ticker:
+			if msgCounter >= o.flushThresholds[1] {
+				// This will block until the other side is ready to accept
+				// this batch, freeing us to start on the next one.
+				o.batchChan <- outBatch
+				outBatch = <-o.backChan
+				msgCounter = 0
 			}
 		}
 	}
