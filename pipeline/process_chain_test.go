@@ -16,6 +16,7 @@ package pipeline
 
 import (
 	"bytes"
+	"fmt"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
 	"strings"
@@ -39,13 +40,10 @@ func readCommandOutput(output_chan chan string, result_chan chan string) {
 
 func ProcessChainSpec(c gs.Context) {
 
-	PIPE_TEST_FILE := "../testsupport/process_input_pipes_test.txt"
-	PIPE_TEST_OUTPUT := "this|is|a|test|\nignore this line\nand this line\n"
-
 	c.Specify("A ManagedCommand", func() {
 		c.Specify("can run a single command", func() {
-			Path := "cat"
-			cmd := NewManagedCmd(Path, []string{PIPE_TEST_FILE}, 0)
+			Path := SINGLE_CMD
+			cmd := NewManagedCmd(Path, SINGLE_CMD_ARGS, 0)
 
 			output_chan := cmd.StdoutChan()
 			output := make(chan string)
@@ -53,13 +51,15 @@ func ProcessChainSpec(c gs.Context) {
 			cmd.Start(true)
 			cmd.Wait()
 			output_str := <-output
-			c.Expect(output_str, gs.Equals, PIPE_TEST_OUTPUT)
+			c.Expect(fmt.Sprintf("%x", output_str), gs.Equals, fmt.Sprintf("%x", SINGLE_CMD_OUTPUT))
 		})
 
 		c.Specify("honors nonzero timeouts", func() {
-			Path := "tail"
-			timeout := time.Millisecond * 100
-			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
+			// Timeout should always occur inside of 10 seconds.
+			Path := NONZERO_TIMEOUT_CMD
+
+			timeout := NONZERO_TIMEOUT
+			cmd := NewManagedCmd(Path, NONZERO_TIMEOUT_ARGS, timeout)
 
 			output_chan := cmd.StdoutChan()
 			output := make(chan string)
@@ -67,15 +67,18 @@ func ProcessChainSpec(c gs.Context) {
 			go readCommandOutput(output_chan, output)
 
 			cmd.Start(true)
+			start := time.Now()
 			cmd.Wait()
-			output_str := <-output
+			end := time.Now()
+			<-output
 
-			c.Expect(output_str, gs.Equals, PIPE_TEST_OUTPUT)
+			actual_duration := end.Sub(start)
+			c.Expect(actual_duration < time.Second*10, gs.Equals, true)
 		})
 
 		c.Specify("reads process stderr properly", func() {
-			Path := "tail"
-			cmd := NewManagedCmd(Path, []string{"not_a_file.txt"}, 0)
+			Path := STDERR_CMD
+			cmd := NewManagedCmd(Path, STDERR_CMD_ARGS, 0)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -95,9 +98,9 @@ func ProcessChainSpec(c gs.Context) {
 		})
 
 		c.Specify("can be terminated before timeout occurs", func() {
-			Path := "tail"
+			Path := NONZERO_TIMEOUT_CMD
 			timeout := time.Second * 30
-			cmd := NewManagedCmd(Path, []string{"-f", PIPE_TEST_FILE}, timeout)
+			cmd := NewManagedCmd(Path, NONZERO_TIMEOUT_ARGS, timeout)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -106,18 +109,17 @@ func ProcessChainSpec(c gs.Context) {
 
 			cmd.Start(true)
 			start := time.Now()
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(NONZERO_TIMEOUT)
 			cmd.Stopchan <- true
 			cmd.Wait()
 			end := time.Now()
 			actual_duration := end.Sub(start)
-			c.Expect(<-stdout_results, gs.Equals, PIPE_TEST_OUTPUT)
 			c.Expect(actual_duration < timeout, gs.Equals, true)
 		})
 
 		c.Specify("can reset commands to run again", func() {
-			Path := "tail"
-			cmd := NewManagedCmd(Path, []string{PIPE_TEST_FILE}, 0)
+			Path := SINGLE_CMD
+			cmd := NewManagedCmd(Path, SINGLE_CMD_ARGS, 0)
 
 			stdout_chan := cmd.StdoutChan()
 			stdout_results := make(chan string, 1)
@@ -126,7 +128,7 @@ func ProcessChainSpec(c gs.Context) {
 
 			cmd.Start(true)
 			cmd.Wait()
-			c.Expect(<-stdout_results, gs.Equals, PIPE_TEST_OUTPUT)
+			c.Expect(<-stdout_results, gs.Equals, SINGLE_CMD_OUTPUT)
 
 			// Reset and rerun it
 			cmd = cmd.clone()
@@ -138,7 +140,7 @@ func ProcessChainSpec(c gs.Context) {
 
 			cmd.Start(true)
 			cmd.Wait()
-			c.Expect(<-stdout_results, gs.Equals, PIPE_TEST_OUTPUT)
+			c.Expect(<-stdout_results, gs.Equals, SINGLE_CMD_OUTPUT)
 		})
 	})
 
@@ -148,8 +150,8 @@ func ProcessChainSpec(c gs.Context) {
 			var err error
 
 			chain := NewCommandChain(0)
-			chain.AddStep("cat", PIPE_TEST_FILE)
-			chain.AddStep("grep", "-i", "TEST")
+			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
+			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
 
 			stdout_chan, err := chain.StdoutChan()
 			c.Expect(err, gs.IsNil)
@@ -168,42 +170,43 @@ func ProcessChainSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, "this|is|a|test|\n")
+			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
 
 		})
 
 		c.Specify("will honor timeouts", func() {
-			// This test assumes tail and grep
+			// This test must timeout within 10 seconds
 			var err error
 
-			timeout := time.Millisecond * 100
+			timeout := NONZERO_TIMEOUT
 			chain := NewCommandChain(timeout)
-			// tail -f will never terminate
-			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
-			chain.AddStep("grep", "-i", "TEST")
-
-			err = chain.Start()
-			c.Expect(err, gs.IsNil)
-			err = chain.Wait()
-			c.Expect(err, gs.Not(gs.IsNil))
-
-			c.Expect(strings.Contains(err.Error(), "timedout"), gs.Equals, true)
-		})
-
-		c.Specify("will stop chains before timeout has completed", func() {
-			// This test assumes tail and grep
-			var err error
-
-			timeout := time.Second * 30
-			chain := NewCommandChain(timeout)
-			// tail -f will never terminate
-			chain.AddStep("tail", "-f", PIPE_TEST_FILE)
-			chain.AddStep("grep", "-i", "TEST")
+			chain.AddStep(TIMEOUT_PIPE_CMD1, TIMEOUT_PIPE_CMD1_ARGS...)
+			chain.AddStep(TIMEOUT_PIPE_CMD2, TIMEOUT_PIPE_CMD2_ARGS...)
 
 			err = chain.Start()
 			start := time.Now()
 			c.Expect(err, gs.IsNil)
-			time.Sleep(time.Millisecond * 100)
+			err = chain.Wait()
+			end := time.Now()
+			actual_duration := end.Sub(start)
+			c.Expect(err, gs.Not(gs.IsNil))
+
+			c.Expect(actual_duration < time.Second*10, gs.Equals, true)
+			c.Expect(strings.Contains(err.Error(), "timedout"), gs.Equals, true)
+		})
+
+		c.Specify("will stop chains before timeout has completed", func() {
+			var err error
+
+			timeout := time.Second * 30
+			chain := NewCommandChain(timeout)
+			chain.AddStep(TIMEOUT_PIPE_CMD1, TIMEOUT_PIPE_CMD1_ARGS...)
+			chain.AddStep(TIMEOUT_PIPE_CMD2, TIMEOUT_PIPE_CMD2_ARGS...)
+
+			err = chain.Start()
+			start := time.Now()
+			c.Expect(err, gs.IsNil)
+			time.Sleep(NONZERO_TIMEOUT)
 
 			chain.Stopchan <- true
 			err = chain.Wait()
@@ -218,8 +221,8 @@ func ProcessChainSpec(c gs.Context) {
 			var err error
 
 			chain := NewCommandChain(0)
-			chain.AddStep("cat", PIPE_TEST_FILE)
-			chain.AddStep("grep", "-i", "TEST")
+			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
+			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
 
 			stdout_chan, err := chain.StdoutChan()
 			c.Expect(err, gs.IsNil)
@@ -238,7 +241,7 @@ func ProcessChainSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, "this|is|a|test|\n")
+			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
 
 			// Reset the chain for a second run
 			chain = chain.clone()
@@ -260,7 +263,7 @@ func ProcessChainSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, "this|is|a|test|\n")
+			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
 		})
 
 		c.Specify("can be used as a reader", func() {
@@ -269,8 +272,8 @@ func ProcessChainSpec(c gs.Context) {
 			var err error
 
 			chain := NewCommandChain(0)
-			chain.AddStep("cat", PIPE_TEST_FILE)
-			chain.AddStep("grep", "-i", "TEST")
+			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
+			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
 
 			stdout_chan, err := chain.StdoutChan()
 			c.Expect(err, gs.IsNil)
@@ -286,9 +289,8 @@ func ProcessChainSpec(c gs.Context) {
 			err = chain.Wait()
 			c.Expect(err, gs.IsNil)
 
-			c.Expect(<-read_channel, gs.Equals, "this|is|a|test|\n")
+			c.Expect(<-read_channel, gs.Equals, PIPE_CMD_OUTPUT)
 		})
-
 	})
 
 }
