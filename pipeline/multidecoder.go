@@ -227,6 +227,16 @@ func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	}
 }
 
+// Heka will call this at DecoderRunner shutdown time, we might need to pass
+// this along to subdecoders.
+func (md *MultiDecoder) Shutdown() {
+	for _, decoder := range md.Decoders {
+		if wanter, ok := decoder.(WantsDecoderRunnerShutdown); ok {
+			wanter.Shutdown()
+		}
+	}
+}
+
 // Recurses through a decoder chain, decoding the original pack and returning
 // it and any generated extra packs.
 func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack) (
