@@ -61,9 +61,6 @@ type PluginHelper interface {
 	// object.
 	PipelineConfig() *PipelineConfig
 
-	// Instantiates and returns a Decoder of the specified name.
-	Decoder(name string) (decoder Decoder, ok bool)
-
 	// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 	// created Decoder of the specified name.
 	DecoderRunner(name string) (dRunner DecoderRunner, ok bool)
@@ -212,7 +209,10 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 	return self
 }
 
-// Instantiates and returns a Decoder of the specified name.
+// Instantiates and returns a Decoder of the specified name. Note that any
+// time this method is used to fetch an unwrapped Decoder instance, it is up
+// to the caller to check for and possibly satisfy the WantsDecoderRunner and
+// WantsDecoderRunnerShutdown interfaces.
 func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 	var wrapper *PluginWrapper
 	if wrapper, ok = self.DecoderWrappers[name]; ok {
