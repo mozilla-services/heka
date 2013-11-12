@@ -56,10 +56,9 @@ their exposed APIs to interact w/ the Heka system.
 
 For inputs, filters, and outputs, there's a 1:1 correspondence between
 sections specified in the config file and running plugin instances. This is
-not the case for decoders, however; a pool of decoder instances are created so
-that messages from different sources can be decoded in parallel. Plugins can
-gain access to a set of running decoders using the DecoderSet method of the
-provided PluginHelper.
+not the case for decoders, however; decoder configurations are registered and
+then instances are created as needed when requested by input plugins calling
+the Decoder or DecoderRunner methods of the provided PluginHelper.
 
 .. _plugin_config:
 
@@ -301,14 +300,16 @@ The third step involves the input plugin deciding where next to pass the
 the pack will typically be passed on to a decoder plugin, which will convert
 the raw bytes into a `Message` object, also an attribute of the
 `PipelinePack`. An input can gain access to the decoders that are available by
-calling `PluginHelper.DecoderSet()`, which can be used to access decoders
-either by the name they have been registered as in the config, or by the Heka
-protocol's encoding header they have been specified as decoding.
+calling `PluginHelper.Decoder` (for a bare decoder instance) or
+`PluginHelper.DecoderRunner` (for a decoder wrapped in a running
+DecoderRunner), which can be used to access decoders by the name they have
+been registered as in the config.
 
 It is up to the input to decide which decoder should be used. Once the decoder
-has been determined and fetched from the `DecoderSet` the input should call
-`decoder.InChan()` to fetch the input channel upon which the `PipelinePack`
-can be placed.
+has been determined and fetched from the `PluginHelper` the input should call
+`decoder.Decode` to synchronously decode a message or `dRunner.InChan()` to
+fetch a DecoderRunner's input channel upon which the `PipelinePack` can be
+placed.
 
 Sometimes the input itself might wish to decode the data, rather than
 delegating that job to a separate decoder. In this case the input can directly

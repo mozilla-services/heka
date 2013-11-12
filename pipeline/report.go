@@ -162,17 +162,6 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		reportChan <- pack
 	}
 
-	for name, dChan := range pc.decoderChannels {
-		pack = <-pc.reportRecycleChan
-		msg = pack.Message
-		msg.SetType("heka.decoder-pool-report")
-		newStringField(msg, "name", fmt.Sprintf("DecoderPool-%s", name))
-		newStringField(msg, "key", "decoderPools")
-		newIntField(msg, "InChanCapacity", cap(dChan), "count")
-		newIntField(msg, "InChanLength", len(dChan), "count")
-		reportChan <- pack
-	}
-
 	pc.filtersLock.Lock()
 	for name, runner := range pc.FilterRunners {
 		pack = getReport(runner)

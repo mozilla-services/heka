@@ -27,44 +27,6 @@ import (
 	"sync"
 )
 
-// Encapsulates access to a set of DecoderRunners.
-type DecoderSet interface {
-	// Returns running DecoderRunner registered under the specified name, or
-	// nil and ok == false if no such name is registered.
-	ByName(name string) (decoder DecoderRunner, ok bool)
-}
-
-type decoderSet struct {
-	chansByName map[string]chan DecoderRunner
-	byName      map[string]DecoderRunner
-}
-
-// Creates and returns a decoderSet that exposes an API to access the
-// DecoderRunners in the provided channels. Expects that the channels are
-// fully populated with all available DecoderRunners before being passed to
-// this function.
-func newDecoderSet(decoderChans map[string]chan DecoderRunner) (ds *decoderSet, err error) {
-	ds = &decoderSet{
-		chansByName: decoderChans,
-		byName:      make(map[string]DecoderRunner),
-	}
-	return
-}
-
-func (ds *decoderSet) ByName(name string) (decoder DecoderRunner, ok bool) {
-	if decoder, ok = ds.byName[name]; ok {
-		// We've already got it, return it.
-		return
-	}
-	var dChan chan DecoderRunner
-	if dChan, ok = ds.chansByName[name]; ok {
-		decoder = <-dChan
-		dChan <- decoder
-		ds.byName[name] = decoder
-	}
-	return
-}
-
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
 // so these runners handle a bit more than the others.
 type DecoderRunner interface {
@@ -100,6 +62,7 @@ type dRunner struct {
 // provided Decoder plugin.
 func NewDecoderRunner(name string, decoder Decoder,
 	pluginGlobals *PluginGlobals) DecoderRunner {
+
 	return &dRunner{
 		pRunnerBase: pRunnerBase{
 			name:          name,
