@@ -458,19 +458,10 @@ readLoop:
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			var packs []*PipelinePack
-			if decoder == nil {
-				packs = []*PipelinePack{pack}
+			if dRunner == nil {
+				ir.Inject(pack)
 			} else {
-				packs, e = decoder.Decode(pack)
-			}
-			if e == nil {
-				for _, p := range packs {
-					ir.Inject(p)
-				}
-			} else {
-				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
-				pack.Recycle()
+				dRunner.InChan() <- pack
 			}
 		}
 		msg.Ack(false)
