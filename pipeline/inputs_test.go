@@ -165,7 +165,7 @@ func InputsSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/process_input_test.txt"}}
+			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_TEST1_CMD, Args: PROCESSINPUT_TEST1_CMD_ARGS}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
@@ -174,7 +174,7 @@ func InputsSpec(c gs.Context) {
 			}()
 			tickChan <- time.Now()
 
-			expected_payloads := []string{"this|", "is|", "a|", "test|"}
+			expected_payloads := PROCESSINPUT_TEST1_OUTPUT
 			actual_payloads := []string{}
 
 			for x := 0; x < 4; x++ {
@@ -205,7 +205,7 @@ func InputsSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: "/bin/cat", Args: []string{"../testsupport/not_a_file.txt"}}
+			config.Command["0"] = cmd_config{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
 
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -234,8 +234,8 @@ func InputsSpec(c gs.Context) {
 			config.Delimiter = " "
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: "cat", Args: []string{"../testsupport/process_input_pipes_test.txt"}}
-			config.Command["1"] = cmd_config{Bin: "grep", Args: []string{"ignore"}}
+			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD1, Args: PROCESSINPUT_PIPE_CMD1_ARGS}
+			config.Command["1"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD2, Args: PROCESSINPUT_PIPE_CMD2_ARGS}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
@@ -244,10 +244,10 @@ func InputsSpec(c gs.Context) {
 			}()
 			tickChan <- time.Now()
 
-			expected_payloads := []string{"ignore ", "this ", "line"}
+			expected_payloads := PROCESSINPUT_PIPE_OUTPUT
 			actual_payloads := []string{}
 
-			for x := 0; x < 3; x++ {
+			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
 				ith.PackSupply <- ith.Pack
 				packRef := <-ith.DecodeChan
 				c.Expect(ith.Pack, gs.Equals, packRef)
@@ -258,8 +258,16 @@ func InputsSpec(c gs.Context) {
 				runtime.Gosched()
 			}
 
-			for x := 0; x < 3; x++ {
-				c.Expect(actual_payloads[x], gs.Equals, expected_payloads[x])
+			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
+				c.Expect(fmt.Sprintf("[%d] [%s] [%x]",
+					len(actual_payloads[x]),
+					actual_payloads[x],
+					actual_payloads[x]),
+					gs.Equals,
+					fmt.Sprintf("[%d] [%s] [%x]",
+						len(expected_payloads[x]),
+						expected_payloads[x],
+						expected_payloads[x]))
 			}
 
 			pInput.Stop()
