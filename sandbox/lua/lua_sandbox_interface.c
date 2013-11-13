@@ -25,7 +25,7 @@ int process_message(lua_sandbox* lsb)
     lua_State* lua = lsb_get_lua(lsb);
     if (!lua) return 1;
 
-    if (lsb_pcall_setup(lsb, func_name)) {   
+    if (lsb_pcall_setup(lsb, func_name)) {
         char err[LSB_ERROR_SIZE];
         snprintf(err, LSB_ERROR_SIZE, "%s() function was not found", func_name);
         lsb_terminate(lsb, err);
@@ -69,7 +69,7 @@ int timer_event(lua_sandbox* lsb, long long ns)
     lua_State* lua = lsb_get_lua(lsb);
     if (!lua) return 1;
 
-    if (lsb_pcall_setup(lsb, func_name)) {    
+    if (lsb_pcall_setup(lsb, func_name)) {
         char err[LSB_ERROR_SIZE];
         snprintf(err, LSB_ERROR_SIZE, "%s() function was not found", func_name);
         lsb_terminate(lsb, err);
@@ -259,11 +259,11 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file)
 {
     if (!lsb) return 1;
 
-    lsb_add_function(lsb, &read_config, "read_config"); 
+    lsb_add_function(lsb, &read_config, "read_config");
     lsb_add_function(lsb, &read_message, "read_message");
     lsb_add_function(lsb, &inject_message, "inject_message");
 
-    int result = lsb_init(lsb, data_file); 
+    int result = lsb_init(lsb, data_file);
     if (result) return result;
 
     return 0;

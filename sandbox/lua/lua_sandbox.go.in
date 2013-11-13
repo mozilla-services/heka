@@ -15,10 +15,10 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
-#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -lluajit-5.1 -llpeg -lcjson -lm -ldl
+#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -llua -llpeg -lcjson -lm
 #include <stdlib.h>
 #include <lua_sandbox.h>
-#include "lua_sandbox_interface.h" 
+#include "lua_sandbox_interface.h"
 */
 import "C"
 

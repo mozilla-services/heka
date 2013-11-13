@@ -12,11 +12,13 @@ endif()
 
 set_property(DIRECTORY PROPERTY EP_BASE "${CMAKE_BINARY_DIR}/ep_base")
 
+set(SANDBOX_PACKAGE "luasandbox-0_1_0")
+set(SANDBOX_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} -DLUA_JIT=off --no-warn-unused-cli)
 externalproject_add(
-    luasandbox-0_1_0
+    ${SANDBOX_PACKAGE}
     GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
     GIT_TAG master
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} --no-warn-unused-cli
+    CMAKE_ARGS ${SANDBOX_ARGS}
     INSTALL_DIR ${PROJECT_PATH}
 )
 
