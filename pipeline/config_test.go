@@ -69,11 +69,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
 
-			// decoder channels are full
-			for _, dChan := range pipeConfig.decoderChannels {
-				c.Expect(len(dChan), gs.Equals, Globals().DecoderPoolSize)
-			}
-
 			// and the inputs section loads properly with a custom name
 			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)

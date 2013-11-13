@@ -56,10 +56,9 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	hostname := pConfig.hostname
 	packSupply := ir.InChan()
 
-	dSet := h.DecoderSet()
 	if hi.decoderName == "" {
 		router_shortcircuit = true
-	} else if dRunner, ok = dSet.ByName(hi.decoderName); !ok {
+	} else if dRunner, ok = h.DecoderRunner(hi.decoderName); !ok {
 		return fmt.Errorf("Decoder not found: %s", hi.decoderName)
 	}
 

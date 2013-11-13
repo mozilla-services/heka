@@ -4,7 +4,11 @@
 Backwards Incompatibilities
 ---------------------------
 
-* Changed `Decoder` interface to support one input pack generating multiple
+* Removed DecoderSet method from PluginHelper interface (and DecoderSet
+  abstraction entirely) and replaced it with Decoder and DecoderRunner methods
+  that return a Decoder or a DecoderRunner by name.
+
+* Changed Decoder interface to support one input pack generating multiple
   output packs.
 
 Bug Handling

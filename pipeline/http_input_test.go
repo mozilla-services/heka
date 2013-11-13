@@ -52,8 +52,6 @@ func HttpInputSpec(c gs.Context) {
 			ith.PackSupply = make(chan *PipelinePack, 1)
 			ith.PackSupply <- ith.Pack
 
-			ith.MockDecoderSet = NewMockDecoderSet(ctrl)
-
 			// Spin up a http server
 			server, err := ts.NewOneHttpServer(json_post, "localhost", 9876)
 			c.Expect(err, gs.IsNil)
@@ -67,7 +65,6 @@ func HttpInputSpec(c gs.Context) {
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
@@ -80,8 +77,7 @@ func HttpInputSpec(c gs.Context) {
 			dRunnerInChan := make(chan *PipelinePack, 1)
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
-			dset := ith.MockDecoderSet.EXPECT().ByName(decoderName)
-			dset.Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName).Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -105,13 +101,11 @@ func HttpInputSpec(c gs.Context) {
 			ith.PackSupply = make(chan *PipelinePack, 1)
 			ith.PackSupply <- ith.Pack
 
-			ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)

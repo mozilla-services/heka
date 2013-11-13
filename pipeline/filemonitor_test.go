@@ -70,7 +70,6 @@ func FileMonitorSpec(c gs.Context) {
 	ith.Decoder = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
-	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
 	c.Specify("saved last read position", func() {
 
@@ -100,9 +99,7 @@ func FileMonitorSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
-			pbcall.Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(dName).Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
 			go func() {
@@ -199,5 +196,4 @@ func FileMonitorSpec(c gs.Context) {
 		clean := filepath.Join(journalDir, "___testsupport_test-zeus_log")
 		c.Expect(lfInput.Monitor.seekJournalPath, gs.Equals, clean)
 	})
-
 }

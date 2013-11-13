@@ -71,10 +71,8 @@ func AMQPPluginSpec(c gs.Context) {
 		mockDRunner := NewMockDecoderRunner(ctrl)
 		ith.PackSupply = make(chan *PipelinePack, 1)
 		ith.DecodeChan = make(chan *PipelinePack)
-		ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
 		c.Specify("with a valid setup and no decoder", func() {
 			amqpInput := new(AMQPInput)
@@ -134,7 +132,7 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(amqpInput.ch, gs.Equals, mch)
 
 			// Mock up our default decoder runner and decoder.
-			decCall := ith.MockDecoderSet.EXPECT().ByName(decoderName)
+			decCall := ith.MockHelper.EXPECT().DecoderRunner(decoderName)
 			decCall.Return(mockDRunner, true)
 			mockDecoder := NewMockDecoder(ctrl)
 			mockDRunner.EXPECT().Decoder().Return(mockDecoder)
