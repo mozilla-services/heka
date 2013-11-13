@@ -215,7 +215,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	if pi.decoderName == "" {
 		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderSet().ByName(pi.decoderName); !ok {
+	} else if dRunner, ok = h.DecoderRunner(pi.decoderName); !ok {
 		return fmt.Errorf("Decoder not found: %s", pi.decoderName)
 	}
 

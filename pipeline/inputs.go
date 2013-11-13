@@ -371,11 +371,12 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 }
 
 func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
-	var dr DecoderRunner
-	var ok bool
+	var (
+		dr DecoderRunner
+		ok bool
+	)
 	if u.config.Decoder != "" {
-		dr, ok = h.DecoderSet().ByName(u.config.Decoder)
-		if !ok {
+		if dr, ok = h.DecoderRunner(u.config.Decoder); !ok {
 			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
 		}
 	}
@@ -509,18 +510,21 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		t.wg.Done()
 	}()
 
-	var dr DecoderRunner
-	var ok bool
+	var (
+		dr DecoderRunner
+		ok bool
+	)
 	if t.config.Decoder != "" {
-		dr, ok = t.h.DecoderSet().ByName(t.config.Decoder)
-		if !ok {
+		if dr, ok = t.h.DecoderRunner(t.config.Decoder); !ok {
 			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
 			return
 		}
 	}
 
-	var parser StreamParser
-	var parseFunction networkParseFunction
+	var (
+		parser        StreamParser
+		parseFunction networkParseFunction
+	)
 	if t.config.ParserType == "message.proto" {
 		mp := NewMessageProtoParser()
 		parser = mp

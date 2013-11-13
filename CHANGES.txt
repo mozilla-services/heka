@@ -4,6 +4,13 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed DecoderSet method from PluginHelper interface (and DecoderSet
+  abstraction entirely) and replaced it with Decoder and DecoderRunner methods
+  that return a Decoder or a DecoderRunner by name.
+
+* Changed Decoder interface to support one input pack generating multiple
+  output packs.
+
 Bug Handling
 ------------
 
@@ -15,6 +22,10 @@ Features
 
 Bug Handling
 ------------
+
+* Updated Mozilla Sphinx theme submodule reference and configuration paths to
+  work around bug in ReadTheDocs rendering (see
+  https://github.com/rtfd/readthedocs.org/issues/529).
 
 * Changed default DashboardOutput.StaticDirectory value to
   `/usr/share/heka/dasher`, to match where the packages put the files.

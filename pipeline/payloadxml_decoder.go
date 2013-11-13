@@ -123,7 +123,7 @@ func (pxd *PayloadXmlDecoder) match(s string) (captures map[string]string) {
 // there's a match, the message will be populated based on the
 // decoder's message template, with capture values interpolated into
 // the message template values.
-func (pxd *PayloadXmlDecoder) Decode(pack *PipelinePack) (err error) {
+func (pxd *PayloadXmlDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
 	captures := pxd.match(pack.Message.GetPayload())
 
 	pdh := &PayloadDecoderHelper{
@@ -139,5 +139,8 @@ func (pxd *PayloadXmlDecoder) Decode(pack *PipelinePack) (err error) {
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	return pxd.MessageFields.PopulateMessage(pack.Message, captures)
+	if err = pxd.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
+		packs = []*PipelinePack{pack}
+	}
+	return
 }

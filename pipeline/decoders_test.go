@@ -54,7 +54,7 @@ func DecodersSpec(c gospec.Context) {
 
 		c.Specify("decodes a protobuf message", func() {
 			pack.MsgBytes = encoded
-			err := decoder.Decode(pack)
+			_, err := decoder.Decode(pack)
 			c.Expect(err, gs.IsNil)
 			c.Expect(pack.Message, gs.Equals, msg)
 			v, ok := pack.Message.GetFieldValue("foo")
@@ -65,7 +65,7 @@ func DecodersSpec(c gospec.Context) {
 		c.Specify("returns an error for bunk encoding", func() {
 			bunk := append([]byte{0, 0, 0}, encoded...)
 			pack.MsgBytes = bunk
-			err := decoder.Decode(pack)
+			_, err := decoder.Decode(pack)
 			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
@@ -90,7 +90,7 @@ func DecodersSpec(c gospec.Context) {
 
 		conf.Order = []string{"StartsWithM"}
 
-		errMsg := "Unable to decode message with any contained decoder."
+		errMsg := "All subdecoders failed."
 
 		dRunner := NewMockDecoderRunner(ctrl)
 		// An error will be spit out b/c there's no real *dRunner in there;
@@ -104,7 +104,7 @@ func DecodersSpec(c gospec.Context) {
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "matching text"
 			pack.Message.SetPayload(regex_data)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
@@ -120,7 +120,8 @@ func DecodersSpec(c gospec.Context) {
 			decoder.SetDecoderRunner(dRunner)
 			regex_data := "non-matching text"
 			pack.Message.SetPayload(regex_data)
-			err = decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
 			c.Expect(err.Error(), gs.Equals, errMsg)
 		})
 
@@ -136,7 +137,8 @@ func DecodersSpec(c gospec.Context) {
 			// Expect that we log an error for undecoded message.
 			dRunner.EXPECT().LogError(fmt.Errorf("Subdecoder 'StartsWithM' decode error: No match"))
 
-			err = decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
 			c.Expect(err.Error(), gs.Equals, errMsg)
 		})
 
@@ -192,7 +194,7 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("on a first match condition", func() {
 					regexData := "match first"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsTrue)
@@ -205,7 +207,7 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("and a second match condition", func() {
 					regexData := "second match"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsFalse)
@@ -218,7 +220,8 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("returning an error if they all fail", func() {
 					regexData := "won't match"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					packs, err := decoder.Decode(pack)
+					c.Expect(len(packs), gs.Equals, 0)
 					c.Expect(err.Error(), gs.Equals, errMsg)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsFalse)
@@ -238,7 +241,7 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("matches multiples when appropriate", func() {
 					regexData := "matches twice"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsTrue)
@@ -251,7 +254,7 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("matches singles when appropriate", func() {
 					regexData := "second match"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsFalse)
@@ -264,7 +267,8 @@ func DecodersSpec(c gospec.Context) {
 				c.Specify("returns an error if they all fail", func() {
 					regexData := "won't match"
 					pack.Message.SetPayload(regexData)
-					err = decoder.Decode(pack)
+					packs, err := decoder.Decode(pack)
+					c.Expect(len(packs), gs.Equals, 0)
 					c.Expect(err.Error(), gs.Equals, errMsg)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
 					c.Expect(ok, gs.IsFalse)
@@ -302,7 +306,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(json_data)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 			c.Expect(pack.Message.GetPid(), gs.Equals, int32(532))
 
@@ -373,7 +377,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(xml_data)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			var isbn, name, patty, title, comment interface{}
@@ -430,7 +434,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload("[18/Apr/2013:14:00:28 -0700]")
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1366318828000000000))
 			pack.Zero()
 		})
@@ -445,7 +449,7 @@ func DecodersSpec(c gospec.Context) {
 			now := time.Now()
 			cur_date := time.Date(now.Year(), now.Month(), now.Day(), 17, 16, 0, 0,
 				time.UTC)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Expect(pack.Message.GetTimestamp(), gs.Equals, cur_date.UnixNano())
 			pack.Zero()
 		})
@@ -464,7 +468,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload("[" + timeStr + "]")
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Expect(pack.Message.GetTimestamp(), gs.Equals, expectedLocal.UnixNano())
 			pack.Zero()
 		})
@@ -483,7 +487,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(value)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 
 			f := pack.Message.FindFirstField("ResponseTime")
 			c.Expect(f, gs.Not(gs.IsNil))
@@ -531,7 +535,7 @@ func DecodersSpec(c gospec.Context) {
 						continue
 					}
 					pack.Message.SetPayload(line)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					if err != nil {
 						misses++
 						continue
@@ -580,7 +584,7 @@ func DecodersSpec(c gospec.Context) {
 						continue
 					}
 					pack.Message.SetPayload(line)
-					err = decoder.Decode(pack)
+					_, err = decoder.Decode(pack)
 					if err != nil {
 						fmt.Println(line)
 					}
@@ -610,7 +614,7 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
-			err = decoder.Decode(pack)
+			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
 			c.Expect(pack.Message.GetTimestamp(),
@@ -641,7 +645,8 @@ func DecodersSpec(c gospec.Context) {
 			dRunner := NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
-			err = decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
 			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 		})
@@ -653,7 +658,6 @@ func DecodersSpec(c gospec.Context) {
 		router.inChan = make(chan *PipelinePack, 5)
 		dRunner := NewMockDecoderRunner(ctrl)
 		decoder.runner = dRunner
-		dRunner.EXPECT().Router().Return(router)
 
 		pack := NewPipelinePack(config.inputRecycleChan)
 
@@ -674,7 +678,7 @@ func DecodersSpec(c gospec.Context) {
 				{"stat.five", "5", "1380047333"},
 			}
 			pack.Message.SetPayload(mergeStats(stats))
-			err := decoder.Decode(pack)
+			_, err := decoder.Decode(pack)
 			c.Expect(err, gs.IsNil)
 
 			for i, stats := range stats {
@@ -705,7 +709,7 @@ func DecodersSpec(c gospec.Context) {
 
 			// Decode and check the main pack.
 			pack.Message.SetPayload(mergeStats(stats))
-			err := decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
 			c.Expect(err, gs.IsNil)
 			value, ok := pack.Message.GetFieldValue("timestamp")
 			c.Expect(ok, gs.IsTrue)
@@ -714,7 +718,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(value.(int64), gs.Equals, expected)
 
 			// Check the first extra.
-			pack = <-router.inChan
+			pack = packs[1]
 			value, ok = pack.Message.GetFieldValue("timestamp")
 			c.Expect(ok, gs.IsTrue)
 			expected, err = strconv.ParseInt(stats[2][2], 0, 32)
@@ -722,7 +726,7 @@ func DecodersSpec(c gospec.Context) {
 			c.Expect(value.(int64), gs.Equals, expected)
 
 			// Check the second extra.
-			pack = <-router.inChan
+			pack = packs[2]
 			value, ok = pack.Message.GetFieldValue("timestamp")
 			c.Expect(ok, gs.IsTrue)
 			expected, err = strconv.ParseInt(stats[4][2], 0, 32)
@@ -739,7 +743,8 @@ func DecodersSpec(c gospec.Context) {
 				{"stat.five", "5", "1380047332"},
 			}
 			pack.Message.SetPayload(mergeStats(stats))
-			err := decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
 			c.Expect(err, gs.Not(gs.IsNil))
 			expected := fmt.Sprintf("invalid timestamp: '%s'",
 				strings.Join(stats[2], " "))
@@ -755,7 +760,8 @@ func DecodersSpec(c gospec.Context) {
 				{"stat.five", "5", "1380047332"},
 			}
 			pack.Message.SetPayload(mergeStats(stats))
-			err := decoder.Decode(pack)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
 			c.Expect(err, gs.Not(gs.IsNil))
 			expected := fmt.Sprintf("invalid value: '%s'",
 				strings.Join(stats[3], " "))
