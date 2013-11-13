@@ -44,7 +44,6 @@ type InputTestHelper struct {
 	ResolvedAddrStr string
 	MockHelper      *MockPluginHelper
 	MockInputRunner *MockInputRunner
-	MockDecoderSet  *MockDecoderSet
 	Decoder         DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
@@ -129,7 +128,6 @@ func InputsSpec(c gs.Context) {
 	ith.Decoder = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
-	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 	key := "testkey"
 	signers := map[string]Signer{"test_1": {key}}
 	signer := "test"
@@ -139,10 +137,8 @@ func InputsSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
 		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
 
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet).AnyTimes()
-		enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 
 		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
@@ -291,8 +287,7 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		encCall := ith.MockDecoderSet.EXPECT().ByName("ProtobufDecoder")
+		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder")
 		encCall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
@@ -350,8 +345,7 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		enccall := ith.MockDecoderSet.EXPECT().ByName("ProtobufDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from its connection", func() {
@@ -527,8 +521,7 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		enccall := ith.MockDecoderSet.EXPECT().ByName("RegexpDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from its connection", func() {
@@ -584,8 +577,7 @@ func InputsSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		enccall := ith.MockDecoderSet.EXPECT().ByName("TokenDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from its connection", func() {
@@ -672,8 +664,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -769,8 +760,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -852,8 +842,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -928,8 +917,7 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)

@@ -61,10 +61,9 @@ type PluginHelper interface {
 	// object.
 	PipelineConfig() *PipelineConfig
 
-	// Returns a single `DecoderSet` of running decoders for use by any plugin
-	// (usually inputs) that wants to decode binary data into a `Message`
-	// struct.
-	DecoderSet() DecoderSet
+	// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
+	// created Decoder of the specified name.
+	DecoderRunner(name string) (dRunner DecoderRunner, ok bool)
 
 	// Expects a loop count value from an existing message (or zero if there's
 	// no relevant existing message), returns an initialized `PipelinePack`
@@ -134,10 +133,10 @@ type PipelineConfig struct {
 	filtersWg sync.WaitGroup
 	// Is freed when all DecoderRunners have stopped.
 	decodersWg sync.WaitGroup
-	// Channels from which running DecoderRunners can be fetched.
-	decoderChannels map[string]chan DecoderRunner
 	// Slice providing access to all running DecoderRunners.
 	allDecoders []DecoderRunner
+	// Mutex protecting allDecoders.
+	allDecodersLock sync.Mutex
 	// Name of host on which Heka is running.
 	hostname string
 	// Heka process id.
@@ -173,7 +172,6 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.logMsgs = make([]string, 0, 4)
-	config.decoderChannels = make(map[string]chan DecoderRunner)
 	config.allDecoders = make([]DecoderRunner, 0, 10)
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
@@ -211,9 +209,31 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 	return self
 }
 
-// Returns a DecoderSet which exposes an API for accessing running decoders.
-func (self *PipelineConfig) DecoderSet() (ds DecoderSet) {
-	ds, _ = newDecoderSet(self.decoderChannels)
+// Instantiates and returns a Decoder of the specified name. Note that any
+// time this method is used to fetch an unwrapped Decoder instance, it is up
+// to the caller to check for and possibly satisfy the WantsDecoderRunner and
+// WantsDecoderRunnerShutdown interfaces.
+func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
+	var wrapper *PluginWrapper
+	if wrapper, ok = self.DecoderWrappers[name]; ok {
+		decoder = wrapper.Create().(Decoder)
+	}
+	return
+}
+
+// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
+// created Decoder of the specified name.
+func (self *PipelineConfig) DecoderRunner(name string) (dRunner DecoderRunner, ok bool) {
+	var decoder Decoder
+	if decoder, ok = self.Decoder(name); ok {
+		pluginGlobals := new(PluginGlobals)
+		dRunner = NewDecoderRunner(name, decoder, pluginGlobals)
+		self.allDecodersLock.Lock()
+		self.allDecoders = append(self.allDecoders, dRunner)
+		self.allDecodersLock.Unlock()
+		self.decodersWg.Add(1)
+		dRunner.Start(self, &self.decodersWg)
+	}
 	return
 }
 
@@ -324,12 +344,11 @@ type RetryOptions struct {
 // Heka itself for runner configuration before the config is passed to the
 // Plugin.Init method.
 type PluginGlobals struct {
-	Typ      string `toml:"type"`
-	Ticker   uint   `toml:"ticker_interval"`
-	Matcher  string `toml:"message_matcher"`
-	Signer   string `toml:"message_signer"`
-	PoolSize uint   `toml:"pool_size"`
-	Retries  RetryOptions
+	Typ     string `toml:"type"`
+	Ticker  uint   `toml:"ticker_interval"`
+	Matcher string `toml:"message_matcher"`
+	Signer  string `toml:"message_signer"`
+	Retries RetryOptions
 }
 
 // Default Decoders configuration.
@@ -504,33 +523,11 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 	pluginCategory := pluginCats[1]
 
-	// For decoders check to see if we need to register against a protocol
-	// header, store the wrapper and continue.
+	// Decoders are registered but aren't instantiated until needed by a
+	// specific input plugin. We ignore the one that's already been created
+	// and just store the wrapper so we can create them when we need them.
 	if pluginCategory == "Decoder" {
 		self.DecoderWrappers[wrapper.name] = wrapper
-
-		if pluginGlobals.PoolSize == 0 {
-			pluginGlobals.PoolSize = uint(Globals().DecoderPoolSize)
-		}
-		// Creates/starts a DecoderRunner wrapped around the decoder and puts
-		// it on the channel.
-		makeDRunner := func(name string, decoder Decoder, dChan chan DecoderRunner) {
-			dRunner := NewDecoderRunner(name, decoder, &pluginGlobals)
-			self.decodersWg.Add(1)
-			dRunner.Start(self, &self.decodersWg)
-			self.allDecoders = append(self.allDecoders, dRunner)
-			dChan <- dRunner
-		}
-		// First use the decoder we've already created.
-		decoderChan := make(chan DecoderRunner, pluginGlobals.PoolSize)
-		makeDRunner(fmt.Sprintf("%s-0", wrapper.name), plugin.(Decoder), decoderChan)
-		// Then create any add'l ones as needed to get to the specified pool
-		// size.
-		for i := 1; i < int(pluginGlobals.PoolSize); i++ {
-			decoder := wrapper.Create().(Decoder)
-			makeDRunner(fmt.Sprintf("%s-%d", wrapper.name, i), decoder, decoderChan)
-		}
-		self.decoderChannels[wrapper.name] = decoderChan
 		return
 	}
 
@@ -548,7 +545,8 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		self.inputWrappers[wrapper.name] = wrapper
 
 		if pluginGlobals.Ticker != 0 {
-			self.InputRunners[wrapper.name].SetTickLength(time.Duration(pluginGlobals.Ticker) * time.Second)
+			tickLength := time.Duration(pluginGlobals.Ticker) * time.Second
+			self.InputRunners[wrapper.name].SetTickLength(tickLength)
 		}
 
 		return

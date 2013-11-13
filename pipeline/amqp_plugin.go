@@ -419,9 +419,8 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	// the incoming data. This can (and will) be greatly improved once we
 	// abstract out the stream parsing code so it can used here w/o having to
 	// reimplement the entire stream_type -> stream parser mapping.
-	dSet := h.DecoderSet()
 	if conf.Decoder != "" {
-		if dRunner, ok = dSet.ByName(conf.Decoder); !ok {
+		if dRunner, ok = h.DecoderRunner(conf.Decoder); !ok {
 			return fmt.Errorf("Decoder not found: %s", conf.Decoder)
 		}
 		decoder = dRunner.Decoder()
@@ -459,19 +458,10 @@ readLoop:
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			var packs []*PipelinePack
-			if decoder == nil {
-				packs = []*PipelinePack{pack}
+			if dRunner == nil {
+				ir.Inject(pack)
 			} else {
-				packs, e = decoder.Decode(pack)
-			}
-			if e == nil {
-				for _, p := range packs {
-					ir.Inject(p)
-				}
-			} else {
-				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
-				pack.Recycle()
+				dRunner.InChan() <- pack
 			}
 		}
 		msg.Ack(false)
