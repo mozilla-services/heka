@@ -135,6 +135,8 @@ func LogfileInputSpec(c gs.Context) {
 			} else {
 				c.Expect(newFM.seek, gs.Equals, int64(1249))
 			}
+
+			lfInput.Stop()
 		})
 	})
 

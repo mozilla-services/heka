@@ -123,6 +123,7 @@ func FileMonitorSpec(c gs.Context) {
 			fbytes, _ := json.Marshal(lfInput.Monitor)
 			json.Unmarshal(fbytes, &newFM)
 			c.Expect(newFM.seek, gs.Equals, int64(28950))
+			lfInput.Stop()
 		})
 
 		c.Specify("with a previous journal initializes with a seek value", func() {
