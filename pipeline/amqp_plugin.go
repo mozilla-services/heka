@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -458,10 +459,19 @@ readLoop:
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			if dRunner == nil {
-				ir.Inject(pack)
+			var packs []*PipelinePack
+			if decoder == nil {
+				packs = []*PipelinePack{pack}
 			} else {
-				dRunner.InChan() <- pack
+				packs, e = decoder.Decode(pack)
+			}
+			if e == nil {
+				for _, p := range packs {
+					ir.Inject(p)
+				}
+			} else {
+				ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
+				pack.Recycle()
 			}
 		}
 		msg.Ack(false)
