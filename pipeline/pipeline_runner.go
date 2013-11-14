@@ -441,9 +441,14 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
-		// If its a lua sandbox, we let it shut down
-		if _, ok := foRunner.plugin.(*SandboxFilter); ok {
-			return
+		if pluginType == "filter" {
+			pw = pc.filterWrappers[foRunner.name]
+		} else {
+			pw = pc.outputWrappers[foRunner.name]
+		}
+
+		if pw == nil {
+			return // no wrapper means it is Stoppable
 		}
 
 		// We stop and let this quit if its not a restarting plugin
@@ -456,11 +461,6 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Re-initialize our plugin using its wrapper
-		if pluginType == "filter" {
-			pw = pc.filterWrappers[foRunner.name]
-		} else {
-			pw = pc.outputWrappers[foRunner.name]
-		}
 		// Attempt to recreate the plugin until it works without error
 		// or until we were told to stop
 	createLoop:
@@ -509,6 +509,10 @@ func (foRunner *foRunner) LogMessage(msg string) {
 	log.Printf("Plugin '%s': %s", foRunner.name, msg)
 }
 
+func (foRunner *foRunner) SetTickLength(tl time.Duration) {
+	foRunner.tickLength = tl
+}
+
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
 	return foRunner.ticker
 }
@@ -532,6 +536,10 @@ func (foRunner *foRunner) InChan() (inChan chan *PipelinePack) {
 
 func (foRunner *foRunner) MatchRunner() *MatchRunner {
 	return foRunner.matcher
+}
+
+func (foRunner *foRunner) SetMatchRunner(mr *MatchRunner) {
+	foRunner.matcher = mr
 }
 
 func (foRunner *foRunner) Output() Output {

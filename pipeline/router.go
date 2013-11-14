@@ -208,6 +208,21 @@ func (mr *MatchRunner) MatcherSpecification() *message.MatcherSpecification {
 	return mr.spec
 }
 
+// Returns the Matcher InChan length for backpresure detection and reporting
+func (mr *MatchRunner) InChanLen() int {
+	return len(mr.inChan)
+}
+
+// Returns the runner's average match duration in nanoseconds
+func (mr *MatchRunner) GetAvgDuration() (duration int64) {
+	mr.reportLock.Lock()
+	if mr.matchSamples != 0 {
+		duration = mr.matchDuration / mr.matchSamples
+	}
+	mr.reportLock.Unlock()
+	return
+}
+
 // Starts the runner listening for messages on its input channel. Any message
 // that is a match will be placed on the provided matchChan (usually the input
 // channel for a specific Filter or Output plugin). Any messages that are not a

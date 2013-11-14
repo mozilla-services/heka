@@ -607,9 +607,9 @@ func InputsSpec(c gs.Context) {
 		pc.inputWrappers = make(map[string]*PluginWrapper)
 
 		pw := &PluginWrapper{
-			name:          "stopping",
-			configCreator: func() interface{} { return nil },
-			pluginCreator: func() interface{} { return new(StoppingInput) },
+			Name:          "stopping",
+			ConfigCreator: func() interface{} { return nil },
+			PluginCreator: func() interface{} { return new(StoppingInput) },
 		}
 		pc.inputWrappers["stopping"] = pw
 

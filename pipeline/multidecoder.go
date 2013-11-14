@@ -140,7 +140,7 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	var pluginType string
 
 	wrapper := new(PluginWrapper)
-	wrapper.name = sectionName
+	wrapper.Name = sectionName
 
 	// Setup default retry policy
 	pluginGlobals.Retries = RetryOptions{
@@ -150,7 +150,7 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	}
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		err = fmt.Errorf("%s Unable to decode config for plugin: %s, error: %s", md.Name, wrapper.name, err.Error())
+		err = fmt.Errorf("%s Unable to decode config for plugin: %s, error: %s", md.Name, wrapper.Name, err.Error())
 		md.log(err.Error())
 		return
 	}
@@ -161,23 +161,23 @@ func (md *MultiDecoder) loadSection(sectionName string,
 		pluginType = pluginGlobals.Typ
 	}
 
-	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-		err = fmt.Errorf("%s No such plugin: %s (type: %s)", md.Name, wrapper.name, pluginType)
+	if wrapper.PluginCreator, ok = AvailablePlugins[pluginType]; !ok {
+		err = fmt.Errorf("%s No such plugin: %s (type: %s)", md.Name, wrapper.Name, pluginType)
 		md.log(err.Error())
 		return
 	}
 
 	// Create plugin, test config object generation.
-	plugin = wrapper.pluginCreator().(Decoder)
+	plugin = wrapper.PluginCreator().(Decoder)
 	var config interface{}
 	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
 		err = fmt.Errorf("%s Can't load config for %s '%s': %s", md.Name,
 			sectionName,
-			wrapper.name, err)
+			wrapper.Name, err)
 		md.log(err.Error())
 		return
 	}
-	wrapper.configCreator = func() interface{} { return config }
+	wrapper.ConfigCreator = func() interface{} { return config }
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(Plugin).Init(config); err != nil {

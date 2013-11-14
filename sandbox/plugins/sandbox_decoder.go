@@ -12,14 +12,15 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package pipeline
+package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"sync"
@@ -29,8 +30,8 @@ import (
 
 // Decoder for converting structured/unstructured data into Heka messages.
 type SandboxDecoder struct {
-	sb                     sandbox.Sandbox
-	sbc                    *sandbox.SandboxConfig
+	sb                     Sandbox
+	sbc                    *SandboxConfig
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageSamples  int64
@@ -38,11 +39,11 @@ type SandboxDecoder struct {
 	reportLock             sync.Mutex
 	sample                 bool
 	err                    error
-	pack                   *PipelinePack
+	pack                   *pipeline.PipelinePack
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
-	return &sandbox.SandboxConfig{
+	return &SandboxConfig{
 		MemoryLimit:      8 * 1024 * 1024,
 		InstructionLimit: 1e6,
 		OutputLimit:      63 * 1024,
@@ -53,8 +54,8 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	if s.sb != nil {
 		return // no-op already initialized
 	}
-	s.sbc = config.(*sandbox.SandboxConfig)
-	s.sbc.ScriptFilename = GetHekaConfigDir(s.sbc.ScriptFilename)
+	s.sbc = config.(*SandboxConfig)
+	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
 
 	switch s.sbc.ScriptType {
@@ -70,7 +71,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	return
 }
 
-func (s *SandboxDecoder) SetDecoderRunner(dr DecoderRunner) {
+func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if len(payload_type) == 0 { // heka protobuf message
 			t := s.pack.Message.GetType()
@@ -106,7 +107,7 @@ func (s *SandboxDecoder) Shutdown() {
 	}
 }
 
-func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
+func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack, err error) {
 	if s.sb == nil {
 		err = s.err
 		return
@@ -126,7 +127,7 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 		s.processMessageSamples++
 		s.reportLock.Unlock()
 	}
-	s.sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
+	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
 	if retval > 0 {
 		s.err = errors.New(s.sb.LastError())
 		s.Shutdown()
@@ -136,7 +137,7 @@ func (s *SandboxDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err 
 		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
 		return
 	}
-	packs = []*PipelinePack{pack}
+	packs = []*pipeline.PipelinePack{pack}
 	err = s.err
 	return
 }
@@ -147,23 +148,35 @@ func (s *SandboxDecoder) ReportMsg(msg *message.Message) error {
 	s.reportLock.Lock()
 	defer s.reportLock.Unlock()
 
-	newIntField(msg, "Memory", int(s.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_CURRENT)), "B")
-	newIntField(msg, "MaxMemory", int(s.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_MAXIMUM)), "B")
-	newIntField(msg, "MaxInstructions", int(s.sb.Usage(
-		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)), "count")
-	newIntField(msg, "MaxOutput", int(s.sb.Usage(sandbox.TYPE_OUTPUT,
-		sandbox.STAT_MAXIMUM)), "B")
-	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&s.processMessageCount), "count")
-	newInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&s.processMessageFailures), "count")
-	newInt64Field(msg, "ProcessMessageSamples", s.processMessageSamples, "count")
+	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,
+		STAT_CURRENT)), "B")
+	message.NewIntField(msg, "MaxMemory", int(s.sb.Usage(TYPE_MEMORY,
+		STAT_MAXIMUM)), "B")
+	message.NewIntField(msg, "MaxInstructions", int(s.sb.Usage(
+		TYPE_INSTRUCTIONS, STAT_MAXIMUM)), "count")
+	message.NewIntField(msg, "MaxOutput", int(s.sb.Usage(TYPE_OUTPUT,
+		STAT_MAXIMUM)), "B")
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&s.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&s.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", s.processMessageSamples, "count")
 
 	var tmp int64 = 0
 	if s.processMessageSamples > 0 {
 		tmp = s.processMessageDuration / s.processMessageSamples
 	}
-	newInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
 
 	return nil
+}
+
+func init() {
+	pipeline.RegisterPlugin("SandboxDecoder", func() interface{} {
+		return new(SandboxDecoder)
+	})
+	pipeline.RegisterPlugin("SandboxFilter", func() interface{} {
+		return new(SandboxFilter)
+	})
+	pipeline.RegisterPlugin("SandboxManagerFilter", func() interface{} {
+		return new(SandboxManagerFilter)
+	})
 }
