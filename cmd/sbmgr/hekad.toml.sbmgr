@@ -31,6 +31,7 @@ type = "DashboardOutput"
 address = "127.0.0.1:4352"
 ticker_interval = 5
 working_directory = "./dashboard"
+static_directory = "../../../dasher"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"

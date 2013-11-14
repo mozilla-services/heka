@@ -4,6 +4,7 @@
 
 require "string"
 require "table"
+require "os"
 
 lastTime = os.time() * 1e9
 lastCount = 0
