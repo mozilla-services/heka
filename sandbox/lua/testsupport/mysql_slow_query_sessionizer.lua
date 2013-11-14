@@ -12,6 +12,8 @@
 -- SET timestamp=1364506803;
 -- <query>
 
+require "circular_buffer"
+
 data = circular_buffer.new(1440, 4, 60)
 sums = circular_buffer.new(1440, 3, 60)
 local QUERY_TIME    = data:set_header(1, "Query Time", "s", "avg")

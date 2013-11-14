@@ -53,5 +53,5 @@ add_external_mock(testsupport mock_net_conn.go          net                     
 add_external_mock(testsupport mock_net_listener.go      net                         Listener)
 add_external_mock(testsupport mock_net_error.go         net                         Error)
 
-add_custom_target(mocks ALL DEPENDS gomock lua-5_1_5 ${_MOCK_LIST})
+add_custom_target(mocks ALL DEPENDS gomock luasandbox-0_1_0 ${_MOCK_LIST})
 

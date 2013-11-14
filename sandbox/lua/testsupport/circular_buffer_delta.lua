@@ -2,6 +2,8 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "circular_buffer"
+
 data = circular_buffer.new(3, 3, 1, true)
 local ADD_COL = data:set_header(1, "Add column")
 local SET_COL = data:set_header(2, "Set column", "count")

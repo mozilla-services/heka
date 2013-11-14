@@ -38,12 +38,12 @@ func TestCreation(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	b := sb.Usage(TYPE_MEMORY, STAT_CURRENT)
-	if b != 0 {
-		t.Errorf("current memory should be 0, using %d", b)
+	if b == 0 {
+		t.Errorf("current memory should be >0, using %d", b)
 	}
 	b = sb.Usage(TYPE_MEMORY, STAT_MAXIMUM)
-	if b != 0 {
-		t.Errorf("maximum memory should be 0, using %d", b)
+	if b == 0 {
+		t.Errorf("maximum memory should be >0, using %d", b)
 	}
 	b = sb.Usage(TYPE_MEMORY, STAT_LIMIT)
 	if b != sbc.MemoryLimit {
@@ -410,8 +410,14 @@ func TestPreserve(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
+	var saved string
+
 	output := filepath.Join(os.TempDir(), "serialize.lua.data")
-	saved := "./testsupport/serialize.lua.data"
+	if true {
+		saved = "./testsupport/serialize.lua51.data"
+	} else { // lua jit output
+		saved = "./testsupport/serialize.lua.data"
+	}
 	err = sb.Destroy(output)
 	if err != nil {
 		t.Errorf("%s", err)
@@ -597,7 +603,7 @@ func TestCircularBufferErrors(t *testing.T) {
 		"format() missing",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #-1 to 'new' (incorrect number of arguments)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #0 to 'new' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:11: bad argument #1 to 'new' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:13: bad argument #1 to 'new' (rows must be > 1)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:15: bad argument #2 to 'new' (number expected, got nil)",
@@ -807,6 +813,12 @@ func TestInjectMessage(t *testing.T) {
 		"\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x8d\x01\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x82\x01\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39",
 	}
+	if false { // lua jit values
+		outputs[1] = `{"table":{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}}
+`
+		outputs[13] = "\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33"
+	}
+
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
@@ -1056,6 +1068,14 @@ func TestCircularBufferDelta(t *testing.T) {
 3	1	3
 `,
 	}
+
+	if false { // lua jit values
+		output[1] = `{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
+0	1	1	1
+1	2	1	2
+2	3	1	3
+`
+	}
 	cnt := 0
 	sb.InjectMessage(func(p, pt, pn string) int {
 		if p != output[cnt] {
@@ -1173,7 +1193,7 @@ func BenchmarkSandboxCreateInitDestroyPreserve(b *testing.B) {
 func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/lua"
+	sbc.ScriptFilename = "./testsupport/counter.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	msg := getTestMessage()

@@ -12,34 +12,15 @@ endif()
 
 set_property(DIRECTORY PROPERTY EP_BASE "${CMAKE_BINARY_DIR}/ep_base")
 
+set(SANDBOX_PACKAGE "luasandbox-0_1_0")
+set(SANDBOX_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} -DLUA_JIT=off --no-warn-unused-cli)
 externalproject_add(
-    lpeg-0_12
-    URL http://people.mozilla.com/~vng/lpeg/lpeg-0.12.tar.gz
-    URL_MD5 4abb3c28cd8b6565c6a65e88f06c9162
-    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lpeg-0_12.patch
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
+    ${SANDBOX_PACKAGE}
+    GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
+    GIT_TAG master
+    CMAKE_ARGS ${SANDBOX_ARGS}
+    INSTALL_DIR ${PROJECT_PATH}
 )
-
-externalproject_add(
-    lua-cjson-2_1_0
-    URL http://www.kyne.com.au/~mark/software/download/lua-cjson-2.1.0.tar.gz
-    URL_MD5 24f270663e9f6ca8ba2a02cef19f7963
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-)
-
-externalproject_add(
-    lua-5_1_5
-    URL http://www.lua.org/ftp/lua-5.1.5.tar.gz
-    URL_MD5 2e115fe26e435e33b0d5c022e4490567
-    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lua-5_1_5.patch
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} --no-warn-unused-cli
-    INSTALL_DIRECTORY ${PROJECT_PATH}
-)
-add_dependencies(lua-5_1_5 lpeg-0_12 lua-cjson-2_1_0)
 
 if ("$ENV{GOPATH}" STREQUAL "")
    message(FATAL_ERROR "No GOPATH environment variable has been set. $ENV{GOPATH}")
