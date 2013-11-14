@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -18,6 +19,7 @@ import (
 	"code.google.com/p/gomock/gomock"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"runtime"
 	"time"
 )
 
@@ -33,11 +35,11 @@ func HttpInputSpec(c gs.Context) {
 	c.Specify("A HttpInput", func() {
 
 		httpInput := HttpInput{}
+		ith := new(InputTestHelper)
+		ith.MockHelper = NewMockPluginHelper(ctrl)
+		ith.MockInputRunner = NewMockInputRunner(ctrl)
 
 		c.Specify("honors time ticker to flush", func() {
-			ith := new(InputTestHelper)
-			ith.MockHelper = NewMockPluginHelper(ctrl)
-			ith.MockInputRunner = NewMockInputRunner(ctrl)
 
 			startInput := func() {
 				go func() {
@@ -88,9 +90,7 @@ func HttpInputSpec(c gs.Context) {
 		})
 
 		c.Specify("short circuits packs into the router", func() {
-			ith := new(InputTestHelper)
-			ith.MockHelper = NewMockPluginHelper(ctrl)
-			ith.MockInputRunner = NewMockInputRunner(ctrl)
+
 			startInput := func() {
 				go func() {
 					err := httpInput.Run(ith.MockInputRunner, ith.MockHelper)
@@ -120,6 +120,10 @@ func HttpInputSpec(c gs.Context) {
 			// We need for the pipeline to finish up
 			time.Sleep(50 * time.Millisecond)
 		})
+
+		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
+		httpInput.Stop()
+		runtime.Gosched() // Yield so the stop can happen before we return.
 
 	})
 }
