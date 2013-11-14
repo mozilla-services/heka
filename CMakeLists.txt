@@ -110,7 +110,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/sandbox" "${HEKA_PATH}/sandbox"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/testsupport" "${HEKA_PATH}/testsupport"
-DEPENDS lua-5_1_5 GoPackages ${MESSAGE_PROTO_OUT}
+DEPENDS ${SANDBOX_PACKAGE} GoPackages ${MESSAGE_PROTO_OUT}
 )
 
 add_custom_target(message_matcher_parser ALL
@@ -139,12 +139,15 @@ endif()
 
 if (MINGW)
     set(LUA_DLL_PATH "${PROJECT_PATH}/lib/liblua.dll")
-    install(FILES ${LUA_DLL_PATH} DESTINATION bin)
+    set(LPEG_DLL_PATH "${PROJECT_PATH}/lib/liblpeg.dll")
+    set(CJSON_DLL_PATH "${PROJECT_PATH}/lib/libcjson.dll")
+    set(LUASANDBOX_DLL_PATH "${PROJECT_PATH}/lib/libluasandbox.dll")
+    install(FILES ${LUA_DLL_PATH} ${LPEG_DLL_PATH} ${CJSON_DLL_PATH} ${LUASANDBOX_DLL_PATH} DESTINATION bin)
     add_custom_command(TARGET heka_source POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}"
-    COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}/pipeline"
-    COMMAND ${CMAKE_COMMAND} -E copy ${LUA_DLL_PATH} "${HEKA_PATH}/sandbox/lua"
-    COMMENT "Install liblua.dll for the mock generation and unit tests")
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
+    COMMENT "Install dll's for the mock generation and unit tests")
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
