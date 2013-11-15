@@ -190,9 +190,8 @@ func ProcessChainSpec(c gs.Context) {
 			end := time.Now()
 			actual_duration := end.Sub(start)
 			c.Expect(err, gs.Not(gs.IsNil))
-
+			c.Expect(strings.Contains(err.Error(), "was killed"), gs.Equals, true)
 			c.Expect(actual_duration < time.Second*10, gs.Equals, true)
-			c.Expect(strings.Contains(err.Error(), "timedout"), gs.Equals, true)
 		})
 
 		c.Specify("will stop chains before timeout has completed", func() {
