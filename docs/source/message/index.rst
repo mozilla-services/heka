@@ -28,7 +28,11 @@ Field Variables
     * INTEGER = 2
     * DOUBLE  = 3
     * BOOL    = 4
-* representation (optional, string) - What the value represents.  
+* representation (optional, string) - Freeform metadata string where you can
+  describe what the data in this field represents. This information 
+  might provide cues to assist with processing, labeling, or rendering of the 
+  data performed by downstream plugins or UI elements. Examples of common usage 
+  follow: 
 
     * Numeric value representation - In most cases it is the `unit <http://en.wikipedia.org/wiki/International_System_of_Units>`_. 
         * count - It is a standard practice to use 'count' for raw values with no units.
