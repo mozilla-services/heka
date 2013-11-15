@@ -25,6 +25,7 @@ import "C"
 import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/sandbox"
 	"log"
 	"strings"
@@ -85,52 +86,55 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 	int) {
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	if lsb.msg != nil {
+	if lsb.pack != nil {
 		switch fieldName {
 		case "Type":
-			value := lsb.msg.GetType()
+			value := lsb.pack.Message.GetType()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Logger":
-			value := lsb.msg.GetLogger()
+			value := lsb.pack.Message.GetLogger()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Payload":
-			value := lsb.msg.GetPayload()
+			value := lsb.pack.Message.GetPayload()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "EnvVersion":
-			value := lsb.msg.GetEnvVersion()
+			value := lsb.pack.Message.GetEnvVersion()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Hostname":
-			value := lsb.msg.GetHostname()
+			value := lsb.pack.Message.GetHostname()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Uuid":
-			value := lsb.msg.GetUuidString()
+			value := lsb.pack.Message.GetUuidString()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Timestamp":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Timestamp), 0
+				unsafe.Pointer(lsb.pack.Message.Timestamp), 0
 		case "Severity":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.pack.Message.Severity), 0
 		case "Pid":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Pid), 0
+				unsafe.Pointer(lsb.pack.Message.Pid), 0
+		case "raw":
+			return int(message.Field_BYTES),
+				unsafe.Pointer(&lsb.pack.MsgBytes), len(lsb.pack.MsgBytes)
 		default:
 			l := len(fieldName)
 			if l > 0 && fieldName[l-1] == ']' {
 				if strings.HasPrefix(fieldName, "Fields[") {
-					t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
+					t, p, l := lookup_field(lsb.pack.Message, fieldName[7:l-1], fi, ai)
 					return t, p, l
 				}
 			}
@@ -176,7 +180,7 @@ func go_lua_inject_message(ptr unsafe.Pointer, payload *C.char,
 
 type LuaSandbox struct {
 	lsb           *C.lua_sandbox
-	msg           *message.Message
+	pack          *pipeline.PipelinePack
 	output        func(s string)
 	injectMessage func(payload, payload_type, payload_name string) int
 	config        map[string]interface{}
@@ -239,10 +243,10 @@ func (this *LuaSandbox) Usage(utype, ustat int) uint {
 		C.lsb_usage_stat(ustat)))
 }
 
-func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
-	this.msg = msg
+func (this *LuaSandbox) ProcessMessage(pack *pipeline.PipelinePack) int {
+	this.pack = pack
 	r := int(C.process_message(this.lsb))
-	this.msg = nil
+	this.pack = nil
 	return r
 }
 
