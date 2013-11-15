@@ -12,13 +12,14 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package pipeline
+package plugins
 
 import (
 	"fmt"
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"
 	"math"
 	"os"
@@ -57,32 +58,36 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 	}
 }
 
+func (s *SandboxManagerFilter) IsStoppable() {
+	return
+}
+
 // Creates the working directory to store the submitted scripts,
 // configurations, and data preservation files.
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
-	this.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
+	this.workingDirectory = pipeline.GetHekaConfigDir(conf.WorkingDirectory)
 	err = os.MkdirAll(this.workingDirectory, 0700)
 	return
 }
 
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
-	newIntField(msg, "RunningFilters", this.currentFilters, "count")
-	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
+	message.NewIntField(msg, "RunningFilters", this.currentFilters, "count")
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
 	return nil
 }
 
 // Creates a FilterRunner for the specified sandbox name and configuration
-func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner, error) {
+func createRunner(dir, name string, configSection toml.Primitive) (pipeline.FilterRunner, error) {
 	var err error
-	var pluginGlobals PluginGlobals
+	var pluginGlobals pipeline.PluginGlobals
 
-	wrapper := new(PluginWrapper)
-	wrapper.name = name
+	wrapper := new(pipeline.PluginWrapper)
+	wrapper.Name = name
 
-	pluginGlobals.Retries = RetryOptions{
+	pluginGlobals.Retries = pipeline.RetryOptions{
 		MaxDelay:   "30s",
 		Delay:      "250ms",
 		MaxRetries: -1,
@@ -90,7 +95,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		return nil, fmt.Errorf("Unable to decode config for plugin: %s, error: %s",
-			wrapper.name, err.Error())
+			wrapper.Name, err.Error())
 	}
 	if pluginGlobals.Typ != "SandboxFilter" {
 		return nil, fmt.Errorf("Plugin must be a SandboxFilter, received %s",
@@ -98,39 +103,39 @@ func createRunner(dir, name string, configSection toml.Primitive) (FilterRunner,
 	}
 
 	// Create plugin, test config object generation.
-	wrapper.pluginCreator, _ = AvailablePlugins[pluginGlobals.Typ]
-	plugin := wrapper.pluginCreator()
+	wrapper.PluginCreator, _ = pipeline.AvailablePlugins[pluginGlobals.Typ]
+	plugin := wrapper.PluginCreator()
 	var config interface{}
-	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
-		return nil, fmt.Errorf("Can't load config for '%s': %s", wrapper.name, err)
+	if config, err = pipeline.LoadConfigStruct(configSection, plugin); err != nil {
+		return nil, fmt.Errorf("Can't load config for '%s': %s", wrapper.Name, err)
 	}
-	wrapper.configCreator = func() interface{} { return config }
-	conf := config.(*sandbox.SandboxConfig)
-	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.name, conf.ScriptType))
-	if wantsName, ok := plugin.(WantsName); ok {
-		wantsName.SetName(wrapper.name)
+	wrapper.ConfigCreator = func() interface{} { return config }
+	conf := config.(*SandboxConfig)
+	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.Name, conf.ScriptType))
+	if wantsName, ok := plugin.(pipeline.WantsName); ok {
+		wantsName.SetName(wrapper.Name)
 	}
 
 	// Apply configuration to instantiated plugin.
-	if err = plugin.(Plugin).Init(config); err != nil {
+	if err = plugin.(pipeline.Plugin).Init(config); err != nil {
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
-	runner.name = wrapper.name
+	runner := pipeline.NewFORunner(wrapper.Name, plugin.(pipeline.Plugin), &pluginGlobals)
+	runner.SetName(wrapper.Name)
 
 	if pluginGlobals.Ticker != 0 {
-		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
+		runner.SetTickLength(time.Duration(pluginGlobals.Ticker) * time.Second)
 	}
 
-	var matcher *MatchRunner
+	var matcher *pipeline.MatchRunner
 	if pluginGlobals.Matcher != "" {
-		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
+		if matcher, err = pipeline.NewMatchRunner(pluginGlobals.Matcher,
 			pluginGlobals.Signer, runner); err != nil {
 			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
-				wrapper.name, err)
+				wrapper.Name, err)
 		}
-		runner.matcher = matcher
+		runner.SetMatchRunner(matcher)
 	}
 
 	return runner, nil
@@ -164,11 +169,11 @@ func removeAll(dir, glob string) {
 
 // Parses a Heka message and extracts the information necessary to start a new
 // SandboxFilter
-func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
-	h PluginHelper, dir string, msg *message.Message) (err error) {
+func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
+	h pipeline.PluginHelper, dir string, msg *message.Message) (err error) {
 	fv, _ := msg.GetFieldValue("config")
 	if config, ok := fv.(string); ok {
-		var configFile ConfigFile
+		var configFile pipeline.ConfigFile
 		if _, err = toml.Decode(config, &configFile); err != nil {
 			return fmt.Errorf("loadSandbox failed: %s\n", err)
 		} else {
@@ -184,7 +189,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 				if err != nil {
 					return
 				}
-				var sbc sandbox.SandboxConfig
+				var sbc SandboxConfig
 				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
 					return fmt.Errorf("loadSandbox failed: %s\n", err)
 				}
@@ -194,7 +199,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
-				var runner FilterRunner
+				var runner pipeline.FilterRunner
 				runner, err = createRunner(dir, name, conf)
 				if err != nil {
 					removeAll(dir, fmt.Sprintf("%s.*", name))
@@ -214,17 +219,17 @@ func (this *SandboxManagerFilter) loadSandbox(fr FilterRunner,
 // On Heka restarts this function reloads all previously running SandboxFilters
 // using the script, configuration, and preservation files in the working
 // directory.
-func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelper, dir string) {
+func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h pipeline.PluginHelper, dir string) {
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
 	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
-			var configFile ConfigFile
+			var configFile pipeline.ConfigFile
 			if _, err = toml.DecodeFile(fn, &configFile); err != nil {
 				fr.LogError(fmt.Errorf("restoreSandboxes failed: %s\n", err))
 				continue
 			} else {
 				for _, conf := range configFile {
-					var runner FilterRunner
+					var runner pipeline.FilterRunner
 					name := path.Base(fn[:len(fn)-5])
 					fr.LogMessage(fmt.Sprintf("Loading: %s", name))
 					runner, err = createRunner(dir, name, conf)
@@ -246,11 +251,11 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr FilterRunner, h PluginHelp
 	}
 }
 
-func (this *SandboxManagerFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
+func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper) (err error) {
 	inChan := fr.InChan()
 
 	var ok = true
-	var pack *PipelinePack
+	var pack *pipeline.PipelinePack
 	var delta int64
 
 	this.restoreSandboxes(fr, h, this.workingDirectory)

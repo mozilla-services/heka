@@ -679,15 +679,15 @@ func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper
 					MaxRetries: -1,
 				}
 				wrapper := new(PluginWrapper)
-				wrapper.name = fmt.Sprintf("%s-%s", ir.Name(), fn)
-				wrapper.pluginCreator, _ = AvailablePlugins[pluginGlobals.Typ]
-				plugin := wrapper.pluginCreator()
-				wrapper.configCreator = func() interface{} { return config }
+				wrapper.Name = fmt.Sprintf("%s-%s", ir.Name(), fn)
+				wrapper.PluginCreator, _ = AvailablePlugins[pluginGlobals.Typ]
+				plugin := wrapper.PluginCreator()
+				wrapper.ConfigCreator = func() interface{} { return config }
 				if err = plugin.(Plugin).Init(&config); err != nil {
-					ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.name, err))
+					ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.Name, err))
 					return err
 				}
-				lfir := NewInputRunner(wrapper.name, plugin.(Input), &pluginGlobals)
+				lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals)
 				err = h.PipelineConfig().AddInputRunner(lfir, wrapper)
 			}
 		}

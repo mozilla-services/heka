@@ -13,13 +13,14 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package pipeline
+package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
@@ -43,8 +44,8 @@ func fileExists(path string) bool {
 // dynamically loaded through the sandbox manager) maps to exactly one
 // SandboxFilter instance.
 type SandboxFilter struct {
-	sb                     sandbox.Sandbox
-	sbc                    *sandbox.SandboxConfig
+	sb                     Sandbox
+	sbc                    *SandboxConfig
 	preservationFile       string
 	processMessageCount    int64
 	processMessageFailures int64
@@ -60,7 +61,7 @@ type SandboxFilter struct {
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return &sandbox.SandboxConfig{
+	return &SandboxConfig{
 		MemoryLimit:      32767,
 		InstructionLimit: 1000,
 		OutputLimit:      1024,
@@ -72,13 +73,17 @@ func (this *SandboxFilter) SetName(name string) {
 	this.name = re.ReplaceAllString(name, "_")
 }
 
-// Determines the script type and creates interpreter sandbox.
+func (s *SandboxFilter) IsStoppable() {
+	return
+}
+
+// Determines the script type and creates interpreter
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
 		return nil // no-op already initialized
 	}
-	this.sbc = config.(*sandbox.SandboxConfig)
-	this.sbc.ScriptFilename = GetHekaConfigDir(this.sbc.ScriptFilename)
+	this.sbc = config.(*SandboxConfig)
+	this.sbc.ScriptFilename = pipeline.GetHekaConfigDir(this.sbc.ScriptFilename)
 
 	switch this.sbc.ScriptType {
 	case "lua":
@@ -106,43 +111,43 @@ func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	this.reportLock.Lock()
 	defer this.reportLock.Unlock()
 
-	newIntField(msg, "Memory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_CURRENT)), "B")
-	newIntField(msg, "MaxMemory", int(this.sb.Usage(sandbox.TYPE_MEMORY,
-		sandbox.STAT_MAXIMUM)), "B")
-	newIntField(msg, "MaxInstructions", int(this.sb.Usage(
-		sandbox.TYPE_INSTRUCTIONS, sandbox.STAT_MAXIMUM)), "count")
-	newIntField(msg, "MaxOutput", int(this.sb.Usage(sandbox.TYPE_OUTPUT,
-		sandbox.STAT_MAXIMUM)), "B")
-	newInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
-	newInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&this.processMessageFailures), "count")
-	newInt64Field(msg, "InjectMessageCount", atomic.LoadInt64(&this.injectMessageCount), "count")
-	newInt64Field(msg, "ProcessMessageSamples", this.processMessageSamples, "count")
-	newInt64Field(msg, "TimerEventSamples", this.timerEventSamples, "count")
+	message.NewIntField(msg, "Memory", int(this.sb.Usage(TYPE_MEMORY,
+		STAT_CURRENT)), "B")
+	message.NewIntField(msg, "MaxMemory", int(this.sb.Usage(TYPE_MEMORY,
+		STAT_MAXIMUM)), "B")
+	message.NewIntField(msg, "MaxInstructions", int(this.sb.Usage(
+		TYPE_INSTRUCTIONS, STAT_MAXIMUM)), "count")
+	message.NewIntField(msg, "MaxOutput", int(this.sb.Usage(TYPE_OUTPUT,
+		STAT_MAXIMUM)), "B")
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&this.processMessageFailures), "count")
+	message.NewInt64Field(msg, "InjectMessageCount", atomic.LoadInt64(&this.injectMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", this.processMessageSamples, "count")
+	message.NewInt64Field(msg, "TimerEventSamples", this.timerEventSamples, "count")
 
 	var tmp int64 = 0
 	if this.processMessageSamples > 0 {
 		tmp = this.processMessageDuration / this.processMessageSamples
 	}
-	newInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
 
 	tmp = 0
 	if this.profileMessageSamples > 0 {
-		newInt64Field(msg, "ProfileMessageSamples", this.profileMessageSamples, "count")
+		message.NewInt64Field(msg, "ProfileMessageSamples", this.profileMessageSamples, "count")
 		tmp = this.profileMessageDuration / this.profileMessageSamples
-		newInt64Field(msg, "ProfileMessageAvgDuration", tmp, "ns")
+		message.NewInt64Field(msg, "ProfileMessageAvgDuration", tmp, "ns")
 	}
 
 	tmp = 0
 	if this.timerEventSamples > 0 {
 		tmp = this.timerEventDuration / this.timerEventSamples
 	}
-	newInt64Field(msg, "TimerEventAvgDuration", tmp, "ns")
+	message.NewInt64Field(msg, "TimerEventAvgDuration", tmp, "ns")
 
 	return nil
 }
 
-func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
+func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper) (err error) {
 	inChan := fr.InChan()
 	ticker := fr.Ticker()
 
@@ -152,12 +157,12 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		sample         = true
 		blocking       = false
 		backpressure   = false
-		pack           *PipelinePack
+		pack           *pipeline.PipelinePack
 		retval         int
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = int64(Globals().MaxMsgProcessDuration)
+		slowDuration   int64 = int64(pipeline.Globals().MaxMsgProcessDuration)
 		duration       int64
 		capacity       = cap(inChan) - 1
 	)
@@ -171,7 +176,7 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				Globals().MaxMsgLoops))
+				pipeline.Globals().MaxMsgLoops))
 			return 1
 		}
 		if len(payload_type) == 0 { // heka protobuf message
@@ -208,14 +213,14 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				break
 			}
 			atomic.AddInt64(&this.processMessageCount, 1)
-			injectionCount = Globals().MaxMsgProcessInject
+			injectionCount = pipeline.Globals().MaxMsgProcessInject
 			msgLoopCount = pack.MsgLoopCount
 
 			// reading a channel length is generally fast ~1ns
 			// we need to check the entire chain back to the router
 			backpressure = len(inChan) >= capacity ||
-				len(fr.MatchRunner().inChan) >= capacity ||
-				len(h.PipelineConfig().router.InChan()) >= capacity
+				fr.MatchRunner().InChanLen() >= capacity ||
+				h.PipelineConfig().RouterInChanLen() >= capacity
 
 			// performing the timing is expensive ~40ns but if we are
 			// backpressured we need a decent sample set before triggering
@@ -247,25 +252,23 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			if retval <= 0 {
 				if backpressure && this.processMessageSamples >= int64(capacity) {
-					fr.MatchRunner().reportLock.Lock()
 					if this.processMessageDuration/this.processMessageSamples > slowDuration ||
-						fr.MatchRunner().matchDuration/fr.MatchRunner().matchSamples > slowDuration/5 {
+						fr.MatchRunner().GetAvgDuration() > slowDuration/5 {
 						terminated = true
 						blocking = true
 					}
-					fr.MatchRunner().reportLock.Unlock()
 				}
 				if retval < 0 {
 					atomic.AddInt64(&this.processMessageFailures, 1)
 				}
-				sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
+				sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
 			} else {
 				terminated = true
 			}
 			pack.Recycle()
 
 		case t := <-ticker:
-			injectionCount = Globals().MaxMsgTimerInject
+			injectionCount = pipeline.Globals().MaxMsgTimerInject
 			startTime = time.Now()
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
@@ -284,19 +287,15 @@ func (this *SandboxFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				// no lock on the ProcessMessage variables here because there are no active writers
-				newInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
-				newInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures, "count")
-				newInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
-				newInt64Field(pack.Message, "ProcessMessageAvgDuration",
+				message.NewInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
+				message.NewInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures, "count")
+				message.NewInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
+				message.NewInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration/this.processMessageSamples, "ns")
-				newInt64Field(pack.Message, "MatchSamples", fr.MatchRunner().matchSamples, "count")
-				fr.MatchRunner().reportLock.Lock()
-				newInt64Field(pack.Message, "MatchAvgDuration",
-					fr.MatchRunner().matchDuration/fr.MatchRunner().matchSamples, "ns")
-				fr.MatchRunner().reportLock.Unlock()
-				newIntField(pack.Message, "FilterChanLength", len(inChan), "count")
-				newIntField(pack.Message, "MatchChanLength", len(fr.MatchRunner().inChan), "count")
-				newIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().router.InChan()), "count")
+				message.NewInt64Field(pack.Message, "MatchAvgDuration", fr.MatchRunner().GetAvgDuration(), "ns")
+				message.NewIntField(pack.Message, "FilterChanLength", len(inChan), "count")
+				message.NewIntField(pack.Message, "MatchChanLength", fr.MatchRunner().InChanLen(), "count")
+				message.NewIntField(pack.Message, "RouterChanLength", h.PipelineConfig().RouterInChanLen(), "count")
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}

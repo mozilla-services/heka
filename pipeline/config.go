@@ -101,6 +101,13 @@ type Restarting interface {
 	CleanupForRestart()
 }
 
+// Indicates a plug-in can stop without causing a heka shut-down
+type Stoppable interface {
+	// This function isn't called, the existence of the interface signals
+	// the plug-in can safely go away
+	IsStoppable()
+}
+
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	// All running InputRunners, by name.
@@ -195,6 +202,21 @@ func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
 	pack.RefCount = 1
 	pack.MsgLoopCount = msgLoopCount
 	return pack
+}
+
+// Returns the Router InChan length for backpresure detection and reporting
+func (self *PipelineConfig) RouterInChanLen() int {
+	return len(self.router.InChan())
+}
+
+// Returns the inputRecycleChannel (exposed for testing only)
+func (self *PipelineConfig) InputRecycleChan() chan *PipelinePack {
+	return self.inputRecycleChan
+}
+
+// Returns the injectRecycleChannel (exposed for testing only)
+func (self *PipelineConfig) InjectRecycleChan() chan *PipelinePack {
+	return self.injectRecycleChan
 }
 
 // Returns OutputRunner registered under the specified name, or nil (and ok ==
@@ -303,7 +325,7 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginWrapper) error {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
-	self.inputWrappers[wrapper.name] = wrapper
+	self.inputWrappers[wrapper.Name] = wrapper
 	self.InputRunners[iRunner.Name()] = iRunner
 	self.inputsWg.Add(1)
 	if err := iRunner.Start(self, &self.inputsWg); err != nil {
@@ -358,9 +380,9 @@ var defaultDecoderTOML = `
 
 // A helper object to support delayed plugin creation.
 type PluginWrapper struct {
-	name          string
-	configCreator func() interface{}
-	pluginCreator func() interface{}
+	Name          string
+	ConfigCreator func() interface{}
+	PluginCreator func() interface{}
 }
 
 // Create a new instance of the plugin and return it. Errors are ignored. Call
@@ -373,8 +395,8 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 // Create a new instance of the plugin and return it, or nil and appropriate
 // error value if this isn't possible.
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
-	plugin = self.pluginCreator()
-	err = plugin.(Plugin).Init(self.configCreator())
+	plugin = self.PluginCreator()
+	err = plugin.(Plugin).Init(self.ConfigCreator())
 	return
 }
 
@@ -465,7 +487,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	var pluginType string
 
 	wrapper := new(PluginWrapper)
-	wrapper.name = sectionName
+	wrapper.Name = sectionName
 
 	// Setup default retry policy
 	pluginGlobals.Retries = RetryOptions{
@@ -476,7 +498,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
 		self.log(fmt.Sprintf("Unable to decode config for plugin: %s, error: %s",
-			wrapper.name, err.Error()))
+			wrapper.Name, err.Error()))
 		errcnt++
 		return
 	}
@@ -486,22 +508,22 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		pluginType = pluginGlobals.Typ
 	}
 
-	if wrapper.pluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-		self.log(fmt.Sprintf("No such plugin: %s", wrapper.name))
+	if wrapper.PluginCreator, ok = AvailablePlugins[pluginType]; !ok {
+		self.log(fmt.Sprintf("No such plugin: %s", wrapper.Name))
 		errcnt++
 		return
 	}
 
 	// Create plugin, test config object generation.
-	plugin := wrapper.pluginCreator()
+	plugin := wrapper.PluginCreator()
 	var config interface{}
 	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
 		self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
-			wrapper.name, err))
+			wrapper.Name, err))
 		errcnt++
 		return
 	}
-	wrapper.configCreator = func() interface{} { return config }
+	wrapper.ConfigCreator = func() interface{} { return config }
 	if wantsName, ok := plugin.(WantsName); ok {
 		wantsName.SetName(sectionName)
 	}
@@ -527,7 +549,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// specific input plugin. We ignore the one that's already been created
 	// and just store the wrapper so we can create them when we need them.
 	if pluginCategory == "Decoder" {
-		self.DecoderWrappers[wrapper.name] = wrapper
+		self.DecoderWrappers[wrapper.Name] = wrapper
 		return
 	}
 
@@ -540,21 +562,21 @@ func (self *PipelineConfig) loadSection(sectionName string,
 
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
-		self.InputRunners[wrapper.name] = NewInputRunner(wrapper.name,
+		self.InputRunners[wrapper.Name] = NewInputRunner(wrapper.Name,
 			plugin.(Input), &pluginGlobals)
-		self.inputWrappers[wrapper.name] = wrapper
+		self.inputWrappers[wrapper.Name] = wrapper
 
 		if pluginGlobals.Ticker != 0 {
 			tickLength := time.Duration(pluginGlobals.Ticker) * time.Second
-			self.InputRunners[wrapper.name].SetTickLength(tickLength)
+			self.InputRunners[wrapper.Name].SetTickLength(tickLength)
 		}
 
 		return
 	}
 
 	// Filters and outputs have a few more config settings.
-	runner := NewFORunner(wrapper.name, plugin.(Plugin), &pluginGlobals)
-	runner.name = wrapper.name
+	runner := NewFORunner(wrapper.Name, plugin.(Plugin), &pluginGlobals)
+	runner.name = wrapper.Name
 
 	if pluginGlobals.Ticker != 0 {
 		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
@@ -570,7 +592,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	var matcher *MatchRunner
 	if pluginGlobals.Matcher == "" {
 		// Filters and outputs must specify a message matcher
-		self.log(fmt.Sprintf("'%s' missing message matcher", wrapper.name))
+		self.log(fmt.Sprintf("'%s' missing message matcher", wrapper.Name))
 		errcnt++
 		return
 	}
@@ -578,7 +600,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
 			pluginGlobals.Signer, runner); err != nil {
 			self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
-				wrapper.name, err))
+				wrapper.Name, err))
 			errcnt++
 			return
 		}
@@ -591,8 +613,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
-		// Wrapper everything but a SandboxFilter, they aren't restarted
-		if _, ok := runner.plugin.(*SandboxFilter); !ok {
+		if _, ok := runner.plugin.(Stoppable); !ok {
 			self.filterWrappers[runner.name] = wrapper
 		}
 
@@ -689,9 +710,6 @@ func init() {
 	RegisterPlugin("StatFilter", func() interface{} {
 		return new(StatFilter)
 	})
-	RegisterPlugin("SandboxFilter", func() interface{} {
-		return new(SandboxFilter)
-	})
 	RegisterPlugin("PayloadRegexDecoder", func() interface{} {
 		return new(PayloadRegexDecoder)
 	})
@@ -700,9 +718,6 @@ func init() {
 	})
 	RegisterPlugin("CounterFilter", func() interface{} {
 		return new(CounterFilter)
-	})
-	RegisterPlugin("SandboxManagerFilter", func() interface{} {
-		return new(SandboxManagerFilter)
 	})
 	RegisterPlugin("DashboardOutput", func() interface{} {
 		return new(DashboardOutput)
@@ -724,8 +739,5 @@ func init() {
 	})
 	RegisterPlugin("LogfileDirectoryManagerInput", func() interface{} {
 		return new(LogfileDirectoryManagerInput)
-	})
-	RegisterPlugin("SandboxDecoder", func() interface{} {
-		return new(SandboxDecoder)
 	})
 }
