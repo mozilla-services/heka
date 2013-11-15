@@ -56,6 +56,7 @@ Heka functions that are exposed to the Lua sandbox
 
     *Arguments*
         - variableName (string)
+            - raw (accesses the raw MsgBytes in the PipelinePack)
             - Uuid
             - Type
             - Logger

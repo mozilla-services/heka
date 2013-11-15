@@ -14,7 +14,7 @@
 
 package sandbox
 
-import "github.com/mozilla-services/heka/message"
+import "github.com/mozilla-services/heka/pipeline"
 
 const (
 	STATUS_UNKNOWN    = 0
@@ -41,7 +41,7 @@ type Sandbox interface {
 	Usage(utype, ustat int) uint
 
 	// Plugin functions
-	ProcessMessage(msg *message.Message) int
+	ProcessMessage(pack *pipeline.PipelinePack) int
 	TimerEvent(ns int64) int
 
 	// Go callback

@@ -231,7 +231,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				startTime = time.Now()
 				sample = true
 			}
-			retval = this.sb.ProcessMessage(pack.Message)
+			retval = this.sb.ProcessMessage(pack)
 			if sample {
 				duration = time.Since(startTime).Nanoseconds()
 				this.reportLock.Lock()
