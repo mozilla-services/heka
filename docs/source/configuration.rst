@@ -863,7 +863,8 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation.
+    create Fields[Payload] with a json representation 
+    (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
 
@@ -940,7 +941,8 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation.
+    create Fields[Payload] with a json representation 
+    (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
 
@@ -1057,7 +1059,8 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation.
+    create Fields[Payload] with a json representation 
+    (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
 

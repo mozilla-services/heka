@@ -23,6 +23,7 @@ Contents:
    configuration
    monitoring/index
    developing/plugin
+   message/index
    message_matcher.rst
    sandbox/index
    developing/testing
