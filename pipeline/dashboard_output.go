@@ -237,7 +237,6 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 						pmc, _ := msg.GetFieldValue("ProcessMessageCount")
 						pms, _ := msg.GetFieldValue("ProcessMessageSamples")
 						pmd, _ := msg.GetFieldValue("ProcessMessageAvgDuration")
-						ms, _ := msg.GetFieldValue("MatchSamples")
 						mad, _ := msg.GetFieldValue("MatchAvgDuration")
 						fcl, _ := msg.GetFieldValue("FilterChanLength")
 						mcl, _ := msg.GetFieldValue("MatchChanLength")
@@ -246,14 +245,13 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 							" ProcessMessageCount:%v"+
 							" ProcessMessageSamples:%v"+
 							" ProcessMessageAvgDuration:%v"+
-							" MatchSamples:%v"+
 							" MatchAvgDuration:%v"+
 							" FilterChanLength:%v"+
 							" MatchChanLength:%v"+
 							" RouterChanLength:%v\n",
 							msg.GetTimestamp()/1e9,
 							filterName, msg.GetPayload(), pmc, pms, pmd,
-							ms, mad, fcl, mcl, rcl)
+							mad, fcl, mcl, rcl)
 					}
 					file.WriteString(line)
 					file.Close()
