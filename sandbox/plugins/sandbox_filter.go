@@ -184,7 +184,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			err := proto.Unmarshal([]byte(payload), pack.Message)
 			if err == nil {
 				// do not allow filters to override the following
-				pack.Message.SetType("heka." + pack.Message.GetType())
+				pack.Message.SetType("heka.sandbox." + pack.Message.GetType())
 				pack.Message.SetLogger(fr.Name())
 				pack.Message.SetHostname(hostname)
 			} else {
