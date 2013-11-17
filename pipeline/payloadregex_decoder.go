@@ -46,6 +46,9 @@ type PayloadRegexDecoderConfig struct {
 	// required if valid time zone info is embedded in every parsed timestamp,
 	// since those can be parsed as specified in the `timestamp_layout`.
 	TimestampLocation string `toml:"timestamp_location"`
+
+	// Whether payloads that do not match the regex should be logged.
+	LogErrors bool `toml:"log_errors"`
 }
 
 type PayloadRegexDecoder struct {
@@ -55,10 +58,13 @@ type PayloadRegexDecoder struct {
 	TimestampLayout string
 	tzLocation      *time.Location
 	dRunner         DecoderRunner
+	logErrors       bool
 }
 
 func (ld *PayloadRegexDecoder) ConfigStruct() interface{} {
-	return new(PayloadRegexDecoderConfig)
+	return &PayloadRegexDecoderConfig{
+		LogErrors: true,
+	}
 }
 
 func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
@@ -125,7 +131,9 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack
 	// First try to match the regex.
 	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
-		err = fmt.Errorf("No match")
+		if ld.logErrors {
+			err = fmt.Errorf("No match")
+		}
 		return
 	}
 
