@@ -96,6 +96,10 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 				pack.Recycle()
 				continue
 			}
+			if packs == nil {
+				pack.Recycle()
+				continue
+			}
 			for _, p := range packs {
 				h.PipelineConfig().router.InChan() <- p
 			}
@@ -151,6 +155,8 @@ type Decoder interface {
 	// succeeds (i.e. `err` is nil), the original pack will be mutated and
 	// returned as the first item in the `packs` return slice. If there is an
 	// error, `packs` should be returned as nil.
+	// Returning (nil, nil) is valid in cases where the decoding failed but
+	// the error should not be logged.
 	Decode(pack *PipelinePack) (packs []*PipelinePack, err error)
 }
 
