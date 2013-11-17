@@ -695,12 +695,11 @@ Parameters:
 Each command is defined with the following parameters:
 
 
-- Name (string):
-  Each ProcessInput *must* have a name defined for logging purposes.
-  The messages will be tagged with `name`.stdout or `name`.stderr in
-  the `ProcessInputName` field of the heka message.
-
-- Command (map[uint]cmd_config):
+- name (string):
+    Each ProcessInput *must* have a name defined for logging purposes.
+    The messages will be tagged with `name`.stdout or `name`.stderr in
+    the `ProcessInputName` field of the heka message.
+- command (map[uint]cmd_config):
     The command is a structure that contains the full path to the
     binary, command line arguments, optional enviroment variables and
     an optional working directory. See the `cmd_config` definition
@@ -731,11 +730,11 @@ Each command is defined with the following parameters:
     - start - the regexp delimiter occurs at the start of a log line.
     - end - the regexp delimiter occurs at the end of the log line (default).
 - timeout (uint):
-  Timeout in seconds before any one of the commands in the chain is
-  terminated.
+    Timeout in seconds before any one of the commands in the chain is
+    terminated.
 - trim (bool) :
-  Trim a single trailing newline character if one exists. Default is
-  true.
+    Trim a single trailing newline character if one exists. Default is
+    true.
 
 cmd_config structure ::
 
@@ -761,13 +760,13 @@ cmd_config structure ::
     stderr = false
     trim = true
 
-    [ProcessInput.Command.0]
+    [ProcessInput.command.0]
     bin = "/bin/cat"
-    Args = ["../testsupport/process_input_pipes_test.txt"]
+    args = ["../testsupport/process_input_pipes_test.txt"]
 
-    [ProcessInput.Command.1]
+    [ProcessInput.command.1]
     bin = "/usr/bin/grep"
-    Args = ["ignore"]
+    args = ["ignore"]
 
 
 .. _config_http_input:
