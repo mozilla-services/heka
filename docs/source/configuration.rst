@@ -886,6 +886,9 @@ Parameters:
     http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
     if valid time zone info is embedded in every parsed timestamp, since those
     can be parsed as specified in the `timestamp_layout`.
+- log_errors (bool):
+    If set to false, payloads that can not be matched against the regex will
+    not be logged as errors. Defaults to true.
 
 Example (Parsing Apache Combined Log Format):
 
