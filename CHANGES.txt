@@ -3,6 +3,15 @@
 
 Backwards Incompatibilities
 ---------------------------
+* Removed the wrapper 'table' element from the JSON serialization (issue #525)
+  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also 
+  removes the special '_name' metadata arribute; the top level _name element
+  should be created in the Lua structure if it is required.
+
+* In the process of removing the core sandbox code from Heka (issue #464), the 
+  sandbox was streamlined to only load the base library by default. All sandbox
+  plugins must now explictly load additional libraries with the require
+  function.
 
 * Removed DecoderSet method from PluginHelper interface (and DecoderSet
   abstraction entirely) and replaced it with Decoder and DecoderRunner methods

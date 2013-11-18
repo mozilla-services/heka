@@ -30,10 +30,6 @@ function process_message ()
         local a = {x = 1, _m = 1, _private = {1,2}}
         output(a)
         inject_message()
-    elseif msg == "table name" then
-        local a = {1,2,3,_name="array"}
-        output(a)
-        inject_message()
     elseif msg == "global table" then
         output(_G)
         inject_message()

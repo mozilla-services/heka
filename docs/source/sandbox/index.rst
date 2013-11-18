@@ -29,3 +29,4 @@ Features
 .. include:: decoder.rst
 .. include:: filter.rst
 .. include:: circular_buffer.rst
+.. include:: cookbook.rst
