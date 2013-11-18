@@ -2,6 +2,8 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "circular_buffer"
+
 local types = {
     UNKNOWN         = 1,
     USER_AUTH       = 2,
@@ -39,7 +41,6 @@ function process_message ()
 end
 
 function timer_event(ns)
-    output(data)
-    inject_message("cbuf", "Counts by type")
+    inject_message(data, "Counts by type")
 end
 

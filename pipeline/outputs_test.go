@@ -380,9 +380,9 @@ func OutputsSpec(c gs.Context) {
 			MaxRetries: 1,
 		}
 		pw := &PluginWrapper{
-			name:          "stoppingOutput",
-			configCreator: func() interface{} { return nil },
-			pluginCreator: func() interface{} { return new(StoppingOutput) },
+			Name:          "stoppingOutput",
+			ConfigCreator: func() interface{} { return nil },
+			PluginCreator: func() interface{} { return new(StoppingOutput) },
 		}
 		output := new(StoppingOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
@@ -407,9 +407,9 @@ func OutputsSpec(c gs.Context) {
 			MaxRetries: 4,
 		}
 		pw := &PluginWrapper{
-			name:          "stoppingresumeOutput",
-			configCreator: func() interface{} { return nil },
-			pluginCreator: func() interface{} { return new(StopResumeOutput) },
+			Name:          "stoppingresumeOutput",
+			ConfigCreator: func() interface{} { return nil },
+			PluginCreator: func() interface{} { return new(StopResumeOutput) },
 		}
 		output := new(StopResumeOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)

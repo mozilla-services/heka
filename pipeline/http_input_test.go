@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -16,9 +17,9 @@ package pipeline
 
 import (
 	"code.google.com/p/gomock/gomock"
-	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"runtime"
 	"time"
 )
 
@@ -34,11 +35,12 @@ func HttpInputSpec(c gs.Context) {
 	c.Specify("A HttpInput", func() {
 
 		httpInput := HttpInput{}
+		ith := new(InputTestHelper)
+		ith.MockHelper = NewMockPluginHelper(ctrl)
+		ith.MockInputRunner = NewMockInputRunner(ctrl)
 
 		c.Specify("honors time ticker to flush", func() {
-			ith := new(InputTestHelper)
-			ith.MockHelper = NewMockPluginHelper(ctrl)
-			ith.MockInputRunner = NewMockInputRunner(ctrl)
+
 			startInput := func() {
 				go func() {
 					err := httpInput.Run(ith.MockInputRunner, ith.MockHelper)
@@ -50,10 +52,6 @@ func HttpInputSpec(c gs.Context) {
 			ith.PackSupply = make(chan *PipelinePack, 1)
 			ith.PackSupply <- ith.Pack
 
-			ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-			ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
-			ith.MockDecoderSet = NewMockDecoderSet(ctrl)
-
 			// Spin up a http server
 			server, err := ts.NewOneHttpServer(json_post, "localhost", 9876)
 			c.Expect(err, gs.IsNil)
@@ -61,26 +59,25 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			config.DecoderName = "JsonDecoder"
+			decoderName := "PayloadJsonDecoder"
+			config.DecoderName = decoderName
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
-			mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
+			mockDecoderRunner := NewMockDecoderRunner(ctrl)
 
 			// Stub out the DecoderRunner input channel so that we can
 			// inspect bytes later on
 			dRunnerInChan := make(chan *PipelinePack, 1)
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
-			dset := ith.MockDecoderSet.EXPECT().ByName("JsonDecoder")
-			dset.Return(ith.Decoders[message.Header_JSON], true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName).Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -93,9 +90,7 @@ func HttpInputSpec(c gs.Context) {
 		})
 
 		c.Specify("short circuits packs into the router", func() {
-			ith := new(InputTestHelper)
-			ith.MockHelper = NewMockPluginHelper(ctrl)
-			ith.MockInputRunner = NewMockInputRunner(ctrl)
+
 			startInput := func() {
 				go func() {
 					err := httpInput.Run(ith.MockInputRunner, ith.MockHelper)
@@ -106,15 +101,11 @@ func HttpInputSpec(c gs.Context) {
 			ith.PackSupply = make(chan *PipelinePack, 1)
 			ith.PackSupply <- ith.Pack
 
-			ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-			ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
-			ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
 
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
@@ -129,6 +120,10 @@ func HttpInputSpec(c gs.Context) {
 			// We need for the pipeline to finish up
 			time.Sleep(50 * time.Millisecond)
 		})
+
+		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
+		httpInput.Stop()
+		runtime.Gosched() // Yield so the stop can happen before we return.
 
 	})
 }

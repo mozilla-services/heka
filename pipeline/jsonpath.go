@@ -32,13 +32,31 @@ type JsonPath struct {
 var json_re = regexp.MustCompile(`^([^0-9\s\[][^\s\[]*)?(\[[0-9]+\])?$`)
 
 func (j *JsonPath) SetJsonText(json_text string) (err error) {
+	if json_text == "" {
+		return fmt.Errorf("No JSON detected")
+	}
+
 	j.json_text = json_text
-	err = json.Unmarshal([]byte(json_text), &j.json_data)
+	dec := json.NewDecoder(strings.NewReader(json_text))
+	dec.UseNumber()
+	err = dec.Decode(&j.json_data)
+
+	// We need to check that we've actually got some actual JSON data.
+	// There are cases where the json_data pointer can be set to nil,
+	// but the error is not actually set.
+	if j.json_data == nil {
+		return fmt.Errorf("Error decoding JSON")
+	}
+
 	return
 }
 
 func (j *JsonPath) Find(jp string) (result string, err error) {
 	var ok bool
+
+	if j.json_data == nil {
+		return "", fmt.Errorf("JSON data is nil")
+	}
 
 	if jp == "" || strings.HasPrefix("$.", jp) {
 		return result, errors.New("invalid path")
@@ -78,10 +96,6 @@ func (j *JsonPath) Find(jp string) (result string, err error) {
 	r_kind := reflect.ValueOf(v).Kind()
 	if r_kind == reflect.Bool {
 		result = fmt.Sprintf("%t", v)
-	} else if r_kind == reflect.Float64 {
-		result = fmt.Sprintf("%0.9f", v)
-	} else if r_kind == reflect.Int64 {
-		result = fmt.Sprintf("%d", v)
 	} else if r_kind == reflect.Map || r_kind == reflect.Slice {
 		json_str, _ := json.Marshal(v)
 		result = fmt.Sprintf("%s", json_str)

@@ -46,15 +46,6 @@ type MessageSigningConfig struct {
 	Version uint32 `toml:"version"`
 }
 
-func (h *Header) SetMessageEncoding(v Header_MessageEncoding) {
-	if h != nil {
-		if h.MessageEncoding == nil {
-			h.MessageEncoding = new(Header_MessageEncoding)
-		}
-		*h.MessageEncoding = v
-	}
-}
-
 func (h *Header) SetMessageLength(v uint32) {
 	if h != nil {
 		if h.MessageLength == nil {
@@ -524,12 +515,37 @@ func (m *Message) Equals(other interface{}) bool {
 	return true
 }
 
-func (this *Message) GetUuidString() string {
-	if this != nil {
-		if len(this.Uuid) == UUID_SIZE {
-			return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", this.Uuid[:4],
-				this.Uuid[4:6], this.Uuid[6:8], this.Uuid[8:10], this.Uuid[10:])
+func (m *Message) GetUuidString() string {
+	if m != nil {
+		if len(m.Uuid) == UUID_SIZE {
+			return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", m.Uuid[:4],
+				m.Uuid[4:6], m.Uuid[6:8], m.Uuid[8:10], m.Uuid[10:])
 		}
 	}
 	return ""
+}
+
+// Convenience function for creating a new integer field on a message object.
+func NewIntField(m *Message, name string, val int, representation string) (err error) {
+	if f, err := NewField(name, val, representation); err == nil {
+		m.AddField(f)
+	}
+	return
+}
+
+// Convenience function for creating a new int64 field on a message object.
+func NewInt64Field(m *Message, name string, val int64, representation string) {
+	if f, err := NewField(name, val, representation); err == nil {
+		m.AddField(f)
+	}
+	return
+}
+
+// Convenience function for creating and setting a string field called "name"
+// on a message object.
+func NewStringField(m *Message, name string, val string) {
+	if f, err := NewField(name, val, ""); err == nil {
+		m.AddField(f)
+	}
+	return
 }

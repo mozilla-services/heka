@@ -70,7 +70,6 @@ func LogfileInputSpec(c gs.Context) {
 	ith.MockInputRunner = NewMockInputRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
-	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 
 	c.Specify("LogfileInput", func() {
 		c.Specify("save the seek position of the last complete logline", func() {
@@ -98,8 +97,7 @@ func LogfileInputSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(dName)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(dName)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -135,6 +133,8 @@ func LogfileInputSpec(c gs.Context) {
 			} else {
 				c.Expect(newFM.seek, gs.Equals, int64(1249))
 			}
+
+			lfInput.Stop()
 		})
 	})
 

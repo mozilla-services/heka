@@ -1,5 +1,7 @@
 [UdpInput]
 address = "127.0.0.1:29329"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [LogOutput]
 

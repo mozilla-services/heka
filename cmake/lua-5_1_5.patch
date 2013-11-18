@@ -1,7 +1,7 @@
 diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 --- lua-5.1.5.orig/CMakeLists.txt	Wed Dec 31 16:00:00 1969
 +++ lua-5_1_5/CMakeLists.txt	Fri Aug  2 09:26:42 2013
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,94 @@
 +# This Source Code Form is subject to the terms of the Mozilla Public
 +# License, v. 2.0. If a copy of the MPL was not distributed with this
 +# file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,6 +9,13 @@ diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 +cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 +project(lua C)
 +set(CMAKE_C_FLAGS "-O2 -Wall")
++
++set(LUA_CJSON_SOURCE
++../lua-cjson-2_1_0/lua_cjson.c
++../lua-cjson-2_1_0/g_fmt.c
++../lua-cjson-2_1_0/dtoa.c
++../lua-cjson-2_1_0/strbuf.c
++)
 +
 +set(LPEG_SOURCE
 +../lpeg-0_12/lpcap.c
@@ -48,8 +55,23 @@ diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 +src/lvm.c
 +src/lzio.c
 +${LPEG_SOURCE}
++${LUA_CJSON_SOURCE}
 +)
 +include_directories("${CMAKE_SOURCE_DIR}/src")
++add_definitions(-DUSE_INTERNAL_FPCONV)
++add_definitions(-DMULTIPLE_THREADS)
++include(TestBigEndian)
++TEST_BIG_ENDIAN(IEEE_BIG_ENDIAN)
++if(IEEE_BIG_ENDIAN)
++    add_definitions(-DIEEE_BIG_ENDIAN)
++endif()
++
++# Handle platforms missing isinf() macro (Eg, some Solaris systems).
++include(CheckSymbolExists)
++CHECK_SYMBOL_EXISTS(isinf math.h HAVE_ISINF)
++if(NOT HAVE_ISINF)
++    add_definitions(-DUSE_INTERNAL_ISINF)
++endif()
 +
 +if (MINGW)
 +    add_library(lua SHARED ${LUA_SOURCE})
@@ -60,6 +82,8 @@ diff -Naur lua-5.1.5.orig/CMakeLists.txt lua-5_1_5/CMakeLists.txt
 +    endif()
 +    set_source_files_properties(${LPEG_SOURCE} PROPERTIES COMPILE_DEFINITIONS LUA_CORE)
 +    add_definitions(-DLUA_BUILD_AS_DLL)
++    # Windows sprintf()/strtod() handle NaN/inf differently. Not supported.
++	 add_definitions(-DDISABLE_INVALID_NUMBERS)
 +elseif(APPLE)
 +    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 +    add_library(lua STATIC ${LUA_SOURCE})

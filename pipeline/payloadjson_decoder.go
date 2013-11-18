@@ -100,11 +100,17 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	captures = make(map[string]string)
 
 	jp := new(JsonPath)
-	jp.SetJsonText(s)
+	err := jp.SetJsonText(s)
+	if err != nil {
+		ld.dRunner.LogError(err)
+		// Invalid JSON should return an empty capture
+		return
+	}
 
 	for capture_group, jpath := range ld.JsonMap {
 		node_val, err := jp.Find(jpath)
 		if err != nil {
+			// Invalid JSONPath should silently skip data
 			continue
 		}
 		captures[capture_group] = node_val
@@ -116,7 +122,7 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 // there's a match, the message will be populated based on the
 // decoder's message template, with capture values interpolated into
 // the message template values.
-func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
+func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
 	captures := ld.match(pack.Message.GetPayload())
 
 	pdh := &PayloadDecoderHelper{
@@ -132,5 +138,8 @@ func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (err error) {
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	return ld.MessageFields.PopulateMessage(pack.Message, captures)
+	if err = ld.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
+		packs = []*PipelinePack{pack}
+	}
+	return
 }

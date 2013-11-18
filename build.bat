@@ -9,5 +9,5 @@ endlocal & set GOPATH=%NEWGOPATH%& set GOBIN=%NEWGOPATH%\bin& set PATH=%p%;%NEWG
 
 if NOT exist %BUILD_DIR% mkdir %BUILD_DIR%
 cd %BUILD_DIR%
-cmake -DINCLUDE_MOZSVC=false -G"MinGW Makefiles" ..
+cmake -DINCLUDE_MOZSVC=false -DCMAKE_BUILD_TYPE=release -G"MinGW Makefiles" ..
 mingw32-make

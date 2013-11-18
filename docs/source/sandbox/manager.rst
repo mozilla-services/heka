@@ -157,6 +157,8 @@ SandboxFilter Setup
 
 .. code-block:: lua
 
+    require "circular_buffer"
+
     data = circular_buffer.new(1440, 1, 60) -- message count per minute
     local COUNT = data:set_header(1, "Messages", "count")
     function process_message ()
@@ -166,8 +168,7 @@ SandboxFilter Setup
     end
 
     function timer_event(ns)
-        output(data)
-        inject_message("cbuf")
+        inject_message(data)
     end
 
 2. Create the SandboxFilter configuration and save it as "example.toml".

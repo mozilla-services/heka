@@ -1,0 +1,20 @@
+<td class="name">{{Name}}</td>
+<td class="in-channel">
+  <div class="progress" title="{{InChanLength.value}}/{{InChanCapacity.value}}">
+    <div class="progress-bar" role="progressbar" aria-valuenow="{{InChanLength.value}}" aria-valuemin="0" aria-valuemax="{{InChanCapacity.value}}" style="width: {{InChanPercent}}%;">
+      <span class="sr-only">{{InChanPercent}}% Complete</span>
+    </div>
+  </div>
+</td>
+<td class="match-channel">
+  {{#hasMatchChannel}}
+  <div class="progress" title="{{MatchChanLength.value}}/{{MatchChanCapacity.value}}">
+    <div class="progress-bar" role="progressbar" aria-valuenow="{{MatchChanLength.value}}" aria-valuemin="0" aria-valuemax="{{MatchChanCapacity.value}}" style="width: {{MatchChanPercent}}%;">
+      <span class="sr-only">{{MatchChanPercent}}% Complete</span>
+    </div>
+  </div>
+  {{/hasMatchChannel}}
+</td>
+<td class="avg-match-duration">{{MatchAvgDurationFormatted}} {{MatchAvgDuration.representation}}</td>
+<td class="processed">{{ProcessMessageCountFormatted}}</td>
+<td class="injected"></td>

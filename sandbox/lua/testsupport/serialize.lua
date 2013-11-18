@@ -2,9 +2,11 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "circular_buffer"
+
 count = 0
 rate = 0.12345678
-rates = {99.1,98,97, key="val"}
+rates = {99.1,98,97,92.002,91.10001,key="val"}
 kvp = {a="foo", b="bar", r=rates}
 nested = {arg1=1, arg2=2, nested={n1="one",n2="two"}, empty = nil, cb = circular_buffer.new(2,6,1)}
 _G["key with spaces"] = "kws"

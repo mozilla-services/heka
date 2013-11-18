@@ -1,10 +1,8 @@
 [udp_stats]
 type = "UdpInput"
 address = "127.0.0.1:29330"
-
-[JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 
 [WhatOutput]
 type ="WhatOutput"

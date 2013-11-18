@@ -1,7 +1,7 @@
 -- This Source Code Form is subject to the terms of the Mozilla Public
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
+require "circular_buffer"
 function process_message ()
     local msg = read_message("Payload")
 
@@ -63,6 +63,15 @@ function process_message ()
     elseif msg == "compute() start > end" then
         local cb = circular_buffer.new(2, 1, 1)
         cb:compute("sum", 1, 2e9, 1e9)
+    elseif msg == "format() invalid" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format("invalid")
+    elseif msg == "format() extra" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format("cbuf", true)
+    elseif msg == "format() missing" then
+        local cb = circular_buffer.new(2, 1, 1)
+        cb:format()
     end
 return 0
 end

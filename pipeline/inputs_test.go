@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -21,8 +22,8 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -43,11 +44,22 @@ type InputTestHelper struct {
 	ResolvedAddrStr string
 	MockHelper      *MockPluginHelper
 	MockInputRunner *MockInputRunner
-	MockDecoderSet  *MockDecoderSet
-	Decoders        []DecoderRunner
 	Decoder         DecoderRunner
 	PackSupply      chan *PipelinePack
 	DecodeChan      chan *PipelinePack
+}
+
+type address struct {
+	network string
+	str     string
+}
+
+func (a *address) Network() string {
+	return a.network
+}
+
+func (a *address) String() string {
+	return a.str
 }
 
 var stopinputTimes int
@@ -73,14 +85,26 @@ func (s *StoppingInput) Stop() {
 	return
 }
 
+func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
+	emsg = make([]byte, 3+len(hbytes)+len(mbytes))
+	emsg[0] = message.RECORD_SEPARATOR
+	emsg[1] = uint8(len(hbytes))
+	copy(emsg[2:], hbytes)
+	pos := 2 + len(hbytes)
+	emsg[pos] = message.UNIT_SEPARATOR
+	copy(emsg[pos+1:], mbytes)
+	return
+}
+
 func getPayloadBytes(hbytes, mbytes []byte) func(msgBytes []byte) {
 	return func(msgBytes []byte) {
-		msgBytes[0] = message.RECORD_SEPARATOR
-		msgBytes[1] = uint8(len(hbytes))
-		copy(msgBytes[2:], hbytes)
-		pos := 2 + len(hbytes)
-		msgBytes[pos] = message.UNIT_SEPARATOR
-		copy(msgBytes[pos+1:], mbytes)
+		copy(msgBytes, encodeMessage(hbytes, mbytes))
+	}
+}
+
+func getPayloadText(mbytes []byte) func(msgBytes []byte) {
+	return func(msgBytes []byte) {
+		copy(msgBytes, mbytes)
 	}
 }
 
@@ -101,105 +125,196 @@ func InputsSpec(c gs.Context) {
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = NewMockInputRunner(ctrl)
-	ith.Decoders = make([]DecoderRunner, int(message.Header_JSON+1))
-	ith.Decoders[message.Header_PROTOCOL_BUFFER] = NewMockDecoderRunner(ctrl)
-	ith.Decoders[message.Header_JSON] = NewMockDecoderRunner(ctrl)
+	ith.Decoder = NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 	ith.DecodeChan = make(chan *PipelinePack)
-	ith.MockDecoderSet = NewMockDecoderSet(ctrl)
 	key := "testkey"
 	signers := map[string]Signer{"test_1": {key}}
 	signer := "test"
 
+	c.Specify("A ProcessInput", func() {
+		pInput := ProcessInput{}
+
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
+		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
+
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
+
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
+
+		config := pInput.ConfigStruct().(*ProcessInputConfig)
+		config.Command = make(map[string]cmd_config)
+
+		pConfig := NewPipelineConfig(nil)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		tickChan := make(chan time.Time)
+		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+		c.Specify("reads a message from ProcessInput", func() {
+
+			config.Name = "SimpleTest"
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			config.Delimiter = "|"
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_TEST1_CMD, Args: PROCESSINPUT_TEST1_CMD_ARGS}
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			expected_payloads := PROCESSINPUT_TEST1_OUTPUT
+			actual_payloads := []string{}
+
+			for x := 0; x < 4; x++ {
+				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
+				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				c.Expect(fPInputName.ValueString[0], gs.Equals, "SimpleTest.stdout")
+				// Free up the scheduler
+				runtime.Gosched()
+			}
+
+			for x := 0; x < 4; x++ {
+				c.Expect(expected_payloads[x], gs.Equals, actual_payloads[x])
+			}
+
+			pInput.Stop()
+		})
+
+		c.Specify("handles bad arguments", func() {
+
+			config.Name = "BadArgs"
+			config.ParseStdout = false
+			config.ParseStderr = true
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			config.Delimiter = "|"
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
+
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [exit status 1]")
+			ith.MockInputRunner.EXPECT().LogError(expected_err)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			ith.PackSupply <- ith.Pack
+			<-ith.DecodeChan
+			runtime.Gosched()
+
+			pInput.Stop()
+		})
+
+		c.Specify("can pipe multiple commands together", func() {
+
+			config.Name = "PipedCmd"
+			config.Decoder = "RegexpDecoder"
+			config.ParserType = "token"
+			// Overload the delimiter
+			config.Delimiter = " "
+
+			// Note that no working directory is explicitly specified
+			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD1, Args: PROCESSINPUT_PIPE_CMD1_ARGS}
+			config.Command["1"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD2, Args: PROCESSINPUT_PIPE_CMD2_ARGS}
+			err := pInput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			go func() {
+				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			tickChan <- time.Now()
+
+			expected_payloads := PROCESSINPUT_PIPE_OUTPUT
+			actual_payloads := []string{}
+
+			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
+				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
+				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")
+				// Free up the scheduler
+				runtime.Gosched()
+			}
+
+			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
+				c.Expect(fmt.Sprintf("[%d] [%s] [%x]",
+					len(actual_payloads[x]),
+					actual_payloads[x],
+					actual_payloads[x]),
+					gs.Equals,
+					fmt.Sprintf("[%d] [%s] [%x]",
+						len(expected_payloads[x]),
+						expected_payloads[x],
+						expected_payloads[x]))
+			}
+
+			pInput.Stop()
+		})
+
+	})
+
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{ith.AddrStr, signers})
+		err := udpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+			Decoder:    "ProtobufDecoder",
+			ParserType: "message.proto"})
 		c.Assume(err, gs.IsNil)
 		realListener := (udpInput.listener).(*net.UDPConn)
 		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
-		realListener.Close()
 
-		// replace the listener object w/ a mock listener
-		mockListener := ts.NewMockConn(ctrl)
-		udpInput.listener = mockListener
-
-		mbytes, _ := json.Marshal(ith.Msg)
+		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
-		header.SetMessageEncoding(message.Header_JSON)
 		header.SetMessageLength(uint32(len(mbytes)))
-		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
-		readCall := mockListener.EXPECT().Read(buf)
 
-		mockDecoderRunner := ith.Decoders[message.Header_JSON].(*MockDecoderRunner)
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
-		ith.MockInputRunner.EXPECT().InChan().Times(2).Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		encCall := ith.MockDecoderSet.EXPECT().ByEncodings()
-		encCall.Return(ith.Decoders, nil)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder")
+		encCall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {
 			hbytes, _ := proto.Marshal(header)
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, nil)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
 			go func() {
 				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
+			conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+			c.Assume(err, gs.IsNil)
+			buf := encodeMessage(hbytes, mbytes)
+			_, err = conn.Write(buf)
+			c.Assume(err, gs.IsNil)
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
+			udpInput.Stop()
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
 		})
-
-		c.Specify("reads a MD5 signed message from its connection", func() {
-			header.SetHmacHashFunction(message.Header_MD5)
-			header.SetHmacSigner(signer)
-			header.SetHmacKeyVersion(uint32(1))
-			hm := hmac.New(md5.New, []byte(key))
-			hm.Write(mbytes)
-			header.SetHmac(hm.Sum(nil))
-			hbytes, _ := proto.Marshal(header)
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
-			c.Expect(ith.Pack, gs.Equals, packRef)
-			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
-			c.Expect(ith.Pack.Signer, gs.Equals, "test")
-		})
-
-		c.Specify("invalid header", func() {
-			hbytes, _ := proto.Marshal(header)
-			hbytes[0] = 0
-			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, nil)
-			readCall.Do(getPayloadBytes(hbytes, mbytes))
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
-			go func() {
-				time.Sleep(100 * time.Millisecond)
-				timeout <- true
-			}()
-			select {
-			case packRef := <-mockDecoderRunner.InChan():
-				c.Expect(packRef, gs.IsNil)
-			case t := <-timeout:
-				c.Expect(t, gs.IsTrue)
-			}
-		})
 	})
 
-	c.Specify("A TcpInput", func() {
+	c.Specify("A TcpInput protobuf parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{ith.AddrStr, signers})
+		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+			Signers:    signers,
+			Decoder:    "ProtobufDecoder",
+			ParserType: "message.proto"})
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
 		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -212,9 +327,12 @@ func InputsSpec(c gs.Context) {
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
 		header.SetMessageLength(uint32(len(mbytes)))
-		buf := make([]byte, message.MAX_MESSAGE_SIZE+message.MAX_HEADER_SIZE+3)
 		err = errors.New("connection closed") // used in the read return(s)
-		readCall := mockConnection.EXPECT().Read(buf)
+		readCall := mockConnection.EXPECT().Read(gomock.Any())
+		readEnd := mockConnection.EXPECT().Read(gomock.Any()).After(readCall)
+		readEnd.Return(0, err)
+		mockConnection.EXPECT().SetReadDeadline(gomock.Any()).Return(nil).AnyTimes()
+		mockConnection.EXPECT().Close()
 
 		neterr := ts.NewMockError(ctrl)
 		neterr.EXPECT().Temporary().Return(false)
@@ -224,18 +342,16 @@ func InputsSpec(c gs.Context) {
 			acceptCall.Return(nil, neterr)
 		})
 
-		mockDecoderRunner := ith.Decoders[message.Header_PROTOCOL_BUFFER].(*MockDecoderRunner)
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-		enccall := ith.MockDecoderSet.EXPECT().ByEncodings()
-		enccall.Return(ith.Decoders, nil)
-		mockConnection.EXPECT().SetReadDeadline(gomock.Any()).Return(nil)
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from its connection", func() {
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
+			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 			go func() {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
@@ -255,7 +371,7 @@ func InputsSpec(c gs.Context) {
 			header.SetHmac(hm.Sum(nil))
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
+			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go func() {
@@ -286,7 +402,7 @@ func InputsSpec(c gs.Context) {
 			header.SetHmac(hm.Sum(nil))
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
+			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go func() {
@@ -317,7 +433,7 @@ func InputsSpec(c gs.Context) {
 			header.SetHmac(hm.Sum(nil))
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
+			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go func() {
@@ -346,7 +462,7 @@ func InputsSpec(c gs.Context) {
 			header.SetHmac(hm.Sum(nil))
 			hbytes, _ := proto.Marshal(header)
 			buflen := 3 + len(hbytes) + len(mbytes)
-			readCall.Return(buflen, err)
+			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go func() {
@@ -367,6 +483,118 @@ func InputsSpec(c gs.Context) {
 		})
 	})
 
+	c.Specify("A TcpInput regexp parser", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+			Decoder:    "RegexpDecoder",
+			ParserType: "regexp",
+			Delimiter:  "\n"})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		addr := new(address)
+		addr.str = "123"
+		mockConnection.EXPECT().RemoteAddr().Return(addr)
+		mbytes := []byte("this is a test message\n")
+		err = errors.New("connection closed") // used in the read return(s)
+		readCall := mockConnection.EXPECT().Read(gomock.Any())
+		readEnd := mockConnection.EXPECT().Read(gomock.Any()).After(readCall)
+		readEnd.Return(0, err)
+		mockConnection.EXPECT().SetReadDeadline(gomock.Any()).Return(nil).AnyTimes()
+		mockConnection.EXPECT().Close()
+
+		neterr := ts.NewMockError(ctrl)
+		neterr.EXPECT().Temporary().Return(false)
+		acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+		acceptCall.Do(func() {
+			acceptCall = mockListener.EXPECT().Accept()
+			acceptCall.Return(nil, neterr)
+		})
+
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().Name().Return("logger")
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
+
+		c.Specify("reads a message from its connection", func() {
+			readCall.Return(len(mbytes), nil)
+			readCall.Do(getPayloadText(mbytes))
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(ith.Pack, gs.Equals, packRef)
+			c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, string(mbytes[:len(mbytes)-1]))
+			c.Expect(ith.Pack.Message.GetLogger(), gs.Equals, "logger")
+			c.Expect(ith.Pack.Message.GetHostname(), gs.Equals, "123")
+		})
+	})
+
+	c.Specify("A TcpInput token parser", func() {
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+			Decoder:    "TokenDecoder",
+			ParserType: "token",
+			Delimiter:  "\n"})
+		c.Assume(err, gs.IsNil)
+		realListener := tcpInput.listener
+		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
+		realListener.Close()
+
+		mockConnection := ts.NewMockConn(ctrl)
+		mockListener := ts.NewMockListener(ctrl)
+		tcpInput.listener = mockListener
+
+		addr := new(address)
+		addr.str = "123"
+		mockConnection.EXPECT().RemoteAddr().Return(addr)
+		mbytes := []byte("this is a test message\n")
+		err = errors.New("connection closed") // used in the read return(s)
+		readCall := mockConnection.EXPECT().Read(gomock.Any())
+		readEnd := mockConnection.EXPECT().Read(gomock.Any()).After(readCall)
+		readEnd.Return(0, err)
+		mockConnection.EXPECT().SetReadDeadline(gomock.Any()).Return(nil).AnyTimes()
+		mockConnection.EXPECT().Close()
+
+		neterr := ts.NewMockError(ctrl)
+		neterr.EXPECT().Temporary().Return(false)
+		acceptCall := mockListener.EXPECT().Accept().Return(mockConnection, nil)
+		acceptCall.Do(func() {
+			acceptCall = mockListener.EXPECT().Accept()
+			acceptCall.Return(nil, neterr)
+		})
+
+		mockDecoderRunner := ith.Decoder.(*MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().Name().Return("logger")
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder").AnyTimes()
+		enccall.Return(ith.Decoder, true)
+
+		c.Specify("reads a message from its connection", func() {
+			readCall.Return(len(mbytes), nil)
+			readCall.Do(getPayloadText(mbytes))
+			go func() {
+				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(ith.Pack, gs.Equals, packRef)
+			c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, string(mbytes))
+			c.Expect(ith.Pack.Message.GetLogger(), gs.Equals, "logger")
+			c.Expect(ith.Pack.Message.GetHostname(), gs.Equals, "123")
+		})
+	})
+
 	c.Specify("Runner restarts a plugin on the first time only", func() {
 		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
@@ -379,9 +607,9 @@ func InputsSpec(c gs.Context) {
 		pc.inputWrappers = make(map[string]*PluginWrapper)
 
 		pw := &PluginWrapper{
-			name:          "stopping",
-			configCreator: func() interface{} { return nil },
-			pluginCreator: func() interface{} { return new(StoppingInput) },
+			Name:          "stopping",
+			ConfigCreator: func() interface{} { return nil },
+			PluginCreator: func() interface{} { return new(StoppingInput) },
 		}
 		pc.inputWrappers["stopping"] = pw
 
@@ -436,8 +664,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -533,8 +760,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -616,8 +842,7 @@ func InputsSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -692,8 +917,7 @@ func InputsSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockHelper.EXPECT().DecoderSet().Return(ith.MockDecoderSet)
-			pbcall := ith.MockDecoderSet.EXPECT().ByName(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)

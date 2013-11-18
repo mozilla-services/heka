@@ -15,7 +15,6 @@
 package pipeline
 
 import (
-	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"runtime"
@@ -49,11 +48,6 @@ func LoadFromConfigSpec(c gs.Context) {
 	c.Specify("Config file loading", func() {
 		origGlobals := Globals
 
-		origDecodersByEncoding := make(map[message.Header_MessageEncoding]string)
-		for k, v := range DecodersByEncoding {
-			origDecodersByEncoding[k] = v
-		}
-
 		origAvailablePlugins := make(map[string]func() interface{})
 		for k, v := range AvailablePlugins {
 			origAvailablePlugins[k] = v
@@ -62,7 +56,6 @@ func LoadFromConfigSpec(c gs.Context) {
 		pipeConfig := NewPipelineConfig(nil)
 		defer func() {
 			Globals = origGlobals
-			DecodersByEncoding = origDecodersByEncoding
 			AvailablePlugins = origAvailablePlugins
 		}()
 
@@ -76,30 +69,13 @@ func LoadFromConfigSpec(c gs.Context) {
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
 
-			// and the decoders are loaded for the right encoding headers
-			dSet := pipeConfig.DecoderSet()
-			byEncodings, err := dSet.ByEncodings()
-			c.Assume(err, gs.IsNil)
-			dRunner := byEncodings[message.Header_JSON]
-			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(dRunner.Name(), gs.Equals, "JsonDecoder-0")
-
-			dRunner = byEncodings[message.Header_PROTOCOL_BUFFER]
-			c.Expect(dRunner, gs.Not(gs.IsNil))
-			c.Expect(dRunner.Name(), gs.Equals, "ProtobufDecoder-0")
-
-			// decoder channels are full
-			for _, dChan := range pipeConfig.decoderChannels {
-				c.Expect(len(dChan), gs.Equals, Globals().DecoderPoolSize)
-			}
-
 			// and the inputs section loads properly with a custom name
 			_, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
 			_, ok = pipeConfig.DecoderWrappers["JsonDecoder"]
-			c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.Equals, false)
 			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
@@ -116,11 +92,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 
-			// Decoders are loaded
-			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
-			c.Expect(DecodersByEncoding[message.Header_JSON], gs.Equals, "JsonDecoder")
-			c.Expect(DecodersByEncoding[message.Header_PROTOCOL_BUFFER], gs.Equals,
-				"ProtobufDecoder")
+			// Only the ProtobufDecoder is loaded
+			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 1)
 		})
 
 		c.Specify("works w/ MultiDecoder", func() {
@@ -128,8 +101,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			hasSyncDecoder := false
 
-			// JSONDecoder and ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 3)
+			// ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
 
 			// Check that the MultiDecoder actually loaded
 			for k, _ := range pipeConfig.DecoderWrappers {
@@ -188,7 +161,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("../testsupport/config_test_defaults2.toml")
 			c.Expect(err, gs.IsNil)
 
-			data := `{"reports":[{"Plugin":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Plugin":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Plugin":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}},{"Plugin":"JsonDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"JsonDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"DecoderPool-JsonDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"DecoderPool-ProtobufDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Plugin":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}},{"Plugin":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Plugin":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
+			data := `{"reports":[{"Plugin":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Plugin":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Plugin":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}},{"Plugin":"ProtobufDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"DecoderPool-ProtobufDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Plugin":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}},{"Plugin":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Plugin":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
 
 			report := pipeConfig.formatTextReport("heka.all-report", data)
 
@@ -203,18 +176,6 @@ Router:
     InChanCapacity: 50
     InChanLength: 0
     ProcessMessageCount: 26
-JsonDecoder-0:
-    InChanCapacity: 50
-    InChanLength: 0
-JsonDecoder-1:
-    InChanCapacity: 50
-    InChanLength: 0
-JsonDecoder-2:
-    InChanCapacity: 50
-    InChanLength: 0
-JsonDecoder-3:
-    InChanCapacity: 50
-    InChanLength: 0
 ProtobufDecoder-0:
     InChanCapacity: 50
     InChanLength: 0
@@ -227,9 +188,6 @@ ProtobufDecoder-2:
 ProtobufDecoder-3:
     InChanCapacity: 50
     InChanLength: 0
-DecoderPool-JsonDecoder:
-    InChanCapacity: 4
-    InChanLength: 4
 DecoderPool-ProtobufDecoder:
     InChanCapacity: 4
     InChanLength: 4

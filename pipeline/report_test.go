@@ -81,9 +81,10 @@ func ReportSpec(c gs.Context) {
 	filter := new(CounterFilter)
 	fRunner := NewFORunner(fName, filter, nil)
 	var err error
-	fRunner.matcher, err = NewMatchRunner("Type == ''", "")
+	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner)
 	c.Assume(err, gs.IsNil)
 	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
+	fRunner.SetLeakCount(10)
 
 	iName := "udp"
 	input := new(UdpInput)
@@ -102,6 +103,14 @@ func ReportSpec(c gs.Context) {
 
 			c.Specify("adds the channel data", func() {
 				c.Expect(hasChannelData(msg), gs.IsTrue)
+			})
+
+			c.Specify("has its leak count set properly", func() {
+				leakVal, ok := msg.GetFieldValue("LeakCount")
+				c.Assume(ok, gs.IsTrue)
+				i, ok := leakVal.(int64)
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(int(i), gs.Equals, 10)
 			})
 		})
 
@@ -127,9 +136,7 @@ func ReportSpec(c gs.Context) {
 	c.Specify("PipelineConfig", func() {
 		pc := NewPipelineConfig(nil)
 		// Initialize all of the PipelinePacks that we'll need
-		for i := 0; i < Globals().PoolSize; i++ {
-			pc.injectRecycleChan <- NewPipelinePack(pc.injectRecycleChan)
-		}
+		pc.reportRecycleChan <- NewPipelinePack(pc.reportRecycleChan)
 
 		pc.FilterRunners = map[string]FilterRunner{fName: fRunner}
 		pc.InputRunners = map[string]InputRunner{iName: iRunner}
@@ -146,6 +153,7 @@ func ReportSpec(c gs.Context) {
 				c.Expect(ok, gs.IsTrue)
 				c.Expect(name, gs.Not(gs.Equals), "MISSING")
 				reports[name] = r
+				pc.reportRecycleChan <- NewPipelinePack(pc.reportRecycleChan)
 			}
 			fReport := reports[fName]
 			c.Expect(fReport, gs.Not(gs.IsNil))

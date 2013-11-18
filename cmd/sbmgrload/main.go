@@ -43,6 +43,10 @@ func main() {
 	flag.Parse()
 
 	code := `
+require "string"
+require "table"
+require "os"
+
 lastTime = os.time() * 1e9
 lastCount = 0
 count = 0

@@ -1,0 +1,30 @@
+<h2><span class="glyphicon glyphicon-filter"></span> {{SandboxName}}</h2>
+<div class="row sandboxes-output-header">
+  <div class="col-sm-9">
+    <h4>{{Name}}{{^Name}}Untitled output{{/Name}} {{#hasHeader}}<small><span class="seconds-per-row">{{secondsPerRow}}</span> second aggregation for the last <span class="number-of-hours">{{timespanDescription}}</span></small>{{/hasHeader}}</h4>
+  </div>
+  <div class="col-sm-3">
+    <div class="btn-group btn-group-sm pull-right">
+      <a class="btn btn-default" href="#sandboxes/{{SandboxName}}/outputs/{{ShortFilename}}/embed" target="_blank"><span class="glyphicon glyphicon-new-window"></span> Embed</a>
+      <a class="btn btn-default" href="{{Filename}}" target="_blank"><span class="glyphicon glyphicon-save"></span> Raw</a>
+    </div>
+  </div>
+</div>
+<div class="sandbox-graph-container well">
+  <div class="row">
+    <div class="col-sm-9 sandbox-graph-help">
+      <span class="glyphicon glyphicon-zoom-in"></span> Click and drag to zoom |
+      <span class="glyphicon glyphicon-resize-horizontal"></span> Shift-drag to pan |
+      <span class="glyphicon glyphicon-zoom-out"></span> Double-click to zoom out
+    </div>
+    <div class="col-sm-3 sandbox-graph-options">
+      <label><input type="checkbox" class="toggle-log-scale" /> Log scale</label>
+    </div>
+  </div>
+  <div class="sandbox-graph"></div>
+  <div class="sandbox-graph-legend">
+    {{#legendLabels}}
+      <span class="sandbox-graph-legend-control"><label><input type="checkbox" checked="checked" data-label-id="{{id}}" /> {{name}}</label></span>
+    {{/legendLabels}}
+  </div>
+</div>

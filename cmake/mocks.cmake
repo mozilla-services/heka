@@ -25,6 +25,7 @@ macro(add_external_mock package destination mocked_package mocked_object)
     set(_path "${HEKA_PATH}/${package}/${destination}")
     set(_MOCK_LIST ${_MOCK_LIST} ${_path})
     add_custom_command(OUTPUT ${_path}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${HEKA_PATH}/${package}"
     COMMAND ${MOCKGEN_EXECUTABLE}
     -package=${package}
     -destination="${package}/${destination}"
@@ -37,7 +38,6 @@ endmacro(add_external_mock)
 add_internal_mock(pipeline mock_pluginhelper_test.go        PluginHelper        config.go)
 add_internal_mock(pipeline mock_pluginrunner_test.go        PluginRunner        pipeline_runner.go)
 add_internal_mock(pipeline mock_decoder_test.go             Decoder             decoders.go)
-add_internal_mock(pipeline mock_decoderset_test.go          DecoderSet          decoders.go)
 add_internal_mock(pipeline mock_decoderrunner_test.go       DecoderRunner       decoders.go)
 add_internal_mock(pipeline mock_inputrunner_test.go         InputRunner         inputs.go)
 add_internal_mock(pipeline mock_filterrunner_test.go        FilterRunner        filters.go)
@@ -49,10 +49,13 @@ add_internal_mock(pipeline mock_amqpchannel_test.go         AMQPChannel         
 add_internal_mock(pipeline mock_amqpconnectionhub_test.go   AMQPConnectionHub   amqp_plugin.go)
 add_internal_mock(pipeline mock_stataccumulator_test.go     StatAccumulator     stat_accum_input.go)
 
+add_external_mock(pipelinemock mock_pluginhelper.go github.com/mozilla-services/heka/pipeline   PluginHelper)
+add_external_mock(pipelinemock mock_filterrunner.go github.com/mozilla-services/heka/pipeline   FilterRunner)
+add_external_mock(pipelinemock mock_decoderrunner.go github.com/mozilla-services/heka/pipeline  DecoderRunner)
 add_external_mock(testsupport mock_amqp_acknowledger.go github.com/streadway/amqp   Acknowledger)
 add_external_mock(testsupport mock_net_conn.go          net                         Conn)
 add_external_mock(testsupport mock_net_listener.go      net                         Listener)
 add_external_mock(testsupport mock_net_error.go         net                         Error)
 
-add_custom_target(mocks ALL DEPENDS gomock lua-5_1_5 ${_MOCK_LIST})
+add_custom_target(mocks ALL DEPENDS gomock ${SANDBOX_PACKAGE} ${_MOCK_LIST})
 

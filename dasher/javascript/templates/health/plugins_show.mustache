@@ -1,0 +1,49 @@
+<h2><span class="glyphicon {{typeCSSClass}}"></span> {{Name}}</h2>
+
+<div class="row">
+  <div class="col-sm-6">
+    <h3>Properties</h3>
+
+    {{#hasKeysAndValues}}
+      <table class="table table-striped plugin-attributes">
+        <thead>
+          <th class="key">Name</th>
+          <th class="value">Value</th>
+        </thead>
+        <tbody>
+          {{#keysAndValues}}
+            <tr>
+              <td class="key">{{key}}</td>
+              <td class="value">{{value}}</td>
+            </tr>
+          {{/keysAndValues}}
+        </tbody>
+      </table>
+    {{/hasKeysAndValues}}
+
+    {{^hasKeysAndValues}}
+      <div class="empty-list">No additional properties</div>
+    {{/hasKeysAndValues}}
+  </div>
+
+  {{#hasOutputs}}
+  <div class="col-sm-6">
+    <h3>Plug-in Outputs</h3>
+
+    <table class="table table-striped">
+      <thead>
+          <th class="name">Name</th>
+          <th class="type">Type</th>
+        </thead>
+        <tbody>
+          {{#Outputs}}
+            <tr>
+              <td class="name"><a href="#sandboxes/{{PluginName}}/outputs/{{ShortFilename}}">{{Name}}{{^Name}}[Untitled]{{/Name}}</a></td>
+              <td class="type"><small>{{Type}}</small></td>
+            </tr>
+          {{/Outputs}}
+        </tbody>
+    </table>
+  </div>
+  {{/hasOutputs}}
+</div>

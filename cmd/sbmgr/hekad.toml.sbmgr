@@ -4,19 +4,19 @@ base_dir = "."
 
 [TCP:5565]
 type = "TcpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[TCP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
 
 [UDP:5565]
 type = "UdpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
 address = "127.0.0.1:5565"
 	[UDP:5565.signer.test_0]
 	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-
-[JsonDecoder]
-type ="JsonDecoder"
-encoding_name = "JSON"
 
 [ProtobufDecoder]
 type = "ProtobufDecoder"
@@ -31,6 +31,7 @@ type = "DashboardOutput"
 address = "127.0.0.1:4352"
 ticker_interval = 5
 working_directory = "./dashboard"
+static_directory = "../../../dasher"
 
 [TestSandboxManager]
 type = "SandboxManagerFilter"
@@ -82,7 +83,7 @@ message_matcher = "Type == 'hekabench' || Logger == 'LoopToOtherB'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [LoopToOtherB]
 type = "SandboxFilter"
@@ -90,7 +91,7 @@ message_matcher = "Logger == 'LoopToOtherA'"
 ticker_interval = 1
 script_type = "lua"
 filename = "../src/github.com/mozilla-services/heka/sandbox/lua/testsupport/counter.lua"
-preserve_data = false  # prevents clobbering StaticSandbox data preservation; static plugins should not reference the same source
+preserve_data = false
 
 [Counter]
 type = "CounterFilter"

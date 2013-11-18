@@ -1,0 +1,13 @@
+<h2><span class="glyphicon glyphicon-filter"></span> {{SandboxName}}</h2>
+<div class="row sandboxes-output-header">
+  <div class="col-md-6">
+    <h4>{{Name}}{{^Name}}[Untitled]{{/Name}}</h4>
+  </div>
+  <div class="col-md-6">
+    <div class="btn-group btn-group-sm pull-right">
+      <a class="btn btn-default" href="#sandboxes/{{SandboxName}}/outputs/{{ShortFilename}}/embed" target="_blank"><span class="glyphicon glyphicon-new-window"></span> Embed</a>
+      <a class="btn btn-default" href="{{Filename}}" target="_blank"><span class="glyphicon glyphicon-save"></span> Raw</a>
+    </div>
+  </div>
+</div>
+<pre class="well">{{data}}</pre>

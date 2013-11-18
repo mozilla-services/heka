@@ -16,16 +16,11 @@
 package pipeline
 
 import (
+	"bytes"
 	"fmt"
 	"net"
-	"regexp"
 	"strconv"
 	"time"
-)
-
-var (
-	sanitizeRegexp = regexp.MustCompile("[^a-zA-Z0-9\\-_\\.:\\|@]")
-	packetRegexp   = regexp.MustCompile("([a-zA-Z0-9_\\.]+):(\\-?[0-9\\.]+)\\|(c|ms|g)(\\|@([0-9\\.]+))?")
 )
 
 // A Heka Input plugin that handles statsd metric style input and flushes
@@ -127,31 +122,94 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	var (
-		value string
-		stat  Stat
-	)
-	st := sanitizeRegexp.ReplaceAllString(string(message), "")
-	for _, item := range packetRegexp.FindAllStringSubmatch(st, -1) {
-		value = item[2]
-		if item[3] == "ms" {
-			_, err := strconv.ParseFloat(item[2], 32)
-			if err != nil {
-				value = "0"
+	stat, err := parseMessage(message)
+	if err != nil {
+		s.ir.LogError(fmt.Errorf("Can not parse message: %s", message))
+		return
+	}
+
+	if !s.statAccum.DropStat(stat) {
+		s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+	}
+}
+
+func parseMessage(message []byte) (Stat, error) {
+	message = bytes.TrimRight(message, "\n")
+
+	var stat Stat
+
+	errFmt := "Invalid statsd message %s"
+
+	colonPos := bytes.IndexByte(message, ':')
+	if colonPos == -1 {
+		return stat, fmt.Errorf(errFmt, message)
+	}
+
+	pipePos := bytes.IndexByte(message, '|')
+	if pipePos == -1 {
+		return stat, fmt.Errorf(errFmt, message)
+	}
+
+	bucket := message[:colonPos]
+	value := message[colonPos+1 : pipePos]
+	modifier, err := extractModifier(message, pipePos+1)
+
+	if err != nil {
+		return stat, err
+	}
+
+	sampleRate := float32(1)
+	sampleRate, err = extractSampleRate(message)
+	if err != nil {
+		return stat, err
+	}
+
+	stat.Bucket = string(bucket)
+	stat.Value = string(value)
+	stat.Modifier = string(modifier)
+	stat.Sampling = sampleRate
+
+	return stat, nil
+}
+
+func extractModifier(message []byte, startAt int) ([]byte, error) {
+	modifier := message[startAt:]
+
+	l := len(modifier)
+
+	if l == 1 {
+		for _, m := range []byte{'g', 'h', 'm', 'c'} {
+			if modifier[0] == m {
+				return modifier, nil
 			}
 		}
+	}
 
-		sampleRate, err := strconv.ParseFloat(item[5], 32)
-		if err != nil {
-			sampleRate = 1
+	if l >= 2 {
+		if bytes.HasPrefix(modifier, []byte("ms")) {
+			return []byte("ms"), nil
 		}
 
-		stat.Bucket = item[1]
-		stat.Value = value
-		stat.Modifier = item[3]
-		stat.Sampling = float32(sampleRate)
-		if !s.statAccum.DropStat(stat) {
-			s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+		if modifier[0] == 'c' {
+			return []byte("c"), nil
 		}
 	}
+
+	return []byte{}, fmt.Errorf("Can not find modifier in message %s", message)
+}
+
+func extractSampleRate(message []byte) (float32, error) {
+	atPos := bytes.IndexByte(message, '@')
+
+	// no sample rate
+	if atPos == -1 {
+		return 1, nil
+	}
+
+	sampleRate, err := strconv.ParseFloat(string(message[atPos+1:]), 32)
+	if err != nil {
+		return 1, err
+	}
+
+	return float32(sampleRate), nil
 }

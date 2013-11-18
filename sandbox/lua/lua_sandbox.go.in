@@ -15,15 +15,17 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
-#cgo LDFLAGS: -L@LUA_LIB_PATH@ -llua -lm
+#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -llua -llpeg -lcjson -lm
 #include <stdlib.h>
-#include "lua_sandbox.h"
+#include <lua_sandbox.h>
+#include "lua_sandbox_interface.h"
 */
 import "C"
 
 import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/sandbox"
 	"log"
 	"strings"
@@ -84,56 +86,86 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 	int) {
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	if lsb.msg != nil {
+	if lsb.pack != nil {
 		switch fieldName {
 		case "Type":
-			value := lsb.msg.GetType()
+			value := lsb.pack.Message.GetType()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Logger":
-			value := lsb.msg.GetLogger()
+			value := lsb.pack.Message.GetLogger()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Payload":
-			value := lsb.msg.GetPayload()
+			value := lsb.pack.Message.GetPayload()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "EnvVersion":
-			value := lsb.msg.GetEnvVersion()
+			value := lsb.pack.Message.GetEnvVersion()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Hostname":
-			value := lsb.msg.GetHostname()
+			value := lsb.pack.Message.GetHostname()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Uuid":
-			value := lsb.msg.GetUuidString()
+			value := lsb.pack.Message.GetUuidString()
 			cs := C.CString(value) // freed by the caller
 			return int(message.Field_STRING), unsafe.Pointer(cs),
 				len(value)
 		case "Timestamp":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Timestamp), 0
+				unsafe.Pointer(lsb.pack.Message.Timestamp), 0
 		case "Severity":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Severity), 0
+				unsafe.Pointer(lsb.pack.Message.Severity), 0
 		case "Pid":
 			return int(message.Field_INTEGER),
-				unsafe.Pointer(lsb.msg.Pid), 0
+				unsafe.Pointer(lsb.pack.Message.Pid), 0
+		case "raw":
+			return int(message.Field_BYTES),
+				unsafe.Pointer(&lsb.pack.MsgBytes[0]), len(lsb.pack.MsgBytes)
 		default:
 			l := len(fieldName)
 			if l > 0 && fieldName[l-1] == ']' {
 				if strings.HasPrefix(fieldName, "Fields[") {
-					t, p, l := lookup_field(lsb.msg, fieldName[7:l-1], fi, ai)
+					t, p, l := lookup_field(lsb.pack.Message, fieldName[7:l-1], fi, ai)
 					return t, p, l
 				}
 			}
 		}
+	}
+	return 0, unsafe.Pointer(nil), 0
+}
+
+//export go_lua_read_config
+func go_lua_read_config(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer, int) {
+	name := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.config == nil {
+		return 0, unsafe.Pointer(nil), 0
+	}
+
+	v := lsb.config[name]
+	switch v.(type) {
+	case string:
+		s := v.(string)
+		cs := C.CString(s) // freed by the caller
+		return int(message.Field_STRING), unsafe.Pointer(cs), len(s)
+	case bool:
+		b := v.(bool)
+		return int(message.Field_BOOL), unsafe.Pointer(&b), 0
+	case int64:
+		d := float64(v.(int64))
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
+	case float64:
+		d := v.(float64)
+		return int(message.Field_DOUBLE), unsafe.Pointer(&d), 0
 	}
 	return 0, unsafe.Pointer(nil), 0
 }
@@ -148,9 +180,10 @@ func go_lua_inject_message(ptr unsafe.Pointer, payload *C.char,
 
 type LuaSandbox struct {
 	lsb           *C.lua_sandbox
-	msg           *message.Message
+	pack          *pipeline.PipelinePack
 	output        func(s string)
 	injectMessage func(payload, payload_type, payload_name string) int
+	config        map[string]interface{}
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
@@ -158,7 +191,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	lsb := new(LuaSandbox)
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
-	lsb.lsb = C.lua_sandbox_create(unsafe.Pointer(lsb),
+	lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
 		cs,
 		C.uint(conf.MemoryLimit),
 		C.uint(conf.InstructionLimit),
@@ -171,13 +204,14 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 		log.Printf("payload_type: %s\npayload_name: %s\npayload: %s\n", pt, pn, p)
 		return 0
 	}
+	lsb.config = conf.Config
 	return lsb, nil
 }
 
 func (this *LuaSandbox) Init(dataFile string) error {
 	cs := C.CString(dataFile)
 	defer C.free(unsafe.Pointer(cs))
-	r := int(C.lua_sandbox_init(this.lsb, cs))
+	r := int(C.sandbox_init(this.lsb, cs))
 	if r != 0 {
 		return fmt.Errorf("Init() %s", this.LastError())
 	}
@@ -187,7 +221,7 @@ func (this *LuaSandbox) Init(dataFile string) error {
 func (this *LuaSandbox) Destroy(dataFile string) error {
 	cs := C.CString(dataFile)
 	defer C.free(unsafe.Pointer(cs))
-	c := C.lua_sandbox_destroy(this.lsb, cs)
+	c := C.lsb_destroy(this.lsb, cs)
 	if c != nil {
 		err := C.GoString(c)
 		C.free(unsafe.Pointer(c))
@@ -197,27 +231,27 @@ func (this *LuaSandbox) Destroy(dataFile string) error {
 }
 
 func (this *LuaSandbox) Status() int {
-	return int(C.lua_sandbox_status(this.lsb))
+	return int(C.lsb_get_state(this.lsb))
 }
 
 func (this *LuaSandbox) LastError() string {
-	return C.GoString(C.lua_sandbox_last_error(this.lsb))
+	return C.GoString(C.lsb_get_error(this.lsb))
 }
 
 func (this *LuaSandbox) Usage(utype, ustat int) uint {
-	return uint(C.lua_sandbox_usage(this.lsb, C.sandbox_usage_type(utype),
-		C.sandbox_usage_stat(ustat)))
+	return uint(C.lsb_usage(this.lsb, C.lsb_usage_type(utype),
+		C.lsb_usage_stat(ustat)))
 }
 
-func (this *LuaSandbox) ProcessMessage(msg *message.Message) int {
-	this.msg = msg
-	r := int(C.lua_sandbox_process_message(this.lsb))
-	this.msg = nil
+func (this *LuaSandbox) ProcessMessage(pack *pipeline.PipelinePack) int {
+	this.pack = pack
+	r := int(C.process_message(this.lsb))
+	this.pack = nil
 	return r
 }
 
 func (this *LuaSandbox) TimerEvent(ns int64) int {
-	return int(C.lua_sandbox_timer_event(this.lsb, C.longlong(ns)))
+	return int(C.timer_event(this.lsb, C.longlong(ns)))
 }
 
 func (this *LuaSandbox) InjectMessage(f func(payload, payload_type,
