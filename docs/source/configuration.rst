@@ -1538,7 +1538,6 @@ Parameters:
     Name of ES record type to create. Defaults to "message".
     If Field Name|Type|Hostname|Pid|UUID|Logger|EnvVersion|Severity
     are placed between within a %{}, it will be interpolated to its Field value. 
->>>>>>> upstream/dev
 - flush_interval (int):
     Interval at which accumulated messages should be bulk indexed into
     ElasticSearch, in milliseconds. Defaults to 1000 (i.e. one second).
