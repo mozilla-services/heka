@@ -129,8 +129,8 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
 	if retval > 0 {
-		s.err = errors.New(s.sb.LastError())
-		s.Shutdown()
+		s.err = errors.New("fatal: " + s.sb.LastError())
+		pipeline.Globals().ShutDown()
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
@@ -145,6 +145,9 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
 // information to the Heka report and dashboard.
 func (s *SandboxDecoder) ReportMsg(msg *message.Message) error {
+	if s.sb == nil {
+		return fmt.Errorf("Decoder is not running")
+	}
 	s.reportLock.Lock()
 	defer s.reportLock.Unlock()
 
