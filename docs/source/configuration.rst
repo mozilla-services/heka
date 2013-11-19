@@ -852,6 +852,7 @@ Parameters:
     Subsection defining severity strings and the numerical value they should
     be translated to. hekad uses numerical severity codes, so a severity of
     `WARNING` can be translated to `3` by settings in this section.
+    See :ref:`message`.
 - message_fields:
     Subsection defining message fields to populate and the interpolated values
     that should be used. Valid interpolated values are any captured in a regex
@@ -895,10 +896,12 @@ Example (Parsing Apache Combined Log Format):
     match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
     timestamplayout = "02/Jan/2006:15:04:05 -0700"
 
+    # severities in this case would work only if a (?P<Severity>...) matching
+    # group was present in the regex, and the log file contained this information.
     [apache_transform_decoder.severity_map]
-    DEBUG = 1
-    WARNING = 2
-    INFO = 3
+    DEBUG = 7
+    INFO = 6
+    WARNING = 4
 
     [apache_transform_decoder.message_fields]
     Type = "ApacheLogfile"
@@ -930,6 +933,7 @@ Parameters:
     Subsection defining severity strings and the numerical value they should
     be translated to. hekad uses numerical severity codes, so a severity of
     `WARNING` can be translated to `3` by settings in this section.
+    See :ref:`message`.
 - message_fields:
     Subsection defining message fields to populate and the interpolated values
     that should be used. Valid interpolated values are any captured in a JSONPath
@@ -978,11 +982,12 @@ Example:
     Name = "$.statsd.name"
     Pid = "$.pid"
     Timestamp = "$.timestamp"
+    Severity = "$.log_level"
 
     [myjson_decoder.severity_map]
-    DEBUG = 1
-    WARNING = 2
-    INFO = 3
+    DEBUG = 7
+    INFO = 6
+    WARNING = 4
 
     [myjson_decoder.message_fields]
     Pid = "%Pid%"
@@ -1048,6 +1053,7 @@ Parameters:
     Subsection defining severity strings and the numerical value they should
     be translated to. hekad uses numerical severity codes, so a severity of
     `WARNING` can be translated to `3` by settings in this section.
+    See :ref:`message`.
 - message_fields:
     Subsection defining message fields to populate and the interpolated values
     that should be used. Valid interpolated values are any captured in an XPath
@@ -1096,11 +1102,12 @@ Example:
     Name = "/some/path/name"
     Pid = "//pid"
     Timestamp = "//timestamp"
+    Severity = "//severity"
 
     [myxml_decoder.severity_map]
-    DEBUG = 1
-    WARNING = 2
-    INFO = 3
+    DEBUG = 7
+    INFO = 6
+    WARNING = 4
 
     [myxml_decoder.message_fields]
     Pid = "%Pid%"
