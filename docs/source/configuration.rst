@@ -967,6 +967,47 @@ Parameters:
     if valid time zone info is embedded in every parsed timestamp, since those
     can be parsed as specified in the `timestamp_layout`.
 
+- require_all_fields (bool):
+    Requires json mappings to match ALL specified message_fields.
+    If any message field is not matched, the pack is silently passed back unmodified.
+    Useful when used in combination with a MultiDecoder and multiple JSON formats.
+    Defaults to "false"
+    
+    Example::
+
+	[my_multi_decoder]
+	type = "MultiDecoder"
+	order = ['amqp_decoder', 'log1_json', 'log2_json']
+	cascade_strategy = "all"
+
+	[my_multi_decoder.subs.log1_json]
+	type = "PayloadJsonDecoder"
+	require_all_fields = "true"
+
+	[my_multi_decoder.subs.log1_json.json_map]
+	field1 = "$.field1"
+	field2 = "$.field2"
+	field3 = "$.field3"
+
+	[my_multi_decoder.subs.log1_json.message_fields]
+	field1 = "%field1%"
+	field2 = "%field2%"
+	fieddld3 = "%field3%"
+
+	[my_multi_decoder.subs.log2_json]
+	type = "PayloadJsonDecoder"
+	require_all_fields = "true"
+
+	[my_multi_decoder.subs.log2_json.json_map]
+	field4 = "$.field4"
+	field5 = "$.field5"
+	field6 = "$.field6"
+
+	[my_multi_decoder.subs.log2_json.message_fields]
+	field4 = "%field4%"
+	field5 = "%field5%"
+	field6 = "%field6%"
+	
 Example:
 
 .. code-block:: ini

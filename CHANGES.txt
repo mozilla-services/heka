@@ -30,6 +30,12 @@ Bug Handling
 * Changed default DashboardOutput.StaticDirectory value to
   `/usr/share/heka/dasher`, to match where the packages put the files.
 
+Features
+--------
+
+* add require_all_fields flag to PayloadJsonDecoder
+  (issue #528)
+
 0.4.0 (2013-10-30)
 ==================
 

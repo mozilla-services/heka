@@ -300,6 +300,9 @@ func DecodersSpec(c gospec.Context) {
 				"StatName":  "%Name%",
 				"Timestamp": "%Timestamp%",
 			}
+
+			conf.RequireAllFields = true
+
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := NewMockDecoderRunner(ctrl)
