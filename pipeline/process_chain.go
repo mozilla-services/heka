@@ -69,6 +69,22 @@ func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *Manag
 	return mc
 }
 
+func (mc *ManagedCmd) drainChannels() {
+	var done bool
+	chans := []chan string{mc.StdoutChan(), mc.StderrChan()}
+	for _, ch := range chans {
+		done = false
+		for !done {
+			select {
+			case <-ch:
+				continue
+			default:
+				done = true
+			}
+		}
+	}
+}
+
 func (mc *ManagedCmd) Start(redirectToChannels bool) (err error) {
 	if redirectToChannels {
 		var stdout_w *io.PipeWriter
@@ -129,18 +145,24 @@ func (mc *ManagedCmd) Wait() (err error) {
 		mc.done <- mc.Cmd.Wait()
 	}()
 
+	done := false
 	if mc.timeout_duration != 0 {
-		select {
-		case <-mc.Stopchan:
-			err = fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
-		case <-time.After(mc.timeout_duration):
-			err = fmt.Errorf("CommandChain timedout with error: [%s]", mc.kill())
-		case err = <-mc.done:
+		for !done {
+			select {
+			case <-mc.Stopchan:
+				err = fmt.Errorf("ManagedCmd was stopped with error: [%s]", mc.kill())
+				done = true
+			case <-time.After(mc.timeout_duration):
+				mc.Stopchan <- true
+				err = fmt.Errorf("ManagedCmd timedout")
+			case err = <-mc.done:
+				done = true
+			}
 		}
 	} else {
 		select {
 		case <-mc.Stopchan:
-			err = fmt.Errorf("CommandChain was stopped with error: [%s]", mc.kill())
+			err = fmt.Errorf("ManagedCmd was stopped with error: [%s]", mc.kill())
 		case err = <-mc.done:
 		}
 	}
@@ -156,6 +178,8 @@ func (mc *ManagedCmd) Wait() (err error) {
 	if ok {
 		writer.Close()
 	}
+
+	mc.drainChannels()
 
 	return err
 }
@@ -261,34 +285,42 @@ func (cc *CommandChain) Wait() (err error) {
 	   output pipe as we need to use that to get the final results.  */
 	go func() {
 		var subcmd_err error
+		subcmd_errors := make([]string, 0)
+
 		for i, cmd := range cc.Cmds {
 			subcmd_err = cmd.Wait()
 			if subcmd_err != nil {
-				cc.done <- subcmd_err
-				return
+				subcmd_errors = append(subcmd_errors,
+					fmt.Sprintf("Subcommand returned an error: [%s]", subcmd_err.Error()))
 			}
 			if i < (len(cc.Cmds) - 1) {
 				subcmd_err = cmd.Stdout.(*io.PipeWriter).Close()
 				if subcmd_err != nil {
-					cc.done <- subcmd_err
-					return
+					subcmd_errors = append(subcmd_errors,
+						fmt.Sprintf("Pipewriter close error: [%s]\n", subcmd_err.Error()))
 				}
 			}
 		}
-		cc.done <- nil
+		if len(subcmd_errors) > 0 {
+			cc.done <- fmt.Errorf(strings.Join(subcmd_errors, "\n"))
+		} else {
+			cc.done <- nil
+		}
 	}()
 
-	select {
-	case err = <-cc.done:
-		return err
-	case <-cc.Stopchan:
-		for i := len(cc.Cmds) - 1; i >= 0; i-- {
-			cmd := cc.Cmds[i]
-			cmd.Stopchan <- true
+	done := false
+	for !done {
+		select {
+		case err = <-cc.done:
+			done = true
+		case <-cc.Stopchan:
+			for i := 0; i < len(cc.Cmds); i++ {
+				cmd := cc.Cmds[i]
+				cmd.Stopchan <- true
+			}
 		}
-		return fmt.Errorf("Chain stopped")
 	}
-	return nil
+	return err
 }
 
 // This resets a command so that we can run the command again.

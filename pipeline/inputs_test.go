@@ -206,7 +206,7 @@ func InputsSpec(c gs.Context) {
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
-			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [exit status 1]")
+			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
 			ith.MockInputRunner.EXPECT().LogError(expected_err)
 
 			go func() {
