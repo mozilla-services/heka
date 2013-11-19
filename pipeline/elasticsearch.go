@@ -593,7 +593,7 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
                 	        }
                 	}
 			if iSlice[i] == elVal {
-				err = fmt.Errorf("Could not inerpolate field from config: %s", name)
+				err = fmt.Errorf("Could not interpolate field from config: %s", name)
 			}
         	}
 	}
