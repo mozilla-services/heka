@@ -4,6 +4,7 @@
 
 require "math"
 require "os"
+require "string"
 
 users = {}
 users_size = 0

@@ -3,6 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 require "circular_buffer"
+require "math"
+require "table"
 
 local rows = 1440
 local sec_per_row = 60
@@ -31,7 +33,7 @@ local sliding_window = interval * 15
 newest = 0
 oldest = 0
 last_alert = 0
-annotations = {_name="annotations"}
+annotations = {}
 annotations_size = 0
 
 function process_message ()
@@ -117,7 +119,7 @@ function timer_event(ns)
         inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
     end
 
-    output(annotations, request)
+    output({["annotations"] = annotations}, request)
     inject_message("cbuf", "Request Statistics")
 end
 
