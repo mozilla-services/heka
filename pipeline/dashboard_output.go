@@ -34,7 +34,7 @@ type DashboardOutputConfig struct {
 	Address string `toml:"address"`
 	// Directory where the static dashboard content is stored. Relative paths
 	// will be evaluated relative to the Heka base dir. Defaults to
-	// "static/dashboard".
+	// "/usr/share/heka/dasher".
 	StaticDirectory string `toml:"static_directory"`
 	// Working directory where the Dashboard output is written to; it also
 	// serves as the root for the HTTP fileserver.  This directory is created
