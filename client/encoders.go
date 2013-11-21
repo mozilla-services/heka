@@ -20,7 +20,6 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
-	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"hash"
@@ -29,26 +28,6 @@ import (
 type Encoder interface {
 	EncodeMessage(msg *message.Message) ([]byte, error)
 	EncodeMessageStream(msg *message.Message, outBytes *[]byte) error
-}
-
-type JsonEncoder struct {
-	signer *message.MessageSigningConfig
-}
-
-func NewJsonEncoder(signer *message.MessageSigningConfig) *JsonEncoder {
-	return &JsonEncoder{signer}
-}
-
-func (self *JsonEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
-	return json.Marshal(msg)
-}
-
-func (self *JsonEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
-	msgBytes, err := self.EncodeMessage(msg)
-	if err == nil {
-		err = createStream(msgBytes, outBytes, self.signer)
-	}
-	return
 }
 
 type ProtobufEncoder struct {
