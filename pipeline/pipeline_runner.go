@@ -65,6 +65,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgProcessDuration: 1000000,
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
+		sigChan:               make(chan os.Signal, 1),
 	}
 }
 

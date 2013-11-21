@@ -378,7 +378,7 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
+			timeout := make(chan bool, 1)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
 				timeout <- true
@@ -409,7 +409,7 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
+			timeout := make(chan bool, 1)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
 				timeout <- true
@@ -440,7 +440,7 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
+			timeout := make(chan bool, 1)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
 				timeout <- true
@@ -469,7 +469,7 @@ func InputsSpec(c gs.Context) {
 				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			ith.PackSupply <- ith.Pack
-			timeout := make(chan bool)
+			timeout := make(chan bool, 1)
 			go func() {
 				time.Sleep(100 * time.Millisecond)
 				timeout <- true
@@ -678,7 +678,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			close(lfInput.Monitor.stopChan)
+			lfInput.Stop()
 
 			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
@@ -774,7 +774,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			close(lfInput.Monitor.stopChan)
+			lfInput.Stop()
 
 			fileBytes, err := ioutil.ReadFile(lfiConfig.LogFile)
 			c.Expect(err, gs.IsNil)
@@ -856,7 +856,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			close(lfInput.Monitor.stopChan)
+			lfInput.Stop()
 
 			lines := []string{
 				"2012-07-13 18:48:01 debug    readSocket()",
@@ -931,7 +931,7 @@ func InputsSpec(c gs.Context) {
 				// to be processed.
 				runtime.Gosched()
 			}
-			close(lfInput.Monitor.stopChan)
+			lfInput.Stop()
 
 			lines := []int{36230, 41368, 42310, 41343, 37171, 56727, 46492}
 			for i, line := range lines {
