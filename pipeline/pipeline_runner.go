@@ -628,8 +628,6 @@ func Run(config *PipelineConfig) {
 	var err error
 
 	globals := Globals()
-	sigChan := make(chan os.Signal)
-	globals.sigChan = sigChan
 
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
@@ -684,11 +682,11 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
 
 	for !globals.Stopping {
 		select {
-		case sig := <-sigChan:
+		case sig := <-globals.sigChan:
 			switch sig {
 			case syscall.SIGHUP:
 				log.Println("Reload initiated.")
