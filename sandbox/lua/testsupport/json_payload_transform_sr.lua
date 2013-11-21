@@ -9,7 +9,11 @@ local date_pattern = '("created_at":)"(%d+-%d+-%d+) (%d+:%d+:%d+%.%d+)"'
 
 function process_message ()
     local pl = read_message("Payload")
-    local json =  string.gsub(pl, date_pattern, '%1"%2T%3Z"', 1)
+    local json, cnt =  string.gsub(pl, date_pattern, '%1"%2T%3Z"', 1)
+    if cnt == 0 then
+        return -1
+    end
+
     output(json)
     inject_message("json", "transformed timestamp S&R")
     return 0

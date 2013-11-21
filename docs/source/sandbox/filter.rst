@@ -34,6 +34,9 @@ SandboxFilter Settings
 - profile (bool): 
     When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
 
+- module_directory (string): 
+    The directory where 'require' will attempt to load the external Lua modules from.  Defaults to ${BASE_DIR}/lua_modules. For a dynamic configuration the module_directory is ignored and the the physical location on disk is controlled by the SandboxManagerFilter.
+
 - config (object):
     A map of configuration variables available to the sandbox via read_config.  The map consists of a string key with: string, bool, int64, or float64 values.
 

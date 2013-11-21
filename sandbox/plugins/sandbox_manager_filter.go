@@ -37,6 +37,7 @@ type SandboxManagerFilter struct {
 	maxFilters          int
 	currentFilters      int
 	workingDirectory    string
+	moduleDirectory     string
 	processMessageCount int64
 }
 
@@ -50,11 +51,16 @@ type SandboxManagerFilterConfig struct {
 	// Heka base_dir. Defaults to a directory in ${BASE_DIR}/sbxmgrs that is
 	// auto-generated based on the plugin name.
 	WorkingDirectory string `toml:"working_directory"`
+	// Path to the file system directory where the sandbox manager will direct
+	// all SandboxFilter 'require' requests. Defaults to
+	// ${BASE_DIR}/lua_modules.
+	ModuleDirectory string `toml:"module_directory"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 	return &SandboxManagerFilterConfig{
 		WorkingDirectory: "sbxmgrs",
+		ModuleDirectory:  "lua_module",
 	}
 }
 
@@ -68,6 +74,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
 	this.workingDirectory = pipeline.GetHekaConfigDir(conf.WorkingDirectory)
+	this.moduleDirectory = pipeline.GetHekaConfigDir(conf.ModuleDirectory)
 	err = os.MkdirAll(this.workingDirectory, 0700)
 	return
 }
@@ -80,7 +87,7 @@ func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 }
 
 // Creates a FilterRunner for the specified sandbox name and configuration
-func createRunner(dir, name string, configSection toml.Primitive) (pipeline.FilterRunner, error) {
+func (this *SandboxManagerFilter) createRunner(dir, name string, configSection toml.Primitive) (pipeline.FilterRunner, error) {
 	var err error
 	var pluginGlobals pipeline.PluginGlobals
 
@@ -112,6 +119,7 @@ func createRunner(dir, name string, configSection toml.Primitive) (pipeline.Filt
 	wrapper.ConfigCreator = func() interface{} { return config }
 	conf := config.(*SandboxConfig)
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.Name, conf.ScriptType))
+	conf.ModuleDirectory = this.moduleDirectory
 	if wantsName, ok := plugin.(pipeline.WantsName); ok {
 		wantsName.SetName(wrapper.Name)
 	}
@@ -200,7 +208,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					return
 				}
 				var runner pipeline.FilterRunner
-				runner, err = createRunner(dir, name, conf)
+				runner, err = this.createRunner(dir, name, conf)
 				if err != nil {
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
@@ -232,7 +240,7 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h p
 					var runner pipeline.FilterRunner
 					name := path.Base(fn[:len(fn)-5])
 					fr.LogMessage(fmt.Sprintf("Loading: %s", name))
-					runner, err = createRunner(dir, name, conf)
+					runner, err = this.createRunner(dir, name, conf)
 					if err != nil {
 						fr.LogError(fmt.Errorf("createRunner failed: %s\n", err.Error()))
 						removeAll(dir, fmt.Sprintf("%s.*", name))

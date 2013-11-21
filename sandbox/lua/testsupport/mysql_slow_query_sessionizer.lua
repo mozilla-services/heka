@@ -12,6 +12,7 @@
 -- SET timestamp=1364506803;
 -- <query>
 
+require "string"
 require "circular_buffer"
 
 data = circular_buffer.new(1440, 4, 60)

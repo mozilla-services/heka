@@ -11,7 +11,7 @@ local date_pattern = '^(%d+-%d+-%d+) (%d+:%d+:%d+%.%d+)'
 function process_message ()
     local json = cjson.decode(read_message("Payload"))
     if not json then
-        return 0
+        return -1
     end
     local d, t = string.match(json.created_at, date_pattern)
     if d then
