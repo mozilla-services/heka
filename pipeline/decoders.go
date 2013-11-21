@@ -91,17 +91,16 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 			wanter.SetDecoderRunner(dr)
 		}
 		for pack = range dr.inChan {
-			if packs, err = dr.Decoder().Decode(pack); err != nil {
-				dr.LogError(err)
+			if packs, err = dr.Decoder().Decode(pack); packs != nil {
+				for _, p := range packs {
+					h.PipelineConfig().router.InChan() <- p
+				}
+			} else {
+				if err != nil {
+					dr.LogError(err)
+				}
 				pack.Recycle()
 				continue
-			}
-			if packs == nil {
-				pack.Recycle()
-				continue
-			}
-			for _, p := range packs {
-				h.PipelineConfig().router.InChan() <- p
 			}
 		}
 		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
