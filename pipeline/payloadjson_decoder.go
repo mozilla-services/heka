@@ -136,8 +136,8 @@ func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 	pdh.DecodeTimestamp(pack)
 	pdh.DecodeSeverity(pack)
 
-	// Update the new message fields based on the fields we should
-	// change and the capture parts
+	// Update the new message fields based on the fields we should change and
+	// the capture parts.
 	if err = ld.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
 		packs = []*PipelinePack{pack}
 	}

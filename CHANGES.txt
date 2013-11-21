@@ -25,6 +25,9 @@ Bug Handling
 
 Features
 --------
+* Added support for type annotations to be used in the `message_fields`
+  section of decoder config, allowing creation of non-string type fields.
+  (https://github.com/mozilla-services/heka/issues/512)
 
 0.4.1 (2013-11-05)
 ==================

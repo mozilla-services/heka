@@ -854,25 +854,7 @@ Parameters:
     `WARNING` can be translated to `3` by settings in this section.
     See :ref:`message`.
 - message_fields:
-    Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in a regex
-    in the message_matcher, and any other field that exists in the message. In
-    the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
-    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
-    bytes.  Adding a representation string to a standard message header name
-    will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
-    (see :ref:`field_variables`).
-
-    Interpolated values should be surrounded with `%` signs, for example::
-
-        [my_decoder.message_fields]
-        Type = "%Type%Decoded"
-
-    This will result in the new message's Type being set to the old messages
-    Type with `Decoded` appended.
+    See :ref:`config_messagefields`
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
@@ -935,32 +917,12 @@ Parameters:
     `WARNING` can be translated to `3` by settings in this section.
     See :ref:`message`.
 - message_fields:
-    Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in a JSONPath
-    in the message_matcher, and any other field that exists in the message. In
-    the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
-    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
-    bytes.  Adding a representation string to a standard message header name
-    will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
-    (see :ref:`field_variables`).
-
-    Interpolated values should be surrounded with `%` signs, for example::
-
-        [my_decoder.message_fields]
-        Type = "%Type%Decoded"
-
-    This will result in the new message's Type being set to the old messages
-    Type with `Decoded` appended.
+    See :ref:`config_messagefields`
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
-    constants>`_.  The default layout is ISO8601 - the same as
-    Javascript.
-
+    be seen in `Go's time documentation <http://golang.org/pkg/time/#pkg-
+    constants>`_.  The default layout is ISO8601 - the same as Javascript.
 - timestamp_location (string):
     Time zone in which the timestamps in the text are presumed to be in.
     Should be a location name corresponding to a file in the IANA Time Zone
@@ -1055,25 +1017,7 @@ Parameters:
     `WARNING` can be translated to `3` by settings in this section.
     See :ref:`message`.
 - message_fields:
-    Subsection defining message fields to populate and the interpolated values
-    that should be used. Valid interpolated values are any captured in an XPath
-    in the message_matcher, and any other field that exists in the message. In
-    the event that a captured name overlaps with a message field, the captured
-    name's value will be used. Optional representation metadata can be added at
-    the end of the field name using a pipe delimiter i.e. ResponseSize|B  =
-    "%ResponseSize%" will create Fields[ResponseSize] representing the number of
-    bytes.  Adding a representation string to a standard message header name
-    will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
-    (see :ref:`field_variables`).
-
-    Interpolated values should be surrounded with `%` signs, for example::
-
-        [my_decoder.message_fields]
-        Type = "%Type%Decoded"
-
-    This will result in the new message's Type being set to the old messages
-    Type with `Decoded` appended.
+    See :ref:`config_messagefields`
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
@@ -1124,6 +1068,62 @@ implemented by the `xmlpath <http://launchpad.net/xmlpath>`_ library.
     * Predicates are restricted to [N], [path], and [path=literal] forms
     * Only a single predicate is supported per path step
     * Richer expressions and namespaces are not supported
+
+.. _config_messagefields:
+
+Decoder `message_fields`
+------------------------
+    
+    The various text parsing decoders all support a `message_fields` config
+    subsection where you can specify what data generated messages should
+    contain. Values that have been extracted from the input text, whether via
+    regex capture groups, jsonpath, or xpath, can be interpolated into
+    generated message fields. Additionally, the contents of one message field
+    may be interpolated into any other message field. In the event that a
+    captured name overlaps with a message field name, the captured name's
+    value will be used.
+
+    Optional representation metadata can be added after the field name using a
+    pipe delimiter. For example`ResponseSize|B  = "%ResponseSize%"` will
+    create field called "ResponseSize". The "B" will be stored as the field's
+    representation attribute, possibly used by a downstream plugin or UI
+    element to indicate that the unit for this field's value is a byte.
+
+    Adding a representation string to a standard message header name will
+    cause it to be added as a user defined field, e.g. `Payload|json` will
+    create Fields["Payload"], presumed to contain JSON content.
+
+    Additionally, optional type metadata can be added after the representation
+    to indicate the data type for any custom fields. Supported values are
+    "int", "bytes", "float", "bool", and the default of "string". For example,
+    a field named `Requests|count|int` would be expected to contain an integer
+    value and will generate an integer field called "Requests" on the
+    generated message. The representation string can be left blank (e.g.
+    `Requests||int`) if you want to specify a type without specifying a
+    representation.
+
+    If the field specified a type, but the extracted value cannot be converted
+    into that type, decoding will fail and the message will be dropped. It is
+    possible to specify an optional type by appending a question mark after
+    the type name, e.g. `Requests|count|int?`. In these cases, if the
+    conversion fails decoding will be considered to have succeeded and the
+    message will still be processed, but the specified field will not be
+    created on the message object.
+
+    Consider the following sample message_fields section::
+
+        [my_decoder.message_fields]
+        Type = "%Type%Decoded"
+        Requests|count|int = "%Requests%"
+        ResponseCode||int? = "%RespCode%"
+
+    This means the message's Type field will be the pre-existing Type value
+    with "Decoded" appended to it. The message will have a "Requests" integer
+    field, populated by the "Request" value extracted from the parsed input
+    text, which must exist and be an integer or else message decoding will
+    fail. The message *may* have a "ResponseCode" integer field, if a
+    "RespCode" value that is parseable to an integer value was extracted from
+    the input text.
 
 .. _config_statstofieldsdecoder:
 

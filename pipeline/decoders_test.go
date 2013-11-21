@@ -37,6 +37,77 @@ func (d *MockDecoder) Init(config interface{}) (err error) {
 	return
 }
 
+func MessageTemplateSpec(c gospec.Context) {
+
+	c.Specify("A MessageTemplate", func() {
+		msg := getTestMessage()
+
+		c.Specify("populates a message correctly", func() {
+			mt := MessageTemplate{
+				"Logger":        "%Source%",
+				"Type":          "t%Middle%e",
+				"Payload":       "payload",
+				"Hostname":      "hostname",
+				"Pid":           "12345",
+				"Field1":        "field1",
+				"Field2|uri":    "https://mozilla.org",
+				"Field3|Kg|int": "109",
+				"Field4||bytes": "aaa",
+				"Field5||float": "123.456",
+				"Field6||bool":  "True",
+				"Field7||int?":  "nope",
+			}
+			subs := map[string]string{
+				"Source": "logger",
+				"Middle": "yp",
+			}
+			errs := mt.PopulateMessage(msg, subs)
+			c.Expect(errs, gs.IsNil)
+			c.Expect(msg.GetLogger(), gs.Equals, subs["Source"])
+			c.Expect(msg.GetType(), gs.Equals, "type")
+			c.Expect(msg.GetPayload(), gs.Equals, mt["Payload"])
+			c.Expect(msg.GetHostname(), gs.Equals, mt["Hostname"])
+			c.Expect(msg.GetPid(), gs.Equals, int32(12345))
+
+			f, ok := msg.GetFieldValue("Field1")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(f.(string), gs.Equals, mt["Field1"])
+
+			f, ok = msg.GetFieldValue("Field2")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(f.(string), gs.Equals, mt["Field2|uri"])
+
+			f, ok = msg.GetFieldValue("Field3")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(f.(int64), gs.Equals, int64(109))
+
+			f, ok = msg.GetFieldValue("Field4")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(string(f.([]byte)), gs.Equals, "aaa")
+
+			f, ok = msg.GetFieldValue("Field5")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(f.(float64), gs.Equals, 123.456)
+
+			f, ok = msg.GetFieldValue("Field6")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(f.(bool), gs.Equals, true)
+
+			f, ok = msg.GetFieldValue("Field7")
+			c.Expect(ok, gs.IsFalse)
+		})
+
+		c.Specify("errors on type mismatch", func() {
+			mt := MessageTemplate{
+				"notAnInt||int": "five",
+			}
+			subs := make(map[string]string)
+			err := mt.PopulateMessage(msg, subs)
+			c.Expect(err, gs.Not(gs.IsNil))
+		})
+	})
+}
+
 func DecodersSpec(c gospec.Context) {
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
