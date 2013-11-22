@@ -307,9 +307,50 @@ var varMatcher *regexp.Regexp
 // interpolated w/ capture parts from a message matcher.
 type MessageTemplate map[string]string
 
+// Try to convert the `val` string to the specified `type_`, from 'int',
+// 'bytes', 'float', 'bool', or 'string' (a no-op). Returns the converted
+// value if successful, or nil if not. Error value should be returned only in
+// cases of fatal failure; if the type name ends w/ a "?" it's considered an
+// optional field and return error will be nil even if the conversion fails.
+func (mt MessageTemplate) coerceFieldType(val, type_ string) (v interface{}, err error) {
+	required := true
+	validType := true
+	if len(type_) > 0 && type_[len(type_)-1] == '?' {
+		type_ = type_[:len(type_)-1]
+		required = false
+	}
+	switch type_ {
+	case "int":
+		v, err = strconv.ParseInt(val, 10, 64)
+	case "bytes":
+		v = []byte(val)
+	case "float":
+		v, err = strconv.ParseFloat(val, 64)
+	case "bool":
+		v, err = strconv.ParseBool(val)
+	case "string", "":
+		v = val
+	default:
+		validType = false
+		err = fmt.Errorf("Unrecognized field type: '%s'", type_)
+	}
+
+	if err != nil {
+		if !required {
+			return nil, nil
+		}
+		if validType {
+			err = fmt.Errorf("'%s' not parseable as type '%s'", val, type_)
+		}
+	}
+
+	return
+}
+
 // Applies this message template's values to the provided message object,
 // interpolating the provided substitutions into the values in the process.
 func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string) error {
+
 	var val string
 	for field, rawVal := range mt {
 		val = InterpolateString(rawVal, subs)
@@ -324,22 +365,28 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 			msg.SetHostname(val)
 		case "Pid":
 			int_part := strings.Split(val, ".")[0]
-			pid, err := strconv.ParseInt(int_part, 10, 32)
-			if err != nil {
-				return err
+			if pid, err := strconv.ParseInt(int_part, 10, 32); err != nil {
+				return fmt.Errorf("Pid not an integer: %s", val)
+			} else {
+				msg.SetPid(int32(pid))
 			}
-			msg.SetPid(int32(pid))
 		case "Uuid":
 			msg.SetUuid([]byte(val))
 		default:
-			fi := strings.SplitN(field, "|", 2)
-			if len(fi) < 2 {
+			fi := strings.SplitN(field, "|", 3)
+			for i := len(fi); i < 3; i++ {
 				fi = append(fi, "")
 			}
-			f, err := message.NewField(fi[0], val, fi[1])
-			msg.AddField(f)
+			v, err := mt.coerceFieldType(val, fi[2])
 			if err != nil {
-				return err
+				return fmt.Errorf("Field '%s': %s", fi[0], err)
+			}
+			if v != nil {
+				if f, err := message.NewField(fi[0], v, fi[1]); err != nil {
+					return fmt.Errorf("Can't add field '%s': %s", fi[0], err)
+				} else {
+					msg.AddField(f)
+				}
 			}
 		}
 	}

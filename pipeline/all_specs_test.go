@@ -41,6 +41,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(DecodersSpec)
+	r.AddSpec(MessageTemplateSpec)
 	r.AddSpec(OutputsSpec)
 	r.AddSpec(LoadFromConfigSpec)
 	r.AddSpec(WhisperRunnerSpec)
