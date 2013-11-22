@@ -438,6 +438,32 @@ func DecodersSpec(c gospec.Context) {
 			pack.Zero()
 		})
 
+		c.Specify("logs invalid messages", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("invalid payload")
+			_, err = decoder.Decode(pack)
+			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), gs.Equals, "No match")
+			pack.Zero()
+		})
+
+		c.Specify("ignores invalid messages when log_errors is disabled", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			conf.LogErrors = false
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("invalid payload")
+			_, err = decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			pack.Zero()
+		})
+
 		c.Specify("uses kitchen timestamp", func() {
 			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			err := decoder.Init(conf)

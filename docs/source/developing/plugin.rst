@@ -363,9 +363,9 @@ method. If the decoding process produces more than one output pack, additonal
 packs can be appended to the slice.
 
 If decoding fails for any reason, then `Decode` should return a nil value for
-the PipelinePack slice and an appropriate error. in this case the error
-message will be logged and the message will be dropped, no further pipeline
-processing will occur.
+the PipelinePack slice, causing the message to be dropped with no further
+processing. Returning an appropriate error value will cause Heka to log an
+error message about the decoding failure.
 
 .. _filters:
 

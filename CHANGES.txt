@@ -3,6 +3,7 @@
 
 Backwards Incompatibilities
 ---------------------------
+
 * Removed the wrapper 'table' element from the JSON serialization (issue #525)
   i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also 
   removes the special '_name' metadata arribute; the top level _name element
@@ -25,6 +26,9 @@ Bug Handling
 
 Features
 --------
+
+* Added log_errors option to PayloadregexDecoder to allow skipping invalid
+  payloads.
 
 0.4.1 (2013-11-05)
 ==================
