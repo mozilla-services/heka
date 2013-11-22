@@ -80,7 +80,7 @@ function(add_external_plugin vcs url tag)
     set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)
 
-git_clone(https://github.com/rafrombrc/gomock 3980f077186ccfd2c404d6fc09d946f8a89f0a0c)
+git_clone(https://code.google.com/p/gomock ae48011f41cd)
 add_custom_command(TARGET gomock POST_BUILD
 COMMAND ${GO_EXECUTABLE} install code.google.com/p/gomock/mockgen)
 git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf136efdab8)
