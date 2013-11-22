@@ -19,6 +19,9 @@ SandboxManagerFilter Settings
 - working_directory (string): 
     The directory where the filter configurations, code, and states are preserved.  The directory can be unique or shared between sandbox managers since the filter names are unique per manager. Defaults to a directory in ${BASE_DIR}/sbxmgrs with a name generated from the plugin name.
 
+- module_directory (string): 
+    The directory where 'require' will attempt to load the external Lua modules from.  Defaults to ${BASE_DIR}/lua_modules.
+
 - max_filters (uint): 
     The maximum number of filters this manager can run.
 

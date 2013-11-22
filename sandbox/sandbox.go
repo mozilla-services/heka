@@ -51,6 +51,7 @@ type Sandbox interface {
 type SandboxConfig struct {
 	ScriptType       string `toml:"script_type"`
 	ScriptFilename   string `toml:"filename"`
+	ModuleDirectory  string `toml:"module_directory"`
 	PreserveData     bool   `toml:"preserve_data"`
 	MemoryLimit      uint   `toml:"memory_limit"`
 	InstructionLimit uint   `toml:"instruction_limit"`

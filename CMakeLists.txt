@@ -189,3 +189,4 @@ install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" 
 endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
+install(DIRECTORY "${PROJECT_PATH}/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")

@@ -191,8 +191,11 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	lsb := new(LuaSandbox)
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
+	md := C.CString(conf.ModuleDirectory)
+	defer C.free(unsafe.Pointer(md))
 	lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
 		cs,
+		md,
 		C.uint(conf.MemoryLimit),
 		C.uint(conf.InstructionLimit),
 		C.uint(conf.OutputLimit))

@@ -2,9 +2,9 @@
 
 Lua Sandbox Cookbooks
 ===========
-* Payload Transformation
-    * :ref:`json_payload_transform`
 * Decoders
+    * :ref:`json_payload_transform`
+    * :ref:`external_modules`
     * :ref:`mysql_slow_query_decoder`
 * Data Aggregration
     * :ref:`circular_buffer_aggregator`

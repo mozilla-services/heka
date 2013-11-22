@@ -310,7 +310,7 @@ func TestAPIErrors(t *testing.T) {
 		"read_config() must have a single argument",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: library 'unknown' is not available",
+		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
 		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -1156,6 +1156,29 @@ func TestCircularBufferDeltaRestore(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	sb.TimerEvent(0)
+	sb.Destroy("")
+}
+
+func TestExternalModule(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/require.lua"
+	sbc.ModuleDirectory = "./testsupport"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	r := sb.ProcessMessage(pack)
+	if r != 43 {
+		t.Errorf("ProcessMessage should return 43, received %d %s", r, sb.LastError())
+	}
 	sb.Destroy("")
 }
 
