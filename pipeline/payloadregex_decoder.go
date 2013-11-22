@@ -95,6 +95,7 @@ func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
 		err = fmt.Errorf("PayloadRegexDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
+	ld.logErrors = conf.LogErrors
 	return
 }
 
