@@ -16,9 +16,14 @@ in the #heka channel on irc.mozilla.org.
 
 Heka is written in [Go](http://golang.org/), but Heka plugins can be written
 in either Go or [Lua](http://lua.org). The easiest way to compile Heka is by
-using the build script in the root directory of the project, which will set up a 
-Go environment, verify the prerequisites, and install all required dependencies.
-The build process also provides a mechanism for easily integrating external 
-plug-in packages into the generated `hekad`.  For more details and additional
-installation options see 
+sourcing (see below) the build script in the root directory of the project,
+which will set up a Go environment, verify the prerequisites, and install all
+required dependencies. The build process also provides a mechanism for easily
+integrating external plug-in packages into the generated `hekad`. For more
+details and additional installation options see
 [Installing](https://hekad.readthedocs.org/en/latest/installing.html).
+
+WARNING: YOU MUST *SOURCE* THE BUILD SCRIPT (i.e. `source install.sh`) TO
+         BUILD HEKA. Setting up the Go build environment requires changes to
+         the shell environment, if you simply execute the script (i.e.
+         `./install.sh`) these changes will not be made.
