@@ -86,59 +86,73 @@ func StatsdInputSpec(c gs.Context) {
 }
 
 func TestParseMessage(t *testing.T) {
-	testData := map[string]Stat{
+	testData := map[string][]Stat{
 		// without sample rate ----------------------------------
 
-		"sample.gauge:123|g": Stat{
+		"sample.gauge:123|g": []Stat{{
 			"sample.gauge",
 			"123",
 			"g",
 			float32(1),
-		},
+		}},
 
-		"sample.count:303|c": Stat{
+		"sample.count:303|c": []Stat{{
 			"sample.count",
 			"303",
 			"c",
 			float32(1),
-		},
+		}},
 
-		"sample.timer:1234|ms": Stat{
+		"sample.timer:1234|ms": []Stat{{
 			"sample.timer",
 			"1234",
 			"ms",
 			float32(1),
-		},
+		}},
 
-		"sample.histogram:1234|h": Stat{
+		"sample.histogram:1234|h": []Stat{{
 			"sample.histogram",
 			"1234",
 			"h",
 			float32(1),
-		},
+		}},
 
-		"sample.meter:1234|m": Stat{
+		"sample.meter:1234|m": []Stat{{
 			"sample.meter",
 			"1234",
 			"m",
 			float32(1),
-		},
+		}},
 
 		// with sample rate ----------------------------------
 
-		"sample.count.w.rate:123|c|@0.9": Stat{
+		"sample.count.w.rate:123|c|@0.9": []Stat{{
 			"sample.count.w.rate",
 			"123",
 			"c",
 			float32(0.9),
-		},
+		}},
 
-		"sample.timer.w.rate:1234|ms|@0.5": Stat{
+		"sample.timer.w.rate:1234|ms|@0.5": []Stat{{
 			"sample.timer.w.rate",
 			"1234",
 			"ms",
 			float32(0.5),
-		},
+		}},
+
+		// with multiple stats -------------------------------
+
+		"sample.counter:1234|c\nsample.counter2:2345|c\n": []Stat{{
+			"sample.counter",
+			"1234",
+			"c",
+			float32(1),
+		}, Stat{
+			"sample.counter2",
+			"2345",
+			"c",
+			float32(1),
+		}},
 	}
 
 	for msg, expected := range testData {
@@ -148,20 +162,26 @@ func TestParseMessage(t *testing.T) {
 			t.Fatalf("error should be nil, got %s", err)
 		}
 
-		if obtained.Bucket != expected.Bucket {
-			t.Fatalf("expected %s, got %s", expected.Bucket, obtained.Bucket)
+		if len(obtained) != len(expected) {
+			t.Fatalf("expected %d Stat objects, got %d", len(expected), len(obtained))
 		}
 
-		if obtained.Value != expected.Value {
-			t.Fatalf("expected %s, got %s", expected.Value, obtained.Value)
-		}
+		for index, stat := range obtained {
+			if stat.Bucket != expected[index].Bucket {
+				t.Fatalf("expected %s at index %d, got %s", expected[index].Bucket, index, stat.Bucket)
+			}
 
-		if obtained.Modifier != expected.Modifier {
-			t.Fatalf("expected %s, got %s", expected.Modifier, obtained.Modifier)
-		}
+			if stat.Value != expected[index].Value {
+				t.Fatalf("expected %s at index %d, got %s", expected[index].Value, index, stat.Value)
+			}
 
-		if obtained.Sampling != expected.Sampling {
-			t.Fatalf("expected %f, got %f", expected.Sampling, obtained.Sampling)
+			if stat.Modifier != expected[index].Modifier {
+				t.Fatalf("expected %s at index %d, got %s", expected[index].Modifier, index, stat.Modifier)
+			}
+
+			if stat.Sampling != expected[index].Sampling {
+				t.Fatalf("expected %f at index %d, got %f", expected[index].Sampling, index, stat.Sampling)
+			}
 		}
 	}
 }
