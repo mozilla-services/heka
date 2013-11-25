@@ -2,6 +2,9 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "string"
+require "circular_buffer"
+
 local rows = read_config("rows")
 local sec_per_row = read_config("sec_per_row")
 local REQUESTS    = 1

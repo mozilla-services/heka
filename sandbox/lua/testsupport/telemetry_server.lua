@@ -24,11 +24,14 @@
 --	name:"duration" value_type:DOUBLE representation:"ms" value_double:0.547324  
 --	name:"size" value_type:DOUBLE representation:"B" value_double:4819 ]
 
-require "os"
 require "cjson"
+-- required by the grammars
+require "os"
+require "string"
 require "lpeg"
+
 local rfc3339 = require("rfc3339")
-local severity = require("rfc5424_severity")
+local rfc5424 = require("rfc5424")
 
 local fields = {
     url = "",
@@ -39,6 +42,7 @@ local fields = {
 }
 
 local msg = {
+    Timestamp = 0,
     Type = "TelemetryServerLog",
     Severity = "7",
     Fields = fields
@@ -50,23 +54,10 @@ function process_message()
         return -1
     end
 
-    local ts = lpeg.match(rfc3339, json.timestamp)
-    if ts then
-        local offset = 0
-        if ts.hour_offset then
-            offset = (ts.hour_offset * 60 * 60) + (ts.minute_offset * 60)
-            if ts.sign_offset == "+" then offset = offset * -1 end
-        end
+    local ts = lpeg.match(rfc3339.grammar, json.timestamp)
+    msg.Timestamp = rfc3339.time_ns(ts)
 
-        local frac = 0
-        if ts.sec_frac then
-            frac = ts.sec_frac
-        end
-        -- for this to work properly the Heka TZ must be UTC
-        msg.Timestamp = (os.time(ts) + frac + offset) * 1e9
-    end
-
-    msg.Severity = lpeg.match(severity, json.level) or "7"
+    msg.Severity = lpeg.match(rfc5424.severity, json.level) or "7"
     fields.url = json.url
     fields.duration.value = json.duration_ms
     fields.code = json.code
