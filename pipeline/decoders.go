@@ -16,148 +16,12 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"log"
-	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 )
-
-// Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
-// so these runners handle a bit more than the others.
-type DecoderRunner interface {
-	PluginRunner
-	// Returns associated Decoder plugin object.
-	Decoder() Decoder
-	// Starts the DecoderRunner so it's listening for incoming PipelinePacks.
-	// Should decrement the wait group after shut down has completed.
-	Start(h PluginHelper, wg *sync.WaitGroup)
-	// Returns the channel into which incoming PipelinePacks to be decoded
-	// should be dropped.
-	InChan() chan *PipelinePack
-	// UUID to distinguish the duplicate instances of the same registered
-	// Decoder plugin type from each other.
-	UUID() string
-	// Returns the running Heka router for direct use by decoder plugins.
-	Router() MessageRouter
-	// Fetches a new pack from the input supply and returns it to the caller,
-	// for decoders that generate multiple messages from a single input
-	// message.
-	NewPack() *PipelinePack
-}
-
-type dRunner struct {
-	pRunnerBase
-	inChan chan *PipelinePack
-	uuid   string
-	router *messageRouter
-	h      PluginHelper
-}
-
-// Creates and returns a new (but not yet started) DecoderRunner for the
-// provided Decoder plugin.
-func NewDecoderRunner(name string, decoder Decoder,
-	pluginGlobals *PluginGlobals) DecoderRunner {
-
-	return &dRunner{
-		pRunnerBase: pRunnerBase{
-			name:          name,
-			plugin:        decoder.(Plugin),
-			pluginGlobals: pluginGlobals,
-		},
-		uuid:   uuid.NewRandom().String(),
-		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
-	}
-}
-
-func (dr *dRunner) Decoder() Decoder {
-	return dr.plugin.(Decoder)
-}
-
-func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
-	dr.h = h
-	dr.router = h.PipelineConfig().router
-	go func() {
-		var (
-			pack  *PipelinePack
-			packs []*PipelinePack
-			err   error
-		)
-		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
-			wanter.SetDecoderRunner(dr)
-		}
-		for pack = range dr.inChan {
-			if packs, err = dr.Decoder().Decode(pack); packs != nil {
-				for _, p := range packs {
-					h.PipelineConfig().router.InChan() <- p
-				}
-			} else {
-				if err != nil {
-					dr.LogError(err)
-				}
-				pack.Recycle()
-				continue
-			}
-		}
-		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
-			wanter.Shutdown()
-		}
-		dr.LogMessage("stopped")
-		wg.Done()
-	}()
-}
-
-func (dr *dRunner) InChan() chan *PipelinePack {
-	return dr.inChan
-}
-
-func (dr *dRunner) UUID() string {
-	return dr.uuid
-}
-
-func (dr *dRunner) Router() MessageRouter {
-	return dr.router
-}
-
-func (dr *dRunner) NewPack() *PipelinePack {
-	return <-dr.h.PipelineConfig().inputRecycleChan
-}
-
-func (dr *dRunner) LogError(err error) {
-	log.Printf("Decoder '%s' error: %s", dr.name, err)
-}
-
-func (dr *dRunner) LogMessage(msg string) {
-	log.Printf("Decoder '%s': %s", dr.name, msg)
-}
-
-// Any decoder that needs access to its DecoderRunner can implement this
-// interface and it will be provided at DecoderRunner start time.
-type WantsDecoderRunner interface {
-	SetDecoderRunner(dr DecoderRunner)
-}
-
-// Any decoder that needs to know when the DecoderRunner is exiting can
-// implement this interface and it will called on DecoderRunner exit.
-type WantsDecoderRunnerShutdown interface {
-	Shutdown()
-}
-
-// Heka Decoder plugin interface.
-type Decoder interface {
-	// Extract data loaded into the PipelinePack (usually in pack.MsgBytes)
-	// and use it to populate pack.Message message objects. If decoding
-	// succeeds (i.e. `err` is nil), the original pack will be mutated and
-	// returned as the first item in the `packs` return slice. If there is an
-	// error, `packs` should be returned as nil.
-	// Returning (nil, nil) is valid in cases where the decoding failed but
-	// the error should not be logged.
-	Decode(pack *PipelinePack) (packs []*PipelinePack, err error)
-}
 
 // Decoder for converting ProtocolBuffer data into Message objects.
 type ProtobufDecoder struct{}
@@ -180,10 +44,9 @@ type extraStatMessage struct {
 	pack      *PipelinePack
 }
 
-// Decoder that expects statsd string format data in the message payload,
-// converts that to identical statsd format data in the message fields, in the
-// same format that a StatAccumInput w/ `emit_in_fields` set to true would
-// use.
+// Decoder that expects graphite string format data in the message payload,
+// converts that to identical stats data in the message fields, in the same
+// format that a StatAccumInput w/ `emit_in_fields` set to true would use.
 type StatsToFieldsDecoder struct {
 	runner DecoderRunner
 	helper PluginHelper
@@ -295,76 +158,4 @@ func (d *StatsToFieldsDecoder) addStatField(pack *PipelinePack, name string,
 	}
 	pack.Message.AddField(field)
 	return nil
-}
-
-// Populated by the init function, this regex matches the MessageFields values
-// to interpolate variables from capture groups or other parts of the existing
-// message.
-var varMatcher *regexp.Regexp
-
-// Common type used to specify a set of values with which to populate a
-// message object. The keys represent message fields, the values can be
-// interpolated w/ capture parts from a message matcher.
-type MessageTemplate map[string]string
-
-// Applies this message template's values to the provided message object,
-// interpolating the provided substitutions into the values in the process.
-func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string) error {
-	var val string
-	for field, rawVal := range mt {
-		val = InterpolateString(rawVal, subs)
-		switch field {
-		case "Logger":
-			msg.SetLogger(val)
-		case "Type":
-			msg.SetType(val)
-		case "Payload":
-			msg.SetPayload(val)
-		case "Hostname":
-			msg.SetHostname(val)
-		case "Pid":
-			int_part := strings.Split(val, ".")[0]
-			pid, err := strconv.ParseInt(int_part, 10, 32)
-			if err != nil {
-				return err
-			}
-			msg.SetPid(int32(pid))
-		case "Uuid":
-			msg.SetUuid([]byte(val))
-		default:
-			fi := strings.SplitN(field, "|", 2)
-			if len(fi) < 2 {
-				fi = append(fi, "")
-			}
-			f, err := message.NewField(fi[0], val, fi[1])
-			msg.AddField(f)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Given a regular expression, return the string resulting from interpolating
-// variables that exist in matchParts
-//
-// Example input to a formatRegexp: Reported at %Hostname% by %Reporter%
-// Assuming there are entries in matchParts for 'Hostname' and 'Reporter', the
-// returned string will then be: Reported at Somehost by Jonathon
-func InterpolateString(formatRegexp string, subs map[string]string) (newString string) {
-	return varMatcher.ReplaceAllStringFunc(formatRegexp,
-		func(matchWord string) string {
-			// Remove the preceding and trailing %
-			m := matchWord[1 : len(matchWord)-1]
-			if repl, ok := subs[m]; ok {
-				return repl
-			}
-			return fmt.Sprintf("<%s>", m)
-		})
-}
-
-// Initialize the varMatcher for use in InterpolateString
-func init() {
-	varMatcher, _ = regexp.Compile("%\\w+%")
 }

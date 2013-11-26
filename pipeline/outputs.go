@@ -31,33 +31,6 @@ import (
 	"time"
 )
 
-// Heka PluginRunner for Output plugins.
-type OutputRunner interface {
-	PluginRunner
-	// Input channel where Output should be listening for incoming messages.
-	InChan() chan *PipelinePack
-	// Associated Output plugin instance.
-	Output() Output
-	// Starts the Output plugin listening on the input channel in a separate
-	// goroutine and returns. Wait group should be released when the Output
-	// plugin shuts down cleanly and the goroutine has completed.
-	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
-	// Returns a ticker channel configured to send ticks at an interval
-	// specified by the plugin's ticker_interval config value, if provided.
-	Ticker() (ticker <-chan time.Time)
-	// Retains a pack for future delivery to the plugin when a plugin needs
-	// to shut down and wants to retain the pack for the next time its
-	// running properly
-	RetainPack(pack *PipelinePack)
-	// Parsing engine for this Output's message_matcher.
-	MatchRunner() *MatchRunner
-}
-
-// Heka Output plugin type.
-type Output interface {
-	Run(or OutputRunner, h PluginHelper) (err error)
-}
-
 // Output plugin that writes message contents out using Go standard library's
 // `log` package.
 type LogOutput struct {
