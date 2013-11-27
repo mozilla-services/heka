@@ -11,6 +11,13 @@ set(CPACK_PACKAGE_VERSION_PATCH 1)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
+    /usr
+    /usr/bin
+    /usr/share
+    /usr/share/man
+)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(Go 1.1 REQUIRED)
