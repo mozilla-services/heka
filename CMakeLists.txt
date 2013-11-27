@@ -173,6 +173,18 @@ add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
 DEPENDS hekad)
 
+if (UNIX)
+    get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
+    set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
+    add_custom_target(pkg
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
+    COMMAND ${CPACK_COMMAND} --config ./CPackConfig.cmake
+    DEPENDS hekad
+    COMMENT "Custom package target"
+    POST_BUILD
+    COMMAND sh ../scripts/rename-debs.sh)
+endif()
+
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
 add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
