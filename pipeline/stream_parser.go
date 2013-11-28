@@ -293,7 +293,7 @@ func (m *MessageProtoParser) findRecord(buf []byte) (bytesRead int, record []byt
 	if len(buf) < headerEnd {
 		return // read more data to get the remainder of the header
 	}
-	if m.header.MessageLength != nil || decodeHeader(buf[bytesRead+message.HEADER_DELIMITER_SIZE:headerEnd], m.header) {
+	if m.header.MessageLength != nil || DecodeHeader(buf[bytesRead+message.HEADER_DELIMITER_SIZE:headerEnd], m.header) {
 		messageEnd := headerEnd + int(m.header.GetMessageLength())
 		if len(buf) < messageEnd {
 			return // read more data to get the remainder of the message
