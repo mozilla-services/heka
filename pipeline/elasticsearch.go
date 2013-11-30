@@ -49,6 +49,8 @@ type ElasticSearchOutput struct {
 	messageFormatter MessageFormatter
 	// The BulkIndexer used to index documents
 	bulkIndexer BulkIndexer
+	// Specify the document id or field name
+	id                   string
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -82,6 +84,8 @@ type ElasticSearchOutputConfig struct {
 	// When formating the Index use the Timestamp from the Message instead of
 	// Now.
 	ESIndexFromTimestamp bool
+	// Document ID
+	Id string
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -95,6 +99,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Timestamp:            "2006-01-02T15:04:05.000Z",
 		Server:               "http://localhost:9200",
 		ESIndexFromTimestamp: false,
+		Id:                   "",
 	}
 }
 
@@ -109,6 +114,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.backChan = make(chan []byte, 2)
 	o.format = conf.Format
 	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
+	o.id = conf.Id
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
@@ -219,13 +225,30 @@ func (e *ElasticSearchCoordinates) String(m *message.Message) string {
 func (e *ElasticSearchCoordinates) Bytes(m *message.Message) []byte {
 	buf := bytes.Buffer{}
 	buf.WriteString(`{"index":{"_index":`)
-	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Index)))
+	
+	var (
+		err error
+		interpIndex string
+		interpType string
+		interpId string
+	)
+
+	interpIndex, err = interpolateFlag(e, m, e.Index)
+
+	buf.WriteString(strconv.Quote(interpIndex))
 	buf.WriteString(`,"_type":`)
-	buf.WriteString(strconv.Quote(interpolateFlag(e, m, e.Type)))
-	if len(e.Id) > 0 {
-		buf.WriteString(`,"_id":`)
-		buf.WriteString(strconv.Quote(e.Id))
-	}
+
+	interpType, err = interpolateFlag(e, m, e.Type)
+	buf.WriteString(strconv.Quote(interpType))
+        
+	//Interpolate the Id flag
+	interpId, err = interpolateFlag(e, m, e.Id)
+
+	//Check that Id successfully interpolated. If not then do not specify id at all and default to auto-generated one.
+	if len(e.Id) > 0 && err == nil {
+                buf.WriteString(`,"_id":`)
+                buf.WriteString(strconv.Quote(interpId))
+        }
 	if e.Timestamp != nil {
 		t := time.Unix(0, *e.Timestamp)
 		buf.WriteString(`,"_timestamp":"`)
@@ -494,6 +517,7 @@ func (o *ElasticSearchOutput) handleMessage(pack *PipelinePack, outBytes *[]byte
 		Timestamp:            pack.Message.Timestamp,
 		TimestampFormat:      o.timestamp,
 		ESIndexFromTimestamp: o.esIndexFromTimestamp,
+		Id:                   o.id,
 	}
 
 	var document []byte
@@ -532,8 +556,9 @@ func (o *ElasticSearchOutput) committer(wg *sync.WaitGroup) {
 }
 
 // Replaces a date pattern (ex: %{2012.09.19} in the index name
-func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name string) (interpolatedValue string) {
+func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name string) (interpolatedValue string, err error) {
         iSlice := strings.Split(name, "%{")
+        var t time.Time
 
         for i,element := range iSlice {
                 elEnd := strings.Index(element, "}")
@@ -559,18 +584,19 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
                                 if fname, ok := m.GetFieldValue(elVal); ok {
                                         iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], fname.(string), -1)
                                 } else {
-                                        var t time.Time
-                                        if e.ESIndexFromTimestamp && e.Timestamp != nil {
-                                          t = time.Unix(0, *e.Timestamp).UTC()
-                                        } else {
-                                          t = time.Now()
-                                        }
-                                        iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
-                                }
-                        }
-                }
-        }
-
+					if e.ESIndexFromTimestamp && e.Timestamp != nil {
+		                                t = time.Unix(0, *e.Timestamp).UTC()
+                	                } else {
+	                                	t = time.Now()
+        	                        }
+	                                iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
+                	        }
+                	}
+			if iSlice[i] == elVal {
+				err = fmt.Errorf("Could not interpolate field from config: %s", name)
+			}
+        	}
+	}
         interpolatedValue = strings.Join(iSlice, "")
         return
 }
