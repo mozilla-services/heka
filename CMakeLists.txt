@@ -61,10 +61,6 @@ elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
     
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
-    if (DPKG_EXECUTABLE)
-        set(CPACK_GENERATOR ${CPACK_GENERATOR} "DEB")
-        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
-    endif()
 
     find_program(RPMBUILD_EXECUTABLE rpmbuild PATH_SUFFIXES bin)
     if (RPMBUILD_EXECUTABLE)
@@ -174,16 +170,14 @@ ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
 DEPENDS hekad)
 
 if (UNIX AND DPKG_EXECUTABLE)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
     get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
     set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
     add_custom_target(deb
-    COMMAND rm *.deb
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-    COMMAND ${CPACK_COMMAND} -G DEB --config ./CPackConfig.cmake
+    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${GO_ARCH}" --config ./CPackConfig.cmake
     DEPENDS hekad
-    COMMENT "Custom deb target"
-    POST_BUILD
-    COMMAND sh ../scripts/rename-debs.sh)
+    COMMENT "Custom deb target")
 endif()
 
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)

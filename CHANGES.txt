@@ -1,3 +1,14 @@
+0.4.2 (2013-12-??)
+==================
+
+Bug Handling
+------------
+
+* Changed CPack configuration such that the 'make package' target no longer
+  creates deb packages, and added a new 'make deb' target that creates debs
+  with the filename expected by the deb package naming conventions (see
+  https://github.com/mozilla-services/heka/issues/545).
+
 0.4.1 (2013-11-05)
 ==================
 
