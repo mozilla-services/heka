@@ -209,7 +209,7 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 // Generates a single message with a payload that is a string representation
 // of the fields data and payload extracted from each running plugin's report
 // message and hands the message to the router for delivery.
-func (pc *PipelineConfig) allReportsMsg() {
+func (pc *PipelineConfig) AllReportsMsg() {
 	report_type, msg_payload := pc.allReportsData()
 
 	pack := pc.PipelinePack(0)
@@ -220,10 +220,10 @@ func (pc *PipelineConfig) allReportsMsg() {
 
 func (pc *PipelineConfig) allReportsStdout() {
 	report_type, msg_payload := pc.allReportsData()
-	pc.log(pc.formatTextReport(report_type, msg_payload))
+	pc.log(pc.FormatTextReport(report_type, msg_payload))
 }
 
-func (pc *PipelineConfig) formatTextReport(report_type, payload string) string {
+func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 
 	header := []string{
 		"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength",

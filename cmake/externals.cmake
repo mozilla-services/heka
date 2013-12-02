@@ -99,7 +99,7 @@ git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 24023f696a08fc54665428825e18d896079a29c8)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 66275e17b164754274856c1f5d794056f863bff2)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
