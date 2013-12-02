@@ -279,11 +279,11 @@ Inputs
 AMQPInput
 ---------
 
-Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from
-the specified queue. If the message is serialized by hekad's AMQPOutput
-then the message will be de-serialized, otherwise the message will be
-run through the specified PayloadRegexDecoder's. As AMQP is dynamically
-programmable, the broker topology needs to be specified.
+Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from the
+specified queue. If the message is serialized by hekad's AMQPOutput then the
+message will be de-serialized, otherwise the message will be run through the
+specified decoder. As AMQP is dynamically programmable, the broker topology
+needs to be specified.
 
 Parameters:
 
@@ -333,7 +333,8 @@ consume serialized messages would look like:
     exchange = "testout"
     exchangeType = "fanout"
 
-Or if using a PayloadRegexDecoder to parse OSX syslog messages may look like:
+Or you might use a PayloadRegexDecoder to parse OSX syslog messages with the
+following:
 
 .. code-block:: ini
 
@@ -922,7 +923,7 @@ PayloadJsonDecoder
 ------------------
 
 This decoder plugin accepts JSON blobs and allows you to map parts
-of the JSON into Field attributes of the pipelinepack message using
+of the JSON into Field attributes of the pipeline pack message using
 JSONPath syntax.
 
 Parameters:
@@ -1040,10 +1041,9 @@ Examples:
 PayloadXmlDecoder
 -----------------
 
-This decoder plugin accepts XML blobs in the message payload and
-allows you to map parts of the XML into Field attributes of the
-pipelinepack message using XPath syntax using the `xmlpath
-<http://launchpad.net/xmlpath>`_ library.
+This decoder plugin accepts XML blobs in the message payload and allows you to
+map parts of the XML into Field attributes of the pipeline pack message using
+XPath syntax using the `xmlpath <http://launchpad.net/xmlpath>`_ library.
 
 Parameters:
 

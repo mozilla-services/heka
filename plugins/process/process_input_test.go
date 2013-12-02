@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-func InputsSpec(c gs.Context) {
+func ProcessInputSpec(c gs.Context) {
 	t := &pipeline_ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

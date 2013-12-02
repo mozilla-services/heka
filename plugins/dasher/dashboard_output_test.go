@@ -22,7 +22,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"testing"
 )
+
+func TestAllSpecs(t *testing.T) {
+	r := gs.NewRunner()
+	r.Parallel = false
+
+	r.AddSpec(DashboardOutputSpec)
+
+	gs.MainGoTest(r, t)
+}
 
 func DashboardOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)

@@ -34,3 +34,9 @@ func (self *ProtobufDecoder) Decode(pack *PipelinePack) (
 	}
 	return
 }
+
+func init() {
+	RegisterPlugin("ProtobufDecoder", func() interface{} {
+		return new(ProtobufDecoder)
+	})
+}

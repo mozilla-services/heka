@@ -27,8 +27,18 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
 	"sync"
+	"testing"
 	"time"
 )
+
+func TestAllSpecs(t *testing.T) {
+	r := gs.NewRunner()
+	r.Parallel = false
+
+	r.AddSpec(AMQPPluginSpec)
+
+	gs.MainGoTest(r, t)
+}
 
 func AMQPPluginSpec(c gs.Context) {
 	t := &pipeline_ts.SimpleT{}

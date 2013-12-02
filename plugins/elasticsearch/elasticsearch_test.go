@@ -21,8 +21,18 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"testing"
 	"time"
 )
+
+func TestAllSpecs(t *testing.T) {
+	r := gs.NewRunner()
+	r.Parallel = false
+
+	r.AddSpec(ElasticSearchOutputSpec)
+
+	gs.MainGoTest(r, t)
+}
 
 func getTestMessageWithFunnyFields() *Message {
 	field, _ := NewField(`"foo`, "bar\n", "")

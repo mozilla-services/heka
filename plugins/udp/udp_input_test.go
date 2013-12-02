@@ -25,7 +25,17 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
+	"testing"
 )
+
+func TestAllSpecs(t *testing.T) {
+	r := gs.NewRunner()
+	r.Parallel = false
+
+	r.AddSpec(UdpInputSpec)
+
+	gs.MainGoTest(r, t)
+}
 
 func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
 	emsg = make([]byte, 3+len(hbytes)+len(mbytes))

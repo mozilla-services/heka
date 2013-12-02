@@ -305,3 +305,9 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 	}
 	return
 }
+
+func init() {
+	RegisterPlugin("MultiDecoder", func() interface{} {
+		return new(MultiDecoder)
+	})
+}

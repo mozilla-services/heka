@@ -127,3 +127,9 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 		this.rates = this.rates[:0]
 	}
 }
+
+func init() {
+	RegisterPlugin("CounterFilter", func() interface{} {
+		return new(CounterFilter)
+	})
+}

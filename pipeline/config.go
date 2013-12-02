@@ -671,18 +671,3 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 	return
 }
-
-func init() {
-	RegisterPlugin("MultiDecoder", func() interface{} {
-		return new(MultiDecoder)
-	})
-	RegisterPlugin("ProtobufDecoder", func() interface{} {
-		return new(ProtobufDecoder)
-	})
-	RegisterPlugin("StatAccumInput", func() interface{} {
-		return new(StatAccumInput)
-	})
-	RegisterPlugin("CounterFilter", func() interface{} {
-		return new(CounterFilter)
-	})
-}
