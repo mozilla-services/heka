@@ -170,12 +170,17 @@ ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
 DEPENDS hekad)
 
 if (UNIX AND DPKG_EXECUTABLE)
+    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
+    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
     get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
     set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
+    
     add_custom_target(deb
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${GO_ARCH}" --config ./CPackConfig.cmake
+    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
     DEPENDS hekad
     COMMENT "Custom deb target")
 endif()
