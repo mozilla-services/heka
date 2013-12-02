@@ -204,11 +204,6 @@ func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
 	return pack
 }
 
-// Returns the Router InChan length for backpresure detection and reporting
-func (self *PipelineConfig) RouterInChanLen() int {
-	return len(self.router.InChan())
-}
-
 // Returns the router.
 func (self *PipelineConfig) Router() MessageRouter {
 	return self.router
