@@ -149,7 +149,8 @@ system:
 
         cpack                # All
         # Or use the makefile target
-        make package         # Unix
+        make package         # Unix (no deb, see below)
+        make deb             # Unix (if dpkg is available see below)
         mingw32-make package # Windows
 
 The packages will be created in the build directory.
@@ -159,3 +160,11 @@ The packages will be created in the build directory.
     You will need `rpmbuild` installed to build the rpms.
 
     .. seealso:: `Setting up an rpm-build environment <http://wiki.centos.org/HowTos/SetupRpmBuildEnvironment>`_
+
+.. note::
+
+    For file name convention reasons, deb packages won't be created by running
+    `cpack` or `make package`, even on a Unix machine w/ dpkg installed.
+    Instead, running `source build.sh` on such a machine will generate a
+    Makefile with a separate 'deb' target, so you can run `make deb` to
+    generate the appropriate deb package.

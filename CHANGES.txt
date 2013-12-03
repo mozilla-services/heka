@@ -1,3 +1,21 @@
+0.4.2 (2013-12-02)
+==================
+
+Bug Handling
+------------
+
+* Changed CPack configuration such that the 'make package' target no longer
+  creates deb packages, and added a new 'make deb' target that creates debs
+  with the filename expected by the deb package naming conventions (see
+  https://github.com/mozilla-services/heka/issues/545).
+
+* Doc clarifications re: required use of ProtobufDecoder (see
+  https://github.com/mozilla-services/heka/issues/550).
+
+* Explicitly exclude system level folders from those that CPack will include
+  as part of the Heka RPM (requires CMake >= 2.8.12) (see
+  https://github.com/mozilla-services/heka/issues/548). 
+
 0.4.1 (2013-11-05)
 ==================
 
