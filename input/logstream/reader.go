@@ -379,34 +379,28 @@ func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn ch
 		priorRead                 int
 	)
 
-	// Check that we haven't been rotated, if we have, update the filename
-	// to reflect our new location.
-	fd, err = pg.lfr.ResumeFileReading()
-	if err != nil {
-		close(packReturn)
-		return
-	}
-	position = pg.lfr.position
-	record = make([]byte, 0, 200)
-
 	// Determine if we're farther into the file than possible (truncate)
-	finfo, err := fd.Stat()
-	if err == nil && finfo.Size() < position.SeekPosition {
-		fd.Seek(0, 0)
-		position.SeekPosition = 0
-	}
-
-	pinfo, err := os.Stat(pg.lfr.position.Filename)
-	if err != nil || !os.SameFile(pinfo, finfo) {
-		filename = pinfo.Name()
-		if position.ShouldUseNewer(pg.lfr.logfiles) {
-			isRotated = true
+	finfo, err := fm.fd.Stat()
+	if err == nil {
+		if finfo.Size() < fm.seek {
+			fm.fd.Seek(0, 0)
+			fm.seek = 0
 		}
 	}
 
-	newFilename, isRotated := pg.IsRotated()
-	if isRotated {
-		position.Filename = newFilename
+	// Check that we haven't been rotated, if we have, put this
+	// back on discover
+	isRotated := false
+	pinfo, err := os.Stat(fm.logfile)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		isRotated = true
+		defer func() {
+			if fm.fd != nil {
+				fm.fd.Close()
+			}
+			fm.fd = nil
+			fm.seek = 0
+		}()
 	}
 
 	for err != nil {
