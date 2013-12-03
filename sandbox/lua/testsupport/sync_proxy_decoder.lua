@@ -13,7 +13,7 @@ local log_pattern = '^(%S-) %S- (%S-) %[(.-)%] "(%S-) (.-) .-" (%d+) (%d+) "(.-)
 local offset_pattern = "([+-])(%d%d)(%d%d)"
 local date_pattern = '^(%d+)/(%w+)/(%d+):(%d+):(%d+):(%d+) ' .. offset_pattern
 local months = {Jan=1, Feb=2, Mar=3, Apr=4, May=5, Jun=6, Jul=7, Aug=8, Sep=9, Oct=10, Nov=11, Dec=12}
-local t = {year="", month=1, month_name="", day="", hour="", min="", sec="", offset_sign="", offset_hour="", offset_min="", isdst=false}
+local t = {year="", month=1, month_name="", day="", hour="", min="", sec="", offset_sign="", offset_hour="", offset_min=""}
 
 local fields = {
     RemoteIP = {value = "", representation="ipv4"},

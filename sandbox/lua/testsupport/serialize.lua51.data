@@ -13,7 +13,6 @@ _G["kvp"]["r"][4] = 92.002
 _G["kvp"]["r"][5] = 91.10001
 _G["kvp"]["r"]["key"] = "val"
 _G["kvp"]["b"] = "bar"
-_G["count"] = 0
 _G["uuids"] = {}
 _G["uuids"][1] = {}
 _G["uuids"][1]["type"] = "test"
@@ -65,4 +64,5 @@ _G["nested"]["cb"]:set_header(5, "Column_5", "count", "sum")
 _G["nested"]["cb"]:set_header(6, "Column_6", "count", "sum")
 _G["nested"]["cb"]:fromstring("1 1 0 0 0 0 0 0 0 0 0 0 0 0")
 _G["rate"] = 0.12345678
+_G["count"] = 0
 _G["_VERSION"] = "Lua 5.1"

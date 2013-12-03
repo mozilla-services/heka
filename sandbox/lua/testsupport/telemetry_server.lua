@@ -25,10 +25,6 @@
 --	name:"size" value_type:DOUBLE representation:"B" value_double:4819 ]
 
 require "cjson"
--- required by the grammars
-require "os"
-require "string"
-require "lpeg"
 
 local rfc3339 = require("rfc3339")
 local rfc5424 = require("rfc5424")
