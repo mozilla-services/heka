@@ -33,6 +33,8 @@ Features
 * Added log_errors option to PayloadregexDecoder to allow skipping invalid
   payloads.
 
+* Added "id" flag to elasticsearch output (issue #386).
+
 0.4.2 (2013-12-02)
 ==================
 
