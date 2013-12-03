@@ -19,8 +19,8 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
 	. "github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,6 +38,7 @@ func getTestMessageWithFunnyFields() *Message {
 	field, _ := NewField(`"foo`, "bar\n", "")
 	field1, _ := NewField(`"number`, 64, "")
 	field2, _ := NewField("\xa3", "\xa3", "")
+	field3, _ := NewField("idField", "1234", "")
 
 	msg := &Message{}
 	msg.SetType("TEST")
@@ -53,6 +54,7 @@ func getTestMessageWithFunnyFields() *Message {
 	msg.AddField(field)
 	msg.AddField(field1)
 	msg.AddField(field2)
+	msg.AddField(field3)
 
 	return msg
 }
@@ -107,18 +109,30 @@ func ElasticSearchOutputSpec(c gs.Context) {
 	})
 
 	c.Specify("Should interpolate fields and message attributes for index and type names", func() {
-		interpolatedIndex := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), "heka-%{Pid}-%{\"foo}-%{2006.01.02}")
-		interpolatedType := interpolateFlag(&ElasticSearchCoordinates{}, getTestMessageWithFunnyFields(), "%{Type}")
+		interpolatedIndex, err := interpolateFlag(&ElasticSearchCoordinates{},
+			getTestMessageWithFunnyFields(), "heka-%{Pid}-%{\"foo}-%{2006.01.02}")
+		interpolatedType, err := interpolateFlag(&ElasticSearchCoordinates{},
+			getTestMessageWithFunnyFields(), "%{Type}")
 		t := time.Now()
 
+		c.Expect(err, gs.Equals, nil)
 		c.Expect(interpolatedIndex, gs.Equals, "heka-14098-bar\n-"+t.Format("2006.01.02"))
 		c.Expect(interpolatedType, gs.Equals, "TEST")
 	})
 
-}
+	c.Specify("Should interpolate id specified in config", func() {
+		var conf ElasticSearchOutputConfig
+		conf.Id = "%{idField}"
+		interpolatedId, err := interpolateFlag(&ElasticSearchCoordinates{},
+			getTestMessageWithFunnyFields(), conf.Id)
+		c.Expect(interpolatedId, gs.Equals, "1234")
 
-func init() {
-	RegisterPlugin("ElasticSearchOutput", func() interface{} {
-		return new(ElasticSearchOutput)
+		//Test if Id field does not interpolate
+		conf.Id = "%{idFail}"
+		unInterpolatedId, err := interpolateFlag(&ElasticSearchCoordinates{},
+			getTestMessageWithFunnyFields(), conf.Id)
+		c.Expect(strings.Contains(err.Error(),
+			"Could not interpolate field from config: %{idFail}"), gs.Equals, true)
+		c.Expect(unInterpolatedId, gs.Equals, "idFail")
 	})
 }
