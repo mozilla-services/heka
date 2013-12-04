@@ -39,9 +39,18 @@ Functions that must be exposed from the Lua sandbox
     *Return*
         none
 
-Heka functions that are exposed to the Lua sandbox
----------------------------------------------------
+Core functions that are exposed to the Lua sandbox
+--------------------------------------------------
+See: https://github.com/mozilla-services/lua_sandbox/blob/master/docs/sandbox_api.md
 
+**require(libraryName)**
+
+**output(arg0, arg1, ...argN)**
+
+    In most cases circular buffers should be directly output using inject_message.  However, in order to create graph annotations the annotation table has to be written to the output buffer followed by the circular buffer.  The output function is the only way to combine this data before injection (use a unique payload_type when injecting a message with a non-standard circular buffer mashups). :ref:`graph_annotation`
+
+Heka specific functions that are exposed to the Lua sandbox
+-----------------------------------------------------------
 **read_config(variableName)**
     Provides access to the sandbox configuration variables.
 
@@ -75,26 +84,6 @@ Heka functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
-**output(arg0, arg1, ...argN)**
-    Appends data to the payload buffer, which cannot exceed the output_limit 
-    configuration parameter.
-
-    *Arguments*
-        - arg (number, string, bool, nil, table, circular_buffer) Lua variable or literal to be appended the output buffer
-
-    *Return*
-        none
-    
-    *Notes*
-
-        Outputting a Lua table will serialize it to JSON according to the following guidelines/restrictions:
-            - Tables cannot contain internal of circular references.
-            - Keys starting with an underscore are considered private and will not be serialized.
-            - Arrays only use contiguous numeric keys starting with an index of 1. Private keys are the exception i.e. local a = {1,2,3,_hidden="private"} will be serialized as: ``[1,2,3]\n``
-            - Hashes only use string keys (numeric keys will not be quoted and the JSON output will be invalid). Note: the hash keys are output in an arbitrary order i.e. local a = {x = 1, y = 2} will be serialized as: ``{"y":2,"x":1}\n``.
-
-        In most cases circular buffers should be directly output using inject_message.  However, in order to create graph annotations the annotation table has to be written to the output buffer followed by the circular buffer.  The output function is the only way to combine this data before injection (use a unique payload_type when injecting a message with a non-standard circular buffer mashups). :ref:`graph_annotation`
-
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
     and then clears the buffer. Two pieces of optional metadata are allowed and
@@ -125,6 +114,7 @@ Heka functions that are exposed to the Lua sandbox
 
     *Notes*
         - injection limits are enforced as described above
+        - if the :ref:`config_dashboard_output` plugin is configured a graphical view of the data is automatically generated.
 
 **inject_message(message_table)**
     Creates a new Heka protocol buffer message using the contents of the
@@ -150,22 +140,6 @@ Heka functions that are exposed to the Lua sandbox
 
     *Notes*
         - injection limits are enforced as described above
-
-**require(libraryName)**
-    By default only the base library is loaded additional libraries must be explicitly specified.
-
-    *Arguments*
-        - libraryName (string)
-            - **cjson** loaded the cjson.safe module in a global cjson table, exposing the decoding functions only. http://www.kyne.com.au/~mark/software/lua-cjson-manual.html.
-            - **lpeg** loads the Lua Parsing Expression Grammar Library http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
-            - **math**
-            - **os**
-            - **string**
-            - **table**
-            - **circular_buffer** :ref:`circular_buffer`
-
-    *Return*
-        a table (which is also globally registered with the library name).
 
 Sample Lua Message Structure
 ----------------------------
