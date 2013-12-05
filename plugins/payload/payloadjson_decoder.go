@@ -45,6 +45,9 @@ type PayloadJsonDecoderConfig struct {
 	// required if valid time zone info is embedded in every parsed timestamp,
 	// since those can be parsed as specified in the `timestamp_layout`.
 	TimestampLocation string `toml:"timestamp_location"`
+
+	// Requires all of the decoder's message fields to match the json map
+	RequireAllFields bool `toml:"require_all_fields"`
 }
 
 type PayloadJsonDecoder struct {
@@ -54,11 +57,13 @@ type PayloadJsonDecoder struct {
 	TimestampLayout string
 	tzLocation      *time.Location
 	dRunner         DecoderRunner
+	RequireAllFields bool
 }
 
 func (ld *PayloadJsonDecoder) ConfigStruct() interface{} {
 	return &PayloadJsonDecoderConfig{
 		TimestampLayout: "2012-04-23T18:25:43.511Z",
+		RequireAllFields: false,
 	}
 }
 
@@ -87,6 +92,11 @@ func (ld *PayloadJsonDecoder) Init(config interface{}) (err error) {
 		err = fmt.Errorf("PayloadJsonDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
+
+	if conf.RequireAllFields  {
+		ld.RequireAllFields = true
+	}
+
 	return
 }
 
@@ -111,8 +121,13 @@ func (ld *PayloadJsonDecoder) match(s string) (captures map[string]string) {
 	for capture_group, jpath := range ld.JsonMap {
 		node_val, err := jp.Find(jpath)
 		if err != nil {
-			// Invalid JSONPath should silently skip data
-			continue
+			if ld.RequireAllFields {
+ 				captures = make(map[string]string)
+				return captures
+			} else {
+ 		        	// Invalid JSONPath should silently skip data
+				continue
+			}
 		}
 		captures[capture_group] = node_val
 	}
@@ -139,7 +154,11 @@ func (ld *PayloadJsonDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack,
 
 	// Update the new message fields based on the fields we should
 	// change and the capture parts
-	if err = ld.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
+	if len(captures) > 0 {
+		if err = ld.MessageFields.PopulateMessage(pack.Message, captures); err == nil {
+			packs = []*PipelinePack{pack}
+        	}
+	} else {
 		packs = []*PipelinePack{pack}
 	}
 	return
