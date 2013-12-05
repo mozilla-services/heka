@@ -4,6 +4,19 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Major reorganization of the `pipeline` package, moving the implementation of
+  most plugins to sub-packages of a separate `plugins` package.
+
+* Removed the wrapper 'table' element from the JSON serialization (issue #525)
+  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also 
+  removes the special '_name' metadata arribute; the top level _name element
+  should be created in the Lua structure if it is required.
+
+* In the process of removing the core sandbox code from Heka (issue #464), the 
+  sandbox was streamlined to only load the base library by default. All sandbox
+  plugins must now explictly load additional libraries with the require
+  function.
+
 * Removed DecoderSet method from PluginHelper interface (and DecoderSet
   abstraction entirely) and replaced it with Decoder and DecoderRunner methods
   that return a Decoder or a DecoderRunner by name.
@@ -17,7 +30,30 @@ Bug Handling
 Features
 --------
 
-0.4.1 (2013-??-??)
+* Added log_errors option to PayloadregexDecoder to allow skipping invalid
+  payloads.
+
+* Added "id" flag to elasticsearch output (issue #386).
+
+0.4.2 (2013-12-02)
+==================
+
+Bug Handling
+------------
+
+* Changed CPack configuration such that the 'make package' target no longer
+  creates deb packages, and added a new 'make deb' target that creates debs
+  with the filename expected by the deb package naming conventions (see
+  https://github.com/mozilla-services/heka/issues/545).
+
+* Doc clarifications re: required use of ProtobufDecoder (see
+  https://github.com/mozilla-services/heka/issues/550).
+
+* Explicitly exclude system level folders from those that CPack will include
+  as part of the Heka RPM (requires CMake >= 2.8.12) (see
+  https://github.com/mozilla-services/heka/issues/548). 
+
+0.4.1 (2013-11-05)
 ==================
 
 Bug Handling

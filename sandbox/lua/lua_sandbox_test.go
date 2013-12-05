@@ -310,7 +310,7 @@ func TestAPIErrors(t *testing.T) {
 		"read_config() must have a single argument",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: library 'unknown' is not available",
+		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
 		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -624,7 +624,7 @@ func TestCircularBufferErrors(t *testing.T) {
 		"process_message() ./testsupport/circular_buffer_errors.lua:31: bad argument #2 to 'set' (column out of range)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:34: bad argument #2 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:37: bad argument #1 to 'set' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:41: bad argument #1 to 'get' (Heka.circular_buffer expected, got number)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:41: bad argument #1 to 'get' (lsb.circular_buffer expected, got number)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:44: bad argument #3 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:47: bad argument #-1 to 'set' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:50: bad argument #-1 to 'add' (incorrect number of arguments)",
@@ -785,7 +785,6 @@ func TestInjectMessage(t *testing.T) {
 		"external reference",
 		"array only",
 		"private keys",
-		"table name",
 		"global table",
 		"special characters",
 		"message",
@@ -797,21 +796,19 @@ func TestInjectMessage(t *testing.T) {
 		"message force memmove",
 	}
 	outputs := []string{
-		`{"table":{"value":1}}
+		`{"value":1}
 1.2 string nil true false`,
-		`{"table":{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}}
+		`{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}
 `,
-		`{"table":{"a":{"y":2,"x":1}}}
+		`{"a":{"y":2,"x":1}}
 `,
-		`{"table":[1,2,3]}
+		`[1,2,3]
 `,
-		`{"table":{"x":1}}
+		`{"x":1}
 `,
-		`{"array":[1,2,3]}
+		`{}
 `,
-		`{"table":{}}
-`,
-		`{"table":{"special\tcharacters":"\"\t\r\n\b\f\\\/"}}
+		`{"special\tcharacters":"\"\t\r\n\b\f\\\/"}
 `,
 		"\x10\x80\x94\xeb\xdc\x03\x1a\x04\x74\x79\x70\x65\x22\x06\x6c\x6f\x67\x67\x65\x72\x28\x09\x32\x07\x70\x61\x79\x6c\x6f\x61\x64\x3a\x0b\x65\x6e\x76\x5f\x76\x65\x72\x73\x69\x6f\x6e\x4a\x08\x68\x6f\x73\x74\x6e\x61\x6d\x65",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x12\x0a\x05\x63\x6f\x75\x6e\x74\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f",
@@ -822,7 +819,7 @@ func TestInjectMessage(t *testing.T) {
 		"\x10\x80\x94\xeb\xdc\x03\x52\x8d\x01\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x82\x01\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39",
 	}
 	if false { // lua jit values
-		outputs[1] = `{"table":{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}}
+		outputs[1] = `{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}
 `
 		outputs[13] = "\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33"
 	}
@@ -851,7 +848,7 @@ func TestInjectMessage(t *testing.T) {
 				t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", outputs[cnt], p)
 			}
 		}
-		if cnt == 13 {
+		if cnt == 12 {
 			msg := new(message.Message)
 			err := proto.Unmarshal([]byte(p), msg)
 			if err != nil {
@@ -914,14 +911,14 @@ func TestInjectMessageError(t *testing.T) {
 		"error incorrect number of args",
 	}
 	errors := []string{
-		"process_message() ./testsupport/inject_message.lua:46: table contains an internal or circular reference",
-		"process_message() ./testsupport/inject_message.lua:51: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:42: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:47: table contains an internal or circular reference",
 		"process_message() not enough memory",
-		"process_message() ./testsupport/inject_message.lua:80: inject_message() cound not encode protobuf - array has mixed types",
-		"process_message() ./testsupport/inject_message.lua:83: inject_message() cound not encode protobuf - unsupported type 0",
-		"process_message() ./testsupport/inject_message.lua:85: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:87: bad argument #2 to 'inject_message' (string expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:89: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/inject_message.lua:76: inject_message() cound not encode protobuf - array has mixed types",
+		"process_message() ./testsupport/inject_message.lua:79: inject_message() cound not encode protobuf - unsupported type 0",
+		"process_message() ./testsupport/inject_message.lua:81: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:83: bad argument #2 to 'inject_message' (string expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:85: inject_message() takes a maximum of 2 arguments",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
@@ -967,7 +964,7 @@ func TestLpeg(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	sb.InjectMessage(func(p, pt, pn string) int {
-		expected := `{"table":["1","string with spaces","quoted string, with comma and \"quoted\" text"]}
+		expected := `["1","string with spaces","quoted string, with comma and \"quoted\" text"]
 `
 		if p != expected {
 			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", expected, p)
@@ -1159,6 +1156,29 @@ func TestCircularBufferDeltaRestore(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	sb.TimerEvent(0)
+	sb.Destroy("")
+}
+
+func TestExternalModule(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/require.lua"
+	sbc.ModuleDirectory = "./testsupport"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	r := sb.ProcessMessage(pack)
+	if r != 43 {
+		t.Errorf("ProcessMessage should return 43, received %d %s", r, sb.LastError())
+	}
 	sb.Destroy("")
 }
 

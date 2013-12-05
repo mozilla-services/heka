@@ -62,6 +62,7 @@ type SandboxFilter struct {
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
 	return &SandboxConfig{
+		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
 		MemoryLimit:      32767,
 		InstructionLimit: 1000,
 		OutputLimit:      1024,
@@ -220,7 +221,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			// we need to check the entire chain back to the router
 			backpressure = len(inChan) >= capacity ||
 				fr.MatchRunner().InChanLen() >= capacity ||
-				h.PipelineConfig().RouterInChanLen() >= capacity
+				len(h.PipelineConfig().Router().InChan()) >= capacity
 
 			// performing the timing is expensive ~40ns but if we are
 			// backpressured we need a decent sample set before triggering
@@ -295,7 +296,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				message.NewInt64Field(pack.Message, "MatchAvgDuration", fr.MatchRunner().GetAvgDuration(), "ns")
 				message.NewIntField(pack.Message, "FilterChanLength", len(inChan), "count")
 				message.NewIntField(pack.Message, "MatchChanLength", fr.MatchRunner().InChanLen(), "count")
-				message.NewIntField(pack.Message, "RouterChanLength", h.PipelineConfig().RouterInChanLen(), "count")
+				message.NewIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().Router().InChan()), "count")
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}

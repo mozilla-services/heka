@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG master
+        GIT_TAG dcf16dd155d25f7d65314affe372b8f74d91c312
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -80,7 +80,7 @@ function(add_external_plugin vcs url tag)
     set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)
 
-git_clone(https://code.google.com/p/gomock master)
+git_clone(https://code.google.com/p/gomock ae48011f41cd)
 add_custom_command(TARGET gomock POST_BUILD
 COMMAND ${GO_EXECUTABLE} install code.google.com/p/gomock/mockgen)
 git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf136efdab8)
@@ -94,16 +94,16 @@ add_dependencies(slices raw)
 git_clone(https://github.com/feyeleanor/sets 6c54cb57ea406ff6354256a4847e37298194478f)
 add_dependencies(sets slices)
 git_clone(https://github.com/crowdmob/goamz 7168305bd984b32bef7157a672e2460d0b0bba2f)
-git_clone(https://github.com/rafrombrc/gospec master)
-git_clone(https://github.com/crankycoder/g2s master)
-git_clone(https://github.com/crankycoder/xmlpath master)
+git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b)
+git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
+git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
-    git_clone(https://github.com/mozilla-services/heka-docs dev)
+    git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
 
     add_custom_command(TARGET docs POST_BUILD
     COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html

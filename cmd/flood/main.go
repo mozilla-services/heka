@@ -272,16 +272,8 @@ func main() {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 
-	var unsignedEncoder client.Encoder
-	var signedEncoder client.Encoder
-	switch test.Encoder {
-	case "json":
-		unsignedEncoder = client.NewJsonEncoder(nil)
-		signedEncoder = client.NewJsonEncoder(&test.Signer)
-	case "protobuf":
-		unsignedEncoder = client.NewProtobufEncoder(nil)
-		signedEncoder = client.NewProtobufEncoder(&test.Signer)
-	}
+	unsignedEncoder := client.NewProtobufEncoder(nil)
+	signedEncoder := client.NewProtobufEncoder(&test.Signer)
 
 	var numTestMessages = 1
 	var unsignedMessages [][]byte

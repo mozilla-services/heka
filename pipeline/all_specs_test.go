@@ -16,12 +16,8 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
-	"os"
 	"testing"
-	"time"
 )
 
 func mockDecoderCreator() map[string]Decoder {
@@ -40,44 +36,14 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
 
-	r.AddSpec(DecodersSpec)
-	r.AddSpec(OutputsSpec)
-	r.AddSpec(LoadFromConfigSpec)
-	r.AddSpec(WhisperRunnerSpec)
-	r.AddSpec(WhisperOutputSpec)
+	r.AddSpec(InputRunnerSpec)
+	r.AddSpec(OutputRunnerSpec)
+	r.AddSpec(ProtobufDecoderSpec)
 	r.AddSpec(ReportSpec)
-	r.AddSpec(AMQPPluginSpec)
-	r.AddSpec(StatsdInputSpec)
-	r.AddSpec(InputsSpec)
-	r.AddSpec(FileMonitorSpec)
-	r.AddSpec(LogfileInputSpec)
 	r.AddSpec(StatAccumInputSpec)
-	r.AddSpec(CarbonOutputSpec)
-	r.AddSpec(DashboardOutputSpec)
-	r.AddSpec(JsonPathSpec)
-	r.AddSpec(HttpInputSpec)
-	r.AddSpec(ElasticSearchOutputSpec)
 	r.AddSpec(StreamParserSpec)
-	r.AddSpec(ProcessChainSpec)
 
 	gospec.MainGoTest(r, t)
-}
-
-func getTestMessage() *Message {
-	hostname := "my.host.name"
-	field, _ := NewField("foo", "bar", "")
-	msg := &Message{}
-	msg.SetType("TEST")
-	msg.SetTimestamp(time.Now().UnixNano())
-	msg.SetUuid(uuid.NewRandom())
-	msg.SetLogger("GoSpec")
-	msg.SetSeverity(int32(6))
-	msg.SetPayload("Test Payload")
-	msg.SetEnvVersion("0.8")
-	msg.SetPid(int32(os.Getpid()))
-	msg.SetHostname(hostname)
-	msg.AddField(field)
-	return msg
 }
 
 func BenchmarkPipelinePackCreation(b *testing.B) {

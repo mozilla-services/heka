@@ -244,11 +244,11 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 
 	decoder := chain[0]
 	for _, p := range inPacks {
-		if ps, err := decoder.Decode(p); err == nil {
+		if ps, err := decoder.Decode(p); ps != nil {
 			anyMatch = true
 			packs = append(packs, ps...)
 		} else {
-			if md.Config.LogSubErrors {
+			if err != nil && md.Config.LogSubErrors {
 				idx := len(md.ordered) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
 					md.Config.Order[idx], err)
@@ -280,10 +280,10 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 
 	if md.CascStrat == CASC_FIRST_WINS {
 		for i, d := range md.ordered {
-			if packs, err = d.Decode(pack); err == nil {
+			if packs, err = d.Decode(pack); packs != nil {
 				return
 			}
-			if md.Config.LogSubErrors {
+			if err != nil && md.Config.LogSubErrors {
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Order[i],
 					err)
 				md.dRunner.LogError(err)
@@ -304,4 +304,10 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		}
 	}
 	return
+}
+
+func init() {
+	RegisterPlugin("MultiDecoder", func() interface{} {
+		return new(MultiDecoder)
+	})
 }

@@ -1287,7 +1287,8 @@ function(_ep_add_update_command name)
     if(NOT git_tag)
       set(git_tag "master")
     endif()
-    set(cmd ${GIT_EXECUTABLE} pull
+    set(cmd ${GIT_EXECUTABLE} fetch
+      COMMAND ${GIT_EXECUTABLE} checkout ${git_tag}
       COMMAND ${GIT_EXECUTABLE} submodule update --recursive
       )
     set(always 1)

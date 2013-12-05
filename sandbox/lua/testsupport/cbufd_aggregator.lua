@@ -84,7 +84,6 @@ function process_message ()
                     cb.cbuf:set(v.time, col, value)
                 end
             end
-            -- cannot aggregate avg or none
         end
     end
     return 0

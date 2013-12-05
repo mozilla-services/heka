@@ -27,5 +27,6 @@ Features
 .. include:: lua.rst
 .. include:: manager.rst
 .. include:: decoder.rst
+.. include:: lpeg.rst
 .. include:: filter.rst
-.. include:: circular_buffer.rst
+.. include:: cookbook.rst

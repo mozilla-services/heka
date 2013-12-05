@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
+	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	pm "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/mozilla-services/heka/sandbox"
-	ts "github.com/mozilla-services/heka/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
@@ -35,7 +35,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(FilterSpec)
-	//	r.AddSpec(DecoderSpec)
+	r.AddSpec(DecoderSpec)
 
 	gs.MainGoTest(r, t)
 }
@@ -192,7 +192,12 @@ func DecoderSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	// NewPipelineConfig sets up Globals which is needed for the
+	// pipeline.GetHekaConfigDir() to not die during plugin Init()
+	_ = pipeline.NewPipelineConfig(nil)
+
 	c.Specify("A SandboxDecoder", func() {
+
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/testsupport/decoder.lua"

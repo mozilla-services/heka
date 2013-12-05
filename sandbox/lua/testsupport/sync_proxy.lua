@@ -3,6 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 require "circular_buffer"
+require "math"
+require "table"
 
 local rows = 1440
 local sec_per_row = 60
@@ -17,8 +19,8 @@ local HTTP_UNKNOWN      = status:set_header(5, "HTTP_UNKNOWN"  , "count")
 request = circular_buffer.new(rows, 4, sec_per_row)
 local SUCCESS           = request:set_header(1, "Success"      , "count")
 local FAILURE           = request:set_header(2, "Failure"      , "count")
-local AVG_RESPONSE_SIZE = request:set_header(3, "Response Size", "B", "avg")
-local AVG_RESPONSE_TIME = request:set_header(4, "Response Time", "s", "avg")
+local AVG_RESPONSE_SIZE = request:set_header(3, "Response Size", "B", "none")
+local AVG_RESPONSE_TIME = request:set_header(4, "Response Time", "s", "none")
 
 sums = circular_buffer.new(rows, 3, sec_per_row)
 local REQUESTS      = sums:set_header(1, "Requests"      , "count")
@@ -31,7 +33,7 @@ local sliding_window = interval * 15
 newest = 0
 oldest = 0
 last_alert = 0
-annotations = {_name="annotations"}
+annotations = {}
 annotations_size = 0
 
 function process_message ()
@@ -117,7 +119,7 @@ function timer_event(ns)
         inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
     end
 
-    output(annotations, request)
+    output({["annotations"] = annotations}, request)
     inject_message("cbuf", "Request Statistics")
 end
 
