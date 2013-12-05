@@ -17,9 +17,9 @@ require "circular_buffer"
 
 data = circular_buffer.new(1440, 4, 60)
 sums = circular_buffer.new(1440, 3, 60)
-local QUERY_TIME    = data:set_header(1, "Query Time", "s", "avg")
-local LOCK_TIME     = data:set_header(2, "Lock Time", "s", "avg")
-local RESPONSE_SIZE = data:set_header(3, "Response Size", "B", "avg")
+local QUERY_TIME    = data:set_header(1, "Query Time", "s", "none")
+local LOCK_TIME     = data:set_header(2, "Lock Time", "s", "none")
+local RESPONSE_SIZE = data:set_header(3, "Response Size", "B", "none")
 local COUNT         = data:set_header(4, "Count")
 
 entry = {}

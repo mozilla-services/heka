@@ -624,7 +624,7 @@ func TestCircularBufferErrors(t *testing.T) {
 		"process_message() ./testsupport/circular_buffer_errors.lua:31: bad argument #2 to 'set' (column out of range)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:34: bad argument #2 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:37: bad argument #1 to 'set' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:41: bad argument #1 to 'get' (Heka.circular_buffer expected, got number)",
+		"process_message() ./testsupport/circular_buffer_errors.lua:41: bad argument #1 to 'get' (lsb.circular_buffer expected, got number)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:44: bad argument #3 to 'set' (number expected, got nil)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:47: bad argument #-1 to 'set' (incorrect number of arguments)",
 		"process_message() ./testsupport/circular_buffer_errors.lua:50: bad argument #-1 to 'add' (incorrect number of arguments)",
