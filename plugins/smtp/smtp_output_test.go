@@ -32,7 +32,7 @@ var sendCount int
 
 func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
 	results := [][]byte{[]byte("Subject: SmtpOutput\r\n\r\nWrite me out to the network"),
-		[]byte("\"hostname\":\"my.host.name\",\"fields\":[{\"name\":\"foo\",\"value_type\":0,\"representation\":\"\",\"value_string\":[\"bar\"]}]}")}
+		[]byte("Subject: SmtpOutput\r\n\r\n{\"uuid\":")}
 
 	switch sendCount {
 	case 0:
@@ -40,8 +40,8 @@ func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte
 			return fmt.Errorf("Expected %s, Received %s", results[0], msg)
 		}
 	case 1:
-		if bytes.Compare(msg[207:], results[1]) != 0 {
-			return fmt.Errorf("Expected %s, Received %s", results[1], msg[207:])
+		if bytes.Compare(msg[:31], results[1]) != 0 {
+			return fmt.Errorf("Expected %s, Received %s", results[1], msg[:31])
 		}
 	default:
 		return fmt.Errorf("too many calls to SendMail")
