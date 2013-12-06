@@ -251,4 +251,42 @@ func DecoderSpec(c gs.Context) {
 			decoder.Shutdown()
 		})
 	})
+
+	c.Specify("A Multipack SandboxDecoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/testsupport/multipack_decoder.lua"
+		conf.ScriptType = "lua"
+		supply := make(chan *pipeline.PipelinePack, 3)
+		pack := pipeline.NewPipelinePack(supply)
+		pack.Message = getTestMessage()
+
+		pack1 := pipeline.NewPipelinePack(supply)
+		pack2 := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes into multiple packs", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			gomock.InOrder(
+				dRunner.EXPECT().NewPack().Return(pack1),
+				dRunner.EXPECT().NewPack().Return(pack2),
+			)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 3)
+			c.Expect(packs[0].Message.GetPayload(), gs.Equals, "message one")
+			c.Expect(packs[1].Message.GetPayload(), gs.Equals, "message two")
+			c.Expect(packs[2].Message.GetPayload(), gs.Equals, "message three")
+
+			for i := 0; i < 1; i++ {
+				c.Expect(packs[i].Message.GetType(), gs.Equals, "TEST")
+				c.Expect(packs[i].Message.GetHostname(), gs.Equals, "my.host.name")
+				c.Expect(packs[i].Message.GetLogger(), gs.Equals, "GoSpec")
+				c.Expect(packs[i].Message.GetSeverity(), gs.Equals, int32(6))
+
+			}
+			decoder.Shutdown()
+		})
+	})
 }
