@@ -25,8 +25,9 @@ import (
 )
 
 type SmtpOutput struct {
-	conf *SmtpOutputConfig
-	auth smtp.Auth
+	conf         *SmtpOutputConfig
+	auth         smtp.Auth
+	sendFunction func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
 }
 
 type SmtpOutputConfig struct {
@@ -67,6 +68,8 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 		return fmt.Errorf("Host must contain a port specifier")
 	}
 
+	s.sendFunction = smtp.SendMail
+
 	if s.conf.Auth == "Plain" {
 		s.auth = smtp.PlainAuth("", s.conf.User, s.conf.Password, host)
 	} else if s.conf.Auth == "CRAMMD5" {
@@ -93,11 +96,11 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		msg = pack.Message
 		if s.conf.PayloadOnly {
 			message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, msg.GetPayload()))
-			err = smtp.SendMail(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
 		} else {
 			if contents, err = json.Marshal(msg); err == nil {
 				message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, contents))
-				err = smtp.SendMail(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
 			} else {
 				or.LogError(err)
 			}

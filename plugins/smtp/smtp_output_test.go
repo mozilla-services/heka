@@ -15,22 +15,46 @@
 package smtp
 
 import (
+	"bytes"
 	"code.google.com/p/gomock/gomock"
+	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"net/smtp"
 	"sync"
 	"testing"
-	"time"
+	//  "time"
 )
+
+var sendCount int
+
+func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
+	results := [][]byte{[]byte("Subject: SmtpOutput\r\n\r\nWrite me out to the network"),
+		[]byte("\"hostname\":\"my.host.name\",\"fields\":[{\"name\":\"foo\",\"value_type\":0,\"representation\":\"\",\"value_string\":[\"bar\"]}]}")}
+
+	switch sendCount {
+	case 0:
+		if bytes.Compare(msg, results[0]) != 0 {
+			return fmt.Errorf("Expected %s, Received %s", results[0], msg)
+		}
+	case 1:
+		if bytes.Compare(msg[207:], results[1]) != 0 {
+			return fmt.Errorf("Expected %s, Received %s", results[1], msg[207:])
+		}
+	default:
+		return fmt.Errorf("too many calls to SendMail")
+	}
+	sendCount++
+	return nil
+}
 
 func TestAllSpecs(t *testing.T) {
 	r := gs.NewRunner()
 	r.Parallel = false
 
-	// Cannot mock the smtp.SendMail function so the tests were run against local mail server
-	// r.AddSpec(SmtpOutputSpec)
+	r.AddSpec(SmtpOutputSpec)
 
 	gs.MainGoTest(r, t)
 }
@@ -63,6 +87,7 @@ func SmtpOutputSpec(c gs.Context) {
 		c.Specify("send email payload message", func() {
 			err := smtpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
+			smtpOutput.sendFunction = testSendMail
 
 			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
@@ -72,10 +97,8 @@ func SmtpOutputSpec(c gs.Context) {
 				wg.Done()
 			}()
 			inChan <- pack
-			time.Sleep(1000) // allow time for the message output
 			close(inChan)
 			wg.Wait()
-			// manually check the mail
 		})
 
 		c.Specify("send email json message", func() {
@@ -83,6 +106,7 @@ func SmtpOutputSpec(c gs.Context) {
 
 			err := smtpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
+			smtpOutput.sendFunction = testSendMail
 
 			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
@@ -92,10 +116,45 @@ func SmtpOutputSpec(c gs.Context) {
 				wg.Done()
 			}()
 			inChan <- pack
-			time.Sleep(1000) // allow time for the message output
 			close(inChan)
 			wg.Wait()
-			// manually check the mail
 		})
 	})
+
+	// Use this test with a real server
+	//	c.Specify("A SmtpOutput Real", func() {
+	//		smtpOutput := new(SmtpOutput)
+	//
+	//		config := smtpOutput.ConfigStruct().(*SmtpOutputConfig)
+	//		config.SendTo = []string{"root"}
+	//
+	//		msg := pipeline_ts.GetTestMessage()
+	//		pack := NewPipelinePack(pConfig.InputRecycleChan())
+	//		pack.Message = msg
+	//		pack.Decoded = true
+	//		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
+	//		inChanCall.Return(inChan)
+	//		runnerName := oth.MockOutputRunner.EXPECT().Name().AnyTimes()
+	//		runnerName.Return("SmtpOutput")
+	//
+	//		c.Specify("send email json message", func() {
+	//			config.PayloadOnly = false
+	//
+	//			err := smtpOutput.Init(config)
+	//			c.Assume(err, gs.IsNil)
+	//
+	//			outStr := "Write me out to the network"
+	//			pack.Message.SetPayload(outStr)
+	//			go func() {
+	//				wg.Add(1)
+	//				smtpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+	//				wg.Done()
+	//			}()
+	//			inChan <- pack
+	//			time.Sleep(1000) // allow time for the message output
+	//			close(inChan)
+	//			wg.Wait()
+	//			// manually check the mail
+	//		})
+	//	})
 }
