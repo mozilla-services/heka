@@ -35,6 +35,8 @@ Features
 
 * Added "id" flag to elasticsearch output (issue #386).
 
+* Added SmtpOutput (issue #472)
+
 0.4.2 (2013-12-02)
 ==================
 
