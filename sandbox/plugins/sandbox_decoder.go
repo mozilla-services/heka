@@ -40,6 +40,7 @@ type SandboxDecoder struct {
 	sample                 bool
 	err                    error
 	pack                   *pipeline.PipelinePack
+	packs                  []*pipeline.PipelinePack
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
@@ -72,23 +73,67 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	return
 }
 
+func copyMessageHeaders(dst *message.Message, src *message.Message) {
+	if src == nil || dst == nil || src == dst {
+		return
+	}
+
+	if cap(src.Uuid) > 0 {
+		dst.SetUuid(src.Uuid)
+	} else {
+		dst.Uuid = nil
+	}
+	if src.Timestamp != nil {
+		dst.SetTimestamp(*src.Timestamp)
+	} else {
+		dst.Timestamp = nil
+	}
+	if src.Type != nil {
+		dst.SetType(*src.Type)
+	} else {
+		dst.Type = nil
+	}
+	if src.Logger != nil {
+		dst.SetLogger(*src.Logger)
+	} else {
+		dst.Logger = nil
+	}
+	if src.Severity != nil {
+		dst.SetSeverity(*src.Severity)
+	} else {
+		dst.Severity = nil
+	}
+	if src.Pid != nil {
+		dst.SetPid(*src.Pid)
+	} else {
+		dst.Pid = nil
+	}
+	if src.Hostname != nil {
+		dst.SetHostname(*src.Hostname)
+	} else {
+		dst.Hostname = nil
+	}
+}
+
 func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
+	var original *message.Message
+
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
+		if s.pack == nil {
+			s.pack = dr.NewPack()
+			if original == nil && len(s.packs) > 0 {
+				original = s.packs[0].Message // payload injections have the original header data in the first pack
+			}
+		} else {
+			original = nil // processing a new message, clear the old message
+		}
 		if len(payload_type) == 0 { // heka protobuf message
-			t := s.pack.Message.GetType()
-			h := s.pack.Message.GetHostname()
-			l := s.pack.Message.GetLogger()
+			if original == nil {
+				original = new(message.Message)
+				copyMessageHeaders(original, s.pack.Message) // save off the header values since unmarshal will wipe them out
+			}
 			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
 				return 1
-			}
-			if s.pack.Message.GetType() == "" {
-				s.pack.Message.SetType(t)
-			}
-			if s.pack.Message.GetHostname() == "" {
-				s.pack.Message.SetHostname(h)
-			}
-			if s.pack.Message.GetLogger() == "" {
-				s.pack.Message.SetLogger(l)
 			}
 		} else {
 			s.pack.Message.SetPayload(payload)
@@ -97,6 +142,33 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			pname, _ := message.NewField("payload_name", payload_name, "")
 			s.pack.Message.AddField(pname)
 		}
+		if original != nil {
+			// if future injections fail to set the standard headers, use the values
+			// from the original message.
+			if s.pack.Message.Uuid == nil {
+				s.pack.Message.SetUuid(original.GetUuid())
+			}
+			if s.pack.Message.Timestamp == nil {
+				s.pack.Message.SetTimestamp(original.GetTimestamp())
+			}
+			if s.pack.Message.Type == nil {
+				s.pack.Message.SetType(original.GetType())
+			}
+			if s.pack.Message.Hostname == nil {
+				s.pack.Message.SetHostname(original.GetHostname())
+			}
+			if s.pack.Message.Logger == nil {
+				s.pack.Message.SetLogger(original.GetLogger())
+			}
+			if s.pack.Message.Severity == nil {
+				s.pack.Message.SetSeverity(original.GetSeverity())
+			}
+			if s.pack.Message.Pid == nil {
+				s.pack.Message.SetPid(original.GetPid())
+			}
+		}
+		s.packs = append(s.packs, s.pack)
+		s.pack = nil
 		return 0
 	})
 }
@@ -138,7 +210,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
 		return
 	}
-	packs = []*pipeline.PipelinePack{pack}
+	packs = s.packs
 	err = s.err
 	return
 }
