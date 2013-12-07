@@ -130,7 +130,7 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		if len(payload_type) == 0 { // heka protobuf message
 			if original == nil {
 				original = new(message.Message)
-				copyMessageHeaders(original, s.pack.Message) // we have to make a copy here since we are overwriting the original headers
+				copyMessageHeaders(original, s.pack.Message) // save off the header values since unmarshal will wipe them out
 			}
 			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
 				return 1
