@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # if the environment has been setup before clean it up
 if [ $GOBIN ]; then
