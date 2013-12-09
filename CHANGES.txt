@@ -27,6 +27,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Message severity now defaults to the highest possible int32 value, which
+  implies nothing, rather than zero, which implies `emergency`, (issue #518).
+
 Features
 --------
 
