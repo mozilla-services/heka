@@ -36,7 +36,7 @@ message Message {
   required int64    timestamp   = 2; // nanoseconds since UNIX epoch
   optional string   type        = 3;
   optional string   logger      = 4;
-  optional int32    severity    = 5;
+  optional int32    severity    = 5 [default = 7];
   optional string   payload     = 6;
   optional string   env_version = 7;
   optional int32    pid         = 8;

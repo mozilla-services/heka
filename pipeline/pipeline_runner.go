@@ -125,6 +125,7 @@ type PipelinePack struct {
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
+	message.SetSeverity(7)
 
 	return &PipelinePack{
 		MsgBytes:     msgBytes,
@@ -149,6 +150,8 @@ func (p *PipelinePack) Zero() {
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	p.Message = new(message.Message)
+	p.Message.SetSeverity(7)
+
 }
 
 // Decrement the ref count and, if ref count == zero, zero the pack and put it
