@@ -30,6 +30,11 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* 'flood' command now outputs every send error (even 'connection refused'), and
+  always increments 'messages sent' count even when there is a sending error
+  (so setting 'num_messages' still works even if hekad stops responding,
+  etc.).
+
 Features
 --------
 

@@ -40,7 +40,6 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -300,7 +299,7 @@ func main() {
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
-	var msgsSent, bytesSent uint64
+	var msgsSent, bytesSent, msgsDelivered uint64
 	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
 	var corrupt bool
 
@@ -336,19 +335,17 @@ func main() {
 			buf = unsignedMessages[msgId]
 		}
 		bytesSent += uint64(len(buf))
-		err = sendMessage(sender, buf, corrupt)
-		if err != nil {
-			if !strings.Contains(err.Error(), "connection refused") {
-				log.Printf("Error sending message: %s\n",
-					err.Error())
-			}
+		if err = sendMessage(sender, buf, corrupt); err != nil {
+			log.Printf("Error sending message: %s\n", err.Error())
 		} else {
-			msgsSent++
-			if test.NumMessages != 0 && msgsSent >= test.NumMessages {
-				break
-			}
+			msgsDelivered++
+		}
+		msgsSent++
+		if test.NumMessages != 0 && msgsSent >= test.NumMessages {
+			break
 		}
 	}
 	sender.Close()
-	log.Println("Clean shutdown: ", msgsSent, " messages sent")
+	log.Println("Clean shutdown: ", msgsSent, " messages sent; ",
+		msgsDelivered, " messages delivered.")
 }
