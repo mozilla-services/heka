@@ -40,7 +40,6 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -336,17 +335,12 @@ func main() {
 			buf = unsignedMessages[msgId]
 		}
 		bytesSent += uint64(len(buf))
-		err = sendMessage(sender, buf, corrupt)
-		if err != nil {
-			if !strings.Contains(err.Error(), "connection refused") {
-				log.Printf("Error sending message: %s\n",
-					err.Error())
-			}
-		} else {
-			msgsSent++
-			if test.NumMessages != 0 && msgsSent >= test.NumMessages {
-				break
-			}
+		if err = sendMessage(sender, buf, corrupt); err != nil {
+			log.Printf("Error sending message: %s\n", err.Error())
+		}
+		msgsSent++
+		if test.NumMessages != 0 && msgsSent >= test.NumMessages {
+			break
 		}
 	}
 	sender.Close()
