@@ -207,9 +207,13 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		s.err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		if len(s.packs) > 1 {
+			for _, p := range s.packs[1:] {
+				p.Recycle()
+			}
+		}
 		s.packs = nil
-		return
 	}
 	packs = s.packs
 	s.packs = nil
