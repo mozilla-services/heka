@@ -724,7 +724,7 @@ func (ldm *LogfileDirectoryManagerInput) Stop() {
 
 func init() {
 	RegisterPlugin("LogfileInput", func() interface{} {
-		return new(LogfileDirectoryManagerInput)
+		return new(LogfileInput)
 	})
 	RegisterPlugin("LogfileDirectoryManagerInput", func() interface{} {
 		return new(LogfileDirectoryManagerInput)
