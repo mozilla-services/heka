@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* MultiDecoder now gets its name from the TOML section name like the rest of
+  the plugins, instead of a separate 'name' config option.
+
 * Major reorganization of the `pipeline` package, moving the implementation of
   most plugins to sub-packages of a separate `plugins` package.
 

@@ -40,12 +40,12 @@ func MultiDecoderSpec(c gospec.Context) {
 
 	c.Specify("A MultiDecoder", func() {
 		decoder := new(MultiDecoder)
+		decoder.SetName("MyMultiDecoder")
 		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 
-		conf.Name = "MyMultiDecoder"
 		conf.Subs = make(map[string]interface{}, 0)
 
 		conf.Subs["StartsWithM"] = make(map[string]interface{}, 0)

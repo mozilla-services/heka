@@ -68,7 +68,6 @@ type MultiDecoderConfig struct {
 	// subs is an ordered dictionary of other decoders
 	Subs            map[string]interface{}
 	Order           []string
-	Name            string
 	LogSubErrors    bool   `toml:"log_sub_errors"`
 	CascadeStrategy string `toml:"cascade_strategy"`
 }
@@ -83,14 +82,18 @@ var mdStrategies = map[string]int{"first-wins": CASC_FIRST_WINS, "all": CASC_ALL
 func (md *MultiDecoder) ConfigStruct() interface{} {
 	subs := make(map[string]interface{})
 	order := make([]string, 0)
-	name := fmt.Sprintf("MultiDecoder-%p", md)
-	return &MultiDecoderConfig{subs, order, name, false, "first-wins"}
+	return &MultiDecoderConfig{subs, order, false, "first-wins"}
+}
+
+// Heka will call this before calling Init() to set the name of the
+// MultiDecoder based on the section name in the TOML config.
+func (md *MultiDecoder) SetName(name string) {
+	md.Name = name
 }
 
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Config = config.(*MultiDecoderConfig)
 	md.Decoders = make(map[string]Decoder, 0)
-	md.Name = md.Config.Name
 
 	var (
 		ok      bool

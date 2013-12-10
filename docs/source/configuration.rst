@@ -1212,9 +1212,6 @@ Parameters:
     PipelinePack objects will be passed in order to each decoder in this list.
     Default is an empty list.
 
-- name (string):
-    Defaults to MultiDecoder-<address of multidecoder>.
-
 - log_sub_errors (bool):
     If true, the DecoderRunner will log the errors returned whenever a
     delegate decoder fails to decode a message. Defaults to false.
