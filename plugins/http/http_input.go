@@ -25,42 +25,47 @@ import (
 )
 
 type HttpInput struct {
-	dataChan    chan []byte
-	failChan    chan []byte
-	stopChan    chan bool
-	Monitor     *HttpInputMonitor
-	decoderName string
+	dataChan chan []byte
+	failChan chan []byte
+	stopChan chan bool
+	Monitor  *HttpInputMonitor
+	conf     *HttpInputConfig
 }
 
 // Http Input config struct
 type HttpInputConfig struct {
-	// URLs for Input to consume.
+	// URLs for HttpInput to consume.
 	URLs []string
-	// Default interval at which dashboard will update is 10 seconds.
+	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
-	// Name of configured decoder instance used to decode the messages.
+	// Configured decoder instance used to decode http.Get payload.
 	DecoderName string `toml:"decoder"`
+	// Severity level of successful GETs. Default is 6 (information)
+	SuccessSeverity int32 `toml:"success_severity"`
+	// Severity level of errors and unsuccessful GETs. Default is 1 (alert)
+	ErrorSeverity int32 `toml:"error_severity"`
 }
 
 func (hi *HttpInput) ConfigStruct() interface{} {
 	return &HttpInputConfig{
-		TickerInterval: uint(10),
+		TickerInterval:  uint(10),
+		SuccessSeverity: int32(6),
+		ErrorSeverity:   int32(1),
 	}
 }
 
 func (hi *HttpInput) Init(config interface{}) error {
-	conf := config.(*HttpInputConfig)
+	hi.conf = config.(*HttpInputConfig)
 
-	if conf.URLs == nil {
+	if hi.conf.URLs == nil {
 		return fmt.Errorf("urls must contain at least one URL")
 	}
 
 	hi.dataChan = make(chan []byte)
 	hi.failChan = make(chan []byte)
 	hi.stopChan = make(chan bool)
-	hi.decoderName = conf.DecoderName
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(conf.URLs, hi.dataChan, hi.failChan, hi.stopChan)
+	hi.Monitor.Init(hi.conf.URLs, hi.dataChan, hi.failChan, hi.stopChan)
 
 	return nil
 }
@@ -82,10 +87,10 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	hostname := pConfig.Hostname()
 	packSupply := ir.InChan()
 
-	if hi.decoderName == "" {
+	if hi.conf.DecoderName == "" {
 		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(hi.decoderName); !ok {
-		return fmt.Errorf("Decoder not found: %s", hi.decoderName)
+	} else if dRunner, ok = h.DecoderRunner(hi.conf.DecoderName); !ok {
+		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
 	}
 
 	for {
@@ -93,10 +98,10 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		case data := <-hi.dataChan:
 			pack = <-packSupply
 			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.httpdata")
+			pack.Message.SetType("heka.httpinput")
 			pack.Message.SetHostname(hostname)
 			pack.Message.SetPayload(string(data))
-			pack.Message.SetSeverity(int32(6))
+			pack.Message.SetSeverity(hi.conf.SuccessSeverity)
 			pack.Message.SetLogger("HttpInput")
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
@@ -106,9 +111,9 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		case data := <-hi.failChan:
 			pack = <-packSupply
 			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.httpdata.error")
+			pack.Message.SetType("heka.httpinput.error")
 			pack.Message.SetPayload(string(data))
-			pack.Message.SetSeverity(int32(1))
+			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
 			pack.Message.SetLogger("HttpInput")
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
