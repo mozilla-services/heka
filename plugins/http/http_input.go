@@ -94,6 +94,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			pack.Message.SetType("heka.httpdata")
 			pack.Message.SetHostname(hostname)
 			pack.Message.SetPayload(string(data))
+			pack.Message.SetSeverity(int32(6))
 			pack.Message.SetLogger("HttpInput")
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
