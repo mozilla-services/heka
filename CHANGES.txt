@@ -30,6 +30,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* PluginWrapper will now check for the WantsName interface when creating a
+  plugin, and will set the plugin's name if appropriate.
+
 * SandboxDecoder now explicitly logs a fatal error before triggering shutdown
   to ensure error message is actually emitted.
 

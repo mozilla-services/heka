@@ -401,6 +401,9 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 // error value if this isn't possible.
 func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
 	plugin = self.PluginCreator()
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(self.Name)
+	}
 	err = plugin.(Plugin).Init(self.ConfigCreator())
 	return
 }
