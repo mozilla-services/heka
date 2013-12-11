@@ -26,6 +26,7 @@ import (
 
 type HttpInput struct {
 	dataChan    chan []byte
+	failChan    chan []byte
 	stopChan    chan bool
 	Monitor     *HttpInputMonitor
 	decoderName string
@@ -55,10 +56,11 @@ func (hi *HttpInput) Init(config interface{}) error {
 	}
 
 	hi.dataChan = make(chan []byte)
+	hi.failChan = make(chan []byte)
 	hi.stopChan = make(chan bool)
 	hi.decoderName = conf.DecoderName
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(conf.URLs, hi.dataChan, hi.stopChan)
+	hi.Monitor.Init(conf.URLs, hi.dataChan, hi.failChan, hi.stopChan)
 
 	return nil
 }
@@ -101,6 +103,18 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			} else {
 				dRunner.InChan() <- pack
 			}
+		case data := <-hi.failChan:
+			pack = <-packSupply
+			pack.Message.SetTimestamp(time.Now().UnixNano())
+			pack.Message.SetType("heka.httpdata.error")
+			pack.Message.SetPayload(string(data))
+			pack.Message.SetSeverity(int32(1))
+			pack.Message.SetLogger("HttpInput")
+			if router_shortcircuit {
+				pConfig.Router().InChan() <- pack
+			} else {
+				dRunner.InChan() <- pack
+			}
 		case <-hi.stopChan:
 			return
 		}
@@ -116,15 +130,17 @@ func (hi *HttpInput) Stop() {
 type HttpInputMonitor struct {
 	urls     []string
 	dataChan chan []byte
+	failChan chan []byte
 	stopChan chan bool
 
 	ir       InputRunner
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(urls []string, dataChan chan []byte, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, dataChan chan []byte, failChan chan []byte, stopChan chan bool) {
 	hm.urls = urls
 	hm.dataChan = dataChan
+	hm.failChan = failChan
 	hm.stopChan = stopChan
 }
 
@@ -142,6 +158,7 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				resp, err := http.Get(url)
 				if err != nil {
 					ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
+					hm.failChan <- []byte(err.Error())
 					continue
 				}
 
@@ -153,8 +170,12 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				}
 				resp.Body.Close()
 
-				// Send it on the channel
-				hm.dataChan <- body
+				if resp.StatusCode != 200 {
+					hm.failChan <- body
+				} else {
+					hm.dataChan <- body
+				}
+
 			}
 		case <-hm.stopChan:
 			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.urls))
