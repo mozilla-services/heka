@@ -23,7 +23,7 @@ integrating external plug-in packages into the generated `hekad`. For more
 details and additional installation options see
 [Installing](https://hekad.readthedocs.org/en/latest/installing.html).
 
-WARNING: YOU MUST *SOURCE* THE BUILD SCRIPT (i.e. `source install.sh`) TO
+WARNING: YOU MUST *SOURCE* THE BUILD SCRIPT (i.e. `source build.sh`) TO
          BUILD HEKA. Setting up the Go build environment requires changes to
          the shell environment, if you simply execute the script (i.e.
-         `./install.sh`) these changes will not be made.
+         `./build.sh`) these changes will not be made.
