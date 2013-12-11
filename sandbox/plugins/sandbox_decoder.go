@@ -41,6 +41,7 @@ type SandboxDecoder struct {
 	err                    error
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
+	dRunner                pipeline.DecoderRunner
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
@@ -116,6 +117,7 @@ func copyMessageHeaders(dst *message.Message, src *message.Message) {
 }
 
 func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
+	s.dRunner = dr
 	var original *message.Message
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -202,7 +204,8 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
 	if retval > 0 {
-		s.err = errors.New("fatal: " + s.sb.LastError())
+		s.err = errors.New("FATAL: " + s.sb.LastError())
+		s.dRunner.LogError(s.err)
 		pipeline.Globals().ShutDown()
 	}
 	if retval < 0 {
