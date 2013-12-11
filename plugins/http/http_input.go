@@ -10,8 +10,10 @@
 # Contributor(s):
 #   David Delassus (david.jose.delassus@gmail.com)
 #   Victor Ng (vng@mozilla.com)
+#   Christian Vozar (christian@bellycard.com)
 #
 # ***** END LICENSE BLOCK *****/
+
 package http
 
 import (
@@ -29,10 +31,14 @@ type HttpInput struct {
 	decoderName string
 }
 
+// Http Input config struct
 type HttpInputConfig struct {
-	Url            string
-	TickerInterval uint   `toml:"ticker_interval"`
-	DecoderName    string `toml:"decoder"`
+	// URLs for Input to consume.
+	URLs []string
+	// Default interval at which dashboard will update is 10 seconds.
+	TickerInterval uint `toml:"ticker_interval"`
+	// Name of configured decoder instance used to decode the messages.
+	DecoderName string `toml:"decoder"`
 }
 
 func (hi *HttpInput) ConfigStruct() interface{} {
@@ -44,13 +50,16 @@ func (hi *HttpInput) ConfigStruct() interface{} {
 func (hi *HttpInput) Init(config interface{}) error {
 	conf := config.(*HttpInputConfig)
 
+	if conf.URLs == nil {
+		return fmt.Errorf("urls must contain at least one URL")
+	}
+
 	hi.dataChan = make(chan []byte)
 	hi.stopChan = make(chan bool)
 	hi.decoderName = conf.DecoderName
-
 	hi.Monitor = new(HttpInputMonitor)
+	hi.Monitor.Init(conf.URLs, hi.dataChan, hi.stopChan)
 
-	hi.Monitor.Init(conf.Url, hi.dataChan, hi.stopChan)
 	return nil
 }
 
@@ -63,7 +72,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	)
 
 	ir.LogMessage(fmt.Sprintf("[HttpInput (%s)] Running...",
-		hi.Monitor.url))
+		hi.Monitor.urls))
 
 	go hi.Monitor.Monitor(ir)
 
@@ -84,6 +93,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			pack.Message.SetType("heka.httpdata")
 			pack.Message.SetHostname(hostname)
 			pack.Message.SetPayload(string(data))
+			pack.Message.SetLogger("HttpInput")
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
 			} else {
@@ -102,7 +112,7 @@ func (hi *HttpInput) Stop() {
 }
 
 type HttpInputMonitor struct {
-	url      string
+	urls     []string
 	dataChan chan []byte
 	stopChan chan bool
 
@@ -110,8 +120,8 @@ type HttpInputMonitor struct {
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(url string, dataChan chan []byte, stopChan chan bool) {
-	hm.url = url
+func (hm *HttpInputMonitor) Init(urls []string, dataChan chan []byte, stopChan chan bool) {
+	hm.urls = urls
 	hm.dataChan = dataChan
 	hm.stopChan = stopChan
 }
@@ -125,26 +135,27 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 	for {
 		select {
 		case <-hm.tickChan:
-			// Fetch URL
-			resp, err := http.Get(hm.url)
-			if err != nil {
-				ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
-				continue
+			for _, url := range hm.urls {
+				// Fetch URLs
+				resp, err := http.Get(url)
+				if err != nil {
+					ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
+					continue
+				}
+
+				// Read content
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
+					continue
+				}
+				resp.Body.Close()
+
+				// Send it on the channel
+				hm.dataChan <- body
 			}
-
-			// Read content
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
-				continue
-			}
-			resp.Body.Close()
-
-			// Send it on the channel
-			hm.dataChan <- body
-
 		case <-hm.stopChan:
-			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.url))
+			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.urls))
 			return
 		}
 	}
