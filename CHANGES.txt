@@ -30,6 +30,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* SandboxDecoder now explicitly logs a fatal error before triggering shutdown
+  to ensure error message is actually emitted.
+
 * Message severity now defaults to the highest RFC 5424 value (i.e. 7) implies
   low severity, rather than zero, which implies `emergency`, (issue #518).
 
