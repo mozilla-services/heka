@@ -90,6 +90,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		select {
 		case data := <-hi.dataChan:
 			pack = <-packSupply
+			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("heka.httpdata")
 			pack.Message.SetHostname(hostname)
 			pack.Message.SetPayload(string(data))
