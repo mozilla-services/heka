@@ -33,6 +33,9 @@ Bug Handling
 * PluginWrapper will now check for the WantsName interface when creating a
   plugin, and will set the plugin's name if appropriate.
 
+* SandboxDecoder now explicitly logs a fatal error before triggering shutdown
+  to ensure error message is actually emitted.
+
 * Message severity now defaults to the highest RFC 5424 value (i.e. 7) implies
   low severity, rather than zero, which implies `emergency`, (issue #518).
 
