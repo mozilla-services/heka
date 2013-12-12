@@ -25,6 +25,8 @@ import (
 )
 
 type HttpInput struct {
+	name     string
+	urls     []string
 	dataChan chan []byte
 	failChan chan []byte
 	stopChan chan bool
@@ -34,8 +36,10 @@ type HttpInput struct {
 
 // Http Input config struct
 type HttpInputConfig struct {
-	// URLs for HttpInput to consume.
-	URLs []string
+	// Url for HttpInput to GET.
+	Url string
+	// Urls for HttpInput to GET.
+	Urls []string
 	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
 	// Configured decoder instance used to decode http.Get payload.
@@ -44,6 +48,10 @@ type HttpInputConfig struct {
 	SuccessSeverity int32 `toml:"success_severity"`
 	// Severity level of errors and unsuccessful GETs. Default is 1 (alert)
 	ErrorSeverity int32 `toml:"error_severity"`
+}
+
+func (hi *HttpInput) SetName(name string) {
+	hi.name = name
 }
 
 func (hi *HttpInput) ConfigStruct() interface{} {
@@ -57,15 +65,21 @@ func (hi *HttpInput) ConfigStruct() interface{} {
 func (hi *HttpInput) Init(config interface{}) error {
 	hi.conf = config.(*HttpInputConfig)
 
-	if hi.conf.URLs == nil {
-		return fmt.Errorf("urls must contain at least one URL")
+	if (hi.conf.Urls == nil) && (hi.conf.Url == "") {
+		return fmt.Errorf("Url or Urls must contain at least one URL")
+	}
+
+	if hi.conf.Urls != nil {
+		hi.urls = hi.conf.Urls
+	} else {
+		hi.urls = []string{hi.conf.Url}
 	}
 
 	hi.dataChan = make(chan []byte)
 	hi.failChan = make(chan []byte)
 	hi.stopChan = make(chan bool)
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(hi.conf.URLs, hi.dataChan, hi.failChan, hi.stopChan)
+	hi.Monitor.Init(hi.urls, hi.dataChan, hi.failChan, hi.stopChan)
 
 	return nil
 }
@@ -93,16 +107,18 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
 	}
 
+	logger := fmt.Sprintf("HttpInput: %s", hi.name)
+
 	for {
 		select {
 		case data := <-hi.dataChan:
 			pack = <-packSupply
 			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.httpinput")
+			pack.Message.SetType("heka.httpinput.data")
 			pack.Message.SetHostname(hostname)
 			pack.Message.SetPayload(string(data))
 			pack.Message.SetSeverity(hi.conf.SuccessSeverity)
-			pack.Message.SetLogger("HttpInput")
+			pack.Message.SetLogger(logger)
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
 			} else {
@@ -114,7 +130,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			pack.Message.SetType("heka.httpinput.error")
 			pack.Message.SetPayload(string(data))
 			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
-			pack.Message.SetLogger("HttpInput")
+			pack.Message.SetLogger(logger)
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
 			} else {
@@ -162,8 +178,8 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				// Fetch URLs
 				resp, err := http.Get(url)
 				if err != nil {
-					ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
 					hm.failChan <- []byte(err.Error())
+					ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
 					continue
 				}
 
