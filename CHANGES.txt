@@ -41,6 +41,15 @@ Bug Handling
 Features
 --------
 
+* HttpInput: Added urls (array) option.
+
+* HttpInput: Failed connections, errors, and HTTP status codes other than 200
+  generate a message with Severity 1 and Type "heka.httpinput.error".
+
+* HttpInput: Added success_severity and error_severity options for GET actions.
+
+* HttpInput: Messages now set Logger and Timestamp.
+
 * Added log_errors option to PayloadregexDecoder to allow skipping invalid
   payloads.
 
