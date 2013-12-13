@@ -64,7 +64,7 @@ func HttpInputSpec(c gs.Context) {
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
 			decoderName := "PayloadJsonDecoder"
 			config.DecoderName = decoderName
-			config.URLs[0] = "http://localhost:9876/"
+			config.urls[0] = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
@@ -105,7 +105,7 @@ func HttpInputSpec(c gs.Context) {
 			ith.PackSupply <- ith.Pack
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			config.URLs[0] = "http://localhost:9876/"
+			config.urls[0] = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
