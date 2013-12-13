@@ -116,7 +116,7 @@ git_clone(https://github.com/crankycoder/g2s master)
 git_clone(https://github.com/crankycoder/xmlpath master)
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins v0.4.1)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 80f85f4e4530970a215455e15ae0493bd439e2e1)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
