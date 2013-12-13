@@ -38,6 +38,7 @@ type HttpInput struct {
 
 type MonitorResponse struct {
 	ResponseData []byte
+	ResponseSize string
 	StatusCode   int
 	Status       string
 	Proto        string
@@ -142,6 +143,11 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
+			if field, err := message.NewField("ResponseSize", data.ResponseSize, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
 			if field, err := message.NewField("Protocol", data.Proto, ""); err == nil {
 				pack.Message.AddField(field)
 			} else {
@@ -187,7 +193,7 @@ type HttpInputMonitor struct {
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(urls []string, respChan chan MonitorResponse, errChan chan MonitorResponse, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, respChan, errChan chan MonitorResponse, stopChan chan bool) {
 	hm.urls = urls
 	hm.respChan = respChan
 	hm.errChan = errChan
@@ -222,7 +228,9 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				}
 				resp.Body.Close()
 
-				response := MonitorResponse{ResponseData: body, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
+				contentLength := resp.Header.Get("Content-Length")
+
+				response := MonitorResponse{ResponseData: body, ResponseSize: contentLength, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
 				hm.respChan <- response
 			}
 		case <-hm.stopChan:
