@@ -29,8 +29,8 @@ import (
 type HttpInput struct {
 	name     string
 	urls     []string
-	respChan chan MonitorResponse
-	errChan  chan MonitorResponse
+	respChan chan *MonitorResponse
+	errChan  chan *MonitorResponse
 	stopChan chan bool
 	Monitor  *HttpInputMonitor
 	conf     *HttpInputConfig
@@ -86,8 +86,8 @@ func (hi *HttpInput) Init(config interface{}) error {
 		hi.urls = []string{hi.conf.Url}
 	}
 
-	hi.respChan = make(chan MonitorResponse)
-	hi.errChan = make(chan MonitorResponse)
+	hi.respChan = make(chan *MonitorResponse)
+	hi.errChan = make(chan *MonitorResponse)
 	hi.stopChan = make(chan bool)
 	hi.Monitor = new(HttpInputMonitor)
 	hi.Monitor.Init(hi.urls, hi.respChan, hi.errChan, hi.stopChan)
@@ -185,15 +185,15 @@ func (hi *HttpInput) Stop() {
 
 type HttpInputMonitor struct {
 	urls     []string
-	respChan chan MonitorResponse
-	errChan  chan MonitorResponse
+	respChan chan *MonitorResponse
+	errChan  chan *MonitorResponse
 	stopChan chan bool
 
 	ir       InputRunner
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(urls []string, respChan, errChan chan MonitorResponse, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
 	hm.urls = urls
 	hm.respChan = respChan
 	hm.errChan = errChan
@@ -215,7 +215,7 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				resp, err := http.Get(url)
 				if err != nil {
 					responsePayload = []byte(err.Error())
-					response := MonitorResponse{ResponseData: responsePayload, Url: url}
+					response := &MonitorResponse{ResponseData: responsePayload, Url: url}
 					hm.errChan <- response
 					continue
 				}
@@ -230,7 +230,7 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 
 				contentLength := resp.Header.Get("Content-Length")
 
-				response := MonitorResponse{ResponseData: body, ResponseSize: contentLength, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
+				response := &MonitorResponse{ResponseData: body, ResponseSize: contentLength, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
 				hm.respChan <- response
 			}
 		case <-hm.stopChan:
