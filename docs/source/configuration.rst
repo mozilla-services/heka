@@ -778,11 +778,14 @@ HttpInput
 
 Starts a HTTP client which intermittently polls a URL for data.
 The entire response body is parsed by a decoder into a pipeline pack.
-Data is always fetched using HTTP GET and any non-200 status generate a
-message with severity of 1 (alert) and are not fatal for the plugin.
+Data is always fetched using HTTP GET and any status code 200 generates
+a message with a configurable "sucess severity" (defaults to 6 or
+"information"). Any non-200 status generate a message with a configurable
+"error severity" (defaults to 1 or "alert") and are not fatal for the plugin.
 
 Errors returned from HTTP GET such as inability to connect to remote host
-generate message with severity 1 (alert) of Type "heka.httpinput.error".
+generate a message with a configurable "error severity" (defaults to 1 or
+"alert") and of Type "heka.httpinput.error".
 
 Parameters:
 
