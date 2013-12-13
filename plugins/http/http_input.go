@@ -17,7 +17,9 @@
 package http
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"net/http"
@@ -27,11 +29,19 @@ import (
 type HttpInput struct {
 	name     string
 	urls     []string
-	dataChan chan []byte
-	failChan chan []byte
+	respChan chan MonitorResponse
+	errChan  chan MonitorResponse
 	stopChan chan bool
 	Monitor  *HttpInputMonitor
 	conf     *HttpInputConfig
+}
+
+type MonitorResponse struct {
+	ResponseData []byte
+	StatusCode   int
+	Status       string
+	Proto        string
+	Url          string
 }
 
 // Http Input config struct
@@ -75,11 +85,11 @@ func (hi *HttpInput) Init(config interface{}) error {
 		hi.urls = []string{hi.conf.Url}
 	}
 
-	hi.dataChan = make(chan []byte)
-	hi.failChan = make(chan []byte)
+	hi.respChan = make(chan MonitorResponse)
+	hi.errChan = make(chan MonitorResponse)
 	hi.stopChan = make(chan bool)
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(hi.urls, hi.dataChan, hi.failChan, hi.stopChan)
+	hi.Monitor.Init(hi.urls, hi.respChan, hi.errChan, hi.stopChan)
 
 	return nil
 }
@@ -107,30 +117,49 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
 	}
 
-	logger := fmt.Sprintf("HttpInput: %s", hi.name)
-
 	for {
 		select {
-		case data := <-hi.dataChan:
+		case data := <-hi.respChan:
 			pack = <-packSupply
+			pack.Message.SetUuid(uuid.NewRandom())
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("heka.httpinput.data")
 			pack.Message.SetHostname(hostname)
-			pack.Message.SetPayload(string(data))
-			pack.Message.SetSeverity(hi.conf.SuccessSeverity)
-			pack.Message.SetLogger(logger)
+			pack.Message.SetPayload(string(data.ResponseData))
+			if data.StatusCode != 200 {
+				pack.Message.SetSeverity(hi.conf.ErrorSeverity)
+			} else {
+				pack.Message.SetSeverity(hi.conf.SuccessSeverity)
+			}
+			pack.Message.SetLogger(data.Url)
+			if field, err := message.NewField("StatusCode", data.StatusCode, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
+			if field, err := message.NewField("Status", data.Status, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
+			if field, err := message.NewField("Protocol", data.Proto, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
 			} else {
 				dRunner.InChan() <- pack
 			}
-		case data := <-hi.failChan:
+		case data := <-hi.errChan:
 			pack = <-packSupply
+			pack.Message.SetUuid(uuid.NewRandom())
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("heka.httpinput.error")
-			pack.Message.SetPayload(string(data))
+			pack.Message.SetPayload(string(data.ResponseData))
 			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
-			pack.Message.SetLogger(logger)
+			pack.Message.SetLogger(data.Url)
 			if router_shortcircuit {
 				pConfig.Router().InChan() <- pack
 			} else {
@@ -150,18 +179,18 @@ func (hi *HttpInput) Stop() {
 
 type HttpInputMonitor struct {
 	urls     []string
-	dataChan chan []byte
-	failChan chan []byte
+	respChan chan MonitorResponse
+	errChan  chan MonitorResponse
 	stopChan chan bool
 
 	ir       InputRunner
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(urls []string, dataChan chan []byte, failChan chan []byte, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, respChan chan MonitorResponse, errChan chan MonitorResponse, stopChan chan bool) {
 	hm.urls = urls
-	hm.dataChan = dataChan
-	hm.failChan = failChan
+	hm.respChan = respChan
+	hm.errChan = errChan
 	hm.stopChan = stopChan
 }
 
@@ -175,15 +204,17 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 		select {
 		case <-hm.tickChan:
 			for _, url := range hm.urls {
-				// Fetch URLs
+				responsePayload := []byte{}
+				// Request URL(s)
 				resp, err := http.Get(url)
 				if err != nil {
-					hm.failChan <- []byte(err.Error())
-					ir.LogError(fmt.Errorf("[HttpInputMonitor] %s", err))
+					responsePayload = []byte(err.Error())
+					response := MonitorResponse{ResponseData: responsePayload, Url: url}
+					hm.errChan <- response
 					continue
 				}
 
-				// Read content
+				// Consume HTTP response body
 				body, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
 					ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
@@ -191,12 +222,8 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				}
 				resp.Body.Close()
 
-				if resp.StatusCode != 200 {
-					hm.failChan <- body
-				} else {
-					hm.dataChan <- body
-				}
-
+				response := MonitorResponse{ResponseData: body, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
+				hm.respChan <- response
 			}
 		case <-hm.stopChan:
 			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.urls))
