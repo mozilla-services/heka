@@ -16,6 +16,14 @@
 #include <lua_sandbox.h>
 #include "_cgo_export.h"
 
+// LMW_ERR_*: Lua Message Write errors
+const int LMW_ERR_NO_SANDBOX_PACK = 1;
+const int LMW_ERR_WRONG_TYPE = 2;
+const int LMW_ERR_NEWFIELD_FAILED = 3;
+const int LMW_ERR_BAD_FIELD_INDEX = 4;
+const int LMW_ERR_BAD_ARRAY_INDEX = 5;
+const int LMW_ERR_INVALID_FIELD_NAME = 6;
+
 ////////////////////////////////////////////////////////////////////////////////
 /// Calls to Lua
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,6 +199,61 @@ int read_message(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int write_message(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "write_message() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    int n = lua_gettop(lua);
+    if (n < 2 || n > 6) {
+        luaL_error(lua, "write_message() incorrect number of arguments");
+    }
+    const char* field = luaL_checkstring(lua, 1);
+    int type = lua_type(lua, 2);
+    const char* rep = luaL_optstring(lua, 3, "");
+    int fi = luaL_optinteger(lua, 4, 0);
+    luaL_argcheck(lua, fi >= 0, 4, "field index must be >= 0");
+    int ai = luaL_optinteger(lua, 5, 0);
+    luaL_argcheck(lua, ai >= 0, 5, "array index must be >= 0");
+    int isint = luaL_optinteger(lua, 6, 0);
+
+    int result;
+
+    // In all of the `go_lua_write_message` calls below we cast away constness
+    // of the Lua strings since the values are not modified and doing so will
+    // save copies.
+    switch (type) {
+    case LUA_TBOOLEAN:;
+        int bvalue = lua_toboolean(lua, 2);
+        result = go_lua_write_message_bool(lsb_get_parent(lsb), (char*)field, bvalue,
+            (char*)rep, fi, ai);
+        break;
+    case LUA_TNUMBER:
+        if (isint || strcmp(field, "Severity") == 0 || strcmp(field, "Pid") == 0) {
+            int value = luaL_checkint(lua, 2);
+            result = go_lua_write_message_int(lsb_get_parent(lsb), (char*)field, value,
+                (char*)rep, fi, ai);
+        } else {
+            lua_Number value = luaL_checknumber(lua, 2);
+            result = go_lua_write_message_double(lsb_get_parent(lsb), (char*)field, (double)value,
+                (char*)rep, fi, ai);
+        }
+        break;
+    case LUA_TSTRING:;
+        const char* value = luaL_checkstring(lua, 2);
+        result = go_lua_write_message_string(lsb_get_parent(lsb), (char*)field, (char*)value,
+            (char*)rep, fi, ai);
+        break;
+    }
+
+    lua_pushinteger(lua, result);
+    return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int inject_message(lua_State* lua)
 {
     static const char* default_type = "txt";
@@ -261,6 +324,7 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file)
 
     lsb_add_function(lsb, &read_config, "read_config");
     lsb_add_function(lsb, &read_message, "read_message");
+    lsb_add_function(lsb, &write_message, "write_message");
     lsb_add_function(lsb, &inject_message, "inject_message");
 
     int result = lsb_init(lsb, data_file);

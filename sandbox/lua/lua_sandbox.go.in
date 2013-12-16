@@ -32,7 +32,16 @@ import (
 	"unsafe"
 )
 
-func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
+var (
+	LMW_ERR_NO_SANDBOX_PACK    = int(C.LMW_ERR_NO_SANDBOX_PACK)
+	LMW_ERR_WRONG_TYPE         = int(C.LMW_ERR_WRONG_TYPE)
+	LMW_ERR_NEWFIELD_FAILED    = int(C.LMW_ERR_NEWFIELD_FAILED)
+	LMW_ERR_BAD_FIELD_INDEX    = int(C.LMW_ERR_BAD_FIELD_INDEX)
+	LMW_ERR_BAD_ARRAY_INDEX    = int(C.LMW_ERR_BAD_ARRAY_INDEX)
+	LMW_ERR_INVALID_FIELD_NAME = int(C.LMW_ERR_INVALID_FIELD_NAME)
+)
+
+func lookup_field(msg *message.Message, fn string, fi, ai int) (int,
 	unsafe.Pointer, int) {
 
 	var field *message.Field
@@ -81,12 +90,121 @@ func lookup_field(msg *message.Message, fn string, fi int, ai int) (int,
 	return 0, unsafe.Pointer(nil), 0
 }
 
+// Enforces field and array index limits.
+func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.char,
+	fi, ai int) int {
+
+	var field *message.Field
+	var err error
+	fields := msg.FindAllFields(fn)
+
+	// We're only allowed to modify existing fields or extend the field length
+	// by one.
+	if fi > len(fields) {
+		return LMW_ERR_BAD_FIELD_INDEX
+	}
+
+	if fi == len(fields) {
+		// `fi == len(fields)` ==> we're creating a new field. Only array index
+		// of zero is allowed.
+		if ai != 0 {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		vC, ok := value.(*C.char)
+		if ok {
+			value = C.GoString(vC)
+		}
+		if field, err = message.NewField(fn, value, C.GoString(rep)); err != nil {
+			fmt.Println("NewField err: ", err)
+			return LMW_ERR_NEWFIELD_FAILED
+		}
+		msg.AddField(field)
+		return 0
+	}
+
+	// Getting this far means the field we've asked for already exists, check
+	// that the type matches, and ensure that we're overwriting a previous
+	// array value or are extending the array length by one before writing.
+	field = fields[fi]
+	switch field.GetValueType() {
+	case message.Field_STRING:
+		vC, ok := value.(*C.char)
+		if !ok {
+			return LMW_ERR_WRONG_TYPE
+		}
+		v := C.GoString(vC)
+		if ai > len(field.ValueString) {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		if ai == len(field.ValueString) {
+			field.ValueString = append(field.ValueString, v)
+		} else {
+			field.ValueString[ai] = v
+		}
+	case message.Field_BYTES:
+		v, ok := value.([]byte)
+		if !ok {
+			return LMW_ERR_WRONG_TYPE
+		}
+		if ai > len(field.ValueBytes) {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		if ai == len(field.ValueBytes) {
+			field.ValueBytes = append(field.ValueBytes, v)
+		} else {
+			field.ValueBytes[ai] = v
+		}
+	case message.Field_INTEGER:
+		v, ok := value.(int32)
+		if !ok {
+			return LMW_ERR_WRONG_TYPE
+		}
+		if ai > len(field.ValueInteger) {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		if ai == len(field.ValueInteger) {
+			field.ValueInteger = append(field.ValueInteger, int64(v))
+		} else {
+			field.ValueInteger[ai] = int64(v)
+		}
+	case message.Field_DOUBLE:
+		v, ok := value.(float64)
+		if !ok {
+			return LMW_ERR_WRONG_TYPE
+		}
+		if ai > len(field.ValueDouble) {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		if ai == len(field.ValueDouble) {
+			field.ValueDouble = append(field.ValueDouble, v)
+		} else {
+			field.ValueDouble[ai] = v
+		}
+	case message.Field_BOOL:
+		v, ok := value.(bool)
+		if !ok {
+			return LMW_ERR_WRONG_TYPE
+		}
+		if ai > len(field.ValueBool) {
+			return LMW_ERR_BAD_ARRAY_INDEX
+		}
+		if ai == len(field.ValueBool) {
+			field.ValueBool = append(field.ValueBool, v)
+		} else {
+			field.ValueBool[ai] = v
+		}
+	}
+	repStr := C.GoString(rep)
+	field.Representation = &repStr
+	return 0
+}
+
 //export go_lua_read_message
 func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe.Pointer,
 	int) {
-	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack != nil {
+		fieldName := C.GoString(c)
 		switch fieldName {
 		case "Type":
 			value := lsb.pack.Message.GetType()
@@ -141,6 +259,129 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 		}
 	}
 	return 0, unsafe.Pointer(nil), 0
+}
+
+//export go_lua_write_message_string
+func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
+	fi, ai int) int {
+
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		return LMW_ERR_NO_SANDBOX_PACK
+	}
+
+	fieldName := C.GoString(c)
+	switch fieldName {
+	case "Type":
+		lsb.pack.Message.SetType(C.GoString(v))
+		return 0
+	case "Logger":
+		lsb.pack.Message.SetLogger(C.GoString(v))
+		return 0
+	case "Payload":
+		lsb.pack.Message.SetPayload(C.GoString(v))
+		return 0
+	case "EnvVersion":
+		lsb.pack.Message.SetEnvVersion(C.GoString(v))
+		return 0
+	case "Hostname":
+		lsb.pack.Message.SetHostname(C.GoString(v))
+		return 0
+	case "Uuid":
+		value := C.GoString(v)
+		lsb.pack.Message.SetUuid([]byte(value))
+		return 0
+	case "Timestamp", "Severity", "Pid":
+		return LMW_ERR_WRONG_TYPE
+	default:
+		l := len(fieldName)
+		if l > 0 && fieldName[l-1] == ']' {
+			if strings.HasPrefix(fieldName, "Fields[") {
+				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+					v, rep, fi, ai)
+			}
+		}
+		return LMW_ERR_INVALID_FIELD_NAME
+	}
+}
+
+//export go_lua_write_message_int
+func go_lua_write_message_int(ptr unsafe.Pointer, c *C.char, v C.int, rep *C.char,
+	fi, ai int) int {
+
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		return LMW_ERR_NO_SANDBOX_PACK
+	}
+
+	fieldName := C.GoString(c)
+	switch fieldName {
+	case "Severity":
+		lsb.pack.Message.SetSeverity(int32(v))
+		return 0
+	case "Pid":
+		lsb.pack.Message.SetPid(int32(v))
+		return 0
+	case "Type", "Logger", "Payload", "EnvVersion", "Hostname", "Uuid", "Timestamp":
+		return LMW_ERR_WRONG_TYPE
+	default:
+		l := len(fieldName)
+		if l > 0 && fieldName[l-1] == ']' {
+			if strings.HasPrefix(fieldName, "Fields[") {
+				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+					int32(v), rep, fi, ai)
+			}
+		}
+		return LMW_ERR_INVALID_FIELD_NAME
+	}
+}
+
+//export go_lua_write_message_double
+func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep *C.char,
+	fi, ai int) int {
+
+	fieldName := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		return LMW_ERR_NO_SANDBOX_PACK
+	}
+
+	switch fieldName {
+	case "Timestamp":
+		value := float64(v)
+		lsb.pack.Message.SetTimestamp(int64(value))
+		return 0
+	default:
+		l := len(fieldName)
+		if l > 0 && fieldName[l-1] == ']' {
+			if strings.HasPrefix(fieldName, "Fields[") {
+				value := float64(v)
+				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+					value, rep, fi, ai)
+			}
+		}
+	}
+	return 1
+}
+
+//export go_lua_write_message_bool
+func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.char,
+	fi, ai int) int {
+
+	fieldName := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		return LMW_ERR_NO_SANDBOX_PACK
+	}
+
+	l := len(fieldName)
+	if l > 0 && fieldName[l-1] == ']' {
+		if strings.HasPrefix(fieldName, "Fields[") {
+			return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+				v, rep, fi, ai)
+		}
+	}
+	return 1
 }
 
 //export go_lua_read_config
