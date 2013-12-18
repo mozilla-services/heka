@@ -84,6 +84,15 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+**read_next_field()**
+    Iterates through the message fields returning the field contents or nil when the end is reached.
+
+    *Arguments*
+        none
+
+    *Return*
+        value_type, name, value, representation, count (number of items in the field array)
+
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
     and then clears the buffer. Two pieces of optional metadata are allowed and
