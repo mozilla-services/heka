@@ -78,7 +78,7 @@ int inject_message(lua_State* lua);
  * 
  * @return int 0 on success
  */
-int sandbox_init(lua_sandbox* lsb, const char* data_file);
+int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);
 
 #endif
 

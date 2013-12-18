@@ -47,6 +47,9 @@ Bug Handling
 Features
 --------
 
+* Exposed `write_message` API function to Lua decoders to allow mutation of
+  existing decoded message (issue #577).
+
 * Added log_errors option to PayloadregexDecoder to allow skipping invalid
   payloads.
 

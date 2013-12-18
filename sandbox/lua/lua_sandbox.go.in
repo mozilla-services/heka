@@ -23,22 +23,17 @@ package lua
 import "C"
 
 import (
+	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/sandbox"
 	"log"
+	"strconv"
 	"strings"
+	"time"
 	"unsafe"
-)
-
-var (
-	LMW_ERR_NO_SANDBOX_PACK    = int(C.LMW_ERR_NO_SANDBOX_PACK)
-	LMW_ERR_WRONG_TYPE         = int(C.LMW_ERR_WRONG_TYPE)
-	LMW_ERR_NEWFIELD_FAILED    = int(C.LMW_ERR_NEWFIELD_FAILED)
-	LMW_ERR_BAD_FIELD_INDEX    = int(C.LMW_ERR_BAD_FIELD_INDEX)
-	LMW_ERR_BAD_ARRAY_INDEX    = int(C.LMW_ERR_BAD_ARRAY_INDEX)
-	LMW_ERR_INVALID_FIELD_NAME = int(C.LMW_ERR_INVALID_FIELD_NAME)
 )
 
 func lookup_field(msg *message.Message, fn string, fi, ai int) (int,
@@ -92,34 +87,33 @@ func lookup_field(msg *message.Message, fn string, fi, ai int) (int,
 
 // Enforces field and array index limits.
 func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.char,
-	fi, ai int) int {
+	fi, ai int) error {
 
 	var field *message.Field
-	var err error
 	fields := msg.FindAllFields(fn)
 
 	// We're only allowed to modify existing fields or extend the field length
 	// by one.
 	if fi > len(fields) {
-		return LMW_ERR_BAD_FIELD_INDEX
+		return errors.New("bad field index")
 	}
 
 	if fi == len(fields) {
 		// `fi == len(fields)` ==> we're creating a new field. Only array index
 		// of zero is allowed.
 		if ai != 0 {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		vC, ok := value.(*C.char)
 		if ok {
 			value = C.GoString(vC)
 		}
+		var err error
 		if field, err = message.NewField(fn, value, C.GoString(rep)); err != nil {
-			fmt.Println("NewField err: ", err)
-			return LMW_ERR_NEWFIELD_FAILED
+			return fmt.Errorf("Can't create field: %s", err)
 		}
 		msg.AddField(field)
-		return 0
+		return nil
 	}
 
 	// Getting this far means the field we've asked for already exists, check
@@ -130,11 +124,11 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	case message.Field_STRING:
 		vC, ok := value.(*C.char)
 		if !ok {
-			return LMW_ERR_WRONG_TYPE
+			return fmt.Errorf("type error, '%s' is a string field", field.GetName())
 		}
 		v := C.GoString(vC)
 		if ai > len(field.ValueString) {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		if ai == len(field.ValueString) {
 			field.ValueString = append(field.ValueString, v)
@@ -144,10 +138,10 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	case message.Field_BYTES:
 		v, ok := value.([]byte)
 		if !ok {
-			return LMW_ERR_WRONG_TYPE
+			return fmt.Errorf("type error, '%s' is a bytes field", field.GetName())
 		}
 		if ai > len(field.ValueBytes) {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		if ai == len(field.ValueBytes) {
 			field.ValueBytes = append(field.ValueBytes, v)
@@ -157,10 +151,10 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	case message.Field_INTEGER:
 		v, ok := value.(int32)
 		if !ok {
-			return LMW_ERR_WRONG_TYPE
+			return fmt.Errorf("type error, '%s' is an integer field", field.GetName())
 		}
 		if ai > len(field.ValueInteger) {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		if ai == len(field.ValueInteger) {
 			field.ValueInteger = append(field.ValueInteger, int64(v))
@@ -170,10 +164,10 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	case message.Field_DOUBLE:
 		v, ok := value.(float64)
 		if !ok {
-			return LMW_ERR_WRONG_TYPE
+			return fmt.Errorf("type error, '%s' is a double field", field.GetName())
 		}
 		if ai > len(field.ValueDouble) {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		if ai == len(field.ValueDouble) {
 			field.ValueDouble = append(field.ValueDouble, v)
@@ -183,10 +177,10 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	case message.Field_BOOL:
 		v, ok := value.(bool)
 		if !ok {
-			return LMW_ERR_WRONG_TYPE
+			return fmt.Errorf("type error, '%s' is an boolean field", field.GetName())
 		}
 		if ai > len(field.ValueBool) {
-			return LMW_ERR_BAD_ARRAY_INDEX
+			return errors.New("bad array index")
 		}
 		if ai == len(field.ValueBool) {
 			field.ValueBool = append(field.ValueBool, v)
@@ -196,7 +190,7 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	}
 	repStr := C.GoString(rep)
 	field.Representation = &repStr
-	return 0
+	return nil
 }
 
 //export go_lua_read_message
@@ -267,7 +261,8 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		return LMW_ERR_NO_SANDBOX_PACK
+		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		return 1
 	}
 
 	fieldName := C.GoString(c)
@@ -289,51 +284,73 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		return 0
 	case "Uuid":
 		value := C.GoString(v)
-		lsb.pack.Message.SetUuid([]byte(value))
-		return 0
-	case "Timestamp", "Severity", "Pid":
-		return LMW_ERR_WRONG_TYPE
-	default:
-		l := len(fieldName)
-		if l > 0 && fieldName[l-1] == ']' {
-			if strings.HasPrefix(fieldName, "Fields[") {
-				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
-					v, rep, fi, ai)
-			}
+		if len(value) == 16 {
+			// 16 bytes long, presume we're a binary UUID value.
+			lsb.pack.Message.SetUuid([]byte(value))
+			return 0
 		}
-		return LMW_ERR_INVALID_FIELD_NAME
-	}
-}
-
-//export go_lua_write_message_int
-func go_lua_write_message_int(ptr unsafe.Pointer, c *C.char, v C.int, rep *C.char,
-	fi, ai int) int {
-
-	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	if lsb.pack == nil {
-		return LMW_ERR_NO_SANDBOX_PACK
-	}
-
-	fieldName := C.GoString(c)
-	switch fieldName {
+		var uuidBytes []byte
+		if uuidBytes = uuid.Parse(value); uuidBytes == nil {
+			pipeline.Globals().LogMessage("go_lua_write_message_string",
+				"Bad UUID string.")
+			return 1
+		}
+		lsb.pack.Message.SetUuid(uuidBytes)
+	case "Timestamp":
+		// First try UnixNano integer parsing.
+		value, err := strconv.ParseInt(C.GoString(v), 0, 64)
+		if err != nil {
+			// If that fails, try ForgivingTimeParse string parsing. Note that
+			// ForgivingTimeParse is slow and not nearly as forgiving as the
+			// name implies, it's probably better to parse the timestamp in
+			// Lua.
+			loc, _ := time.LoadLocation("UTC")
+			var parsedTime time.Time
+			parsedTime, err = message.ForgivingTimeParse("", C.GoString(v), loc)
+			if err != nil {
+				fmt.Println("ERR: ", err)
+				pipeline.Globals().LogMessage("go_lua_write_message_string",
+					"Can't parse timestamp string.")
+				return 1
+			}
+			value = parsedTime.UnixNano()
+		}
+		lsb.pack.Message.SetTimestamp(value)
+		return 0
 	case "Severity":
-		lsb.pack.Message.SetSeverity(int32(v))
+		value, err := strconv.ParseInt(C.GoString(v), 0, 32)
+		if err != nil {
+			pipeline.Globals().LogMessage("go_lua_write_message_string",
+				"Can't parse severity value.")
+			return 1
+		}
+		lsb.pack.Message.SetSeverity(int32(value))
 		return 0
 	case "Pid":
-		lsb.pack.Message.SetPid(int32(v))
+		value, err := strconv.ParseInt(C.GoString(v), 0, 32)
+		if err != nil {
+			pipeline.Globals().LogMessage("go_lua_write_message_string",
+				"Can't parse PID value.")
+			return 1
+		}
+		lsb.pack.Message.SetPid(int32(value))
 		return 0
-	case "Type", "Logger", "Payload", "EnvVersion", "Hostname", "Uuid", "Timestamp":
-		return LMW_ERR_WRONG_TYPE
 	default:
 		l := len(fieldName)
 		if l > 0 && fieldName[l-1] == ']' {
 			if strings.HasPrefix(fieldName, "Fields[") {
-				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
-					int32(v), rep, fi, ai)
+				err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
+					v, rep, fi, ai)
+				if err == nil {
+					return 0
+				}
+				pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
+				return 1
 			}
 		}
-		return LMW_ERR_INVALID_FIELD_NAME
 	}
+	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
+	return 1
 }
 
 //export go_lua_write_message_double
@@ -343,24 +360,40 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		return LMW_ERR_NO_SANDBOX_PACK
+		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		return 1
 	}
 
 	switch fieldName {
+	case "Severity":
+		value := int32(v)
+		lsb.pack.Message.SetSeverity(value)
+		return 0
+	case "Pid":
+		value := int32(v)
+		lsb.pack.Message.SetPid(value)
+		return 0
 	case "Timestamp":
-		value := float64(v)
-		lsb.pack.Message.SetTimestamp(int64(value))
+		value := int64(v)
+		lsb.pack.Message.SetTimestamp(value)
 		return 0
 	default:
 		l := len(fieldName)
 		if l > 0 && fieldName[l-1] == ']' {
 			if strings.HasPrefix(fieldName, "Fields[") {
 				value := float64(v)
-				return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+				err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
 					value, rep, fi, ai)
+				if err == nil {
+					return 0
+				}
+				pipeline.Globals().LogMessage("go_lua_write_message_string",
+					err.Error())
+				return 1
 			}
 		}
 	}
+	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
 	return 1
 }
 
@@ -371,16 +404,23 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		return LMW_ERR_NO_SANDBOX_PACK
+		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		return 1
 	}
 
 	l := len(fieldName)
 	if l > 0 && fieldName[l-1] == ']' {
 		if strings.HasPrefix(fieldName, "Fields[") {
-			return write_to_field(lsb.pack.Message, fieldName[7:l-1],
+			err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
 				v, rep, fi, ai)
+			if err == nil {
+				return 0
+			}
+			pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
+			return 1
 		}
 	}
+	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
 	return 1
 }
 
@@ -427,8 +467,7 @@ type LuaSandbox struct {
 	config        map[string]interface{}
 }
 
-func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
-	error) {
+func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 	lsb := new(LuaSandbox)
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
@@ -452,10 +491,14 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox,
 	return lsb, nil
 }
 
-func (this *LuaSandbox) Init(dataFile string) error {
-	cs := C.CString(dataFile)
-	defer C.free(unsafe.Pointer(cs))
-	r := int(C.sandbox_init(this.lsb, cs))
+func (this *LuaSandbox) Init(dataFile, pluginType string) error {
+	csDataFile := C.CString(dataFile)
+	csPluginType := C.CString(pluginType)
+	defer func() {
+		C.free(unsafe.Pointer(csDataFile))
+		C.free(unsafe.Pointer(csPluginType))
+	}()
+	r := int(C.sandbox_init(this.lsb, csDataFile, csPluginType))
 	if r != 0 {
 		return fmt.Errorf("Init() %s", this.LastError())
 	}
