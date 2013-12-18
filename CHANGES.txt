@@ -46,6 +46,8 @@ Bug Handling
 
 Features
 --------
+* Inject: A command-line utility for injecting arbitrary messages into
+  a Heka pipeline.
 
 * HttpInput: Added urls (array) option.
 
