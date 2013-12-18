@@ -55,9 +55,12 @@ Features
   produce a message with Severity 6, non-200 statuses Severity 1. Failure to
   connect produces a message with Severity 1 and Type "heka.httpinput.error".
 
-* HttpInput: Fields[Status] for HTTP status, Fields[Protocol] for HTTP protocol
-  and version, and Fields[StatusCode] for HTTP Status (int) populated for
-  successful connections.
+* HttpInput: Fields[ResponseTime] populates with time duration in seconds for
+  HTTP GET of URL, Fields[Status] with HTTP Status, Fields[Protocol] with HTTP
+  protocol and version, Fields[StatusCode] with HTTP Response Status Code for
+  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts) 
+  (http://hekad.readthedocs.org/en/latest/sandbox/graph_annotation.html) plugin
+  is compatible with the HttpInput plugin.
 
 * HttpInput: Added success_severity and error_severity options for GET actions.
 
