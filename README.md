@@ -6,14 +6,6 @@ Heka is a tool for collecting and collating data from a number of different
 sources, performing "in-flight" processing of collected data, and delivering
 the results to any number of destinations for further analysis.
 
-More details can be found on the ReadTheDocs sites for the [Heka
-project](http://heka-docs.readthedocs.org/) and for the [Heka
-daemon](http://hekad.readthedocs.org/), and lower level package
-documentation can be found on
-[GoDoc](http://godoc.org/github.com/mozilla-services/heka). Questions can
-be asked on the [mailing list](https://mail.mozilla.org/listinfo/heka) or
-in the #heka channel on irc.mozilla.org.
-
 Heka is written in [Go](http://golang.org/), but Heka plugins can be written
 in either Go or [Lua](http://lua.org). The easiest way to compile Heka is by
 sourcing (see below) the build script in the root directory of the project,
@@ -27,3 +19,10 @@ WARNING: YOU MUST *SOURCE* THE BUILD SCRIPT (i.e. `source build.sh`) TO
          BUILD HEKA. Setting up the Go build environment requires changes to
          the shell environment, if you simply execute the script (i.e.
          `./build.sh`) these changes will not be made.
+         
+Resources:
+* Heka project docs: http://heka-docs.readthedocs.org/
+* Heka daemon docs: http://hekad.readthedocs.org/
+* GoDoc package docs: http://godoc.org/github.com/mozilla-services/heka
+* Mailing list: https://mail.mozilla.org/listinfo/heka
+* IRC: #heka on irc.mozilla.org

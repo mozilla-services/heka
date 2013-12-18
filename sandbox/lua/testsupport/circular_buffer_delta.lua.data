@@ -1,6 +1,0 @@
-if _G["data"] == nil then _G["data"] = circular_buffer.new(3, 3, 1, true) end
-_G["data"]:set_header(1, "Add_column", "count", "sum")
-_G["data"]:set_header(2, "Set_column", "count", "sum")
-_G["data"]:set_header(3, "Get_column", "count", "sum")
-_G["data"]:fromstring("2 2 1 1 1 2 1 2 4 1 4 2 1 0 1")
-_G["_VERSION"] = "Lua 5.1"

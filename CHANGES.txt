@@ -50,6 +50,22 @@ Features
 * Exposed `write_message` API function to Lua decoders to allow mutation of
   existing decoded message (issue #577).
 
+* HttpInput: Added urls (array) option.
+
+* HttpInput: Failed and successful HTTP GET actions produce messages of Type
+  "heka.httpinput.data", Logger = Request URL, and severity appropriate to
+  HTTP status 200 or not. I.e. Connections responding with a status of 200
+  produce a message with Severity 6, non-200 statuses Severity 1. Failure to
+  connect produces a message with Severity 1 and Type "heka.httpinput.error".
+
+* HttpInput: Fields[Status] for HTTP status, Fields[Protocol] for HTTP protocol
+  and version, and Fields[StatusCode] for HTTP Status (int) populated for
+  successful connections.
+
+* HttpInput: Added success_severity and error_severity options for GET actions.
+
+* HttpInput: Messages now set Logger, UUID, and Timestamp.
+
 * Added log_errors option to PayloadregexDecoder to allow skipping invalid
   payloads.
 

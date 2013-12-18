@@ -778,17 +778,35 @@ HttpInput
 
 Starts a HTTP client which intermittently polls a URL for data.
 The entire response body is parsed by a decoder into a pipeline pack.
-Data is always fetched using HTTP GET and any errors are logged and
-are not fatal for the plugin.
+Data is always fetched using HTTP GET and any status code 200 generates
+a message with a configurable "sucess severity" (defaults to 6 or
+"information"). Any non-200 status generate a message with a configurable
+"error severity" (defaults to 1 or "alert") and are not fatal for the plugin.
+
+Errors returned from HTTP GET such as inability to connect to remote host
+generate a message with a configurable "error severity" (defaults to 1 or
+"alert") and of Type "heka.httpinput.error".
 
 Parameters:
 
 - url (string):
     A HTTP URL which this plugin will regularly poll for data.
+    This option cannot be used with the urls option.
     No default URL is specified.
+- urls (array):
+    An array of HTTP URLs which this plugin will regularly poll for data.
+    This option cannot be used with the url option.
+    No default URLs are specified.
 - ticker_interval (uint):
     Time interval (in seconds) between attempts to poll for new data.
     Defaults to 10.
+- success_severity (uint):
+    Severity level of successful HTTP GET.
+    Defaults to 6 (information).
+- error_severity (uint):
+    Severity level of errors, unreachable connections, and non-200 responses
+    of successful HTTP GET.
+    Defaults to 1 (alert).
 - decoder (string):
     The name of the decoder used to transform the response body text into
     a structured hekad message. No default decoder is specified.
@@ -800,6 +818,8 @@ Example:
     [HttpInput]
     url = "http://localhost:9876/"
     ticker_interval = 5
+    success_severity = 6
+    error_severity = 1
     decoder = "ProtobufDecoder"
 
 .. end-inputs
