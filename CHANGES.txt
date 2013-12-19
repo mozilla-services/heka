@@ -185,6 +185,8 @@ Bug Handling
 Features
 --------
 
+* Added a sandbox message field iterator (issue #460)
+
 * Added ProcessInput. (issue #406)
 
 * Replaced DashboardOutput UI with new Backbone.js-based `dasher` interface.
