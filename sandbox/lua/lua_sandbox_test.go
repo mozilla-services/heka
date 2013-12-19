@@ -307,6 +307,7 @@ func TestAPIErrors(t *testing.T) {
 		"output limit exceeded",
 		"read_config() must have a single argument",
 		"read_next_field() takes no arguments",
+		"write_message() should not exist",
 	}
 	msgs := []string{
 		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
@@ -323,6 +324,7 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:37: output_limit exceeded",
 		"process_message() ./testsupport/errors.lua:40: read_config() must have a single argument",
 		"process_message() ./testsupport/errors.lua:42: read_next_field() takes no arguments",
+		"process_message() ./testsupport/errors.lua:44: attempt to call global 'write_message' (a nil value)",
 	}
 
 	var sbc SandboxConfig
@@ -336,6 +338,77 @@ func TestAPIErrors(t *testing.T) {
 			t.Errorf("%s", err)
 		}
 		err = sb.Init("", "")
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		pack.Message.SetPayload(v)
+		r := sb.ProcessMessage(pack)
+		if r != 1 || STATUS_TERMINATED != sb.Status() {
+			t.Errorf("test: %s status should be %d, received %d",
+				v, STATUS_TERMINATED, sb.Status())
+		}
+		s := sb.LastError()
+		if s != msgs[i] {
+			t.Errorf("test: %s error should be \"%s\", received \"%s\"",
+				v, msgs[i], s)
+		}
+		sb.Destroy("")
+	}
+}
+
+func TestWriteMessageErrors(t *testing.T) {
+	pack := getTestPack()
+	// NewPipelineConfig sets up Globals for error logging
+	_ = pipeline.NewPipelineConfig(nil)
+
+	tests := []string{
+		"too few parameters",
+		"too many parameters",
+		"Unknown field name",
+		"Missing fields specifier",
+		"Missing closing bracket",
+		"Out of range field index",
+		"Negative field index",
+		"Negative array index",
+		"nil field",
+		"nil value",
+		"empty uuid",
+		"invalid uuid",
+		"empty timestamp",
+		"invalid timestamp",
+		"bool severity",
+		"double hostname",
+	}
+	msgs := []string{
+		"process_message() ./testsupport/write_message_errors.lua:11: write_message() incorrect number of arguments",
+		"process_message() ./testsupport/write_message_errors.lua:13: write_message() incorrect number of arguments",
+		"process_message() ./testsupport/write_message_errors.lua:15: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:17: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:19: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:21: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
+		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
+		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean values",
+		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:41: write_message() failed",
+	}
+
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/write_message_errors.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 128
+	for i, v := range tests {
+		sb, err := lua.CreateLuaSandbox(&sbc)
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		err = sb.Init("", "decoder")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
