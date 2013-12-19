@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Christian Vozar (christian@bellycard.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -37,9 +38,11 @@ type SmtpOutputConfig struct {
 	SendFrom string `toml:"send_from"`
 	// email addresses to send the output to
 	SendTo []string `toml:"send_to"`
+	// User defined email subject line
+	Subject string
 	// SMTP Host
 	Host string
-	// SMTP Auth
+	// SMTP Authentication type
 	Auth string
 	// SMTP user
 	User string
@@ -89,8 +92,14 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack     *PipelinePack
 		msg      *message.Message
 		contents []byte
+		subject  string
 	)
-	subject := or.Name()
+	
+	if s.conf.Subject == "" {
+	subject = "Heka [" + or.Name() + "]"
+	} else {
+	subject = s.conf.Subject
+	}
 
 	for pack = range inChan {
 		msg = pack.Message
