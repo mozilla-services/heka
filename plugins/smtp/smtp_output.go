@@ -22,9 +22,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
-	"net/mail"
 	"net/smtp"
-	"strings"
 )
 
 type SmtpOutput struct {
