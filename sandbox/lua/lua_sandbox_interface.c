@@ -191,6 +191,62 @@ int read_message(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int write_message(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "write_message() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    int n = lua_gettop(lua);
+    if (n < 2 || n > 5) {
+        luaL_error(lua, "write_message() incorrect number of arguments");
+    }
+    const char* field = luaL_checkstring(lua, 1);
+    int type = lua_type(lua, 2);
+    const char* rep = luaL_optstring(lua, 3, "");
+    int fi = luaL_optinteger(lua, 4, 0);
+    luaL_argcheck(lua, fi >= 0, 4, "field index must be >= 0");
+    int ai = luaL_optinteger(lua, 5, 0);
+    luaL_argcheck(lua, ai >= 0, 5, "array index must be >= 0");
+
+    int result;
+
+    // In all of the `go_lua_write_message` calls below we cast away constness
+    // of the Lua strings since the values are not modified and doing so will
+    // save copies.
+    switch (type) {
+    case LUA_TBOOLEAN: {
+        int value = lua_toboolean(lua, 2);
+        result = go_lua_write_message_bool(lsb_get_parent(lsb), (char*)field,
+            value, (char*)rep, fi, ai);
+        break;
+    }
+    case LUA_TNUMBER: {
+        lua_Number value = lua_tonumber(lua, 2);
+            result = go_lua_write_message_double(lsb_get_parent(lsb), (char*)field,
+                value, (char*)rep, fi, ai);
+        break;
+    }
+    case LUA_TSTRING: {
+        size_t len;
+        const char* value = lua_tostring(lua, 2);
+        result = go_lua_write_message_string(lsb_get_parent(lsb), (char*)field,
+            (char*)value, (char*)rep, fi, ai);
+        break;
+    }
+    default:
+        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values");
+    }
+
+    if (result != 0) {
+        luaL_error(lua, "write_message() failed");
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int read_next_field(lua_State* lua)
 {
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
@@ -308,7 +364,7 @@ int inject_message(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int sandbox_init(lua_sandbox* lsb, const char* data_file)
+int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type)
 {
     if (!lsb) return 1;
 
@@ -316,6 +372,10 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file)
     lsb_add_function(lsb, &read_message, "read_message");
     lsb_add_function(lsb, &read_next_field, "read_next_field");
     lsb_add_function(lsb, &inject_message, "inject_message");
+
+    if (strcmp(plugin_type, "decoder") == 0) {
+        lsb_add_function(lsb, &write_message, "write_message");
+    }
 
     int result = lsb_init(lsb, data_file);
     if (result) return result;

@@ -84,6 +84,35 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+**write_message(variableName, value, representation, fieldIndex, arrayIndex)**
+    Decoders only. Mutates specified field value on the message that is being
+    deocded.
+
+    *Arguments*
+        - variableName (string)
+            - Uuid (accepts raw bytes or RFC4122 string representation)
+            - Type (string)
+            - Logger (string)
+            - Payload (string)
+            - EnvVersion (string)
+            - Hostname (string)
+            - Timestamp (accepts Unix ns-since-epoch number or a handful of
+                         parseable string representations.)
+            - Severity (number or int-parseable string)
+            - Pid (number or int-parseable string)
+            - Fields[_name_] (field type determined by value type: bool, number, or string)
+        - value (bool, number or string)
+            - value to which field should be set
+        - representation (string) only used in combination with the Fields variableName
+            - representation tag to set
+        - fieldIndex (unsigned) only used in combination with the Fields variableName
+            - use to set a specfic instance of a repeated field _name_
+        - arrayIndex (unsigned) only used in combination with the Fields variableName
+            - use to set a specific element of a field containing an array
+
+    *Return*
+        none
+
 **read_next_field()**
     Iterates through the message fields returning the field contents or nil when the end is reached.
 

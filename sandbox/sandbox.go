@@ -32,7 +32,7 @@ const (
 
 type Sandbox interface {
 	// Sandbox control
-	Init(dataFile string) error
+	Init(dataFile, pluginType string) error
 	Destroy(dataFile string) error
 
 	// Sandbox state

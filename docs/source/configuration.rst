@@ -895,7 +895,7 @@ Parameters:
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    be seen in `Go's time documentation <http://golang.org/pkg/time/#pkg-
     constants>`_.
 - timestamp_location (string):
     Time zone in which the timestamps in the text are presumed to be in.
@@ -979,7 +979,7 @@ Parameters:
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    be seen in `Go's time documentation <http://golang.org/pkg/time/#pkg-
     constants>`_.  The default layout is ISO8601 - the same as
     Javascript.
 
@@ -1139,7 +1139,7 @@ Parameters:
 - timestamp_layout (string):
     A formatting string instructing hekad how to turn a time string into the
     actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documetation <http://golang.org/pkg/time/#pkg-
+    be seen in `Go's time documentation <http://golang.org/pkg/time/#pkg-
     constants>`_.  The default layout is ISO8601 - the same as
     Javascript.
 

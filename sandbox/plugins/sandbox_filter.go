@@ -98,9 +98,9 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 
 	this.preservationFile = filepath.Join(filepath.Dir(this.sbc.ScriptFilename), this.name+".data")
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
-		err = this.sb.Init(this.preservationFile)
+		err = this.sb.Init(this.preservationFile, "filter")
 	} else {
-		err = this.sb.Init("")
+		err = this.sb.Init("", "filter")
 	}
 
 	return err

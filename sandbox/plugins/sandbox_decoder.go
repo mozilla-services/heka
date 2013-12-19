@@ -70,7 +70,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	default:
 		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
-	err = s.sb.Init("")
+	err = s.sb.Init("", "decoder")
 	return
 }
 

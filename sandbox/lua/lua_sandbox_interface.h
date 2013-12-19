@@ -11,6 +11,14 @@
 #include "lua.h"
 #include "lua_sandbox.h"
 
+// LMW_ERR_*: Lua Message Write errors
+extern const int LMW_ERR_NO_SANDBOX_PACK;
+extern const int LMW_ERR_WRONG_TYPE;
+extern const int LMW_ERR_NEWFIELD_FAILED;
+extern const int LMW_ERR_BAD_FIELD_INDEX;
+extern const int LMW_ERR_BAD_ARRAY_INDEX;
+extern const int LMW_ERR_INVALID_FIELD_NAME;
+
 /**
 * Passes a Heka message down to the sandbox for processing. The instruction
 * count limits are active during this call.
@@ -80,7 +88,7 @@ int inject_message(lua_State* lua);
  *
  * @return int 0 on success
  */
-int sandbox_init(lua_sandbox* lsb, const char* data_file);
+int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);
 
 #endif
 
