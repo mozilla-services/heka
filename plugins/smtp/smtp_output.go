@@ -16,13 +16,15 @@
 package smtp
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
+	"net/mail"
 	"net/smtp"
+	"strings"
 )
 
 type SmtpOutput struct {
@@ -59,6 +61,13 @@ func (s *SmtpOutput) ConfigStruct() interface{} {
 	}
 }
 
+// Utilize the net/mail Address struct and String() func to ensure email
+// addresses are RFC2047 compliant.
+func encodeRFC2047(s string) string {
+	addr := mail.Address{s, ""}
+	return strings.Trim(addr.String(), " <>")
+}
+
 func (s *SmtpOutput) Init(config interface{}) (err error) {
 	s.conf = config.(*SmtpOutputConfig)
 
@@ -93,23 +102,35 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		msg      *message.Message
 		contents []byte
 		subject  string
+		message  string
 	)
-	
+
 	if s.conf.Subject == "" {
-	subject = "Heka [" + or.Name() + "]"
+		subject = "Heka [" + or.Name() + "]"
 	} else {
-	subject = s.conf.Subject
+		subject = s.conf.Subject
+	}
+
+	header := make(map[string]string)
+	header["From"] = s.conf.SendFrom
+	header["Subject"] = encodeRFC2047(subject)
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
 
 	for pack = range inChan {
 		msg = pack.Message
 		if s.conf.PayloadOnly {
-			message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, msg.GetPayload()))
-			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+			message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(msg.GetPayload()))
+			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
 		} else {
 			if contents, err = json.Marshal(msg); err == nil {
-				message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, contents))
-				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+				message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
+				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
 			} else {
 				or.LogError(err)
 			}
