@@ -38,6 +38,8 @@ function process_message ()
         end
     elseif msg == "read_config() must have a single argument" then
         read_config()
+    elseif msg == "write_message() should not exist" then
+        write_message("Severity", 0)
     end
     return 0
 end
