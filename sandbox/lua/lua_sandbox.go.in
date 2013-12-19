@@ -424,6 +424,76 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 	return 1
 }
 
+//export go_lua_read_next_field
+func go_lua_read_next_field(ptr unsafe.Pointer) (int, unsafe.Pointer, int,
+	unsafe.Pointer, int, unsafe.Pointer, int, int) {
+	var (
+		fieldType         int
+		name              string
+		namePtr           unsafe.Pointer
+		nameLen           int
+		representation    string
+		representationPtr unsafe.Pointer
+		representationLen int
+		valuePtr          unsafe.Pointer
+		valueLen          int
+		fieldLen          int
+	)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	var field *message.Field
+	if lsb.pack != nil && lsb.field < len(lsb.pack.Message.Fields) {
+		field = lsb.pack.Message.Fields[lsb.field]
+		lsb.field++
+
+		fieldType = int(field.GetValueType())
+		name = field.GetName()
+		namePtr = unsafe.Pointer(C.CString(name)) // freed by the caller
+		nameLen = len(name)
+		representation = field.GetRepresentation()
+		representationPtr = unsafe.Pointer(C.CString(representation)) // freed by the caller
+		representationLen = len(representation)
+		switch field.GetValueType() {
+		case message.Field_STRING:
+			fieldLen = len(field.ValueString)
+			if fieldLen == 0 {
+				break
+			}
+			value := field.ValueString[0]
+			valuePtr = unsafe.Pointer(C.CString(value)) // freed by the caller
+			valueLen = len(value)
+		case message.Field_BYTES:
+			fieldLen = len(field.ValueBytes)
+			if fieldLen == 0 {
+				break
+			}
+			value := field.ValueBytes[0]
+			valuePtr = unsafe.Pointer(&field.ValueBytes[0][0])
+			valueLen = len(value)
+		case message.Field_INTEGER:
+			fieldLen = len(field.ValueInteger)
+			if fieldLen == 0 {
+				break
+			}
+			valuePtr = unsafe.Pointer(&field.ValueInteger[0])
+		case message.Field_DOUBLE:
+			fieldLen = len(field.ValueDouble)
+			if fieldLen == 0 {
+				break
+			}
+			valuePtr = unsafe.Pointer(&field.ValueDouble[0])
+		case message.Field_BOOL:
+			fieldLen = len(field.ValueBool)
+			if fieldLen == 0 {
+				break
+			}
+			valuePtr = unsafe.Pointer(&field.ValueBool[0])
+		}
+	}
+
+	return fieldType, namePtr, nameLen, valuePtr, valueLen,
+		representationPtr, representationLen, fieldLen
+}
+
 //export go_lua_read_config
 func go_lua_read_config(ptr unsafe.Pointer, c *C.char) (int, unsafe.Pointer, int) {
 	name := C.GoString(c)
@@ -465,6 +535,7 @@ type LuaSandbox struct {
 	output        func(s string)
 	injectMessage func(payload, payload_type, payload_name string) int
 	config        map[string]interface{}
+	field         int
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
@@ -531,6 +602,7 @@ func (this *LuaSandbox) Usage(utype, ustat int) uint {
 }
 
 func (this *LuaSandbox) ProcessMessage(pack *pipeline.PipelinePack) int {
+	this.field = 0
 	this.pack = pack
 	r := int(C.process_message(this.lsb))
 	this.pack = nil

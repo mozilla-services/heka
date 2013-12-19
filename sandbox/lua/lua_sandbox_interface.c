@@ -243,6 +243,59 @@ int write_message(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+int read_next_field(lua_State* lua)
+{
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "read_next_field() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    if (lua_gettop(lua) != 0) {
+        luaL_error(lua, "read_next_field() takes no arguments");
+    }
+
+    struct go_lua_read_next_field_return gr;
+    gr = go_lua_read_next_field(lsb_get_parent(lsb));
+    if (gr.r3 == NULL) {
+        lua_pushnil(lua);
+        lua_pushnil(lua);
+        lua_pushnil(lua);
+        lua_pushnil(lua);
+        lua_pushnil(lua);
+    } else {
+        lua_pushinteger(lua, gr.r0); // type
+        lua_pushlstring(lua, gr.r1, gr.r2); // name
+        free(gr.r1);
+        switch (gr.r0) { // value
+        case 0:
+            lua_pushlstring(lua, gr.r3, gr.r4);
+            free(gr.r3);
+            break;
+        case 1:
+            lua_pushlstring(lua, gr.r3, gr.r4);
+            break;
+        case 2:
+            lua_pushnumber(lua, *((GoInt64*)gr.r3));
+            break;
+        case 3:
+            lua_pushnumber(lua, *((GoFloat64*)gr.r3));
+            break;
+        case 4:
+            lua_pushboolean(lua, *((GoInt8*)gr.r3));
+            break;
+        default:
+            lua_pushnil(lua);
+            break;
+        }
+        lua_pushlstring(lua, gr.r5, gr.r6); // representation
+        free(gr.r5);
+        lua_pushinteger(lua, gr.r7); // count
+    }
+    return 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 int inject_message(lua_State* lua)
 {
     static const char* default_type = "txt";
@@ -313,6 +366,7 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_typ
 
     lsb_add_function(lsb, &read_config, "read_config");
     lsb_add_function(lsb, &read_message, "read_message");
+    lsb_add_function(lsb, &read_next_field, "read_next_field");
     lsb_add_function(lsb, &inject_message, "inject_message");
 
     if (strcmp(plugin_type, "decoder") == 0) {

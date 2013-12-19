@@ -60,6 +60,16 @@ int read_config(lua_State* lua);
 int read_message(lua_State* lua);
 
 /**
+ * Iterates through the message fields returning the type, name, value,
+ * representation, and count for each field.
+ *
+ * @param lua Pointer to the Lua state.
+ *
+ * @return int Returns five values on the stack.
+ */
+int read_next_field(lua_State* lua);
+
+/**
 * Inject a message into Heka using the output buffer's contents as the message
 * payload.
 *
@@ -71,11 +81,11 @@ int inject_message(lua_State* lua);
 
 /**
  * Initializes the sandbox and sets up the above callbacks.
- * 
+ *
  * @param lsb Pointer to the sandbox.
- * @param data_file File used for the data restoration (empty or NULL for no 
+ * @param data_file File used for the data restoration (empty or NULL for no
  *                  restoration)
- * 
+ *
  * @return int 0 on success
  */
 int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);

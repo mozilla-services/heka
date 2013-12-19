@@ -38,6 +38,8 @@ function process_message ()
         end
     elseif msg == "read_config() must have a single argument" then
         read_config()
+    elseif msg == "read_next_field() takes no arguments" then
+        read_next_field("test")
     end
     return 0
 end
