@@ -61,13 +61,6 @@ func (s *SmtpOutput) ConfigStruct() interface{} {
 	}
 }
 
-// Utilize the net/mail Address struct and String() func to ensure email
-// addresses are RFC2047 compliant.
-func encodeRFC2047(s string) string {
-	addr := mail.Address{s, ""}
-	return strings.Trim(addr.String(), " <>")
-}
-
 func (s *SmtpOutput) Init(config interface{}) (err error) {
 	s.conf = config.(*SmtpOutputConfig)
 
@@ -113,7 +106,7 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	header := make(map[string]string)
 	header["From"] = s.conf.SendFrom
-	header["Subject"] = encodeRFC2047(subject)
+	header["Subject"] = subject
 	header["MIME-Version"] = "1.0"
 	header["Content-Type"] = "text/plain; charset=\"utf-8\""
 	header["Content-Transfer-Encoding"] = "base64"
