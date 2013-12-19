@@ -37,10 +37,11 @@ import (
 	"unsafe"
 )
 
-func extractLuaFieldName(wrapped string) (fn string) {
+func extractLuaFieldName(wrapped string) (fn string, found bool) {
 	if l := len(wrapped); l > 0 && wrapped[l-1] == ']' {
 		if strings.HasPrefix(wrapped, "Fields[") {
 			fn = wrapped[7 : l-1]
+			found = true
 		}
 	}
 	return
@@ -253,7 +254,7 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 			return int(message.Field_BYTES),
 				unsafe.Pointer(&lsb.pack.MsgBytes[0]), len(lsb.pack.MsgBytes)
 		default:
-			if fn := extractLuaFieldName(fieldName); fn != "" {
+			if fn, found := extractLuaFieldName(fieldName); found {
 				return lookup_field(lsb.pack.Message, fn, fi, ai)
 			}
 		}
@@ -297,6 +298,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 			return 1
 		}
 		lsb.pack.Message.SetUuid(uuidBytes)
+		return 0
 	case "Timestamp":
 		vStr := C.GoString(v)
 		// First make sure we have anything at all.
@@ -343,7 +345,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		lsb.pack.Message.SetPid(int32(value))
 		return 0
 	default:
-		if fn := extractLuaFieldName(fieldName); fn != "" {
+		if fn, found := extractLuaFieldName(fieldName); found {
 			if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
 				pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
 				return 1
@@ -380,7 +382,7 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		lsb.pack.Message.SetTimestamp(value)
 		return 0
 	default:
-		if fn := extractLuaFieldName(fieldName); fn != "" {
+		if fn, found := extractLuaFieldName(fieldName); found {
 			value := float64(v)
 			if err := write_to_field(lsb.pack.Message, fn, value, rep, fi, ai); err != nil {
 				pipeline.Globals().LogMessage("go_lua_write_message_double", err.Error())
@@ -404,7 +406,7 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 		return 1
 	}
 
-	if fn := extractLuaFieldName(fieldName); fn != "" {
+	if fn, found := extractLuaFieldName(fieldName); found {
 		if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
 			pipeline.Globals().LogMessage("go_lua_write_message_bool", err.Error())
 			return 1

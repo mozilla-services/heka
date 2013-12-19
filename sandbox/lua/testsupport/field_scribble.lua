@@ -6,8 +6,11 @@ local r
 
 function process_message ()
 	write_message("Type", "MyType")
+	write_message("Logger", "MyLogger")
 	write_message("Timestamp", "2013-12-02T07:21:54.904958136Z")
 	write_message("Payload", "MyPayload")
+	write_message("EnvVersion", "000")
+	write_message("Hostname", "MyHostname")
 	write_message("Severity", 4)
 	write_message("Pid", "12345")
 	write_message("Fields[String]", "foo")
@@ -17,5 +20,7 @@ function process_message ()
 	write_message("Fields[Bool]", true)
 	write_message("Fields[Bool]", false, "", 1, 0)
 	write_message("Fields[Bool]", false, "", 1, 0)
+	write_message("Fields[]", "bad idea")
+	write_message("Uuid", "550d19b9-58c7-49d8-b0dd-b48cd1c5b305")
 	return 0
 end

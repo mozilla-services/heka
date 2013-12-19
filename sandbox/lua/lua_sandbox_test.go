@@ -500,6 +500,9 @@ func TestWriteMessage(t *testing.T) {
 	if pack.Message.GetType() != "MyType" {
 		t.Error("Type not set")
 	}
+	if pack.Message.GetLogger() != "MyLogger" {
+		t.Error("Logger not set")
+	}
 	packTime := time.Unix(0, pack.Message.GetTimestamp())
 	cmpTime := time.Unix(0, 1385968914904958136)
 	d, _ := time.ParseDuration("500ns")
@@ -510,6 +513,12 @@ func TestWriteMessage(t *testing.T) {
 	}
 	if pack.Message.GetPayload() != "MyPayload" {
 		t.Error("Payload not set")
+	}
+	if pack.Message.GetEnvVersion() != "000" {
+		t.Error("EnvVersion not set")
+	}
+	if pack.Message.GetHostname() != "MyHostname" {
+		t.Error("Hostname not set")
 	}
 	if pack.Message.GetSeverity() != 4 {
 		t.Error("Severity not set")
@@ -548,6 +557,16 @@ func TestWriteMessage(t *testing.T) {
 		if len(f[1].GetValueBool()) != 1 || f[1].GetValueBool()[0] {
 			t.Error("Bool field 1 not set")
 		}
+	}
+	if f = pack.Message.FindAllFields(""); len(f) != 1 {
+		t.Error("No-name field not set")
+	} else {
+		if len(f[0].GetValueString()) != 1 || f[0].GetValueString()[0] != "bad idea" {
+			t.Error("No-name field set incorrectly")
+		}
+	}
+	if pack.Message.GetUuidString() != "550d19b9-58c7-49d8-b0dd-b48cd1c5b305" {
+		t.Errorf("Uuid not set: %s", pack.Message.GetUuidString())
 	}
 }
 
