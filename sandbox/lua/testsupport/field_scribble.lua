@@ -16,5 +16,7 @@ function process_message ()
 	write_message("Fields[Int]", 456, "count", 0, 1)
 	write_message("Fields[Bool]", true)
 	write_message("Fields[Bool]", false, "", 1, 0)
+   write_message("Fields[Bool]", false, "", 1, 0)
+   write_message("Uuid", "0123456789\00012345")
 	return 0
 end
