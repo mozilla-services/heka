@@ -389,7 +389,7 @@ func TestWriteMessageErrors(t *testing.T) {
 		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
-		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean values",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean field values",
 		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
@@ -986,7 +986,7 @@ func TestReadNextField(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}

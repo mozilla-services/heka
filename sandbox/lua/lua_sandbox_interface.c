@@ -217,23 +217,27 @@ int write_message(lua_State* lua)
     // of the Lua strings since the values are not modified and doing so will
     // save copies.
     switch (type) {
-    case LUA_TBOOLEAN:;
-        int bvalue = lua_toboolean(lua, 2);
+    case LUA_TBOOLEAN: {
+        int value = lua_toboolean(lua, 2);
         result = go_lua_write_message_bool(lsb_get_parent(lsb), (char*)field,
-            bvalue, (char*)rep, fi, ai);
+            value, (char*)rep, fi, ai);
         break;
-    case LUA_TNUMBER:;
-        lua_Number nvalue = luaL_checknumber(lua, 2);
+    }
+    case LUA_TNUMBER: {
+        lua_Number value = lua_tonumber(lua, 2);
             result = go_lua_write_message_double(lsb_get_parent(lsb), (char*)field,
-                nvalue, (char*)rep, fi, ai);
+                value, (char*)rep, fi, ai);
         break;
-    case LUA_TSTRING:;
-        const char* svalue = luaL_checkstring(lua, 2);
+    }
+    case LUA_TSTRING: {
+        size_t len;
+        const char* value = lua_tostring(lua, 2);
         result = go_lua_write_message_string(lsb_get_parent(lsb), (char*)field,
-            (char*)svalue, (char*)rep, fi, ai);
+            (char*)value, (char*)rep, fi, ai);
         break;
+    }
     default:
-        luaL_error(lua, "write_message() only accepts numeric, string, or boolean values");
+        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values");
     }
 
     if (result != 0) {

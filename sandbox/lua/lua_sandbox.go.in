@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package lua
@@ -35,6 +36,15 @@ import (
 	"time"
 	"unsafe"
 )
+
+func extractLuaFieldName(wrapped string) (fn string) {
+	if l := len(wrapped); l > 0 && wrapped[l-1] == ']' {
+		if strings.HasPrefix(wrapped, "Fields[") {
+			fn = wrapped[7 : l-1]
+		}
+	}
+	return
+}
 
 func lookup_field(msg *message.Message, fn string, fi, ai int) (int,
 	unsafe.Pointer, int) {
@@ -243,12 +253,8 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 			return int(message.Field_BYTES),
 				unsafe.Pointer(&lsb.pack.MsgBytes[0]), len(lsb.pack.MsgBytes)
 		default:
-			l := len(fieldName)
-			if l > 0 && fieldName[l-1] == ']' {
-				if strings.HasPrefix(fieldName, "Fields[") {
-					t, p, l := lookup_field(lsb.pack.Message, fieldName[7:l-1], fi, ai)
-					return t, p, l
-				}
+			if fn := extractLuaFieldName(fieldName); fn != "" {
+				return lookup_field(lsb.pack.Message, fn, fi, ai)
 			}
 		}
 	}
@@ -284,11 +290,6 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		return 0
 	case "Uuid":
 		value := C.GoString(v)
-		if len(value) == 16 {
-			// 16 bytes long, presume we're a binary UUID value.
-			lsb.pack.Message.SetUuid([]byte(value))
-			return 0
-		}
 		var uuidBytes []byte
 		if uuidBytes = uuid.Parse(value); uuidBytes == nil {
 			pipeline.Globals().LogMessage("go_lua_write_message_string",
@@ -297,8 +298,15 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		}
 		lsb.pack.Message.SetUuid(uuidBytes)
 	case "Timestamp":
-		// First try UnixNano integer parsing.
-		value, err := strconv.ParseInt(C.GoString(v), 0, 64)
+		vStr := C.GoString(v)
+		// First make sure we have anything at all.
+		if vStr == "" {
+			pipeline.Globals().LogMessage("go_lua_write_message_string",
+				"Empty timestamp string.")
+			return 1
+		}
+		// Next try UnixNano integer parsing.
+		value, err := strconv.ParseInt(vStr, 0, 64)
 		if err != nil {
 			// If that fails, try ForgivingTimeParse string parsing. Note that
 			// ForgivingTimeParse is slow and not nearly as forgiving as the
@@ -306,9 +314,8 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 			// Lua.
 			loc, _ := time.LoadLocation("UTC")
 			var parsedTime time.Time
-			parsedTime, err = message.ForgivingTimeParse("", C.GoString(v), loc)
+			parsedTime, err = message.ForgivingTimeParse("", vStr, loc)
 			if err != nil {
-				fmt.Println("ERR: ", err)
 				pipeline.Globals().LogMessage("go_lua_write_message_string",
 					"Can't parse timestamp string.")
 				return 1
@@ -336,17 +343,12 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		lsb.pack.Message.SetPid(int32(value))
 		return 0
 	default:
-		l := len(fieldName)
-		if l > 0 && fieldName[l-1] == ']' {
-			if strings.HasPrefix(fieldName, "Fields[") {
-				err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
-					v, rep, fi, ai)
-				if err == nil {
-					return 0
-				}
+		if fn := extractLuaFieldName(fieldName); fn != "" {
+			if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
 				pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
 				return 1
 			}
+			return 0
 		}
 	}
 	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
@@ -360,7 +362,7 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		pipeline.Globals().LogMessage("go_lua_write_message_double", "No sandbox pack.")
 		return 1
 	}
 
@@ -378,22 +380,16 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		lsb.pack.Message.SetTimestamp(value)
 		return 0
 	default:
-		l := len(fieldName)
-		if l > 0 && fieldName[l-1] == ']' {
-			if strings.HasPrefix(fieldName, "Fields[") {
-				value := float64(v)
-				err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
-					value, rep, fi, ai)
-				if err == nil {
-					return 0
-				}
-				pipeline.Globals().LogMessage("go_lua_write_message_string",
-					err.Error())
+		if fn := extractLuaFieldName(fieldName); fn != "" {
+			value := float64(v)
+			if err := write_to_field(lsb.pack.Message, fn, value, rep, fi, ai); err != nil {
+				pipeline.Globals().LogMessage("go_lua_write_message_double", err.Error())
 				return 1
 			}
+			return 0
 		}
 	}
-	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
+	pipeline.Globals().LogMessage("go_lua_write_message_double", "Bad field name.")
 	return 1
 }
 
@@ -404,23 +400,18 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		pipeline.Globals().LogMessage("go_lua_write_message_bool", "No sandbox pack.")
 		return 1
 	}
 
-	l := len(fieldName)
-	if l > 0 && fieldName[l-1] == ']' {
-		if strings.HasPrefix(fieldName, "Fields[") {
-			err := write_to_field(lsb.pack.Message, fieldName[7:l-1],
-				v, rep, fi, ai)
-			if err == nil {
-				return 0
-			}
-			pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
+	if fn := extractLuaFieldName(fieldName); fn != "" {
+		if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
+			pipeline.Globals().LogMessage("go_lua_write_message_bool", err.Error())
 			return 1
 		}
+		return 0
 	}
-	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
+	pipeline.Globals().LogMessage("go_lua_write_message_bool", "Bad field name.")
 	return 1
 }
 
