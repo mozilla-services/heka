@@ -526,8 +526,10 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 		rp := NewRegexpParser()
 		fm.parser = rp
 		fm.parseFunction = payloadParser
-		if err = rp.SetDelimiter(conf.Delimiter); err != nil {
-			return err
+		if len(conf.Delimiter) > 0 {
+			if err = rp.SetDelimiter(conf.Delimiter); err != nil {
+				return err
+			}
 		}
 		if err = rp.SetDelimiterLocation(conf.DelimiterLocation); err != nil {
 			return err
