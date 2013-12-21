@@ -14,10 +14,11 @@
 
 /*
 
-Inject client.
+Heka Inject client.
 
 Inject client used to test heka message flow and plugin operations.
-Allows for injecting messages of specified type into Heka pipeline.
+Allows for injecting messages with specified message variable into Heka
+pipeline.
 
 */
 package main
@@ -83,7 +84,7 @@ func (hc *HekaClient) injectMessage(m *InjectData) (err error) {
 }
 
 func main() {
-	flagHekaInstance := flag.String("heka", "127.0.0.1:5565", "Heka instance to send message")
+	flagHekaInstance := flag.String("heka", "127.0.0.1:5565", "Heka instance to inject message")
 	flagType := flag.String("type", "inject.message", "Type of message")
 	flagLogger := flag.String("logger", "Inject Client", "Data source")
 	flagSeverity := flag.Int("severity", 7, "Syslog severity level")
