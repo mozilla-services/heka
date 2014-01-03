@@ -22,6 +22,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
+	"strconv"
 	"net/http"
 	"time"
 )
@@ -38,7 +39,7 @@ type HttpInput struct {
 
 type MonitorResponse struct {
 	ResponseData []byte
-	ResponseSize string
+	ResponseSize int
 	ResponseTime float64
 	StatusCode   int
 	Status       string
@@ -236,7 +237,7 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				}
 				resp.Body.Close()
 
-				contentLength := resp.Header.Get("Content-Length")
+				contentLength, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
 
 				response := &MonitorResponse{
 					ResponseData: body,
