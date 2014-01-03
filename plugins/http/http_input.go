@@ -145,12 +145,12 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
-			if field, err := message.NewField("ResponseSize", data.ResponseSize, ""); err == nil {
+			if field, err := message.NewField("ResponseSize", data.ResponseSize, "B"); err == nil {
 				pack.Message.AddField(field)
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
-			if field, err := message.NewField("ResponseTime", data.ResponseTime, ""); err == nil {
+			if field, err := message.NewField("ResponseTime", data.ResponseTime, "s"); err == nil {
 				pack.Message.AddField(field)
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
