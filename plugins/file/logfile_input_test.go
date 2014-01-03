@@ -173,13 +173,10 @@ func LogfileInputSpec0(c gs.Context) {
 		lfiConfig.LogFile = "../testsupport/test-zeus.log"
 		lfiConfig.Logger = "zeus"
 		lfiConfig.ParserType = "regexp"
-		lfiConfig.Delimiter = "(\n)"
 		lfiConfig.UseSeekJournal = true
 		lfiConfig.Decoder = "decoder-name"
 		lfiConfig.DiscoverInterval = 1
 		lfiConfig.StatInterval = 1
-		err := lfInput.Init(lfiConfig)
-		c.Expect(err, gs.IsNil)
 
 		mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
 
@@ -192,7 +189,34 @@ func LogfileInputSpec0(c gs.Context) {
 			ith.PackSupply <- packs[i]
 		}
 
+		c.Specify("doesn't whack default RegexpParser delimiter", func() {
+			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.IsNil)
+			parser := lfInput.Monitor.parser.(*RegexpParser)
+			buf := bytes.NewBuffer([]byte("split\nhere"))
+			n, r, err := parser.Parse(buf)
+			c.Expect(n, gs.Equals, len("split\n"))
+			c.Expect(string(r), gs.Equals, "split")
+			c.Expect(err, gs.IsNil)
+		})
+
+		c.Specify("keeps captures in the record text", func() {
+			lfiConfig.Delimiter = "(\n)"
+			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.IsNil)
+			parser := lfInput.Monitor.parser.(*RegexpParser)
+			buf := bytes.NewBuffer([]byte("split\nhere"))
+			n, r, err := parser.Parse(buf)
+			c.Expect(n, gs.Equals, len("split\n"))
+			c.Expect(string(r), gs.Equals, "split\n")
+			c.Expect(err, gs.IsNil)
+		})
+
 		c.Specify("reads a log file", func() {
+			lfiConfig.Delimiter = "(\n)"
+			err := lfInput.Init(lfiConfig)
+			c.Expect(err, gs.IsNil)
+
 			// Expect InputRunner calls to get InChan and inject outgoing msgs
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
