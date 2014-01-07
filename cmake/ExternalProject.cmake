@@ -27,6 +27,7 @@
 #    [URL_MD5 md5]               # MD5 checksum of file at URL
 #    [TIMEOUT seconds]           # Time allowed for file download operations
 #   #--Update/Patch step----------
+#    [UPDATE_ALWAYS 0]           # Prevents update/build/install of pinned repo versions Issue #598
 #    [UPDATE_COMMAND cmd...]     # Source work-tree update command
 #    [PATCH_COMMAND cmd...]      # Command to patch downloaded source
 #   #--Configure step-------------
@@ -1241,7 +1242,7 @@ function(_ep_add_update_command name)
 
   set(work_dir)
   set(comment)
-  set(always)
+  get_property(always TARGET ${name} PROPERTY _EP_UPDATE_ALWAYS)
 
   if(cmd_set)
     set(work_dir ${source_dir})
@@ -1253,7 +1254,6 @@ function(_ep_add_update_command name)
     set(comment "Performing update step (CVS update) for '${name}'")
     get_property(cvs_tag TARGET ${name} PROPERTY _EP_CVS_TAG)
     set(cmd ${CVS_EXECUTABLE} -d ${cvs_repository} -q up -dP ${cvs_tag})
-    set(always 1)
   elseif(svn_repository)
     if(NOT Subversion_SVN_EXECUTABLE)
       message(FATAL_ERROR "error: could not find svn for update of ${name}")
@@ -1276,7 +1276,6 @@ function(_ep_add_update_command name)
     endif()
     set(cmd ${Subversion_SVN_EXECUTABLE} up ${svn_revision}
       --non-interactive ${svn_trust_cert_args} ${svn_user_pw_args})
-    set(always 1)
   elseif(git_repository)
     if(NOT GIT_EXECUTABLE)
       message(FATAL_ERROR "error: could not find git for fetch of ${name}")
@@ -1291,7 +1290,6 @@ function(_ep_add_update_command name)
       COMMAND ${GIT_EXECUTABLE} checkout ${git_tag}
       COMMAND ${GIT_EXECUTABLE} submodule update --recursive
       )
-    set(always 1)
   elseif(hg_repository)
     if(NOT HG_EXECUTABLE)
       message(FATAL_ERROR "error: could not find hg for fetch of ${name}")
@@ -1304,7 +1302,6 @@ function(_ep_add_update_command name)
     endif()
     set(cmd ${HG_EXECUTABLE} update -r ${hg_tag}
       )
-    set(always 1)
   endif()
 
   get_property(log TARGET ${name} PROPERTY _EP_LOG_UPDATE)
