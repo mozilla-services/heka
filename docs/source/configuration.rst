@@ -1303,20 +1303,7 @@ Parameters:
     IPv4 address. Adding a representation string to a standard message header
     name will cause it to be added as a user defined field, i.e. Payload|json
     will create Fields[Payload] with a json representation (see
-    :ref:`field_variables`).
-- - timestamp_layout (string):
-    A formatting string instructing hekad how to turn a time string into the
-    actual time representation used internally. Example timestamp layouts can
-    be seen in `Go's time documentation <http://golang.org/pkg/time/#pkg-
-    constants>`_.
-- timestamp_location (string):
-    Time zone in which the timestamps in the text are presumed to be in.
-    Should be a location name corresponding to a file in the IANA Time Zone
-    database (e.g. "America/Los_Angeles"), as parsed by Go's
-    `time.LoadLocation()` function (see
-    http://golang.org/pkg/time/#LoadLocation). Defaults to "UTC". Not required
-    if valid time zone info is embedded in every parsed timestamp, since those
-    can be parsed as specified in the `timestamp_layout`.
+    :ref:`field_variables`). Does not support Timestamp or Uuid.
 
 Example (in MultiDecoder context)
 
