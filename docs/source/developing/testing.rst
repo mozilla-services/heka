@@ -14,8 +14,6 @@ Command Line Options
 --------------------
 flood [``-config`` `config_file`] [``-test`` `config_section_name`]
 
-
-
 Configuration Variables
 -----------------------
 - test (object): Name of the test section (toml key) in the configuration file.
@@ -52,3 +50,17 @@ Example
         hmac_hash       = "md5"
         hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
         version          = 0
+
+
+Inject
+======
+Inject is a Heka client allowing for the injecting of arbitrary messages into the Heka pipeline. It is capable of generating a message of specified message variables with values. It allows for quickly testing plugins. Inject requires TcpInput with Protobufs encoder availability.
+
+Command Line Options
+--------------------
+heka-inject [``-heka`` `Heka instance to connect`] [``-hostname`` `message hostname`] [``-logger`` `message logger`] [``-payload`` `message payload`] [``-pid`` `message pid`] [``-severity`` `message severity`] [``-type`` `message type`]
+
+
+Example
+
+heka-inject -payload="Test message to for high severity." -severity=1
