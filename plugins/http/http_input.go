@@ -22,8 +22,8 @@ import (
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
-	"strconv"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -220,7 +220,11 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				responsePayload := []byte{}
 				responseTimeStart := time.Now()
 				// Request URL(s)
-				resp, err := http.Get(url)
+				httpClient := &http.Client{}
+				req, err := http.NewRequest("GET", url, nil)
+				req.Header.Add("User-Agent", "Heka")
+				resp, err := httpClient.Do(req)
+
 				responseTime := time.Since(responseTimeStart)
 				if err != nil {
 					responsePayload = []byte(err.Error())
