@@ -15,6 +15,8 @@
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"regexp"
@@ -37,7 +39,11 @@ type MessageTemplate map[string]string
 func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]string) error {
 	var val string
 	for field, rawVal := range mt {
-		val = InterpolateString(rawVal, subs)
+		if subs == nil {
+			val = rawVal
+		} else {
+			val = InterpolateString(rawVal, subs)
+		}
 		switch field {
 		case "Logger":
 			msg.SetLogger(val)
@@ -55,7 +61,15 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 			}
 			msg.SetPid(int32(pid))
 		case "Uuid":
-			msg.SetUuid([]byte(val))
+			if len(val) == message.UUID_SIZE {
+				msg.SetUuid([]byte(val))
+			} else {
+				if uuidBytes := uuid.Parse(val); uuidBytes == nil {
+					return errors.New("Invalid UUID string.")
+				} else {
+					msg.SetUuid(uuidBytes)
+				}
+			}
 		default:
 			fi := strings.SplitN(field, "|", 2)
 			if len(fi) < 2 {

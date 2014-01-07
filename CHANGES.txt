@@ -47,6 +47,9 @@ Bug Handling
 Features
 --------
 
+* Added Go ScribbleDecoder for efficient setting of purely static message
+  field values.
+
 * Exposed `write_message` API function to Lua decoders to allow mutation of
   existing decoded message (issue #577).
 
