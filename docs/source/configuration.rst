@@ -1289,7 +1289,7 @@ conjunction with another decoder (i.e. in a MultiDecoder w/ cascade_strategy
 set to "all") to, for example, set the message type of every message to a
 specific custom value after the messages have been decoded from Protocol
 Buffers format. Note that this only supports setting the exact same value on
-every message, if any dynamic computation is required do determine what the
+every message, if any dynamic computation is required to determine what the
 value should be, or whether it should be applied to a specific message, a
 :ref:`config_sandboxdecoder` using the provided `write_message` API call
 should be used instead.
