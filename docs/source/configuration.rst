@@ -794,7 +794,7 @@ fetched using HTTP GET, and messages will be populated as follows:
 - Logger: Fetched URL.
 - Fields["Status"] (string): HTTP status string value (e.g. "200 OK").
 - Fields["StatusCode"] (int): HTTP status code integer value.
-- Fields["ResponseSize"] (string): Value of HTTP Content-Length header.
+- Fields["ResponseSize"] (int): Value of HTTP Content-Length header.
 - Fields["ResponseTime"] (float64): Clock time elapsed for HTTP GET request,
                                     in seconds.
 - Fields["Protocol"] (string): HTTP protocol used for the request (e.g.

@@ -30,6 +30,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed LogfileInput so it will only override the default delimiter for a
+  RegexpParser if a delimiter is specified in the config.
+
 * PluginWrapper will now check for the WantsName interface when creating a
   plugin, and will set the plugin's name if appropriate.
 
@@ -46,6 +49,8 @@ Bug Handling
 
 Features
 --------
+* Inject: A command-line utility for injecting arbitrary messages into
+  a Heka pipeline.
 
 * Exposed `write_message` API function to Lua decoders to allow mutation of
   existing decoded message (issue #577).
