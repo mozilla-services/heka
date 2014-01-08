@@ -839,16 +839,18 @@ func TestInjectMessageError(t *testing.T) {
 		"error nil type arg",
 		"error nil name arg",
 		"error incorrect number of args",
+		"error userdata output_limit",
 	}
 	errors := []string{
 		"process_message() ./testsupport/inject_message.lua:42: table contains an internal or circular reference",
 		"process_message() ./testsupport/inject_message.lua:47: table contains an internal or circular reference",
 		"process_message() not enough memory",
-		"process_message() ./testsupport/inject_message.lua:76: inject_message() cound not encode protobuf - array has mixed types",
-		"process_message() ./testsupport/inject_message.lua:79: inject_message() cound not encode protobuf - unsupported type 0",
+		"process_message() ./testsupport/inject_message.lua:76: inject_message() could not encode protobuf - array has mixed types",
+		"process_message() ./testsupport/inject_message.lua:79: inject_message() could not encode protobuf - unsupported type 0",
 		"process_message() ./testsupport/inject_message.lua:81: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:83: bad argument #2 to 'inject_message' (string expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:85: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/inject_message.lua:91: inject_message() could not output userdata - output_limit exceeded",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"

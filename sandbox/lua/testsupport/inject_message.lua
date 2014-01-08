@@ -4,7 +4,7 @@
 require "circular_buffer"
 local cbuf = circular_buffer.new(1440, 3, 60)
 local simple_table = {value=1}
-local metric = {MetricName="example",Timestamp=0,Unit="s",Value=0, 
+local metric = {MetricName="example",Timestamp=0,Unit="s",Value=0,
 Dimensions={{Name="d1",Value="v1"}, {Name="d2",Value="v2"}},
 StatisticValues={{Maximum=0,Minimum=0,SampleCount=0,Sum= 0},{Maximum=0,Minimum=0,SampleCount=0,Sum=0}}}
 
@@ -86,6 +86,9 @@ function process_message ()
     elseif msg == "message force memmove" then
         local msg = {Timestamp = 1e9, Fields = {string="0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"}}
         inject_message(msg)
+    elseif msg == "error userdata output_limit" then
+        local cb = circular_buffer.new(1000, 1, 60);
+        inject_message(cb)
     end
     return 0
 end

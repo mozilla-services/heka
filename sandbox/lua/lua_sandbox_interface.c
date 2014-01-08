@@ -328,14 +328,15 @@ int inject_message(lua_State* lua)
         case LUA_TTABLE:
             type = "";
             if (lsb_output_protobuf(lsb, 1, 0) != 0) {
-              luaL_error(lua, "inject_message() cound not encode protobuf - %s",
+              luaL_error(lua, "inject_message() could not encode protobuf - %s",
                          lsb_get_error(lsb));
             }
             break;
         case LUA_TUSERDATA:
             type = lsb_output_userdata(lsb, 1, 0);
             if (!type) {
-                luaL_typerror(lua, 1, "circular_buffer");
+                luaL_error(lua, "inject_message() could not output userdata - %s",
+                           lsb_get_error(lsb));
             }
             break;
         default:
