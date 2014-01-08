@@ -173,7 +173,7 @@ ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-inject
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
+install(PROGRAMS "${HEKA_INJECT_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL 
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgr
