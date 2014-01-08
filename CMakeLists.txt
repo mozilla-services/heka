@@ -31,7 +31,7 @@ set(LUA_INCLUDE_PATH "${PROJECT_PATH}/include")
 set(LUA_LIB_PATH "${PROJECT_PATH}/lib")
 set(HEKA_EXE "${PROJECT_PATH}/bin/hekad${CMAKE_EXECUTABLE_SUFFIX}")
 set(HEKA_FLOOD_EXE "${PROJECT_PATH}/bin/heka-flood${CMAKE_EXECUTABLE_SUFFIX}")
-set(SBMGR_EXE "${PROJECT_PATH}/bin/sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
+set(HEKA_SBMGR_EXE "${PROJECT_PATH}/bin/heka-sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
 set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
 set(HEKA_INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
 
@@ -92,7 +92,7 @@ endif()
 
 add_custom_target(clean-heka
 COMMAND ${CMAKE_COMMAND} -E remove_directory "${HEKA_PATH}"
-COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${HEKA_FLOOD_EXE}" "${SBMGR_EXE}" "${SBMGRLOAD_EXE}" "${HEKA_INJECT_EXE}"
+COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${HEKA_FLOOD_EXE}" "${HEKA_SBMGR_EXE}" "${SBMGRLOAD_EXE}" "${HEKA_INJECT_EXE}"
 COMMAND ${CMAKE_COMMAND} ..
 COMMENT "Resynchronizing the Go workspace with the Heka repository"
 )
@@ -176,10 +176,10 @@ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 install(PROGRAMS "${HEKA_INJECT_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL 
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgr
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgr
 DEPENDS hekad)
 
-install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
+install(PROGRAMS "${HEKA_SBMGR_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgrload ALL 
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
@@ -224,7 +224,7 @@ if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
 
-install(FILES "${HEKA_PATH}/cmd/sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
+install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/heka-sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
 endif()

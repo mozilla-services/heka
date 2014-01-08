@@ -14,7 +14,7 @@
 
 /*
 
-Sandbox Manager
+Heka Sandbox Manager
 
 */
 package main
@@ -37,7 +37,7 @@ type SbmgrConfig struct {
 }
 
 func main() {
-	configFile := flag.String("config", "sbmgr.toml", "Sandbox manager configuration file")
+	configFile := flag.String("config", "heka-sbmgr.toml", "Sandbox manager configuration file")
 	scriptFile := flag.String("script", "xyz.lua", "Sandbox script file")
 	scriptConfig := flag.String("scriptconfig", "xyz.toml", "Sandbox script configuration file")
 	filterName := flag.String("filtername", "filter", "Sandbox filter name (used on unload)")
