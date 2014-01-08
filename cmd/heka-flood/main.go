@@ -10,12 +10,13 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Christian Vozar (christian@bellycard.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 /*
 
-Flood client.
+Heka Flood client.
 
 Flooding client used to test heka message through-put and tolerances.
 Can be run with several configuration options to indicate how the messages
@@ -235,7 +236,7 @@ func sendMessage(sender client.Sender, buf []byte, corrupt bool) (err error) {
 }
 
 func main() {
-	configFile := flag.String("config", "flood.toml", "Flood configuration file")
+	configFile := flag.String("config", "heka-flood.toml", "Heka Flood configuration file")
 	configTest := flag.String("test", "default", "Test section to load")
 
 	flag.Parse()
