@@ -49,6 +49,9 @@ Bug Handling
 
 Features
 --------
+
+* Added support for local external packages (issue #393)
+
 * Inject: A command-line utility for injecting arbitrary messages into
   a Heka pipeline.
 

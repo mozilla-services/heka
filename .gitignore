@@ -5,3 +5,4 @@ cmake/plugin_loader.cmake
 etc/
 var/
 *.sw?
+externals

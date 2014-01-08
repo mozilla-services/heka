@@ -63,12 +63,29 @@ function(hg_clone url tag)
     add_dependencies(GoPackages ${_name})
 endfunction(hg_clone)
 
+function(local_clone url)
+    string(REGEX REPLACE ".*/" "" _name ${url})
+    string(REGEX REPLACE "https?://" "" _path ${url})
+    externalproject_add(
+        ${_name}
+        URL ${CMAKE_SOURCE_DIR}/externals/${_name}
+        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_ALWAYS true
+    )
+    add_dependencies(GoPackages ${_name})
+endfunction(local_clone)
+
 function(add_external_plugin vcs url tag)
     string(REGEX REPLACE "https?://" "" _path ${url})
     if ("${vcs}" STREQUAL "git")
        git_clone(${url} ${tag})
     elseif("${vcs}" STREQUAL "hg")
        hg_clone(${url} ${tag})
+    elseif("${vcs}" STREQUAL "local")
+       local_clone(${url} ${tag})
     else()
         message(FATAL_ERROR "Unknown version control system ${vcs}")
     endif()

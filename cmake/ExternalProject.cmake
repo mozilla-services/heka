@@ -1022,6 +1022,7 @@ function(_ep_add_download_command name)
   set(depends)
   set(comment)
   set(work_dir)
+  set(always)
 
   if(cmd_set)
     set(work_dir ${download_dir})
@@ -1174,6 +1175,7 @@ function(_ep_add_download_command name)
       )
     list(APPEND depends ${stamp_dir}/${name}-urlinfo.txt)
     if(IS_DIRECTORY "${url}")
+      get_property(always TARGET ${name} PROPERTY _EP_UPDATE_ALWAYS)
       get_filename_component(abs_dir "${url}" ABSOLUTE)
       set(comment "Performing download step (DIR copy) for '${name}'")
       set(cmd   ${CMAKE_COMMAND} -E remove_directory ${source_dir}
@@ -1222,6 +1224,7 @@ function(_ep_add_download_command name)
   ExternalProject_Add_Step(${name} download
     COMMENT ${comment}
     COMMAND ${cmd}
+    ALWAYS ${always}
     WORKING_DIRECTORY ${work_dir}
     DEPENDS ${depends}
     DEPENDEES mkdir
