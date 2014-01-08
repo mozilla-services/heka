@@ -66,13 +66,13 @@ heka-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filternam
 
 sbmgrload
 ---------
-Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
+Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
 script and configuration are built into the tool and the filters will be named:
 CounterSandbox\ **N** where **N** is the instance number.
 
 Command Line Options
 
-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
+heka-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
 
 Configuration Variables
 

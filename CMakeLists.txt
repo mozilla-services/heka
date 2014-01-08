@@ -32,7 +32,7 @@ set(LUA_LIB_PATH "${PROJECT_PATH}/lib")
 set(HEKA_EXE "${PROJECT_PATH}/bin/hekad${CMAKE_EXECUTABLE_SUFFIX}")
 set(HEKA_FLOOD_EXE "${PROJECT_PATH}/bin/heka-flood${CMAKE_EXECUTABLE_SUFFIX}")
 set(HEKA_SBMGR_EXE "${PROJECT_PATH}/bin/heka-sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
-set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
+set(HEKA_SBMGRLOAD_EXE "${PROJECT_PATH}/bin/heka-sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
 set(HEKA_INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
@@ -92,7 +92,7 @@ endif()
 
 add_custom_target(clean-heka
 COMMAND ${CMAKE_COMMAND} -E remove_directory "${HEKA_PATH}"
-COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${HEKA_FLOOD_EXE}" "${HEKA_SBMGR_EXE}" "${SBMGRLOAD_EXE}" "${HEKA_INJECT_EXE}"
+COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${HEKA_FLOOD_EXE}" "${HEKA_SBMGR_EXE}" "${HEKA_SBMGRLOAD_EXE}" "${HEKA_INJECT_EXE}"
 COMMAND ${CMAKE_COMMAND} ..
 COMMENT "Resynchronizing the Go workspace with the Heka repository"
 )
@@ -182,7 +182,7 @@ DEPENDS hekad)
 install(PROGRAMS "${HEKA_SBMGR_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgrload ALL 
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
 if (UNIX AND DPKG_EXECUTABLE)
