@@ -36,7 +36,8 @@ type PayloadRegexDecoderConfig struct {
 
 	// User specified timestamp layout string, used for parsing a timestamp
 	// string into an actual time object. If not specified or it fails to
-	// match, all the default time layout's will be tried.
+	// match, all the default time layouts will be tried (see
+	// http://golang.org/pkg/time/#pkg-constants).
 	TimestampLayout string `toml:"timestamp_layout"`
 
 	// Time zone in which the timestamps in the text are presumed to be in.

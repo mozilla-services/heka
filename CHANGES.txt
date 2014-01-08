@@ -52,6 +52,9 @@ Features
 * Inject: A command-line utility for injecting arbitrary messages into
   a Heka pipeline.
 
+* Added Go ScribbleDecoder for efficient setting of purely static message
+  field values.
+
 * Exposed `write_message` API function to Lua decoders to allow mutation of
   existing decoded message (issue #577).
 
