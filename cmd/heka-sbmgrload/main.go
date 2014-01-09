@@ -37,7 +37,7 @@ type SbmgrConfig struct {
 }
 
 func main() {
-	configFile := flag.String("config", "heka-sbmgrload.toml", "Sandbox manager load configuration file")
+	configFile := flag.String("config", "sbmgrload.toml", "Sandbox manager load configuration file")
 	action := flag.String("action", "load", "load/unload")
 	numItems := flag.Int("num", 1, "Number of sandboxes to load/unload")
 	flag.Parse()
