@@ -31,68 +31,92 @@ endif()
 
 add_custom_target(GoPackages ALL)
 
-function(git_clone url tag)
+function(parse_url url)
     string(REGEX REPLACE ".*/" "" _name ${url})
+    set(name ${_name} PARENT_SCOPE)
+
     string(REGEX REPLACE "https?://" "" _path ${url})
+    set(path ${_path} PARENT_SCOPE)
+endfunction(parse_url)
+
+function(git_clone url tag)
+    parse_url(${url})
     externalproject_add(
-        ${_name}
+        ${name}
         GIT_REPOSITORY ${url}
         GIT_TAG ${tag}
-        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
         BUILD_COMMAND ""
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         UPDATE_COMMAND "" # comment out to enable updates
     )
-    add_dependencies(GoPackages ${_name})
+    add_dependencies(GoPackages ${name})
 endfunction(git_clone)
 
 function(hg_clone url tag)
-    string(REGEX REPLACE ".*/" "" _name ${url})
-    string(REGEX REPLACE "https?://" "" _path ${url})
+    parse_url(${url})
     externalproject_add(
-        ${_name}
+        ${name}
         HG_REPOSITORY ${url}
         HG_TAG ${tag}
-        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
         BUILD_COMMAND ""
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         UPDATE_COMMAND "" # comment out to enable updates
     )
-    add_dependencies(GoPackages ${_name})
+    add_dependencies(GoPackages ${name})
 endfunction(hg_clone)
 
-function(local_clone url)
-    string(REGEX REPLACE ".*/" "" _name ${url})
-    string(REGEX REPLACE "https?://" "" _path ${url})
+function(svn_clone url tag)
+    parse_url(${url})
     externalproject_add(
-        ${_name}
-        URL ${CMAKE_SOURCE_DIR}/externals/${_name}
-        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        ${name}
+        SVN_REPOSITORY ${url}
+        SVN_REVISION ${tag}
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_COMMAND "" # comment out to enable updates
+    )
+    add_dependencies(GoPackages ${name})
+endfunction(svn_clone )
+
+function(local_clone url)
+    parse_url(${url})
+    externalproject_add(
+        ${name}
+        URL ${CMAKE_SOURCE_DIR}/externals/${name}
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
         BUILD_COMMAND ""
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         UPDATE_ALWAYS true
     )
-    add_dependencies(GoPackages ${_name})
+    add_dependencies(GoPackages ${name})
 endfunction(local_clone)
 
 function(add_external_plugin vcs url tag)
-    string(REGEX REPLACE "https?://" "" _path ${url})
-    if ("${vcs}" STREQUAL "git")
-       git_clone(${url} ${tag})
-    elseif("${vcs}" STREQUAL "hg")
-       hg_clone(${url} ${tag})
-    elseif("${vcs}" STREQUAL "local")
-       local_clone(${url} ${tag})
+    parse_url(${url})
+    if  ("${tag}" STREQUAL ":local")
+       local_clone(${url})
     else()
-        message(FATAL_ERROR "Unknown version control system ${vcs}")
+        if ("${vcs}" STREQUAL "git")
+           git_clone(${url} ${tag})
+        elseif("${vcs}" STREQUAL "hg")
+           hg_clone(${url} ${tag})
+        elseif("${vcs}" STREQUAL "svn")
+           svn_clone(${url} ${tag})
+        else()
+           message(FATAL_ERROR "Unknown version control system ${vcs}")
+        endif()
     endif()
 
-    set(_packages ${_path})
+    set(_packages ${path})
     foreach(_subpath ${ARGN})
-        set(_packages ${_packages} "${_path}/${_subpath}")
+        set(_packages ${_packages} "${path}/${_subpath}")
     endforeach()
     set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)

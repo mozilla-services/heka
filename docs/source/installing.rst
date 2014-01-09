@@ -118,7 +118,7 @@ plugins in Go (see :ref:`plugins`). Because Go only supports static linking of
 Go code, your plugins must be included with and registered into Heka at
 compile time. The build process supports this through the use of an optional 
 cmake file `{heka root}/cmake/plugin_loader.cmake`.  A cmake function has been
-provided `add_external_plugin` taking the repository type (git, hg, svn, or local), 
+provided `add_external_plugin` taking the repository type (git, svn, or hg), 
 repository URL, the repository tag to fetch, and an optional list of 
 sub-packages to be initialized.
 
@@ -126,9 +126,10 @@ sub-packages to be initialized.
 
         add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
         add_external_plugin(git https://github.com/example/path <tag> util filepath)
-        add_external_plugin(local https://github.com/bellycard/heka-sns-input aae44994e5a99555be57f07445bcfe317b8128be)
-        # local is a special case: it copies {heka root}/externals/{plugin_name} into the Go 
-        # work environment every time `make` is run.
+        add_external_plugin(git https://github.com/bellycard/heka-sns-input :local)
+        # The ':local' tag is a special case, it copies {heka root}/externals/{plugin_name} into the Go 
+        # work environment every time `make` is run. When local development is complete, and the source
+        # is checked in, the value can simply be changed to the correct tag to make it 'live'.
         # i.e. {heka root}/externals/heka-sns-input -> {heka root}/build/heka/src/github.com/bellycard/heka-sns-input
 
 The preceeding entry clones the `heka-mozsvc-plugins` git repository into the Go
