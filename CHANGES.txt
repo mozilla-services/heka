@@ -3,6 +3,9 @@
 
 Backwards Incompatibilities
 ---------------------------
+* The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
+  with a `heka-` prefix for their respective binaries. I.e. Flood has been
+  renamed heka-flood., etc.
 
 * MultiDecoder now gets its name from the TOML section name like the rest of
   the plugins, instead of a separate 'name' config option.
