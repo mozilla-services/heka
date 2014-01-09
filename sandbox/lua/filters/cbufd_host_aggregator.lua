@@ -71,7 +71,7 @@ function process_message ()
 
         for k,v in pairs(payloads) do
             for i, cb in ipairs(v.cbufs) do
-                cb:set_header(host.index, v.header.column_info[i].unit, hostname)
+                cb:set_header(host.index, hostname, v.header.column_info[i].unit, v.header.column_info[i].aggregation)
             end
         end
     end
