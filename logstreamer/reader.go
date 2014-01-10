@@ -157,6 +157,8 @@ func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.Fi
 	// Unable to locate the file, or the position wasn't where we thought it should be.
 	// Start systematically searching all the files for this location to see if it was
 	// shuffled around.
+	// TODO: Would be more efficient to start searching backwards from where we are
+	//       in the logstream at the moment.
 	for i, logfile := range files {
 		fd, err = SeekInFile(logfile.FileName, position)
 		if err == nil {
