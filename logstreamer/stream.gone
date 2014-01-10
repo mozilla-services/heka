@@ -1,0 +1,173 @@
+/***** BEGIN LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2012
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
+#
+# ***** END LICENSE BLOCK *****/
+
+package logstream
+
+// Represents a single logstream.
+type LogStream struct {
+}
+
+type PackCreator interface {
+	ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error)
+	PopulatePack(record []byte, pack *p.PipelinePack)
+}
+
+type NewPackCreator func(log Logger) PackCreator
+
+type TextPackCreator struct {
+	log         Logger
+	loggerIdent string
+	hostname    string
+}
+
+func NewTextPackCreator(log Logger, loggerIdent, hostname string) *TextPackCreator {
+	return &TextPackCreator{log: log, loggerIdent: loggerIdent, hostname: hostname}
+}
+
+func (t *TextPackCreator) ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error) {
+	n, record, err = parser.Parse(fd)
+	if err != nil {
+		if err == io.EOF && isRotated {
+			record = parser.GetRemainingData()
+		} else if err == io.ErrShortBuffer {
+			t.log.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+			err = nil // non-fatal, keep going
+		}
+	}
+	return
+}
+
+func (t *TextPackCreator) PopulatePack(record []byte, pack *p.PipelinePack) {
+	pack.Message.SetUuid(uuid.NewRandom())
+	pack.Message.SetTimestamp(time.Now().UnixNano())
+	pack.Message.SetType("logfile")
+	pack.Message.SetSeverity(int32(0))
+	pack.Message.SetEnvVersion("0.8")
+	pack.Message.SetPid(0)
+	pack.Message.SetHostname(t.hostname)
+	pack.Message.SetLogger(t.loggerIdent)
+	pack.Message.SetPayload(string(record))
+}
+
+type ProtobufPackCreator struct{}
+
+func NewProtobufPackCreator(log Logger, loggerIdent, hostname string) *ProtobufPackCreator {
+	return new(ProtobufPackCreator)
+}
+
+func (p *ProtobufPackCreator) ReadRecord(record []byte, parser p.StreamParser, isRotated bool, fd *os.File) (n int, err error) {
+	n, record, err = parser.Parse(fd)
+	return
+}
+
+func (p *ProtobufPackCreator) PopulatePack(record []byte, pack *p.PipelinePack) {
+	headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
+	messageLen := len(record) - headerLen
+	// ignore authentication headers
+	if messageLen > cap(pack.MsgBytes) {
+		pack.MsgBytes = make([]byte, messageLen)
+	}
+	pack.MsgBytes = pack.MsgBytes[:messageLen]
+	copy(pack.MsgBytes, record[headerLen:])
+}
+
+// PackGenerator will continue to return packs given a LogfileResumer and
+// PackCreator as long as the file its reading from hasn't moved. If the file
+// its reading gets truncated, it will reset to the beginning of the file. The
+// user of PackGenerator should occasionally determine if there's a newer file
+// that can be read using ShouldUseNewer and make a new PackGenerator in that
+// case after updating the position.
+type PackGenerator struct {
+	lfr          LogfileResumer
+	pc           PackCreator
+	statInterval int
+	fd           *os.File
+}
+
+func NewPackGenerator(lfr LogfileResumer, pc PackCreator, statInterval int) *PackGenerator {
+	return &PackGenerator{lfr: lfr, pc: pc, statInterval: statInterval}
+}
+
+func (pg *PackGenerator) Run(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+	go pg.ReadFile(packFeed, packReturn)
+	return
+}
+
+func (pg *PackGenerator) ReadFile(packFeed <-chan *p.PipelinePack, packReturn chan<- *p.PipelinePack) {
+	var (
+		ok, shouldStat, isRotated bool
+		pack                      *p.PipelinePack
+		fd                        *os.File
+		err                       error
+		position                  *LogstreamLocation
+		record                    []byte
+		bytesRead                 int
+		priorRead                 int
+	)
+
+	// Determine if we're farther into the file than possible (truncate)
+	finfo, err := fm.fd.Stat()
+	if err == nil {
+		if finfo.Size() < fm.seek {
+			fm.fd.Seek(0, 0)
+			fm.seek = 0
+		}
+	}
+
+	// Check that we haven't been rotated, if we have, put this
+	// back on discover
+	isRotated := false
+	pinfo, err := os.Stat(fm.logfile)
+	if err != nil || !os.SameFile(pinfo, finfo) {
+		isRotated = true
+		defer func() {
+			if fm.fd != nil {
+				fm.fd.Close()
+			}
+			fm.fd = nil
+			fm.seek = 0
+		}()
+	}
+
+	for err != nil {
+		record = record[:0]
+		priorRead = bytesRead
+
+		pack, ok = <-packFeed
+		// Told to close down?
+		if !ok {
+			err = errors.New("Pack channel closed")
+			continue
+		}
+
+		bytesRead, err = pg.pc.ReadRecord(record, parser, isRotated, fd)
+		if err == nil {
+			position.LastLogline = string(record)
+			position.LastLoglineStart += priorRead
+			pg.pc.PopulatePack(record, pack)
+			packReturn <- pack
+			pack = nil
+			shouldStat = false
+		} else {
+			<-time.After(time.Duration(pg.statInterval) * time.Millisecond)
+			shouldStat = true
+		}
+	}
+	// If we have a pack, return it
+	if pack != nil {
+		packReturn <- pack
+	}
+}
