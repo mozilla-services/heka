@@ -12,34 +12,18 @@ endif()
 
 set_property(DIRECTORY PROPERTY EP_BASE "${CMAKE_BINARY_DIR}/ep_base")
 
-externalproject_add(
-    lpeg-0_12
-    URL http://www.inf.puc-rio.br/~roberto/lpeg/lpeg-0.12.tar.gz
-    URL_MD5 4abb3c28cd8b6565c6a65e88f06c9162
-    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lpeg-0_12.patch
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-)
-
-externalproject_add(
-    lua-cjson-2_1_0
-    URL http://www.kyne.com.au/~mark/software/download/lua-cjson-2.1.0.tar.gz
-    URL_MD5 24f270663e9f6ca8ba2a02cef19f7963
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-)
-
-externalproject_add(
-    lua-5_1_5
-    URL http://www.lua.org/ftp/lua-5.1.5.tar.gz
-    URL_MD5 2e115fe26e435e33b0d5c022e4490567
-    PATCH_COMMAND ${PATCH_EXECUTABLE} -p1 < ${CMAKE_CURRENT_LIST_DIR}/lua-5_1_5.patch
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} --no-warn-unused-cli
-    INSTALL_DIRECTORY ${PROJECT_PATH}
-)
-add_dependencies(lua-5_1_5 lpeg-0_12 lua-cjson-2_1_0)
+if(INCLUDE_SANDBOX)
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/sandbox/plugins")
+    set(SANDBOX_PACKAGE "lua_sandbox")
+    set(SANDBOX_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} -DLUA_JIT=off --no-warn-unused-cli)
+    externalproject_add(
+        ${SANDBOX_PACKAGE}
+        GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
+        GIT_TAG v0.5.1
+        CMAKE_ARGS ${SANDBOX_ARGS}
+        INSTALL_DIR ${PROJECT_PATH}
+    )
+endif()
 
 if ("$ENV{GOPATH}" STREQUAL "")
    message(FATAL_ERROR "No GOPATH environment variable has been set. $ENV{GOPATH}")
@@ -47,56 +31,97 @@ endif()
 
 add_custom_target(GoPackages ALL)
 
-function(git_clone url tag)
+function(parse_url url)
     string(REGEX REPLACE ".*/" "" _name ${url})
+    set(name ${_name} PARENT_SCOPE)
+
     string(REGEX REPLACE "https?://" "" _path ${url})
+    set(path ${_path} PARENT_SCOPE)
+endfunction(parse_url)
+
+function(git_clone url tag)
+    parse_url(${url})
     externalproject_add(
-        ${_name}
+        ${name}
         GIT_REPOSITORY ${url}
         GIT_TAG ${tag}
-        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
         BUILD_COMMAND ""
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         UPDATE_COMMAND "" # comment out to enable updates
     )
-    add_dependencies(GoPackages ${_name})
+    add_dependencies(GoPackages ${name})
 endfunction(git_clone)
 
 function(hg_clone url tag)
-    string(REGEX REPLACE ".*/" "" _name ${url})
-    string(REGEX REPLACE "https?://" "" _path ${url})
+    parse_url(${url})
     externalproject_add(
-        ${_name}
+        ${name}
         HG_REPOSITORY ${url}
         HG_TAG ${tag}
-        SOURCE_DIR "${PROJECT_PATH}/src/${_path}"
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
         BUILD_COMMAND ""
         CONFIGURE_COMMAND ""
         INSTALL_COMMAND ""
         UPDATE_COMMAND "" # comment out to enable updates
     )
-    add_dependencies(GoPackages ${_name})
+    add_dependencies(GoPackages ${name})
 endfunction(hg_clone)
 
+function(svn_clone url tag)
+    parse_url(${url})
+    externalproject_add(
+        ${name}
+        SVN_REPOSITORY ${url}
+        SVN_REVISION ${tag}
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_COMMAND "" # comment out to enable updates
+    )
+    add_dependencies(GoPackages ${name})
+endfunction(svn_clone )
+
+function(local_clone url)
+    parse_url(${url})
+    externalproject_add(
+        ${name}
+        URL ${CMAKE_SOURCE_DIR}/externals/${name}
+        SOURCE_DIR "${PROJECT_PATH}/src/${path}"
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_ALWAYS true
+    )
+    add_dependencies(GoPackages ${name})
+endfunction(local_clone)
+
 function(add_external_plugin vcs url tag)
-    string(REGEX REPLACE "https?://" "" _path ${url})
-    if ("${vcs}" STREQUAL "git")
-       git_clone(${url} ${tag})
-    elseif("${vcs}" STREQUAL "hg")
-       hg_clone(${url} ${tag})
+    parse_url(${url})
+    if  ("${tag}" STREQUAL ":local")
+       local_clone(${url})
     else()
-        message(FATAL_ERROR "Unknown version control system ${vcs}")
+        if ("${vcs}" STREQUAL "git")
+           git_clone(${url} ${tag})
+        elseif("${vcs}" STREQUAL "hg")
+           hg_clone(${url} ${tag})
+        elseif("${vcs}" STREQUAL "svn")
+           svn_clone(${url} ${tag})
+        else()
+           message(FATAL_ERROR "Unknown version control system ${vcs}")
+        endif()
     endif()
 
-    set(_packages ${_path})
+    set(_packages ${path})
     foreach(_subpath ${ARGN})
-        set(_packages ${_packages} "${_path}/${_subpath}")
+        set(_packages ${_packages} "${path}/${_subpath}")
     endforeach()
     set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)
 
-git_clone(https://code.google.com/p/gomock master)
+git_clone(https://code.google.com/p/gomock ae48011f41cd)
 add_custom_command(TARGET gomock POST_BUILD
 COMMAND ${GO_EXECUTABLE} install code.google.com/p/gomock/mockgen)
 git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf136efdab8)
@@ -110,16 +135,16 @@ add_dependencies(slices raw)
 git_clone(https://github.com/feyeleanor/sets 6c54cb57ea406ff6354256a4847e37298194478f)
 add_dependencies(sets slices)
 git_clone(https://github.com/crowdmob/goamz 7168305bd984b32bef7157a672e2460d0b0bba2f)
-git_clone(https://github.com/rafrombrc/gospec master)
-git_clone(https://github.com/crankycoder/g2s master)
-git_clone(https://github.com/crankycoder/xmlpath master)
+git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b)
+git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
+git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
-    git_clone(https://github.com/mozilla-services/heka-docs dev)
+    git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
 
     add_custom_command(TARGET docs POST_BUILD
     COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html

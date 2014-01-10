@@ -9,9 +9,10 @@ set(MOCKGEN_EXECUTABLE "${PROJECT_PATH}/bin/mockgen${CMAKE_EXECUTABLE_SUFFIX}")
 macro(add_internal_mock package destination mocked_object source)
     set(_path "${HEKA_PATH}/${package}/${destination}")
     set(_MOCK_LIST ${_MOCK_LIST} ${_path})
+    get_filename_component(_package_short ${package} NAME)
     add_custom_command(OUTPUT ${_path}
     COMMAND ${MOCKGEN_EXECUTABLE}
-    -package=${package}
+    -package=${_package_short}
     -destination="${_path}"
     -self_package=github.com/mozilla-services/heka/${package}
     github.com/mozilla-services/heka/${package}
@@ -24,9 +25,11 @@ endmacro(add_internal_mock)
 macro(add_external_mock package destination mocked_package mocked_object)
     set(_path "${HEKA_PATH}/${package}/${destination}")
     set(_MOCK_LIST ${_MOCK_LIST} ${_path})
+    get_filename_component(_package_short ${package} NAME)
     add_custom_command(OUTPUT ${_path}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${HEKA_PATH}/${package}"
     COMMAND ${MOCKGEN_EXECUTABLE}
-    -package=${package}
+    -package=${_package_short}
     -destination="${package}/${destination}"
     ${mocked_package}
     ${mocked_object}
@@ -34,25 +37,42 @@ macro(add_external_mock package destination mocked_package mocked_object)
     COMMENT "Built ${destination}")
 endmacro(add_external_mock)
 
+#
+# `pipeline` package mocks
+#
 add_internal_mock(pipeline mock_pluginhelper_test.go        PluginHelper        config.go)
 add_internal_mock(pipeline mock_pluginrunner_test.go        PluginRunner        pipeline_runner.go)
-add_internal_mock(pipeline mock_decoder_test.go             Decoder             decoders.go)
-add_internal_mock(pipeline mock_decoderset_test.go          DecoderSet          decoders.go)
-add_internal_mock(pipeline mock_decoderrunner_test.go       DecoderRunner       decoders.go)
-add_internal_mock(pipeline mock_inputrunner_test.go         InputRunner         inputs.go)
-add_internal_mock(pipeline mock_filterrunner_test.go        FilterRunner        filters.go)
-add_internal_mock(pipeline mock_outputrunner_test.go        OutputRunner        outputs.go)
-add_internal_mock(pipeline mock_input_test.go               Input               inputs.go)
-add_internal_mock(pipeline mock_whisperrunner_test.go       WhisperRunner       whisper.go)
-add_internal_mock(pipeline mock_amqpconnection_test.go      AMQPConnection      amqp_plugin.go)
-add_internal_mock(pipeline mock_amqpchannel_test.go         AMQPChannel         amqp_plugin.go)
-add_internal_mock(pipeline mock_amqpconnectionhub_test.go   AMQPConnectionHub   amqp_plugin.go)
+add_internal_mock(pipeline mock_decoder_test.go             Decoder             plugin_interfaces.go)
+add_internal_mock(pipeline mock_decoderrunner_test.go       DecoderRunner       plugin_runners.go)
+add_internal_mock(pipeline mock_inputrunner_test.go         InputRunner         plugin_runners.go)
+add_internal_mock(pipeline mock_filterrunner_test.go        FilterRunner        plugin_runners.go)
+add_internal_mock(pipeline mock_outputrunner_test.go        OutputRunner        plugin_runners.go)
+add_internal_mock(pipeline mock_input_test.go               Input               plugin_interfaces.go)
 add_internal_mock(pipeline mock_stataccumulator_test.go     StatAccumulator     stat_accum_input.go)
 
-add_external_mock(testsupport mock_amqp_acknowledger.go github.com/streadway/amqp   Acknowledger)
-add_external_mock(testsupport mock_net_conn.go          net                         Conn)
-add_external_mock(testsupport mock_net_listener.go      net                         Listener)
-add_external_mock(testsupport mock_net_error.go         net                         Error)
+add_external_mock(pipelinemock mock_pluginhelper.go github.com/mozilla-services/heka/pipeline   PluginHelper)
+add_external_mock(pipelinemock mock_filterrunner.go github.com/mozilla-services/heka/pipeline   FilterRunner)
+add_external_mock(pipelinemock mock_decoderrunner.go github.com/mozilla-services/heka/pipeline  DecoderRunner)
+add_external_mock(pipelinemock mock_outputrunner.go github.com/mozilla-services/heka/pipeline   OutputRunner)
+add_external_mock(pipelinemock mock_inputrunner.go github.com/mozilla-services/heka/pipeline    InputRunner)
+add_external_mock(pipelinemock mock_decoder.go github.com/mozilla-services/heka/pipeline        Decoder)
+add_external_mock(pipelinemock mock_stataccumulator.go github.com/mozilla-services/heka/pipeline StatAccumulator)
 
-add_custom_target(mocks ALL DEPENDS gomock lua-5_1_5 ${_MOCK_LIST})
+add_external_mock(pipeline/testsupport mock_net_conn.go          net                         Conn)
+add_external_mock(pipeline/testsupport mock_net_listener.go      net                         Listener)
+add_external_mock(pipeline/testsupport mock_net_error.go         net                         Error)
+
+#
+# `plugins` package and sub-package mocks
+#
+add_internal_mock(plugins/graphite mock_whisperrunner_test.go   WhisperRunner       whisper.go)
+
+add_internal_mock(plugins/amqp mock_amqpconnection_test.go      AMQPConnection      amqp.go)
+add_internal_mock(plugins/amqp mock_amqpchannel_test.go         AMQPChannel         amqp.go)
+add_internal_mock(plugins/amqp mock_amqpconnectionhub_test.go   AMQPConnectionHub   amqp.go)
+
+add_external_mock(plugins/testsupport mock_amqp_acknowledger.go github.com/streadway/amqp   Acknowledger)
+
+
+add_custom_target(mocks ALL DEPENDS gomock ${SANDBOX_PACKAGE} ${_MOCK_LIST})
 

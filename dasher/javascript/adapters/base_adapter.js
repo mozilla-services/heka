@@ -56,7 +56,7 @@ define(
       * @param {jqXHR} callback.jqXHR jQuery XHR object representing the request
       */
       fetch: function(url, callback) {
-        $.ajax(url, { cache: false }).then(function(data, textStatus, jqXHR) {
+        $.ajax(url, { dataType: this.getDataType(url), cache: false }).then(function(data, textStatus, jqXHR) {
           var responseTextCode = crc32(jqXHR.responseText);
 
           if (this.lastFetchResponseCode !== responseTextCode) {
@@ -65,6 +65,28 @@ define(
             callback(data, textStatus, jqXHR);
           }
         }.bind(this));
+      },
+
+      /**
+      * Determines the jQuery ajax data type based the extension in a URL.
+      *
+      * This makes the dashboard more resilient to incorrect mime types returned from the server.
+      *
+      * @method getDataType
+      * @param {String} url URL used to determine the data type
+      */
+      getDataType: function(url) {
+        var dataType;
+
+        if (url.match(/\.json$/)) {
+          dataType = "json";
+        } else if (url.match(/\.xml$/)) {
+          dataType = "xml";
+        } else {
+          dataType = "text";
+        }
+
+        return dataType;
       },
 
       /**

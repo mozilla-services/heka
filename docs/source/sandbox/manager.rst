@@ -19,6 +19,9 @@ SandboxManagerFilter Settings
 - working_directory (string): 
     The directory where the filter configurations, code, and states are preserved.  The directory can be unique or shared between sandbox managers since the filter names are unique per manager. Defaults to a directory in ${BASE_DIR}/sbxmgrs with a name generated from the plugin name.
 
+- module_directory (string): 
+    The directory where 'require' will attempt to load the external Lua modules from.  Defaults to ${BASE_DIR}/lua_modules.
+
 - max_filters (uint): 
     The maximum number of filters this manager can run.
 
@@ -53,23 +56,23 @@ Stopping a SandboxFilter
 
 sbmgr
 -----
-Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
+Heka Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
 the control messages defined above.
 
 Command Line Options
 
-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
+heka-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
 [``-script`` `sandbox script filename`] [``-scriptconfig`` `sandbox script configuration filename`]
 
 sbmgrload
 ---------
-Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
+Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
 script and configuration are built into the tool and the filters will be named:
 CounterSandbox\ **N** where **N** is the instance number.
 
 Command Line Options
 
-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
+heka-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
 
 Configuration Variables
 
@@ -157,6 +160,8 @@ SandboxFilter Setup
 
 .. code-block:: lua
 
+    require "circular_buffer"
+
     data = circular_buffer.new(1440, 1, 60) -- message count per minute
     local COUNT = data:set_header(1, "Messages", "count")
     function process_message ()
@@ -166,8 +171,7 @@ SandboxFilter Setup
     end
 
     function timer_event(ns)
-        output(data)
-        inject_message("cbuf")
+        inject_message(data)
     end
 
 2. Create the SandboxFilter configuration and save it as "example.toml".

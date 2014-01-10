@@ -217,7 +217,7 @@ type Message struct {
 	Timestamp        *int64   `protobuf:"varint,2,req,name=timestamp" json:"timestamp,omitempty"`
 	Type             *string  `protobuf:"bytes,3,opt,name=type" json:"type,omitempty"`
 	Logger           *string  `protobuf:"bytes,4,opt,name=logger" json:"logger,omitempty"`
-	Severity         *int32   `protobuf:"varint,5,opt,name=severity" json:"severity,omitempty"`
+	Severity         *int32   `protobuf:"varint,5,opt,name=severity,def=7" json:"severity,omitempty"`
 	Payload          *string  `protobuf:"bytes,6,opt,name=payload" json:"payload,omitempty"`
 	EnvVersion       *string  `protobuf:"bytes,7,opt,name=env_version" json:"env_version,omitempty"`
 	Pid              *int32   `protobuf:"varint,8,opt,name=pid" json:"pid,omitempty"`
@@ -229,6 +229,8 @@ type Message struct {
 func (m *Message) Reset()         { *m = Message{} }
 func (m *Message) String() string { return proto.CompactTextString(m) }
 func (*Message) ProtoMessage()    {}
+
+const Default_Message_Severity int32 = 7
 
 func (m *Message) GetUuid() []byte {
 	if m != nil {
@@ -262,7 +264,7 @@ func (m *Message) GetSeverity() int32 {
 	if m != nil && m.Severity != nil {
 		return *m.Severity
 	}
-	return 0
+	return Default_Message_Severity
 }
 
 func (m *Message) GetPayload() string {

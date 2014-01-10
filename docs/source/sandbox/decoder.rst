@@ -26,6 +26,9 @@ SandboxDecoder Settings
 - output_limit (uint): 
     The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default max).  Anything less than 1KiB will default to 1KiB.
 
+- module_directory (string): 
+    The directory where 'require' will attempt to load the external Lua modules from.  Defaults to ${BASE_DIR}/lua_modules.
+
 - config (object):
     A map of configuration variables available to the sandbox via read_config.  The map consists of a string key with: string, bool, int64, or float64 values.
 
