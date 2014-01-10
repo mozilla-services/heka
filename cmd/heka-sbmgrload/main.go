@@ -14,7 +14,7 @@
 
 /*
 
-Sandbox Manager Load Test
+Heka Sandbox Manager Load Test
 
 */
 package main

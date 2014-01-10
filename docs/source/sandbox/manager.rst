@@ -56,23 +56,23 @@ Stopping a SandboxFilter
 
 sbmgr
 -----
-Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
+Heka Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
 the control messages defined above.
 
 Command Line Options
 
-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
+heka-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
 [``-script`` `sandbox script filename`] [``-scriptconfig`` `sandbox script configuration filename`]
 
 sbmgrload
 ---------
-Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
+Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
 script and configuration are built into the tool and the filters will be named:
 CounterSandbox\ **N** where **N** is the instance number.
 
 Command Line Options
 
-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
+heka-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
 
 Configuration Variables
 

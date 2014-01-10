@@ -14,7 +14,7 @@
 
 /*
 
-Sandbox Manager
+Heka Sandbox Manager
 
 */
 package main

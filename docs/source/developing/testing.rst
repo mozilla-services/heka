@@ -12,7 +12,7 @@ conditions.
 
 Command Line Options
 --------------------
-flood [``-config`` `config_file`] [``-test`` `config_section_name`]
+heka-flood [``-config`` `config_file`] [``-test`` `config_section_name`]
 
 Configuration Variables
 -----------------------

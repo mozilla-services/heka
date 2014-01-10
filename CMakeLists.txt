@@ -30,10 +30,10 @@ set(HEKA_PATH "${PROJECT_PATH}/src/github.com/mozilla-services/heka")
 set(LUA_INCLUDE_PATH "${PROJECT_PATH}/include")
 set(LUA_LIB_PATH "${PROJECT_PATH}/lib")
 set(HEKA_EXE "${PROJECT_PATH}/bin/hekad${CMAKE_EXECUTABLE_SUFFIX}")
-set(FLOOD_EXE "${PROJECT_PATH}/bin/flood${CMAKE_EXECUTABLE_SUFFIX}")
-set(SBMGR_EXE "${PROJECT_PATH}/bin/sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
-set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
-set(HEKA_INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
+set(FLOOD_EXE "${PROJECT_PATH}/bin/heka-flood${CMAKE_EXECUTABLE_SUFFIX}")
+set(SBMGR_EXE "${PROJECT_PATH}/bin/heka-sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
+set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/heka-sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
+set(INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
@@ -92,7 +92,7 @@ endif()
 
 add_custom_target(clean-heka
 COMMAND ${CMAKE_COMMAND} -E remove_directory "${HEKA_PATH}"
-COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${FLOOD_EXE}" "${SBMGR_EXE}" "${SBMGRLOAD_EXE}" "${HEKA_INJECT_EXE}"
+COMMAND ${CMAKE_COMMAND} -E remove "${HEKA_EXE}" "${FLOOD_EXE}" "${SBMGR_EXE}" "${SBMGRLOAD_EXE}" "${INJECT_EXE}"
 COMMAND ${CMAKE_COMMAND} ..
 COMMENT "Resynchronizing the Go workspace with the Heka repository"
 )
@@ -162,7 +162,7 @@ endif()
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
 
 add_custom_target(flood ALL 
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/flood
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-flood
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
@@ -173,16 +173,16 @@ ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-inject
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
+install(PROGRAMS "${INJECT_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL 
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgr
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgr
 DEPENDS hekad)
 
 install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgrload ALL 
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/sbmgrload
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
 if (UNIX AND DPKG_EXECUTABLE)
@@ -224,7 +224,7 @@ if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
 
-install(FILES "${HEKA_PATH}/cmd/sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
+install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/heka-sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
 endif()
