@@ -242,12 +242,19 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 	return files
 }
 
-type MultipleLogstreamFileList map[string]Logfiles
+type LogstreamSet struct {
+	logfiles       map[string]Logfiles
+	rescanInterval time.Duration
+	// A duration string suitable for time.ParseDuration
+	oldestDuration time.Duration
+}
 
-// Filter a single Logfiles into a MultipleLogstreamFileList keyed by the
+func (ls *LogstreamSet) ScanForLogstreams() {}
+
+// Filter a single Logfiles into a Logstreams keyed by the
 // differentiator.
-func FilterMultipleStreamFiles(files Logfiles, differentiator []string) MultipleLogstreamFileList {
-	mfs := make(MultipleLogstreamFileList)
+func FilterMultipleStreamFiles(files Logfiles, differentiator []string) Logstreams {
+	mfs := make(Logstreams)
 	for _, logfile := range files {
 		name := ResolveDifferentiatedName(logfile, differentiator)
 		_, ok := mfs[name]

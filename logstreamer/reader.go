@@ -205,21 +205,17 @@ type Logger interface {
 	LogMessage(msg string)
 }
 
-// A logfile resumer holds information on the logfiles that are available
-// and where in the logstream to start reading.
-type LogfileResumer struct {
+type Logstream struct {
 	// Internally used so that logfiles will only be used by a single
 	// goroutine at a time. This allows external updates via the
 	// UpdateLogfiles call.
 	updateMutex *sync.Mutex
 	logfiles    Logfiles
 	position    *LogstreamLocation
-	// A duration string suitable for time.ParseDuration
-	oldestDuration time.Duration
 }
 
 func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
-	oldestDuration string) (l *LogfileResumer, err error) {
+	oldestDuration string) (l *Logstream, err error) {
 	var d time.Duration
 	if oldestDuration != "" {
 		d, err = time.ParseDuration(oldestDuration)
@@ -227,7 +223,7 @@ func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
 			return
 		}
 	}
-	l = &LogfileResumer{
+	l = &Logstream{
 		updateMutex:    new(sync.Mutex),
 		logfiles:       logfiles,
 		position:       position,
@@ -238,7 +234,7 @@ func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
 
 // Finds the file to start reading from, resumes position in the file
 // if possible, returns a file descriptor ready for reading.
-func (l *LogfileResumer) ResumeFileReading() (f *os.File, err error) {
+func (l *Logstream) ResumeFileReading() (f *os.File, err error) {
 	l.updateMutex.Lock()
 	defer l.updateMutex.Unlock()
 
@@ -274,8 +270,25 @@ func (l *LogfileResumer) ResumeFileReading() (f *os.File, err error) {
 }
 
 // Updates the logfiles safely
-func (l *LogfileResumer) UpdateLogfiles(files Logfiles) {
+func (l *Logstream) UpdateLogfiles(files Logfiles) {
 	l.updateMutex.Lock()
 	defer l.updateMutex.Unlock()
 	l.logfiles = files
 }
+
+func (l *Logstream) SaveLocation() err {}
+
+func (l *Logstream) Read(p []byte) (n int, err error) {}
+
+/*
+
+Formula for EoF
+
+- Are we the same filename?
+    - Check byte length on 'filename' to ensure match
+    - Check seek/last_hash on 'filename' to ensure match
+- If we are file we think we are, and there's newer, proceed to newer
+- If we are NOT file we think we are, locate ourself if possible, otherwise
+  go to oldest in list and attempt to open
+
+*/
