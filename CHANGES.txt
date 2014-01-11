@@ -30,6 +30,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* The cpuprof file is closed right after opening so no data is logged.
+
 * Fixed LogfileInput so it will only override the default delimiter for a
   RegexpParser if a delimiter is specified in the config.
 
