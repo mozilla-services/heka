@@ -3,6 +3,7 @@
 
 Backwards Incompatibilities
 ---------------------------
+
 * The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
   with a `heka-` prefix for their respective binaries. I.e. Flood has been
   renamed heka-flood., etc.
@@ -33,7 +34,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
-* The cpuprof file is closed right after opening so no data is logged.
+* Fixed cpuprof file from being closed right after opening so no data was
+  being logged.
 
 * Fixed LogfileInput so it will only override the default delimiter for a
   RegexpParser if a delimiter is specified in the config.
