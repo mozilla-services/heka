@@ -134,13 +134,13 @@ git_clone(https://github.com/feyeleanor/slices bb44bb2e4817fe71ba7082d351fd582e7
 add_dependencies(slices raw)
 git_clone(https://github.com/feyeleanor/sets 6c54cb57ea406ff6354256a4847e37298194478f)
 add_dependencies(sets slices)
-git_clone(https://github.com/crowdmob/goamz 7168305bd984b32bef7157a672e2460d0b0bba2f)
+git_clone(https://github.com/crowdmob/goamz e9a919b6da95151fc77b1b7bb3e78a8a68379aa1)
 git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b)
 git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 9e454bebb5085e25fc50f32556502141503b69e4)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
