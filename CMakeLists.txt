@@ -118,6 +118,7 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/plugins" "${HEKA_PATH}/plugins"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/logstreamer" "${HEKA_PATH}/logstreamer"
+COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ringbuf" "${HEKA_PATH}/ringbuf"
 ${COPY_SANDBOX}
 DEPENDS ${SANDBOX_PACKAGE} GoPackages ${MESSAGE_PROTO_OUT}
 )

@@ -16,11 +16,14 @@ package logstream
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -92,14 +95,20 @@ func (m MultipleError) IsError() bool {
 	return len(m) > 0
 }
 
+// Represents an individual Logfile which is part of a Logstream
 type Logfile struct {
 	FileName string
 	// The matched portions of the filename and their translated integer value
+	// MatchParts maps to integers used for sorting the Logfile within the
+	// Logstream
 	MatchParts map[string]int
 	// The raw string matches from the filename
 	StringMatchParts map[string]string
 }
 
+// Populate the MatchParts of a Logfile supplied with the sub-expression names,
+// and the match parts out of the regex along with a translation map to derive
+// sorting ints from
 func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation SubmatchTranslationMap) error {
 	var score int
 	var ok bool
@@ -139,6 +148,7 @@ func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation 
 	return nil
 }
 
+// Alias for a slice of logfiles, used mainly for sorting algorithms
 type Logfiles []*Logfile
 
 // Implement two of the sort.Interface methods needed
@@ -242,19 +252,160 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 	return files
 }
 
-type LogstreamSet struct {
-	logfiles       map[string]Logfiles
-	rescanInterval time.Duration
-	// A duration string suitable for time.ParseDuration
-	oldestDuration time.Duration
+// A single logstream
+// Implements io.Reader interface for reading from the logstream
+type Logstream struct {
+	// Internally used so that logfiles will only be used by a single
+	// goroutine at a time. This allows external updates via the
+	// UpdateLogfiles call.
+	lfMutex  *sync.RWMutex
+	logfiles Logfiles
+	position *LogstreamLocation
+	fd       *os.File
 }
 
-func (ls *LogstreamSet) ScanForLogstreams() {}
+func NewLogstream(logfiles Logfiles, position *LogstreamLocation) *Logstream {
+	return &Logstream{
+		lfMutex:  new(sync.RWMutex),
+		logfiles: logfiles,
+		position: position,
+	}
+}
+
+// Updates the logfiles safely
+func (l *Logstream) UpdateLogfiles(logfiles Logfiles) {
+	l.lfMutex.Lock()
+	defer l.lfMutex.Unlock()
+	l.logfiles = logfiles
+}
+
+// Save our position in the stream
+func (l *Logstream) SavePosition() error {
+	return l.position.Save()
+}
+
+// Used for passing a map of logfiles
+type LogfilesMap map[string]Logfiles
+
+// A set of logstreams along with utility functions for rescanning and reparsing
+// logfiles into each logstream
+type LogstreamSet struct {
+	logstreams     map[string]*Logstream
+	rescanInterval time.Duration // Frequency of full rescan
+	oldestDuration time.Duration // Filter logfiles older than this duration ago
+	sortPattern    *SortPattern  // Used for creating logstreams and updating logfiles
+	logstreamMutex *sync.RWMutex // Locking for manipulation of logstreams
+	logRoot        string        // Base path to walk for logfiles (ie, /var/log)
+	journalRoot    string        // Base path for journal files (ie, /etc/journals)
+	fileMatch      *regexp.Regexp
+}
+
+func NewLogstreamSet(sortPattern *SortPattern, rescan, oldest time.Duration,
+	logRoot, journalRoot string) *LogstreamSet {
+	return &LogstreamSet{
+		rescanInterval: rescan,
+		oldestDuration: oldest,
+		sortPattern:    sortPattern,
+		logRoot:        logRoot,
+		journalRoot:    journalRoot,
+		fileMatch:      regexp.MustCompile(sortPattern.FileMatch),
+	}
+}
+
+// Access a logstream by name if it exists
+func (ls *LogstreamSet) GetLogstream(name string) (l *Logstream, ok bool) {
+	ls.logstreamMutex.RLock()
+	defer ls.logstreamMutex.RUnlock()
+	l, ok = ls.logstreams[name]
+	return
+}
+
+// Get a list of all the logstream names
+func (ls *LogstreamSet) GetLogstreamNames() []string {
+	ls.logstreamMutex.RLock()
+	defer ls.logstreamMutex.RUnlock()
+	lst := make([]string, len(ls.logstreams))
+	for name, _ := range ls.logstreams {
+		lst = append(lst, name)
+	}
+	return lst
+}
+
+// Run a scan for logstreams, creating new logstreams as needed
+// Returns a list of new logstream names if logstreams were created
+// as a result
+func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleError) {
+	var (
+		logstream *Logstream
+		ok        bool
+	)
+	result = make([]string, 0, 0)
+	errors = NewMultipleError()
+
+	// Scan for all our logfiles
+	logfiles := ScanDirectoryForLogfiles(ls.logRoot, ls.fileMatch)
+
+	// Filter out old logfiles
+	logfiles.FilterOld(time.Now().Add(-ls.oldestDuration))
+
+	// Setup all the sorting ints in every logfile
+	logfiles.PopulateMatchParts(ls.fileMatch, ls.sortPattern.Translation)
+
+	// Split up the logfiles into a map
+	mfs := FilterMultipleStreamFiles(logfiles, ls.sortPattern.Differentiator)
+
+	// Lock the logstream map for update
+	ls.logstreamMutex.Lock()
+	defer ls.logstreamMutex.Unlock()
+
+	for name, newLogfiles := range mfs {
+		logstream, ok = ls.logstreams[name]
+
+		// New logstream files found, attempt journal path load and setup
+		// the new logstream in the map, recording its newness in result
+		if !ok {
+			journalPath := filepath.Join(ls.journalRoot, name)
+			position, err := LogstreamLocationFromFile(journalPath)
+			if err != nil {
+				errors.AddMessage(err.Error())
+				position.Reset()
+			}
+			logstream = NewLogstream(nil, position)
+		}
+
+		// Add an error if there's multiple logfiles but no priority for sorting
+		// Continue the loop, to avoid adding this logstream as its not usable
+		if len(ls.sortPattern.Priority) == 0 && len(newLogfiles) > 1 {
+			errors.AddMessage(fmt.Sprintf("Found multiple logfiles without Priority to sort"+
+				"on for name: %s, filematch: %s, files: %s",
+				name, ls.sortPattern.FileMatch, newLogfiles))
+			continue
+		}
+
+		// Sort the new logfiles if there is a priority, single logfile streams
+		// only have a single file to read so no sorting need occur
+		// Also don't bother sorting if there's only a single logfile
+		if len(ls.sortPattern.Priority) > 0 && len(newLogfiles) > 1 {
+			byp := ByPriority{Logfiles: newLogfiles, Priority: ls.sortPattern.Priority}
+			sort.Sort(byp)
+		}
+
+		// If this is a new logstream, its now safe to add it
+		if !ok {
+			result = append(result, name)
+			ls.logstreams[name] = logstream
+		}
+
+		// Update the logstream with the logfiles
+		logstream.UpdateLogfiles(newLogfiles)
+	}
+	return
+}
 
 // Filter a single Logfiles into a Logstreams keyed by the
 // differentiator.
-func FilterMultipleStreamFiles(files Logfiles, differentiator []string) Logstreams {
-	mfs := make(Logstreams)
+func FilterMultipleStreamFiles(files Logfiles, differentiator []string) LogfilesMap {
+	mfs := make(LogfilesMap)
 	for _, logfile := range files {
 		name := ResolveDifferentiatedName(logfile, differentiator)
 		_, ok := mfs[name]
@@ -329,5 +480,7 @@ type SortPattern struct {
 	// non-changing portions that combined will yield an identifier for this 'logfile'
 	// If the name is not a subregex name, its raw value will be used to identify
 	// the log stream.
+	// If there is only a single logstream being made, the differentiator raw value
+	// will be used as the logstream name
 	Differentiator []string
 }

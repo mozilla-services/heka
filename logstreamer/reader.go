@@ -21,28 +21,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/ringbuf"
 	"io"
 	"os"
-	"sync"
-	"time"
 )
 
 // A location in a logstream indicating the farthest that has been read
 type LogstreamLocation struct {
-	Filename          string `json:"file_name"`
-	SeekPosition      int64  `json:"seek"`
-	LastLoglineStart  int64  `json:"last_start"`
-	LastLogline       string `json:"-"`
-	LastLoglineLength int64  `json:"last_len"`
-	Hash              string `json:"last_hash"`
-	JournalPath       string `json:"-"`
+	Filename     string           `json:"file_name"`
+	SeekPosition int64            `json:"seek"`
+	Hash         string           `json:"last_hash"`
+	JournalPath  string           `json:"-"`
+	lastLine     *ringbuf.Ringbuf `json:"-"`
 }
+
+var LINEBUFFERLEN = 500
 
 // Loads a logstreamlocation from a file or returns an empty one if no journal
 // record was found.
 func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	l = new(LogstreamLocation)
 	l.JournalPath = path
+	l.lastLine = ringbuf.New(LINEBUFFERLEN)
 
 	// So that we can check to see if it exists or not
 	var seekJournal *os.File
@@ -71,10 +71,8 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 func (l *LogstreamLocation) Reset() {
 	l.Filename = ""
 	l.SeekPosition = int64(0)
-	l.LastLoglineStart = int64(0)
-	l.LastLogline = ""
-	l.LastLoglineLength = int64(0)
 	l.Hash = ""
+	l.lastLine = ringbuf.New(LINEBUFFERLEN)
 }
 
 func (l *LogstreamLocation) Save() error {
@@ -83,17 +81,26 @@ func (l *LogstreamLocation) Save() error {
 		return nil
 	}
 
+	// Don't save if we had a prior has and haven't read more than
+	// LINEBUFFERLEN bytes into the file
+	if l.lastLine.Size() < LINEBUFFERLEN {
+		return nil
+	}
+
+	lastLine := make([]byte, 0, LINEBUFFERLEN)
+	n := l.lastLine.Read(lastLine)
+	logline := string(lastLine[:n])
+
 	// Note: We can't serialize the stat.pinfo in a cross platform way.
 	// If you check the os.SameFile api, it only works on pinfo
 	// objects created by os itself.
-	if l.LastLogline != "" {
+	if logline != "" {
 		h := sha1.New()
-		io.WriteString(h, l.LastLogline)
+		io.WriteString(h, logline)
 		l.Hash = fmt.Sprintf("%x", h.Sum(nil))
 	} else {
 		l.Hash = ""
 	}
-	l.LastLoglineLength = int64(len(l.LastLogline))
 
 	b, err := json.Marshal(l)
 	if err != nil {
@@ -133,14 +140,28 @@ func (l *LogstreamLocation) ShouldUseNewer(files Logfiles) bool {
 	return l.SeekPosition >= finfo.Size()
 }
 
+// Determine if a newer file is available
+func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
+	same := false
+	currentInfo := l.fd.Stat()
+	fInfo := os.Stat(l.position.Filename)
+
+	if currentInfo.Size() != fInfo.Size() {
+		same = false
+	}
+}
+
 // Locate and return a file handle seeked to the appropriate location. An error will be
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
 // reflect the move.
-func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.File, err error) {
-	fileIndex := files.IndexOf(position.Filename)
+func (l *Logstream) LocatePriorLocation() (err error) {
+	l.lfMutex.RLock()
+	defer l.lfMutex.RUnlock()
+
+	fileIndex := l.logfiles.IndexOf(l.position.Filename)
 	if fileIndex != -1 {
-		fd, err = SeekInFile(position.Filename, position)
+		l.fd, err = SeekInFile(l.position.Filename, l.position)
 		if err == nil {
 			return
 		}
@@ -156,11 +177,17 @@ func LocatePriorLocation(files Logfiles, position *LogstreamLocation) (fd *os.Fi
 	// shuffled around.
 	// TODO: Would be more efficient to start searching backwards from where we are
 	//       in the logstream at the moment.
-	for _, logfile := range files {
-		fd, err = SeekInFile(logfile.FileName, position)
+	for _, logfile := range l.logfiles {
+		// Check that the file is large enough for our seek position
+		info := os.Stat(logfile.FileName)
+		if info.Size() < l.position.SeekPosition {
+			continue
+		}
+
+		l.fd, err = SeekInFile(logfile.FileName, position)
 		if err == nil {
 			// Located the position! Update the filename in the position
-			position.Filename = logfile.FileName
+			l.position.Filename = logfile.FileName
 			return
 		}
 		// Check to see whether its a file permission error, return if it is
@@ -179,18 +206,18 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 	}
 
 	// Try to get to our seek position.
-	if _, err = fd.Seek(position.LastLoglineStart, 0); err == nil {
+	if _, err = fd.Seek(position.SeekPosition-LINEBUFFERLEN, 0); err == nil {
 		// We should be at the beginning of the last line read the last
 		// time Heka ran.
 		reader := bufio.NewReader(fd)
-		buf := make([]byte, position.LastLoglineLength)
-		_, err := io.ReadAtLeast(reader, buf, int(position.LastLoglineLength))
+		buf := make([]byte, LINEBUFFERLEN)
+		_, err := io.ReadAtLeast(reader, buf, int(LINEBUFFERLEN))
 		if err == nil {
 			h := sha1.New()
 			h.Write(buf)
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
 			if tmp == position.Hash {
-				position.LastLogline = string(buf)
+				position.lastLine.Write(buf)
 				return fd, nil
 			}
 		}
@@ -205,80 +232,78 @@ type Logger interface {
 	LogMessage(msg string)
 }
 
-type Logstream struct {
-	// Internally used so that logfiles will only be used by a single
-	// goroutine at a time. This allows external updates via the
-	// UpdateLogfiles call.
-	updateMutex *sync.Mutex
-	logfiles    Logfiles
-	position    *LogstreamLocation
-}
+func (l *Logstream) Read(p []byte) (n int, err error) {
+	// Do we have a file descriptor already?
+	fd := l.fd
 
-func NewLogfileResumer(logfiles Logfiles, position *LogstreamLocation,
-	oldestDuration string) (l *Logstream, err error) {
-	var d time.Duration
-	if oldestDuration != "" {
-		d, err = time.ParseDuration(oldestDuration)
-		if err != nil {
-			return
-		}
+	// If we have a fd, read it
+	if fd != nil {
+		return l.readBytes(p)
 	}
-	l = &Logstream{
-		updateMutex:    new(sync.Mutex),
-		logfiles:       logfiles,
-		position:       position,
-		oldestDuration: d,
-	}
-	return
-}
 
-// Finds the file to start reading from, resumes position in the file
-// if possible, returns a file descriptor ready for reading.
-func (l *Logstream) ResumeFileReading() (f *os.File, err error) {
-	l.updateMutex.Lock()
-	defer l.updateMutex.Unlock()
-
+	// This is a fresh read attempt with no existing file descriptor
+	// If we have a position, attempt to restore it
 	if l.position.Filename != "" {
-		f, err = LocatePriorLocation(l.logfiles, l.position)
-		if err == nil {
+		if err = l.LocatePriorLocation(); err != nil {
+			return
+		} else {
+			fd = l.fd
+		}
+	} else {
+		// No position to recover from, use oldest file if there is one
+		if len(l.logfiles) < 1 {
+			return nil, errors.New("No files found to read from")
+		}
+
+		// Reset the position, attempt to start in the oldest file
+		l.position.Reset()
+		l.position.Filename = l.logfiles[0].FileName
+		if err = l.LocatePriorLocation(); err != nil {
 			return
 		}
-		// Unable to locate prior location, clear out error
-		err = nil
+		fd = l.fd
 	}
 
-	// No prior location, ensure we're reset
-	l.position.Reset()
+	return l.readBytes(p)
+}
 
-	// If we have a oldest duration, filter the logfiles and grab the
-	// oldest, otherwise start with the most recent
-	var filename string
-	files := l.logfiles
+// Called to actually read from the file descriptor if possible
+func (l *Logstream) readBytes(p []byte) (n int, err error) {
+	// We're ready to read, commit the read and update our position
+	n, err = l.fd.Read(p)
 
-	if l.oldestDuration != 0 {
-		files = l.logfiles.FilterOld(time.Now().Add(-l.oldestDuration))
-		if len(files) < 1 {
-			return nil, errors.New("No file has new enough modifications to read.")
+	if err != io.EOF {
+		// Some unexpected error, reset everything
+		// but don't kill the watcher
+		l.fd.Close()
+		if l.fd != nil {
+			l.fd = nil
 		}
-		filename = files[0].FileName
-	} else {
-		filename = l.logfiles[len(l.logfiles)-1].FileName
+		l.position.Reset()
+		return
 	}
-	l.position.Filename = filename
-	f, err = LocatePriorLocation(files, l.position)
+
+	if n > 0 {
+		l.position.SeekPosition += int64(n)
+		l.position.lastLine.Write(p[:n])
+	}
+
+	if err == io.EOF {
+		err = nil
+		// We hit EOF, this is ok, but if there's a newer file switch
+		// to it
+		newFile, ok := l.NewerFileAvailable()
+
+		// We do have a new file, switch to it
+		if ok {
+			l.fd.Close()
+			l.position.Reset()
+			l.position.Filename = newFile
+			l.fd, err = os.Open(name)
+		}
+	}
 	return
 }
-
-// Updates the logfiles safely
-func (l *Logstream) UpdateLogfiles(files Logfiles) {
-	l.updateMutex.Lock()
-	defer l.updateMutex.Unlock()
-	l.logfiles = files
-}
-
-func (l *Logstream) SaveLocation() err {}
-
-func (l *Logstream) Read(p []byte) (n int, err error) {}
 
 /*
 
