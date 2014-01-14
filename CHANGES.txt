@@ -57,6 +57,12 @@ Bug Handling
 Features
 --------
 
+* Added Http Listen Input [HttpListenInput]: An input that listens for
+  HTTP requests on the specified address. If a decoder is not specified the
+  input generates a message with the HTML request body as the payload.
+  This input is especially useful for consuming and processing webhooks.
+  (Issue #431)
+
 * Added support for local external packages (issue #393)
 
 * Inject: A command-line utility for injecting arbitrary messages into
