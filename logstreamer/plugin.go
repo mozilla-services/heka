@@ -12,4 +12,4 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstream
+package logstreamer

@@ -12,7 +12,7 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstream
+package logstreamer
 
 import (
 	gs "github.com/rafrombrc/gospec/src/gospec"

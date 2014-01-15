@@ -12,7 +12,7 @@
 #   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-package logstream
+package logstreamer
 
 import (
 	"github.com/rafrombrc/gospec/src/gospec"

@@ -12,7 +12,7 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstream
+package logstreamer
 
 import (
 	"errors"
@@ -262,6 +262,8 @@ type Logstream struct {
 	logfiles Logfiles
 	position *LogstreamLocation
 	fd       *os.File
+	// Records whether the prior read hit an EOF
+	priorEOF bool
 }
 
 func NewLogstream(logfiles Logfiles, position *LogstreamLocation) *Logstream {

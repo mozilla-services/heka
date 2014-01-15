@@ -12,7 +12,7 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package logstream
+package logstreamer
 
 import (
 	"bufio"
@@ -68,6 +68,21 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	return
 }
 
+// If the buffer is large enough, generate a hash value in the position
+func (l *LogstreamLocation) GenerateHash() {
+	if l.lastLine.Size() == LINEBUFFERLEN {
+		lastLine := make([]byte, LINEBUFFERLEN)
+		n := l.lastLine.Read(lastLine)
+		logline := string(lastLine[:n])
+
+		if logline != "" {
+			h := sha1.New()
+			io.WriteString(h, logline)
+			l.Hash = fmt.Sprintf("%x", h.Sum(nil))
+		}
+	}
+}
+
 func (l *LogstreamLocation) Reset() {
 	l.Filename = ""
 	l.SeekPosition = int64(0)
@@ -87,20 +102,7 @@ func (l *LogstreamLocation) Save() error {
 		return nil
 	}
 
-	lastLine := make([]byte, 0, LINEBUFFERLEN)
-	n := l.lastLine.Read(lastLine)
-	logline := string(lastLine[:n])
-
-	// Note: We can't serialize the stat.pinfo in a cross platform way.
-	// If you check the os.SameFile api, it only works on pinfo
-	// objects created by os itself.
-	if logline != "" {
-		h := sha1.New()
-		io.WriteString(h, logline)
-		l.Hash = fmt.Sprintf("%x", h.Sum(nil))
-	} else {
-		l.Hash = ""
-	}
+	l.GenerateHash()
 
 	b, err := json.Marshal(l)
 	if err != nil {
@@ -119,49 +121,123 @@ func (l *LogstreamLocation) Save() error {
 	return nil
 }
 
-// Determine given a position and logfiles whether there's a newer logfile available and
-// we've read to the end of the prior.
-//
-// Rationale: This functionality is not built into LocatePriorLocation because we don't
-// want to have to keep opening/closing a file when we don't know if there is another file
-// available that is newer yet. This way we can keep attempting to read the last file we
-// have open until we know there's a newer one and we've hit the end of the older one.
-func (l *LogstreamLocation) ShouldUseNewer(files Logfiles) bool {
-	lastFilename := files[len(files)-1].FileName
-	if lastFilename == l.Filename {
-		return false
-	}
-	// There are newer files, see if we're at the end of the file of our
-	// position
-	finfo, err := os.Stat(l.Filename)
+// Determine if a newer file is available, if it is, return the filename of it.
+func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
+	/* Formula for determining if a newer file is available
+		   1. Are we the file we think we are?
+		       NO - Find out what file we are, if we're unable to locate where we
+		            are and there's logfiles, there is a newer file available
+	                (the oldest).
+	                If we can locate where we are, update our filename with our
+	                new filename and proceed to Step 2.
+		       YES - Step 2
+		   2. Is there a newer file in our list ahead of us?
+		       NO - No newer file available.
+		       YES - return ok and the new filename.
+	*/
+	currentInfo, err := l.fd.Stat()
 	if err != nil {
-		return false
+		return "", false
 	}
-	return l.SeekPosition >= finfo.Size()
+	fInfo, err := os.Stat(l.position.Filename)
+	if err != nil {
+		return "", false
+	}
+
+	// 1. If our size is greater than the file at this filename, we're not the
+	// same file
+	if currentInfo.Size() >= fInfo.Size() {
+		ok = true
+	} else if !l.VerifyFileHash() {
+		// Our file-hash didn't verify, not the same file
+		ok = true
+	}
+
+	if ok {
+		// 1. NO - Try and find our location
+		l.position.Filename = ""
+		fd, err := l.LocatePriorLocation()
+		fd.Close()
+
+		// Unable to locate prior position in our file-stream, are there
+		// any logfiles?
+		if err != nil {
+			l.lfMutex.RLock()
+			defer l.lfMutex.RUnlock()
+			if len(l.logfiles) > 0 {
+				file = l.logfiles[0].FileName
+				return
+			} else {
+				// Apparently no logfiles at all, retain this fd
+				ok = false
+				return
+			}
+		}
+
+		// We were able to locate our prior location, our filename was
+		// updated
+		ok = false
+	}
+
+	// 2. Newer file ahead of us?
+	l.lfMutex.RLock()
+	defer l.lfMutex.RUnlock()
+	fileIndex := l.logfiles.IndexOf(l.position.Filename)
+	if fileIndex == -1 {
+		// We couldn't find our filename in the list? Then there's nothing
+		// newer
+		return
+	}
+
+	if fileIndex+1 < len(l.logfiles) {
+		// There's a newer file!
+		return l.logfiles[fileIndex+1].FileName, true
+	}
+
+	return
 }
 
-// Determine if a newer file is available
-func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
-	same := false
-	currentInfo := l.fd.Stat()
-	fInfo := os.Stat(l.position.Filename)
-
-	if currentInfo.Size() != fInfo.Size() {
-		same = false
+// Verify the position in the file is still at that position in that file (ie,
+// the file has not been moved in some fashion.)
+// Returns false if the file of this position does not match, True otherwise
+func (l *Logstream) VerifyFileHash() bool {
+	fd, err := os.Open(l.position.Filename)
+	if err != nil {
+		return true
 	}
+	defer fd.Close()
+
+	// Try to get to our seek position.
+	if _, err = fd.Seek(l.position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
+		// We should be at the beginning of the last line read the last
+		// time Heka ran.
+		reader := bufio.NewReader(fd)
+		buf := make([]byte, LINEBUFFERLEN)
+		_, err := io.ReadAtLeast(reader, buf, LINEBUFFERLEN)
+		if err == nil {
+			h := sha1.New()
+			h.Write(buf)
+			tmp := fmt.Sprintf("%x", h.Sum(nil))
+			if tmp == l.position.Hash {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Locate and return a file handle seeked to the appropriate location. An error will be
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
 // reflect the move.
-func (l *Logstream) LocatePriorLocation() (err error) {
+func (l *Logstream) LocatePriorLocation() (fd *os.File, err error) {
+	var info os.FileInfo
 	l.lfMutex.RLock()
 	defer l.lfMutex.RUnlock()
 
 	fileIndex := l.logfiles.IndexOf(l.position.Filename)
 	if fileIndex != -1 {
-		l.fd, err = SeekInFile(l.position.Filename, l.position)
+		fd, err = SeekInFile(l.position.Filename, l.position)
 		if err == nil {
 			return
 		}
@@ -179,12 +255,15 @@ func (l *Logstream) LocatePriorLocation() (err error) {
 	//       in the logstream at the moment.
 	for _, logfile := range l.logfiles {
 		// Check that the file is large enough for our seek position
-		info := os.Stat(logfile.FileName)
+		info, err = os.Stat(logfile.FileName)
+		if err != nil {
+			return
+		}
 		if info.Size() < l.position.SeekPosition {
 			continue
 		}
 
-		l.fd, err = SeekInFile(logfile.FileName, position)
+		fd, err = SeekInFile(logfile.FileName, l.position)
 		if err == nil {
 			// Located the position! Update the filename in the position
 			l.position.Filename = logfile.FileName
@@ -206,12 +285,12 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 	}
 
 	// Try to get to our seek position.
-	if _, err = fd.Seek(position.SeekPosition-LINEBUFFERLEN, 0); err == nil {
+	if _, err = fd.Seek(position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
 		// We should be at the beginning of the last line read the last
 		// time Heka ran.
 		reader := bufio.NewReader(fd)
 		buf := make([]byte, LINEBUFFERLEN)
-		_, err := io.ReadAtLeast(reader, buf, int(LINEBUFFERLEN))
+		_, err := io.ReadAtLeast(reader, buf, LINEBUFFERLEN)
 		if err == nil {
 			h := sha1.New()
 			h.Write(buf)
@@ -244,24 +323,24 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	// This is a fresh read attempt with no existing file descriptor
 	// If we have a position, attempt to restore it
 	if l.position.Filename != "" {
-		if err = l.LocatePriorLocation(); err != nil {
+		if fd, err = l.LocatePriorLocation(); err != nil {
 			return
 		} else {
-			fd = l.fd
+			l.fd = fd
 		}
 	} else {
 		// No position to recover from, use oldest file if there is one
 		if len(l.logfiles) < 1 {
-			return nil, errors.New("No files found to read from")
+			return 0, errors.New("No files found to read from")
 		}
 
 		// Reset the position, attempt to start in the oldest file
 		l.position.Reset()
 		l.position.Filename = l.logfiles[0].FileName
-		if err = l.LocatePriorLocation(); err != nil {
+		if fd, err = l.LocatePriorLocation(); err != nil {
 			return
 		}
-		fd = l.fd
+		l.fd = fd
 	}
 
 	return l.readBytes(p)
@@ -269,6 +348,22 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 
 // Called to actually read from the file descriptor if possible
 func (l *Logstream) readBytes(p []byte) (n int, err error) {
+	// Before we read, we check to see if there's a newer file
+	// If there is a newer file, then we know that if we hit EOF here
+	// the new one has already started getting data so its safe to move
+	// on. If we did this check after hitting EOF, then its possible we
+	// could move on without doing a last read of the fd.
+	var (
+		newerFilename string
+		ok            bool
+	)
+
+	// If we had an EOF last time, we check for a new file before trying
+	// to read again
+	if l.priorEOF {
+		newerFilename, ok = l.NewerFileAvailable()
+	}
+
 	// We're ready to read, commit the read and update our position
 	n, err = l.fd.Read(p)
 
@@ -288,32 +383,29 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		l.position.lastLine.Write(p[:n])
 	}
 
-	if err == io.EOF {
+	// We previously got an EOF, but not this time, so reset
+	if err != io.EOF && l.priorEOF {
+		l.priorEOF = false
+	}
+
+	// Got an EOF, but this is the first time around, check for a
+	// newer file on the next time around
+	if err == io.EOF && !l.priorEOF {
+		l.priorEOF = true
+	} else if err == io.EOF && l.priorEOF {
+		// Another EOF, so we can determine if there's a newer file
 		err = nil
-		// We hit EOF, this is ok, but if there's a newer file switch
-		// to it
-		newFile, ok := l.NewerFileAvailable()
+		// We hit EOF, and we don't have a newer file, so we will keep
+		// checking for a newer file
+		if !ok {
+			return
+		}
 
 		// We do have a new file, switch to it
-		if ok {
-			l.fd.Close()
-			l.position.Reset()
-			l.position.Filename = newFile
-			l.fd, err = os.Open(name)
-		}
+		l.fd.Close()
+		l.position.Reset()
+		l.position.Filename = newerFilename
+		l.fd, err = os.Open(newerFilename)
 	}
 	return
 }
-
-/*
-
-Formula for EoF
-
-- Are we the same filename?
-    - Check byte length on 'filename' to ensure match
-    - Check seek/last_hash on 'filename' to ensure match
-- If we are file we think we are, and there's newer, proceed to newer
-- If we are NOT file we think we are, locate ourself if possible, otherwise
-  go to oldest in list and attempt to open
-
-*/
