@@ -401,11 +401,31 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 			return
 		}
 
-		// We do have a new file, switch to it
+		// We do have a new file, grab the file handle first
+		var fd *os.File
+		fd, err = os.Open(newerFilename)
+		if err != nil {
+			// Return the error, keep our existing handle
+			fd.Close()
+			return
+		}
+
+		// Verify that our newerFilename is still what we think it should
+		// be and our files didn't move around between calls, if we were
+		// rotated after the other NewerFileAvailable call then the filename
+		// here will be different
+		verifyFilename, vOk := l.NewerFileAvailable()
+		if verifyFilename != newerFilename || !vOk {
+			fd.Close()
+			return
+		}
+
+		// Ok, we have the handle for the right file, even if it might've
+		// been rotated by now
 		l.fd.Close()
 		l.position.Reset()
 		l.position.Filename = newerFilename
-		l.fd, err = os.Open(newerFilename)
+		l.fd = fd
 	}
 	return
 }
