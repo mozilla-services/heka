@@ -426,6 +426,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		l.position.Reset()
 		l.position.Filename = newerFilename
 		l.fd = fd
+		l.priorEOF = false
 	}
 	return
 }
