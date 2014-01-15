@@ -25,10 +25,11 @@ func ReaderSpec(c gs.Context) {
 	c.Assume(err, gs.IsNil)
 	dirPath := filepath.Join(here, "testdir", "reader")
 
-	c.Specify("A journal file can be read and saved", func() {
+	c.Specify("A journal file can be read", func() {
 		l, err := LogstreamLocationFromFile(dirPath + "/location.json")
-		l.Filename = dirPath + "/2010/07/error.log.2"
-		err = l.Save()
+		fileName := "testdir/reader/2010/07/error.log.2"
+		c.Expect(l.Filename, gs.Equals, fileName)
 		c.Expect(err, gs.IsNil)
 	})
+
 }

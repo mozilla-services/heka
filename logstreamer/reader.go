@@ -367,6 +367,13 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	// We're ready to read, commit the read and update our position
 	n, err = l.fd.Read(p)
 
+	// If we read any bytes, write them into the ring buffer and update
+	// our position
+	if n > 0 {
+		l.position.SeekPosition += int64(n)
+		l.position.lastLine.Write(p[:n])
+	}
+
 	if err != io.EOF {
 		// Some unexpected error, reset everything
 		// but don't kill the watcher
@@ -376,11 +383,6 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		}
 		l.position.Reset()
 		return
-	}
-
-	if n > 0 {
-		l.position.SeekPosition += int64(n)
-		l.position.lastLine.Write(p[:n])
 	}
 
 	// We previously got an EOF, but not this time, so reset
