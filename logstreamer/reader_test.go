@@ -30,11 +30,11 @@ func ReaderSpec(c gs.Context) {
 
 	c.Specify("A journal file can be read", func() {
 		l, err := LogstreamLocationFromFile(dirPath + "/location.json")
-		fileName := "testdir/reader/2010/07/error.log.2"
-		c.Expect(l.Filename, gs.Equals, fileName)
-		c.Expect(err, gs.IsNil)
 
+		// Restore the oldest position
 		l.Filename = filepath.Join(testDirPath, "/2010/07/error.log.2")
+		l.SeekPosition = 500
+		l.Hash = "dc6d00ed4a287968635b8b5b96a505547e9161d3"
 
 		translation := make(SubmatchTranslationMap)
 		matchRegex := regexp.MustCompile(testDirPath + `/(?P<Year>\d+)/(?P<Month>\d+)/error.log(\.(?P<Seq>\d+))?`)
@@ -52,7 +52,33 @@ func ReaderSpec(c gs.Context) {
 		n, err := stream.Read(b)
 		c.Expect(err, gs.IsNil)
 		c.Expect(n, gs.Equals, 500)
-		l.Filename = "testdir/reader/2010/07/error.log.2"
-	})
+		c.Expect(string(b[:10]), gs.Equals, "- [05/Feb/")
 
+		// Read the remainder of the file
+		n, err = stream.Read(b)
+		c.Expect(n, gs.Equals, 160)
+
+		// This should move us to the next file
+		n, err = stream.Read(b)
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2010/07/error.log"))
+		c.Expect(err, gs.IsNil)
+		c.Expect(n, gs.Equals, 500)
+		l.Save()
+		c.Expect(l.Hash, gs.Equals, "bc544cb727a809dcf0464da1628aeedd4243e81c")
+		c.Expect(string(b[:10]), gs.Equals, "2013-11-05")
+
+		// Now read till we get an err
+		var newn int
+		for err == nil {
+			newn, err = stream.Read(b)
+			if newn > 0 {
+				n = newn
+			}
+		}
+		// We should be at the last file
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
+		b = b[:n]
+		c.Expect((string(b[len(b)-10:])), gs.Equals, "re.bundle'")
+	})
 }
