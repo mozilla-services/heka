@@ -275,6 +275,9 @@ func (l *Logstream) LocatePriorLocation() (fd *os.File, err error) {
 		}
 		err = nil // Reset our error to nil
 	}
+	if fd == nil {
+		l.position.Reset()
+	}
 	return
 }
 
@@ -284,7 +287,12 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 		return
 	}
 
-	// Try to get to our seek position.
+	// Try to get to our seek position, if our seek is 0, then start at the
+	// beginning
+	if position.SeekPosition == 0 {
+		return
+	}
+
 	if _, err = fd.Seek(position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
 		// We should be at the beginning of the last line read the last
 		// time Heka ran.
@@ -323,27 +331,25 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	// This is a fresh read attempt with no existing file descriptor
 	// If we have a position, attempt to restore it
 	if l.position.Filename != "" {
-		if fd, err = l.LocatePriorLocation(); err != nil {
-			return
-		} else {
+		if fd, err = l.LocatePriorLocation(); err == nil {
+			if fd == nil {
+				err = errors.New("wtf")
+				return
+			}
 			l.fd = fd
+			return l.readBytes(p)
 		}
-	} else {
-		// No position to recover from, use oldest file if there is one
-		if len(l.logfiles) < 1 {
-			return 0, errors.New("No files found to read from")
-		}
-
-		// Reset the position, attempt to start in the oldest file
-		l.position.Reset()
-		l.position.Filename = l.logfiles[0].FileName
-		if fd, err = l.LocatePriorLocation(); err != nil {
-			return
-		}
-		l.fd = fd
 	}
 
-	return l.readBytes(p)
+	// No position to recover from, use oldest file if there is one
+	if len(l.logfiles) < 1 {
+		return 0, nil
+	}
+
+	// Reset the position, attempt to start in the oldest file
+	l.position.Reset()
+	l.position.Filename = l.logfiles[0].FileName
+	return l.Read(p)
 }
 
 // Called to actually read from the file descriptor if possible
@@ -374,6 +380,11 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		l.position.lastLine.Write(p[:n])
 	}
 
+	// Return now if we didn't get an error
+	if err == nil {
+		return
+	}
+
 	if err != io.EOF {
 		// Some unexpected error, reset everything
 		// but don't kill the watcher
@@ -392,9 +403,15 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 
 	// Got an EOF, but this is the first time around, check for a
 	// newer file on the next time around
-	if err == io.EOF && !l.priorEOF {
-		l.priorEOF = true
-	} else if err == io.EOF && l.priorEOF {
+	if err == io.EOF {
+		if !l.priorEOF {
+			// Record that we got an EOF and try again to see if there's
+			// newer since we only bump an EOF back on read if its not
+			// possible to proceed to a new file and we're at the end
+			l.priorEOF = true
+			return l.Read(p)
+		}
+
 		// Another EOF, so we can determine if there's a newer file
 		err = nil
 		// We hit EOF, and we don't have a newer file, so we will keep
