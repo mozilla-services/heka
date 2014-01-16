@@ -52,7 +52,6 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(err, gs.IsNil)
 		c.Expect(n, gs.Equals, 500)
 		l.Filename = "testdir/reader/2010/07/error.log.2"
-		l.Save()
 	})
 
 }

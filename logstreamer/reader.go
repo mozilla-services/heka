@@ -146,7 +146,7 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 	// 1. If our size is greater than the file at this filename, we're not the
 	// same file
-	if currentInfo.Size() >= fInfo.Size() {
+	if currentInfo.Size() > fInfo.Size() {
 		ok = true
 	} else if !l.VerifyFileHash() {
 		// Our file-hash didn't verify, not the same file
@@ -201,6 +201,11 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 // the file has not been moved in some fashion.)
 // Returns false if the file of this position does not match, True otherwise
 func (l *Logstream) VerifyFileHash() bool {
+	// We always match our hash if we have no hash
+	if l.position.Hash == "" {
+		return true
+	}
+
 	fd, err := os.Open(l.position.Filename)
 	if err != nil {
 		return true
@@ -320,16 +325,14 @@ type Logger interface {
 }
 
 func (l *Logstream) Read(p []byte) (n int, err error) {
-	// Do we have a file descriptor already?
-	fd := l.fd
-
 	// If we have a fd, read it
-	if fd != nil {
+	if l.fd != nil {
 		return l.readBytes(p)
 	}
 
 	// This is a fresh read attempt with no existing file descriptor
 	// If we have a position, attempt to restore it
+	var fd *os.File
 	if l.position.Filename != "" {
 		if fd, err = l.LocatePriorLocation(); err == nil {
 			if fd == nil {
@@ -343,6 +346,7 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 
 	// No position to recover from, use oldest file if there is one
 	if len(l.logfiles) < 1 {
+		// No oldest file, so right now we can't proceed
 		return 0, nil
 	}
 
@@ -369,6 +373,8 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	if l.priorEOF {
 		newerFilename, ok = l.NewerFileAvailable()
 	}
+	dis := make([]byte, LINEBUFFERLEN)
+	l.position.lastLine.Read(dis)
 
 	// We're ready to read, commit the read and update our position
 	n, err = l.fd.Read(p)
@@ -386,6 +392,11 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	}
 
 	if err != io.EOF {
+		// Had an EOF before, clear it
+		if l.priorEOF {
+			l.priorEOF = false
+		}
+
 		// Some unexpected error, reset everything
 		// but don't kill the watcher
 		l.fd.Close()
@@ -396,56 +407,56 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		return
 	}
 
-	// We previously got an EOF, but not this time, so reset
-	if err != io.EOF && l.priorEOF {
-		l.priorEOF = false
+	// At this point, it must be an EOF, determine if we previously had
+	// one
+	if !l.priorEOF {
+		// Record that we got an EOF and try again to see if there's
+		// newer since we only bump an EOF back on read if its not
+		// possible to proceed to a new file and we're at the end
+		l.priorEOF = true
+		return l.Read(p)
 	}
 
-	// Got an EOF, but this is the first time around, check for a
-	// newer file on the next time around
-	if err == io.EOF {
-		if !l.priorEOF {
-			// Record that we got an EOF and try again to see if there's
-			// newer since we only bump an EOF back on read if its not
-			// possible to proceed to a new file and we're at the end
-			l.priorEOF = true
-			return l.Read(p)
-		}
-
-		// Another EOF, so we can determine if there's a newer file
-		err = nil
-		// We hit EOF, and we don't have a newer file, so we will keep
-		// checking for a newer file
-		if !ok {
-			return
-		}
-
-		// We do have a new file, grab the file handle first
-		var fd *os.File
-		fd, err = os.Open(newerFilename)
-		if err != nil {
-			// Return the error, keep our existing handle
-			fd.Close()
-			return
-		}
-
-		// Verify that our newerFilename is still what we think it should
-		// be and our files didn't move around between calls, if we were
-		// rotated after the other NewerFileAvailable call then the filename
-		// here will be different
-		verifyFilename, vOk := l.NewerFileAvailable()
-		if verifyFilename != newerFilename || !vOk {
-			fd.Close()
-			return
-		}
-
-		// Ok, we have the handle for the right file, even if it might've
-		// been rotated by now
-		l.fd.Close()
-		l.position.Reset()
-		l.position.Filename = newerFilename
-		l.fd = fd
-		l.priorEOF = false
+	if !ok {
+		// We don't have a newer file, so we will keep checking for a newer
+		// file and return the EOF to now indicating we can proceed no
+		// further
+		return
 	}
-	return
+
+	// Another EOF, this makes two in a row, check if we have a newer
+	// file
+	err = nil
+
+	// We do have a new file, grab the file handle first
+	var fd *os.File
+	fd, err = os.Open(newerFilename)
+	if err != nil {
+		// Return the error, keep our existing handle
+		fd.Close()
+		return
+	}
+
+	// Verify that our newerFilename is still what we think it should
+	// be and our files didn't move around between calls, if we were
+	// rotated after the other NewerFileAvailable call then the filename
+	// here will be different
+	verifyFilename, vOk := l.NewerFileAvailable()
+	if verifyFilename != newerFilename || !vOk {
+		fd.Close()
+		// Now try again, hopefully we capture it after rotation this
+		// time, or maybe there's a last batch of data to read
+		return l.Read(p)
+	}
+
+	// Ok, we have the handle for the right file, even if it might've
+	// been rotated by now
+	l.fd.Close()
+	l.position.Reset()
+	l.position.Filename = newerFilename
+	l.fd = fd
+	l.priorEOF = false
+
+	// Now attempt to read
+	return l.Read(p)
 }
