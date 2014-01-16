@@ -218,7 +218,7 @@ func (l *Logstream) VerifyFileHash() bool {
 		// time Heka ran.
 		reader := bufio.NewReader(fd)
 		buf := make([]byte, LINEBUFFERLEN)
-		_, err := io.ReadAtLeast(reader, buf, LINEBUFFERLEN)
+		_, err := io.ReadFull(reader, buf)
 		if err == nil {
 			h := sha1.New()
 			h.Write(buf)
@@ -303,13 +303,17 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 		// time Heka ran.
 		reader := bufio.NewReader(fd)
 		buf := make([]byte, LINEBUFFERLEN)
-		_, err := io.ReadAtLeast(reader, buf, LINEBUFFERLEN)
+		_, err := io.ReadFull(reader, buf)
 		if err == nil {
 			h := sha1.New()
 			h.Write(buf)
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
 			if tmp == position.Hash {
 				position.lastLine.Write(buf)
+
+				// io.Read* do not leave the seek where one might assume, so
+				// we seek back to where we should resume from
+				fd.Seek(position.SeekPosition, 0)
 				return fd, nil
 			}
 		}
@@ -373,8 +377,6 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	if l.priorEOF {
 		newerFilename, ok = l.NewerFileAvailable()
 	}
-	dis := make([]byte, LINEBUFFERLEN)
-	l.position.lastLine.Read(dis)
 
 	// We're ready to read, commit the read and update our position
 	n, err = l.fd.Read(p)

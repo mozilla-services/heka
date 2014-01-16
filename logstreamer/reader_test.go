@@ -47,6 +47,7 @@ func ReaderSpec(c gs.Context) {
 		sort.Sort(byp)
 
 		stream := NewLogstream(logfiles, l)
+		c.Expect(stream.VerifyFileHash(), gs.Equals, true)
 		b := make([]byte, 500)
 		n, err := stream.Read(b)
 		c.Expect(err, gs.IsNil)
