@@ -15,7 +15,6 @@
 package logstreamer
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha1"
 	"encoding/json"
@@ -216,10 +215,9 @@ func (l *Logstream) VerifyFileHash() bool {
 	if _, err = fd.Seek(l.position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
 		// We should be at the beginning of the last line read the last
 		// time Heka ran.
-		reader := bufio.NewReader(fd)
 		buf := make([]byte, LINEBUFFERLEN)
-		_, err := io.ReadFull(reader, buf)
-		if err == nil {
+		n, err := fd.Read(buf)
+		if err == nil && n == LINEBUFFERLEN {
 			h := sha1.New()
 			h.Write(buf)
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
@@ -301,19 +299,14 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 	if _, err = fd.Seek(position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
 		// We should be at the beginning of the last line read the last
 		// time Heka ran.
-		reader := bufio.NewReader(fd)
 		buf := make([]byte, LINEBUFFERLEN)
-		_, err := io.ReadFull(reader, buf)
-		if err == nil {
+		n, err := fd.Read(buf)
+		if err == nil && n == LINEBUFFERLEN {
 			h := sha1.New()
 			h.Write(buf)
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
 			if tmp == position.Hash {
 				position.lastLine.Write(buf)
-
-				// io.Read* do not leave the seek where one might assume, so
-				// we seek back to where we should resume from
-				fd.Seek(position.SeekPosition, 0)
 				return fd, nil
 			}
 		}
@@ -416,6 +409,9 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		// newer since we only bump an EOF back on read if its not
 		// possible to proceed to a new file and we're at the end
 		l.priorEOF = true
+		// We also need to attempt to save our current location at the
+		// possible EOF
+		l.position.Save()
 		return l.Read(p)
 	}
 
