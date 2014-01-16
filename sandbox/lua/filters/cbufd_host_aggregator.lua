@@ -2,6 +2,39 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+-- Collects the circular buffer delta output from multiple instances of an up
+-- stream sandbox filter (the filters should all be the same version at least
+-- with respect to their cbuf output). Each column from the source circular
+-- buffer will become its own graph. i.e., 'Error Count' will become a graph
+-- with each host being represented in a column.
+--
+-- Example Heka Configuration:
+--
+--  [TelemetryServerMetricsHostAggregator]
+--  type = "SandboxFilter"
+--  message_matcher = "Logger == 'TelemetryServerMetrics' && Fields[payload_type] == 'cbufd'"
+--  ticker_interval = 60
+--  script_type = "lua"
+--  filename = "lua_filters/cbufd_host_aggregator.lua"
+--  preserve_data = true
+--  memory_limit = 8000000
+--  instruction_limit = 100000
+--  output_limit = 64000
+--
+--  [TelemetryServerMetricsHostAggregator.config]
+--  max_hosts = 5   # (uint)
+--      # Pre-allocates the number of host columns in the graph(s).
+--      # If the number of active hosts exceed this value, the plugin will
+--      # terminate.
+--  rows = 60       # (uint)
+--      # The number of rows to keep from the original circular buffer.  Storing
+--      # all the data from all the hosts is not practical since you will most
+--      # likely run into memory and output size restrictions (adjust the view
+--      # down as necessary).
+--  host_expiration # (uint - optional default 120 seconds)
+--      # The amount of time a host has to be inactive before it can be replaced
+--      # by a new host.
+
 local cbufd = require "cbufd"
 require "circular_buffer"
 require "cjson"

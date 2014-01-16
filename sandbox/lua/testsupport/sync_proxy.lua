@@ -76,7 +76,7 @@ end
 
 function timer_event(ns)
     -- advance the buffers so the graphs will continue to advance without new data
-    -- status:add(ns, 1, 0) 
+    -- status:add(ns, 1, 0)
     -- request:add(ns, 1, 0)
 
     inject_message(status, "HTTP Status")
@@ -93,27 +93,27 @@ function timer_event(ns)
     -- the stats.
     local previous_window = newest - sliding_window * 2
     local current_window = newest - sliding_window
-    local historical_sd = request:compute("sd", AVG_RESPONSE_TIME, nil, previous_window - interval) 
+    local historical_sd = request:compute("sd", AVG_RESPONSE_TIME, nil, previous_window - interval)
     local previous_avg = request:compute("avg", AVG_RESPONSE_TIME, previous_window, current_window - interval)
     local current_avg = request:compute("avg", AVG_RESPONSE_TIME, current_window, newest - interval)
 
     local delta = math.abs(current_avg - previous_avg)
     if delta > historical_sd * 2 and newest - last_alert > sliding_window then
         for i=1, annotations_size do -- clean out old alerts
-            if annotations[i].x < (newest - interval * rows)/1e6 then 
+            if annotations[i].x < (newest - interval * rows)/1e6 then
                 table.remove(annotations, i)
                 annotations_size = annotations_size - 1
             else
                 break
-            end 
+            end
         end
 
         local msg = "CRITICAL:Average response time has fluxuated more than 2 standard deviations"
         last_alert = newest - newest % interval
         annotations_size = annotations_size + 1
         annotations[annotations_size] = {x          = math.floor(last_alert/1e6),
-                                         col        = AVG_RESPONSE_TIME, 
-                                         shortText  = "A", 
+                                         col        = AVG_RESPONSE_TIME,
+                                         shortText  = "A",
                                          text       = msg}
         output(msg)
         inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
