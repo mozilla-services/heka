@@ -1949,6 +1949,22 @@ Parameters:
 - responseheadertimeout (uint, optional):
     Specifies the amount of time, in seconds, to wait for a server's response
     headers after fully writing the request. Defaults to 2.
+- nagios_service_description (string, optional)
+	Must match Nagios service's service_description attribute.
+	(default: the name of the output)
+- nagios_host (string, optional)
+	Must match the hostname of the server in nagios.
+	(default: the Hostname attribute of the message)
+- send_nsca_bin (string, optional)
+    Use send_nsca program, as provided, rather than sending direct http requests
+    (default: "", use http)
+- send_nsca_args ([]string, optional)
+    Arguments to use with send_nsca, usually at least the nagios hostname, e.g. ["-H", "nagios.somehost.com"]
+    (default: "")
+- send_nsca_timeout (int, optional)
+    Timeout for the send_nsca command, in seconds
+    (default: 5)
+
 
 Example configuration to output alerts from SandboxFilter plugins:
 

@@ -65,6 +65,10 @@ Bug Handling
 Features
 --------
 
+* Added support for send_nsca to NagiosOutput as an alternative to direct http
+  submission; also a way to explicitely specify service_description and host to
+  match Nagios config
+
 * TcpOutput has been redesigned to handle unavailable endpoints and dropped 
   connections without data loss (issue #355)
 
