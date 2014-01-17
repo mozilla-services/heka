@@ -132,12 +132,7 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
 	}
 
-	for {
-		select {
-		case <-hli.stopChan:
-			return
-		}
-	}
+	<-hli.stopChan
 
 	return nil
 }
