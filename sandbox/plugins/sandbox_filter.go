@@ -90,20 +90,28 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	case "lua":
 		this.sb, err = lua.CreateLuaSandbox(this.sbc)
 		if err != nil {
-			return err
+			return
 		}
 	default:
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	this.preservationFile = filepath.Join(filepath.Dir(this.sbc.ScriptFilename), this.name+".data")
+	data_dir := pipeline.GetHekaConfigDir("sandbox_preservation")
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
+	}
+
+	this.preservationFile = filepath.Join(data_dir, this.name+".data")
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
 		err = this.sb.Init(this.preservationFile, "filter")
 	} else {
 		err = this.sb.Init("", "filter")
 	}
 
-	return err
+	return
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
