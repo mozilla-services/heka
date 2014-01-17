@@ -34,6 +34,7 @@ set(FLOOD_EXE "${PROJECT_PATH}/bin/heka-flood${CMAKE_EXECUTABLE_SUFFIX}")
 set(SBMGR_EXE "${PROJECT_PATH}/bin/heka-sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
 set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/heka-sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
 set(INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
+set(LOGSTREAMER_EXE "${PROJECT_PATH}/bin/heka-logstreamer${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
@@ -176,6 +177,13 @@ DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${INJECT_EXE}" DESTINATION bin)
+
+add_custom_target(logstreamer ALL
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-logstreamer
+DEPENDS hekad
+WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+install(PROGRAMS "${LOGSTREAMER_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgr
