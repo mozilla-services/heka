@@ -4,12 +4,12 @@ define(
     "adapters/plugins_adapter",
     "views/health/globals_index",
     "views/health/inputs_index",
-    "views/health/decoder_pools_index",
+    "views/health/decoders_index",
     "views/health/filters_index",
     "views/health/outputs_index",
     "hgn!templates/health/health_index"
   ],
-  function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecoderPoolsIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
+  function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecodersIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
     "use strict";
 
     /**
@@ -28,7 +28,7 @@ define(
 
         this.globalsIndex = new GlobalsIndex({ collection: this.adapter.globals });
         this.inputsIndex = new InputsIndex({ collection: this.adapter.inputs });
-        this.decoderPoolsIndex = new DecoderPoolsIndex({ collection: this.adapter.decoderPools });
+        this.decodersIndex = new DecodersIndex({ collection: this.adapter.decoders });
         this.filtersIndex = new FiltersIndex({ collection: this.adapter.filters });
         this.outputsIndex = new OutputsIndex({ collection: this.adapter.outputs });
 
@@ -36,15 +36,16 @@ define(
       },
 
       /**
-      * Renders globalsIndex, inputsIndex, decoderPoolsIndex, filtersIndex, outputsIndex into the
-      * corresponding DOM elements.
+      * Renders globalsIndex, inputsIndex, decodersIndex, 
+      * filtersIndex, outputsIndex into the corresponding DOM 
+      * elements. 
       *
       * @method afterRender
       */
       afterRender: function() {
         this.assign(this.globalsIndex, "#globals-index");
         this.assign(this.inputsIndex, "#inputs-index");
-        this.assign(this.decoderPoolsIndex, "#decoder-pools-index");
+        this.assign(this.decodersIndex, "#decoders-index");
         this.assign(this.filtersIndex, "#filters-index");
         this.assign(this.outputsIndex, "#outputs-index");
       }
