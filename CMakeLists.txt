@@ -224,7 +224,7 @@ if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
 
-install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/sbmgr/hekad.toml.sbmgr" DESTINATION bin)
+install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
 endif()
