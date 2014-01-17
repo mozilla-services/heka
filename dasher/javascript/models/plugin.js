@@ -83,6 +83,22 @@ define(
     * @property {String} MatchAvgDuration.representation
     */
 
+    /**
+    * Process message duration.
+    *
+    * @property {Object} ProcessMessageAvgDuration
+    * @property {Number} ProcessMessageAvgDuration.value
+    * @property {String} ProcessMessageAvgDuration.representation
+    */
+
+    /**
+    * Process message failures.
+    *
+    * @property {Object} ProcessMessageFailures
+    * @property {Number} ProcessMessageFailures.value
+    * @property {String} ProcessMessageFailures.representation
+    */
+
     return Plugin;
   }
 );
