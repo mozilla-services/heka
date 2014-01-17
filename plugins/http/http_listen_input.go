@@ -35,7 +35,6 @@ type HttpListenInput struct {
 	dRunner     DecoderRunner
 	pConfig     *PipelineConfig
 	decoderName string
-	name        string
 }
 
 // HTTP Listen Input config struct
@@ -46,10 +45,6 @@ type HttpListenInputConfig struct {
 	// Name of configured decoder instance used to decode the messages.
 	// Defaults to request body as payload.
 	Decoder string
-}
-
-func (hli *HttpListenInput) SetName(name string) {
-	hli.name = name
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
@@ -72,7 +67,7 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("heka.httpdata.request")
-	pack.Message.SetLogger(hli.name)
+	pack.Message.SetLogger(hli.ir.Name())
 	pack.Message.SetHostname(req.RemoteAddr)
 	pack.Message.SetPid(int32(os.Getpid()))
 	pack.Message.SetSeverity(int32(6))
