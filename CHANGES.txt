@@ -4,6 +4,11 @@
 Backwards Incompatibilities
 ---------------------------
 
+* The sandbox preservation data is now stored in the 
+  {base_dir}/sandbox_preservation directory instead of with the plugin source.
+  On the initial restart no preserved data will be restored unless it is 
+  manually moved to this directory first. (issue #626)
+
 * The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
   with a `heka-` prefix for their respective binaries. I.e. Flood has been
   renamed heka-flood., etc.
