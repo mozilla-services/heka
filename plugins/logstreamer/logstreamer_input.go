@@ -11,17 +11,22 @@
 #   Ben Bangert (bbangert@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-
 package logstreamer
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	ls "github.com/mozilla-services/heka/logstreamer"
+	"github.com/mozilla-services/heka/message"
 	p "github.com/mozilla-services/heka/pipeline"
+	"io"
+	"os"
 	"time"
 )
 
 type LogstreamerInputConfig struct {
+	// Hostname to use for the generated logfile message objects.
+	Hostname string
 	// Log base directory to run log regex under
 	LogDirectory string `toml:"log_directory"`
 	// Journal base directory for saving journal files
@@ -35,7 +40,7 @@ type LogstreamerInputConfig struct {
 	// Oldest logfiles to parse, as a duration parseable
 	OldestDuration string `toml:"oldest_duration"`
 	// Translation map for sorting substitutions
-	Translation logstreamer.SubmatchTranslationMap
+	Translation ls.SubmatchTranslationMap
 	// Rescan interval declares how often the full directory scanner
 	// runs to locate more logfiles/streams
 	RescanInterval string `toml:"rescan_interval"`
@@ -60,76 +65,116 @@ type LogstreamerInput struct {
 	parser             string
 	delimiter          string
 	delimiterLocation  string
+	streamParser       p.StreamParser
+	parserFunction     string
+	hostName           string
 }
 
 func (li *LogstreamerInput) ConfigStruct() interface{} {
 	return &LogstreamerInputConfig{
 		RescanInterval: "1m",
-		parser:         "token",
+		ParserType:     "token",
 	}
 }
 
 func (li *LogstreamerInput) Init(config interface{}) (err error) {
+	var (
+		errs    *ls.MultipleError
+		oldest  time.Duration
+		plugins []string
+	)
 	conf := config.(*LogstreamerInputConfig)
+
+	li.decoderName = conf.Decoder
+	li.parser = conf.ParserType
+	li.delimiter = conf.Delimiter
+	li.delimiterLocation = conf.DelimiterLocation
+
+	// Setup the rescan interval
+	if li.rescanInterval, err = time.ParseDuration(conf.RescanInterval); err != nil {
+		return
+	}
+
+	// Parse the oldest duration
+	if oldest, err = time.ParseDuration(conf.OldestDuration); err != nil {
+		return
+	}
+
+	// Create the main sort pattern
 	sp := &ls.SortPattern{
 		FileMatch:      conf.FileMatch,
 		Translation:    conf.Translation,
 		Priority:       conf.Priority,
 		Differentiator: conf.Differentiator,
 	}
-	var (
-		oldest  time.Duration
-		rescan  time.Duration
-		plugins []string
-	)
-	li.decoderName = conf.Decoder
-	li.parser = conf.ParserType
-	li.delimiter = conf.Delimiter
-	li.delimiterLocation = conf.DelimiterLocation
 
-	oldest, err = time.ParseDuration(conf.OldestDuration)
-	if err != nil {
-		return
-	}
-	rescan, err = time.ParseDuration(conf.RescanInterval)
-	if err != nil {
-		return
-	}
-	li.rescanInterval = rescan
+	// Create the main logstream set
 	li.logstreamSet = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory, conf.JournalDirectory)
-	plugins, err = li.logstreamSet.ScanForLogstreams()
-	if err != nil {
+
+	// Initial scan for logstreams
+	plugins, errs = li.logstreamSet.ScanForLogstreams()
+	if errs.IsError() {
+		return errs
+	}
+
+	// Setup our parser to use when running
+	if li.streamParser, li.parserFunction, err = CreateParser(li.parser, li.delimiter,
+		li.delimiterLocation, li.decoderName); err != nil {
 		return
 	}
+
+	// Declare our hostname
+	if conf.Hostname == "" {
+		li.hostName, err = os.Hostname()
+		if err != nil {
+			return
+		}
+	}
+	li.hostName = conf.Hostname
+
 	// Create all our initial logstream plugins for the logstreams found
 	for _, name := range plugins {
 		stream, ok := li.logstreamSet.GetLogstream(name)
 		if !ok {
 			continue
 		}
-		li.plugins[name] = NewLogstreamInput(stream)
+		li.plugins[name] = NewLogstreamInput(stream, li.streamParser, li.parserFunction,
+			name, li.hostName)
 	}
 	li.stopLogstreamChans = make([]chan bool, 0, len(plugins))
 	li.stopChan = make(chan bool)
+	return
 }
 
+// Main Logstreamer Input runner
+// This runner kicks off all the other logstream inputs, and handles rescanning for
+// updates to the filesystem that might affect file visibility for the logstream
+// inputs
 func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) {
 	var (
-		dRunner p.DecoderRunner
+		ok         bool
+		dRunner    p.DecoderRunner
+		errs       *ls.MultipleError
+		newstreams []string
 	)
+
+	// Setup the decoder runner that will be used
 	if li.decoderName != "" {
 		if dRunner, ok = h.DecoderRunner(li.decoderName); !ok {
 			return fmt.Errorf("Decoder not found: %s", li.decoderName)
 		}
 	}
 
-	for name, logstream := range li.plugins {
+	// Kick off all the current logstreams we know of
+	for _, logstream := range li.plugins {
 		stop := make(chan bool, 1)
 		go logstream.Run(ir, h, stop, dRunner)
 		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 	}
+
 	ok = true
-	rescan = time.Tick(li.rescanInterval)
+	rescan := time.Tick(li.rescanInterval)
+	// Our main rescan loop that handles shutting down
 	for ok {
 		select {
 		case <-li.stopChan:
@@ -144,10 +189,10 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 			}
 
 			// Close our own stopChan to indicate we shut down
-			li.stopChan.Close()
+			close(li.stopChan)
 		case <-rescan:
-			newstreams, errs := li.logstreamSet.ScanForLogstreams()
-			if errs != nil {
+			newstreams, errs = li.logstreamSet.ScanForLogstreams()
+			if errs.IsError() {
 				ir.LogError(errs)
 			}
 			for _, name := range newstreams {
@@ -157,8 +202,9 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 					continue
 				}
 
-				// Setup a new logstream and start it running
-				lsi := NewLogstreamInput(stream)
+				// Setup a new logstream input for this logstream and start it running
+				lsi := NewLogstreamInput(stream, li.streamParser, li.parserFunction, name,
+					li.hostName)
 				li.plugins[name] = lsi
 				stop := make(chan bool, 1)
 				go lsi.Run(ir, h, stop, dRunner)
@@ -175,24 +221,44 @@ func (li *LogstreamerInput) Stop() {
 	<-li.stopChan
 }
 
-type ParseFunction func(ls *LogstreamInput) (err error)
+type Deliver func(pack *p.PipelinePack)
 
 type LogstreamInput struct {
 	stream        *ls.Logstream
 	shutdownChan  chan<- bool
 	parser        p.StreamParser
-	parseFunction ParseFunction
+	parseFunction string
+	loggerIdent   string
+	hostName      string
+	recordCount   int
 }
 
-func NewLogstreamInput(stream *ls.Logstream) *LogstreamInput {
+func NewLogstreamInput(stream *ls.Logstream, parser p.StreamParser, parserFunction,
+	loggerIdent, hostName string) *LogstreamInput {
 	return &LogstreamInput{
-		stream:       stream,
-		shutdownChan: make(chan bool),
+		stream:        stream,
+		shutdownChan:  make(chan bool),
+		parser:        parser,
+		parseFunction: parserFunction,
+		loggerIdent:   loggerIdent,
+		hostName:      hostName,
 	}
 }
 
-func (ls *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan bool,
+func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan bool,
 	dRunner p.DecoderRunner) {
+
+	var (
+		parser func(ir p.InputRunner, deliver Deliver) error
+		err    error
+	)
+
+	if lsi.parseFunction == "payload" {
+		parser = lsi.payloadParser
+	} else if lsi.parseFunction == "messageProto" {
+		parser = lsi.messageProtoParser
+	}
+
 	deliver := func(pack *p.PipelinePack) {
 		if dRunner == nil {
 			ir.Inject(pack)
@@ -201,10 +267,18 @@ func (ls *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan 
 		}
 	}
 
-	tick := time.Tick(time.ParseDuration("500ms"))
+	interval, _ := time.ParseDuration("500ms")
+	tick := time.Tick(interval)
 	ok := true
 	for ok {
+		// Clear our error
+		err = nil
+
 		// Attempt to read as many as we can
+		err = parser(ir, deliver)
+		if err != nil && err != io.EOF {
+			ir.LogError(err)
+		}
 
 		// Wait for our next interval
 		select {
@@ -214,88 +288,50 @@ func (ls *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan 
 			continue
 		}
 	}
-	stopChan.Close()
-}
-
-func CreateParser(parserType, delimiter, delimiterLocation string) (parser p.StreamParser,
-	parseFunction ParseFunction, err error) {
-	parseFunction = payloadParser
-	if parserType == "" || parserType == "token" {
-		parser = p.NewTokenParser()
-		switch len(delimiter) {
-		case 0: // use default
-		case 1:
-			parser.SetDelimiter(delimiter[0])
-		default:
-			err = fmt.Errorf("invalid delimiter: %s", delimiter)
-		}
-	} else if parserType == "regexp" {
-		parser = p.NewRegexpParser()
-		if len(delimiter) > 0 {
-			err = parser.SetDelimiter(delimiter)
-		}
-		err = parser.SetDelimiterLocation(delimiterLocation)
-	} else if parserType == "message.proto" {
-		parser = p.NewMessageProtoParser()
-		parseFunction = messageProtoParser
-		if conf.Decoder == "" {
-			err = fmt.Errorf("The message.proto parser must have a decoder")
-		}
-	} else {
-		err = fmt.Errorf("unknown parser type: %s", parserType)
-	}
-	return
+	close(stopChan)
 }
 
 // Standard text log file parser
-func payloadParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver) (err error) {
 	var (
-		n      int
-		pack   *PipelinePack
+		pack   *p.PipelinePack
 		record []byte
 	)
 	for err == nil {
-		n, record, err = fm.parser.Parse(fm.fd)
-		if err != nil {
-			if err == io.EOF && isRotated {
-				record = fm.parser.GetRemainingData()
-			} else if err == io.ErrShortBuffer {
-				fm.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
-				err = nil // non-fatal, keep going
-			}
+		_, record, err = lsi.parser.Parse(lsi.stream)
+		if err == io.ErrShortBuffer {
+			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+			err = nil // non-fatal, keep going
 		}
 		if len(record) > 0 {
 			payload := string(record)
-			pack = <-fm.ir.InChan()
+			pack = <-ir.InChan()
 			pack.Message.SetUuid(uuid.NewRandom())
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("logfile")
 			pack.Message.SetSeverity(int32(0))
 			pack.Message.SetEnvVersion("0.8")
 			pack.Message.SetPid(0)
-			pack.Message.SetHostname(fm.hostname)
-			pack.Message.SetLogger(fm.logger_ident)
+			pack.Message.SetHostname(lsi.hostName)
+			pack.Message.SetLogger(lsi.loggerIdent)
 			pack.Message.SetPayload(payload)
-			fm.outChan <- pack
-			fm.last_logline_start = fm.seek + bytesRead
-			fm.last_logline = payload
+			deliver(pack)
+			lsi.countRecord()
 		}
-		bytesRead += int64(n)
 	}
 	return
 }
 
 // Framed protobuf message parser
-func messageProtoParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error) {
+func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver) (err error) {
 	var (
-		n      int
-		pack   *PipelinePack
+		pack   *p.PipelinePack
 		record []byte
 	)
 	for err == nil {
-		n, record, err = fm.parser.Parse(fm.fd)
+		_, record, err = lsi.parser.Parse(lsi.stream)
 		if len(record) > 0 {
-			pack = <-fm.ir.InChan()
+			pack = <-ir.InChan()
 			headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
 			messageLen := len(record) - headerLen
 			// ignore authentication headers
@@ -304,17 +340,55 @@ func messageProtoParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err e
 			}
 			pack.MsgBytes = pack.MsgBytes[:messageLen]
 			copy(pack.MsgBytes, record[headerLen:])
-			fm.outChan <- pack
-			fm.last_logline_start = fm.seek + bytesRead
-			fm.last_logline = string(record)
+			deliver(pack)
+			lsi.countRecord()
 		}
-		bytesRead += int64(n)
+	}
+	return
+}
+
+func (lsi *LogstreamInput) countRecord() {
+	lsi.recordCount += 1
+	if lsi.recordCount > 500 {
+		lsi.stream.SavePosition()
+		lsi.recordCount = 0
+	}
+}
+
+func CreateParser(parserType, delimiter, delimiterLocation, decoder string) (parser p.StreamParser,
+	parseFunction string, err error) {
+	parseFunction = "payload"
+	if parserType == "" || parserType == "token" {
+		tp := p.NewTokenParser()
+		switch len(delimiter) {
+		case 0: // use default
+		case 1:
+			tp.SetDelimiter(delimiter[0])
+		default:
+			err = fmt.Errorf("invalid delimiter: %s", delimiter)
+		}
+		parser = tp
+	} else if parserType == "regexp" {
+		rp := p.NewRegexpParser()
+		if len(delimiter) > 0 {
+			err = rp.SetDelimiter(delimiter)
+		}
+		err = rp.SetDelimiterLocation(delimiterLocation)
+		parser = rp
+	} else if parserType == "message.proto" {
+		parser = p.NewMessageProtoParser()
+		parseFunction = "messageProto"
+		if decoder == "" {
+			err = fmt.Errorf("The message.proto parser must have a decoder")
+		}
+	} else {
+		err = fmt.Errorf("unknown parser type: %s", parserType)
 	}
 	return
 }
 
 func init() {
-	RegisterPlugin("LogstreamerInput", func() interface{} {
+	p.RegisterPlugin("LogstreamerInput", func() interface{} {
 		return new(LogstreamerInput)
 	})
 }

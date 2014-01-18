@@ -393,11 +393,8 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		}
 
 		// Some unexpected error, reset everything
-		// but don't kill the watcher
 		l.fd.Close()
-		if l.fd != nil {
-			l.fd = nil
-		}
+		l.fd = nil
 		l.position.Reset()
 		return
 	}

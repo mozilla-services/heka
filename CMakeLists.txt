@@ -220,6 +220,7 @@ add_test(plugins/elasticsearch ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG
 add_test(plugins/file ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/file)
 add_test(plugins/graphite ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/graphite)
 add_test(plugins/http ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/http)
+add_test(plugins/logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/logstreamer)
 add_test(plugins/payload ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/payload)
 add_test(plugins/process ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/process)
 add_test(plugins/smtp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/smtp)
