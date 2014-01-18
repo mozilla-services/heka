@@ -18,8 +18,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
+	"time"
 )
 
 func ReaderSpec(c gs.Context) {
@@ -36,17 +35,23 @@ func ReaderSpec(c gs.Context) {
 		l.SeekPosition = 500
 		l.Hash = "dc6d00ed4a287968635b8b5b96a505547e9161d3"
 
-		translation := make(SubmatchTranslationMap)
-		matchRegex := regexp.MustCompile(testDirPath + `/(?P<Year>\d+)/(?P<Month>\d+)/error.log(\.(?P<Seq>\d+))?`)
-		logfiles := ScanDirectoryForLogfiles(testDirPath, matchRegex)
-		err = logfiles.PopulateMatchParts(matchRegex, translation)
-		c.Assume(err, gs.IsNil)
-		c.Expect(len(logfiles), gs.Equals, 26)
+		sp := &SortPattern{
+			FileMatch:      `/(?P<Year>\d+)/(?P<Month>\d+)/error.log(\.(?P<Seq>\d+))?`,
+			Translation:    make(SubmatchTranslationMap),
+			Priority:       []string{"Year", "Month", "^Seq"},
+			Differentiator: []string{"errorlog"},
+		}
+		fivey, _ := time.ParseDuration("5y")
+		ls := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
 
-		byp := ByPriority{Logfiles: logfiles, Priority: []string{"Year", "Month", "^Seq"}}
-		sort.Sort(byp)
+		names, err := ls.ScanForLogstreams()
+		c.Expect(len(names), gs.Equals, 1)
 
-		stream := NewLogstream(logfiles, l)
+		stream, ok := ls.GetLogstream("errorlog")
+		c.Expect(ok, gs.Equals, true)
+		c.Expect(len(stream.logfiles), gs.Equals, 26)
+
+		stream.position = l
 		c.Expect(stream.VerifyFileHash(), gs.Equals, true)
 		b := make([]byte, 500)
 		n, err := stream.Read(b)

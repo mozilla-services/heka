@@ -33,8 +33,6 @@ import (
 	"github.com/mozilla-services/heka/logstreamer"
 	"log"
 	"os"
-	"regexp"
-	"sort"
 	"time"
 )
 
@@ -64,33 +62,22 @@ func main() {
 		return
 	}
 
-	matchRegex := regexp.MustCompile(config.FileMatch)
-	logfiles := logstreamer.ScanDirectoryForLogfiles(config.LogDirectory, matchRegex)
-	err := logfiles.PopulateMatchParts(matchRegex, config.Translation)
-	if err != nil {
-		fmt.Printf("Unable to populate match parts with the regex: %s", err)
-		os.Exit(0)
+	sp := &logstreamer.SortPattern{
+		FileMatch:      config.FileMatch,
+		Translation:    config.Translation,
+		Priority:       config.Priority,
+		Differentiator: config.Differentiator,
 	}
+	oldest, _ := time.ParseDuration(config.OldestDuration)
+	ls := logstreamer.NewLogstreamSet(sp, oldest, testDirPath, dirPath)
 
-	// Drop the oldest
-	if config.OldestDuration != "" {
-		dur, err := time.ParseDuration(config.OldestDuration)
-		if err != nil {
-			fmt.Printf("Unable to parse duration: %s", err)
-			os.Exit(0)
-		}
-		logfiles = logfiles.FilterOld(time.Now().Add(-dur))
-	}
-
-	byp := logstreamer.ByPriority{Logfiles: logfiles, Priority: config.Priority}
-	sort.Sort(byp)
-
-	mfs := logstreamer.FilterMultipleStreamFiles(logfiles, config.Differentiator)
-	fmt.Printf("Found %d Logstream(s).\n", len(mfs))
-	for name, logfiles := range mfs {
+	streams := ls.GetLogstreamNames()
+	fmt.Printf("Found %d Logstream(s).\n", len(streams))
+	for name := range streams {
+		stream := ls.GetLogstream(name)
 		fmt.Printf("\nLogstream name: %s\n", name)
-		fmt.Printf("Files: %d (printing oldest to newest)\n", len(logfiles))
-		for _, logfile := range logfiles {
+		fmt.Printf("Files: %d (printing oldest to newest)\n", len(stream.logfiles))
+		for _, logfile := range stream.GetLogfiles() {
 			fmt.Printf("\t%s\n", logfile.FileName)
 		}
 	}

@@ -286,6 +286,17 @@ func (l *Logstream) SavePosition() error {
 	return l.position.Save()
 }
 
+// Get a copy of the logfiles
+func (l *Logstream) GetLogfiles() (logfiles Logfiles) {
+	l.lfMutex.RLock()
+	defer l.lfMutex.RUnlock()
+	logfiles = make(Logfiles, len(l.logfiles))
+	for i, v := range l.logfiles {
+		logfiles[i] = v
+	}
+	return
+}
+
 // Used for passing a map of logfiles
 type LogfilesMap map[string]Logfiles
 
@@ -302,24 +313,24 @@ type LogstreamSet struct {
 	fileMatch      *regexp.Regexp
 }
 
-func NewLogstreamSet(sortPattern *SortPattern, rescan, oldest time.Duration,
+func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	logRoot, journalRoot string) *LogstreamSet {
 	return &LogstreamSet{
-		rescanInterval: rescan,
+		logstreams:     make(map[string]*Logstream),
 		oldestDuration: oldest,
 		sortPattern:    sortPattern,
 		logRoot:        logRoot,
 		journalRoot:    journalRoot,
+		logstreamMutex: new(sync.RWMutex),
 		fileMatch:      regexp.MustCompile(sortPattern.FileMatch),
 	}
 }
 
 // Access a logstream by name if it exists
-func (ls *LogstreamSet) GetLogstream(name string) (l *Logstream, ok bool) {
+func (ls *LogstreamSet) GetLogstream(name string) (*Logstream, bool) {
 	ls.logstreamMutex.RLock()
 	defer ls.logstreamMutex.RUnlock()
-	l, ok = ls.logstreams[name]
-	return
+	return ls.logstreams[name]
 }
 
 // Get a list of all the logstream names
@@ -348,7 +359,9 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 	logfiles := ScanDirectoryForLogfiles(ls.logRoot, ls.fileMatch)
 
 	// Filter out old logfiles
-	logfiles.FilterOld(time.Now().Add(-ls.oldestDuration))
+	if ls.oldestDuration != time.Duration(0) {
+		logfiles.FilterOld(time.Now().Add(-ls.oldestDuration))
+	}
 
 	// Setup all the sorting ints in every logfile
 	logfiles.PopulateMatchParts(ls.fileMatch, ls.sortPattern.Translation)
