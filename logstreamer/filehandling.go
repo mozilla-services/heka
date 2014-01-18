@@ -327,10 +327,11 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 }
 
 // Access a logstream by name if it exists
-func (ls *LogstreamSet) GetLogstream(name string) (*Logstream, bool) {
+func (ls *LogstreamSet) GetLogstream(name string) (l *Logstream, ok bool) {
 	ls.logstreamMutex.RLock()
 	defer ls.logstreamMutex.RUnlock()
-	return ls.logstreams[name]
+	l, ok = ls.logstreams[name]
+	return
 }
 
 // Get a list of all the logstream names

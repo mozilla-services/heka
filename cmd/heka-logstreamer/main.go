@@ -56,7 +56,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	var config LogstreamerConfig
+	config := LogstreamerConfig{OldestDuration: "5y"}
 	if _, err := toml.DecodeFile(*configFile, &config); err != nil {
 		log.Printf("Error decoding config file: %s", err)
 		return
@@ -69,14 +69,18 @@ func main() {
 		Differentiator: config.Differentiator,
 	}
 	oldest, _ := time.ParseDuration(config.OldestDuration)
-	ls := logstreamer.NewLogstreamSet(sp, oldest, testDirPath, dirPath)
+	ls := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "")
+	streams, errs := ls.ScanForLogstreams()
+	if errs.IsError() {
+		fmt.Printf("Error scanning: %s\n", errs)
+		os.Exit(0)
+	}
 
-	streams := ls.GetLogstreamNames()
 	fmt.Printf("Found %d Logstream(s).\n", len(streams))
-	for name := range streams {
-		stream := ls.GetLogstream(name)
+	for _, name := range streams {
+		stream, _ := ls.GetLogstream(name)
 		fmt.Printf("\nLogstream name: %s\n", name)
-		fmt.Printf("Files: %d (printing oldest to newest)\n", len(stream.logfiles))
+		fmt.Printf("Files: %d (printing oldest to newest)\n", len(stream.GetLogfiles()))
 		for _, logfile := range stream.GetLogfiles() {
 			fmt.Printf("\t%s\n", logfile.FileName)
 		}
