@@ -60,7 +60,7 @@ type SandboxManagerFilterConfig struct {
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 	return &SandboxManagerFilterConfig{
 		WorkingDirectory: "sbxmgrs",
-		ModuleDirectory:  "lua_module",
+		ModuleDirectory:  "/usr/share/heka/lua_modules",
 	}
 }
 
