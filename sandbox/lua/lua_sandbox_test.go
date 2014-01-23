@@ -14,13 +14,12 @@
 package lua_test
 
 import (
-	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,12 +37,12 @@ func TestCreation(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	b := sb.Usage(TYPE_MEMORY, STAT_CURRENT)
-	if b != 0 {
-		t.Errorf("current memory should be 0, using %d", b)
+	if b == 0 {
+		t.Errorf("current memory should be >0, using %d", b)
 	}
 	b = sb.Usage(TYPE_MEMORY, STAT_MAXIMUM)
-	if b != 0 {
-		t.Errorf("maximum memory should be 0, using %d", b)
+	if b == 0 {
+		t.Errorf("maximum memory should be >0, using %d", b)
 	}
 	b = sb.Usage(TYPE_MEMORY, STAT_LIMIT)
 	if b != sbc.MemoryLimit {
@@ -121,7 +120,7 @@ func TestInit(t *testing.T) {
 		t.Errorf("status should be %d, received %d",
 			STATUS_UNKNOWN, sb.Status())
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -177,7 +176,7 @@ func TestFailedInit(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err == nil {
 		t.Errorf("Init() should have failed on a missing file")
 	}
@@ -198,16 +197,16 @@ func TestMissingProcessMessage(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	r := sb.ProcessMessage(msg)
+	r := sb.ProcessMessage(pack)
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -219,7 +218,7 @@ func TestMissingProcessMessage(t *testing.T) {
 		t.Errorf("status should be %d, received %d",
 			STATUS_TERMINATED, sb.Status())
 	}
-	r = sb.ProcessMessage(msg) // try to use the terminated plugin
+	r = sb.ProcessMessage(pack) // try to use the terminated plugin
 	if r == 0 {
 		t.Errorf("ProcessMessage() expected: 1, received: %d", r)
 	}
@@ -236,7 +235,7 @@ func TestMissingTimeEvent(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -285,8 +284,14 @@ func getTestMessage() *message.Message {
 	return msg
 }
 
+func getTestPack() *pipeline.PipelinePack {
+	pack := pipeline.NewPipelinePack(nil)
+	pack.Message = getTestMessage()
+	return pack
+}
+
 func TestAPIErrors(t *testing.T) {
-	msg := getTestMessage()
+	pack := getTestPack()
 	tests := []string{
 		"require unknown",
 		"output() no arg",
@@ -301,9 +306,11 @@ func TestAPIErrors(t *testing.T) {
 		"read_message() negative array index",
 		"output limit exceeded",
 		"read_config() must have a single argument",
+		"read_next_field() takes no arguments",
+		"write_message() should not exist",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: library 'unknown' is not available",
+		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
 		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -316,6 +323,8 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:34: bad argument #3 to 'read_message' (array index must be >= 0)",
 		"process_message() ./testsupport/errors.lua:37: output_limit exceeded",
 		"process_message() ./testsupport/errors.lua:40: read_config() must have a single argument",
+		"process_message() ./testsupport/errors.lua:42: read_next_field() takes no arguments",
+		"process_message() ./testsupport/errors.lua:44: attempt to call global 'write_message' (a nil value)",
 	}
 
 	var sbc SandboxConfig
@@ -328,12 +337,83 @@ func TestAPIErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		err = sb.Init("")
+		err = sb.Init("", "")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg)
+		pack.Message.SetPayload(v)
+		r := sb.ProcessMessage(pack)
+		if r != 1 || STATUS_TERMINATED != sb.Status() {
+			t.Errorf("test: %s status should be %d, received %d",
+				v, STATUS_TERMINATED, sb.Status())
+		}
+		s := sb.LastError()
+		if s != msgs[i] {
+			t.Errorf("test: %s error should be \"%s\", received \"%s\"",
+				v, msgs[i], s)
+		}
+		sb.Destroy("")
+	}
+}
+
+func TestWriteMessageErrors(t *testing.T) {
+	pack := getTestPack()
+	// NewPipelineConfig sets up Globals for error logging
+	_ = pipeline.NewPipelineConfig(nil)
+
+	tests := []string{
+		"too few parameters",
+		"too many parameters",
+		"Unknown field name",
+		"Missing fields specifier",
+		"Missing closing bracket",
+		"Out of range field index",
+		"Negative field index",
+		"Negative array index",
+		"nil field",
+		"nil value",
+		"empty uuid",
+		"invalid uuid",
+		"empty timestamp",
+		"invalid timestamp",
+		"bool severity",
+		"double hostname",
+	}
+	msgs := []string{
+		"process_message() ./testsupport/write_message_errors.lua:11: write_message() incorrect number of arguments",
+		"process_message() ./testsupport/write_message_errors.lua:13: write_message() incorrect number of arguments",
+		"process_message() ./testsupport/write_message_errors.lua:15: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:17: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:19: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:21: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
+		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
+		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean field values",
+		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:41: write_message() failed",
+	}
+
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/write_message_errors.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 128
+	for i, v := range tests {
+		sb, err := lua.CreateLuaSandbox(&sbc)
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		err = sb.Init("", "decoder")
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+		pack.Message.SetPayload(v)
+		r := sb.ProcessMessage(pack)
 		if r != 1 || STATUS_TERMINATED != sb.Status() {
 			t.Errorf("test: %s status should be %d, received %d",
 				v, STATUS_TERMINATED, sb.Status())
@@ -356,7 +436,7 @@ func TestTimerEvent(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -377,16 +457,17 @@ func TestReadMessage(t *testing.T) {
 	sbc.ScriptFilename = "./testsupport/read_message.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	r := sb.ProcessMessage(msg)
+	pack.MsgBytes = []byte("rawdata")
+	r := sb.ProcessMessage(pack)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d", r)
 	}
@@ -397,36 +478,95 @@ func TestReadMessage(t *testing.T) {
 	sb.Destroy("")
 }
 
-func TestPreserve(t *testing.T) {
+func TestWriteMessage(t *testing.T) {
+	pipeline.NewPipelineConfig(pipeline.DefaultGlobals()) // Set up globals :P
 	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/serialize.lua"
-	sbc.MemoryLimit = 64000
+	sbc.ScriptFilename = "./testsupport/field_scribble.lua"
+	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "decoder")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := filepath.Join(os.TempDir(), "serialize.lua.data")
-	saved := "./testsupport/serialize.lua.data"
-	err = sb.Destroy(output)
-	if err != nil {
-		t.Errorf("%s", err)
+	r := sb.ProcessMessage(pack)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d", r)
+	}
+	if pack.Message.GetType() != "MyType" {
+		t.Error("Type not set")
+	}
+	if pack.Message.GetLogger() != "MyLogger" {
+		t.Error("Logger not set")
+	}
+	packTime := time.Unix(0, pack.Message.GetTimestamp())
+	cmpTime := time.Unix(0, 1385968914904958136)
+	d, _ := time.ParseDuration("500ns")
+	packTime = packTime.Round(d)
+	cmpTime = cmpTime.Round(d)
+	if !packTime.Equal(cmpTime) {
+		t.Errorf("Timestamp not set: %d", pack.Message.GetTimestamp())
+	}
+	if pack.Message.GetPayload() != "MyPayload" {
+		t.Error("Payload not set")
+	}
+	if pack.Message.GetEnvVersion() != "000" {
+		t.Error("EnvVersion not set")
+	}
+	if pack.Message.GetHostname() != "MyHostname" {
+		t.Error("Hostname not set")
+	}
+	if pack.Message.GetSeverity() != 4 {
+		t.Error("Severity not set")
+	}
+	if pack.Message.GetPid() != 12345 {
+		t.Error("Pid not set")
+	}
+	var f []*message.Field
+	f = pack.Message.FindAllFields("String")
+	if len(f) != 1 || len(f[0].GetValueString()) != 1 || f[0].GetValueString()[0] != "foo" {
+		t.Errorf("String field not set")
+	}
+	f = pack.Message.FindAllFields("Float")
+	if len(f) != 1 || len(f[0].GetValueDouble()) != 1 || f[0].GetValueDouble()[0] != 1.2345 {
+		t.Error("Float field not set")
+	}
+	f = pack.Message.FindAllFields("Int")
+	if len(f) != 1 {
+		t.Error("Int field not set")
 	} else {
-		o, err := ioutil.ReadFile(output)
-		if err != nil {
-			t.Errorf("%s", err)
+		if len(f[0].GetValueDouble()) != 2 || f[0].GetValueDouble()[0] != 123 ||
+			f[0].GetValueDouble()[1] != 456 {
+			t.Error("Int field set incorrectly")
 		}
-		s, err := ioutil.ReadFile(saved)
-		if err != nil {
-			t.Errorf("%s", err)
+		if f[0].GetRepresentation() != "count" {
+			t.Error("Int field representation not set")
 		}
-		if 0 != bytes.Compare(o, s) {
-			t.Errorf("The preserved data does not match")
+	}
+	f = pack.Message.FindAllFields("Bool")
+	if len(f) != 2 {
+		t.Error("Bool fields not set")
+	} else {
+		if len(f[0].GetValueBool()) != 1 || !f[0].GetValueBool()[0] {
+			t.Error("Bool field 0 not set")
 		}
+		if len(f[1].GetValueBool()) != 1 || f[1].GetValueBool()[0] {
+			t.Error("Bool field 1 not set")
+		}
+	}
+	if f = pack.Message.FindAllFields(""); len(f) != 1 {
+		t.Error("No-name field not set")
+	} else {
+		if len(f[0].GetValueString()) != 1 || f[0].GetValueString()[0] != "bad idea" {
+			t.Error("No-name field set incorrectly")
+		}
+	}
+	if pack.Message.GetUuidString() != "550d19b9-58c7-49d8-b0dd-b48cd1c5b305" {
+		t.Errorf("Uuid not set: %s", pack.Message.GetUuidString())
 	}
 }
 
@@ -436,12 +576,12 @@ func TestRestore(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("./testsupport/simple_count.lua.data")
+	err = sb.Init("./testsupport/simple_count.lua.data", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -451,7 +591,7 @@ func TestRestore(t *testing.T) {
 		}
 		return 0
 	})
-	r := sb.ProcessMessage(msg)
+	r := sb.ProcessMessage(pack)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d", r)
 	}
@@ -467,7 +607,7 @@ func TestRestoreMissingData(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("./testsupport/missing.data")
+	err = sb.Init("./testsupport/missing.data", "")
 	if err == nil {
 		t.Errorf("Init should fail on data load error")
 	} else {
@@ -488,7 +628,7 @@ func TestPreserveFailure(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -517,7 +657,7 @@ func TestPreserveFailureNoGlobal(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -539,19 +679,19 @@ func TestFailedMessageInjection(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 1
 	})
-	r := sb.ProcessMessage(msg)
+	r := sb.ProcessMessage(pack)
 	if r != 1 {
 		t.Errorf("ProcessMessage should return 1, received %d", r)
 	}
@@ -567,202 +707,6 @@ func TestFailedMessageInjection(t *testing.T) {
 	sb.Destroy("")
 }
 
-func TestCircularBufferErrors(t *testing.T) {
-	msg := getTestMessage()
-	tests := []string{
-		"new() incorrect # args",
-		"new() non numeric row",
-		"new() 1 row",
-		"new() non numeric column",
-		"new() zero column",
-		"new() non numeric seconds_per_row",
-		"new() zero seconds_per_row",
-		"new() > hour seconds_per_row",
-		"new() too much memory",
-		"set() out of range column",
-		"set() zero column",
-		"set() non numeric column",
-		"set() non numeric time",
-		"get() invalid object",
-		"set() non numeric value",
-		"set() incorrect # args",
-		"add() incorrect # args",
-		"get() incorrect # args",
-		"compute() incorrect # args",
-		"compute() incorrect function",
-		"compute() incorrect column",
-		"compute() start > end",
-		"format() invalid",
-		"format() extra",
-		"format() missing",
-	}
-	msgs := []string{
-		"process_message() ./testsupport/circular_buffer_errors.lua:9: bad argument #-1 to 'new' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:11: bad argument #1 to 'new' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:13: bad argument #1 to 'new' (rows must be > 1)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:15: bad argument #2 to 'new' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:17: bad argument #2 to 'new' (columns must be > 0)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:19: bad argument #3 to 'new' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:21: bad argument #3 to 'new' (seconds_per_row is out of range)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:23: bad argument #3 to 'new' (seconds_per_row is out of range)",
-		"process_message() not enough memory",
-		"process_message() ./testsupport/circular_buffer_errors.lua:28: bad argument #2 to 'set' (column out of range)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:31: bad argument #2 to 'set' (column out of range)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:34: bad argument #2 to 'set' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:37: bad argument #1 to 'set' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:41: bad argument #1 to 'get' (Heka.circular_buffer expected, got number)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:44: bad argument #3 to 'set' (number expected, got nil)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:47: bad argument #-1 to 'set' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:50: bad argument #-1 to 'add' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:53: bad argument #-1 to 'get' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:56: bad argument #-1 to 'compute' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:59: bad argument #1 to 'compute' (invalid option 'func')",
-		"process_message() ./testsupport/circular_buffer_errors.lua:62: bad argument #2 to 'compute' (column out of range)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:65: bad argument #4 to 'compute' (end must be >= start)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:68: bad argument #1 to 'format' (invalid option 'invalid')",
-		"process_message() ./testsupport/circular_buffer_errors.lua:71: bad argument #-1 to 'format' (incorrect number of arguments)",
-		"process_message() ./testsupport/circular_buffer_errors.lua:74: bad argument #-1 to 'format' (incorrect number of arguments)",
-	}
-
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/circular_buffer_errors.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000
-	sbc.OutputLimit = 128
-	for i, v := range tests {
-		sb, err := lua.CreateLuaSandbox(&sbc)
-		if err != nil {
-			t.Errorf("%s", err)
-		}
-		err = sb.Init("")
-		if err != nil {
-			t.Errorf("%s", err)
-		}
-		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg)
-		if r != 1 || STATUS_TERMINATED != sb.Status() {
-			t.Errorf("test: %s status should be %d, received %d",
-				v, STATUS_TERMINATED, sb.Status())
-		}
-		s := sb.LastError()
-		if s != msgs[i] {
-			t.Errorf("test: %s error should be \"%s\", received \"%s\"",
-				v, msgs[i], s)
-		}
-		sb.Destroy("")
-	}
-}
-
-func TestCircularBuffer(t *testing.T) {
-	msg := getTestMessage()
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/circular_buffer.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000
-	sbc.OutputLimit = 32767
-	payload_type := "cbuf"
-	payload_name := "Method tests"
-
-	sb, err := lua.CreateLuaSandbox(&sbc)
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	output := []string{
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n0\t0\t0\n",
-		"{\"time\":0,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n1\t1\t1\n2\t1\t2\n3\t1\t3\n",
-		"{\"time\":2,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n3\t1\t3\n0\t0\t0\n1\t1\t1\n",
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n1\t1\t1\n"}
-	cnt := 0
-	sb.InjectMessage(func(p, pt, pn string) int {
-		if p != output[cnt] {
-			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], p)
-		}
-		if pt != payload_type {
-			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
-		}
-		if pn != "Method tests" {
-			t.Errorf("cnt: %d name should be \"%s\", received \"%s\"", cnt, payload_name, pn)
-		}
-		cnt++
-		return 0
-	})
-	err = sb.Init("")
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	sb.TimerEvent(0)
-	msg.SetTimestamp(0)
-	r := sb.ProcessMessage(msg)
-	if r != 0 {
-		t.Errorf("ProcessMessage failed: %s", sb.LastError())
-	}
-	msg.SetTimestamp(1e9)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	msg.SetTimestamp(2e9)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	sb.TimerEvent(0)
-
-	msg.SetTimestamp(4e9)
-	sb.ProcessMessage(msg)
-	sb.TimerEvent(0)
-
-	msg.SetTimestamp(10e9)
-	r = sb.ProcessMessage(msg)
-	if r != 0 {
-		t.Errorf("ProcessMessage failed: %s", sb.LastError())
-	}
-	sb.TimerEvent(0)
-	sb.TimerEvent(1)
-	r = sb.TimerEvent(3)
-	if r != 0 {
-		t.Errorf("TimerEvent failed: %s", sb.LastError())
-	}
-	sb.Destroy("/tmp/circular_buffer.lua.data")
-}
-
-func TestCircularBufferRestore(t *testing.T) {
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/circular_buffer.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000
-	sbc.OutputLimit = 32767
-	payload_type := "cbuf"
-
-	sb, err := lua.CreateLuaSandbox(&sbc)
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	output := []string{
-		"{\"time\":8,\"rows\":3,\"columns\":3,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Add_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Set_column\",\"unit\":\"count\",\"aggregation\":\"sum\"},{\"name\":\"Get_column\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n0\t0\t0\n0\t0\t0\n3\t1\t3\n",
-		"{\"time\":0,\"rows\":2,\"columns\":1,\"seconds_per_row\":1,\"column_info\":[{\"name\":\"Header_1\",\"unit\":\"count\",\"aggregation\":\"sum\"}]}\n7.1\n1000000\n"}
-	cnt := 0
-	sb.InjectMessage(func(p, pt, pn string) int {
-		if p != output[cnt] {
-			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], p)
-		}
-		if pt != payload_type {
-			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
-		}
-		if cnt == 1 && len(pn) != 0 {
-			t.Errorf("cnt: %d name should be empty, received \"%s\"", cnt, pn)
-		}
-		cnt++
-		return 0
-	})
-	err = sb.Init("./testsupport/circular_buffer.lua.data")
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	sb.TimerEvent(0)
-	sb.TimerEvent(2)
-	sb.Destroy("")
-}
-
 func TestInjectMessage(t *testing.T) {
 	var sbc SandboxConfig
 	tests := []string{
@@ -771,7 +715,6 @@ func TestInjectMessage(t *testing.T) {
 		"external reference",
 		"array only",
 		"private keys",
-		"table name",
 		"global table",
 		"special characters",
 		"message",
@@ -783,21 +726,19 @@ func TestInjectMessage(t *testing.T) {
 		"message force memmove",
 	}
 	outputs := []string{
-		`{"table":{"value":1}}
+		`{"value":1}
 1.2 string nil true false`,
-		`{"table":{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}}
+		`{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}
 `,
-		`{"table":{"a":{"y":2,"x":1}}}
+		`{"a":{"y":2,"x":1}}
 `,
-		`{"table":[1,2,3]}
+		`[1,2,3]
 `,
-		`{"table":{"x":1}}
+		`{"x":1}
 `,
-		`{"array":[1,2,3]}
+		`{}
 `,
-		`{"table":{}}
-`,
-		`{"table":{"special\tcharacters":"\"\t\r\n\b\f\\\/"}}
+		`{"special\tcharacters":"\"\t\r\n\b\f\\\/"}
 `,
 		"\x10\x80\x94\xeb\xdc\x03\x1a\x04\x74\x79\x70\x65\x22\x06\x6c\x6f\x67\x67\x65\x72\x28\x09\x32\x07\x70\x61\x79\x6c\x6f\x61\x64\x3a\x0b\x65\x6e\x76\x5f\x76\x65\x72\x73\x69\x6f\x6e\x4a\x08\x68\x6f\x73\x74\x6e\x61\x6d\x65",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x12\x0a\x05\x63\x6f\x75\x6e\x74\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f",
@@ -807,16 +748,22 @@ func TestInjectMessage(t *testing.T) {
 		"\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x8d\x01\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x82\x01\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39",
 	}
+	if false { // lua jit values
+		outputs[1] = `{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}
+`
+		outputs[13] = "\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33"
+	}
+
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -831,14 +778,14 @@ func TestInjectMessage(t *testing.T) {
 				t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", outputs[cnt], p)
 			}
 		}
-		if cnt == 13 {
+		if cnt == 12 {
 			msg := new(message.Message)
 			err := proto.Unmarshal([]byte(p), msg)
 			if err != nil {
 				t.Errorf("%s", err)
 			}
 			if msg.GetTimestamp() != 1e9 {
-				t.Errorf("Timestamp expected %d received %d", 1e9, msg.GetTimestamp())
+				t.Errorf("Timestamp expected %d received %d", int(1e9), pack.Message.GetTimestamp())
 			}
 			if field := msg.FindFirstField("numbers"); field != nil {
 				if field.GetRepresentation() != "count" {
@@ -869,8 +816,8 @@ func TestInjectMessage(t *testing.T) {
 	})
 
 	for _, v := range tests {
-		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg)
+		pack.Message.SetPayload(v)
+		r := sb.ProcessMessage(pack)
 		if r != 0 {
 			t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
 		}
@@ -892,34 +839,36 @@ func TestInjectMessageError(t *testing.T) {
 		"error nil type arg",
 		"error nil name arg",
 		"error incorrect number of args",
+		"error userdata output_limit",
 	}
 	errors := []string{
-		"process_message() ./testsupport/inject_message.lua:46: table contains an internal or circular reference",
-		"process_message() ./testsupport/inject_message.lua:51: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:42: table contains an internal or circular reference",
+		"process_message() ./testsupport/inject_message.lua:47: table contains an internal or circular reference",
 		"process_message() not enough memory",
-		"process_message() ./testsupport/inject_message.lua:80: inject_message() cound not encode protobuf - array has mixed types",
-		"process_message() ./testsupport/inject_message.lua:83: inject_message() cound not encode protobuf - unsupported type 0",
-		"process_message() ./testsupport/inject_message.lua:85: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:87: bad argument #2 to 'inject_message' (string expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:89: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/inject_message.lua:76: inject_message() could not encode protobuf - array has mixed types",
+		"process_message() ./testsupport/inject_message.lua:79: inject_message() could not encode protobuf - unsupported type 0",
+		"process_message() ./testsupport/inject_message.lua:81: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:83: bad argument #2 to 'inject_message' (string expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:85: inject_message() takes a maximum of 2 arguments",
+		"process_message() ./testsupport/inject_message.lua:91: inject_message() could not output userdata - output_limit exceeded",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	for i, v := range tests {
 		sb, err := lua.CreateLuaSandbox(&sbc)
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		err = sb.Init("")
+		err = sb.Init("", "")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		msg.SetPayload(v)
-		r := sb.ProcessMessage(msg)
+		pack.Message.SetPayload(v)
+		r := sb.ProcessMessage(pack)
 		if r != 1 {
 			t.Errorf("ProcessMessage should return 1, received %d", r)
 		} else {
@@ -937,17 +886,17 @@ func TestLpeg(t *testing.T) {
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
 	sb.InjectMessage(func(p, pt, pn string) int {
-		expected := `{"table":["1","string with spaces","quoted string, with comma and \"quoted\" text"]}
+		expected := `["1","string with spaces","quoted string, with comma and \"quoted\" text"]
 `
 		if p != expected {
 			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", expected, p)
@@ -955,8 +904,8 @@ func TestLpeg(t *testing.T) {
 		return 0
 	})
 
-	msg.SetPayload("1,string with spaces,\"quoted string, with comma and \"\"quoted\"\" text\"")
-	r := sb.ProcessMessage(msg)
+	pack.Message.SetPayload("1,string with spaces,\"quoted string, with comma and \"\"quoted\"\" text\"")
+	r := sb.ProcessMessage(pack)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
 	}
@@ -979,7 +928,7 @@ func TestReadConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -992,17 +941,17 @@ func TestCJson(t *testing.T) {
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	msg.SetPayload("[ true, { \"foo\": \"bar\" } ]")
-	r := sb.ProcessMessage(msg)
+	pack.Message.SetPayload("[ true, { \"foo\": \"bar\" } ]")
+	r := sb.ProcessMessage(pack)
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
 	}
@@ -1018,119 +967,54 @@ func TestReadNilConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
 	sb.Destroy("")
 }
 
-func TestCircularBufferDelta(t *testing.T) {
-	msg := getTestMessage()
+func TestExternalModule(t *testing.T) {
 	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/circular_buffer_delta.lua"
-	sbc.MemoryLimit = 32767
+	sbc.ScriptFilename = "./testsupport/require.lua"
+	sbc.ModuleDirectory = "./testsupport"
+	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
-	sbc.OutputLimit = 32767
-	payload_type := []string{"cbuf", "cbufd", "cbuf"}
-	payload_name := "Method tests"
-
+	sbc.OutputLimit = 8000
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := []string{
-		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
-1	1	1
-2	1	2
-3	1	3
-`,
-		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
-1	2	1	2
-2	3	1	3
-0	1	1	1
-`,
-		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
-1	1	1
-2	1	2
-3	1	3
-`,
-	}
-	cnt := 0
-	sb.InjectMessage(func(p, pt, pn string) int {
-		if p != output[cnt] {
-			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], p)
-		}
-		if pt != payload_type[cnt] {
-			t.Errorf("cnt: %d type should be \"%s\", received \"%s\"", cnt, payload_type, pt)
-		}
-		if pn != "Method tests" {
-			t.Errorf("cnt: %d name should be \"%s\", received \"%s\"", cnt, payload_name, pn)
-		}
-		cnt++
-		return 0
-	})
-	err = sb.Init("")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	msg.SetTimestamp(0)
-	r := sb.ProcessMessage(msg)
-	if r != 0 {
-		t.Errorf("ProcessMessage failed: %s", sb.LastError())
+	r := sb.ProcessMessage(pack)
+	if r != 43 {
+		t.Errorf("ProcessMessage should return 43, received %d %s", r, sb.LastError())
 	}
-	msg.SetTimestamp(1e9)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	msg.SetTimestamp(2e9)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	sb.ProcessMessage(msg)
-	sb.TimerEvent(0)
-	sb.TimerEvent(0) // should only produce the full set
-	sb.ProcessMessage(msg)
-	sb.Destroy("/tmp/circular_buffer_delta.lua.data")
-	if cnt != len(output) {
-		t.Errorf("only %d of %d tests were run", cnt, len(output))
-	}
+	sb.Destroy("")
 }
 
-func TestCircularBufferDeltaRestore(t *testing.T) {
+func TestReadNextField(t *testing.T) {
 	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/circular_buffer_delta.lua"
+	sbc.ScriptFilename = "./testsupport/read_next_field.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	sbc.OutputLimit = 32767
-
+	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	output := []string{
-		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
-1	1	1
-2	1	2
-4	1	4
-`,
-		`{"time":0,"rows":3,"columns":3,"seconds_per_row":1,"column_info":[{"name":"Add_column","unit":"count","aggregation":"sum"},{"name":"Set_column","unit":"count","aggregation":"sum"},{"name":"Get_column","unit":"count","aggregation":"sum"}]}
-2	1	0	1
-`,
-	}
-	cnt := 0
-	sb.InjectMessage(func(p, pt, pn string) int {
-		if p != output[cnt] {
-			t.Errorf("cnt: %d buffer should be \"%s\", received \"%s\"", cnt,
-				output[cnt], p)
-		}
-		cnt++
-		return 0
-	})
-	err = sb.Init("./testsupport/circular_buffer_delta.lua.data")
+	err = sb.Init("", "")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	sb.TimerEvent(0)
+	r := sb.ProcessMessage(pack)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+	}
 	sb.Destroy("")
 }
 
@@ -1141,7 +1025,7 @@ func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("")
+		sb.Init("", "")
 		sb.Destroy("")
 	}
 }
@@ -1153,7 +1037,7 @@ func BenchmarkSandboxCreateInitDestroyRestore(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("./testsupport/serialize.lua")
+		sb.Init("./testsupport/serialize.lua", "")
 		sb.Destroy("")
 	}
 }
@@ -1165,7 +1049,7 @@ func BenchmarkSandboxCreateInitDestroyPreserve(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("")
+		sb.Init("", "")
 		sb.Destroy("/tmp/serialize.lua.data")
 	}
 }
@@ -1173,15 +1057,15 @@ func BenchmarkSandboxCreateInitDestroyPreserve(b *testing.B) {
 func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 	b.StopTimer()
 	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/lua"
+	sbc.ScriptFilename = "./testsupport/counter.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1192,12 +1076,12 @@ func BenchmarkSandboxReadMessageString(b *testing.B) {
 	sbc.ScriptFilename = "./testsupport/readstring.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1208,12 +1092,12 @@ func BenchmarkSandboxReadMessageInt(b *testing.B) {
 	sbc.ScriptFilename = "./testsupport/readint.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1224,12 +1108,12 @@ func BenchmarkSandboxReadMessageField(b *testing.B) {
 	sbc.ScriptFilename = "./testsupport/readfield.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1241,16 +1125,16 @@ func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
-	msg.SetPayload("lua types")
+	pack.Message.SetPayload("lua types")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1262,16 +1146,16 @@ func BenchmarkSandboxOutputTable(b *testing.B) {
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
-	msg.SetPayload("cloudwatch metric")
+	pack.Message.SetPayload("cloudwatch metric")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }
@@ -1284,7 +1168,7 @@ func BenchmarkSandboxOutputCbuf(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1303,7 +1187,7 @@ func BenchmarkSandboxOutputMessage(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1322,7 +1206,7 @@ func BenchmarkSandboxOutputMessageAsJSON(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1340,16 +1224,16 @@ func BenchmarkSandboxLpegDecoder(b *testing.B) {
 	sbc.MemoryLimit = 1024 * 1024 * 8
 	sbc.InstructionLimit = 1e6
 	sbc.OutputLimit = 1024 * 63
-	msg := getTestMessage()
+	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("")
+	sb.Init("", "")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
-	msg.SetPayload("1376389920 debug id=2321 url=example.com item=1")
+	pack.Message.SetPayload("1376389920 debug id=2321 url=example.com item=1")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		sb.ProcessMessage(msg)
+		sb.ProcessMessage(pack)
 	}
 	sb.Destroy("")
 }

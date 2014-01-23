@@ -11,14 +11,14 @@ local space = l.space^1
 local timestamp = l.Cg((l.R"09"^1 / "%0000000000"), "Timestamp")
 
 local severity = l.Cg(
-    l.Cs(l.P"debug"               /"7")
-    + l.Cs(l.P"info"              /"6")
-    + l.Cs(l.P"notice"            /"5")
-    + l.Cs((l.P"warning" + "warn")/"4")
-    + l.Cs((l.P"error" + "err")   /"3")
-    + l.Cs(l.P"crit"              /"2")
-    + l.Cs(l.P"alert"             /"1")
-    + l.Cs((l.P"emerg" + "panic") /"0")
+    l.P"debug"               /"7"
+    + l.P"info"              /"6"
+    + l.P"notice"            /"5"
+    + (l.P"warning" + "warn")/"4"
+    + (l.P"error" + "err")   /"3"
+    + l.P"crit"              /"2"
+    + l.P"alert"             /"1"
+    + (l.P"emerg" + "panic") /"0"
     , "Severity")
 
 local key = l.C(l.alpha^1)

@@ -26,6 +26,20 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
+	_ "github.com/mozilla-services/heka/plugins"
+	_ "github.com/mozilla-services/heka/plugins/amqp"
+	_ "github.com/mozilla-services/heka/plugins/dasher"
+	_ "github.com/mozilla-services/heka/plugins/elasticsearch"
+	_ "github.com/mozilla-services/heka/plugins/file"
+	_ "github.com/mozilla-services/heka/plugins/graphite"
+	_ "github.com/mozilla-services/heka/plugins/http"
+	_ "github.com/mozilla-services/heka/plugins/nagios"
+	_ "github.com/mozilla-services/heka/plugins/payload"
+	_ "github.com/mozilla-services/heka/plugins/process"
+	_ "github.com/mozilla-services/heka/plugins/smtp"
+	_ "github.com/mozilla-services/heka/plugins/statsd"
+	_ "github.com/mozilla-services/heka/plugins/tcp"
+	_ "github.com/mozilla-services/heka/plugins/udp"
 	"io/ioutil"
 	"log"
 	"os"
@@ -35,7 +49,7 @@ import (
 )
 
 const (
-	VERSION = "0.4.0"
+	VERSION = "0.5.0"
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
@@ -105,9 +119,12 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		profFile.Close()
+
 		pprof.StartCPUProfile(profFile)
-		defer pprof.StopCPUProfile()
+		defer func() {
+			pprof.StopCPUProfile()
+			profFile.Close()
+		}()
 	}
 
 	if memProfName != "" {

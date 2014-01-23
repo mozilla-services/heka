@@ -17,13 +17,25 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"github.com/mozilla-services/heka/message"
-	ts "github.com/mozilla-services/heka/testsupport"
+	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+type InputTestHelper struct {
+	Msg             *message.Message
+	Pack            *PipelinePack
+	AddrStr         string
+	ResolvedAddrStr string
+	MockHelper      *MockPluginHelper
+	MockInputRunner *MockInputRunner
+	Decoder         DecoderRunner
+	PackSupply      chan *PipelinePack
+	DecodeChan      chan *PipelinePack
+}
 
 func StatAccumInputSpec(c gs.Context) {
 	t := &ts.SimpleT{}

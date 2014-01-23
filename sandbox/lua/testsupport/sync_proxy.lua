@@ -2,6 +2,10 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "circular_buffer"
+require "math"
+require "table"
+
 local rows = 1440
 local sec_per_row = 60
 
@@ -15,8 +19,8 @@ local HTTP_UNKNOWN      = status:set_header(5, "HTTP_UNKNOWN"  , "count")
 request = circular_buffer.new(rows, 4, sec_per_row)
 local SUCCESS           = request:set_header(1, "Success"      , "count")
 local FAILURE           = request:set_header(2, "Failure"      , "count")
-local AVG_RESPONSE_SIZE = request:set_header(3, "Response Size", "B", "avg")
-local AVG_RESPONSE_TIME = request:set_header(4, "Response Time", "s", "avg")
+local AVG_RESPONSE_SIZE = request:set_header(3, "Response Size", "B", "none")
+local AVG_RESPONSE_TIME = request:set_header(4, "Response Time", "s", "none")
 
 sums = circular_buffer.new(rows, 3, sec_per_row)
 local REQUESTS      = sums:set_header(1, "Requests"      , "count")
@@ -29,7 +33,7 @@ local sliding_window = interval * 15
 newest = 0
 oldest = 0
 last_alert = 0
-annotations = {_name="annotations"}
+annotations = {}
 annotations_size = 0
 
 function process_message ()
@@ -72,7 +76,7 @@ end
 
 function timer_event(ns)
     -- advance the buffers so the graphs will continue to advance without new data
-    -- status:add(ns, 1, 0) 
+    -- status:add(ns, 1, 0)
     -- request:add(ns, 1, 0)
 
     inject_message(status, "HTTP Status")
@@ -89,33 +93,33 @@ function timer_event(ns)
     -- the stats.
     local previous_window = newest - sliding_window * 2
     local current_window = newest - sliding_window
-    local historical_sd = request:compute("sd", AVG_RESPONSE_TIME, nil, previous_window - interval) 
+    local historical_sd = request:compute("sd", AVG_RESPONSE_TIME, nil, previous_window - interval)
     local previous_avg = request:compute("avg", AVG_RESPONSE_TIME, previous_window, current_window - interval)
     local current_avg = request:compute("avg", AVG_RESPONSE_TIME, current_window, newest - interval)
 
     local delta = math.abs(current_avg - previous_avg)
     if delta > historical_sd * 2 and newest - last_alert > sliding_window then
         for i=1, annotations_size do -- clean out old alerts
-            if annotations[i].x < (newest - interval * rows)/1e6 then 
+            if annotations[i].x < (newest - interval * rows)/1e6 then
                 table.remove(annotations, i)
                 annotations_size = annotations_size - 1
             else
                 break
-            end 
+            end
         end
 
         local msg = "CRITICAL:Average response time has fluxuated more than 2 standard deviations"
         last_alert = newest - newest % interval
         annotations_size = annotations_size + 1
         annotations[annotations_size] = {x          = math.floor(last_alert/1e6),
-                                         col        = AVG_RESPONSE_TIME, 
-                                         shortText  = "A", 
+                                         col        = AVG_RESPONSE_TIME,
+                                         shortText  = "A",
                                          text       = msg}
         output(msg)
         inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
     end
 
-    output(annotations, request)
+    output({["annotations"] = annotations}, request)
     inject_message("cbuf", "Request Statistics")
 end
 

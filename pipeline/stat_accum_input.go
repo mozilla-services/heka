@@ -338,12 +338,14 @@ func (ns *namespaceTree) EmitInField(key string, value interface{}) *namespaceTr
 	}
 	return ns
 }
+
 func (ns *namespaceTree) EmitInPayload(key string, value interface{}) *namespaceTree {
 	if ns.Emitters.EmitInPayload != nil {
 		ns.Emitters.EmitInPayload(ns.prefix+key, value)
 	}
 	return ns
 }
+
 func (ns *namespaceTree) Emit(key string, value interface{}) *namespaceTree {
 	if ns.Emitters.EmitInPayload != nil {
 		ns.Emitters.EmitInPayload(ns.prefix+key, value)
@@ -352,4 +354,10 @@ func (ns *namespaceTree) Emit(key string, value interface{}) *namespaceTree {
 		ns.Emitters.EmitInField(ns.prefix+key, value)
 	}
 	return ns
+}
+
+func init() {
+	RegisterPlugin("StatAccumInput", func() interface{} {
+		return new(StatAccumInput)
+	})
 }

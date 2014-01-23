@@ -1,0 +1,57 @@
+[hekad]
+cpuprof = "/var/log/hekad/cpuprof.log"
+decoder_poolsize = 10
+max_message_loops = 4
+max_process_inject = 10
+max_timer_inject  = 10
+maxprocs = 10
+memprof = "/var/log/hekad/memprof.log"
+plugin_chansize = 10
+poolsize = 100
+
+[StatsdInput]
+address = "127.0.0.1:8125"
+ticker_interval = 1
+stat_accum_name = "CustomStatAccum"
+
+[CustomStatAccum]
+type = "StatAccumInput"
+
+[TcpInput]
+address = "127.0.0.1:5565"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
+
+[TcpInput2]
+type = "TcpInput"
+address = "127.0.0.1:5566"
+parser_type = "token"
+delimiter = "\n"
+
+[CounterFilter]
+message_matcher = "Type != 'heka.counter-output'"
+ticker_interval = 1
+
+[StatsdFileOutput]
+message_matcher = "Type == 'heka.statmetric'"
+type = "FileOutput"
+path = "log/statsdonly.log"
+format = "json"
+
+[CounterFileOutput]
+type = "FileOutput"
+path = "log/counter.log"
+message_matcher = "Type == 'heka.counter-output'"
+
+[LogOutput]
+message_matcher = "Type == 'heka.counter-output'"
+payload_only = true
+
+[WhisperOutput]
+message_matcher = "Type == 'heka.statmetric'"
+default_agg_method = 1
+default_archive_info = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
+
+[DashboardOutput]
+ticker_interval = 5
+static_directory = "/usr/share/heka/dasher"

@@ -2,6 +2,8 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "string"
+
 data = ""
 
 function process_message ()
@@ -28,6 +30,7 @@ function process_message ()
     if read_message("Fields[int]") ~= 999 then return 17 end
     if read_message("Fields[double]") ~= 99.9 then return 18 end
     if read_message("Type") ~= "TEST" then return 19 end
+    if read_message("raw") ~= "rawdata" then return 20 end
 
     return 0
 end

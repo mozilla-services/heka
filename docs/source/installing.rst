@@ -56,7 +56,7 @@ Prerequisites (Windows):
 Build Instructions
 ------------------
 
-1. Check out the `heka`_ repository:
+1. Check out the `heka` repository:
 
     .. code-block:: bash
 
@@ -118,17 +118,22 @@ plugins in Go (see :ref:`plugins`). Because Go only supports static linking of
 Go code, your plugins must be included with and registered into Heka at
 compile time. The build process supports this through the use of an optional 
 cmake file `{heka root}/cmake/plugin_loader.cmake`.  A cmake function has been
-provided `add_external_plugin` taking the repository type (git, hg, or svn), 
+provided `add_external_plugin` taking the repository type (git, svn, or hg), 
 repository URL, the repository tag to fetch, and an optional list of 
 sub-packages to be initialized.
 
     .. code-block:: txt
 
-        add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins dev)
-        add_external_plugin(git https://github.com/example/path dev util filepath)
+        add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
+        add_external_plugin(git https://github.com/example/path <tag> util filepath)
+        add_external_plugin(git https://github.com/bellycard/heka-sns-input :local)
+        # The ':local' tag is a special case, it copies {heka root}/externals/{plugin_name} into the Go 
+        # work environment every time `make` is run. When local development is complete, and the source
+        # is checked in, the value can simply be changed to the correct tag to make it 'live'.
+        # i.e. {heka root}/externals/heka-sns-input -> {heka root}/build/heka/src/github.com/bellycard/heka-sns-input
 
 The preceeding entry clones the `heka-mozsvc-plugins` git repository into the Go
-work environment, checks out the dev branch, and imports the package into 
+work environment, checks out SHA 6fe574dbd32a21f5d5583608a9d2339925edd2a7, and imports the package into 
 `hekad` when `make` is run. By adding an `init() function <http://golang.org/doc/effective_go.html#init>`_ 
 in your package you can make calls into `pipeline.RegisterPlugin` to register 
 your plugins with Heka's configuration system.
@@ -149,7 +154,8 @@ system:
 
         cpack                # All
         # Or use the makefile target
-        make package         # Unix
+        make package         # Unix (no deb, see below)
+        make deb             # Unix (if dpkg is available see below)
         mingw32-make package # Windows
 
 The packages will be created in the build directory.
@@ -159,3 +165,11 @@ The packages will be created in the build directory.
     You will need `rpmbuild` installed to build the rpms.
 
     .. seealso:: `Setting up an rpm-build environment <http://wiki.centos.org/HowTos/SetupRpmBuildEnvironment>`_
+
+.. note::
+
+    For file name convention reasons, deb packages won't be created by running
+    `cpack` or `make package`, even on a Unix machine w/ dpkg installed.
+    Instead, running `source build.sh` on such a machine will generate a
+    Makefile with a separate 'deb' target, so you can run `make deb` to
+    generate the appropriate deb package.
