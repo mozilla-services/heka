@@ -16,6 +16,7 @@
 package client
 
 import (
+	"crypto/tls"
 	"net"
 )
 
@@ -28,12 +29,22 @@ type NetworkSender struct {
 	connection net.Conn
 }
 
-func NewNetworkSender(proto, addr string) (self *NetworkSender, err error) {
+func NewNetworkSender(proto, addr string) (*NetworkSender, error) {
+	var sender *NetworkSender
 	conn, err := net.Dial(proto, addr)
 	if err == nil {
-		self = &(NetworkSender{conn})
+		sender = &(NetworkSender{conn})
 	}
-	return
+	return sender, err
+}
+
+func NewTlsSender(proto, addr string, config *tls.Config) (*NetworkSender, error) {
+	var sender *NetworkSender
+	conn, err := tls.Dial(proto, addr, config)
+	if err == nil {
+		sender = &(NetworkSender{conn})
+	}
+	return sender, err
 }
 
 func (self *NetworkSender) SendMessage(outBytes []byte) (err error) {
