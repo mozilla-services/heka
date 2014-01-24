@@ -21,6 +21,7 @@ import (
 	p "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -72,8 +73,9 @@ type LogstreamerInput struct {
 
 func (li *LogstreamerInput) ConfigStruct() interface{} {
 	return &LogstreamerInputConfig{
-		RescanInterval: "1m",
-		ParserType:     "token",
+		RescanInterval:   "1m",
+		ParserType:       "token",
+		JournalDirectory: filepath.Join(p.Globals().BaseDir, "logstreamer"),
 	}
 }
 
@@ -84,6 +86,11 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		plugins []string
 	)
 	conf := config.(*LogstreamerInputConfig)
+
+	// Setup the journal dir
+	if err = os.MkdirAll(conf.JournalDirectory, 0744); err != nil {
+		return err
+	}
 
 	li.decoderName = conf.Decoder
 	li.parser = conf.ParserType
