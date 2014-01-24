@@ -547,7 +547,13 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 
 	fm.outChan = make(chan *PipelinePack)
 	fm.stopChan = make(chan bool)
-	fm.seek = 0
+	//fm.seek = 0
+	var fd *os.File
+	if fd, err = os.Open(file); err != nil {
+		return
+	}
+	defer fd.Close()
+	fm.seek, _ = fd.Seek(0, 2)
 	fm.fd = nil
 
 	fm.logfile = file

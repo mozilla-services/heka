@@ -201,7 +201,7 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 		}
 	case "text":
 		*outBytes = append(*outBytes, *pack.Message.Payload...)
-		*outBytes = append(*outBytes, NEWLINE)
+		//*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
 		if err = ProtobufEncodeMessage(pack, &*outBytes); err != nil {
 			err = fmt.Errorf("Can't encode to ProtoBuf: %s", err)
