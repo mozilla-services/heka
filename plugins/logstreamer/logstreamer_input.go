@@ -69,14 +69,21 @@ type LogstreamerInput struct {
 	streamParser       p.StreamParser
 	parserFunction     string
 	hostName           string
+	pluginName         string
 }
 
 func (li *LogstreamerInput) ConfigStruct() interface{} {
 	return &LogstreamerInputConfig{
 		RescanInterval:   "1m",
 		ParserType:       "token",
+		OldestDuration:   "720h",
+		LogDirectory:     "/var/log",
 		JournalDirectory: filepath.Join(p.Globals().BaseDir, "logstreamer"),
 	}
+}
+
+func (li *LogstreamerInput) SetName(name string) {
+	li.pluginName = name
 }
 
 func (li *LogstreamerInput) Init(config interface{}) (err error) {
@@ -106,6 +113,11 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	// Parse the oldest duration
 	if oldest, err = time.ParseDuration(conf.OldestDuration); err != nil {
 		return
+	}
+
+	// If no differentiator is present than we use the plugin
+	if len(conf.Differentiator) == 0 {
+		conf.Differentiator = []string{li.pluginName}
 	}
 
 	// Create the main sort pattern
