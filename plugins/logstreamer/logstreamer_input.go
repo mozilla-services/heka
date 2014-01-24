@@ -89,6 +89,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	li.parser = conf.ParserType
 	li.delimiter = conf.Delimiter
 	li.delimiterLocation = conf.DelimiterLocation
+	li.plugins = make(map[string]*LogstreamInput)
 
 	// Setup the rescan interval
 	if li.rescanInterval, err = time.ParseDuration(conf.RescanInterval); err != nil {
@@ -259,6 +260,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		parser = lsi.messageProtoParser
 	}
 
+	// Setup our pack delivery function appropriately for the configuration
 	deliver := func(pack *p.PipelinePack) {
 		if dRunner == nil {
 			ir.Inject(pack)
@@ -267,8 +269,10 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		}
 	}
 
-	interval, _ := time.ParseDuration("500ms")
+	// Check for more data interval
+	interval, _ := time.ParseDuration("250ms")
 	tick := time.Tick(interval)
+
 	ok := true
 	for ok {
 		// Clear our error
