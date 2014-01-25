@@ -110,7 +110,7 @@ func parseConfig(name string, prim toml.Primitive) {
 		os.Exit(0)
 	}
 
-	fmt.Printf("Found %d Logstream(s) for section %s.\n", len(streams), name)
+	fmt.Printf("Found %d Logstream(s) for section [%s].\n", len(streams), name)
 	for _, name := range streams {
 		stream, _ := ls.GetLogstream(name)
 		fmt.Printf("\nLogstream name: [%s]\n", name)
