@@ -286,10 +286,10 @@ like this?
 
 .. code-block::
 
-    /var/log/nginx/sally.com/2014/Hadukannas/lunes-access.log
-    /var/log/nginx/sally.com/2014/Turmar/miercoles-access.log.1
-    /var/log/nginx/sally.com/2014/Karmabatas/jueves-access.log.2
-    /var/log/nginx/sally.com/2014/Karbasiyas/sabado-access.log.3
+    /var/log/nginx/sally.com/2014/Hadukannas/lunes/access.log
+    /var/log/nginx/sally.com/2014/Turmar/miercoles/access.log
+    /var/log/nginx/sally.com/2014/Karmabatas/jueves/access.log
+    /var/log/nginx/sally.com/2014/Karbasiyas/sabado/access.log
 
 It would be easier if the logging scheme just used month and day
 integers but changing existing systems isn't always an option, so lets
