@@ -39,6 +39,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Set default StatAccumInput stat namespace prefix values even when
+  `legacy_namespaces` is set to false (issue #630).
+
 * Fixed cpuprof file from being closed right after opening so no data was
   being logged.
 

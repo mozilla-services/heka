@@ -682,6 +682,26 @@ Parameters:
 - message_type (string):
     String value to use for the `Type` value of the emitted stat messages.
     Defaults to "heka.statmetric".
+- legacy_namespaces (bool):
+    If set to true, then use the older format for namespacing counter stats,
+    with rates recorded under `stats.<counter_name>` and absolute count
+    recorded under `stats_counts.<counter_name>`. See `statsd metric
+    namespacing
+    <https://github.com/etsy/statsd/blob/master/docs/namespacing.md>`_.
+    Defaults to false.
+- global_prefix (string):
+    Global prefix to use for sending stats to graphite. Defaults to "stats".
+- counter_prefix (string):
+    Secondary prefix to use for namespacing counter metrics. Has no impact
+    unless `legacy_namespaces` is set to false. Defaults to "counters".
+- timer_prefix (string):
+    Secondary prefix to use for namespacing timer metrics. Defaults to
+    "timers".
+- gauge_prefix (string):
+    Secondary prefix to use for namespacing gauge metrics. Defaults to
+    "gauges".
+- statsd_prefix (string):
+    Prefix to use for the statsd `numStats` metric. Defaults to "statsd".
 
 .. _config_process_input:
 
