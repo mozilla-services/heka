@@ -301,7 +301,7 @@ The first chunk of our configuration:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+?)-access\.log\.?(?P<Seq>\d*)'
+    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "Day", "^Seq"]
 
 Now to supply the important mapping of how to translate ``Month`` and
