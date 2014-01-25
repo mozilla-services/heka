@@ -100,7 +100,8 @@ Single Sequential (Rotating) Logfile
 
 What happens if you have a log structure like this?
 
-..
+.. code-block::
+
     /var/log/nginx/access.log
     /var/log/nginx/access.log.1
     /var/log/nginx/access.log.2
@@ -108,7 +109,7 @@ What happens if you have a log structure like this?
 
 Or perhaps like this?
 
-..
+.. code-block::
 
     /var/log/nginx/2014/08/1.access.log
     /var/log/nginx/2014/08/2.access.log
@@ -117,7 +118,7 @@ Or perhaps like this?
 
 Or a combination of them?
 
-..
+.. code-block::
 
     /var/log/nginx/2014/08/access.log
     /var/log/nginx/2014/08/access.log.1
