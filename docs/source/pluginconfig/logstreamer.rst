@@ -309,13 +309,13 @@ Now to supply the important mapping of how to translate ``Month`` and
 
 .. code-block:: ini
 
-    [accesslogs.translation.month]
+    [accesslogs.translation.Month]
     Hadukannas = 1
     Turmar = 2
     Karmabatas = 4
     Karbasiyas = 6
 
-    [accesslogs.translation.day]
+    [accesslogs.translation.Day]
     lunes = 1
     miercoles = 3
     jueves = 4
