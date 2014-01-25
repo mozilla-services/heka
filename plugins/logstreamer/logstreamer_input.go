@@ -66,8 +66,6 @@ type LogstreamerInput struct {
 	parser             string
 	delimiter          string
 	delimiterLocation  string
-	streamParser       p.StreamParser
-	parserFunction     string
 	hostName           string
 	pluginName         string
 }
@@ -137,8 +135,8 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		return errs
 	}
 
-	// Setup our parser to use when running
-	if li.streamParser, li.parserFunction, err = CreateParser(li.parser, li.delimiter,
+	// Verify we can make a parser
+	if _, _, err = CreateParser(li.parser, li.delimiter,
 		li.delimiterLocation, li.decoderName); err != nil {
 		return
 	}
@@ -158,7 +156,9 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		if !ok {
 			continue
 		}
-		li.plugins[name] = NewLogstreamInput(stream, li.streamParser, li.parserFunction,
+		stParser, parserFunc, _ := CreateParser(li.parser, li.delimiter,
+			li.delimiterLocation, li.decoderName)
+		li.plugins[name] = NewLogstreamInput(stream, stParser, parserFunc,
 			name, li.hostName)
 	}
 	li.stopLogstreamChans = make([]chan bool, 0, len(plugins))
@@ -223,7 +223,10 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 				}
 
 				// Setup a new logstream input for this logstream and start it running
-				lsi := NewLogstreamInput(stream, li.streamParser, li.parserFunction, name,
+				stParser, parserFunc, _ := CreateParser(li.parser, li.delimiter,
+					li.delimiterLocation, li.decoderName)
+
+				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
 					li.hostName)
 				li.plugins[name] = lsi
 				stop := make(chan bool, 1)
