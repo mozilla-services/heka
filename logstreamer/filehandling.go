@@ -137,7 +137,7 @@ func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation 
 				return errors.New("Unable to locate day name : " + matchValue)
 			}
 		} else if submap, ok := translation[name]; ok {
-			if score, ok = submap[matchValue]; !ok {
+			if score, ok = submap[lowerValue]; !ok {
 				return errors.New("Unable to locate value: (" + matchValue + ") in translation map: " + name)
 			}
 		} else if digitRegex.MatchString(matchValue) {
