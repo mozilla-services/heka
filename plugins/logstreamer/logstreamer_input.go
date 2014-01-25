@@ -97,6 +97,10 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		return err
 	}
 
+	if len(conf.FileMatch) > 0 && conf.FileMatch[len(conf.FileMatch)-2:] != "$" {
+		conf.FileMatch += "$"
+	}
+
 	li.decoderName = conf.Decoder
 	li.parser = conf.ParserType
 	li.delimiter = conf.Delimiter
