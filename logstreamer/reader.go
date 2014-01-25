@@ -353,7 +353,7 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	// No position to recover from, use oldest file if there is one
 	if len(l.logfiles) < 1 {
 		// No oldest file, so right now we can't proceed
-		return 0, nil
+		return 0, io.EOF
 	}
 
 	// Reset the position, attempt to start in the oldest file
