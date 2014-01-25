@@ -44,6 +44,8 @@ func ProtobufEncodeMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
 
 // ConfigStruct for NetworkInput plugins.
 type NetworkInputConfig struct {
+	// Network type (e.g. tcp, tcp4, tcp6, udp, udp4, udp6). Needs to match the input type.
+	Net string
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").
 	Address string

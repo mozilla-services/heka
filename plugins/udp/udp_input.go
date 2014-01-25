@@ -37,7 +37,7 @@ type UdpInput struct {
 }
 
 func (u *UdpInput) ConfigStruct() interface{} {
-	return new(NetworkInputConfig)
+	return &NetworkInputConfig{Net: "udp"}
 }
 
 func (u *UdpInput) Init(config interface{}) (err error) {
@@ -58,11 +58,11 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		}
 	} else {
 		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", u.config.Address)
+		udpAddr, err := net.ResolveUDPAddr(u.config.Net, u.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
-		u.listener, err = net.ListenUDP("udp", udpAddr)
+		u.listener, err = net.ListenUDP(u.config.Net, udpAddr)
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}

@@ -71,7 +71,7 @@ func UdpInputSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+		err := udpInput.Init(&NetworkInputConfig{Net: "udp", Address: ith.AddrStr,
 			Decoder:    "ProtobufDecoder",
 			ParserType: "message.proto"})
 		c.Assume(err, gs.IsNil)
