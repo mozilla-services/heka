@@ -67,6 +67,15 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	return
 }
 
+func (l *LogstreamLocation) Debug() string {
+	return fmt.Sprintf("Location:\n\tFilename: %s\n\tJournal: %s\n\tSeek: %s\n\tHash: %s\n",
+		l.Filename,
+		l.JournalPath,
+		l.SeekPosition,
+		l.Hash,
+	)
+}
+
 // If the buffer is large enough, generate a hash value in the position
 func (l *LogstreamLocation) GenerateHash() {
 	if l.lastLine.Size() == LINEBUFFERLEN {

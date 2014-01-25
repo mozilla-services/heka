@@ -274,6 +274,18 @@ func NewLogstream(logfiles Logfiles, position *LogstreamLocation) *Logstream {
 	}
 }
 
+func (l *Logstream) DumpDebug() string {
+	var finfo os.FileInfo
+	if l.fd != nil {
+		finfo, _ = l.fd.Stat()
+	}
+	return fmt.Sprintf("Logfiles: %s\n%s\nFileInfo: %s\n",
+		l.logfiles,
+		l.position.Debug(),
+		finfo,
+	)
+}
+
 // Updates the logfiles safely
 func (l *Logstream) UpdateLogfiles(logfiles Logfiles) {
 	l.lfMutex.Lock()
