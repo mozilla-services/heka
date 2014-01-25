@@ -16,13 +16,6 @@
 
 Heka Logstreamer verifier.
 
-Example TOML config:
-
-    log_directory = "$HOME/heka/logstreamer/testdir/"
-    file_match = '/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?'
-    priority = ["Year", "Month", "Day", "^Seq"]
-    differentiator = ["website-", "Type"]
-
 */
 package main
 
@@ -46,6 +39,13 @@ type LogstreamerConfig struct {
 	Translation    logstreamer.SubmatchTranslationMap
 }
 
+type Basic struct {
+	PluginType string `toml:"type"`
+}
+
+// File's config
+type FileConfig map[string]toml.Primitive
+
 func main() {
 	configFile := flag.String("config", "logstreamer.toml", "Heka Logstreamer configuration file")
 
@@ -56,10 +56,44 @@ func main() {
 		os.Exit(0)
 	}
 
-	config := LogstreamerConfig{OldestDuration: "5y"}
-	if _, err := toml.DecodeFile(*configFile, &config); err != nil {
+	fconfig := make(FileConfig)
+	if _, err := toml.DecodeFile(*configFile, &fconfig); err != nil {
 		log.Printf("Error decoding config file: %s", err)
 		return
+	}
+
+	// Filter out logstream inputs
+	basic := new(Basic)
+	inputs := make(map[string]toml.Primitive)
+	for name, prim := range fconfig {
+		if name == "LogstreamerInput" {
+			inputs[name] = prim
+		} else if err := toml.PrimitiveDecode(prim, &basic); err == nil {
+			if basic.PluginType == "LogstreamerInput" {
+				inputs[name] = prim
+			}
+		}
+	}
+
+	// Go through the logstreams and parse their configs
+	for name, prim := range inputs {
+		parseConfig(name, prim)
+	}
+}
+
+func parseConfig(name string, prim toml.Primitive) {
+	config := LogstreamerConfig{
+		OldestDuration: "720h",
+		Differentiator: []string{name},
+		LogDirectory:   "/var/log",
+	}
+	if err := toml.PrimitiveDecode(prim, &config); err != nil {
+		log.Printf("Error decoding config file: %s", err)
+		return
+	}
+
+	if len(config.FileMatch) > 0 && config.FileMatch[len(config.FileMatch)-2:] != "$" {
+		config.FileMatch += "$"
 	}
 
 	sp := &logstreamer.SortPattern{
@@ -76,10 +110,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	fmt.Printf("Found %d Logstream(s).\n", len(streams))
+	fmt.Printf("Found %d Logstream(s) for section %s.\n", len(streams), name)
 	for _, name := range streams {
 		stream, _ := ls.GetLogstream(name)
-		fmt.Printf("\nLogstream name: %s\n", name)
+		fmt.Printf("\nLogstream name: [%s]\n", name)
 		fmt.Printf("Files: %d (printing oldest to newest)\n", len(stream.GetLogfiles()))
 		for _, logfile := range stream.GetLogfiles() {
 			fmt.Printf("\t%s\n", logfile.FileName)
