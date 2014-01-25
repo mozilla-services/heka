@@ -20,8 +20,8 @@ To make it easier to parse multiple logstreams, the Logstreamer plugin
 can be specified a single time with a single decoder for all the
 logstreams that should be parsed with it.
 
-Configuration
-=============
+Standard Configurations
+=======================
 
 Given the flexibility of the Logstreamer, configuration can be more
 complex for the more advanced use-cases. We'll start with the simplest
@@ -180,3 +180,148 @@ Finally, the last configuration is a mix of the prior two:
     file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
 
+Hopefully this is all fairly straight forward by now.
+
+Multiple Sequential (Rotating) Logfiles
+---------------------------------------
+
+Same as before, except now we need to differentiate the sequential
+streams. We're only introducing a single parameter here that we've seen
+before to handle the differentiation. Lets take the last case from
+above and consider it a multiple sequential source.
+
+Example directory layout:
+
+.. code-block::
+
+    /var/log/nginx/frank.com/2014/08/access.log
+    /var/log/nginx/frank.com/2014/08/access.log.1
+    /var/log/nginx/frank.com/2014/08/access.log.2
+    /var/log/nginx/frank.com/2014/08/access.log.3
+    /var/log/nginx/george.com/2014/08/access.log
+    /var/log/nginx/george.com/2014/08/access.log.1
+    /var/log/nginx/george.com/2014/08/access.log.2
+    /var/log/nginx/george.com/2014/08/access.log.3
+    /var/log/nginx/sally.com/2014/08/access.log
+    /var/log/nginx/sally.com/2014/08/access.log.1
+    /var/log/nginx/sally.com/2014/08/access.log.2
+    /var/log/nginx/sally.com/2014/08/access.log.3
+
+In this case we have multiple sequential logfiles for each domain name
+that are incrementing in date along with rotation when a logfile gets
+too large (causing rotation of the file within the directory).
+
+Configuration for this case:
+
+.. code-block:: ini
+
+    [accesslogs]
+    type = "LogstreamerInput"
+    file_match = '/var/log/nginx/(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    priority = ["Year", "Month", "^Seq"]
+    differentiator = ["nginx-", "DomainName", "-access"]
+
+As in the case for a non-sequential logfile, we supply a differentiator
+that will be used to file each sequential set of logfiles into a
+separate logstream.
+
+
+Custom String Mappings
+======================
+
+In the standard configurations above, the assumption has been that any
+part matched for sorting will be digit(s). This is because the
+Logstreamer by default will attempt to coerce a matched portion used
+for sorting into an integer in the event a mapping isn't available.
+LogstreamerInput comes with several built-in mappings and allows you to
+define your own so that matched parts can be translated to integers for
+sorting purposes.
+
+Built-in Mappings
+-----------------
+
+There are several special regex grouping names you can use that will
+indicate to the LogstreamerInput that a default mapping should be used:
+
+.. code-block::
+
+    MonthName - English full month name or 3-letter version to the appropriate
+                integer.
+    DayName   - English full day name or 3-letter version to the appropriate
+                integer.
+
+If the last example above looked like this:
+
+.. code-block::
+
+    /var/log/nginx/frank.com/2014/Sep/access.log
+    /var/log/nginx/frank.com/2014/Oct/access.log.1
+    /var/log/nginx/frank.com/2014/Nov/access.log.2
+    /var/log/nginx/frank.com/2014/Dec/access.log.3
+    /var/log/nginx/sally.com/2014/Sep/access.log
+    /var/log/nginx/sally.com/2014/Oct/access.log.1
+    /var/log/nginx/sally.com/2014/Nov/access.log.2
+    /var/log/nginx/sally.com/2014/Dec/access.log.3
+
+Using the default mappings would provide us a simple configuration:
+
+.. code-block:: ini
+
+    [accesslogs]
+    type = "LogstreamerInput"
+    file_match = '/var/log/nginx/(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
+    priority = ["Year", "MonthName", "^Seq"]
+    differentiator = ["nginx-", "DomainName", "-access"]
+
+LogstreamerInput will translate the 3-letter month names automatically
+before sorting (If used in the differentiator, you will still get the
+original matched string).
+
+Custom Mappings
+---------------
+
+What if your logfiles (for reasons we won't speculate about) happened
+to use Pharsi month names but Spanish day names such that it looked
+like this?
+
+.. code-block::
+
+    /var/log/nginx/sally.com/2014/Hadukannas/lunes-access.log
+    /var/log/nginx/sally.com/2014/Turmar/miercoles-access.log.1
+    /var/log/nginx/sally.com/2014/Karmabatas/jueves-access.log.2
+    /var/log/nginx/sally.com/2014/Karbasiyas/sabado-access.log.3
+
+It would be easier if the logging scheme just used month and day
+integers but changing existing systems isn't always an option, so lets
+work with this somewhat odd scheme.
+
+The first chunk of our configuration:
+
+.. code-block:: ini
+
+    [accesslogs]
+    type = "LogstreamerInput"
+    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+?)-access\.log\.?(?P<Seq>\d*)'
+    priority = ["Year", "Month", "Day", "^Seq"]
+
+Now to supply the important mapping of how to translate ``Month`` and
+``Day`` into sortable integers. We'll add this:
+
+.. code-block:: ini
+
+    [accesslogs.translation.month]
+    Hadukannas = 1
+    Turmar = 2
+    Karmabatas = 4
+    Karbasiyas = 6
+
+    [accesslogs.translation.day]
+    lunes = 1
+    miercoles = 3
+    jueves = 4
+    sabado = 6
+
+We left off the rest of the month names and day names not used for
+example purposes. Note that if you prefer the week to begin on a
+Saturday instead of Monday you can configure it as such for sorting
+purposes.
