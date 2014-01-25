@@ -167,4 +167,16 @@ Here's what a configuration for the second case:
     priority = ["Year", "Month", "Day"]
 
 First we match the portions to be sorted on, and then we specify the
-priority of matched portions to sort with.
+priority of matched portions to sort with. In this case the lower
+numbers represent older data so none of them need to be prefixed with
+``^``.
+
+Finally, the last configuration is a mix of the prior two:
+
+.. code-block:: ini
+
+    [accesslogs]
+    type = "LogstreamerInput"
+    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    priority = ["Year", "Month", "^Seq"]
+
