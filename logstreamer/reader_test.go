@@ -86,4 +86,78 @@ func ReaderSpec(c gs.Context) {
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "re.bundle'")
 	})
+
+	c.Specify("Multiple journal files can be read", func() {
+		var err error
+		sp := &SortPattern{
+			FileMatch:      `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>.*?).log(\.(?P<Seq>\d+))?`,
+			Translation:    make(SubmatchTranslationMap),
+			Priority:       []string{"Year", "Month", "^Seq"},
+			Differentiator: []string{"Type", "-log"},
+		}
+		fivey, _ := time.ParseDuration("5y")
+		ls := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+
+		names, err := ls.ScanForLogstreams()
+		errs, _ := err.(*MultipleError)
+		c.Assume(errs.IsError(), gs.Equals, false)
+		c.Expect(len(names), gs.Equals, 2)
+
+		stream, ok := ls.GetLogstream("error-log")
+		c.Expect(ok, gs.Equals, true)
+		c.Expect(len(stream.logfiles), gs.Equals, 26)
+
+		// Restore the oldest position
+		l := stream.position
+		l.Filename = filepath.Join(testDirPath, "/2010/07/error.log.2")
+		l.SeekPosition = 500
+		l.Hash = "dc6d00ed4a287968635b8b5b96a505547e9161d3"
+
+		b := make([]byte, 500)
+		n, err := stream.Read(b)
+		c.Expect(err, gs.IsNil)
+		c.Expect(n, gs.Equals, 500)
+
+		// Now read till we get an err
+		var newn int
+		for err == nil {
+			newn, err = stream.Read(b)
+			if newn > 0 {
+				n = newn
+			}
+		}
+
+		// We should be at the last file
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
+		b = b[:n]
+		c.Expect((string(b[len(b)-10:])), gs.Equals, "re.bundle'")
+
+		// Now go through the access log
+		stream, ok = ls.GetLogstream("access-log")
+		c.Expect(ok, gs.Equals, true)
+		c.Expect(len(stream.logfiles), gs.Equals, 26)
+
+		l = stream.position
+		l.Filename = filepath.Join(testDirPath, "/2010/05/access.log.3")
+		l.SeekPosition = 0
+		l.Hash = ""
+
+		// Now read till we get an err
+		b = b[:cap(b)]
+		err = nil
+		for err == nil {
+			newn, err = stream.Read(b)
+			if newn > 0 {
+				n = newn
+			}
+		}
+		l = stream.position
+		// We should be at the last file
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/access.log"))
+		c.Expect(l.SeekPosition, gs.Equals, int64(1174))
+		b = b[:n]
+		c.Expect((string(b[len(b)-10:])), gs.Equals, "le.bundle'")
+
+	})
 }

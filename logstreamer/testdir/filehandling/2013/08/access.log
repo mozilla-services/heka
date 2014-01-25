@@ -1,0 +1,12 @@
+2014-01-14 09:16:25.276185 PST - Registered node with name '/Local' as hidden
+2014-01-14 09:16:25.277358 PST - Registered node with name '/NIS' as hidden
+2014-01-14 09:16:25.277830 PST - Discovered configuration for node name '/Search' at path '/Library/Preferences/OpenDirectory/Configurations//Search.plist'
+2014-01-14 09:16:25.277844 PST - Registered node with name '/Search'
+2014-01-14 09:16:25.281339 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/legacy.bundle'
+2014-01-14 09:16:25.284271 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/search.bundle'
+2014-01-14 09:16:26.359479 PST - '/Search' has registered, loading additional services
+2014-01-14 09:16:26.359489 PST - Initialize augmentation support
+2014-01-14 09:16:26.363478 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/SystemCache.bundle'
+2014-01-14 09:16:26.376242 PST - Successfully registered for Kernel identity service requests
+2014-01-14 09:16:26.376261 PST - Adjusting kernel ID cache (100 -> 250) and membership cache (100 -> 500)
+2014-01-14 09:16:26.391021 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/PlistFile.bundle'
