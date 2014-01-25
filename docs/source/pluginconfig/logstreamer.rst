@@ -20,6 +20,58 @@ To make it easier to parse multiple logstreams, the Logstreamer plugin
 can be specified a single time with a single decoder for all the
 logstreams that should be parsed with it.
 
+Base Configuration Options
+==========================
+
+A base set of configurations are optional for all the other standard
+configurations of the Logstreamer.
+
+Parameters
+----------
+
+- hostname (string):
+    The hostname to use for the messages, by default this will be the
+    machines qualified hostname. This can be set explicitly to ensure
+    its the correct name in the event the machine has multiple
+    interfaces/hostnames.
+- oldest_duration (string):
+    A duration as appropriate for Go's duration parser. Logfiles with a
+    last modified time older than ``older_duration`` ago will not be included
+    for parsing.
+- journal_directory (string):
+    The directory to store the journal files in for tracking the location that
+    has been read to thus far. By default this is stored under heka's base
+    directory.
+- log_directory (string):
+    The root directory to scan files from. This scan is recursive so it
+    should be suitably restricted to the most specific directory this
+    selection of logfiles will be matched under.
+- rescan_interval (int):
+    During logfile rotation, or if the logfile is not originally
+    present on the system, this interval is how often the existence of
+    the logfile will be checked for. The default of 5 seconds is
+    usually fine. This interval is in milliseconds.
+- decoder (string):
+    A :ref:`config_protobuf_decoder` instance must be specified for the
+    message.proto parser. Use of a decoder is optional for token and regexp
+    parsers; if no decoder is specified the parsed data is available in the
+    Heka message payload.
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+    - message.proto - splits the log on protobuf message boundaries
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
+
+
 Standard Configurations
 =======================
 
@@ -310,10 +362,10 @@ Now to supply the important mapping of how to translate ``Month`` and
 .. code-block:: ini
 
     [accesslogs.translation.Month]
-    Hadukannas = 1
-    Turmar = 2
-    Karmabatas = 4
-    Karbasiyas = 6
+    hadukannas = 1
+    turmar = 2
+    karmabatas = 4
+    karbasiyas = 6
 
     [accesslogs.translation.Day]
     lunes = 1
@@ -321,7 +373,12 @@ Now to supply the important mapping of how to translate ``Month`` and
     jueves = 4
     sabado = 6
 
+.. note::
+
+    The matched values are lower-cased before being looked up in the
+    translation mappings, so you should always use lower-case keys for
+    the translation map keys as above.
+
 We left off the rest of the month names and day names not used for
 example purposes. Note that if you prefer the week to begin on a
-Saturday instead of Monday you can configure it as such for sorting
-purposes.
+Saturday instead of Monday you can configure it that way.
