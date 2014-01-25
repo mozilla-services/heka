@@ -232,8 +232,6 @@ Finally, the last configuration is a mix of the prior two:
     file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
 
-Hopefully this is all fairly straight forward by now.
-
 Multiple Sequential (Rotating) Logfiles
 ---------------------------------------
 
@@ -295,12 +293,10 @@ Built-in Mappings
 There are several special regex grouping names you can use that will
 indicate to the LogstreamerInput that a default mapping should be used:
 
-.. code-block::
-
-    MonthName - English full month name or 3-letter version to the appropriate
-                integer.
-    DayName   - English full day name or 3-letter version to the appropriate
-                integer.
+- MonthName:
+    English full month name or 3-letter version to the appropriate integer.
+- DayName:
+    English full day name or 3-letter version to the appropriate integer.
 
 If the last example above looked like this:
 
@@ -321,9 +317,9 @@ Using the default mappings would provide us a simple configuration:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
+    file_match = '/var/log/nginx/(?P<Domain>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "MonthName", "^Seq"]
-    differentiator = ["nginx-", "DomainName", "-access"]
+    differentiator = ["nginx-", "Domain", "-access"]
 
 LogstreamerInput will translate the 3-letter month names automatically
 before sorting (If used in the differentiator, you will still get the
@@ -353,8 +349,9 @@ The first chunk of our configuration:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+/access\.log\.?(?P<Seq>\d*)'
-    priority = ["Year", "Month", "Day", "^Seq"]
+    file_match = '/var/log/nginx/(?P<Domain>[^/]+)/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+/access\.log'
+    priority = ["Year", "Month", "Day"]
+    differentiator = ["nginx-", "Domain", "-access"]
 
 Now to supply the important mapping of how to translate ``Month`` and
 ``Day`` into sortable integers. We'll add this:
@@ -382,3 +379,47 @@ Now to supply the important mapping of how to translate ``Month`` and
 We left off the rest of the month names and day names not used for
 example purposes. Note that if you prefer the week to begin on a
 Saturday instead of Monday you can configure it that way.
+
+Verifying Settings
+==================
+
+Given the configuration complexity for more advanced use-cases, the
+Logstreamer includes a command line tool that lets you verify options
+and shows you what logstreams were found, the name, and the order
+they'll be parsed in. For convenience the same heka toml config file
+may be passed in to ``heka-logstreamer`` and ``LogstreamerInput``
+sections will be located and parsed showing you how they were
+interpreted.
+
+An example configuration that locates logfiles on an OSX system:
+
+.. code-block:: ini
+
+    [osx-logfiles]
+    type = "LogstreamerInput"
+    file_match = '/var/log/(?P<FileName>[^/]+).log'
+    differentiator = ["osx-", "FileName", "-logs"]
+
+Running this through ``heka-logstreamer`` shows the following:
+
+.. code-block:: bash
+
+    $ heka-logstreamer -config=test.toml
+    Found 10 Logstream(s) for section [osx-logfiles].
+
+    Logstream name: osx-appstore-logs
+    Files: 1 (printing oldest to newest)
+        /var/log/appstore.log
+
+    .... more output ....
+
+    Logstream name: osx-bookstore-logs
+    Files: 1 (printing oldest to newest)
+        /var/log/bookstore.log
+
+    Logstream name: osx-install-logs
+    Files: 1 (printing oldest to newest)
+        /var/log/install.log
+
+It's recommended to always run ``heka-logstreamer`` first to ensure the
+configuration behaves as desired.
