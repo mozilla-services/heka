@@ -19,7 +19,7 @@
     fm.seek, _ = fd.Seek(0, 2)
 ```
 
-tcp_output增加一个配置参数exitonfailure = false/true，当tcp连接出错时，主动关闭hekad进程。 可以另外增加一个脚本，检测hekad进程不在时，自动重启hekad进程。参考
+tcp_output增加一个配置参数exitonfailure = false/true，当tcp连接出错时，主动关闭hekad进程。 可以另外增加一个脚本，检测hekad进程不在时，自动重启hekad进程。参考https://github.com/zebrafishlabs/heka/commit/f6f2b76ee043944b8659011aa084aaf42ddd38b6
 
 ```
  
