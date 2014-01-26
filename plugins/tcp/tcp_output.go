@@ -23,24 +23,28 @@ import (
 
 // Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
-	address    string
-	connection net.Conn
+	address       string
+	connection    net.Conn
+	exitonfailure bool
 }
 
 // ConfigStruct for TcpOutput plugin.
 type TcpOutputConfig struct {
 	// String representation of the TCP address to which this output should be
 	// sending data.
-	Address string
+	Address       string
+	ExitOnFailure bool
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
-	return &TcpOutputConfig{Address: "localhost:9125"}
+	//return &TcpOutputConfig{Address: "localhost:9125"}
+	return &TcpOutputConfig{Address: "localhost:9125", ExitOnFailure: false}
 }
 
 func (t *TcpOutput) Init(config interface{}) (err error) {
 	conf := config.(*TcpOutputConfig)
 	t.address = conf.Address
+	t.exitonfailure = conf.ExitOnFailure
 	t.connection, err = net.Dial("tcp", t.address)
 	return
 }
@@ -61,6 +65,10 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		if n, e = t.connection.Write(outBytes); e != nil {
 			or.LogError(fmt.Errorf("writing to %s: %s", t.address, e))
+			if t.exitonfailure {
+				return
+			}
+
 		} else if n != len(outBytes) {
 			or.LogError(fmt.Errorf("truncated output to: %s", t.address))
 		}
