@@ -141,7 +141,7 @@ git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3
 
 if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 9e454bebb5085e25fc50f32556502141503b69e4)
-	add_external_plugin(git https://github.com/jbli/heka_plugin 5058ade894076a4ecd9efb467a2af270f6181dde)
+	add_external_plugin(git https://github.com/jbli/heka_plugin 91cab88c0211b005790f4385dbd9d08b6edfaf84)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
