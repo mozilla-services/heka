@@ -72,6 +72,30 @@ define(
       },
 
       /**
+      * Process message average duration formatted with commas.
+      *
+      * @method ProcessMessageAvgDurationFormatted
+      * @return {String} comma delimited number
+      */
+      ProcessMessageAvgDurationFormatted: function() {
+        if (this.ProcessMessageAvgDuration) {
+          return numeral(this.ProcessMessageAvgDuration.value).format("0,0");
+        }
+      },
+
+      /**
+      * Process message failures formatted with commas.
+      *
+      * @method ProcessMessageFailuresFormatted
+      * @return {String} comma delimited number
+      */
+      ProcessMessageFailuresFormatted: function() {
+        if (this.ProcessMessageFailures) {
+          return numeral(this.ProcessMessageFailures.value).format("0,0");
+        }
+      },
+
+      /**
       * Processed message count formatted with commas.
       *
       * @method ProcessMessageCountFormatted

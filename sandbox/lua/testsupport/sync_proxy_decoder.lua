@@ -21,11 +21,11 @@ local fields = {
     Method = "",
     Url = {value = "", representation="uri"},
     StatusCode = "",
-    RequestSize = {value="", representation="B"},
+    ResponseSize = {value="", representatien="B"},
     Referer = "",
     Browser = "",
     ResponseTime = {value="", representation="s"},
-    ResponseSize = {value="", representatien="B"}
+    RequestSize = {value="", representation="B"}
 }
 
 local msg = {
@@ -53,7 +53,7 @@ local function convert_date(date) -- returns nanoseconds since unix epoch
     return nil
 end
 
-function process_message ()    
+function process_message ()
     local log = read_message("Payload")
     fields.RemoteIP.value,
     fields.User,
@@ -61,11 +61,11 @@ function process_message ()
     fields.Method,
     fields.Url.value,
     fields.StatusCode,
-    fields.RequestSize.value,
+    fields.ResponseSize.value,
     fields.Referer,
     fields.Browser,
     fields.ResponseTime.value,
-    fields.ResponseSize.value = log:match(log_pattern)
+    fields.RequestSize.value = log:match(log_pattern)
     if not ds then return -1 end
     msg.Timestamp = convert_date(ds)
     if msg.Timestamp == nil then return -1 end

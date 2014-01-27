@@ -3,6 +3,12 @@
 
 Backwards Incompatibilities
 ---------------------------
+
+* The sandbox preservation data is now stored in the 
+  {base_dir}/sandbox_preservation directory instead of with the plugin source.
+  On the initial restart no preserved data will be restored unless it is 
+  manually moved to this directory first. (issue #626)
+
 * The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
   with a `heka-` prefix for their respective binaries. I.e. Flood has been
   renamed heka-flood., etc.
@@ -33,6 +39,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed cpuprof file from being closed right after opening so no data was
+  being logged.
+
 * Fixed LogfileInput so it will only override the default delimiter for a
   RegexpParser if a delimiter is specified in the config.
 
@@ -52,6 +61,12 @@ Bug Handling
 
 Features
 --------
+
+* Added Http Listen Input [HttpListenInput]: An input that listens for
+  HTTP requests on the specified address. If a decoder is not specified the
+  input generates a message with the HTML request body as the payload.
+  This input is especially useful for consuming and processing webhooks.
+  (Issue #431)
 
 * Added support for local external packages (issue #393)
 

@@ -120,9 +120,12 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		profFile.Close()
+
 		pprof.StartCPUProfile(profFile)
-		defer pprof.StopCPUProfile()
+		defer func() {
+			pprof.StopCPUProfile()
+			profFile.Close()
+		}()
 	}
 
 	if memProfName != "" {
