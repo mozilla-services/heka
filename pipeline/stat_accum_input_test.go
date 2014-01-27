@@ -105,14 +105,14 @@ func StatAccumInputSpec(c gs.Context) {
 			sendTimer("sample2.timer", 10, 20)
 			msg := finalizeSendingStats()
 
-			validateValueAtKey(msg, "sample.timer.count", int64(4))
-			validateValueAtKey(msg, "sample.timer.mean", 15.0)
-			validateValueAtKey(msg, "sample.timer.lower", 10.0)
-			validateValueAtKey(msg, "sample2.timer.count", int64(2))
-			validateValueAtKey(msg, "sample2.timer.mean", 15.0)
-			validateValueAtKey(msg, "sample2.timer.lower", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.count", int64(4))
+			validateValueAtKey(msg, "stats.timers.sample.timer.mean", 15.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.lower", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.count", int64(2))
+			validateValueAtKey(msg, "stats.timers.sample2.timer.mean", 15.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.lower", 10.0)
 
-			validateValueAtKey(msg, "statsd.numStats", int64(2))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(2))
 		})
 		c.Specify("emits counters with correct prefixes", func() {
 			prepareSendingStats()
@@ -120,19 +120,19 @@ func StatAccumInputSpec(c gs.Context) {
 			sendCounter("sample2.cnt", 159, 951)
 			msg := finalizeSendingStats()
 
-			validateValueAtKey(msg, "sample.cnt.count", int64(15))
-			validateValueAtKey(msg, "sample.cnt.rate", 1.5)
+			validateValueAtKey(msg, "stats.counters.sample.cnt.count", int64(15))
+			validateValueAtKey(msg, "stats.counters.sample.cnt.rate", 1.5)
 
-			validateValueAtKey(msg, "sample2.cnt.count", int64(1110))
-			validateValueAtKey(msg, "sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
+			validateValueAtKey(msg, "stats.counters.sample2.cnt.count", int64(1110))
+			validateValueAtKey(msg, "stats.counters.sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
 		})
 		c.Specify("emits gauge with correct prefixes", func() {
 			prepareSendingStats()
 			sendGauge("sample.gauge", 1, 2)
 			sendGauge("sample2.gauge", 1, 2, 3, 4, 5)
 			msg := finalizeSendingStats()
-			validateValueAtKey(msg, "sample.gauge", int64(2))
-			validateValueAtKey(msg, "sample2.gauge", int64(5))
+			validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
+			validateValueAtKey(msg, "stats.gauges.sample2.gauge", int64(5))
 		})
 
 		c.Specify("emits correct statsd.numStats count", func() {
@@ -144,7 +144,7 @@ func StatAccumInputSpec(c gs.Context) {
 			sendTimer("sample.timer", 10, 10, 20, 20)
 			sendTimer("sample2.timer", 10, 20)
 			msg := finalizeSendingStats()
-			validateValueAtKey(msg, "statsd.numStats", int64(6))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(6))
 		})
 	})
 
