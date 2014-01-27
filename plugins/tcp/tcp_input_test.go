@@ -93,7 +93,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput protobuf parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Signers:    signers,
 			Decoder:    "ProtobufDecoder",
 			ParserType: "message.proto"})
@@ -267,7 +267,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput regexp parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "RegexpDecoder",
 			ParserType: "regexp",
 			Delimiter:  "\n"})
@@ -323,7 +323,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput token parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "TokenDecoder",
 			ParserType: "token",
 			Delimiter:  "\n"})

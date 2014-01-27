@@ -35,7 +35,7 @@ type TcpInput struct {
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
-	return new(NetworkInputConfig)
+	return &NetworkInputConfig{Net: "tcp"}
 }
 
 // Listen on the provided TCP connection, extracting messages from the incoming
@@ -103,7 +103,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*NetworkInputConfig)
-	t.listener, err = net.Listen("tcp", t.config.Address)
+	t.listener, err = net.Listen(t.config.Net, t.config.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
