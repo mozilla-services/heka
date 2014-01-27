@@ -41,6 +41,7 @@ define(
           var circularBuffer = CircularBuffer.parse(response);
 
           this.sandboxOutput.set({
+            options: circularBuffer.options,
             annotations: circularBuffer.annotations,
             header: circularBuffer.header,
             data: circularBuffer.data
