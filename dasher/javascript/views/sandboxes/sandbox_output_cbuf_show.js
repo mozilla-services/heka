@@ -73,6 +73,16 @@ define(
           // TODO: Find something better ...
           setTimeout(function() {
             this.dygraph = new Dygraph(this.$(".sandbox-graph")[0], presentation.data, { labels: presentation.labels() });
+            if (presentation.annotations) {
+                var labels = this.dygraph.getLabels();
+                for (var i = 0; i < presentation.annotations.length; i++) {
+                    presentation.annotations[i].series = labels[presentation.annotations[i].col];
+                }
+                this.dygraph.setAnnotations(presentation.annotations);
+            }
+            if (presentation.options) {
+                this.dygraph.updateOptions(presentation.options);
+            }
             this.setLegendColors(this.dygraph.getColors());
           }.bind(this), 10);
         }

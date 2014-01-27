@@ -139,7 +139,8 @@ end
 function timer_event(ns)
     for k,v in pairs(payloads) do
         for i, cb in ipairs(v.cbufs) do
-            inject_message(cb, string.format("%s (%s)", k, v.header.column_info[i].name))
+            output({options = {stackedGraph = true, fillGraph = true}}, cb)
+            inject_message("cbuf", string.format("%s (%s)", k, v.header.column_info[i].name))
         end
     end
 end

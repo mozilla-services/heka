@@ -52,7 +52,8 @@ define(
 
       var details = JSON.parse(lines[0]);
 
-      if (details.annotations) {
+      if (details.annotations || details.options) {
+        circularBuffer.options = details.options;
         circularBuffer.annotations = details.annotations;
         circularBuffer.header = $.parseJSON(lines[1]);
         dataStartLine = 2;
