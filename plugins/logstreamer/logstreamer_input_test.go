@@ -23,6 +23,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -40,6 +41,9 @@ func LogstreamerInputSpec(c gs.Context) {
 	t := &pipeline_ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	here, _ := os.Getwd()
+	dirPath := filepath.Join(here, "../../logstreamer", "testdir", "filehandling/subdir")
 
 	config := NewPipelineConfig(nil)
 	ith := new(plugins_ts.InputTestHelper)
@@ -69,14 +73,18 @@ func LogstreamerInputSpec(c gs.Context) {
 		}()
 		lfInput := new(LogstreamerInput)
 		lfiConfig := lfInput.ConfigStruct().(*LogstreamerInputConfig)
-		lfiConfig.FileMatch = `^/var/log/(?P<FileName>[^/]+).log$`
-		lfiConfig.Differentiator = []string{"osx-", "FileName", "-logs"}
+		lfiConfig.LogDirectory = dirPath
+		lfiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
+		lfiConfig.Differentiator = []string{"logfile"}
+		lfiConfig.Priority = []string{"^Seq"}
+		lfiConfig.Decoder = "decoder-name"
 		err := lfInput.Init(lfiConfig)
 		c.Expect(err, gs.IsNil)
+		c.Expect(len(lfInput.plugins), gs.Equals, 1)
 		mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
 
 		// Create pool of packs.
-		numLines := 95 // # of lines in the log file we're parsing.
+		numLines := 5 // # of lines in the log file we're parsing.
 		packs := make([]*PipelinePack, numLines)
 		ith.PackSupply = make(chan *PipelinePack, numLines)
 		for i := 0; i < numLines; i++ {
@@ -89,7 +97,6 @@ func LogstreamerInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-			ith.MockInputRunner.EXPECT().Inject(gomock.Any()).AnyTimes()
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
@@ -97,17 +104,21 @@ func LogstreamerInputSpec(c gs.Context) {
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
+
 			go func() {
 				err = lfInput.Run(ith.MockInputRunner, ith.MockHelper)
 				c.Expect(err, gs.IsNil)
 			}()
+
+			timed := false
 			for x := 0; x < numLines; x++ {
-				_ = <-ith.DecodeChan
+				<-ith.DecodeChan
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
 			}
 			lfInput.Stop()
+			c.Expect(timed, gs.Equals, false)
 		})
 	})
 }
