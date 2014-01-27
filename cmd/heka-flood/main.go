@@ -28,11 +28,13 @@ package main
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"log"
 	"math"
@@ -57,6 +59,8 @@ type FloodTest struct {
 	VariableSizeMessages bool                         `toml:"variable_size_messages"`
 	StaticMessageSize    uint64                       `toml:"static_message_size"`
 	AsciiOnly            bool                         `toml:"ascii_only"`
+	UseTls               bool                         `toml:"use_tls"`
+	Tls                  tcp.TlsConfig                `toml:"tls"`
 }
 
 type FloodConfig map[string]FloodTest
@@ -267,9 +271,20 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	sender, err := client.NewNetworkSender(test.Sender, test.IpAddress)
+	var sender *client.NetworkSender
+	var err error
+	if test.UseTls {
+		var goTlsConfig *tls.Config
+		goTlsConfig, err = tcp.CreateGoTlsConfig(&test.Tls)
+		if err != nil {
+			log.Fatalf("Error creating TLS config: %s\n", err)
+		}
+		sender, err = client.NewTlsSender(test.Sender, test.IpAddress, goTlsConfig)
+	} else {
+		sender, err = client.NewNetworkSender(test.Sender, test.IpAddress)
+	}
 	if err != nil {
-		log.Fatalf("Error creating sender: %s\n", err.Error())
+		log.Fatalf("Error creating sender: %s\n", err)
 	}
 
 	unsignedEncoder := client.NewProtobufEncoder(nil)

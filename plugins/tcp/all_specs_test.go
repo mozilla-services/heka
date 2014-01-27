@@ -25,6 +25,7 @@ func TestAllSpecs(t *testing.T) {
 
 	r.AddSpec(TcpInputSpec)
 	r.AddSpec(TcpOutputSpec)
+	r.AddSpec(TlsSpec)
 
 	gospec.MainGoTest(r, t)
 }

@@ -65,6 +65,9 @@ Bug Handling
 Features
 --------
 
+* TcpInput, TcpOutput, and flood client now all support TLS encrypted TCP
+  connections using Go's crypto/tls package.
+
 * Added Http Listen Input [HttpListenInput]: An input that listens for
   HTTP requests on the specified address. If a decoder is not specified the
   input generates a message with the HTML request body as the payload.
