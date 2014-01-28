@@ -340,7 +340,7 @@ Now to supply the important mapping of how to translate ``Month`` and
 
 We left off the rest of the month names and day names not used for
 example purposes. Note that if you prefer the week to begin on a
-Saturday instead of Monday you can configure it that way.
+Saturday instead of Monday you can configure it with a custom mapping.
 
 Verifying Settings
 ==================
