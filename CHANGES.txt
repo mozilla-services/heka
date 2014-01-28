@@ -4,9 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
-* The sandbox preservation data is now stored in the 
+* The sandbox preservation data is now stored in the
   {base_dir}/sandbox_preservation directory instead of with the plugin source.
-  On the initial restart no preserved data will be restored unless it is 
+  On the initial restart no preserved data will be restored unless it is
   manually moved to this directory first. (issue #626)
 
 * The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
@@ -20,11 +20,11 @@ Backwards Incompatibilities
   most plugins to sub-packages of a separate `plugins` package.
 
 * Removed the wrapper 'table' element from the JSON serialization (issue #525)
-  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also 
+  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also
   removes the special '_name' metadata arribute; the top level _name element
   should be created in the Lua structure if it is required.
 
-* In the process of removing the core sandbox code from Heka (issue #464), the 
+* In the process of removing the core sandbox code from Heka (issue #464), the
   sandbox was streamlined to only load the base library by default. All sandbox
   plugins must now explictly load additional libraries with the require
   function.
@@ -62,6 +62,9 @@ Bug Handling
 Features
 --------
 
+* Added Logstreamer Input [LogstreamerInput]: An input that replaces the
+  Logfile and Logfile Directory Inputs and supports sequential reading of
+  logstreams that span sets of ordered logfiles. (issue #372).
 * Added Http Listen Input [HttpListenInput]: An input that listens for
   HTTP requests on the specified address. If a decoder is not specified the
   input generates a message with the HTML request body as the payload.
@@ -90,7 +93,7 @@ Features
 * HttpInput: Fields[ResponseTime] populates with time duration in seconds for
   HTTP GET of URL, Fields[Status] with HTTP Status, Fields[Protocol] with HTTP
   protocol and version, Fields[StatusCode] with HTTP Response Status Code for
-  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts) 
+  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts)
   (http://hekad.readthedocs.org/en/latest/sandbox/graph_annotation.html) plugin
   is compatible with the HttpInput plugin.
 
@@ -121,7 +124,7 @@ Bug Handling
 
 * Explicitly exclude system level folders from those that CPack will include
   as part of the Heka RPM (requires CMake >= 2.8.12) (see
-  https://github.com/mozilla-services/heka/issues/548). 
+  https://github.com/mozilla-services/heka/issues/548).
 
 0.4.1 (2013-11-05)
 ==================
