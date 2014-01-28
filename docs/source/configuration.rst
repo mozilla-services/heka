@@ -523,9 +523,6 @@ Parameters:
     present on the system, this interval is how often the existence of
     the logfile will be checked for. The default of 5 seconds is
     usually fine. This interval is in milliseconds.
-- journal_directory (string):
-    Root directory to store journal files under. Journal files are used per
-    logstream to record how much of the stream has been read.
 - file_match (string):
     Regular expression used to match files located under the
     ``journal_directory``. This regular expression has ``$`` added to the
