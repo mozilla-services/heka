@@ -4,6 +4,8 @@
 Logstreamer
 ===========
 
+.. versionadded:: 0.5
+
 The Logstreamer plugin scans, sorts, and reads logstreams in a
 sequential user-defined order, differentiating multiple logstreams
 found in a search based on a user-defined differentiator. This plugin
@@ -19,58 +21,6 @@ could be considered all the access logs for a single domain.
 To make it easier to parse multiple logstreams, the Logstreamer plugin
 can be specified a single time with a single decoder for all the
 logstreams that should be parsed with it.
-
-Base Configuration Options
-==========================
-
-A base set of configurations are optional for all the other standard
-configurations of the Logstreamer.
-
-Parameters
-----------
-
-- hostname (string):
-    The hostname to use for the messages, by default this will be the
-    machines qualified hostname. This can be set explicitly to ensure
-    its the correct name in the event the machine has multiple
-    interfaces/hostnames.
-- oldest_duration (string):
-    A duration as appropriate for Go's duration parser. Logfiles with a
-    last modified time older than ``older_duration`` ago will not be included
-    for parsing.
-- journal_directory (string):
-    The directory to store the journal files in for tracking the location that
-    has been read to thus far. By default this is stored under heka's base
-    directory.
-- log_directory (string):
-    The root directory to scan files from. This scan is recursive so it
-    should be suitably restricted to the most specific directory this
-    selection of logfiles will be matched under.
-- rescan_interval (int):
-    During logfile rotation, or if the logfile is not originally
-    present on the system, this interval is how often the existence of
-    the logfile will be checked for. The default of 5 seconds is
-    usually fine. This interval is in milliseconds.
-- decoder (string):
-    A :ref:`config_protobuf_decoder` instance must be specified for the
-    message.proto parser. Use of a decoder is optional for token and regexp
-    parsers; if no decoder is specified the parsed data is available in the
-    Heka message payload.
-- parser_type (string):
-    - token - splits the log on a byte delimiter (default).
-    - regexp - splits the log on a regexp delimiter.
-    - message.proto - splits the log on protobuf message boundaries
-- delimiter (string): Only used for token or regexp parsers.
-    Character or regexp delimiter used by the parser (default "\\n").  For the
-    regexp delimiter a single capture group can be specified to preserve the
-    delimiter (or part of the delimiter). The capture will be added to the start
-    or end of the log line depending on the delimiter_location configuration.
-    Note: when a start delimiter is used the last line in the file will not be
-    processed (since the next record defines its end) until the log is rolled.
-- delimiter_location (string): Only used for regexp parsers.
-    - start - the regexp delimiter occurs at the start of a log line.
-    - end - the regexp delimiter occurs at the end of the log line (default).
-
 
 Standard Configurations
 =======================
@@ -97,24 +47,16 @@ configuration for such a case looks like:
 
     [syslog]
     type = "LogstreamerInput"
-    file_match = '/var/log/system\.log'
+    log_directory = "/var/log"
+    file_match = 'system\.log'
 
-By default Logstreamer will scan under the ``/var/log`` directory and
-attempt to match every file it discovers there against the
-``file_match`` pattern. Note that we leave the full path on the front
-to indicate that a file like ``/var/log/nginx/system.log`` should not
-match. This is because the entire path for every file will be run
-against the ``file_match`` pattern so we must match it strictly.
+We start with the highest directory to start scanning for files under, in
+this case ``/var/log``. Then the files under that directory (recursively
+searching in sub-directories) are matched against the ``file_match``.
 
-.. note:: How it Works
-
-    An option not shown here is the ``log_directory``, which defaults
-    to ``/var/log``. Every file under this directory root is located
-    with a recursive directory walker and matched against
-    ``file_match`` to see if its a logfile.
-
-    Be careful not to specify a log root directory that is too broad or
-    startup may take longer as it walks the directory structure.
+The ``log_directory`` should be the most specific directory of files to
+match to prevent excessive file scanning to locate the
+``file_match``'s.
 
 Multiple Single Rotating Logfiles
 ---------------------------------
@@ -134,7 +76,8 @@ as the differentiator).
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<DomainName>[^/]+)-access\.log'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<DomainName>[^/]+)-access\.log'
     differentiator = ["nginx.", "DomainName", ".access"]
 
 Note that we included two strings in the differentiator that don't
@@ -198,7 +141,8 @@ the number, the older the log data):
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/access\.log\.?(?P<Seq>\d*)'
+    log_directory = "/var/log/nginx"
+    file_match = 'access\.log\.?(?P<Seq>\d*)'
     priority = ["^Seq"]
 
 When handling sequential logfiles in a logstream, we need to indicate a
@@ -215,7 +159,8 @@ Here's what a configuration for the second case:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Day>\d+)\.access\.log'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<Year>\d+)/(?P<Month>\d+)/(?P<Day>\d+)\.access\.log'
     priority = ["Year", "Month", "Day"]
 
 First we match the portions to be sorted on, and then we specify the
@@ -229,7 +174,8 @@ Finally, the last configuration is a mix of the prior two:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
 
 Multiple Sequential (Rotating) Logfiles
@@ -267,7 +213,8 @@ Configuration for this case:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
     differentiator = ["nginx-", "DomainName", "-access"]
 
@@ -275,6 +222,7 @@ As in the case for a non-sequential logfile, we supply a differentiator
 that will be used to file each sequential set of logfiles into a
 separate logstream.
 
+.. seealso:: :ref:`Full set of configuration options <config_logstreamer_input>`
 
 Custom String Mappings
 ======================
@@ -317,7 +265,8 @@ Using the default mappings would provide us a simple configuration:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Domain>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<Domain>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "MonthName", "^Seq"]
     differentiator = ["nginx-", "Domain", "-access"]
 
@@ -349,7 +298,8 @@ The first chunk of our configuration:
 
     [accesslogs]
     type = "LogstreamerInput"
-    file_match = '/var/log/nginx/(?P<Domain>[^/]+)/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+/access\.log'
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<Domain>[^/]+)/(?P<Year>\d+)/(?P<Month>\s+)/(?P<Day>[^/]+/access\.log'
     priority = ["Year", "Month", "Day"]
     differentiator = ["nginx-", "Domain", "-access"]
 
@@ -397,7 +347,8 @@ An example configuration that locates logfiles on an OSX system:
 
     [osx-logfiles]
     type = "LogstreamerInput"
-    file_match = '/var/log/(?P<FileName>[^/]+).log'
+    log_directory = "/var/log"
+    file_match = '(?P<FileName>[^/]+).log'
     differentiator = ["osx-", "FileName", "-logs"]
 
 Running this through ``heka-logstreamer`` shows the following:
