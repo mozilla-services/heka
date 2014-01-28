@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -110,9 +111,16 @@ func LogstreamerInputSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 			}()
 
+			d, _ := time.ParseDuration("5s")
+			timeout := time.After(d)
 			timed := false
 			for x := 0; x < numLines; x++ {
-				<-ith.DecodeChan
+				select {
+				case <-ith.DecodeChan:
+				case <-timeout:
+					timed = true
+					x += numLines
+				}
 				// Free up the scheduler while we wait for the log file lines
 				// to be processed.
 				runtime.Gosched()
