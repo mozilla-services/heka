@@ -517,7 +517,8 @@ Parameters:
 - log_directory (string):
     The root directory to scan files from. This scan is recursive so it
     should be suitably restricted to the most specific directory this
-    selection of logfiles will be matched under.
+    selection of logfiles will be matched under. The log_directory path will
+    be prepended to the file_match.
 - rescan_interval (int):
     During logfile rotation, or if the logfile is not originally
     present on the system, this interval is how often the existence of
@@ -526,7 +527,8 @@ Parameters:
 - file_match (string):
     Regular expression used to match files located under the
     ``journal_directory``. This regular expression has ``$`` added to the
-    end automatically if not already present.
+    end automatically if not already present, and ``log_directory`` as the
+    prefix.
 - priority (list of strings):
     When using sequential logstreams, the priority is how to sort the logfiles
     in order from oldest to newest.
