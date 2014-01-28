@@ -334,7 +334,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		logRoot:        logRoot,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
-		fileMatch:      regexp.MustCompile(sortPattern.FileMatch),
+		fileMatch:      regexp.MustCompile("^" + filepath.Join(logRoot, sortPattern.FileMatch)),
 	}
 }
 
