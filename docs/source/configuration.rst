@@ -503,11 +503,11 @@ Parameters:
 
 - hostname (string):
     The hostname to use for the messages, by default this will be the
-    machines qualified hostname. This can be set explicitly to ensure
-    its the correct name in the event the machine has multiple
+    machine's qualified hostname. This can be set explicitly to ensure
+    it's the correct name in the event the machine has multiple
     interfaces/hostnames.
 - oldest_duration (string):
-    A duration as appropriate for Go's duration parser. Logfiles with a
+    A time duration string (e.x. "2s", "2m", "2h"). Logfiles with a
     last modified time older than ``older_duration`` ago will not be included
     for parsing.
 - journal_directory (string):
