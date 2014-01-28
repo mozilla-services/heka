@@ -207,7 +207,14 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 // Verify the position in the file is still at that position in that file (ie,
 // the file has not been moved in some fashion.)
-// Returns false if the file of this position does not match, True otherwise
+// Rationale:
+// This function is intended to return true in all cases except the case where
+// we are 100% certain that the filename at this location is *not* the one we
+// think it is. Thus the 'return true' on attempting to open the file if it fails
+// which could merely indicate some permissions got mangled but is not enough
+// to declare with certainty that the filename at this location is no longer what
+// we think it is. Note that when starting a logstream, the hash is verified
+// separately rather than calling this function (due to issues of fd movement).
 func (l *Logstream) VerifyFileHash() bool {
 	// We always match our hash if we have no hash
 	if l.position.Hash == "" {
