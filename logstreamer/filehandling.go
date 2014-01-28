@@ -98,12 +98,13 @@ func (m MultipleError) IsError() bool {
 // Represents an individual Logfile which is part of a Logstream
 type Logfile struct {
 	FileName string
+	// The raw string matches from the filename, keys being the strings, values
+	// are the portion that was matched
+	StringMatchParts map[string]string
 	// The matched portions of the filename and their translated integer value
 	// MatchParts maps to integers used for sorting the Logfile within the
 	// Logstream
 	MatchParts map[string]int
-	// The raw string matches from the filename
-	StringMatchParts map[string]string
 }
 
 // Populate the MatchParts of a Logfile supplied with the sub-expression names,

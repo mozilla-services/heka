@@ -35,7 +35,7 @@ func FilehandlingSpec(c gs.Context) {
 			c.Expect(len(results), gs.Equals, 3)
 		})
 
-		c.Specify("scana a directory with a bad regexp", func() {
+		c.Specify("scans a directory with a bad regexp", func() {
 			matchRegex := regexp.MustCompile(dirPath + "/subdir/.*.logg(.*)?")
 			results := ScanDirectoryForLogfiles(dirPath, matchRegex)
 			c.Expect(len(results), gs.Equals, 0)
