@@ -11,12 +11,24 @@ sequential user-defined order, differentiating multiple logstreams
 found in a search based on a user-defined differentiator. This plugin
 supercedes the LogfileInput and the LogfileDirectoryInput.
 
-A Logstream is considered to be a single logical stream of events of a
-given source of a given type. For example, Apache/nginx can create
-multiple logfiles for a single domain. One for access logs, one for
-error logs. The system may rotate the logs adding an increasing integer
-to the end, (access.log, acces.log.1, access.log.2, etc). A Logstream
-could be considered all the access logs for a single domain.
+A "log stream" is a single, linear data stream that is spread across
+one or more sequential log files. For instance, an Apache or nginx
+server typically generates two log streams for each domain: an access
+log and an error log. Each stream might be written to a single log file
+that is periodically truncated (ick!) or rotated (better), with some
+number of historical versions being kept (e.g. access-example.com.log,
+access-example.com.log.0, access-example.com.log.1, etc.). Or, better
+yet, the server might periodically create new timestamped files so that
+the 'tip' of the log stream jumps from file to file (e.g. access-
+example.com-2014.01.28.log, access-example.com-2014.01.27.log, access-
+example.com-2014.01.26.log, etc.). The job of Heka's Logstreamer plugin
+is to understand the file naming and ordering conventions for a single
+type of log stream (e.g. "all of the nginx server's domain access
+logs"), and to use that to watch the specified directories and load the
+right files in the ri ght order. The plugin will also track its
+location in the stream so it can resume from where it left off after a
+restart, even in cases where the file may have rotated during the
+downtime.
 
 To make it easier to parse multiple logstreams, the Logstreamer plugin
 can be specified a single time with a single decoder for all the
