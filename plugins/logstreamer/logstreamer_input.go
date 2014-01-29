@@ -306,6 +306,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 
 		// Attempt to read as many as we can
 		err = parser(ir, deliver)
+
 		if err != nil && err != io.EOF {
 			ir.LogError(err)
 		}
