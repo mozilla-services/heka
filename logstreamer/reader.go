@@ -156,7 +156,7 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 	// same file
 	if currentInfo.Size() > fInfo.Size() {
 		ok = true
-	} else if !l.VerifyFileHash() {
+	} else if l.FileHashMismatch() {
 		// Our file-hash didn't verify, not the same file
 		ok = true
 	}
@@ -205,8 +205,8 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 	return
 }
 
-// Verify the position in the file is still at that position in that file (ie,
-// the file has not been moved in some fashion.)
+// Determine if the file hash is a mismatch to whats in the file at the moment.
+// Only returns true if there is a mismatch.
 // Rationale:
 // This function is intended to return true in all cases except the case where
 // we are 100% certain that the filename at this location is *not* the one we
@@ -215,15 +215,15 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 // to declare with certainty that the filename at this location is no longer what
 // we think it is. Note that when starting a logstream, the hash is verified
 // separately rather than calling this function (due to issues of fd movement).
-func (l *Logstream) VerifyFileHash() bool {
+func (l *Logstream) FileHashMismatch() bool {
 	// We always match our hash if we have no hash
 	if l.position.Hash == "" {
-		return true
+		return false
 	}
 
 	fd, err := os.Open(l.position.Filename)
 	if err != nil {
-		return true
+		return false
 	}
 	defer fd.Close()
 
@@ -238,11 +238,11 @@ func (l *Logstream) VerifyFileHash() bool {
 			h.Write(buf)
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
 			if tmp == l.position.Hash {
-				return true
+				return false
 			}
 		}
 	}
-	return false
+	return true
 }
 
 // Locate and return a file handle seeked to the appropriate location. An error will be
