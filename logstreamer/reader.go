@@ -435,11 +435,13 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		return
 	}
 
-	// Another EOF, this makes two in a row, check if we have a newer
-	// file
+	// At this point in time, we have a prior EOF, and an EOF this time
+	// and we have located a newer file. We will clear our error and attempt
+	// to rotate the file we're reading since we've hit the end and can
+	// proceed.
 	err = nil
 
-	// We do have a new file, grab the file handle first
+	// Attempt to grab the file handle of the new file
 	var fd *os.File
 	fd, err = os.Open(newerFilename)
 	if err != nil {
