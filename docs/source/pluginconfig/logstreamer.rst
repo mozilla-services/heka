@@ -334,9 +334,8 @@ Now to supply the important mapping of how to translate ``Month`` and
 
 .. note::
 
-    The matched values are lower-cased before being looked up in the
-    translation mappings, so you should always use lower-case keys for
-    the translation map keys as above.
+    The keys and matched values used are all lowercased before
+    comparison.
 
 We left off the rest of the month names and day names not used for
 example purposes. Note that if you prefer the week to begin on a
