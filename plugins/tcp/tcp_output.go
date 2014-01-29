@@ -16,6 +16,7 @@
 package tcp
 
 import (
+	"crypto/tls"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
@@ -32,6 +33,8 @@ type TcpOutputConfig struct {
 	// String representation of the TCP address to which this output should be
 	// sending data.
 	Address string
+	UseTls  bool `toml:"use_tls"`
+	Tls     TlsConfig
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
@@ -41,7 +44,15 @@ func (t *TcpOutput) ConfigStruct() interface{} {
 func (t *TcpOutput) Init(config interface{}) (err error) {
 	conf := config.(*TcpOutputConfig)
 	t.address = conf.Address
-	t.connection, err = net.Dial("tcp", t.address)
+	if conf.UseTls {
+		var goTlsConf *tls.Config
+		if goTlsConf, err = CreateGoTlsConfig(&conf.Tls); err != nil {
+			return fmt.Errorf("TLS init error: %s", err)
+		}
+		t.connection, err = tls.Dial("tcp", t.address, goTlsConf)
+	} else {
+		t.connection, err = net.Dial("tcp", t.address)
+	}
 	return
 }
 

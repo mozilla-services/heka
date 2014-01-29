@@ -39,6 +39,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Set default StatAccumInput stat namespace prefix values even when
+  `legacy_namespaces` is set to false (issue #630).
+
 * Fixed cpuprof file from being closed right after opening so no data was
   being logged.
 
@@ -65,6 +68,10 @@ Features
 * Added Logstreamer Input [LogstreamerInput]: An input that replaces the
   Logfile and Logfile Directory Inputs and supports sequential reading of
   logstreams that span sets of ordered logfiles. (issue #372).
+
+* TcpInput, TcpOutput, and flood client now all support TLS encrypted TCP
+  connections using Go's crypto/tls package.
+
 * Added Http Listen Input [HttpListenInput]: An input that listens for
   HTTP requests on the specified address. If a decoder is not specified the
   input generates a message with the HTML request body as the payload.

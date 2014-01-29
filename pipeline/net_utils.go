@@ -63,14 +63,14 @@ type NetworkInputConfig struct {
 type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
-	config *NetworkInputConfig,
+	signers map[string]Signer,
 	dr DecoderRunner) (err error)
 
 // Standard text log file parser
 func NetworkPayloadParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
-	config *NetworkInputConfig,
+	signers map[string]Signer,
 	dr DecoderRunner) (err error) {
 	var (
 		pack   *PipelinePack
@@ -104,7 +104,7 @@ func NetworkPayloadParser(conn net.Conn,
 func NetworkMessageProtoParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
-	config *NetworkInputConfig,
+	signers map[string]Signer,
 	dr DecoderRunner) (err error) {
 	var (
 		pack   *PipelinePack
@@ -124,7 +124,7 @@ func NetworkMessageProtoParser(conn net.Conn,
 		if headerLen > UUID_SIZE {
 			header := new(Header)
 			DecodeHeader(record[2:headerLen], header)
-			if authenticateMessage(config.Signers, header, record[headerLen:]) {
+			if authenticateMessage(signers, header, record[headerLen:]) {
 				pack.Signer = header.GetHmacSigner()
 			} else {
 				pack.Recycle()
