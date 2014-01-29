@@ -328,6 +328,17 @@ type LogstreamSet struct {
 
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	logRoot, journalRoot string) *LogstreamSet {
+	// Lowercase all the keys
+	newTranslation := make(SubmatchTranslationMap)
+	for key, val := range sortPattern.Translation {
+		newValMap := make(MatchTranslationMap)
+		for matchPart, intVal := range val {
+			newValMap[strings.ToLower(matchPart)] = intVal
+		}
+		newTranslation[strings.ToLower(key)] = newValMap
+	}
+	sortPattern.Translation = newTranslation
+
 	return &LogstreamSet{
 		logstreams:     make(map[string]*Logstream),
 		oldestDuration: oldest,
