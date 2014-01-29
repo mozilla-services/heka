@@ -52,7 +52,7 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(len(stream.logfiles), gs.Equals, 26)
 
 		stream.position = l
-		c.Expect(stream.VerifyFileHash(), gs.Equals, true)
+		c.Expect(stream.FileHashMismatch(), gs.Equals, false)
 		b := make([]byte, 500)
 		n, err := stream.Read(b)
 		c.Expect(err, gs.IsNil)
