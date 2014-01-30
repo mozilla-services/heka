@@ -499,6 +499,9 @@ Example:
 
 .. _config_logstreamer_input:
 
+Logstreamer Input
+-----------------
+
 .. versionadded:: 0.5
 
 Tails a single log file, a sequential single log source, or multiple log sources
