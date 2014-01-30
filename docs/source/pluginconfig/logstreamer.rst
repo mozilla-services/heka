@@ -107,7 +107,7 @@ Single Sequential (Rotating) Logfile
 
 What happens if you have a log structure like this?
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/access.log
     /var/log/nginx/access.log.1
@@ -116,7 +116,7 @@ What happens if you have a log structure like this?
 
 Or perhaps like this?
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/2014/08/1.access.log
     /var/log/nginx/2014/08/2.access.log
@@ -125,7 +125,7 @@ Or perhaps like this?
 
 Or a combination of them?
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/2014/08/access.log
     /var/log/nginx/2014/08/access.log.1
@@ -200,7 +200,7 @@ above and consider it a multiple sequential source.
 
 Example directory layout:
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/frank.com/2014/08/access.log
     /var/log/nginx/frank.com/2014/08/access.log.1
@@ -260,7 +260,7 @@ indicate to the LogstreamerInput that a default mapping should be used:
 
 If the last example above looked like this:
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/frank.com/2014/Sep/access.log
     /var/log/nginx/frank.com/2014/Oct/access.log.1
@@ -293,7 +293,7 @@ What if your logfiles (for reasons we won't speculate about) happened
 to use Pharsi month names but Spanish day names such that it looked
 like this?
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/sally.com/2014/Hadukannas/lunes/access.log
     /var/log/nginx/sally.com/2014/Turmar/miercoles/access.log
