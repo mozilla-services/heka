@@ -1738,6 +1738,9 @@ Parameters:
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.
+- ticker_interval (uint):
+    Specifies how often, in seconds, the output queue files are rolled.
+    Defaults to 300.
 
 Example:
 

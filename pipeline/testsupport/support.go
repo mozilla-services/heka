@@ -24,7 +24,6 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
@@ -65,16 +64,18 @@ func StringStartsWith(actual interface{}, criteria interface{}) (match bool,
 
 func GetTestMessage() *Message {
 	hostname := "my.host.name"
+	tstr := "Mon Jan 2 15:04:05 -0700 MST 2006"
+	ts, _ := time.Parse(tstr, tstr)
 	field, _ := NewField("foo", "bar", "")
 	msg := &Message{}
 	msg.SetType("TEST")
-	msg.SetTimestamp(time.Now().UnixNano())
-	msg.SetUuid(uuid.NewRandom())
+	msg.SetTimestamp(ts.UnixNano())
+	msg.SetUuid(uuid.Parse("8e414f01-9d7f-4a48-a5e1-ae92e5954df5"))
 	msg.SetLogger("GoSpec")
 	msg.SetSeverity(int32(6))
 	msg.SetPayload("Test Payload")
 	msg.SetEnvVersion("0.8")
-	msg.SetPid(int32(os.Getpid()))
+	msg.SetPid(int32(43))
 	msg.SetHostname(hostname)
 	msg.AddField(field)
 	return msg
