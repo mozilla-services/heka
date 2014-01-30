@@ -111,7 +111,7 @@ local function detect_anomaly(ns, k, v, cols)
                 if loss_of_data then
                     msg = string.format("Column %d hasn't received any new data", c.col)
                 else
-                    msg = string.format("Column %d has fluxuated more than %G standard deviations", c.col, c.deviation)
+                    msg = string.format("Column %d has fluctuated more than %G standard deviations", c.col, c.deviation)
                 end
 
                 table.insert(v.annotations, {x = math.floor(v.last_alert/1e6),
