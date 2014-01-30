@@ -34,6 +34,7 @@ set(FLOOD_EXE "${PROJECT_PATH}/bin/heka-flood${CMAKE_EXECUTABLE_SUFFIX}")
 set(SBMGR_EXE "${PROJECT_PATH}/bin/heka-sbmgr${CMAKE_EXECUTABLE_SUFFIX}")
 set(SBMGRLOAD_EXE "${PROJECT_PATH}/bin/heka-sbmgrload${CMAKE_EXECUTABLE_SUFFIX}")
 set(INJECT_EXE "${PROJECT_PATH}/bin/heka-inject${CMAKE_EXECUTABLE_SUFFIX}")
+set(LOGSTREAMER_EXE "${PROJECT_PATH}/bin/heka-logstreamer${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
@@ -61,7 +62,7 @@ elseif(APPLE)
     set(LDFLAGS "-ldflags=\"-linkmode=external\"")
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
-    
+
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
 
     find_program(RPMBUILD_EXECUTABLE rpmbuild PATH_SUFFIXES bin)
@@ -117,6 +118,8 @@ COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/examples" "${HEK
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA_PATH}/message"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/plugins" "${HEKA_PATH}/plugins"
+COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/logstreamer" "${HEKA_PATH}/logstreamer"
+COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ringbuf" "${HEKA_PATH}/ringbuf"
 ${COPY_SANDBOX}
 DEPENDS ${SANDBOX_PACKAGE} GoPackages ${MESSAGE_PROTO_OUT}
 )
@@ -128,7 +131,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 )
 add_dependencies(mocks message_matcher_parser)
 
-add_custom_target(hekad ALL 
+add_custom_target(hekad ALL
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
@@ -161,27 +164,34 @@ endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
 
-add_custom_target(flood ALL 
+add_custom_target(flood ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-flood
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
 
-add_custom_target(inject ALL 
+add_custom_target(inject ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-inject
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${INJECT_EXE}" DESTINATION bin)
 
-add_custom_target(sbmgr ALL 
+add_custom_target(logstreamer ALL
+${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-logstreamer
+DEPENDS hekad
+WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+install(PROGRAMS "${LOGSTREAMER_EXE}" DESTINATION bin)
+
+add_custom_target(sbmgr ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgr
 DEPENDS hekad)
 
 install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 
-add_custom_target(sbmgrload ALL 
+add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
@@ -193,7 +203,7 @@ if (UNIX AND DPKG_EXECUTABLE)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
     get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
     set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
-    
+
     add_custom_target(deb
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
     COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
@@ -210,12 +220,14 @@ add_test(plugins/elasticsearch ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG
 add_test(plugins/file ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/file)
 add_test(plugins/graphite ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/graphite)
 add_test(plugins/http ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/http)
+add_test(plugins/logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/logstreamer)
 add_test(plugins/payload ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/payload)
 add_test(plugins/process ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/process)
 add_test(plugins/smtp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/smtp)
 add_test(plugins/statsd ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/statsd)
 add_test(plugins/tcp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/tcp)
 add_test(plugins/udp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/udp)
+add_test(logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/logstreamer)
 if(INCLUDE_SANDBOX)
 	add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
 	add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)

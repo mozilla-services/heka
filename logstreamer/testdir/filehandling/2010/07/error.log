@@ -1,0 +1,15 @@
+2013-11-05 19:50:24.544422 PST - Registered node with name '/Search'
+2013-11-05 19:50:24.546481 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/legacy.bundle'
+2013-11-05 19:50:24.548489 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/search.bundle'
+2013-11-05 19:50:25.621457 PST - '/Search' has registered, loading additional services
+2013-11-05 19:50:25.621468 PST - Initialize augmentation support
+2013-11-05 19:50:25.625466 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/SystemCache.bundle'
+2013-11-05 19:50:25.635568 PST - Successfully registered for Kernel identity service requests
+2013-11-05 19:50:25.635585 PST - Adjusting kernel ID cache (100 -> 250) and membership cache (100 -> 500)
+2013-11-05 19:50:25.649614 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/PlistFile.bundle'
+2013-11-05 19:50:25.651720 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/FDESupport.bundle'
+2013-11-05 19:50:25.654747 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/AppleID.bundle'
+2013-11-05 19:50:25.684944 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/ConfigurationProfiles.bundle'
+2013-11-05 19:50:25.686039 PST - Registered subnode with name '/Local/Default'
+2013-11-05 19:50:29.805471 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/ldap.bundle'
+2013-11-05 19:51:34.948075 PST - Loaded bundle at path '/System/Library/OpenDirectory/Modules/configure.bundle'

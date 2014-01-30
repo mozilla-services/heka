@@ -497,6 +497,76 @@ Example:
     hmac_key = "haeoufyaiofeugdsnzaogpi.ua,dp.804u"
 
 
+.. _config_logstreamer_input:
+
+.. versionadded:: 0.5
+
+Tails a single log file, a sequential single log source, or multiple log sources
+of either a single logstream or multiple logstreams.
+
+.. seealso:: :ref:`Complete documentation with examples <logstreamerplugin>`
+
+Parameters:
+
+- hostname (string):
+    The hostname to use for the messages, by default this will be the
+    machine's qualified hostname. This can be set explicitly to ensure
+    it's the correct name in the event the machine has multiple
+    interfaces/hostnames.
+- oldest_duration (string):
+    A time duration string (e.x. "2s", "2m", "2h"). Logfiles with a
+    last modified time older than ``older_duration`` ago will not be included
+    for parsing.
+- journal_directory (string):
+    The directory to store the journal files in for tracking the location that
+    has been read to thus far. By default this is stored under heka's base
+    directory.
+- log_directory (string):
+    The root directory to scan files from. This scan is recursive so it
+    should be suitably restricted to the most specific directory this
+    selection of logfiles will be matched under. The log_directory path will
+    be prepended to the file_match.
+- rescan_interval (int):
+    During logfile rotation, or if the logfile is not originally
+    present on the system, this interval is how often the existence of
+    the logfile will be checked for. The default of 5 seconds is
+    usually fine. This interval is in milliseconds.
+- file_match (string):
+    Regular expression used to match files located under the
+    ``journal_directory``. This regular expression has ``$`` added to the
+    end automatically if not already present, and ``log_directory`` as the
+    prefix.
+- priority (list of strings):
+    When using sequential logstreams, the priority is how to sort the logfiles
+    in order from oldest to newest.
+- differentiator (list of strings):
+    When using multiple logstreams, the differentiator is a set of strings that
+    will be used in the naming of the logger, and portions that match a captured
+    group from the ``file_match`` will have their matched value substituted in.
+- translation (hash map of hash maps of ints):
+    A set of translation mappings for matched groupings to the ints to use for
+    sorting purposes.
+- decoder (string):
+    A :ref:`config_protobuf_decoder` instance must be specified for the
+    message.proto parser. Use of a decoder is optional for token and regexp
+    parsers; if no decoder is specified the parsed data is available in the
+    Heka message payload.
+- parser_type (string):
+    - token - splits the log on a byte delimiter (default).
+    - regexp - splits the log on a regexp delimiter.
+    - message.proto - splits the log on protobuf message boundaries
+- delimiter (string): Only used for token or regexp parsers.
+    Character or regexp delimiter used by the parser (default "\\n").  For the
+    regexp delimiter a single capture group can be specified to preserve the
+    delimiter (or part of the delimiter). The capture will be added to the start
+    or end of the log line depending on the delimiter_location configuration.
+    Note: when a start delimiter is used the last line in the file will not be
+    processed (since the next record defines its end) until the log is rolled.
+- delimiter_location (string): Only used for regexp parsers.
+    - start - the regexp delimiter occurs at the start of a log line.
+    - end - the regexp delimiter occurs at the end of the log line (default).
+
+
 .. _config_logfile_input:
 
 LogfileInput
@@ -962,7 +1032,7 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
+    create Fields[Payload] with a json representation
     (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
@@ -1046,7 +1116,7 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
+    create Fields[Payload] with a json representation
     (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
@@ -1077,7 +1147,7 @@ Parameters:
     If any message field is not matched, the pack is silently passed back unmodified.
     Useful when used in combination with a MultiDecoder and multiple JSON formats.
     Defaults to "false"
-    
+
     Example::
 
     [my_multi_decoder]
@@ -1112,7 +1182,7 @@ Parameters:
     field4 = "%field4%"
     field5 = "%field5%"
     field6 = "%field6%"
-    
+
 Example:
 
 .. code-block:: ini
@@ -1206,7 +1276,7 @@ Parameters:
     "%ResponseSize%" will create Fields[ResponseSize] representing the number of
     bytes.  Adding a representation string to a standard message header name
     will cause it to be added as a user defined field i.e., Payload|json will
-    create Fields[Payload] with a json representation 
+    create Fields[Payload] with a json representation
     (see :ref:`field_variables`).
 
     Interpolated values should be surrounded with `%` signs, for example::
@@ -1922,13 +1992,13 @@ SmtpOutput
 
 Outputs a Heka message in an email.  The message subject is the plugin name and the
 message content is controlled by the payload_only setting.  The primary purpose is for
-email alert notifications i.e., PagerDuty. 
+email alert notifications i.e., PagerDuty.
 
 Parameters:
 
 - payload_only (bool)
     If set to true, then only the message payload string will be emailed,
-    otherwise the entire `Message` struct will be emailed in JSON format. 
+    otherwise the entire `Message` struct will be emailed in JSON format.
     (default: true)
 - send_from (string)
     - email address of the sender (default: "heka@localhost.localdomain")
