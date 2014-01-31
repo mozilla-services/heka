@@ -191,7 +191,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Kick off all the current logstreams we know of
 	for _, logstream := range li.plugins {
-		stop := make(chan bool, 1)
+		stop := make(chan bool)
 		go logstream.Run(ir, h, stop, dRunner)
 		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 	}
