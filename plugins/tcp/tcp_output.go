@@ -409,7 +409,7 @@ func init() {
 	})
 }
 
-// Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
+// Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
 // information to the Heka report and dashboard.
 func (t *TcpOutput) ReportMsg(msg *message.Message) error {
 	t.reportLock.Lock()
