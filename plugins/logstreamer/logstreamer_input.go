@@ -302,21 +302,13 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	interval, _ := time.ParseDuration("250ms")
 	tick := time.Tick(interval)
 
-	// Kick off a stop watcher, that just feeds it back to our local
-	// stop chan that we use because Go
-	localStop := make(chan chan bool, 1)
-	go func() {
-		replyChan := <-stopChan
-		localStop <- replyChan
-	}()
-
 	ok := true
 	for ok {
 		// Clear our error
 		err = nil
 
 		// Attempt to read as many as we can
-		err = parser(ir, deliver, localStop)
+		err = parser(ir, deliver, stopChan)
 
 		// Save our location after reading as much as we can
 		lsi.stream.SavePosition()
@@ -334,7 +326,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 
 		// Wait for our next interval, stop if needed
 		select {
-		case lsi.stopped = <-localStop:
+		case lsi.stopped = <-stopChan:
 			ok = false
 		case <-tick:
 			continue
