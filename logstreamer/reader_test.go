@@ -68,6 +68,7 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2010/07/error.log"))
 		c.Expect(err, gs.IsNil)
 		c.Expect(n, gs.Equals, 500)
+		stream.FlushBuffer(0)
 		l.Save()
 		c.Expect(l.Hash, gs.Equals, "bc544cb727a809dcf0464da1628aeedd4243e81c")
 		c.Expect(string(b[:10]), gs.Equals, "2013-11-05")
@@ -82,6 +83,7 @@ func ReaderSpec(c gs.Context) {
 		}
 		// We should be at the last file
 		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "re.bundle'")
@@ -129,6 +131,7 @@ func ReaderSpec(c gs.Context) {
 
 		// We should be at the last file
 		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "re.bundle'")
@@ -155,6 +158,7 @@ func ReaderSpec(c gs.Context) {
 		l = stream.position
 		// We should be at the last file
 		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/access.log"))
+		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1174))
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "le.bundle'")

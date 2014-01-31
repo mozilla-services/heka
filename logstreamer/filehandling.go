@@ -263,15 +263,20 @@ type Logstream struct {
 	logfiles Logfiles
 	position *LogstreamLocation
 	fd       *os.File
+	// Buffer data read in blocks so that we can control precisely how
+	// much of the data read is saved in the logstream location each time
+	// to saving into a record partially.
+	saveBuffer []byte
 	// Records whether the prior read hit an EOF
 	priorEOF bool
 }
 
 func NewLogstream(logfiles Logfiles, position *LogstreamLocation) *Logstream {
 	return &Logstream{
-		lfMutex:  new(sync.RWMutex),
-		logfiles: logfiles,
-		position: position,
+		lfMutex:    new(sync.RWMutex),
+		logfiles:   logfiles,
+		position:   position,
+		saveBuffer: make([]byte, 0, 200),
 	}
 }
 
