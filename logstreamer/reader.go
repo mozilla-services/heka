@@ -417,8 +417,8 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		sbLen := len(l.saveBuffer)
 		if cap(l.saveBuffer) < cap(p) {
 			newBuf := make([]byte, sbLen, cap(p))
-			copy(newBuf, l.saveBuffer[:sbLen])
-			l.saveBuffer = newBuf[:sbLen]
+			copy(newBuf, l.saveBuffer)
+			l.saveBuffer = newBuf
 		}
 
 		// Flush the current buffer if the new data won't fit
