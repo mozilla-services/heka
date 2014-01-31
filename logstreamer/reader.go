@@ -353,6 +353,30 @@ func (l *Logstream) FlushBuffer(n int) {
 	l.saveBuffer = l.saveBuffer[:len(l.saveBuffer)-n]
 }
 
+// Save the location to the buffer
+func (l *Logstream) BufferSave(p []byte) {
+	n := len(p)
+
+	// Enlarge our save buffer to match what we were handed, and copy
+	// our current buffer over
+	sbLen := len(l.saveBuffer)
+	if cap(l.saveBuffer) < cap(p) {
+		newBuf := make([]byte, sbLen, cap(p))
+		copy(newBuf, l.saveBuffer)
+		l.saveBuffer = newBuf
+	}
+
+	// Flush the current buffer if the new data won't fit
+	if sbLen+n > cap(l.saveBuffer) {
+		l.FlushBuffer(sbLen)
+		sbLen = 0
+	}
+
+	// Copy the new data into our saveBuffer
+	l.saveBuffer = l.saveBuffer[:sbLen+n]
+	copy(l.saveBuffer[sbLen:], p)
+}
+
 func (l *Logstream) Read(p []byte) (n int, err error) {
 	// If we have a fd, read it
 	if l.fd != nil {
@@ -412,24 +436,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	// If the current bytes in the saveBuffer plus the new bytes are
 	// larger than the saveBuffer, flush the existing saveBuffer first.
 	if n > 0 {
-		// Enlarge our save buffer to match what we were handed, and copy
-		// our current buffer over
-		sbLen := len(l.saveBuffer)
-		if cap(l.saveBuffer) < cap(p) {
-			newBuf := make([]byte, sbLen, cap(p))
-			copy(newBuf, l.saveBuffer)
-			l.saveBuffer = newBuf
-		}
-
-		// Flush the current buffer if the new data won't fit
-		if sbLen+n > cap(l.saveBuffer) {
-			l.FlushBuffer(sbLen)
-			sbLen = 0
-		}
-
-		// Copy the new data into our saveBuffer
-		l.saveBuffer = l.saveBuffer[:sbLen+n]
-		copy(l.saveBuffer[sbLen:], p[:n])
+		l.bufferSave(p[:n])
 	}
 
 	// Return now if we didn't get an error
