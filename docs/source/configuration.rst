@@ -1535,13 +1535,7 @@ See: :ref:`sandboxdecoder_settings` for details.
 
 Example:
 
-
 .. code-block:: ini
-    [LogfileInput]
-    logfile = "/var/log/syslog.log"
-    logger = "syslog"
-    use_seek_journal = false
-    decoder = "syslog_sandbox"
 
     [syslog_sandbox]
     type = "SandboxDecoder"
@@ -1550,10 +1544,6 @@ Example:
     timestamp_field = "syslog_ts"
     timestamp_layout = "Jan _2 15:04:05"
     timestamp_location = "America/Toronto"
-
-
-
-
 
 .. end-decoders
 

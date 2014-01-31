@@ -90,10 +90,13 @@ func NetworkPayloadParser(conn net.Conn,
 			pack.Message.SetHostname(remoteAddr.String())
 		}
 		pack.Message.SetLogger(ir.Name())
+		fmt.Printf("\n\n-----------\nRead: %s\n", string(record))
 		pack.Message.SetPayload(string(record))
 		if dr == nil {
+			fmt.Printf("Injected\n")
 			ir.Inject(pack)
 		} else {
+			fmt.Printf("Sent to InChan()\n")
 			dr.InChan() <- pack
 		}
 	}

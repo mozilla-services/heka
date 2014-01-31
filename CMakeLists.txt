@@ -248,6 +248,7 @@ install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sb
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
 install(FILES "${HEKA_PATH}/sandbox/lua/decoders/syslog_decoder.lua" DESTINATION bin)
+install(FILES "${HEKA_PATH}/sandbox/lua/decoders/net_syslog_decoder.lua" DESTINATION bin)
 endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
