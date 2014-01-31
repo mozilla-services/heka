@@ -436,7 +436,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	// If the current bytes in the saveBuffer plus the new bytes are
 	// larger than the saveBuffer, flush the existing saveBuffer first.
 	if n > 0 {
-		l.bufferSave(p[:n])
+		l.BufferSave(p[:n])
 	}
 
 	// Return now if we didn't get an error
