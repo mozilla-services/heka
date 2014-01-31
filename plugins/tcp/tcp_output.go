@@ -48,7 +48,6 @@ type TcpOutput struct {
 	checkpointFile      *os.File
 	queue               string
 	name                string
-	stopping            bool
 	reportLock          sync.Mutex
 	processMessageCount int64
 	sentMessageCount    int64
@@ -250,7 +249,7 @@ func (t *TcpOutput) sendRecord(record []byte) (err error) {
 	return
 }
 
-func (t *TcpOutput) StreamOutput(outputError, outputExit chan error) {
+func (t *TcpOutput) StreamOutput(outputError, outputExit chan error, stopChan chan bool) {
 	var (
 		err    error
 		n      int
@@ -283,11 +282,16 @@ func (t *TcpOutput) StreamOutput(outputError, outputExit chan error) {
 		MaxRetries: -1,
 	})
 
-	for err == nil && !t.stopping {
+	for true {
+		select {
+		case <-stopChan:
+			outputExit <- nil
+			return
+		default: // carry on
+		}
 		n, record, err = t.parser.Parse(t.readFile)
 		if err != nil {
 			if err == io.EOF {
-				err = nil
 				nextReadId := t.readId + 1
 				filename := getQueueFilename(t.queue, nextReadId)
 				if fileExists(filename) {
@@ -311,23 +315,24 @@ func (t *TcpOutput) StreamOutput(outputError, outputExit chan error) {
 		} else {
 			if len(record) > 0 {
 				rh.Reset()
-				for !t.stopping {
+				for true {
 					err = t.sendRecord(record)
-					if err != nil {
+					if err == nil {
+						atomic.AddInt64(&t.sentMessageCount, 1)
+						break
+					}
+					select {
+					case <-stopChan:
+						outputExit <- nil
+						return
+					default:
 						outputError <- err
 						if t.connection != nil {
 							t.connection.Close()
 							t.connection = nil
 						}
 						rh.Wait() // this will delay Heka shutdown up to MaxDelay
-					} else {
-						atomic.AddInt64(&t.sentMessageCount, 1)
-						break
 					}
-				}
-				if err != nil && t.stopping {
-					err = nil
-					n = 0 // record not sent, backout the offset
 				}
 			} else {
 				runtime.Gosched()
@@ -354,19 +359,20 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		ticker      = or.Ticker()
 		outputExit  = make(chan error)
 		outputError = make(chan error, 5)
+		stopChan    = make(chan bool, 1)
 	)
 
 	if err = t.writeToNextFile(); err != nil {
 		return
 	}
 
-	go t.StreamOutput(outputError, outputExit)
+	go t.StreamOutput(outputError, outputExit, stopChan)
 
 	for ok {
 		select {
 		case pack, ok = <-inChan:
 			if !ok {
-				t.stopping = true
+				stopChan <- true
 				<-outputExit
 				break
 			}
