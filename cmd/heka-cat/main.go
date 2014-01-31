@@ -20,15 +20,15 @@ protobuf logs.
 package main
 
 import (
-    "flag"
-    "fmt"
-    "io"
+	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
-    "os"
+	"flag"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
-	"code.google.com/p/goprotobuf/proto"
-    "time"
+	"io"
+	"os"
+	"time"
 )
 
 func main() {
@@ -36,106 +36,106 @@ func main() {
 	flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagTail := flag.Bool("tail", false, "don't exit on EOF")
-    flagOffset := flag.Int64("offset", 0, "starting offset for the input file")
+	flagOffset := flag.Int64("offset", 0, "starting offset for the input file")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
 		flag.PrintDefaults()
-        os.Exit(1)
+		os.Exit(1)
 	}
 
-    var err error
+	var err error
 	var match *message.MatcherSpecification
 	if match, err = message.CreateMatcherSpecification(*flagMatch); err != nil {
-        fmt.Printf("Match specification - %s\n", err)
-        os.Exit(2)
+		fmt.Printf("Match specification - %s\n", err)
+		os.Exit(2)
 	}
 
-    var file *os.File
+	var file *os.File
 	if file, err = os.Open(flag.Arg(0)); err != nil {
-        fmt.Printf("%s\n", err)
-        os.Exit(3)
+		fmt.Printf("%s\n", err)
+		os.Exit(3)
 	}
-    defer file.Close()
+	defer file.Close()
 
-    var out *os.File
-    if "" == *flagOutput {
-        out = os.Stdin
-    } else {
-    	if out, err = os.OpenFile(*flagOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-            fmt.Printf("%s\n", err)
-            os.Exit(4)
-        }
-        defer out.Close()
-    }
+	var out *os.File
+	if "" == *flagOutput {
+		out = os.Stdin
+	} else {
+		if out, err = os.OpenFile(*flagOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+			fmt.Printf("%s\n", err)
+			os.Exit(4)
+		}
+		defer out.Close()
+	}
 
-    var offset int64
+	var offset int64
 	if offset, err = file.Seek(*flagOffset, 0); err != nil {
-        fmt.Printf("%s\n", err)
-        os.Exit(5)
+		fmt.Printf("%s\n", err)
+		os.Exit(5)
 	}
 
 	parser := pipeline.NewMessageProtoParser()
-    msg := new(message.Message)
-    var processed, matched int64
+	msg := new(message.Message)
+	var processed, matched int64
 
-    fmt.Printf("Input:%s  Offset:%d  Match:%s  Format:%s  Tail:%t  Output:%s\n",
-               flag.Arg(0), *flagOffset, *flagMatch, *flagFormat, *flagTail, *flagOutput)
+	fmt.Printf("Input:%s  Offset:%d  Match:%s  Format:%s  Tail:%t  Output:%s\n",
+		flag.Arg(0), *flagOffset, *flagMatch, *flagFormat, *flagTail, *flagOutput)
 	for true {
 		n, record, err := parser.Parse(file)
 		if err != nil {
 			if err == io.EOF {
-                if !*flagTail || "count" == *flagFormat {
-                    break
-                }
-                time.Sleep(time.Duration(500) * time.Millisecond)
+				if !*flagTail || "count" == *flagFormat {
+					break
+				}
+				time.Sleep(time.Duration(500) * time.Millisecond)
 			} else {
 				break
 			}
 		} else {
 			if len(record) > 0 {
-                processed += 1
-                headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
-                if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-                    fmt.Printf("Error unmarshalling message at offset: %d\n", n)
-                }
+				processed += 1
+				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
+				if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
+					fmt.Printf("Error unmarshalling message at offset: %d\n", n)
+				}
 
 				if !match.Match(msg) {
-                    continue
-                }
-                matched +=1
+					continue
+				}
+				matched += 1
 
-                switch *flagFormat {
-                case "count":
-                    // no op
-                case "json":
-                    contents, _ := json.Marshal(msg)
-                    fmt.Fprintf(out, "%s\n", contents)
-                case "heka":
-                    fmt.Fprintf(out, "%s", record)
-                default:
-                    fmt.Fprintf(out, "Timestamp: %s\n"+
-                        "Type: %s\n"+
-                        "Hostname: %s\n"+
-                        "Pid: %d\n"+
-                        "UUID: %s\n"+
-                        "Logger: %s\n"+
-                        "Payload: %s\n"+
-                        "EnvVersion: %s\n"+
-                        "Severity: %d\n"+
-                        "Fields: %+v\n\n",
-                        time.Unix(0, msg.GetTimestamp()), msg.GetType(),
-                        msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-                        msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-                        msg.GetSeverity(), msg.Fields)
-                }
+				switch *flagFormat {
+				case "count":
+					// no op
+				case "json":
+					contents, _ := json.Marshal(msg)
+					fmt.Fprintf(out, "%s\n", contents)
+				case "heka":
+					fmt.Fprintf(out, "%s", record)
+				default:
+					fmt.Fprintf(out, "Timestamp: %s\n"+
+						"Type: %s\n"+
+						"Hostname: %s\n"+
+						"Pid: %d\n"+
+						"UUID: %s\n"+
+						"Logger: %s\n"+
+						"Payload: %s\n"+
+						"EnvVersion: %s\n"+
+						"Severity: %d\n"+
+						"Fields: %+v\n\n",
+						time.Unix(0, msg.GetTimestamp()), msg.GetType(),
+						msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
+						msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
+						msg.GetSeverity(), msg.Fields)
+				}
 			}
 		}
-        offset += int64(n)
+		offset += int64(n)
 	}
-    fmt.Printf("Processed: %d, matched: %d messages\n", processed, matched)
-    if err != nil {
-        fmt.Printf("%s\n", err)
-        os.Exit(6)
-    }
+	fmt.Printf("Processed: %d, matched: %d messages\n", processed, matched)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		os.Exit(6)
+	}
 }
