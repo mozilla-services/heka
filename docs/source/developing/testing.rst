@@ -66,3 +66,29 @@ heka-inject [``-heka`` `Heka instance to connect`] [``-hostname`` `message hostn
 Example
 
 heka-inject -payload="Test message to for high severity." -severity=1
+
+
+heka-cat
+========
+A command-line utility for counting, viewing, filtering, and extracting Heka protobuf logs.
+
+Command Line Options
+--------------------
+- -format="txt": output format [txt|json|heka|count]
+- -match="TRUE": message_matcher filter expression
+- -offset=0: starting offset for the input file
+- -output="": output filename, defaults to stdout
+- -tail=false: don't exit on EOF
+- `input filename`
+
+Example
+
+heka-cat -format=count -match="Fields[status] == 404" test.log
+
+Output
+
+.. code-block:: txt
+
+    Input:test.log  Offset:0  Match:Fields[status] == 404  Format:count  Tail:false  Output:
+    Processed: 1002646, matched: 15660 messages
+    

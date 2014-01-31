@@ -65,6 +65,9 @@ Bug Handling
 Features
 --------
 
+* heka-cat: A command-line utility for counting, viewing, filtering, and 
+  extracting Heka protobuf logs.
+
 * Added Logstreamer Input [LogstreamerInput]: An input that replaces the
   Logfile and Logfile Directory Inputs and supports sequential reading of
   logstreams that span sets of ordered logfiles. (issue #372).
