@@ -279,7 +279,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	dRunner p.DecoderRunner) {
 
 	var (
-		parser func(ir p.InputRunner, deliver Deliver) error
+		parser func(ir p.InputRunner, deliver Deliver, stop chan chan bool) error
 		err    error
 	)
 
@@ -302,9 +302,12 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	interval, _ := time.ParseDuration("250ms")
 	tick := time.Tick(interval)
 
-	// Kick off a stop watcher
+	// Kick off a stop watcher, that just feeds it back to our local
+	// stop chan that we use because Go
+	localStop := make(chan chan bool, 1)
 	go func() {
-		lsi.stopped = <-stopChan
+		replyChan := <-stopChan
+		localStop <- replyChan
 	}()
 
 	ok := true
@@ -313,26 +316,45 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		err = nil
 
 		// Attempt to read as many as we can
-		err = parser(ir, deliver)
+		err = parser(ir, deliver, localStop)
+
+		// Save our location after reading as much as we can
+		lsi.stream.SavePosition()
+		lsi.recordCount = 0
 
 		if err != nil && err != io.EOF {
 			ir.LogError(err)
 		}
 
+		// Did our parser func get stopped?
+		if lsi.stopped != nil {
+			ok = false
+			continue
+		}
+
 		// Wait for our next interval, stop if needed
-		<-tick
-		ok = lsi.stopped == nil
+		select {
+		case lsi.stopped = <-localStop:
+			ok = false
+		case <-tick:
+			continue
+		}
 	}
 	close(lsi.stopped)
 }
 
 // Standard text log file parser
-func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver) (err error) {
+func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop chan chan bool) (err error) {
 	var (
 		pack   *p.PipelinePack
 		record []byte
 	)
-	for err == nil && lsi.stopped == nil {
+	for err == nil {
+		select {
+		case lsi.stopped = <-stop:
+			return
+		default:
+		}
 		_, record, err = lsi.parser.Parse(lsi.stream)
 		if err == io.ErrShortBuffer {
 			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
@@ -358,12 +380,17 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver) (err
 }
 
 // Framed protobuf message parser
-func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver) (err error) {
+func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver, stop chan chan bool) (err error) {
 	var (
 		pack   *p.PipelinePack
 		record []byte
 	)
-	for err == nil && lsi.stopped == nil {
+	for err == nil {
+		select {
+		case lsi.stopped = <-stop:
+			return
+		default:
+		}
 		_, record, err = lsi.parser.Parse(lsi.stream)
 		if len(record) > 0 {
 			pack = <-ir.InChan()
