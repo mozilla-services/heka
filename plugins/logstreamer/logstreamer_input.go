@@ -60,7 +60,7 @@ type LogstreamerInput struct {
 	logstreamSet       *ls.LogstreamSet
 	rescanInterval     time.Duration
 	plugins            map[string]*LogstreamInput
-	stopLogstreamChans []chan bool
+	stopLogstreamChans []chan chan bool
 	stopChan           chan bool
 	decoderName        string
 	parser             string
@@ -165,7 +165,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		li.plugins[name] = NewLogstreamInput(stream, stParser, parserFunc,
 			name, li.hostName)
 	}
-	li.stopLogstreamChans = make([]chan bool, 0, len(plugins))
+	li.stopLogstreamChans = make([]chan chan bool, 0, len(plugins))
 	li.stopChan = make(chan bool)
 	return
 }
@@ -191,7 +191,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Kick off all the current logstreams we know of
 	for _, logstream := range li.plugins {
-		stop := make(chan bool)
+		stop := make(chan chan bool, 1)
 		go logstream.Run(ir, h, stop, dRunner)
 		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 	}
@@ -203,12 +203,16 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 		select {
 		case <-li.stopChan:
 			ok = false
+			returnChans := make([]chan bool, len(li.stopLogstreamChans))
 			// Send out all the stop signals
-			for _, ch := range li.stopLogstreamChans {
-				ch <- true
+			for i, ch := range li.stopLogstreamChans {
+				ret := make(chan bool)
+				ch <- ret
+				returnChans[i] = ret
 			}
+
 			// Wait for all the stops
-			for _, ch := range li.stopLogstreamChans {
+			for _, ch := range returnChans {
 				<-ch
 			}
 
@@ -233,7 +237,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
 					li.hostName)
 				li.plugins[name] = lsi
-				stop := make(chan bool, 1)
+				stop := make(chan chan bool, 1)
 				go lsi.Run(ir, h, stop, dRunner)
 				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 			}
@@ -252,19 +256,18 @@ type Deliver func(pack *p.PipelinePack)
 
 type LogstreamInput struct {
 	stream        *ls.Logstream
-	shutdownChan  chan<- bool
 	parser        p.StreamParser
 	parseFunction string
 	loggerIdent   string
 	hostName      string
 	recordCount   int
+	stopped       chan bool
 }
 
 func NewLogstreamInput(stream *ls.Logstream, parser p.StreamParser, parserFunction,
 	loggerIdent, hostName string) *LogstreamInput {
 	return &LogstreamInput{
 		stream:        stream,
-		shutdownChan:  make(chan bool),
 		parser:        parser,
 		parseFunction: parserFunction,
 		loggerIdent:   loggerIdent,
@@ -272,7 +275,7 @@ func NewLogstreamInput(stream *ls.Logstream, parser p.StreamParser, parserFuncti
 	}
 }
 
-func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan bool,
+func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan chan bool,
 	dRunner p.DecoderRunner) {
 
 	var (
@@ -299,6 +302,11 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	interval, _ := time.ParseDuration("250ms")
 	tick := time.Tick(interval)
 
+	// Kick off a stop watcher
+	go func() {
+		lsi.stopped = <-stopChan
+	}()
+
 	ok := true
 	for ok {
 		// Clear our error
@@ -311,15 +319,11 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 			ir.LogError(err)
 		}
 
-		// Wait for our next interval
-		select {
-		case <-stopChan:
-			ok = false
-		case <-tick:
-			continue
-		}
+		// Wait for our next interval, stop if needed
+		<-tick
+		ok = lsi.stopped == nil
 	}
-	close(stopChan)
+	close(lsi.stopped)
 }
 
 // Standard text log file parser
@@ -328,7 +332,7 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver) (err
 		pack   *p.PipelinePack
 		record []byte
 	)
-	for err == nil {
+	for err == nil && lsi.stopped == nil {
 		_, record, err = lsi.parser.Parse(lsi.stream)
 		if err == io.ErrShortBuffer {
 			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
@@ -359,7 +363,7 @@ func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver)
 		pack   *p.PipelinePack
 		record []byte
 	)
-	for err == nil {
+	for err == nil && lsi.stopped == nil {
 		_, record, err = lsi.parser.Parse(lsi.stream)
 		if len(record) > 0 {
 			pack = <-ir.InChan()
