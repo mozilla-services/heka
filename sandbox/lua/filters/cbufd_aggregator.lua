@@ -65,15 +65,17 @@ end
 
 local alert_message = ""
 
+-- at the moment this is only useful for non-sparse data
 local function detect_anomaly(ns, k, v, cols)
-    if alert_rows * 3 > v.header.rows then
+    if alert_rows * 3 >= v.header.rows then
         error("alert_rows cannot be more than one third of the circular buffer")
     end
+    v.cbuf:add(ns, 1, 0) -- always advance the buffer/graph
+
     local interval = 1e9 * v.header.seconds_per_row
-    local last_update = v.cbuf:current_time()
     local sliding_window = interval * alert_rows
-    local previous_window = last_update - sliding_window * 2
-    local current_window = last_update - sliding_window
+    local previous_window = ns - sliding_window * 2
+    local current_window = ns - sliding_window
 
     for i, c in ipairs(cols) do
         -- Anomaly detection
@@ -81,32 +83,45 @@ local function detect_anomaly(ns, k, v, cols)
         -- that and compare the difference against the historical standard deviation.
         -- The current interval is not included since it is incomplete and can skew
         -- the stats.
-        local historical_sd, hsamples = v.cbuf:compute("sd" , c.col, nil            , previous_window - interval)
-        local previous_avg, psamples  = v.cbuf:compute("avg", c.col, previous_window, current_window - interval)
-        local current_avg, csamples   = v.cbuf:compute("avg", c.col, current_window , last_update - interval)
+        local historical_sd, hsamples = v.cbuf:compute("sd" , c.col, nil, previous_window - interval)
+        if hsamples >= alert_rows then
+            local previous_avg, psamples  = v.cbuf:compute("avg", c.col, previous_window, current_window - interval)
+            local current_avg, csamples   = v.cbuf:compute("avg", c.col, current_window , ns - interval)
 
-        -- if any sample window doesn't have data an anomaly will not be detected
-        -- todo we probably want to consider new data or the loss of data an anomaly
+            -- if any sample window doesn't have data an anomaly will not be detected
+            -- todo we need to add support for sparse data i.e. failure counts
 
-        local delta = math.abs(current_avg - previous_avg)
-        if delta > historical_sd * c.deviation -- anomaly detected
-        and ns - v.last_alert > sliding_window -- hasn't already alerted in the sliding window
-        and ns - last_update < sliding_window then -- is timely (don't alert when failing on old data)
-            for m, n in ipairs(v.annotations) do -- clean out old alerts
-                if n.x < (last_update - interval * v.header.rows)/1e6 then
-                    v.annotations:remove(m)
-                else
-                    break
+            -- special case the loss of data anomaly for now
+            local loss_of_data = (psamples > 0 and csamples == 0)
+
+            local delta = math.abs(current_avg - previous_avg)
+            if delta > historical_sd * c.deviation -- anomaly detected
+            and ns - v.last_alert > sliding_window -- hasn't already alerted in the sliding window
+            or loss_of_data then
+                for m, n in ipairs(v.annotations) do -- clean out old alerts
+                    if n.x < (ns - interval * v.header.rows)/1e6 then
+                        v.annotations:remove(m)
+                    else
+                        break
+                    end
                 end
-            end
 
-            v.last_alert = ns - ns % interval
-            local msg = string.format("Column %d has fluxuated more than %G standard deviations", c.col, c.deviation)
-            table.insert(v.annotations, {x = math.floor(v.last_alert/1e6),
-                                    col        = c.col,
-                                    shortText  = "A",
-                                    text       = msg})
-            alert_message = alert_message .. string.format("%s\n", msg) -- consolidate all alerts into a single message
+                v.last_alert = ns - ns % interval
+                local msg
+                if loss_of_data then
+                    msg = string.format("Column %d hasn't received any new data", c.col)
+                else
+                    msg = string.format("Column %d has fluctuated more than %G standard deviations", c.col, c.deviation)
+                end
+
+                table.insert(v.annotations, {x = math.floor(v.last_alert/1e6),
+                    col        = c.col,
+                    shortText  = "A",
+                    text       = msg})
+
+                -- consolidate all alerts into a single message
+                alert_message = alert_message .. string.format("%s - %s\n", k, msg)
+            end
         end
     end
 

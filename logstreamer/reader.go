@@ -337,6 +337,46 @@ type Logger interface {
 	LogMessage(msg string)
 }
 
+// Flushes the save buffer to the position tracking to control how far
+// into a file the Logstream tracks itself at regardless of read buffers
+// that may have read farther than we wish to actually save.
+func (l *Logstream) FlushBuffer(n int) {
+	if n == 0 {
+		n = len(l.saveBuffer)
+	}
+
+	l.position.SeekPosition += int64(n)
+	l.position.lastLine.Write(l.saveBuffer[:n])
+
+	// Copy the remainder over the portion that was saved
+	copy(l.saveBuffer, l.saveBuffer[n:len(l.saveBuffer)])
+	l.saveBuffer = l.saveBuffer[:len(l.saveBuffer)-n]
+}
+
+// Save the location to the buffer
+func (l *Logstream) BufferSave(p []byte) {
+	n := len(p)
+
+	// Enlarge our save buffer to match what we were handed, and copy
+	// our current buffer over
+	sbLen := len(l.saveBuffer)
+	if cap(l.saveBuffer) < cap(p) {
+		newBuf := make([]byte, sbLen, cap(p))
+		copy(newBuf, l.saveBuffer)
+		l.saveBuffer = newBuf
+	}
+
+	// Flush the current buffer if the new data won't fit
+	if sbLen+n > cap(l.saveBuffer) {
+		l.FlushBuffer(sbLen)
+		sbLen = 0
+	}
+
+	// Copy the new data into our saveBuffer
+	l.saveBuffer = l.saveBuffer[:sbLen+n]
+	copy(l.saveBuffer[sbLen:], p)
+}
+
 func (l *Logstream) Read(p []byte) (n int, err error) {
 	// If we have a fd, read it
 	if l.fd != nil {
@@ -390,11 +430,13 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	// We're ready to read, commit the read and update our position
 	n, err = l.fd.Read(p)
 
-	// If we read any bytes, write them into the ring buffer and update
-	// our position
+	// If we read any bytes, write them to our saveBuffer.
+	// If our saveBuffer is smaller than the buffer we were just passed,
+	// then enlarge the saveBuffer first.
+	// If the current bytes in the saveBuffer plus the new bytes are
+	// larger than the saveBuffer, flush the existing saveBuffer first.
 	if n > 0 {
-		l.position.SeekPosition += int64(n)
-		l.position.lastLine.Write(p[:n])
+		l.BufferSave(p[:n])
 	}
 
 	// Return now if we didn't get an error
@@ -463,7 +505,8 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	}
 
 	// Ok, we have the handle for the right file, even if it might've
-	// been rotated by now
+	// been rotated by now. Commit a flush first.
+	l.FlushBuffer(0)
 	l.fd.Close()
 	l.position.Reset()
 	l.position.Filename = newerFilename
