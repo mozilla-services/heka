@@ -60,7 +60,7 @@ func main() {
 
 	var out *os.File
 	if "" == *flagOutput {
-		out = os.Stdin
+		out = os.Stdout
 	} else {
 		if out, err = os.OpenFile(*flagOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
 			fmt.Printf("%s\n", err)
