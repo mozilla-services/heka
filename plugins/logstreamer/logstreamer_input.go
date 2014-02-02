@@ -151,8 +151,9 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		if err != nil {
 			return
 		}
+	} else {
+		li.hostName = conf.Hostname
 	}
-	li.hostName = conf.Hostname
 
 	// Create all our initial logstream plugins for the logstreams found
 	for _, name := range plugins {
