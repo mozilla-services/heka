@@ -354,7 +354,9 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop
 			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 			err = nil // non-fatal, keep going
 		}
-		lsi.stream.FlushBuffer(n)
+		if n > 0 {
+			lsi.stream.FlushBuffer(n)
+		}
 		if len(record) > 0 {
 			payload := string(record)
 			pack = <-ir.InChan()
@@ -388,7 +390,9 @@ func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver,
 		default:
 		}
 		n, record, err = lsi.parser.Parse(lsi.stream)
-		lsi.stream.FlushBuffer(n)
+		if n > 0 {
+			lsi.stream.FlushBuffer(n)
+		}
 		if len(record) > 0 {
 			pack = <-ir.InChan()
 			headerLen := int(record[1]) + 3 // recsep+len+header+unitsep
