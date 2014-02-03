@@ -83,6 +83,9 @@ func main() {
 		flag.Arg(0), *flagOffset, *flagMatch, *flagFormat, *flagTail, *flagOutput)
 	for true {
 		n, record, err := parser.Parse(file)
+		if n > 0 && n != len(record) {
+			fmt.Printf("Corruption detected at offset: %d bytes: %d\n", offset, n-len(record))
+		}
 		if err != nil {
 			if err == io.EOF {
 				if !*flagTail || "count" == *flagFormat {
@@ -97,7 +100,7 @@ func main() {
 				processed += 1
 				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 				if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-					fmt.Printf("Error unmarshalling message at offset: %d\n", n)
+					fmt.Printf("Error unmarshalling message at offset: %d\n", offset)
 				}
 
 				if !match.Match(msg) {
