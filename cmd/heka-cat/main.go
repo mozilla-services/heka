@@ -36,7 +36,7 @@ func main() {
 	flagFormat := flag.String("format", "txt", "output format [txt|json|heka|count]")
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagTail := flag.Bool("tail", false, "don't exit on EOF")
-	flagOffset := flag.Int64("offset", 0, "starting offset for the input file")
+	flagOffset := flag.Int64("offset", 0, "starting offset for the input file in bytes")
 	flag.Parse()
 
 	if flag.NArg() != 1 {

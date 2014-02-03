@@ -76,7 +76,7 @@ Command Line Options
 --------------------
 - -format="txt": output format [txt|json|heka|count]
 - -match="TRUE": message_matcher filter expression
-- -offset=0: starting offset for the input file
+- -offset=0: starting offset for the input file in bytes
 - -output="": output filename, defaults to stdout
 - -tail=false: don't exit on EOF
 - `input filename`
