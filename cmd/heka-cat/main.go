@@ -100,7 +100,8 @@ func main() {
 				processed += 1
 				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 				if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-					fmt.Printf("Error unmarshalling message at offset: %d\n", offset)
+					fmt.Printf("Error unmarshalling message at offset: %d error: %s\n", offset, err)
+					continue
 				}
 
 				if !match.Match(msg) {
