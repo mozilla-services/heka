@@ -65,6 +65,9 @@ Bug Handling
 Features
 --------
 
+* heka-cat: A command-line utility for counting, viewing, filtering, and 
+  extracting Heka protobuf logs.
+
 * TcpOutput has been redesigned to handle unavailable endpoints and dropped 
   connections without data loss (issue #355)
 
