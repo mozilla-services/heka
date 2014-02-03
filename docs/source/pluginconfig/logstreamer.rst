@@ -25,7 +25,7 @@ example.com-2014.01.26.log, etc.). The job of Heka's Logstreamer plugin
 is to understand the file naming and ordering conventions for a single
 type of log stream (e.g. "all of the nginx server's domain access
 logs"), and to use that to watch the specified directories and load the
-right files in the ri ght order. The plugin will also track its
+right files in the right order. The plugin will also track its
 location in the stream so it can resume from where it left off after a
 restart, even in cases where the file may have rotated during the
 downtime.
