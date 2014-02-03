@@ -518,7 +518,7 @@ Parameters:
     interfaces/hostnames.
 - oldest_duration (string):
     A time duration string (e.x. "2s", "2m", "2h"). Logfiles with a
-    last modified time older than ``older_duration`` ago will not be included
+    last modified time older than ``oldest_duration`` ago will not be included
     for parsing.
 - journal_directory (string):
     The directory to store the journal files in for tracking the location that
@@ -536,7 +536,7 @@ Parameters:
     usually fine. This interval is in milliseconds.
 - file_match (string):
     Regular expression used to match files located under the
-    ``journal_directory``. This regular expression has ``$`` added to the
+    ``log_directory``. This regular expression has ``$`` added to the
     end automatically if not already present, and ``log_directory`` as the
     prefix.
 - priority (list of strings):
