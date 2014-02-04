@@ -69,11 +69,14 @@ Features
   extracting Heka protobuf logs.
 
 * TcpOutput has been redesigned to handle unavailable endpoints and dropped 
-  connections without data loss (issue #355)
+  connections without data loss (issue #355).
+
+* CarbonOutput now supports submitting messages via UDP, persistent TCP
+  connection.
 
 * Added Logstreamer Input [LogstreamerInput]: An input that replaces the
   Logfile and Logfile Directory Inputs and supports sequential reading of
-  logstreams that span sets of ordered logfiles. (issue #372).
+  logstreams that span sets of ordered logfiles (issue #372).
 
 * TcpInput, TcpOutput, and flood client now all support TLS encrypted TCP
   connections using Go's crypto/tls package.
