@@ -28,7 +28,7 @@
 --  Hostname: trink-x230
 --  Pid: 0
 --  UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
---  Logger: nginx.access
+--  Logger: FxaNginxAccessInput
 --  Payload:
 --  EnvVersion:
 --  Severity: 0
@@ -50,7 +50,6 @@ local msg_type = read_config("type")
 
 local msg = {
 Timestamp = nil,
-Logger = "nginx.access",
 Type = msg_type,
 Fields = nil
 }
