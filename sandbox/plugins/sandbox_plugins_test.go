@@ -294,7 +294,7 @@ func DecoderSpec(c gs.Context) {
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ModuleDirectory = "/Users/victorng/dev/heka/build/heka/modules"
-		conf.ScriptFilename = "../lua/decoders/net_syslog_decoder.lua"
+		conf.ScriptFilename = "../lua/decoders/rfc5424_syslog.lua"
 		conf.ScriptType = "lua"
 
 		supply := make(chan *pipeline.PipelinePack, 1)
