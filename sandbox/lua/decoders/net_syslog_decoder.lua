@@ -64,15 +64,6 @@ function process_message()
         return nil
     end
 
-    if (captures['sd_params'] ~= nil) then
-        for key,value in pairs(captures['sd_params']) 
-        do 
-            new_key = 'sd_param'.."_"..key
-            captures[new_key] = value
-        end
-        captures['sd_params'] = nil
-    end
-
     local t = {}
     t['Timestamp'] = rfc3339.time_ns(rfc3339.grammar:match(captures['timestamp']))
     t['Type'] = 'rfc5424'
