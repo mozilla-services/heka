@@ -57,6 +57,11 @@ SYSLOG_MSG      = l.Ct(HEADER * SP * STRUCTURED_DATA * (SP *  MSG)^-1)
 
 function process_message()
     local payload = read_message("Payload")
+    local msg_type = read_config("msg_type") 
+    if msg_type == nil then
+        msg_type = "rfc5424"
+    end
+
     local captures = SYSLOG_MSG:match(payload)
 
     if captures == nil then
@@ -66,7 +71,7 @@ function process_message()
 
     local t = {}
     t['Timestamp'] = rfc3339.time_ns(rfc3339.grammar:match(captures['timestamp']))
-    t['Type'] = 'rfc5424'
+    t['Type'] = msg_type
     t['Payload'] = paylaod
     t['EnvVersion'] = '0.8'
     t['Pid'] = 0

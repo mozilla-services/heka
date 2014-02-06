@@ -1543,14 +1543,18 @@ simple integer.
 
 The timestamp is decoded from the syslog message.
 
+The type of the message defaults to "rfc5424", but you can override
+this with the 'msg_type' configuration parameter.
+
 Example:
 
 .. code-block:: ini
 
-    [syslog_sandbox]
+    [rfc5424_sandbox]
     type = "SandboxDecoder"
     script_type = "lua"
     filename = "lua/rfc5424_syslog.lua"
+    msg_type = "rfc5424_udp"
 
 
 syslog_decoder

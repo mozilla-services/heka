@@ -376,6 +376,19 @@ func DecoderSpec(c gs.Context) {
 
 		})
 
+		c.Specify("uses alternate msg_type", func() {
+			conf.Config = make(map[string]interface{})
+			conf.Config["msg_type"] = "alternate"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(rfc5424_with_structured_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetType(), gs.Equals, "alternate")
+		})
+
 		c.Specify("decodes structured_data", func() {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
