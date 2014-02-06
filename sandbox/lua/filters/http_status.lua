@@ -10,9 +10,6 @@
 --  type = "SandboxFilter"
 --  script_type = "lua"
 --  filename = "lua_filters/http_status.lua"
---  memory_limit = 256000
---  output_limit = 64000
---  instruction_limit = 1000
 --  ticker_interval = 60
 --  preserve_data = true
 --  message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"

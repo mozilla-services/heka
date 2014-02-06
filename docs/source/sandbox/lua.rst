@@ -251,9 +251,6 @@ How to create a simple sandbox filter
     script_type = "lua"
     filename = "counter.lua"
     preserve_data = true
-    memory_limit = 32767
-    instruction_limit = 100
-    output_limit = 256
 
 4. Extending the business logic (count the number of 'demo' events per minute
 per device)
@@ -289,11 +286,3 @@ per device)
         end
         inject_message()
     end
-
-5. Depending on the number of devices being counted you will most likely want to update the configuration to account for the additional resource requirements.
-
-.. code-block:: ini
-
-    memory_limit = 65536
-    instruction_limit = 20000
-    output_limit = 64512

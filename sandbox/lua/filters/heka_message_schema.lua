@@ -20,9 +20,6 @@
 --  type = "SandboxFilter"
 --  script_type = "lua"
 --  filename = "lua_filters/heka_message_schema.lua"
---  memory_limit = 8000000
---  output_limit = 64000
---  instruction_limit = 1000000
 --  ticker_interval = 60
 --  preserve_data = false
 --  message_matcher = "Logger == 'fxa-auth-server'"

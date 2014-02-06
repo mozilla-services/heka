@@ -17,9 +17,6 @@
 --  script_type = "lua"
 --  filename = "lua_filters/cbufd_host_aggregator.lua"
 --  preserve_data = true
---  memory_limit = 8000000
---  instruction_limit = 100000
---  output_limit = 64000
 --
 --  [TelemetryServerMetricsHostAggregator.config]
 --  max_hosts = 5   # (uint)

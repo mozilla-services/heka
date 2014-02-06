@@ -190,9 +190,6 @@ this case, "PlatformDevs-Example".
     script_type = "lua"
     filename = ""
     preserve_data = false
-    memory_limit = 64000
-    instruction_limit = 100
-    output_limit = 64000
 
 3. Load the filter using sbmgr.
 
