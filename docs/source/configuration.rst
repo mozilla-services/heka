@@ -1485,8 +1485,79 @@ and complex transformations without the need to recompile Heka.
 
 :ref:`sandboxdecoder_settings`
 
+rfc5424_syslog
+--------------
+
+A RFC5424 syslog decoder is provided in the form of a SandboxDecoder written
+in Lua.  The code includes an LPeg grammar ported from the ABNF in
+RFC5424.  A compliant syslog client should be able to send messages to
+Heka over UDP and have those messages decoded using this decoder.
+
+The decoder will attempt to parse out the following fields from syslog:
+
+- pri (string)
+    syslog priority value.  This represents both the facility and
+    severity.  The priority value consists of one, two or three
+    decimal integers.
+
+- hostname (string)
+    The HOSTNAME field identifies the machine that originally sent
+    the syslog message.
+
+- app_name (string)
+    The APP-NAME field SHOULD identify the device or application that
+    originated the message.  It is a string without further
+    semantics.  It is intended for filtering messages on a relay
+    or collector.
+
+- procid
+    PROCID is a value that is included in the message, having no
+    interoperable meaning, except that a change in the value
+    indicates there has been a discontinuity in syslog reporting.
+    The field does not have any specific syntax or semantics; the
+    value is implementation-dependent and/or operator-assigned.  The
+    NILVALUE MAY be used when no value is provided.
+
+- msgid
+    The MSGID SHOULD identify the type of message.  For example, a
+    firewall might use the MSGID "TCPIN" for incoming TCP traffic and
+    the MSGID "TCPOUT" for outgoing TCP traffic.  Messages with the
+    same MSGID should reflect events of the same semantics.  The
+    MSGID itself is a string without further semantics.  It is
+    intended for filtering messages on a relay or collector.
+
+- structured_data 
+  STRUCTURED-DATA provides a mechanism to express information in a
+  well defined, easily parseable and interpretable data format.  There
+  are multiple usage scenarios.  For example, it may express meta-
+  information about the syslog message or application-specific
+  information such as traffic counters or IP addresses.
+
+- msg
+    The MSG part contains a free-form message that provides
+    information about the event.
+
+The pid will always be set to 0 in the heka message.  The procid
+cannot be used as it has no interoperable meaning so it may not be a
+simple integer.
+
+The timestamp is decoded from the syslog message.
+
+Example:
+
+.. code-block:: ini
+
+    [syslog_sandbox]
+    type = "SandboxDecoder"
+    script_type = "lua"
+    filename = "lua/rfc5424_syslog.lua"
+
+
 syslog_decoder
 --------------
+
+This decoder has been deprecated in favor of the rfc5424_syslog
+decoder.
 
 A syslog decoder is provided in the form of a SandboxDecoder written
 in Lua.  The code includes an LPeg grammar that should be sufficient
