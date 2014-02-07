@@ -122,7 +122,6 @@ func NewTokenParser() (t *TokenParser) {
 func (t *TokenParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
 	if t.needData {
 		if bytesRead, err = t.read(reader); err != nil {
-			fmt.Printf("Read %d bytes\n", bytesRead)
 			return
 		}
 	}
