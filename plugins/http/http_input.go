@@ -103,7 +103,7 @@ func (hi *HttpInput) Init(config interface{}) error {
 	hi.errChan = make(chan *MonitorResponse)
 	hi.stopChan = make(chan bool)
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(hi.conf.Method, hi.urls, hi.conf.Headers, hi.conf.Body, hi.conf.User, hi.conf.Password, hi.respChan, hi.errChan, hi.stopChan)
+	hi.Monitor.Init(hi.urls, hi.conf, hi.respChan, hi.errChan, hi.stopChan)
 
 	return nil
 }
@@ -216,13 +216,13 @@ type HttpInputMonitor struct {
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(method string, urls []string, headers map[string]string, body string, user, password string, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, config *HttpInputConfig, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
 	hm.urls = urls
-	hm.method = method
-	hm.headers = headers
-	hm.body = body
-	hm.user = user
-	hm.password = password
+	hm.method = config.Method
+	hm.headers = config.Headers
+	hm.body = config.Body
+	hm.user = config.User
+	hm.password = config.Password
 	hm.respChan = respChan
 	hm.errChan = errChan
 	hm.stopChan = stopChan
