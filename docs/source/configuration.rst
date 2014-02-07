@@ -175,9 +175,6 @@ Example hekad.toml file
     script_type = "lua"
     preserve_data = true
     filename = "lua/sandbox.lua"
-    memory_limit = 32767
-    instruction_limit = 1000
-    output_limit = 1024
 
 .. end-hekad-toml
 

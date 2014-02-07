@@ -45,12 +45,7 @@ type SandboxDecoder struct {
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
-	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      8 * 1024 * 1024,
-		InstructionLimit: 1e6,
-		OutputLimit:      63 * 1024,
-	}
+	return NewSandboxConfig()
 }
 
 func (s *SandboxDecoder) Init(config interface{}) (err error) {

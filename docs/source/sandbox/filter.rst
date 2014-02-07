@@ -23,13 +23,13 @@ SandboxFilter Settings
     True if the sandbox global data should be preserved/restored on Heka shutdown/startup. The preserved data is stored along side the sandbox code i.e. counter.lua.data so Heka must have read/write permissions to that directory.
 
 - memory_limit (uint): 
-    The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB, default 32767).
+    The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB, default max).
 
 - instruction_limit (uint): 
-    The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M, default 1000).
+    The number of instructions the sandbox is allowed the execute during the process_message/timer_event functions before being terminated (max 1M, default max).
 
 - output_limit (uint): 
-    The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default 1024).  Anything less than 1KiB will default to 1KiB.
+    The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default max).  Anything less than 64B is set to 64B.
 
 - profile (bool): 
     When true a statistically significant number of ProcessMessage timings are immediately captured before reverting back to the regular sampling interval.  The main purpose is for more accurate sandbox comparison/tuning/optimization.
@@ -51,9 +51,6 @@ Example
     script_type  = "lua"
     filename = "counter.lua"
     preserve_data = true
-    memory_limit = 32767
-    instruction_limit = 1000
-    output_limit = 1024
     profile = false
 
     [hekabench_counter.config]

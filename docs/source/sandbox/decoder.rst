@@ -24,7 +24,7 @@ SandboxDecoder Settings
     The number of instructions the sandbox is allowed the execute during the process_message function before being terminated (max 1M, default max).
 
 - output_limit (uint): 
-    The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default max).  Anything less than 1KiB will default to 1KiB.
+    The number of bytes the sandbox output buffer can hold before before being terminated (max 63KiB, default max).  Anything less than 64B is set to 64B.
 
 - module_directory (string): 
     The directory where 'require' will attempt to load the external Lua modules from.  Defaults to ${BASE_DIR}/lua_modules.

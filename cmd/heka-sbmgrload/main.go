@@ -95,9 +95,6 @@ ticker_interval = 1
 script_type = "lua"
 filename = ""
 preserve_data = true
-memory_limit = 32767
-instruction_limit = 1000
-output_limit = 1024
 `
 
 	var config SbmgrConfig

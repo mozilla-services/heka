@@ -59,3 +59,12 @@ type SandboxConfig struct {
 	Profile          bool
 	Config           map[string]interface{}
 }
+
+func NewSandboxConfig() interface{} {
+	return &SandboxConfig{
+		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
+		MemoryLimit:      8 * 1024 * 1024,
+		InstructionLimit: 1e6,
+		OutputLimit:      63 * 1024,
+	}
+}

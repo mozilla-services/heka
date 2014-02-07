@@ -61,12 +61,7 @@ type SandboxFilter struct {
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      32767,
-		InstructionLimit: 1000,
-		OutputLimit:      1024,
-	}
+	return NewSandboxConfig()
 }
 
 func (this *SandboxFilter) SetName(name string) {

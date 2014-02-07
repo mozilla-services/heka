@@ -17,9 +17,6 @@
 --  script_type = "lua"
 --  filename = "lua_filters/cbufd_aggregator.lua"
 --  preserve_data = true
---  memory_limit = 8000000
---  instruction_limit = 100000
---  output_limit = 64000
 --
 --  [TelemetryServerMetricsAggregator.config]
 --  enable_delta = false # (bool - optional default:false)
