@@ -293,7 +293,7 @@ func DecoderSpec(c gs.Context) {
 	c.Specify("A syslog SandboxDecoder", func() {
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ModuleDirectory = "/Users/victorng/dev/heka/build/heka/modules"
+		conf.ModuleDirectory = "../../../../../../modules/"
 		conf.ScriptFilename = "../lua/decoders/rfc5424_syslog.lua"
 		conf.ScriptType = "lua"
 
