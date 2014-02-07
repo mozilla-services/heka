@@ -100,7 +100,7 @@ local function detect_anomaly(ns, k, v, cols)
             or loss_of_data then
                 for m, n in ipairs(v.annotations) do -- clean out old alerts
                     if n.x < (ns - interval * v.header.rows)/1e6 then
-                        v.annotations:remove(m)
+                        table.remove(v.annotations, m)
                     else
                         break
                     end
