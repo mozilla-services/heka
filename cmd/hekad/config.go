@@ -38,6 +38,7 @@ type HekadConfig struct {
 	MaxMsgProcessDuration uint64        `toml:"max_process_duration"`
 	MaxMsgTimerInject     uint          `toml:"max_timer_inject"`
 	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
+	ScheduledJobDir       string        `toml:"scheduled_jobs"`
 	BaseDir               string        `toml:"base_dir"`
 }
 
@@ -55,6 +56,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxMsgProcessDuration: 100000,
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
+		ScheduledJobDir:       filepath.FromSlash("/var/cache/hekad/tcollector"),
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
 	}
 

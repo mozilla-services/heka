@@ -15,13 +15,37 @@
 package main
 
 import (
-	"testing"
+	"github.com/mozilla-services/heka/pipeline"
+	gs "github.com/rafrombrc/gospec/src/gospec"
+	"os"
+	"path/filepath"
 )
 
-func TestDecode(t *testing.T) {
-	_, err := LoadHekadConfig("../../testsupport/sample-config.toml")
-	if err != nil {
-		t.Fatal(err)
-	}
+func ConfigSpec(c gs.Context) {
+	c.Specify("Loading a TOML configuration with scheduled jobs", func() {
+		clobber_base_dir, err := os.Getwd()
+		c.Expect(err, gs.IsNil)
 
+		configPath := "./testsupport/example.toml"
+		config, err := LoadHekadConfig(configPath)
+		c.Expect(err, gs.IsNil)
+
+		// Clobber the base directory so that we scope tcollector into
+		// the testsupport directory located under
+		// src/heka/cmd/hekad
+		config.BaseDir = clobber_base_dir
+		c.Expect(config.ScheduledJobDir, gs.Equals, "testsupport/tcollector")
+
+		globals, _, _ := setGlobalConfigs(config)
+		pipeconf := pipeline.NewPipelineConfig(globals)
+
+		err = pipeconf.LoadFromConfigFile(configPath)
+		c.Expect(err, gs.IsNil)
+		mysql1 := filepath.Join(clobber_base_dir, "testsupport/tcollector/60/mysql1.py")
+		mysql2 := filepath.Join(clobber_base_dir, "testsupport/tcollector/10/mysql2.py")
+
+		c.Expect(pipeconf.ScheduledJobs[mysql1], gs.Equals, uint(60))
+		c.Expect(pipeconf.ScheduledJobs[mysql2], gs.Equals, uint(10))
+
+	})
 }
