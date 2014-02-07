@@ -17,6 +17,9 @@ SandboxDecoder Settings
 - filename (string): 
     The path to the sandbox code; if specified as a relative path it will be appended to Heka's global base_dir.
 
+- preserve_data (bool):
+    True if the sandbox global data should be preserved/restored on Heka shutdown/startup. The preserved data is stored along side the sandbox code i.e. sql_decoder.lua.data so Heka must have read/write permissions to that directory.
+
 - memory_limit (uint): 
     The number of bytes the sandbox is allowed to consume before being terminated (max 8MiB, default max).
 
