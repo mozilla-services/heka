@@ -289,4 +289,141 @@ func DecoderSpec(c gs.Context) {
 			decoder.Shutdown()
 		})
 	})
+
+	c.Specify("A syslog SandboxDecoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ModuleDirectory = "../../../../../../modules/"
+		conf.ScriptFilename = "../lua/decoders/rfc5424_syslog.lua"
+		conf.ScriptType = "lua"
+
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		rfc5424_with_structured_data := "<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 [exampleSDID@32473 iut=\"3\" eventSource= \"Application\" eventID=\"1011\"] An application event log entry..."
+
+		rfc5424_no_structured_data := "<34>1 2003-10-11T22:14:15.003Z mymachine.example.com su - ID47 - BOM'su root' failed for lonvick on /dev/pts/8"
+		rfc5424_structured_data_only := "<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - ID47 [exampleSDID@32473 iut=\"3\" eventSource= \"Application\" eventID=\"1011\"][examplePriority@32473 class=\"high\"]"
+
+		c.Specify("decodes without structured_data only", func() {
+			// As per section 6.5 of RFC5424:
+			// This example shows a message with only STRUCTURED-DATA
+			// and no MSG part.  This is a valid message.
+
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(rfc5424_structured_data_only)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			value, ok := pack.Message.GetFieldValue("pri")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "165")
+
+			value, ok = pack.Message.GetFieldValue("hostname")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "mymachine.example.com")
+
+			value, ok = pack.Message.GetFieldValue("app_name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "evntslog")
+
+			value, ok = pack.Message.GetFieldValue("procid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "-")
+
+			value, ok = pack.Message.GetFieldValue("msgid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "ID47")
+
+			value, ok = pack.Message.GetFieldValue("structured_data")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "[exampleSDID@32473 iut=\"3\" eventSource= \"Application\" eventID=\"1011\"][examplePriority@32473 class=\"high\"]")
+
+		})
+
+		c.Specify("decodes without structured_data", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(rfc5424_no_structured_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			value, ok := pack.Message.GetFieldValue("pri")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "34")
+			value, ok = pack.Message.GetFieldValue("hostname")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "mymachine.example.com")
+
+			value, ok = pack.Message.GetFieldValue("app_name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "su")
+
+			value, ok = pack.Message.GetFieldValue("procid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "-")
+
+			value, ok = pack.Message.GetFieldValue("msgid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "ID47")
+
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "BOM'su root' failed for lonvick on /dev/pts/8")
+
+		})
+
+		c.Specify("uses alternate msg_type", func() {
+			conf.Config = make(map[string]interface{})
+			conf.Config["msg_type"] = "alternate"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(rfc5424_with_structured_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetType(), gs.Equals, "alternate")
+		})
+
+		c.Specify("decodes structured_data", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(rfc5424_with_structured_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			value, ok := pack.Message.GetFieldValue("pri")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "165")
+			value, ok = pack.Message.GetFieldValue("hostname")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "mymachine.example.com")
+
+			value, ok = pack.Message.GetFieldValue("app_name")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "evntslog")
+
+			value, ok = pack.Message.GetFieldValue("procid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "-")
+
+			value, ok = pack.Message.GetFieldValue("msgid")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "ID47")
+
+			value, ok = pack.Message.GetFieldValue("structured_data")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "[exampleSDID@32473 iut=\"3\" eventSource= \"Application\" eventID=\"1011\"]")
+
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "An application event log entry...")
+		})
+
+	})
 }
