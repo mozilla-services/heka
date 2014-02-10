@@ -42,6 +42,7 @@ type SandboxDecoder struct {
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
 	dRunner                pipeline.DecoderRunner
+	tz                     *time.Location
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
@@ -55,6 +56,14 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
+
+	s.tz = time.UTC
+	if tz, ok := s.sbc.Config["tz"]; ok {
+		s.tz, err = time.LoadLocation(tz.(string))
+		if err != nil {
+			return
+		}
+	}
 
 	switch s.sbc.ScriptType {
 	case "lua":
@@ -131,6 +140,13 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			}
 			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
 				return 1
+			}
+			if s.tz != time.UTC {
+				t := time.Unix(0, s.pack.Message.GetTimestamp())
+				t = t.In(time.UTC)
+				layout := "2006-01-02T15:04:05.999999999" // remove the incorrect UTC tz info
+				ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
+				s.pack.Message.SetTimestamp(ct.UnixNano())
 			}
 		} else {
 			s.pack.Message.SetPayload(payload)
