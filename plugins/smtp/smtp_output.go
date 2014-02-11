@@ -9,13 +9,14 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Christian Vozar (christian@bellycard.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package smtp
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
@@ -37,9 +38,11 @@ type SmtpOutputConfig struct {
 	SendFrom string `toml:"send_from"`
 	// email addresses to send the output to
 	SendTo []string `toml:"send_to"`
+	// User defined email subject line
+	Subject string
 	// SMTP Host
 	Host string
-	// SMTP Auth
+	// SMTP Authentication type
 	Auth string
 	// SMTP user
 	User string
@@ -89,18 +92,36 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		pack     *PipelinePack
 		msg      *message.Message
 		contents []byte
+		subject  string
+		message  string
 	)
-	subject := or.Name()
+
+	if s.conf.Subject == "" {
+		subject = "Heka [" + or.Name() + "]"
+	} else {
+		subject = s.conf.Subject
+	}
+
+	header := make(map[string]string)
+	header["From"] = s.conf.SendFrom
+	header["Subject"] = subject
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
 
 	for pack = range inChan {
 		msg = pack.Message
 		if s.conf.PayloadOnly {
-			message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, msg.GetPayload()))
-			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+			message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(msg.GetPayload()))
+			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
 		} else {
 			if contents, err = json.Marshal(msg); err == nil {
-				message := bytes.NewBufferString(fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, contents))
-				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, message.Bytes())
+				message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
+				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
 			} else {
 				or.LogError(err)
 			}

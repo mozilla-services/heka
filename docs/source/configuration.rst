@@ -2014,6 +2014,8 @@ Parameters:
     - email address of the sender (default: "heka@localhost.localdomain")
 - send_to (array of strings)
     - array of email addresses to send the message to
+- subject (string)
+    Custom subject line of email. (default: "Heka [SmtpOutput]")
 - host (string)
     SMTP host to send the email to (default: "127.0.0.1:25")
 - auth (string)
