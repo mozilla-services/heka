@@ -357,13 +357,13 @@ func DecoderSpec(c gs.Context) {
 		conf.MemoryLimit = 8e6
 		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
-		conf.Config["template"] = "%pri% %TIMESTAMP% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
+		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
 		conf.Config["tz"] = "America/Los_Angeles"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 
 		c.Specify("decodes simple messages", func() {
-			data := "28 Feb 10 12:58:58 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
+			data := "28 Feb 10 12:58:58 Feb 10 12:58:59 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := pm.NewMockDecoderRunner(ctrl)
@@ -392,6 +392,10 @@ func DecoderSpec(c gs.Context) {
 			value, ok = pack.Message.GetFieldValue("syslogfacility")
 			c.Expect(ok, gs.Equals, true)
 			c.Expect(value, gs.Equals, float64(3))
+
+			value, ok = pack.Message.GetFieldValue("timegenerated")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(1392065939000000000))
 
 			decoder.Shutdown()
 		})

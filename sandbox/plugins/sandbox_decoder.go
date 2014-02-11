@@ -120,6 +120,14 @@ func copyMessageHeaders(dst *message.Message, src *message.Message) {
 	}
 }
 
+func convert_tz(time_ns int64, tz *time.Location) int64 {
+	const layout = "2006-01-02T15:04:05.999999999" // remove the incorrect UTC tz info
+	t := time.Unix(0, time_ns)
+	t = t.In(time.UTC)
+	ct, _ := time.ParseInLocation(layout, t.Format(layout), tz)
+	return ct.UnixNano()
+}
+
 func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	s.dRunner = dr
 	var original *message.Message
@@ -142,11 +150,12 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 				return 1
 			}
 			if s.tz != time.UTC {
-				t := time.Unix(0, s.pack.Message.GetTimestamp())
-				t = t.In(time.UTC)
-				layout := "2006-01-02T15:04:05.999999999" // remove the incorrect UTC tz info
-				ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
-				s.pack.Message.SetTimestamp(ct.UnixNano())
+				s.pack.Message.SetTimestamp(convert_tz(s.pack.Message.GetTimestamp(), s.tz))
+				if f := s.pack.Message.FindFirstField("timegenerated"); f != nil {
+					if len(f.ValueDouble) > 0 {
+						f.ValueDouble[0] = float64(convert_tz(int64(f.ValueDouble[0]), s.tz))
+					}
+				}
 			}
 		} else {
 			s.pack.Message.SetPayload(payload)
