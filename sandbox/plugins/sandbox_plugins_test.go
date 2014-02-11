@@ -357,13 +357,13 @@ func DecoderSpec(c gs.Context) {
 		conf.MemoryLimit = 8e6
 		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
-		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
+		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED:::date-rfc3339% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
 		conf.Config["tz"] = "America/Los_Angeles"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 
 		c.Specify("decodes simple messages", func() {
-			data := "28 Feb 10 12:58:58 Feb 10 12:58:59 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
+			data := "28 Feb 10 12:58:58 2014-02-10T12:58:59-08:00 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := pm.NewMockDecoderRunner(ctrl)
