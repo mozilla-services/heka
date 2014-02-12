@@ -200,6 +200,15 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	return nil
 }
 
+func (pi *ProcessInput) SetCommand(command string, config interface{}) (result_config interface{}) {
+	conf := config.(*ProcessInputConfig)
+	cfg := cmd_config{}
+	cfg.Bin = command
+	conf.Command = make(map[string]cmd_config)
+	conf.Command["0"] = cfg
+	return conf
+}
+
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	var (
 		pack                *PipelinePack

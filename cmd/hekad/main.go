@@ -78,6 +78,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.MaxMsgProcessInject = maxMsgProcessInject
 	globals.MaxMsgProcessDuration = maxMsgProcessDuration
 	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.ScheduledJobDir = config.ScheduledJobDir
 	globals.BaseDir = config.BaseDir
 
 	return globals, cpuProfName, memProfName

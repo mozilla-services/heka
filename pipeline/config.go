@@ -24,6 +24,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -155,6 +157,9 @@ type PipelineConfig struct {
 	inputsWg sync.WaitGroup
 	// Internal reporting channel
 	reportRecycleChan chan *PipelinePack
+
+	// Scheduled Jobs
+	ScheduledJobs map[string]uint
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -183,6 +188,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.hostname, _ = os.Hostname()
 	config.pid = int32(os.Getpid())
 	config.reportRecycleChan = make(chan *PipelinePack, 1)
+	config.ScheduledJobs = make(map[string]uint)
 
 	return config
 }
@@ -482,6 +488,118 @@ func (self *PipelineConfig) log(msg string) {
 	log.Println(msg)
 }
 
+type CanSetCommand interface {
+	// Returns a default-value-populated configuration structure into which
+	// the plugin's TOML configuration will be deserialized.
+	SetCommand(command string, config interface{}) (result_config interface{})
+}
+
+func (self *PipelineConfig) CronWalkFunc(path string, info os.FileInfo, err error) error {
+	var ok bool
+	var pluginGlobals PluginGlobals
+
+	if info == nil {
+		// info will be nil in the case that the filepath doesn't
+		// actually exist
+		self.log(fmt.Sprintf("No such filepath: %s", path))
+		return nil
+	}
+
+	cron_dir := GetHekaConfigDir(string(Globals().ScheduledJobDir))
+
+	pluginGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
+
+	if info.IsDir() {
+		// Skip directories
+		return nil
+	}
+
+	// Make sure that the path doesn't get deeper than
+	// one level past cron_dir.
+	// It should match this pattern: /cron_dir/<time_interval>/
+	dir, _ := filepath.Split(path)
+	dir = strings.TrimSuffix(dir, string(os.PathSeparator))
+
+	actual_cron_dir, time_interval := filepath.Split(dir)
+	actual_cron_dir = strings.TrimSuffix(actual_cron_dir, string(os.PathSeparator))
+	if actual_cron_dir != cron_dir {
+		return fmt.Errorf("Invalid directory structure.  Expected [%s] got [%s]",
+			cron_dir, actual_cron_dir)
+	}
+
+	wrapper := new(PluginWrapper)
+	sectionName := path
+	wrapper.Name = sectionName
+
+	if wrapper.PluginCreator, ok = AvailablePlugins["ProcessInput"]; !ok {
+		self.log(fmt.Sprintf("No such plugin: %s", wrapper.Name))
+		// This shouldn't happen unless heka was build without
+		// ProcessInput support for some reason
+		return fmt.Errorf("Can't load ProcessInput plugin")
+	}
+
+	// Create plugin, test config object generation.
+	plugin := wrapper.PluginCreator()
+
+	hasConfig, _ := plugin.(HasConfigStruct)
+	config := hasConfig.ConfigStruct()
+
+	wrapper.ConfigCreator = func() interface{} {
+		return config
+	}
+
+	if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(sectionName)
+	}
+
+	// Apply configuration to instantiated plugin.
+	canSetCommand := plugin.(CanSetCommand)
+	config = canSetCommand.SetCommand(path, config)
+
+	if err = plugin.(Plugin).Init(config); err != nil {
+		self.log(fmt.Sprintf("Initialization failed for '%s': %s",
+			sectionName, err))
+	}
+
+	// Always set the ticker_interval value to be what is specified in
+	// the directory path.
+	var tick_interval int
+	tick_interval, err = strconv.Atoi(time_interval)
+	if err != nil {
+		return fmt.Errorf("Ticker interval could not be parsed for [%s]", path)
+	}
+	if tick_interval < 0 {
+		return fmt.Errorf("A negative ticker interval was parsed for [%s]", path)
+	}
+	pluginGlobals.Ticker = uint(tick_interval)
+
+	// Determine the plugin type
+	self.InputRunners[wrapper.Name] = NewInputRunner(wrapper.Name,
+		plugin.(Input), &pluginGlobals)
+	tickLength := time.Duration(pluginGlobals.Ticker) * time.Second
+	self.InputRunners[wrapper.Name].SetTickLength(tickLength)
+	self.inputWrappers[wrapper.Name] = wrapper
+
+	self.ScheduledJobs[wrapper.Name] = pluginGlobals.Ticker
+
+	return nil
+}
+
+func (self *PipelineConfig) loadCronJobs() (err error) {
+	// Load cronjobs
+
+	cron_dir := Globals().ScheduledJobDir
+	cron_dir = GetHekaConfigDir(cron_dir)
+	self.log(fmt.Sprintf("Loading scheduled jobs from : [%s]", cron_dir))
+	filepath.Walk(cron_dir, self.CronWalkFunc)
+
+	return nil
+}
+
 // loadSection must be passed a plugin name and the config for that plugin. It
 // will create a PluginWrapper (i.e. a factory). For decoders we store the
 // PluginWrappers and create pools of DecoderRunners for each type, stored in
@@ -657,6 +775,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		log.Printf("Loading: [%s]\n", name)
 		errcnt += self.loadSection(name, conf)
 	}
+
+	self.loadCronJobs()
 
 	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
 	var configDefault ConfigFile

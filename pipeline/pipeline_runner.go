@@ -45,6 +45,7 @@ type GlobalConfigStruct struct {
 	MaxMsgTimerInject     uint
 	MaxPackIdle           time.Duration
 	Stopping              bool
+	ScheduledJobDir       string
 	BaseDir               string
 	sigChan               chan os.Signal
 }
