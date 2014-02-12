@@ -126,6 +126,12 @@ Parameters:
     plugins. Defaults to 50, which is usually sufficient and of optimal
     performance.
 
+- scheduled_jobs (string):
+    A directory path that Heka will use to load ProcessInputs using a
+    tcollector-like directory structure.  Defaults to
+    `/var/cache/hekad/tcollector` (or `c:\var\cache\hekad\tcollector`
+    on windows). See :ref:`scheduled_job_config`).
+
 - base_dir (string):
     Base working directory Heka will use for persistent storage through
     process and server restarts. Defaults to `/var/cache/hekad` (or
@@ -973,6 +979,41 @@ Example:
     decoder = "MyCustomJsonDecoder"
 
 .. end-inputs
+
+.. start-scheduled-job-config
+
+.. _scheduled_job_config:
+
+Directory Based Configuration of ProcessInput
+---------------------------------------------
+
+Hekad allows you to configure multiple ProcessInputs using a
+`tcollector <http://opentsdb.net/tcollector.html>`_ like directory
+structure.  A single global configuration option `scheduled_jobs` is
+set in the `[hekad]` section of the TOML configuration. 
+
+`scheduled_jobs` accepts a path that points to a directory structure
+where the directory name immediately below `scheduled_jobs` specifies
+how often heka will try to run the collector in seconds.  If you name
+the directory `15`, then heka will try to run the collector every 15
+seconds.  If `scheduled_jobs` is prefixed with a `/` the path is
+treated as an absolute path, otherwise it will be treated as a
+path relative path to the global `base_dir`.
+
+A directory name of `0` will run the collector once.
+
+Any directories that are not integers of 0 and higher will be ignored.
+
+Each ProcessInput spawned this way will have the logger field set to
+the full path of the collector script.  The parser_type will be set to
+`token`, the delimiter to `\n` and delimiter location to `end`.
+
+.. code-block:: ini
+
+    [hekad]
+    scheduled_jobs = "/var/cache/hekad/scheduled_jobs"
+
+.. end-scheduled-job-config
 
 .. start-decoders
 
