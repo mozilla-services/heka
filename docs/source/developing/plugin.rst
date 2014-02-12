@@ -235,9 +235,9 @@ contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
 There is an optional configuration interface called WantsName.  It provides a
-a plug-in access to its configured name before the runner has started. The 
+a plug-in access to its configured name before the runner has started. The
 Sandbox filter plug-in uses the name to locate/load any preserved state
-before being run.
+before being run::
 
     type WantsName interface {
         SetName(name string)
@@ -267,7 +267,7 @@ shutdown event is triggered by Heka calling the input's `Stop` method, at
 which time any clean-up should be done and a clean shutdown should be
 indicated by returning a `nil` error.
 
-Inside the `Run` method, an input has three primary responsibilities::
+Inside the `Run` method, an input has three primary responsibilities:
 
 1. Acquire information from the outside world
 2. Use acquired information to populate `PipelinePack` objects that can be
@@ -336,14 +336,14 @@ As with inputs, the `Decoder` interface is quite simple::
     }
 
 There are two optional Decoder interfaces.  The first provides the Decoder
-access to its DecoderRunner object when it is started.
+access to its DecoderRunner object when it is started::
 
     type WantsDecoderRunner interface {
         SetDecoderRunner(dr DecoderRunner)
     }
 
 The second provides a notification to the Decoder when the DecoderRunner is 
-exiting.
+exiting::
 
     type WantsDecoderRunnerShutdown interface {
         Shutdown()
@@ -476,7 +476,7 @@ ticker channel that can be accessed using the runner's `Ticker` method. And,
 finally, outputs should also be sure to call `PipelinePack.Recycle()` when 
 they finish w/ a pack so that Heka knows the pack is freed up for reuse.
 
-.. _register_custom_plugins
+.. _register_custom_plugins:
 
 Registering Your Plugin
 =======================
@@ -511,5 +511,5 @@ It is recommended that `RegisterPlugin` calls be put in your Go package's
 `init() function <http://golang.org/doc/effective_go.html#init>`_ so that you
 can simply import your package when building `hekad` and the package's plugins
 will be registered and available for use in your Heka config file. This is
-made a bit easier if you use `plugin_loader.cmake`_, see
+made a bit easier if you use `plugin_loader.cmake`, see
 :ref:`build_include_externals`.

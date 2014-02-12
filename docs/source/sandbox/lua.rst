@@ -85,6 +85,7 @@ Heka specific functions that are exposed to the Lua sandbox
         number, string, bool, nil depending on the type of variable requested
 
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
+    .. versionadded:: 0.5
     Decoders only. Mutates specified field value on the message that is being
     deocded.
 
