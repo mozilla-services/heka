@@ -15,7 +15,7 @@ Parameters:
 
 - filename (string):
     The path to the sandbox code; if specified as a relative path it will be
-    appended to Heka's global base_dir.
+    appended to Heka's global share_dir.
 
 - memory_limit (uint):
     The number of bytes the sandbox is allowed to consume before being
@@ -32,7 +32,7 @@ Parameters:
 
 - module_directory (string):
     The directory where 'require' will attempt to load the external Lua
-    modules from.  Defaults to ${BASE_DIR}/lua_modules.
+    modules from.  Defaults to ${SHARE_DIR}/lua_modules.
 
 - config (object):
     A map of configuration variables available to the sandbox via read_config.
