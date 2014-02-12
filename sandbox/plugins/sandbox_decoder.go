@@ -23,6 +23,8 @@ import (
 	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +34,7 @@ import (
 type SandboxDecoder struct {
 	sb                     Sandbox
 	sbc                    *SandboxConfig
+	preservationFile       string
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageSamples  int64
@@ -54,6 +57,8 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 		return // no-op already initialized
 	}
 	s.sbc = config.(*SandboxConfig)
+	data_dir := pipeline.GetHekaConfigDir("sandbox_preservation")
+	s.preservationFile = filepath.Join(data_dir, s.sbc.ScriptFilename+".data")
 	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
 
@@ -74,7 +79,19 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	default:
 		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
-	err = s.sb.Init("", "decoder")
+
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
+	}
+
+	if s.sbc.PreserveData && fileExists(s.preservationFile) {
+		err = s.sb.Init(s.preservationFile, "decoder")
+	} else {
+		err = s.sb.Init("", "decoder")
+	}
 	return
 }
 
@@ -188,7 +205,11 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 
 func (s *SandboxDecoder) Shutdown() {
 	if s.sb != nil {
-		s.sb.Destroy("")
+		if s.sbc.PreserveData {
+			s.sb.Destroy(s.preservationFile)
+		} else {
+			s.sb.Destroy("")
+		}
 		s.sb = nil
 	}
 }
