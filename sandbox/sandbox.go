@@ -62,7 +62,7 @@ type SandboxConfig struct {
 
 func NewSandboxConfig() interface{} {
 	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
+		ModuleDirectory:  pipeline.PrependShareDir("lua_modules"),
 		MemoryLimit:      8 * 1024 * 1024,
 		InstructionLimit: 1e6,
 		OutputLimit:      63 * 1024,

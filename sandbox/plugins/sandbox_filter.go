@@ -79,7 +79,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return nil // no-op already initialized
 	}
 	this.sbc = config.(*SandboxConfig)
-	this.sbc.ScriptFilename = pipeline.GetHekaConfigDir(this.sbc.ScriptFilename)
+	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
 
 	switch this.sbc.ScriptType {
 	case "lua":
@@ -91,7 +91,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	data_dir := pipeline.GetHekaConfigDir("sandbox_preservation")
+	data_dir := pipeline.PrependBaseDir("sandbox_preservation")
 	if !fileExists(data_dir) {
 		err = os.MkdirAll(data_dir, 0700)
 		if err != nil {

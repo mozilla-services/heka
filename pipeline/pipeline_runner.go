@@ -46,6 +46,7 @@ type GlobalConfigStruct struct {
 	MaxPackIdle           time.Duration
 	Stopping              bool
 	BaseDir               string
+	ShareDir              string
 	sigChan               chan os.Signal
 }
 

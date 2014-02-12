@@ -193,7 +193,7 @@ func DecoderSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	// NewPipelineConfig sets up Globals which is needed for the
-	// pipeline.GetHekaConfigDir() to not die during plugin Init()
+	// pipeline.Prepend*Dir functions to not die during plugin Init().
 	_ = pipeline.NewPipelineConfig(nil)
 
 	c.Specify("A SandboxDecoder", func() {
