@@ -35,7 +35,7 @@
 -- name:"syslogtag" value_string:"kernel:"
 -- ]
 
-local rfc5424 = require "rfc5424"
+local syslog = require "syslog"
 
 local template = read_config("template")
 
@@ -46,7 +46,7 @@ Severity = nil,
 Fields = nil
 }
 
-local grammar = rfc5424.build_rsyslog_grammar(template)
+local grammar = syslog.build_rsyslog_grammar(template)
 
 function process_message ()
     local log = read_message("Payload")
