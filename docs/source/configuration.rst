@@ -996,17 +996,18 @@ set in the `[hekad]` section of the TOML configuration.
 where the directory name immediately below `scheduled_jobs` specifies
 how often heka will try to run the collector in seconds.  If you name
 the directory `15`, then heka will try to run the collector every 15
-seconds.  If `scheduled_jobs` is prefixed with a `/` the path is
-treated as an absolute path, otherwise it will be treated as a
+seconds.  If `scheduled_jobs` is prefixed with a slash (`/`) the path
+is treated as an absolute path, otherwise it will be treated as a
 path relative path to the global `base_dir`.
 
-A directory name of `0` will run the collector once.
+A directory name of 0 will run the collector once.
 
 Any directories that are not integers of 0 and higher will be ignored.
 
 Each ProcessInput spawned this way will have the logger field set to
-the full path of the collector script.  The parser_type will be set to
-`token`, the delimiter to `\n` and delimiter location to `end`.
+the full path of the collector script.  Only default options are used
+for the ProcessInput.  The parser_type will be set to `token`, the
+delimiter to `\\n` and delimiter location to `end`.
 
 .. code-block:: ini
 
