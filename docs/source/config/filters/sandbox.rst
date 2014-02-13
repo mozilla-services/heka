@@ -18,7 +18,7 @@ SandboxFilter Settings
 - filename (string):
     For a static configuration this is the path to the sandbox code; if
     specified as a relative path it will be appended to Heka's global
-    base_dir. The filename must be unique between static plugins, since the
+    share_dir. The filename must be unique between static plugins, since the
     global data is preserved using this name. For a dynamic configuration the
     filename is ignored and the the physical location on disk is controlled by
     the SandboxManagerFilter.
@@ -51,7 +51,7 @@ SandboxFilter Settings
 
 - module_directory (string):
     The directory where 'require' will attempt to load the external Lua
-    modules from.  Defaults to ${BASE_DIR}/lua_modules. For a dynamic
+    modules from.  Defaults to ${SHARE_DIR}/lua_modules. For a dynamic
     configuration the module_directory is ignored and the the physical
     location on disk is controlled by the SandboxManagerFilter.
 

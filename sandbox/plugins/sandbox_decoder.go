@@ -54,7 +54,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 		return // no-op already initialized
 	}
 	s.sbc = config.(*SandboxConfig)
-	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
+	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
 	s.sample = true
 
 	s.tz = time.UTC

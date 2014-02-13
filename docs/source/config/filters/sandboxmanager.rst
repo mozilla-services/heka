@@ -14,7 +14,7 @@ functionality.
 SandboxManagerFilter Settings
 -----------------------------
 
-- :ref:`config_common_parameters`
+- :ref:`config_common_filter_parameters`
 
 - working_directory (string):
     The directory where the filter configurations, code, and states are
@@ -24,7 +24,7 @@ SandboxManagerFilter Settings
 
 - module_directory (string):
     The directory where 'require' will attempt to load the external Lua
-    modules from.  Defaults to ${BASE_DIR}/lua_modules.
+    modules from.  Defaults to ${SHARE_DIR}/lua_modules.
 
 - max_filters (uint):
     The maximum number of filters this manager can run.
