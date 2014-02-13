@@ -2,25 +2,35 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- Graphs HTTP status codes collected from web server access logs.
---
--- Example Heka Configuration:
---
---  [FxaAuthServerHTTPStatus]
---  type = "SandboxFilter"
---  script_type = "lua"
---  filename = "lua_filters/http_status.lua"
---  ticker_interval = 60
---  preserve_data = true
---  message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"
---
---  [FxaAuthServerHTTPStatus.config]
---  sec_per_row = 60    # (uint - optional default: 60)
---      # Sets the size of each bucket (resolution in seconds) in the sliding
---      # window.
---  rows = 1440           # (uint - optional default: 1440)
---      # Sets the size of the sliding window i.e., 1440 rows representing 60
---      # seconds per row is a 24 sliding hour window with 1 minute resolution.
+--[[
+Graphs HTTP status codes using the numeric Fields[status] variable collected
+from web server access logs.
+
+Config
+~~~~~~
+- sec_per_row (uint, optional, default 60)
+    Sets the size of each bucket (resolution in seconds) in the sliding window.
+
+- rows (uint, optional, default 1440)
+    Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
+    per row is a 24 sliding hour window with 1 minute resolution.
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [FxaAuthServerHTTPStatus]
+    type = "SandboxFilter"
+    script_type = "lua"
+    filename = "lua_filters/http_status.lua"
+    ticker_interval = 60
+    preserve_data = true
+    message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"
+
+    [FxaAuthServerHTTPStatus.config]
+    sec_per_row = 60
+    rows = 1440
+--]]
 
 require "circular_buffer"
 require "string"

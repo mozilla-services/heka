@@ -2,30 +2,44 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- Calculates the most frequent items in a data stream.
---
--- Example Heka Configuration:
---
---  [FxaAuthServerFrequentIP]
---  type = "SandboxFilter"
---  script_type = "lua"
---  filename = "lua_filters/frequent_items.lua"
---  ticker_interval = 60
---  preserve_data = true
---  message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"
---
---  [FxaAuthServerFrequentIP.config]
---  message_variable = "Fields[remote_addr]" # (string)
---      # The message variable name containing the items to be counted.
---  max_items = 10000 # (uint - optional default: 1000)
---      # The maximum size of the sample set (higher will produce a more
---      # accurate list).
---  min_output_weight = 100 # (uint - optional default: 100)
---      # Used to reduce the long tail output by only outputting the higher
---      # frequency items.
---  reset_days = 1 # (uint - optional default: 1)
---      # Resets the list after the specified number of days (on the UTC day
---      # boundary).  A value of 0 will never reset the list.
+--[[
+Calculates the most frequent items in a data stream.
+
+Config
+~~~~~~
+- message_variable (string)
+    The message variable name containing the items to be counted.
+
+- max_items (uint, optional, default 1000)
+    The maximum size of the sample set (higher will produce a more accurate
+    list).
+
+- min_output_weight (uint, optional, default 100)
+    Used to reduce the long tail output by only outputting the higher frequency
+    items.
+
+- reset_days (uint, optional, default 1)
+    Resets the list after the specified number of days (on the UTC day
+    boundary).  A value of 0 will never reset the list.
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [FxaAuthServerFrequentIP]
+    type = "SandboxFilter"
+    script_type = "lua"
+    filename = "lua_filters/frequent_items.lua"
+    ticker_interval = 60
+    preserve_data = true
+    message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"
+
+    [FxaAuthServerFrequentIP.config]
+    message_variable = "Fields[remote_addr]"
+    max_items = 10000
+    min_output_weight = 100
+    reset_days = 1
+--]]
 
 require "math"
 require "os"

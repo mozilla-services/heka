@@ -2,32 +2,44 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- Collects the circular buffer delta output from multiple instances of an up
--- stream sandbox filter (the filters should all be the same version at least
--- with respect to their cbuf output). The purpose is to recreate the view at a
--- larger scope in each level of the aggregation  i.e., host view ->
--- datacenter view -> service level view.
---
--- Example Heka Configuration:
---
---  [TelemetryServerMetricsAggregator]
---  type = "SandboxFilter"
---  message_matcher = "Logger == 'TelemetryServerMetrics' && Fields[payload_type] == 'cbufd'"
---  ticker_interval = 60
---  script_type = "lua"
---  filename = "lua_filters/cbufd_aggregator.lua"
---  preserve_data = true
---
---  [TelemetryServerMetricsAggregator.config]
---  enable_delta = false # (bool - optional default:false)
---      # specifies whether or not this aggregator should generate cbuf deltas
---  alert_rows = 15 # (uint - optional default:15)
---      # specifies the size of the rolling average windows to compare. The
---      # window cannot be more than one third of the entire circular buffer.
---  alert_cols =  '[{"col":1, "deviation":2}]' # (json - optional)
---      # An array of JSON objects consisting of a 'col' number and a 'deviation'
---      # alert threshold.  If not specified no anomaly detection/alerting will
---      # be performed.
+--[[
+Collects the circular buffer delta output from multiple instances of an upstream
+sandbox filter (the filters should all be the same version at least with respect
+to their cbuf output). The purpose is to recreate the view at a larger scope in
+each level of the aggregation i.e., host view -> datacenter view -> service
+level view.
+
+Config
+~~~~~~
+- enable_delta (bool, optional, default false)
+    Specifies whether or not this aggregator should generate cbuf deltas.
+
+- alert_rows (uint, optional, default 15)
+    Specifies the size of the rolling average windows to compare. The
+    window cannot be more than one third of the entire circular buffer.
+
+- alert_cols (JSON string, optional)
+    An array of JSON objects consisting of a 'col' number and a 'deviation'
+    alert threshold.  If not specified no anomaly detection/alerting will
+    be performed.
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [TelemetryServerMetricsAggregator]
+    type = "SandboxFilter"
+    message_matcher = "Logger == 'TelemetryServerMetrics' && Fields[payload_type] == 'cbufd'"
+    ticker_interval = 60
+    script_type = "lua"
+    filename = "lua_filters/cbufd_aggregator.lua"
+    preserve_data = true
+
+    [TelemetryServerMetricsAggregator.config]
+    enable_delta = false
+    alert_rows = 15
+    alert_cols =  '[{"col":1, "deviation":2}]'
+--]]
 
 local cbufd = require "cbufd"
 require "circular_buffer"
@@ -97,7 +109,7 @@ local function detect_anomaly(ns, k, v, cols)
             or loss_of_data then
                 for m, n in ipairs(v.annotations) do -- clean out old alerts
                     if n.x < (ns - interval * v.header.rows)/1e6 then
-                        table.remove(v.annotations, m)
+                        v.annotations[m] = nil
                     else
                         break
                     end

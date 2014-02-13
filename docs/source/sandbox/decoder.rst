@@ -9,12 +9,12 @@ Available Sandbox Decoders
 
 Nginx Access Log Decoder
 ------------------------
-.. literalinclude:: ../../../sandbox/lua/decoders/nginx_access.lua
-   :language: lua 
-   :lines: 5-44
+.. include:: ../../../sandbox/lua/decoders/nginx_access.lua
+   :start-after: --[[
+   :end-before: --]]
 
 Rsyslog Decoder
 ---------------
-.. literalinclude:: ../../../sandbox/lua/decoders/rsyslog.lua
-   :language: lua 
-   :lines: 5-36
+.. include:: ../../../sandbox/lua/decoders/rsyslog.lua
+   :start-after: --[[
+   :end-before: --]]
