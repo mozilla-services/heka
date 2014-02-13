@@ -8,7 +8,8 @@ Parameters:
 
 - payload_only (bool, optional):
     If set to true, then only the message payload string will be output,
-    otherwise the entire `Message` struct will be output in JSON format.
+    otherwise the entire `Message` struct will be output in human readable
+    text format.
 
 Example:
 
