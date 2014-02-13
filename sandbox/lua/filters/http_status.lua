@@ -3,7 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Graphs HTTP status codes collected from web server access logs.
+Graphs HTTP status codes using the numeric Fields[status] variable collected
+from web server access logs.
 
 Config
 ~~~~~~
