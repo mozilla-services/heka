@@ -3,11 +3,11 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Collects the circular buffer delta output from multiple instances of an up
-stream sandbox filter (the filters should all be the same version at least
-with respect to their cbuf output). The purpose is to recreate the view at a
-larger scope in each level of the aggregation  i.e., host view ->
-datacenter view -> service level view.
+Collects the circular buffer delta output from multiple instances of an upstream
+sandbox filter (the filters should all be the same version at least with respect
+to their cbuf output). The purpose is to recreate the view at a larger scope in
+each level of the aggregation i.e., host view -> datacenter view -> service
+level view.
 
 Config
 ~~~~~~
