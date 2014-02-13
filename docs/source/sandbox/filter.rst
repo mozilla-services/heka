@@ -1,6 +1,6 @@
 .. _sandboxfilter:
 
-.. include:: ../config/decoders/sandbox.rst
+.. include:: ../config/filters/sandbox.rst
 
 .. _sandboxfilters:
 

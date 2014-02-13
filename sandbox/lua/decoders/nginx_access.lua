@@ -31,7 +31,7 @@
 --  Logger: FxaNginxAccessInput
 --  Payload:
 --  EnvVersion:
---  Severity: 0
+--  Severity: 7
 --  Fields: [
 --  name:"remote_user" value_string:"-"
 --  name:"http_x_forwarded_for" value_string:"-"

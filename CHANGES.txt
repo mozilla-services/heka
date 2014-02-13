@@ -78,6 +78,12 @@ Features
   `pipeline.PrependShareDir()` function for use within plugin initialization
   code.
 
+* Added an rsyslog decoder based on the rsyslog string configuration template
+  (issue #432).
+
+* Added an Nginx access log decoder based on the Nginx 'log_format'
+  configuration directive.
+
 * heka-cat: A command-line utility for counting, viewing, filtering, and 
   extracting Heka protobuf logs.
 
