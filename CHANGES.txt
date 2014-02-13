@@ -10,7 +10,7 @@ Backwards Incompatibilities
   source code to be relative to ${SHARE_DIR} instead of ${BASE_DIR}.
 
 * DashboardOutput `static_directory` setting now defaults to
-  `${SHARE_DIR}/dashboard` instead of `${BASE_DIR}/dashboard_static`.
+  `${SHARE_DIR}/dasher` instead of `${BASE_DIR}/dashboard_static`.
 
 * The sandbox preservation data is now stored in the
   {base_dir}/sandbox_preservation directory instead of with the plugin source.
