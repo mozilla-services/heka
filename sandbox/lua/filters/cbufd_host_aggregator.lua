@@ -3,8 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Collects the circular buffer delta output from multiple instances of an up
-stream sandbox filter (the filters should all be the same version at least
+Collects the circular buffer delta output from multiple instances of an
+upstream sandbox filter (the filters should all be the same version at least
 with respect to their cbuf output). Each column from the source circular
 buffer will become its own graph. i.e., 'Error Count' will become a graph
 with each host being represented in a column.
