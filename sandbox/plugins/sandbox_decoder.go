@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +46,7 @@ type SandboxDecoder struct {
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
 	dRunner                pipeline.DecoderRunner
+	name                   string
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
@@ -56,13 +58,18 @@ func (pd *SandboxDecoder) ConfigStruct() interface{} {
 	}
 }
 
+func (s *SandboxDecoder) SetName(name string) {
+	re := regexp.MustCompile("\\W")
+	s.name = re.ReplaceAllString(name, "_")
+}
+
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	if s.sb != nil {
 		return // no-op already initialized
 	}
 	s.sbc = config.(*SandboxConfig)
-	data_dir := pipeline.GetHekaConfigDir("sandbox_preservation")
-	s.preservationFile = filepath.Join(data_dir, s.sbc.ScriptFilename+".data")
+	data_dir := pipeline.GetHekaConfigDir(DATA_DIR)
+	s.preservationFile = filepath.Join(data_dir, s.name+DATA_EXT)
 	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
 	s.sample = true
 

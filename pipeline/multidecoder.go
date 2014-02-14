@@ -182,6 +182,10 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	}
 	wrapper.ConfigCreator = func() interface{} { return config }
 
+  if wantsName, ok := plugin.(WantsName); ok {
+		wantsName.SetName(wrapper.Name)
+	}
+
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(Plugin).Init(config); err != nil {
 		err = fmt.Errorf("Initialization failed for '%s': %s",

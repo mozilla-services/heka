@@ -96,7 +96,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	data_dir := pipeline.GetHekaConfigDir("sandbox_preservation")
+	data_dir := pipeline.GetHekaConfigDir(DATA_DIR)
 	if !fileExists(data_dir) {
 		err = os.MkdirAll(data_dir, 0700)
 		if err != nil {
@@ -104,7 +104,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		}
 	}
 
-	this.preservationFile = filepath.Join(data_dir, this.name+".data")
+	this.preservationFile = filepath.Join(data_dir, this.name+DATA_EXT)
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
 		err = this.sb.Init(this.preservationFile, "filter")
 	} else {

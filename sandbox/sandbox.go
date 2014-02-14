@@ -28,6 +28,9 @@ const (
 	TYPE_MEMORY       = 0
 	TYPE_INSTRUCTIONS = 1
 	TYPE_OUTPUT       = 2
+
+	DATA_DIR = "sandbox_preservation"
+	DATA_EXT = ".data"
 )
 
 type Sandbox interface {
