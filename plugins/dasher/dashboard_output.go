@@ -53,7 +53,7 @@ type DashboardOutputConfig struct {
 func (self *DashboardOutput) ConfigStruct() interface{} {
 	return &DashboardOutputConfig{
 		Address:          ":4352",
-		StaticDirectory:  "dashboard_static",
+		StaticDirectory:  "dasher",
 		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
@@ -71,8 +71,8 @@ type DashboardOutput struct {
 func (self *DashboardOutput) Init(config interface{}) (err error) {
 	conf := config.(*DashboardOutputConfig)
 
-	self.staticDirectory = GetHekaConfigDir(conf.StaticDirectory)
-	self.workingDirectory = GetHekaConfigDir(conf.WorkingDirectory)
+	self.staticDirectory = PrependShareDir(conf.StaticDirectory)
+	self.workingDirectory = PrependBaseDir(conf.WorkingDirectory)
 	self.relDataPath = "data"
 	self.dataDirectory = filepath.Join(self.workingDirectory, self.relDataPath)
 

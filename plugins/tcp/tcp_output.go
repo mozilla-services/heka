@@ -79,8 +79,8 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	t.conf = config.(*TcpOutputConfig)
 	t.parser = NewMessageProtoParser()
 	t.address = t.conf.Address
-	t.queue = GetHekaConfigDir(filepath.Join("output_queue", t.name))
-	t.checkpointFilename = GetHekaConfigDir(filepath.Join(t.queue, "checkpoint.txt"))
+	t.queue = PrependBaseDir(filepath.Join("output_queue", t.name))
+	t.checkpointFilename = filepath.Join(t.queue, "checkpoint.txt")
 	if !fileExists(t.queue) {
 		if err = os.MkdirAll(t.queue, 0766); err != nil {
 			return
@@ -211,7 +211,7 @@ func (t *TcpOutput) readFromNextFile() (err error) {
 			return fmt.Errorf("readCheckpoint %s", err)
 		}
 	} else {
-		t.readId = findBufferId(GetHekaConfigDir(t.queue), false)
+		t.readId = findBufferId(t.queue, false)
 	}
 	if t.readFile, err = os.Open(getQueueFilename(t.queue, t.readId)); err != nil {
 		return

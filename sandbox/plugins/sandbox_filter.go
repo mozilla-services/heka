@@ -61,12 +61,7 @@ type SandboxFilter struct {
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      32767,
-		InstructionLimit: 1000,
-		OutputLimit:      1024,
-	}
+	return NewSandboxConfig()
 }
 
 func (this *SandboxFilter) SetName(name string) {
@@ -84,7 +79,15 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return nil // no-op already initialized
 	}
 	this.sbc = config.(*SandboxConfig)
-	this.sbc.ScriptFilename = pipeline.GetHekaConfigDir(this.sbc.ScriptFilename)
+	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
+
+	data_dir := pipeline.PrependBaseDir(DATA_DIR)
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
+	}
 
 	switch this.sbc.ScriptType {
 	case "lua":
@@ -94,14 +97,6 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		}
 	default:
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
-	}
-
-	data_dir := pipeline.GetHekaConfigDir(DATA_DIR)
-	if !fileExists(data_dir) {
-		err = os.MkdirAll(data_dir, 0700)
-		if err != nil {
-			return
-		}
 	}
 
 	this.preservationFile = filepath.Join(data_dir, this.name+DATA_EXT)

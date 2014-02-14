@@ -19,7 +19,7 @@ Description
 Options
 =======
 
-.. include:: /configuration.rst
+.. include:: /index.rst
     :start-after: start-options
     :end-before: end-options
 
