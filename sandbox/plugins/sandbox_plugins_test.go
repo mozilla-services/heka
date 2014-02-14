@@ -193,7 +193,7 @@ func DecoderSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	// NewPipelineConfig sets up Globals which is needed for the
-	// pipeline.GetHekaConfigDir() to not die during plugin Init()
+	// pipeline.Prepend*Dir functions to not die during plugin Init().
 	_ = pipeline.NewPipelineConfig(nil)
 
 	c.Specify("A SandboxDecoder", func() {
@@ -286,6 +286,131 @@ func DecoderSpec(c gs.Context) {
 				c.Expect(packs[i].Message.GetSeverity(), gs.Equals, int32(6))
 
 			}
+			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("Nginx access log decoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/nginx_access.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.ScriptType = "lua"
+		conf.Config = make(map[string]interface{})
+		conf.Config["log_format"] = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			data := "127.0.0.1 - - [10/Feb/2014:08:46:41 -0800] \"GET / HTTP/1.1\" 304 0 \"-\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:26.0) Gecko/20100101 Firefox/26.0\""
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1392050801000000000))
+
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("remote_addr")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "127.0.0.1")
+
+			value, ok = pack.Message.GetFieldValue("body_bytes_sent")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(0))
+
+			value, ok = pack.Message.GetFieldValue("status")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(304))
+			decoder.Shutdown()
+		})
+
+		c.Specify("decodes an invalid messages", func() {
+			data := "bogus message"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
+			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("rsyslog decoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/rsyslog.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.ScriptType = "lua"
+		conf.Config = make(map[string]interface{})
+		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED:::date-rfc3339% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
+		conf.Config["tz"] = "America/Los_Angeles"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes simple messages", func() {
+			data := "28 Feb 10 12:58:58 2014-02-10T12:58:59-08:00 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1392065938000000000))
+
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(4))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "testhost")
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "imklog 5.8.6, log source = /proc/kmsg started.")
+
+			value, ok = pack.Message.GetFieldValue("syslogtag")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "kernel:")
+
+			value, ok = pack.Message.GetFieldValue("syslogfacility")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(3))
+
+			value, ok = pack.Message.GetFieldValue("timegenerated")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(1392065939000000000))
+
+			decoder.Shutdown()
+		})
+
+		c.Specify("decodes an invalid messages", func() {
+			data := "bogus message"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(data)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
+			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 			decoder.Shutdown()
 		})
 	})

@@ -24,6 +24,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(LoadFromConfigSpec)
+	r.AddSpec(ScribbleDecoderSpec)
 
 	gospec.MainGoTest(r, t)
 }

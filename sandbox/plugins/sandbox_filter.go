@@ -61,12 +61,7 @@ type SandboxFilter struct {
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      32767,
-		InstructionLimit: 1000,
-		OutputLimit:      1024,
-	}
+	return NewSandboxConfig()
 }
 
 func (this *SandboxFilter) SetName(name string) {
@@ -84,26 +79,34 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return nil // no-op already initialized
 	}
 	this.sbc = config.(*SandboxConfig)
-	this.sbc.ScriptFilename = pipeline.GetHekaConfigDir(this.sbc.ScriptFilename)
+	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
 
 	switch this.sbc.ScriptType {
 	case "lua":
 		this.sb, err = lua.CreateLuaSandbox(this.sbc)
 		if err != nil {
-			return err
+			return
 		}
 	default:
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	this.preservationFile = filepath.Join(filepath.Dir(this.sbc.ScriptFilename), this.name+".data")
-	if this.sbc.PreserveData && fileExists(this.preservationFile) {
-		err = this.sb.Init(this.preservationFile)
-	} else {
-		err = this.sb.Init("")
+	data_dir := pipeline.PrependBaseDir("sandbox_preservation")
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
 	}
 
-	return err
+	this.preservationFile = filepath.Join(data_dir, this.name+".data")
+	if this.sbc.PreserveData && fileExists(this.preservationFile) {
+		err = this.sb.Init(this.preservationFile, "filter")
+	} else {
+		err = this.sb.Init("", "filter")
+	}
+
+	return
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

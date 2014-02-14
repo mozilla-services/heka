@@ -84,6 +84,45 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+**write_message(variableName, value, representation, fieldIndex, arrayIndex)**
+    .. versionadded:: 0.5
+    Decoders only. Mutates specified field value on the message that is being
+    deocded.
+
+    *Arguments*
+        - variableName (string)
+            - Uuid (accepts raw bytes or RFC4122 string representation)
+            - Type (string)
+            - Logger (string)
+            - Payload (string)
+            - EnvVersion (string)
+            - Hostname (string)
+            - Timestamp (accepts Unix ns-since-epoch number or a handful of
+                         parseable string representations.)
+            - Severity (number or int-parseable string)
+            - Pid (number or int-parseable string)
+            - Fields[_name_] (field type determined by value type: bool, number, or string)
+        - value (bool, number or string)
+            - value to which field should be set
+        - representation (string) only used in combination with the Fields variableName
+            - representation tag to set
+        - fieldIndex (unsigned) only used in combination with the Fields variableName
+            - use to set a specfic instance of a repeated field _name_
+        - arrayIndex (unsigned) only used in combination with the Fields variableName
+            - use to set a specific element of a field containing an array
+
+    *Return*
+        none
+
+**read_next_field()**
+    Iterates through the message fields returning the field contents or nil when the end is reached.
+
+    *Arguments*
+        none
+
+    *Return*
+        value_type, name, value, representation, count (number of items in the field array)
+
 **inject_message(payload_type, payload_name)**
     Creates a new Heka message using the contents of the output payload buffer
     and then clears the buffer. Two pieces of optional metadata are allowed and
@@ -213,9 +252,6 @@ How to create a simple sandbox filter
     script_type = "lua"
     filename = "counter.lua"
     preserve_data = true
-    memory_limit = 32767
-    instruction_limit = 100
-    output_limit = 256
 
 4. Extending the business logic (count the number of 'demo' events per minute
 per device)
@@ -251,11 +287,3 @@ per device)
         end
         inject_message()
     end
-
-5. Depending on the number of devices being counted you will most likely want to update the configuration to account for the additional resource requirements.
-
-.. code-block:: ini
-
-    memory_limit = 65536
-    instruction_limit = 20000
-    output_limit = 64512

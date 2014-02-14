@@ -53,7 +53,3 @@ Field Variables
         * presentation i.e., graph labels, HTML links
 
 * value_* (optional, value_type) - Array of values, only one type will be active at a time.
-
-.. toctree::
-   message_matcher
-   :maxdepth: 2

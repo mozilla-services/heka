@@ -42,15 +42,11 @@ type SandboxDecoder struct {
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
 	dRunner                pipeline.DecoderRunner
+	tz                     *time.Location
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
-	return &SandboxConfig{
-		ModuleDirectory:  pipeline.GetHekaConfigDir("lua_modules"),
-		MemoryLimit:      8 * 1024 * 1024,
-		InstructionLimit: 1e6,
-		OutputLimit:      63 * 1024,
-	}
+	return NewSandboxConfig()
 }
 
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
@@ -58,8 +54,16 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 		return // no-op already initialized
 	}
 	s.sbc = config.(*SandboxConfig)
-	s.sbc.ScriptFilename = pipeline.GetHekaConfigDir(s.sbc.ScriptFilename)
+	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
 	s.sample = true
+
+	s.tz = time.UTC
+	if tz, ok := s.sbc.Config["tz"]; ok {
+		s.tz, err = time.LoadLocation(tz.(string))
+		if err != nil {
+			return
+		}
+	}
 
 	switch s.sbc.ScriptType {
 	case "lua":
@@ -70,7 +74,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	default:
 		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
-	err = s.sb.Init("")
+	err = s.sb.Init("", "decoder")
 	return
 }
 
@@ -136,6 +140,13 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			}
 			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
 				return 1
+			}
+			if s.tz != time.UTC {
+				const layout = "2006-01-02T15:04:05.999999999" // remove the incorrect UTC tz info
+				t := time.Unix(0, s.pack.Message.GetTimestamp())
+				t = t.In(time.UTC)
+				ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
+				s.pack.Message.SetTimestamp(ct.UnixNano())
 			}
 		} else {
 			s.pack.Message.SetPayload(payload)

@@ -23,6 +23,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -38,7 +39,8 @@ type HttpInput struct {
 
 type MonitorResponse struct {
 	ResponseData []byte
-	ResponseSize string
+	ResponseSize int
+	ResponseTime float64
 	StatusCode   int
 	Status       string
 	Proto        string
@@ -143,7 +145,12 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
-			if field, err := message.NewField("ResponseSize", data.ResponseSize, ""); err == nil {
+			if field, err := message.NewField("ResponseSize", data.ResponseSize, "B"); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
+			if field, err := message.NewField("ResponseTime", data.ResponseTime, "s"); err == nil {
 				pack.Message.AddField(field)
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
@@ -211,8 +218,14 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 		case <-hm.tickChan:
 			for _, url := range hm.urls {
 				responsePayload := []byte{}
+				responseTimeStart := time.Now()
 				// Request URL(s)
-				resp, err := http.Get(url)
+				httpClient := &http.Client{}
+				req, err := http.NewRequest("GET", url, nil)
+				req.Header.Add("User-Agent", "Heka")
+				resp, err := httpClient.Do(req)
+
+				responseTime := time.Since(responseTimeStart)
 				if err != nil {
 					responsePayload = []byte(err.Error())
 					response := &MonitorResponse{ResponseData: responsePayload, Url: url}
@@ -228,9 +241,17 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				}
 				resp.Body.Close()
 
-				contentLength := resp.Header.Get("Content-Length")
+				contentLength, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
 
-				response := &MonitorResponse{ResponseData: body, ResponseSize: contentLength, StatusCode: resp.StatusCode, Status: resp.Status, Proto: resp.Proto, Url: url}
+				response := &MonitorResponse{
+					ResponseData: body,
+					ResponseSize: contentLength,
+					ResponseTime: responseTime.Seconds(),
+					StatusCode:   resp.StatusCode,
+					Status:       resp.Status,
+					Proto:        resp.Proto,
+					Url:          url,
+				}
 				hm.respChan <- response
 			}
 		case <-hm.stopChan:

@@ -32,7 +32,7 @@ const (
 
 type Sandbox interface {
 	// Sandbox control
-	Init(dataFile string) error
+	Init(dataFile, pluginType string) error
 	Destroy(dataFile string) error
 
 	// Sandbox state
@@ -58,4 +58,13 @@ type SandboxConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+}
+
+func NewSandboxConfig() interface{} {
+	return &SandboxConfig{
+		ModuleDirectory:  pipeline.PrependShareDir("lua_modules"),
+		MemoryLimit:      8 * 1024 * 1024,
+		InstructionLimit: 1e6,
+		OutputLimit:      63 * 1024,
+	}
 }

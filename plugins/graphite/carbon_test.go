@@ -41,6 +41,8 @@ func NewCarbonTestHelper(ctrl *gomock.Controller) (oth *CarbonTestHelper) {
 	return
 }
 
+type collectFunc func(chPort chan<- int, chData chan<- string, chError chan<- error)
+
 func CarbonOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
@@ -48,76 +50,140 @@ func CarbonOutputSpec(c gs.Context) {
 
 	oth := NewCarbonTestHelper(ctrl)
 	var wg sync.WaitGroup
-	inChan := make(chan *PipelinePack, 1)
 	pConfig := NewPipelineConfig(nil)
 
-	c.Specify("A CarbonOutput", func() {
-		carbonOutput := new(CarbonOutput)
-		config := carbonOutput.ConfigStruct().(*CarbonOutputConfig)
+	// make test data
+	const count = 5
+	lines := make([]string, count)
+	baseTime := time.Now().UTC().Add(-10 * time.Second)
+	for i := 0; i < count; i++ {
+		statName := fmt.Sprintf("stats.name.%d", i)
+		statTime := baseTime.Add(time.Duration(i) * time.Second)
+		lines[i] = fmt.Sprintf("%s %d %d", statName, i*2, statTime.Unix())
+	}
+	submit_data := strings.Join(lines, "\n")
+	expected_data := submit_data + "\n"
 
-		const count = 5
-		lines := make([]string, count)
-		baseTime := time.Now().UTC().Add(-10 * time.Second)
-		nameTmpl := "stats.name.%d"
-
-		for i := 0; i < count; i++ {
-			statName := fmt.Sprintf(nameTmpl, i)
-			statTime := baseTime.Add(time.Duration(i) * time.Second)
-			lines[i] = fmt.Sprintf("%s %d %d", statName, i*2, statTime.Unix())
-		}
-
+	// a helper to make new test packs
+	newpack := func() *PipelinePack {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
 		pack.Decoded = true
+		pack.Message.SetPayload(submit_data)
+		return pack
+	}
 
-		c.Specify("writes out to the network", func() {
-			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
-			inChanCall.Return(inChan)
+	// collectDataTCP and collectDataUDP functions; when ready reports its port on
+	// chPort, or error on chErr; when data is received it is reported on chData
+	collectDataTCP := func(chPort chan<- int, chData chan<- string, chError chan<- error) {
+		tcpaddr, err := net.ResolveTCPAddr("tcp", ":0")
+		if err != nil {
+			chError <- err
+			return
+		}
 
-			collectData := func(ch chan string) {
-				ln, err := net.Listen("tcp", "localhost:2003")
-				if err != nil {
-					ch <- err.Error()
-				}
-				ch <- "ready"
-				for i := 0; i < count; i++ {
-					conn, err := ln.Accept()
-					if err != nil {
-						ch <- err.Error()
+		listener, err := net.ListenTCP("tcp", tcpaddr)
+		if err != nil {
+			chError <- err
+			return
+		}
+		chPort <- listener.Addr().(*net.TCPAddr).Port
+
+		conn, err := listener.Accept()
+		if err != nil {
+			chError <- err
+			return
+		}
+
+		b := make([]byte, 10000)
+		n, err := conn.Read(b)
+		if err != nil {
+			chError <- err
+			return
+		}
+
+		chData <- string(b[0:n])
+	}
+
+	collectDataUDP := func(chPort chan<- int, chData chan<- string, chError chan<- error) {
+		udpaddr, err := net.ResolveUDPAddr("udp", ":0")
+		if err != nil {
+			chError <- err
+			return
+		}
+
+		conn, err := net.ListenUDP("udp", udpaddr)
+		if err != nil {
+			chError <- err
+			return
+		}
+		chPort <- conn.LocalAddr().(*net.UDPAddr).Port
+
+		b := make([]byte, 10000)
+		n, _, err := conn.ReadFromUDP(b)
+		if err != nil {
+			chError <- err
+			return
+		}
+		chData <- string(b[0:n])
+	}
+
+	doit := func(protocol string, collectData collectFunc) {
+		c.Specify("A CarbonOutput ", func() {
+			inChan := make(chan *PipelinePack, 1)
+			carbonOutput := new(CarbonOutput)
+			config := carbonOutput.ConfigStruct().(*CarbonOutputConfig)
+			pack := newpack()
+
+			c.Specify("writes "+protocol+" to the network", func() {
+				inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
+				inChanCall.Return(inChan)
+
+				chError := make(chan error, count)
+				chPort := make(chan int, count)
+				chData := make(chan string, count)
+				go collectData(chPort, chData, chError)
+
+			WAIT_FOR_DATA:
+				for {
+					select {
+					case port := <-chPort:
+						// data collection server is ready, start CarbonOutput
+						config.Address = fmt.Sprintf(":%d", port)
+						config.Protocol = protocol
+						err := carbonOutput.Init(config)
+						c.Assume(err, gs.IsNil)
+						go func() {
+							wg.Add(1)
+							carbonOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+							wg.Done()
+						}()
+
+						// make sure the pack is encode-able
+						matchBytes := make([]byte, 0, 10000)
+						err = ProtobufEncodeMessage(pack, &matchBytes)
+						c.Expect(err, gs.IsNil)
+
+						// send it
+						inChan <- pack
+
+					case data := <-chData:
+						close(inChan)
+						wg.Wait() // wait for close to finish, prevents intermittent test failures
+						c.Expect(data, gs.Equals, expected_data)
+						break WAIT_FOR_DATA
+
+					case err := <-chError:
+						// fail
+						c.Assume(err, gs.IsNil)
+						return
 					}
-					b := make([]byte, 1000)
-					n, _ := conn.Read(b)
-					ch <- string(b[0:n])
 				}
-			}
-			ch := make(chan string, count) // don't block on put
-			go collectData(ch)
-			result := <-ch // wait for server
-
-			err := carbonOutput.Init(config)
-			c.Assume(err, gs.IsNil)
-
-			pack.Message.SetPayload(strings.Join(lines, "\n"))
-
-			go func() {
-				wg.Add(1)
-				carbonOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-				wg.Done()
-			}()
-			inChan <- pack
-
-			close(inChan)
-			wg.Wait() // wait for close to finish, prevents intermittent test failures
-
-			matchBytes := make([]byte, 0, 1000)
-			err = ProtobufEncodeMessage(pack, &matchBytes)
-			c.Expect(err, gs.IsNil)
-
-			result = <-ch
-			computed_result := strings.Join(lines, "\n") + "\n"
-			c.Expect(result, gs.Equals, computed_result)
+			})
 		})
-	})
+	}
 
+	doit("tcp", collectDataTCP)
+	doit("udp", collectDataUDP)
 }

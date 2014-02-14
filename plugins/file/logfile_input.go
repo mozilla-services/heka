@@ -526,8 +526,10 @@ func (fm *FileMonitor) Init(conf *LogfileInputConfig) (err error) {
 		rp := NewRegexpParser()
 		fm.parser = rp
 		fm.parseFunction = payloadParser
-		if err = rp.SetDelimiter(conf.Delimiter); err != nil {
-			return err
+		if len(conf.Delimiter) > 0 {
+			if err = rp.SetDelimiter(conf.Delimiter); err != nil {
+				return err
+			}
 		}
 		if err = rp.SetDelimiterLocation(conf.DelimiterLocation); err != nil {
 			return err
@@ -609,7 +611,7 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 func (fm *FileMonitor) setupJournalling(journalName string) (err error) {
 	// Check that the `seekjournals` directory exists, try to create it if
 	// not.
-	journalDir := GetHekaConfigDir("seekjournals")
+	journalDir := PrependBaseDir("seekjournals")
 	var dirInfo os.FileInfo
 	if dirInfo, err = os.Stat(journalDir); err != nil {
 		if os.IsNotExist(err) {

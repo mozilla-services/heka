@@ -29,7 +29,7 @@ import (
 )
 
 // Set a sample rate for match and message processing timing i.e. 1 in a million
-const DURATION_SAMPLE_DENOMINATOR = 1e6
+const DURATION_SAMPLE_DENOMINATOR = 1e3
 
 var (
 	AvailablePlugins = make(map[string]func() interface{})
@@ -340,14 +340,32 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginW
 	return nil
 }
 
-// Expects either an absolute or relative file path. If absolute, simply
-// returns the path unchanged. If relative, returns an absolute path w/ the
-// inPath relative to the GlobalConfigStruct.BaseDir.
+// Deprecated.
 func GetHekaConfigDir(inPath string) string {
-	if filepath.IsAbs(inPath) {
-		return inPath
+	msg := ("`GetHekaConfigDir` is deprecated, please use `PrependBaseDir` or " +
+		"`PrependShareDir` instead.")
+	Globals().LogMessage("heka", msg)
+	return PrependBaseDir(inPath)
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, prepends
+// GlobalConfigStruct.BaseDir.
+func PrependBaseDir(path string) string {
+	if filepath.IsAbs(path) {
+		return path
 	}
-	return filepath.Join(Globals().BaseDir, inPath)
+	return filepath.Join(Globals().BaseDir, path)
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, prepends
+// GlobalConfigStruct.ShareDir.
+func PrependShareDir(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(Globals().ShareDir, path)
 }
 
 type ConfigFile PluginConfig

@@ -25,6 +25,7 @@ import (
 	ts "github.com/mozilla-services/heka/plugins/testsupport"
 	_ "github.com/mozilla-services/heka/plugins/udp"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"path/filepath"
 	"runtime"
 )
 
@@ -53,22 +54,22 @@ func (o *DefaultsTestOutput) Run(fr FilterRunner, h PluginHelper) (err error) {
 }
 
 func LoadFromConfigSpec(c gs.Context) {
+	origGlobals := Globals
+
+	origAvailablePlugins := make(map[string]func() interface{})
+	for k, v := range AvailablePlugins {
+		origAvailablePlugins[k] = v
+	}
+
+	pipeConfig := NewPipelineConfig(nil)
+	defer func() {
+		Globals = origGlobals
+		AvailablePlugins = origAvailablePlugins
+	}()
+
+	c.Assume(pipeConfig, gs.Not(gs.IsNil))
+
 	c.Specify("Config file loading", func() {
-		origGlobals := Globals
-
-		origAvailablePlugins := make(map[string]func() interface{})
-		for k, v := range AvailablePlugins {
-			origAvailablePlugins[k] = v
-		}
-
-		pipeConfig := NewPipelineConfig(nil)
-		defer func() {
-			Globals = origGlobals
-			AvailablePlugins = origAvailablePlugins
-		}()
-
-		c.Assume(pipeConfig, gs.Not(gs.IsNil))
-
 		c.Specify("works w/ good config file", func() {
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test.toml")
 			c.Assume(err, gs.IsNil)
@@ -249,5 +250,38 @@ DashboardOutput:
 
 		})
 
+	})
+
+	c.Specify("Config directory helpers", func() {
+		Globals().BaseDir = "/base/dir"
+		Globals().ShareDir = "/share/dir"
+
+		c.Specify("PrependBaseDir", func() {
+			c.Specify("prepends for relative paths", func() {
+				dir := filepath.FromSlash("relative/path")
+				result := PrependBaseDir(dir)
+				c.Expect(result, gs.Equals, filepath.FromSlash("/base/dir/relative/path"))
+			})
+
+			c.Specify("doesn't prepend for absolute paths", func() {
+				dir := filepath.FromSlash("/absolute/path")
+				result := PrependBaseDir(dir)
+				c.Expect(result, gs.Equals, dir)
+			})
+		})
+
+		c.Specify("PrependShareDir", func() {
+			c.Specify("prepends for relative paths", func() {
+				dir := filepath.FromSlash("relative/path")
+				result := PrependShareDir(dir)
+				c.Expect(result, gs.Equals, filepath.FromSlash("/share/dir/relative/path"))
+			})
+
+			c.Specify("doesn't prepend for absolute paths", func() {
+				dir := filepath.FromSlash("/absolute/path")
+				result := PrependShareDir(dir)
+				c.Expect(result, gs.Equals, dir)
+			})
+		})
 	})
 }

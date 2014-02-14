@@ -11,6 +11,14 @@
 #include "lua.h"
 #include "lua_sandbox.h"
 
+// LMW_ERR_*: Lua Message Write errors
+extern const int LMW_ERR_NO_SANDBOX_PACK;
+extern const int LMW_ERR_WRONG_TYPE;
+extern const int LMW_ERR_NEWFIELD_FAILED;
+extern const int LMW_ERR_BAD_FIELD_INDEX;
+extern const int LMW_ERR_BAD_ARRAY_INDEX;
+extern const int LMW_ERR_INVALID_FIELD_NAME;
+
 /**
 * Passes a Heka message down to the sandbox for processing. The instruction
 * count limits are active during this call.
@@ -52,6 +60,16 @@ int read_config(lua_State* lua);
 int read_message(lua_State* lua);
 
 /**
+ * Iterates through the message fields returning the type, name, value,
+ * representation, and count for each field.
+ *
+ * @param lua Pointer to the Lua state.
+ *
+ * @return int Returns five values on the stack.
+ */
+int read_next_field(lua_State* lua);
+
+/**
 * Inject a message into Heka using the output buffer's contents as the message
 * payload.
 *
@@ -63,14 +81,14 @@ int inject_message(lua_State* lua);
 
 /**
  * Initializes the sandbox and sets up the above callbacks.
- * 
+ *
  * @param lsb Pointer to the sandbox.
- * @param data_file File used for the data restoration (empty or NULL for no 
+ * @param data_file File used for the data restoration (empty or NULL for no
  *                  restoration)
- * 
+ *
  * @return int 0 on success
  */
-int sandbox_init(lua_sandbox* lsb, const char* data_file);
+int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);
 
 #endif
 
