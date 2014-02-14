@@ -78,6 +78,12 @@ Bug Handling
 Features
 --------
 
+* Added configurable network types to TcpInput "tcp", "tcp4", "tcp6", "unix" and
+ "unixpacket" (issue #539)
+
+* Added configurable network types to UdpInput "udp", "udp4", "udp6"
+  (issue #539)
+
 * Added flush_count config setting to FileOutput to complement existing
   flush_interval. Also added flush_operator setting which can be "AND" or "OR"
   to specify how flush_count and flush_interval should be combined.

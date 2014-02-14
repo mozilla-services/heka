@@ -42,26 +42,6 @@ func ProtobufEncodeMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
 	return
 }
 
-// ConfigStruct for NetworkInput plugins.
-type NetworkInputConfig struct {
-	// Network type (e.g. tcp, tcp4, tcp6, udp, udp4, udp6). Needs to match the input type.
-	Net string
-	// String representation of the address of the network connection on which
-	// the listener should be listening (e.g. "127.0.0.1:5565").
-	Address string
-	// Set of message signer objects, keyed by signer id string.
-	Signers map[string]Signer `toml:"signer"`
-	// Name of configured decoder to receive the input
-	Decoder string
-	// Type of parser used to break the stream up into messages
-	ParserType string `toml:"parser_type"`
-	// Delimiter used to split the stream into messages
-	Delimiter string
-	// String indicating if the delimiter is at the start or end of the line,
-	// only used for regexp delimiters
-	DelimiterLocation string `toml:"delimiter_location"`
-}
-
 type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,

@@ -33,6 +33,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(UdpInputSpec)
+	r.AddSpec(UdpInputSpecFailure)
 
 	gs.MainGoTest(r, t)
 }
@@ -71,7 +72,7 @@ func UdpInputSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&NetworkInputConfig{Net: "udp", Address: ith.AddrStr,
+		err := udpInput.Init(&UdpInputConfig{Net: "udp", Address: ith.AddrStr,
 			Decoder:    "ProtobufDecoder",
 			ParserType: "message.proto"})
 		c.Assume(err, gs.IsNil)
@@ -106,4 +107,14 @@ func UdpInputSpec(c gs.Context) {
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
 		})
 	})
+}
+
+func UdpInputSpecFailure(c gs.Context) {
+	udpInput := UdpInput{}
+	err := udpInput.Init(&UdpInputConfig{Net: "tcp", Address: "localhost:55565",
+		Decoder:    "ProtobufDecoder",
+		ParserType: "message.proto"})
+	c.Assume(err, gs.Not(gs.IsNil))
+	c.Assume(err.Error(), gs.Equals, "ResolveUDPAddr failed: unknown network tcp\n")
+
 }

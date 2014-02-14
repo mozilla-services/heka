@@ -37,7 +37,7 @@ type TcpInput struct {
 }
 
 type TcpInputConfig struct {
-	// Network type (e.g. tcp, tcp4, tcp6, udp, udp4, udp6). Needs to match the input type.
+	// Network type (e.g. "tcp", "tcp4", "tcp6", "unix" or "unixpacket"). Needs to match the input type.
 	Net string
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").
