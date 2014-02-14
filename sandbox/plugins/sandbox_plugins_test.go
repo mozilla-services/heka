@@ -129,6 +129,24 @@ func FilterSpec(c gs.Context) {
 			}()
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
+
+		c.Specify("Preserves data", func() {
+			var timer <-chan time.Time
+			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+
+			config.ScriptFilename = "../lua/testsupport/serialize.lua"
+			config.PreserveData = true
+			sbFilter.SetName("serialize")
+			err := sbFilter.Init(config)
+			c.Assume(err, gs.IsNil)
+			close(inChan)
+			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			_, err = os.Stat("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+			err = os.Remove("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+		})
 	})
 
 	c.Specify("A SandboxManagerFilter", func() {
@@ -200,13 +218,13 @@ func DecoderSpec(c gs.Context) {
 
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/testsupport/decoder.lua"
 		conf.ScriptType = "lua"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 
 		c.Specify("decodes simple messages", func() {
 			data := "1376389920 debug id=2321 url=example.com item=1"
+			conf.ScriptFilename = "../lua/testsupport/decoder.lua"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := pm.NewMockDecoderRunner(ctrl)
@@ -239,6 +257,7 @@ func DecoderSpec(c gs.Context) {
 
 		c.Specify("decodes an invalid messages", func() {
 			data := "1376389920 bogus id=2321 url=example.com item=1"
+			conf.ScriptFilename = "../lua/testsupport/decoder.lua"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 			dRunner := pm.NewMockDecoderRunner(ctrl)
@@ -249,6 +268,21 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 			decoder.Shutdown()
+		})
+		c.Specify("Preserves data", func() {
+			conf.ScriptFilename = "../lua/testsupport/serialize.lua"
+			conf.PreserveData = true
+			decoder.SetName("serialize")
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			decoder.Shutdown()
+			_, err = os.Stat("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+			err = os.Remove("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+			decoder.SetName("")
 		})
 	})
 
