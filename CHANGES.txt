@@ -124,6 +124,8 @@ Features
 
 * Added SmtpOutput (issue #472)
 
+* HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP Basic Authentication
+
 0.4.2 (2013-12-02)
 ==================
 
