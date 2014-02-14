@@ -47,6 +47,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* StatsdInput now doesn't fail with multiple stats in a single UDP packet.
+
 * Set default StatAccumInput stat namespace prefix values even when
   `legacy_namespaces` is set to false (issue #630).
 
