@@ -33,6 +33,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/file"
 	_ "github.com/mozilla-services/heka/plugins/graphite"
 	_ "github.com/mozilla-services/heka/plugins/http"
+	_ "github.com/mozilla-services/heka/plugins/logstreamer"
 	_ "github.com/mozilla-services/heka/plugins/nagios"
 	_ "github.com/mozilla-services/heka/plugins/payload"
 	_ "github.com/mozilla-services/heka/plugins/process"
@@ -78,6 +79,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.MaxMsgProcessDuration = maxMsgProcessDuration
 	globals.MaxMsgTimerInject = maxMsgTimerInject
 	globals.BaseDir = config.BaseDir
+	globals.ShareDir = config.ShareDir
 
 	return globals, cpuProfName, memProfName
 }

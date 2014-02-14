@@ -2,30 +2,35 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
--- Generates documentation for each message type in a data stream.  The output
--- includes each message Type, its associated field attributes, and their
--- counts (number in the brackets). This plugin is meant for data
--- discovery/exploration and should not be left running on a production system.
---
--- Example Output:
---
---  DB.getToken [11598]
---      id (string)
---      rid (string - optional [2])
---      msg (string)
---
--- Example Heka Configuration:
---
---  [FxaAuthServerMessageSchema]
---  type = "SandboxFilter"
---  script_type = "lua"
---  filename = "lua_filters/heka_message_schema.lua"
---  memory_limit = 8000000
---  output_limit = 64000
---  instruction_limit = 1000000
---  ticker_interval = 60
---  preserve_data = false
---  message_matcher = "Logger == 'fxa-auth-server'"
+--[[
+Generates documentation for each message type in a data stream.  The output
+includes each message Type, its associated field attributes, and their
+counts (number in the brackets). This plugin is meant for data
+discovery/exploration and should not be left running on a production system.
+
+Config
+~~~~~~
+<none>
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [FxaAuthServerMessageSchema]
+    type = "SandboxFilter"
+    script_type = "lua"
+    filename = "lua_filters/heka_message_schema.lua"
+    ticker_interval = 60
+    preserve_data = false
+    message_matcher = "Logger == 'fxa-auth-server'"
+
+*Example Output*
+
+|  DB.getToken [11598]
+|      id (string)
+|      rid (string - optional [2])
+|      msg (string)
+--]]
 
 messages = {}
 

@@ -143,7 +143,7 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
-	o.basePath = GetHekaConfigDir(conf.BasePath)
+	o.basePath = PrependBaseDir(conf.BasePath)
 	o.defaultAggMethod = conf.DefaultAggMethod
 
 	var intPerm int64

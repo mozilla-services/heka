@@ -21,6 +21,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"crypto/tls"
 	"errors"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -77,7 +78,6 @@ func TcpInputSpec(c gs.Context) {
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(config.InputRecycleChan())
 
-	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
 	ith.ResolvedAddrStr = "127.0.0.1:55565"
 
@@ -93,7 +93,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput protobuf parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Signers:    signers,
 			Decoder:    "ProtobufDecoder",
 			ParserType: "message.proto"})
@@ -135,8 +135,11 @@ func TcpInputSpec(c gs.Context) {
 			buflen := 3 + len(hbytes) + len(mbytes)
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
@@ -156,8 +159,11 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
@@ -187,8 +193,11 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
@@ -218,8 +227,11 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
@@ -247,8 +259,11 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
@@ -267,7 +282,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput regexp parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "RegexpDecoder",
 			ParserType: "regexp",
 			Delimiter:  "\n"})
@@ -309,8 +324,11 @@ func TcpInputSpec(c gs.Context) {
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)
 			readCall.Do(getPayloadText(mbytes))
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
@@ -323,7 +341,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput token parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&NetworkInputConfig{Net: "tcp", Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "TokenDecoder",
 			ParserType: "token",
 			Delimiter:  "\n"})
@@ -365,8 +383,11 @@ func TcpInputSpec(c gs.Context) {
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)
 			readCall.Do(getPayloadText(mbytes))
-			go func() {
-				tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				mockListener.EXPECT().Close()
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
@@ -374,6 +395,70 @@ func TcpInputSpec(c gs.Context) {
 			c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Message.GetLogger(), gs.Equals, "logger")
 			c.Expect(ith.Pack.Message.GetHostname(), gs.Equals, "123")
+		})
+	})
+
+	c.Specify("A TcpInput using TLS", func() {
+		tcpInput := TcpInput{}
+		config := &TcpInputConfig{
+			Net:        "tcp",
+			Address:    ith.AddrStr,
+			ParserType: "token",
+			UseTls:     true,
+		}
+
+		c.Specify("fails to init w/ missing key or cert file", func() {
+			config.Tls = TlsConfig{}
+			err := tcpInput.Init(config)
+			c.Expect(err, gs.Not(gs.IsNil))
+		})
+
+		c.Specify("accepts TLS client connections", func() {
+			config.Tls = TlsConfig{
+				CertFile: "./testsupport/cert.pem",
+				KeyFile:  "./testsupport/key.pem",
+			}
+			err := tcpInput.Init(config)
+			c.Expect(err, gs.IsNil)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
+			}()
+
+			clientConfig := new(tls.Config)
+			clientConfig.InsecureSkipVerify = true
+			conn, err := tls.Dial("tcp", ith.AddrStr, clientConfig)
+			c.Expect(err, gs.IsNil)
+			defer conn.Close()
+			conn.SetWriteDeadline(time.Now().Add(time.Duration(10000)))
+			n, err := conn.Write([]byte("This is a test."))
+			c.Expect(err, gs.IsNil)
+			c.Expect(n, gs.Equals, len("This is a test."))
+		})
+
+		c.Specify("doesn't accept connections below specified min TLS version", func() {
+			config.Tls = TlsConfig{
+				CertFile:   "./testsupport/cert.pem",
+				KeyFile:    "./testsupport/key.pem",
+				MinVersion: "TLS12",
+			}
+			err := tcpInput.Init(config)
+			c.Expect(err, gs.IsNil)
+			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			defer func() {
+				tcpInput.Stop()
+				tcpInput.wg.Wait()
+				time.Sleep(time.Duration(1000))
+			}()
+
+			clientConfig := &tls.Config{
+				InsecureSkipVerify: true,
+				MaxVersion:         tls.VersionTLS11,
+			}
+			conn, err := tls.Dial("tcp", ith.AddrStr, clientConfig)
+			c.Expect(conn, gs.IsNil)
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
 }

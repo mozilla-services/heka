@@ -611,7 +611,7 @@ func (fm *FileMonitor) recoverSeekPosition() (err error) {
 func (fm *FileMonitor) setupJournalling(journalName string) (err error) {
 	// Check that the `seekjournals` directory exists, try to create it if
 	// not.
-	journalDir := GetHekaConfigDir("seekjournals")
+	journalDir := PrependBaseDir("seekjournals")
 	var dirInfo os.FileInfo
 	if dirInfo, err = os.Stat(journalDir); err != nil {
 		if os.IsNotExist(err) {

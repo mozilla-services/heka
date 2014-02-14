@@ -9,10 +9,10 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Mike Trinkala (trink@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
-
-package tcp
+package logstreamer
 
 import (
 	"github.com/rafrombrc/gospec/src/gospec"
@@ -21,10 +21,7 @@ import (
 
 func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(TcpInputSpec)
-	r.AddSpec(TcpOutputSpec)
-
+	r.AddSpec(FilehandlingSpec)
+	r.AddSpec(ReaderSpec)
 	gospec.MainGoTest(r, t)
 }

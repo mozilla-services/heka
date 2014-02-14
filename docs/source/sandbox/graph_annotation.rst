@@ -7,5 +7,5 @@ alert is generated and the graph is visually annotated at the time of the
 alert. See `dygraphs Annotations <http://dygraphs.com/annotations.html>`_
 for the available annotation properties.
 
-.. literalinclude:: ../../../sandbox/lua/testsupport/sync_proxy.lua
+.. literalinclude:: ../../../sandbox/lua/filters/cbufd_aggregator.lua
     :language: lua 

@@ -115,7 +115,7 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 
 	var err error
 	for !u.stopped {
-		if err = u.parseFunction(u.listener, u.parser, ir, u.config, dr); err != nil {
+		if err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, dr); err != nil {
 			if !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: ", err))
 			}

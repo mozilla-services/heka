@@ -78,6 +78,10 @@ type StatAccumInputConfig struct {
 	// seconds. Defaults to 10.
 	TickerInterval uint `toml:"ticker_interval"`
 
+	// The remaining settings are used to specify the namespaces used for
+	// various stat types, modeled on the behavior of etsy's standalond statsd
+	// server implementation, see
+	// https://github.com/etsy/statsd/blob/master/docs/namespacing.md.
 	LegacyNamespaces bool   `toml:"legacy_namespaces"`
 	GlobalPrefix     string `toml:"global_prefix"`
 	CounterPrefix    string `toml:"counter_prefix"`
@@ -94,6 +98,10 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		TickerInterval:   uint(10),
 		LegacyNamespaces: false,
 		StatsdPrefix:     "statsd",
+		GlobalPrefix:     "stats",
+		CounterPrefix:    "counters",
+		TimerPrefix:      "timers",
+		GaugePrefix:      "gauges",
 	}
 }
 
@@ -109,17 +117,6 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
 		)
-	}
-	if sm.config.LegacyNamespaces {
-		if sm.config.GlobalPrefix == "" {
-			sm.config.GlobalPrefix = "stats"
-		}
-		if sm.config.TimerPrefix == "" {
-			sm.config.TimerPrefix = "timers"
-		}
-		if sm.config.GaugePrefix == "" {
-			sm.config.GaugePrefix = "gauges"
-		}
 	}
 	return nil
 }
@@ -224,8 +221,8 @@ func (sm *StatAccumInput) Flush() {
 	for key, c := range sm.counters {
 		ratePerSecond := float64(c) / float64(sm.config.TickerInterval)
 		if sm.config.LegacyNamespaces {
-			counterNs.EmitInField(key, int(ratePerSecond))
-			counterNs.EmitInPayload(key, ratePerSecond)
+			globalNs.EmitInField(key, int(ratePerSecond))
+			globalNs.EmitInPayload(key, ratePerSecond)
 			rootNs.Namespace("stats_counts").Emit(key, c)
 		} else {
 			counterKey := counterNs.Namespace(key)

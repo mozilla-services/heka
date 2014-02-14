@@ -39,6 +39,7 @@ type HekadConfig struct {
 	MaxMsgTimerInject     uint          `toml:"max_timer_inject"`
 	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
 	BaseDir               string        `toml:"base_dir"`
+	ShareDir              string        `toml:"share_dir"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -56,6 +57,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
+		ShareDir:              filepath.FromSlash("/usr/share/heka"),
 	}
 
 	var configFile map[string]toml.Primitive

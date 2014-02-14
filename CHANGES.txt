@@ -4,9 +4,20 @@
 Backwards Incompatibilities
 ---------------------------
 
-* The sandbox preservation data is now stored in the 
+* FileOutput `flushinterval` config setting changed to `flush_interval` to
+  match config naming conventions.
+
+* SandboxDecoder, SandboxFilter, and SandboxManagerFilter now all use
+  `${SHARE_DIR}/lua_modules` as the default `module_directory` setting.
+  SandboxDecoder and SandboxFilter both now interpret relative paths to lua
+  source code to be relative to ${SHARE_DIR} instead of ${BASE_DIR}.
+
+* DashboardOutput `static_directory` setting now defaults to
+  `${SHARE_DIR}/dasher` instead of `${BASE_DIR}/dashboard_static`.
+
+* The sandbox preservation data is now stored in the
   {base_dir}/sandbox_preservation directory instead of with the plugin source.
-  On the initial restart no preserved data will be restored unless it is 
+  On the initial restart no preserved data will be restored unless it is
   manually moved to this directory first. (issue #626)
 
 * The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
@@ -20,11 +31,11 @@ Backwards Incompatibilities
   most plugins to sub-packages of a separate `plugins` package.
 
 * Removed the wrapper 'table' element from the JSON serialization (issue #525)
-  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also 
+  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also
   removes the special '_name' metadata arribute; the top level _name element
   should be created in the Lua structure if it is required.
 
-* In the process of removing the core sandbox code from Heka (issue #464), the 
+* In the process of removing the core sandbox code from Heka (issue #464), the
   sandbox was streamlined to only load the base library by default. All sandbox
   plugins must now explictly load additional libraries with the require
   function.
@@ -38,6 +49,11 @@ Backwards Incompatibilities
 
 Bug Handling
 ------------
+
+* StatsdInput now doesn't fail with multiple stats in a single UDP packet.
+
+* Set default StatAccumInput stat namespace prefix values even when
+  `legacy_namespaces` is set to false (issue #630).
 
 * Fixed cpuprof file from being closed right after opening so no data was
   being logged.
@@ -61,6 +77,37 @@ Bug Handling
 
 Features
 --------
+
+* Added flush_count config setting to FileOutput to complement existing
+  flush_interval. Also added flush_operator setting which can be "AND" or "OR"
+  to specify how flush_count and flush_interval should be combined.
+
+* Introduced `share_dir` global config setting, which specifies where Heka's
+  read only resources should live. Defaults to `/usr/share/heka`. Also added
+  `pipeline.PrependShareDir()` function for use within plugin initialization
+  code.
+
+* Added an rsyslog decoder based on the rsyslog string configuration template
+  (issue #432).
+
+* Added an Nginx access log decoder based on the Nginx 'log_format'
+  configuration directive.
+
+* heka-cat: A command-line utility for counting, viewing, filtering, and 
+  extracting Heka protobuf logs.
+
+* TcpOutput has been redesigned to handle unavailable endpoints and dropped 
+  connections without data loss (issue #355).
+
+* CarbonOutput now supports submitting messages via UDP, persistent TCP
+  connection.
+
+* Added Logstreamer Input [LogstreamerInput]: An input that replaces the
+  Logfile and Logfile Directory Inputs and supports sequential reading of
+  logstreams that span sets of ordered logfiles (issue #372).
+
+* TcpInput, TcpOutput, and flood client now all support TLS encrypted TCP
+  connections using Go's crypto/tls package.
 
 * Added Http Listen Input [HttpListenInput]: An input that listens for
   HTTP requests on the specified address. If a decoder is not specified the
@@ -90,7 +137,7 @@ Features
 * HttpInput: Fields[ResponseTime] populates with time duration in seconds for
   HTTP GET of URL, Fields[Status] with HTTP Status, Fields[Protocol] with HTTP
   protocol and version, Fields[StatusCode] with HTTP Response Status Code for
-  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts) 
+  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts)
   (http://hekad.readthedocs.org/en/latest/sandbox/graph_annotation.html) plugin
   is compatible with the HttpInput plugin.
 
@@ -121,7 +168,7 @@ Bug Handling
 
 * Explicitly exclude system level folders from those that CPack will include
   as part of the Heka RPM (requires CMake >= 2.8.12) (see
-  https://github.com/mozilla-services/heka/issues/548). 
+  https://github.com/mozilla-services/heka/issues/548).
 
 0.4.1 (2013-11-05)
 ==================

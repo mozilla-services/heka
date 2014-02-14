@@ -53,7 +53,7 @@ type SandboxManagerFilterConfig struct {
 	WorkingDirectory string `toml:"working_directory"`
 	// Path to the file system directory where the sandbox manager will direct
 	// all SandboxFilter 'require' requests. Defaults to
-	// ${BASE_DIR}/lua_modules.
+	// ${SHARE_DIR}/lua_modules.
 	ModuleDirectory string `toml:"module_directory"`
 }
 
@@ -73,8 +73,8 @@ func (s *SandboxManagerFilter) IsStoppable() {
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
 	this.maxFilters = conf.MaxFilters
-	this.workingDirectory = pipeline.GetHekaConfigDir(conf.WorkingDirectory)
-	this.moduleDirectory = pipeline.GetHekaConfigDir(conf.ModuleDirectory)
+	this.workingDirectory = pipeline.PrependBaseDir(conf.WorkingDirectory)
+	this.moduleDirectory = pipeline.PrependShareDir(conf.ModuleDirectory)
 	err = os.MkdirAll(this.workingDirectory, 0700)
 	return
 }
