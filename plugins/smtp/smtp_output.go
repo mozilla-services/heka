@@ -89,11 +89,12 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 
 	var (
-		pack     *PipelinePack
-		msg      *message.Message
-		contents []byte
-		subject  string
-		message  string
+		pack       *PipelinePack
+		msg        *message.Message
+		contents   []byte
+		subject    string
+		message    string
+		headerText string
 	)
 
 	if s.conf.Subject == "" {
@@ -110,11 +111,12 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	header["Content-Transfer-Encoding"] = "base64"
 
 	for k, v := range header {
-		message += fmt.Sprintf("%s: %s\r\n", k, v)
+		headerText += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
 
 	for pack = range inChan {
 		msg = pack.Message
+		message = headerText
 		if s.conf.PayloadOnly {
 			message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(msg.GetPayload()))
 			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
