@@ -51,6 +51,7 @@ type FileOutput struct {
 	batchChan     chan []byte
 	backChan      chan []byte
 	folderPerm    os.FileMode
+	timerChan     <-chan time.Time
 }
 
 // ConfigStruct for FileOutput plugin.
@@ -81,9 +82,9 @@ type FileOutputConfig struct {
 	// "AND").
 	FlushOperator string `toml:"flush_operator"`
 
-	// Permissions to apply to directories created for FileOutput's
-	// parent directory if it doesn't exist.  Must be a string
-	// representation of an octal integer. Defaults to "700".
+	// Permissions to apply to directories created for FileOutput's parent
+	// directory if it doesn't exist.  Must be a string representation of an
+	// octal integer. Defaults to "700".
 	FolderPerm string `toml:"folder_perm"`
 }
 
@@ -175,21 +176,23 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // data until the ticker triggers the buffered data should be put onto the
 // committer channel.
 func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
-	var pack *PipelinePack
-	var e error
-	var timer *time.Timer
-	var timerDuration time.Duration
-	var msgCounter uint32
+	var (
+		pack            *PipelinePack
+		e               error
+		timer           *time.Timer
+		timerDuration   time.Duration
+		msgCounter      uint32
+		intervalElapsed bool
+	)
 	ok := true
 	outBatch := make([]byte, 0, 10000)
 	outBytes := make([]byte, 0, 1000)
 	inChan := or.InChan()
 
 	timerDuration = time.Duration(o.flushInterval) * time.Millisecond
-	timer = time.NewTimer(timerDuration)
-	if o.flushInterval <= 0 {
-		timer.Stop()
-		timer.C = nil
+	if o.flushInterval > 0 {
+		timer = time.NewTimer(timerDuration)
+		o.timerChan = timer.C
 	}
 
 	for ok {
@@ -212,32 +215,35 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 			outBytes = outBytes[:0]
 			pack.Recycle()
 
-			// Trigger immediately when the message count threshold has
-			// been reached but only if the "OR" operator is in effect.
-			if !o.flushOpAnd && msgCounter >= o.flushCount {
-				// This will block until the other side is ready to accept
-				// this batch, freeing us to start on the next one.
-				o.batchChan <- outBatch
-				outBatch = <-o.backChan
-				msgCounter = 0
-				if timer != nil {
-					timer.Reset(timerDuration)
+			// Trigger immediately when the message count threshold has been
+			// reached if a) the "OR" operator is in effect or b) the
+			// flushInterval is 0 or c) the flushInterval has already elapsed.
+			// at least once since the last flush.
+			if msgCounter >= o.flushCount {
+				if !o.flushOpAnd || o.flushInterval == 0 || intervalElapsed {
+					// This will block until the other side is ready to accept
+					// this batch, freeing us to start on the next one.
+					o.batchChan <- outBatch
+					outBatch = <-o.backChan
+					msgCounter = 0
+					intervalElapsed = false
+					if timer != nil {
+						timer.Reset(timerDuration)
+					}
 				}
-				log.Println("Flushed by count...")
 			}
-		case <-timer.C:
-			log.Println("Called timer", msgCounter, o.flushCount)
-
+		case <-o.timerChan:
 			if (o.flushOpAnd && msgCounter >= o.flushCount) ||
 				(!o.flushOpAnd && msgCounter > 0) {
 
-				log.Println("Flushed by time - count: ", msgCounter, " - flush: ", o.flushCount)
-
 				// This will block until the other side is ready to accept
 				// this batch, freeing us to start on the next one.
 				o.batchChan <- outBatch
 				outBatch = <-o.backChan
 				msgCounter = 0
+				intervalElapsed = false
+			} else {
+				intervalElapsed = true
 			}
 			timer.Reset(timerDuration)
 		}
