@@ -154,12 +154,12 @@ func parseMessage(message []byte) ([]Stat, error) {
 	for _, line := range lines {
 		colonPos := bytes.IndexByte(line, ':')
 		if colonPos == -1 {
-			return stats, fmt.Errorf(errFmt, line)
+			return nil, fmt.Errorf(errFmt, line)
 		}
 
 		pipePos := bytes.IndexByte(line, '|')
 		if pipePos == -1 {
-			return stats, fmt.Errorf(errFmt, line)
+			return nil, fmt.Errorf(errFmt, line)
 		}
 
 		bucket := line[:colonPos]
@@ -167,13 +167,13 @@ func parseMessage(message []byte) ([]Stat, error) {
 		modifier, err := extractModifier(line, pipePos+1)
 
 		if err != nil {
-			return stats, err
+			return nil, err
 		}
 
 		sampleRate := float32(1)
 		sampleRate, err = extractSampleRate(line)
 		if err != nil {
-			return stats, err
+			return nil, err
 		}
 
 		var stat Stat
