@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Christian Vozar (christian@bellycard.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -31,8 +32,8 @@ import (
 var sendCount int
 
 func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
-	results := [][]byte{[]byte("Subject: SmtpOutput\r\n\r\nWrite me out to the network"),
-		[]byte("Subject: SmtpOutput\r\n\r\n{\"uuid\":")}
+	results := [][]byte{[]byte("From: heka@localhost.localdomain\r\nSubject: Heka [SmtpOutput]\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\nV3JpdGUgbWUgb3V0IHRvIHRoZSBuZXR3b3Jr"),
+		[]byte("From: heka@localhost.localdomai")}
 
 	switch sendCount {
 	case 0:
