@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* FileOutput `flushinterval` config setting changed to `flush_interval` to
+  match config naming conventions.
+
 * SandboxDecoder, SandboxFilter, and SandboxManagerFilter now all use
   `${SHARE_DIR}/lua_modules` as the default `module_directory` setting.
   SandboxDecoder and SandboxFilter both now interpret relative paths to lua
@@ -74,6 +77,10 @@ Bug Handling
 
 Features
 --------
+
+* Added flush_count config setting to FileOutput to complement existing
+  flush_interval. Also added flush_operator setting which can be "AND" or "OR"
+  to specify how flush_count and flush_interval should be combined.
 
 * Introduced `share_dir` global config setting, which specifies where Heka's
   read only resources should live. Defaults to `/usr/share/heka`. Also added

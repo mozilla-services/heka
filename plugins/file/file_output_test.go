@@ -224,5 +224,120 @@ func FileOutputSpec(c gs.Context) {
 				}
 			})
 		})
+
+		c.Specify("honors folder_perm setting", func() {
+			config.FolderPerm = "750"
+			config.Path = filepath.Join(tmpFilePath, "subfile")
+			err := fileOutput.Init(config)
+			defer os.Remove(config.Path)
+			c.Assume(err, gs.IsNil)
+
+			fi, err := os.Stat(tmpFilePath)
+			c.Expect(fi.IsDir(), gs.IsTrue)
+			c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
+		})
+
+		c.Specify("that starts receiving w/ a flush interval", func() {
+			config.FlushInterval = 100000000 // We'll trigger the timer manually.
+			inChan := make(chan *PipelinePack)
+			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			timerChan := make(chan time.Time)
+
+			msg2 := pipeline_ts.GetTestMessage()
+			pack2 := NewPipelinePack(pConfig.InputRecycleChan())
+			pack2.Message = msg2
+
+			recvWithConfig := func(config *FileOutputConfig) {
+				err := fileOutput.Init(config)
+				c.Assume(err, gs.IsNil)
+				wg.Add(1)
+				go fileOutput.receiver(oth.MockOutputRunner, &wg)
+				runtime.Gosched() // Yield so we can overwrite the timerChan.
+				fileOutput.timerChan = timerChan
+			}
+
+			cleanUp := func() {
+				close(inChan)
+				wg.Done()
+			}
+
+			c.Specify("honors flush interval", func() {
+				recvWithConfig(config)
+				defer cleanUp()
+				inChan <- pack
+				select {
+				case _ = <-fileOutput.batchChan:
+					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
+				default:
+				}
+				timerChan <- time.Now()
+				select {
+				case _ = <-fileOutput.batchChan:
+				default:
+					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
+				}
+			})
+
+			c.Specify("honors flush interval AND flush count", func() {
+				config.FlushCount = 2
+				recvWithConfig(config)
+				defer cleanUp()
+				inChan <- pack
+
+				select {
+				case <-fileOutput.batchChan:
+					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
+				default:
+				}
+
+				timerChan <- time.Now()
+				select {
+				case <-fileOutput.batchChan:
+					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
+				default:
+				}
+
+				inChan <- pack2
+				runtime.Gosched()
+				select {
+				case <-fileOutput.batchChan:
+				default:
+					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
+				}
+			})
+
+			c.Specify("honors flush interval OR flush count", func() {
+				config.FlushCount = 2
+				config.FlushOperator = "OR"
+				recvWithConfig(config)
+				defer cleanUp()
+				inChan <- pack
+
+				select {
+				case <-fileOutput.batchChan:
+					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
+				default:
+				}
+
+				c.Specify("when interval triggers first", func() {
+					timerChan <- time.Now()
+					select {
+					case <-fileOutput.batchChan:
+					default:
+						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
+					}
+				})
+
+				c.Specify("when count triggers first", func() {
+					inChan <- pack2
+					runtime.Gosched()
+					select {
+					case <-fileOutput.batchChan:
+					default:
+						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
+					}
+				})
+			})
+		})
 	})
 }
