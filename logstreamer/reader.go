@@ -36,6 +36,20 @@ type LogstreamLocation struct {
 
 var LINEBUFFERLEN = 500
 
+// Returns whether an error is a OS file related error
+func IsFileError(err error) (fileError bool) {
+	switch err.(type) {
+	case nil:
+	case *os.SyscallError:
+		fileError = true
+	case *os.PathError:
+		fileError = true
+	case *os.LinkError:
+		fileError = true
+	}
+	return
+}
+
 // Loads a logstreamlocation from a file or returns an empty one if no journal
 // record was found.
 func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
@@ -393,17 +407,7 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 		// Did we get an OS level error attempting to open a file somewhere?
 		// These syscall errors should be retried and reported, but not
 		// clear out the position since it may still be valid.
-		fileError := false
-		switch err.(type) {
-		case nil:
-		case *os.SyscallError:
-			fileError = true
-		case *os.PathError:
-			fileError = true
-		case *os.LinkError:
-			fileError = true
-		}
-		if fileError {
+		if IsFileError(err) {
 			return 0, err
 		}
 	}
