@@ -31,17 +31,37 @@ type UdpInput struct {
 	listener      net.Conn
 	name          string
 	stopped       bool
-	config        *NetworkInputConfig
+	config        *UdpInputConfig
 	parser        StreamParser
 	parseFunction NetworkParseFunction
 }
 
+// ConfigStruct for NetworkInput plugins.
+type UdpInputConfig struct {
+	// Network type ("udp", "udp4" or "udp6"). Needs to match the input type.
+	Net string
+	// String representation of the address of the network connection on which
+	// the listener should be listening (e.g. "127.0.0.1:5565").
+	Address string
+	// Set of message signer objects, keyed by signer id string.
+	Signers map[string]Signer `toml:"signer"`
+	// Name of configured decoder to receive the input
+	Decoder string
+	// Type of parser used to break the stream up into messages
+	ParserType string `toml:"parser_type"`
+	// Delimiter used to split the stream into messages
+	Delimiter string
+	// String indicating if the delimiter is at the start or end of the line,
+	// only used for regexp delimiters
+	DelimiterLocation string `toml:"delimiter_location"`
+}
+
 func (u *UdpInput) ConfigStruct() interface{} {
-	return new(NetworkInputConfig)
+	return &UdpInputConfig{Net: "udp"}
 }
 
 func (u *UdpInput) Init(config interface{}) (err error) {
-	u.config = config.(*NetworkInputConfig)
+	u.config = config.(*UdpInputConfig)
 	if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := u.config.Address[3:]
@@ -58,11 +78,11 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		}
 	} else {
 		// IP address
-		udpAddr, err := net.ResolveUDPAddr("udp", u.config.Address)
+		udpAddr, err := net.ResolveUDPAddr(u.config.Net, u.config.Address)
 		if err != nil {
 			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
 		}
-		u.listener, err = net.ListenUDP("udp", udpAddr)
+		u.listener, err = net.ListenUDP(u.config.Net, udpAddr)
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}

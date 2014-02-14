@@ -93,7 +93,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput protobuf parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Signers:    signers,
 			Decoder:    "ProtobufDecoder",
 			ParserType: "message.proto"})
@@ -282,7 +282,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput regexp parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "RegexpDecoder",
 			ParserType: "regexp",
 			Delimiter:  "\n"})
@@ -341,7 +341,7 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput token parser", func() {
 		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Address: ith.AddrStr,
+		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "TokenDecoder",
 			ParserType: "token",
 			Delimiter:  "\n"})
@@ -401,6 +401,7 @@ func TcpInputSpec(c gs.Context) {
 	c.Specify("A TcpInput using TLS", func() {
 		tcpInput := TcpInput{}
 		config := &TcpInputConfig{
+			Net:        "tcp",
 			Address:    ith.AddrStr,
 			ParserType: "token",
 			UseTls:     true,
@@ -460,4 +461,14 @@ func TcpInputSpec(c gs.Context) {
 			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
+}
+
+func TcpInputSpecFailure(c gs.Context) {
+	tcpInput := TcpInput{}
+	err := tcpInput.Init(&TcpInputConfig{Net: "udp", Address: "localhost:55565",
+		Decoder:    "ProtobufDecoder",
+		ParserType: "message.proto"})
+	c.Assume(err, gs.Not(gs.IsNil))
+	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: listen udp 127.0.0.1:55565: unexpected address type localhost:55565\n")
+
 }

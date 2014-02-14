@@ -37,6 +37,8 @@ type TcpInput struct {
 }
 
 type TcpInputConfig struct {
+	// Network type (e.g. "tcp", "tcp4", "tcp6", "unix" or "unixpacket"). Needs to match the input type.
+	Net string
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").
 	Address string
@@ -59,7 +61,7 @@ type TcpInputConfig struct {
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
-	config := new(TcpInputConfig)
+	config := &TcpInputConfig{Net: "tcp"}
 	config.Tls = TlsConfig{PreferServerCiphers: true}
 	return config
 }
@@ -67,7 +69,7 @@ func (t *TcpInput) ConfigStruct() interface{} {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*TcpInputConfig)
-	t.listener, err = net.Listen("tcp", t.config.Address)
+	t.listener, err = net.Listen(t.config.Net, t.config.Address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}

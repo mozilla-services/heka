@@ -46,6 +46,8 @@ Parameters:
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.
+- net (string, optional, default: "tcp")
+    Network value must be one of: "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
 
 Example:
 
