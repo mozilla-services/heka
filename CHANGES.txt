@@ -124,6 +124,8 @@ Features
 
 * Added SmtpOutput (issue #472)
 
+* Added preserve_data option to SandboxDecoder (issue #668).
+
 0.4.2 (2013-12-02)
 ==================
 
