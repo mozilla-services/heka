@@ -294,9 +294,8 @@ func (l *Logstream) LocatePriorLocation() (fd *os.File, err error) {
 		}
 		err = nil // Reset our error to nil
 	}
-	if fd == nil {
-		l.position.Reset()
-	}
+	// Set our default error since we were unable to locate the position
+	err = errors.New("Unable to locate position in the stream")
 	return
 }
 
@@ -388,12 +387,24 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	var fd *os.File
 	if l.position.Filename != "" {
 		if fd, err = l.LocatePriorLocation(); err == nil {
-			if fd == nil {
-				err = errors.New("wtf")
-				return
-			}
 			l.fd = fd
 			return l.readBytes(p)
+		}
+		// Did we get an OS level error attempting to open a file somewhere?
+		// These syscall errors should be retried and reported, but not
+		// clear out the position since it may still be valid.
+		fileError := false
+		switch err.(type) {
+		case nil:
+		case *os.SyscallError:
+			fileError = true
+		case *os.PathError:
+			fileError = true
+		case *os.LinkError:
+			fileError = true
+		}
+		if fileError {
+			return 0, err
 		}
 	}
 
