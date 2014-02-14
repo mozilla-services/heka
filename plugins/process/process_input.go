@@ -1,4 +1,4 @@
-/***** iEGIN LICENSE BLOCK *****
+/***** BEGIN LICENSE BLOCK *****
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -198,15 +198,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	pi.heka_pid = int32(os.Getpid())
 
 	return nil
-}
-
-func (pi *ProcessInput) SetCommand(command string, config interface{}) (result_config interface{}) {
-	conf := config.(*ProcessInputConfig)
-	cfg := cmd_config{}
-	cfg.Bin = command
-	conf.Command = make(map[string]cmd_config)
-	conf.Command["0"] = cfg
-	return conf
 }
 
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
