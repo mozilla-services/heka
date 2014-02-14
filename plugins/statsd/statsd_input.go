@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
+	"math"
 	"net"
 	"strconv"
 	"time"
@@ -123,54 +124,68 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	stat, err := parseMessage(message)
+	stats, err := parseMessage(message)
 	if err != nil {
 		s.ir.LogError(fmt.Errorf("Can not parse message: %s", message))
 		return
 	}
 
-	if !s.statAccum.DropStat(stat) {
-		s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+	for _, stat := range stats {
+		if !s.statAccum.DropStat(stat) {
+			s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+		}
 	}
 }
 
-func parseMessage(message []byte) (Stat, error) {
+func parseMessage(message []byte) ([]Stat, error) {
 	message = bytes.TrimRight(message, "\n")
 
-	var stat Stat
+	stats := make([]Stat, 0, int(math.Max(1, float64(bytes.Count(message, []byte("\n"))))))
 
 	errFmt := "Invalid statsd message %s"
 
-	colonPos := bytes.IndexByte(message, ':')
-	if colonPos == -1 {
-		return stat, fmt.Errorf(errFmt, message)
+	var lines [][]byte
+	if bytes.IndexByte(message, '\n') > -1 {
+		lines = bytes.Split(message, []byte("\n"))
+	} else {
+		lines = [][]byte{message}
 	}
 
-	pipePos := bytes.IndexByte(message, '|')
-	if pipePos == -1 {
-		return stat, fmt.Errorf(errFmt, message)
+	for _, line := range lines {
+		colonPos := bytes.IndexByte(line, ':')
+		if colonPos == -1 {
+			return stats, fmt.Errorf(errFmt, line)
+		}
+
+		pipePos := bytes.IndexByte(line, '|')
+		if pipePos == -1 {
+			return stats, fmt.Errorf(errFmt, line)
+		}
+
+		bucket := line[:colonPos]
+		value := line[colonPos+1 : pipePos]
+		modifier, err := extractModifier(line, pipePos+1)
+
+		if err != nil {
+			return stats, err
+		}
+
+		sampleRate := float32(1)
+		sampleRate, err = extractSampleRate(line)
+		if err != nil {
+			return stats, err
+		}
+
+		var stat Stat
+		stat.Bucket = string(bucket)
+		stat.Value = string(value)
+		stat.Modifier = string(modifier)
+		stat.Sampling = sampleRate
+
+		stats = append(stats, stat)
 	}
 
-	bucket := message[:colonPos]
-	value := message[colonPos+1 : pipePos]
-	modifier, err := extractModifier(message, pipePos+1)
-
-	if err != nil {
-		return stat, err
-	}
-
-	sampleRate := float32(1)
-	sampleRate, err = extractSampleRate(message)
-	if err != nil {
-		return stat, err
-	}
-
-	stat.Bucket = string(bucket)
-	stat.Value = string(value)
-	stat.Modifier = string(modifier)
-	stat.Sampling = sampleRate
-
-	return stat, nil
+	return stats, nil
 }
 
 func extractModifier(message []byte, startAt int) ([]byte, error) {
