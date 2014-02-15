@@ -15,9 +15,11 @@ Parameters:
     otherwise the entire `Message` struct will be emailed in JSON format.
     (default: true)
 - send_from (string)
-    - email address of the sender (default: "heka@localhost.localdomain")
+    The email address of the sender. (default: "heka@localhost.localdomain")
 - send_to (array of strings)
-    - array of email addresses to send the message to
+    An array of email addresses where the output will be sent to.
+- subject (string)
+    Custom subject line of email. (default: "Heka [SmtpOutput]")
 - host (string)
     SMTP host to send the email to (default: "127.0.0.1:25")
 - auth (string)
