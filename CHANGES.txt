@@ -73,6 +73,10 @@ Bug Handling
 Features
 --------
 
+* Added support for send_nsca to NagiosOutput as an alternative to direct http
+  submission; also a way to explicitely specify service_description and host
+  to match Nagios config
+
 * Introduced `share_dir` global config setting, which specifies where Heka's
   read only resources should live. Defaults to `/usr/share/heka`. Also added
   `pipeline.PrependShareDir()` function for use within plugin initialization
@@ -84,10 +88,10 @@ Features
 * Added an Nginx access log decoder based on the Nginx 'log_format'
   configuration directive.
 
-* heka-cat: A command-line utility for counting, viewing, filtering, and 
+* heka-cat: A command-line utility for counting, viewing, filtering, and
   extracting Heka protobuf logs.
 
-* TcpOutput has been redesigned to handle unavailable endpoints and dropped 
+* TcpOutput has been redesigned to handle unavailable endpoints and dropped
   connections without data loss (issue #355).
 
 * CarbonOutput now supports submitting messages via UDP, persistent TCP
