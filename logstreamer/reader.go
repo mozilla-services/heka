@@ -176,10 +176,23 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 	}
 
 	if ok {
+		// Ensure that we restore our filename
+		filename := l.position.Filename
+		defer func() {
+			l.position.Filename = filename
+		}()
+
 		// 1. NO - Try and find our location
 		l.position.Filename = ""
 		fd, err := l.LocatePriorLocation()
-		fd.Close()
+
+		if err != nil && IsFileError(err) {
+			return "", false
+		}
+
+		if fd != nil {
+			fd.Close()
+		}
 
 		// Unable to locate prior position in our file-stream, are there
 		// any logfiles?
