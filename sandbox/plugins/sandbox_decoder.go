@@ -23,6 +23,9 @@ import (
 	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +35,7 @@ import (
 type SandboxDecoder struct {
 	sb                     Sandbox
 	sbc                    *SandboxConfig
+	preservationFile       string
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageSamples  int64
@@ -42,11 +46,17 @@ type SandboxDecoder struct {
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
 	dRunner                pipeline.DecoderRunner
+	name                   string
 	tz                     *time.Location
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
 	return NewSandboxConfig()
+}
+
+func (s *SandboxDecoder) SetName(name string) {
+	re := regexp.MustCompile("\\W")
+	s.name = re.ReplaceAllString(name, "_")
 }
 
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
@@ -55,11 +65,18 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	}
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
-	s.sample = true
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
 		s.tz, err = time.LoadLocation(tz.(string))
+		if err != nil {
+			return
+		}
+	}
+
+	data_dir := pipeline.PrependBaseDir(DATA_DIR)
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
 		if err != nil {
 			return
 		}
@@ -74,7 +91,14 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	default:
 		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
-	err = s.sb.Init("", "decoder")
+
+	s.sample = true
+	s.preservationFile = filepath.Join(data_dir, s.name+DATA_EXT)
+	if s.sbc.PreserveData && fileExists(s.preservationFile) {
+		err = s.sb.Init(s.preservationFile, "decoder")
+	} else {
+		err = s.sb.Init("", "decoder")
+	}
 	return
 }
 
@@ -188,7 +212,11 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 
 func (s *SandboxDecoder) Shutdown() {
 	if s.sb != nil {
-		s.sb.Destroy("")
+		if s.sbc.PreserveData {
+			s.sb.Destroy(s.preservationFile)
+		} else {
+			s.sb.Destroy("")
+		}
 		s.sb = nil
 	}
 }

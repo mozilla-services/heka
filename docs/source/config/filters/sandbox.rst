@@ -25,9 +25,7 @@ SandboxFilter Settings
 
 - preserve_data (bool):
     True if the sandbox global data should be preserved/restored on Heka
-    shutdown/startup. The preserved data is stored along side the sandbox code
-    i.e. counter.lua.data so Heka must have read/write permissions to that
-    directory.
+    shutdown/startup.
 
 - memory_limit (uint):
     The number of bytes the sandbox is allowed to consume before being

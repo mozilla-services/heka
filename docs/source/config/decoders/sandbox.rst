@@ -17,6 +17,10 @@ Parameters:
     The path to the sandbox code; if specified as a relative path it will be
     appended to Heka's global share_dir.
 
+- preserve_data (bool):
+    True if the sandbox global data should be preserved/restored on Heka
+    shutdown/startup.
+
 - memory_limit (uint):
     The number of bytes the sandbox is allowed to consume before being
     terminated (max 8MiB, default max).

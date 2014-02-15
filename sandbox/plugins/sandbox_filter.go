@@ -81,6 +81,14 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	this.sbc = config.(*SandboxConfig)
 	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
 
+	data_dir := pipeline.PrependBaseDir(DATA_DIR)
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
+	}
+
 	switch this.sbc.ScriptType {
 	case "lua":
 		this.sb, err = lua.CreateLuaSandbox(this.sbc)
@@ -91,15 +99,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return fmt.Errorf("unsupported script type: %s", this.sbc.ScriptType)
 	}
 
-	data_dir := pipeline.PrependBaseDir("sandbox_preservation")
-	if !fileExists(data_dir) {
-		err = os.MkdirAll(data_dir, 0700)
-		if err != nil {
-			return
-		}
-	}
-
-	this.preservationFile = filepath.Join(data_dir, this.name+".data")
+	this.preservationFile = filepath.Join(data_dir, this.name+DATA_EXT)
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
 		err = this.sb.Init(this.preservationFile, "filter")
 	} else {

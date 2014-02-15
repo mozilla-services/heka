@@ -129,6 +129,24 @@ func FilterSpec(c gs.Context) {
 			}()
 			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 		})
+
+		c.Specify("Preserves data", func() {
+			var timer <-chan time.Time
+			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+
+			config.ScriptFilename = "../lua/testsupport/serialize.lua"
+			config.PreserveData = true
+			sbFilter.SetName("serialize")
+			err := sbFilter.Init(config)
+			c.Assume(err, gs.IsNil)
+			close(inChan)
+			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			_, err = os.Stat("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+			err = os.Remove("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+		})
 	})
 
 	c.Specify("A SandboxManagerFilter", func() {
@@ -249,6 +267,21 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 			decoder.Shutdown()
+		})
+
+		c.Specify("Preserves data", func() {
+			conf.ScriptFilename = "../lua/testsupport/serialize.lua"
+			conf.PreserveData = true
+			decoder.SetName("serialize")
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			decoder.Shutdown()
+			_, err = os.Stat("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
+			err = os.Remove("sandbox_preservation/serialize.data")
+			c.Expect(err, gs.IsNil)
 		})
 	})
 
