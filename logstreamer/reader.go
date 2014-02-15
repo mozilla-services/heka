@@ -281,8 +281,8 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err er
 			if err == nil {
 				return
 			}
-			// Check to see whether its a file permission error, return if it is
-			if os.IsPermission(err) {
+			// Check to see whether its a file error, return if it is
+			if IsFileError(err) {
 				return
 			}
 			err = nil // Reset our error to nil
