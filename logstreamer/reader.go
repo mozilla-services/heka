@@ -177,9 +177,15 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 	if ok {
 		// 1. NO - Try and find our location
-		l.position.Filename = ""
-		fd, err := l.LocatePriorLocation()
-		fd.Close()
+		fd, err := l.LocatePriorLocation(false)
+
+		if err != nil && IsFileError(err) {
+			return "", false
+		}
+
+		if fd != nil {
+			fd.Close()
+		}
 
 		// Unable to locate prior position in our file-stream, are there
 		// any logfiles?
@@ -263,22 +269,24 @@ func (l *Logstream) FileHashMismatch() bool {
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
 // reflect the move.
-func (l *Logstream) LocatePriorLocation() (fd *os.File, err error) {
+func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err error) {
 	var info os.FileInfo
 	l.lfMutex.RLock()
 	defer l.lfMutex.RUnlock()
 
-	fileIndex := l.logfiles.IndexOf(l.position.Filename)
-	if fileIndex != -1 {
-		fd, err = SeekInFile(l.position.Filename, l.position)
-		if err == nil {
-			return
+	if checkFilename {
+		fileIndex := l.logfiles.IndexOf(l.position.Filename)
+		if fileIndex != -1 {
+			fd, err = SeekInFile(l.position.Filename, l.position)
+			if err == nil {
+				return
+			}
+			// Check to see whether its a file error, return if it is
+			if IsFileError(err) {
+				return
+			}
+			err = nil // Reset our error to nil
 		}
-		// Check to see whether its a file permission error, return if it is
-		if os.IsPermission(err) {
-			return
-		}
-		err = nil // Reset our error to nil
 	}
 
 	// Unable to locate the file, or the position wasn't where we thought it should be.
@@ -400,7 +408,7 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	// If we have a position, attempt to restore it
 	var fd *os.File
 	if l.position.Filename != "" {
-		if fd, err = l.LocatePriorLocation(); err == nil {
+		if fd, err = l.LocatePriorLocation(true); err == nil {
 			l.fd = fd
 			return l.readBytes(p)
 		}
