@@ -229,7 +229,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
 
 	for !globals.Stopping {
 		select {
@@ -240,7 +240,7 @@ func Run(config *PipelineConfig) {
 				if err := notify.Post(RELOAD, nil); err != nil {
 					log.Println("Error sending reload event: ", err)
 				}
-			case syscall.SIGINT:
+			case syscall.SIGINT, syscall.SIGTERM:
 				log.Println("Shutdown initiated.")
 				globals.Stopping = true
 			case SIGUSR1:
