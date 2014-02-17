@@ -244,7 +244,7 @@ func (sm *StatAccumInput) Flush() {
 	for key, gauge := range sm.gauges {
 		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, int64(gauge))
 		if sm.config.DeleteIdleStats {
-			delete(sm.gauages, key)
+			delete(sm.gauges, key)
 		}
 		numStats++
 	}
