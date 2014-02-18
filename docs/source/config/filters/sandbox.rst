@@ -36,7 +36,7 @@ SandboxFilter Settings
     The number of instructions the sandbox is allowed the execute during the
     process_message/timer_event functions before being terminated (max 1M,
     default max). For a dynamic configuration the value is ignored and the 
-    SandboxManagerFilter setting setting is used.
+    SandboxManagerFilter setting is used.
 
 - output_limit (uint):
     The number of bytes the sandbox output buffer can hold before before being
