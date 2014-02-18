@@ -29,8 +29,6 @@ type ProcessDirectoryInputConfig struct {
 }
 
 type ProcessDirectoryInput struct {
-	// TODO: track each of the plugins that we've started up so that
-	// we can shutdown each one in Stop()
 	plugins  map[string]interface{}
 	stopChan chan bool
 	cron_dir string
@@ -60,7 +58,7 @@ func (pdi *ProcessDirectoryInput) Run(ir InputRunner, h PluginHelper) (err error
 
 	select {
 	case <-pdi.stopChan:
-		// TODO: stop all child processes
+		// Just halt
 	}
 
 	return
@@ -79,11 +77,9 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 	var ok bool
 	var pluginGlobals PluginGlobals
 
-	fmt.Printf("Walking: [%s]\n", path)
 	if info == nil {
 		// info will be nil in the case that the filepath doesn't
 		// actually exist
-		fmt.Printf("Skipping %s\n", path)
 		return nil
 	}
 
@@ -97,7 +93,6 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 
 	if info.IsDir() {
 		// Skip directories
-		fmt.Printf("Skipping directory %s\n", path)
 		return nil
 	}
 
@@ -110,8 +105,6 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 	actual_cron_dir, time_interval := filepath.Split(dir)
 	actual_cron_dir = strings.TrimSuffix(actual_cron_dir, string(os.PathSeparator))
 	if actual_cron_dir != cron_dir {
-		fmt.Printf("Invalid directory structure.  Expected [%s] got [%s]",
-			cron_dir, actual_cron_dir)
 		return fmt.Errorf("Invalid directory structure.  Expected [%s] got [%s]",
 			cron_dir, actual_cron_dir)
 	}
@@ -122,11 +115,9 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 
 	if wrapper.PluginCreator, ok = AvailablePlugins["ProcessInput"]; !ok {
 		pdi.ir.LogMessage(fmt.Sprintf("No such plugin: %s", wrapper.Name))
-
 		// This shouldn't happen unless heka was build without
 		// ProcessInput support for some reason
-		fmt.Printf("Can't load ProcessInput plugin")
-		return fmt.Errorf("Can't load ProcessInput plugin")
+		return fmt.Errorf("No such plugin: %s", wrapper.Name)
 	}
 
 	// Create plugin, test config object generation.
@@ -151,11 +142,9 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 	var tick_interval int
 	tick_interval, err = strconv.Atoi(time_interval)
 	if err != nil {
-		fmt.Printf("Ticker interval could not be parsed for [%s]", path)
 		return fmt.Errorf("Ticker interval could not be parsed for [%s]", path)
 	}
 	if tick_interval < 0 {
-		fmt.Printf("A negative ticker interval was parsed for [%s]", path)
 		return fmt.Errorf("A negative ticker interval was parsed for [%s]", path)
 	}
 	pluginGlobals.Ticker = uint(tick_interval)
@@ -167,29 +156,9 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 	ir.SetTickLength(tickLength)
 	pdi.ir.LogMessage(fmt.Sprintf("Adding input runner [%s]", wrapper.Name))
 	err = pdi.h.PipelineConfig().AddInputRunner(ir, wrapper)
-	fmt.Printf("Launching: [%s]\n", wrapper.Name)
 
-	/*
-		var pluginGlobals PluginGlobals
-		pluginGlobals.Typ = "LogfileInput"
-		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "30s",
-			Delay:      "250ms",
-			MaxRetries: -1,
-		}
-		wrapper := new(PluginWrapper)
-		wrapper.Name = fmt.Sprintf("%s-%s", ir.Name(), fn)
-		wrapper.PluginCreator, _ = AvailablePlugins[pluginGlobals.Typ]
-		plugin := wrapper.PluginCreator()
-		wrapper.ConfigCreator = func() interface{} { return config }
-		if err = plugin.(Plugin).Init(&config); err != nil {
-			ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.Name, err))
-			return err
-		}
-		lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals)
-		err = h.PipelineConfig().AddInputRunner(lfir, wrapper)
-
-	*/
+	// Keep track of all plugins
+	pdi.plugins[wrapper.Name] = ir
 
 	return nil
 }
