@@ -78,6 +78,10 @@ Bug Handling
 Features
 --------
 
+* Added support for send_nsca to NagiosOutput as an alternative to direct http
+  submission; also a way to explicitely specify service_description and host
+  to match Nagios config
+
 * Added configurable network types to TcpInput "tcp", "tcp4", "tcp6", "unix" and
  "unixpacket" (issue #539)
 
@@ -99,10 +103,10 @@ Features
 * Added an Nginx access log decoder based on the Nginx 'log_format'
   configuration directive.
 
-* heka-cat: A command-line utility for counting, viewing, filtering, and 
+* heka-cat: A command-line utility for counting, viewing, filtering, and
   extracting Heka protobuf logs.
 
-* TcpOutput has been redesigned to handle unavailable endpoints and dropped 
+* TcpOutput has been redesigned to handle unavailable endpoints and dropped
   connections without data loss (issue #355).
 
 * CarbonOutput now supports submitting messages via UDP, persistent TCP

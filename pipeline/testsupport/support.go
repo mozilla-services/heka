@@ -23,6 +23,7 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	. "github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
 	"log"
 	"strings"
 	"time"
@@ -79,4 +80,18 @@ func GetTestMessage() *Message {
 	msg.SetHostname(hostname)
 	msg.AddField(field)
 	return msg
+}
+
+// Writes the contents of the provided reader out to a temp file and returns
+// the path to the file.
+func WriteStringToTmpFile(output string) (path string) {
+	file, err := ioutil.TempFile("", "heka-test")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	path = file.Name()
+
+	file.WriteString(output)
+	return
 }
