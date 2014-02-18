@@ -113,7 +113,6 @@ func makeVariableMessage(encoder client.Encoder, items int, rdm *randomDataMaker
 		msg.SetTimestamp(time.Now().UnixNano())
 		msg.SetType("hekabench")
 		msg.SetLogger("flood")
-		msg.SetSeverity(int32(0))
 		msg.SetEnvVersion("0.2")
 		msg.SetPid(pid)
 		msg.SetHostname(hostname)
