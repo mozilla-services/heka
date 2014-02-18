@@ -29,17 +29,20 @@ SandboxFilter Settings
 
 - memory_limit (uint):
     The number of bytes the sandbox is allowed to consume before being
-    terminated (max 8MiB, default max).
+    terminated (max 8MiB, default max). For a dynamic configuration the
+    value is ignored and the SandboxManagerFilter setting is used.
 
 - instruction_limit (uint):
     The number of instructions the sandbox is allowed the execute during the
     process_message/timer_event functions before being terminated (max 1M,
-    default max).
+    default max). For a dynamic configuration the value is ignored and the 
+    SandboxManagerFilter setting setting is used.
 
 - output_limit (uint):
     The number of bytes the sandbox output buffer can hold before before being
     terminated (max 63KiB, default max).  Anything less than 64B is set to
-    64B.
+    64B. For a dynamic configuration the value is ignored and the 
+    SandboxManagerFilter setting is used.
 
 - profile (bool):
     When true a statistically significant number of ProcessMessage timings are
