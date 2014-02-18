@@ -411,13 +411,10 @@ func DecoderSpec(c gs.Context) {
 
 			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(4))
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "testhost")
+			c.Expect(pack.Message.GetPayload(), gs.Equals, "imklog 5.8.6, log source = /proc/kmsg started.")
 
 			var ok bool
 			var value interface{}
-			value, ok = pack.Message.GetFieldValue("msg")
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "imklog 5.8.6, log source = /proc/kmsg started.")
-
 			value, ok = pack.Message.GetFieldValue("syslogtag")
 			c.Expect(ok, gs.Equals, true)
 			c.Expect(value, gs.Equals, "kernel:")
