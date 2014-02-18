@@ -23,8 +23,9 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
 
-	r.AddSpec(ProcessChainSpec)
-	r.AddSpec(ProcessInputSpec)
+	//r.AddSpec(ProcessChainSpec)
+	//r.AddSpec(ProcessInputSpec)
+	r.AddSpec(ProcessDirectoryInputSpec)
 
 	gospec.MainGoTest(r, t)
 }
