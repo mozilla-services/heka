@@ -120,9 +120,7 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	conf := config.(*SandboxConfig)
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.Name, conf.ScriptType))
 	conf.ModuleDirectory = this.moduleDirectory
-	if wantsName, ok := plugin.(pipeline.WantsName); ok {
-		wantsName.SetName(wrapper.Name)
-	}
+	plugin.(*SandboxFilter).name = wrapper.Name // preserve the reserved manager hyphenated name
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(pipeline.Plugin).Init(config); err != nil {
@@ -207,6 +205,10 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
+				// check/clear the old state preservation file
+				// this avoids issues with changes to the data model since the last load
+				// and prevents holes in the graph from looking like anomalies
+				os.Remove(filepath.Join(pipeline.PrependBaseDir(DATA_DIR), name+DATA_EXT))
 				var runner pipeline.FilterRunner
 				runner, err = this.createRunner(dir, name, conf)
 				if err != nil {
