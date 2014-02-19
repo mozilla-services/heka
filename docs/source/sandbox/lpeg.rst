@@ -59,4 +59,7 @@ Best practices (using Lpeg in the sandbox)
 
 8) If creating a grammar that would also be useful to others, please consider contributing it back
    to the project, thanks.
+
+9) Use the grammar tester http://lpeg.trink.com.
+
       
