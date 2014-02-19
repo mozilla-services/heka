@@ -259,8 +259,6 @@ func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("ProcessInput")
-	pack.Message.SetSeverity(int32(0))
-	pack.Message.SetEnvVersion("0.8")
 	pack.Message.SetPid(pi.heka_pid)
 	pack.Message.SetHostname(pi.hostname)
 	pack.Message.SetLogger(pi.ir.Name())

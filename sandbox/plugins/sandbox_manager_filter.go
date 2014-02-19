@@ -39,6 +39,9 @@ type SandboxManagerFilter struct {
 	workingDirectory    string
 	moduleDirectory     string
 	processMessageCount int64
+	memoryLimit         uint
+	instructionLimit    uint
+	outputLimit         uint
 }
 
 // Config struct for `SandboxManagerFilter`.
@@ -55,12 +58,22 @@ type SandboxManagerFilterConfig struct {
 	// all SandboxFilter 'require' requests. Defaults to
 	// ${SHARE_DIR}/lua_modules.
 	ModuleDirectory string `toml:"module_directory"`
+	// Memory limit applied to all managed sandboxes.
+	MemoryLimit uint `toml:"memory_limit"`
+	// Instruction limit applied to all managed sandboxes.
+	InstructionLimit uint `toml:"instruction_limit"`
+	// Output limit applied to all managed sandboxes.
+	OutputLimit uint `toml:"output_limit"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
+	sbDefaults := NewSandboxConfig().(*SandboxConfig)
 	return &SandboxManagerFilterConfig{
 		WorkingDirectory: "sbxmgrs",
-		ModuleDirectory:  "lua_module",
+		ModuleDirectory:  sbDefaults.ModuleDirectory,
+		MemoryLimit:      sbDefaults.MemoryLimit,
+		InstructionLimit: sbDefaults.InstructionLimit,
+		OutputLimit:      sbDefaults.OutputLimit,
 	}
 }
 
@@ -75,6 +88,9 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	this.maxFilters = conf.MaxFilters
 	this.workingDirectory = pipeline.PrependBaseDir(conf.WorkingDirectory)
 	this.moduleDirectory = pipeline.PrependShareDir(conf.ModuleDirectory)
+	this.memoryLimit = conf.MemoryLimit
+	this.instructionLimit = conf.InstructionLimit
+	this.outputLimit = conf.OutputLimit
 	err = os.MkdirAll(this.workingDirectory, 0700)
 	return
 }
@@ -118,8 +134,12 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	}
 	wrapper.ConfigCreator = func() interface{} { return config }
 	conf := config.(*SandboxConfig)
+	// Override the user provided settings with the manager settings
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.Name, conf.ScriptType))
 	conf.ModuleDirectory = this.moduleDirectory
+	conf.MemoryLimit = this.memoryLimit
+	conf.InstructionLimit = this.instructionLimit
+	conf.OutputLimit = this.outputLimit
 	plugin.(*SandboxFilter).name = wrapper.Name // preserve the reserved manager hyphenated name
 
 	// Apply configuration to instantiated plugin.
