@@ -202,6 +202,22 @@ func FilterSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 		})
 
+		c.Specify("Sanity check the default sandbox configuration limits", func() {
+			sbmFilter.Init(config)
+			c.Expect(sbmFilter.memoryLimit, gs.Equals, uint(8*1024*1024))
+			c.Expect(sbmFilter.instructionLimit, gs.Equals, uint(1e6))
+			c.Expect(sbmFilter.outputLimit, gs.Equals, uint(63*1024))
+		})
+
+		c.Specify("Sanity check the user specified sandbox configuration limits", func() {
+			config.MemoryLimit = 123456
+			config.InstructionLimit = 4321
+			config.OutputLimit = 8765
+			sbmFilter.Init(config)
+			c.Expect(sbmFilter.memoryLimit, gs.Equals, config.MemoryLimit)
+			c.Expect(sbmFilter.instructionLimit, gs.Equals, config.InstructionLimit)
+			c.Expect(sbmFilter.outputLimit, gs.Equals, config.OutputLimit)
+		})
 	})
 }
 
