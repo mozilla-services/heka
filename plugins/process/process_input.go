@@ -228,12 +228,18 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	for {
 		select {
 		case data := <-pi.stdoutChan:
+			fmt.Printf("ProcessInput: Pack supply is: [%r]\n", packSupply)
+			fmt.Printf("ProcessInput: Got stdout channel data: [%s]\n", data)
+			fmt.Printf("ProcessInput: Acquiring a pack\n")
 			pack = <-packSupply
+			fmt.Printf("-- Acquired a pack\n")
 			pi.writeToPack(data, pack, "stdout")
 
 			if router_shortcircuit {
+				fmt.Printf("Sending into router\n")
 				pConfig.Router().InChan() <- pack
 			} else {
+				fmt.Printf("Sending into InChan\n")
 				dRunner.InChan() <- pack
 			}
 
@@ -293,6 +299,7 @@ func (pi *ProcessInput) RunCmd() {
 			case <-tickChan:
 				// No need to spin up a new goroutine as we've already
 				// detached from the main thread
+				fmt.Printf("Got tick in ProcessInput\n")
 				pi.cc = pi.cc.clone()
 
 				if err != nil {
@@ -341,6 +348,7 @@ func (pi *ProcessInput) runOnce() {
 	}
 
 	err = pi.cc.Wait()
+	fmt.Printf("CommandChain finished\n")
 	if err != nil {
 		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]", pi.ProcessName, err.Error()))
 	}
@@ -355,10 +363,13 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 	for {
 		// Use configured StreamParser to split output from commands.
 		_, record, err = pi.parser.Parse(r)
+		fmt.Printf("Got record: [%s]\n", record)
 		if err != nil {
 			if err == io.EOF {
+				fmt.Printf("Got a complete record\n")
 				record = pi.parser.GetRemainingData()
 			} else if err == io.ErrShortBuffer {
+				fmt.Printf("Short record!\n")
 				pi.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 				err = nil // non-fatal, keep going
 			}
@@ -368,8 +379,10 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 			record = bytes.TrimRight(record, "\n")
 		}
 
+		fmt.Printf("Record length: [%d]\n", len(record))
 		if len(record) > 0 {
 			// Setup and send the Message
+			fmt.Printf("Writing to output channel: [%s]\n", string(record))
 			outputChannel <- string(record)
 		}
 

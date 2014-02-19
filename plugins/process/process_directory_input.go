@@ -24,16 +24,19 @@ import (
 	"time"
 )
 
+type ProcessDirectoryEntry struct {
+	ir      *InputRunner
+	wrapper *PluginWrapper
+}
+
 type ProcessDirectoryInputConfig struct {
 	ScheduledJobDir string `toml:"scheduled_jobs"`
 }
 
 type ProcessDirectoryInput struct {
-	plugins  map[string]interface{}
+	plugins  map[string]ProcessDirectoryEntry
 	stopChan chan bool
 	cron_dir string
-	ir       InputRunner
-	h        PluginHelper
 }
 
 func (pdi *ProcessDirectoryInput) Init(config interface{}) (err error) {
@@ -43,8 +46,11 @@ func (pdi *ProcessDirectoryInput) Init(config interface{}) (err error) {
 	fmt.Printf("ScheduledJobDir: [%s]\n", conf.ScheduledJobDir)
 	fmt.Printf("CronDir : [%s]\n", pdi.cron_dir)
 
-	pdi.plugins = make(map[string]interface{})
+	pdi.plugins = make(map[string]ProcessDirectoryEntry)
 	pdi.stopChan = make(chan bool)
+
+	fmt.Printf("Walking from root of: [%s]\n", pdi.cron_dir)
+	filepath.Walk(pdi.cron_dir, pdi.CronWalk)
 	return
 }
 
@@ -55,16 +61,19 @@ func (pdi *ProcessDirectoryInput) ConfigStruct() interface{} {
 }
 
 func (pdi *ProcessDirectoryInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	pdi.ir = ir
-	pdi.h = h
 
-	fmt.Printf("Walking from root of: [%s]\n", pdi.cron_dir)
-	filepath.Walk(pdi.cron_dir, pdi.CronWalk)
+	fmt.Printf("PDI Run() invoked\n")
+	for _, pde := range pdi.plugins {
+		fmt.Printf("Adding input runner [%s]\n", pde.wrapper.Name)
+		err = h.PipelineConfig().AddInputRunner(*(pde.ir), pde.wrapper)
+	}
 
 	fmt.Printf("Waiting for stopchan in pdi\n")
 	select {
 	case <-pdi.stopChan:
 		// Just halt
+		fmt.Printf("Stopping Input runners\n")
+		// TODO: Stop subordinate plugins
 	}
 
 	return
@@ -134,7 +143,6 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 
 	if wrapper.PluginCreator, ok = AvailablePlugins["ProcessInput"]; !ok {
 		fmt.Printf("No such plugin: %s", wrapper.Name)
-		pdi.ir.LogMessage(fmt.Sprintf("No such plugin: %s", wrapper.Name))
 		// This shouldn't happen unless heka was build without
 		// ProcessInput support for some reason
 		return fmt.Errorf("No such plugin: %s", wrapper.Name)
@@ -156,8 +164,7 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 	config.Command["0"] = cfg
 
 	if err = plugin.(*ProcessInput).Init(config); err != nil {
-		pdi.ir.LogMessage(fmt.Sprintf("Initialization failed for '%s': %s",
-			sectionName, err))
+		return fmt.Errorf("Initialization failed for '%s': %s", sectionName, err)
 	}
 
 	// Always set the ticker_interval value to be what is specified in
@@ -177,12 +184,9 @@ func (pdi *ProcessDirectoryInput) CronWalk(path string, info os.FileInfo, err er
 
 	ir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals)
 	ir.SetTickLength(tickLength)
-	fmt.Printf("Adding input runner [%s]\n", wrapper.Name)
-	pdi.ir.LogMessage(fmt.Sprintf("Adding input runner [%s]", wrapper.Name))
-	err = pdi.h.PipelineConfig().AddInputRunner(ir, wrapper)
 
 	// Keep track of all plugins
-	pdi.plugins[wrapper.Name] = ir
+	pdi.plugins[wrapper.Name] = ProcessDirectoryEntry{ir: &ir, wrapper: wrapper}
 
 	return nil
 }

@@ -16,7 +16,7 @@ package process
 
 import (
 	"code.google.com/p/gomock/gomock"
-	"fmt"
+	//"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
@@ -47,10 +47,19 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
 	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
+
+	ith.PackSupply <- ith.Pack
+	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
+
 	ith.DecodeChan = make(chan *PipelinePack)
+
+	mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
+	mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
 
 	c.Specify("A ProcessDirectoryInput", func() {
 		pdiInput := ProcessDirectoryInput{}
+
+		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
 
 		// Ignore all messages
 		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
@@ -62,7 +71,7 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 		pConfig := NewPipelineConfig(nil)
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig).AnyTimes()
 
-		tickChan := make(chan time.Time, 100)
+		tickChan := make(chan time.Time, 1)
 		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 		c.Specify("loads scheduled jobs", func() {
@@ -81,25 +90,13 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 			go func() {
 				pdiInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
-			for i := 0; i < 10; i++ {
-				tickChan <- time.Now()
-				fmt.Printf("Tickchan ticked\n")
-			}
 
-			actual_payloads := []string{}
+			tickChan <- time.Now()
+			<-ith.DecodeChan
+			runtime.Gosched()
 
-			fmt.Printf("Start loop\n")
-			for x := 0; x < 4; x++ {
-				fmt.Printf("iterate: %d\n", x)
-				ith.PackSupply <- ith.Pack
-				packRef := <-ith.DecodeChan
-				c.Expect(ith.Pack, gs.Equals, packRef)
-				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
-				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
-				c.Expect(fPInputName.ValueString[0], gs.Equals, "blah")
-				// Free up the scheduler
-				runtime.Gosched()
-			}
+			pdiInput.Stop()
+
 		})
 	})
 
