@@ -91,7 +91,15 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 				pdiInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 
+			/* FIXME: this tickChannel is bound to the *wrong*
+			   InputRunner.
+
+			   To test this properly, we need to grab the subordinate
+			   ProcessInput and replace it's InputRunner with a
+			   MockInputRunner instance.
+			*/
 			tickChan <- time.Now()
+
 			<-ith.DecodeChan
 			runtime.Gosched()
 
