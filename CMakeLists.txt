@@ -57,12 +57,14 @@ if (MINGW)
     if (GO_ARCH STREQUAL "386")
         set(ADDRESS_MODEL 32)
     endif()
+    set(LDFLAGS "-ldflags=\"-s\"")
     set(CPACK_GENERATOR "ZIP")
 elseif(APPLE)
     set(CPACK_GENERATOR "PackageMaker")
     set(LDFLAGS "-ldflags=\"-linkmode=external\"")
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
+    set(LDFLAGS "-ldflags=\"-s\"")
 
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
 
@@ -166,41 +168,41 @@ endif()
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
 
 add_custom_target(flood ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-flood
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-flood
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${FLOOD_EXE}" DESTINATION bin)
 
 add_custom_target(inject ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-inject
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-inject
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${INJECT_EXE}" DESTINATION bin)
 
 add_custom_target(logstreamer ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-logstreamer
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-logstreamer
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${LOGSTREAMER_EXE}" DESTINATION bin)
 
 add_custom_target(heka-cat ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-cat
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-cat
 DEPENDS hekad
 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 install(PROGRAMS "${HEKA_CAT_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgr ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgr
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgr
 DEPENDS hekad)
 
 install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 
 add_custom_target(sbmgrload ALL
-${GO_EXECUTABLE} install github.com/mozilla-services/heka/cmd/heka-sbmgrload
+${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
 if (UNIX AND DPKG_EXECUTABLE)
