@@ -125,9 +125,15 @@ Parameters:
 
 - base_dir (string):
     Base working directory Heka will use for persistent storage through
-    process and server restarts. Defaults to `/var/cache/hekad` (or
-    `c:\var\cache\hekad` on windows).
+    process and server restarts. The hekad process must have read and write
+    access to this directory. Defaults to `/var/cache/hekad` (or
+    `c:\var\cache\hekad` on Windows).
 
+- share_dir (string):
+    Root path of Heka's "share directory", where Heka will expect to find
+    certain resources it needs to consume. The hekad process should have read-
+    only access to this directory. Defaults to `/usr/share/heka` (or
+    `c:\usr\share\heka` on Windows).
 
 Example hekad.toml file
 =======================
