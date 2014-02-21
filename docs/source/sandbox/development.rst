@@ -61,7 +61,7 @@ JSON parser with a manual transformation.
         Test match expressions using http://www.lua.org/cgi-bin/demo.
 
     #. JSON parser.
-        For data transformation use the LPeg/Lua matcher links above. Something like simple field remapping i.e. msg.Hostname = json.host can be verified in the LogOutput.
+        For data transformation use the LPeg/Lua matcher links above. Something like simple field remapping e.g. msg.Hostname = json.host can be verified in the LogOutput.
 
 7. Run Heka with the test configuration.
 
@@ -86,7 +86,7 @@ Since filters can be dynamically loaded it is recommended you develop them in pr
 
 2. Debugging
 
-    1. Watch for a dashboard sandbox termination report. The termination message provides the line number and cause of the failure. These are usually straight forward to correct and commonly caused by a syntax error in the script or an invaild assumptions about the data (i.e. cnt  = cnt + read_message("Fields[counter]") will fail if the counter field doesn't exist or is non-numeric due to a error in the data).
+    1. Watch for a dashboard sandbox termination report. The termination message provides the line number and cause of the failure. These are usually straight forward to correct and commonly caused by a syntax error in the script or an invaild assumption about the data (e.g. cnt  = cnt + read_message("Fields[counter]") will fail if the counter field doesn't exist or is non-numeric due to a error in the data).
 
     2. No termination report and the output does not match expectations. These are usually a little harder to debug.
 
