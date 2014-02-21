@@ -447,6 +447,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	// If we had an EOF last time, we check for a new file before trying
 	// to read again
 	if l.priorEOF {
+		l.position.GenerateHash()
 		newerFilename, ok = l.NewerFileAvailable()
 	}
 
@@ -464,9 +465,6 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 
 	// Return now if we didn't get an error
 	if err == nil {
-		if l.priorEOF && n > 0 {
-			l.priorEOF = false
-		}
 		return
 	}
 
