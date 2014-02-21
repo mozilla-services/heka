@@ -362,7 +362,7 @@ type Logger interface {
 // into a file the Logstream tracks itself at regardless of read buffers
 // that may have read farther than we wish to actually save.
 func (l *Logstream) FlushBuffer(n int) {
-	if n == 0 {
+	if n == 0 || n > len(l.saveBuffer) {
 		n = len(l.saveBuffer)
 	}
 
