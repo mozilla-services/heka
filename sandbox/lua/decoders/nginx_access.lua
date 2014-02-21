@@ -6,8 +6,8 @@
 Parses the Nginx access logs based on the Nginx 'log_format' configuration
 directive.
 
-Config
-~~~~~~
+Config:
+
 - log_format (string)
     The 'log_format' configuration directive from the nginx.conf.
     $time_local or $time_iso8601 variable is converted to the number of

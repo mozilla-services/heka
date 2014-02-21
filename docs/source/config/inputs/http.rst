@@ -30,7 +30,7 @@ The `Fields` values above will only be populated in the event of a completed
 HTTP request. Also, it is possible to specify a decoder to further process the
 results of the HTTP response before injecting the message into the router.
 
-Parameters:
+Config:
 
 - url (string):
     A HTTP URL which this plugin will regularly poll for data. This option

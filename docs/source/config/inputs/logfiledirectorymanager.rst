@@ -10,7 +10,7 @@ the specified path is discovered it will start an instance of the LogfileInput
 plugin to process it. Each LogfileInput will inherit its configuration from
 the manager's settings with the logfile property properly adjusted.
 
-Parameters: (identical to LogfileInput with the following exceptions)
+Config: (identical to LogfileInput with the following exceptions)
 
 - logfile (string):
     A path with a globbed directory component pointing to a common (statically

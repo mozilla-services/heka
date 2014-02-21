@@ -11,7 +11,7 @@ This decoder plugin accepts JSON blobs and allows you to map parts
 of the JSON into Field attributes of the pipeline pack message using
 JSONPath syntax.
 
-Parameters:
+Config:
 
 - json_map:
     A subsection defining a capture name that maps to a JSONPath expression.

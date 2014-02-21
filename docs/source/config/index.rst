@@ -69,7 +69,7 @@ Global configuration options
 You can optionally declare a `[hekad]` section in your configuration file to
 configure some global options for the heka daemon.
 
-Parameters:
+Config:
 
 - cpuprof (string `output_file`):
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
@@ -197,7 +197,7 @@ Adding the restarting configuration is done by adding a config section to the
 plugins' config called `retries`. A small amount of jitter will be added to
 the delay between restart attempts.
 
-Parameters:
+Config:
 
 - max_jitter (string):
     The longest jitter duration to add to the delay between restarts. Jitter

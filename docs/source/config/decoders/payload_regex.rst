@@ -9,7 +9,7 @@ format into another. Can be combined w/ `message_matcher` capture groups (see
 message payloads and use it to populate `Message` struct attributes and fields
 in a more structured manner.
 
-Parameters:
+Config:
 
 - match_regex:
     Regular expression that must match for the decoder to process the message.

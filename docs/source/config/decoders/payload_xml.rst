@@ -6,7 +6,7 @@ This decoder plugin accepts XML blobs in the message payload and allows you to
 map parts of the XML into Field attributes of the pipeline pack message using
 XPath syntax using the `xmlpath <http://launchpad.net/xmlpath>`_ library.
 
-Parameters:
+Config:
 
 - xpath_map:
     A subsection defining a capture name that maps to an XPath expression.

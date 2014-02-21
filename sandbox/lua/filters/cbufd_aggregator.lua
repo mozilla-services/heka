@@ -9,8 +9,8 @@ to their cbuf output). The purpose is to recreate the view at a larger scope in
 each level of the aggregation i.e., host view -> datacenter view -> service
 level view.
 
-Config
-~~~~~~
+Config:
+
 - enable_delta (bool, optional, default false)
     Specifies whether or not this aggregator should generate cbuf deltas.
 

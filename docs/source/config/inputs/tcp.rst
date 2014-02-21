@@ -8,7 +8,7 @@ the signature is not valid the message is discarded otherwise the signer name
 is added to the pipeline pack and can be use to accept messages using the
 message_signer configuration option.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will listen.

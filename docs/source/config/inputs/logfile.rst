@@ -22,7 +22,7 @@ multiple identical files spread across multiple directories (e.g. a
 contains a log file originating from a separate host), you'll want to use the
 :ref:`config_logfile_directory_manager_input`.
 
-Parameters:
+Config:
 
 - logfile (string):
     Each LogfileInput can have a single logfile to monitor.

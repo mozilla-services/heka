@@ -9,7 +9,7 @@ of either a single logstream or multiple logstreams.
 
 .. seealso:: :ref:`Complete documentation with examples <logstreamerplugin>`
 
-Parameters:
+Config:
 
 - hostname (string):
     The hostname to use for the messages, by default this will be the

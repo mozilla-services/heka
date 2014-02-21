@@ -8,7 +8,7 @@ Outputs a Heka message in an email.  The message subject is the plugin name
 and the message content is controlled by the payload_only setting.  The
 primary purpose is for email alert notifications e.g., PagerDuty.
 
-Parameters:
+Config:
 
 - payload_only (bool)
     If set to true, then only the message payload string will be emailed,

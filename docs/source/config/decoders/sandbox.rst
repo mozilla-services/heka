@@ -1,6 +1,6 @@
 
 SandboxDecoder
-===============
+==============
 
 The SandboxDecoder provides an isolated execution environment for data parsing
 and complex transformations without the need to recompile Heka. See
@@ -8,7 +8,7 @@ and complex transformations without the need to recompile Heka. See
 
 .. _sandboxdecoder_settings:
 
-Parameters:
+Config:
 
 - script_type (string):
     The language the sandbox is written in.  Currently the only valid option is 'lua'.

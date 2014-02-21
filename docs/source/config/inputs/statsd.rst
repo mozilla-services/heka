@@ -6,7 +6,7 @@ Listens for `statsd protocol <https://github.com/b/statsd_spec>`_ `counter`,
 `timer`, or `gauge` messages on a UDP port, and generates `Stat` objects that
 are handed to a `StatAccumulator` for aggregation and processing.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will expose a statsd server.

@@ -8,7 +8,7 @@ Accumulates these stats and then periodically emits a "stat metric" type
 message containing aggregated information about the stats received since the
 last generated message.
 
-Parameters:
+Config:
 
 - emit_in_payload (bool):
     Specifies whether or not the aggregated stat information should be emitted
