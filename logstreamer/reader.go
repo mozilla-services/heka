@@ -464,6 +464,9 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 
 	// Return now if we didn't get an error
 	if err == nil {
+		if l.priorEOF && n > 0 {
+			l.priorEOF = false
+		}
 		return
 	}
 
