@@ -7,7 +7,7 @@ StatAccumulator and write the extracted counter, timer, and gauge data out to
 a `graphite <http://graphite.wikidot.com/>`_ compatible `whisper database
 <http://graphite.wikidot.com/whisper>`_ file tree structure.
 
-Parameters:
+Config:
 
 - base_path (string):
     Path to the base directory where the whisper file tree will be written.

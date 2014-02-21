@@ -10,7 +10,7 @@ intervals an extra message (also of type `heka.counter-output`) goes out,
 containing an aggregate count and average per second throughput of messages
 received.
 
-Parameters:
+Config:
 
 - ticker_interval (int, optional):
 	Interval between generated counter messages, in seconds. Defaults to 5.

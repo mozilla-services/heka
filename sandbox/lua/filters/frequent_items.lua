@@ -5,7 +5,7 @@
 --[[
 Calculates the most frequent items in a data stream.
 
-Parameters:
+Config:
 
 - message_variable (string)
     The message variable name containing the items to be counted.

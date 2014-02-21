@@ -8,7 +8,7 @@ includes each message Type, its associated field attributes, and their
 counts (number in the brackets). This plugin is meant for data
 discovery/exploration and should not be left running on a production system.
 
-Parameters:
+Config:
 
 <none>
 

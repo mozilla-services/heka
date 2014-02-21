@@ -5,7 +5,7 @@ ElasticSearchOutput
 Output plugin that serializes messages into JSON structures and uses HTTP requests
 to insert them into an ElasticSearch database.
 
-Parameters:
+Config:
 
 - cluster (string):
     ElasticSearch cluster name. Defaults to "elasticsearch"

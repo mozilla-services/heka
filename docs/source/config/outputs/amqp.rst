@@ -7,7 +7,7 @@ specified queue. The message is serialized if specified, otherwise only
 the raw payload of the message will be sent. As AMQP is dynamically
 programmable, the broker topology needs to be specified.
 
-Parameters:
+Config:
 
 - URL (string):
     An AMQP connection string formatted per the `RabbitMQ URI Spec

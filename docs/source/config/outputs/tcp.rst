@@ -7,7 +7,7 @@ delivers them to a listening TCP connection. Can be used to deliver messages
 from a local running Heka agent to a remote Heka instance set up as an
 aggregator and/or router.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port to which we will send our output data.

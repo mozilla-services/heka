@@ -4,7 +4,7 @@ FileOutput
 
 Writes message data out to a file system.
 
-Parameters:
+Config:
 
 - path (string):
     Full path to the output file.

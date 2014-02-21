@@ -6,7 +6,7 @@ Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from the
 specified queue. As AMQP is dynamically programmable, the broker topology
 needs to be specified in the plugin configuration.
 
-Parameters:
+Config:
 
 - URL (string):
     An AMQP connection string formatted per the `RabbitMQ URI Spec

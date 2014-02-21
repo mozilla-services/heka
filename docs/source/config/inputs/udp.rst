@@ -13,7 +13,7 @@ message_signer configuration option.
     The UDP payload is not restricted to a single message; since the stream
     parser is being used multiple messages can be sent in a single payload.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will listen.

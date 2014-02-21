@@ -7,7 +7,7 @@ decoders.  The MultiDecoder will pass the PipelinePack to be decoded to each
 of the delegate decoders in turn until decode succeeds.  In the case of
 failure to decode, MultiDecoder will return an error and recycle the message.
 
-Parameters:
+Config:
 
 - subs:
     A subsection is used to declare the TOML configuration for any delegate

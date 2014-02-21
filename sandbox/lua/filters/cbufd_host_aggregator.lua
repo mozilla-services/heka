@@ -9,7 +9,7 @@ with respect to their cbuf output). Each column from the source circular
 buffer will become its own graph. i.e., 'Error Count' will become a graph
 with each host being represented in a column.
 
-Parameters:
+Config:
 
 - max_hosts (uint)
     Pre-allocates the number of host columns in the graph(s). If the number of

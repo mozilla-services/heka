@@ -11,7 +11,7 @@ OK|WARNING|CRITICAL|UNKNOWN.  Nagios must be configured with a service name
 that matches the Heka plugin instance name and the hostname where the plugin
 is running.
 
-Parameters:
+Config:
 
 - url (string, optional):
     An HTTP URL to the Nagios cmd.cgi. Defaults to
