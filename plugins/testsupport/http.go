@@ -18,6 +18,12 @@ type HttpBasicAuthServer struct {
 	listener           net.Listener
 }
 
+// HTTP server that checks whether the correct HTTP method was used in the request
+type HttpMethodServer struct {
+	method   string
+	listener net.Listener
+}
+
 func NewOneHttpServer(response_data string, hostname string, port int) (server *OneHttpServer, e error) {
 	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
 	if e != nil {
@@ -36,6 +42,15 @@ func NewHttpBasicAuthServer(username, password string, hostname string, port int
 	return server, nil
 }
 
+func NewHttpMethodServer(method string, hostname string, port int) (server *HttpMethodServer, e error) {
+	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
+	if e != nil {
+		return nil, e
+	}
+	server = &HttpMethodServer{method: method, listener: l}
+	return server, nil
+}
+
 func (o *OneHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, o.response_data)
 	o.listener.Close()
@@ -49,6 +64,13 @@ func (b *HttpBasicAuthServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	b.listener.Close()
 }
 
+func (m *HttpMethodServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if m.method != r.Method {
+		http.Error(w, "Method not allowed", 405)
+	}
+	m.listener.Close()
+}
+
 func (o *OneHttpServer) Start(urlpath string) {
 	http.Handle(urlpath, o)
 	http.Serve(o.listener, nil)
@@ -57,4 +79,9 @@ func (o *OneHttpServer) Start(urlpath string) {
 func (b *HttpBasicAuthServer) Start(urlpath string) {
 	http.Handle(urlpath, b)
 	http.Serve(b.listener, nil)
+}
+
+func (m *HttpMethodServer) Start(urlpath string) {
+	http.Handle(urlpath, m)
+	http.Serve(m.listener, nil)
 }
