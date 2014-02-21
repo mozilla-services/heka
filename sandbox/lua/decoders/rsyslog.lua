@@ -5,8 +5,8 @@
 --[[
 Parses the rsyslog output using the string based configuration template.
 
-Config
-~~~~~~
+Parameters:
+
 - template (string)
     The 'template' configuration string from rsyslog.conf.
 

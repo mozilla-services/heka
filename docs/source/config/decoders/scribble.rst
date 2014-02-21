@@ -1,6 +1,6 @@
 
 ScribbleDecoder
-================
+===============
 
 .. versionadded:: 0.5
 

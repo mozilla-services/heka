@@ -6,8 +6,8 @@
 Graphs HTTP status codes using the numeric Fields[status] variable collected
 from web server access logs.
 
-Config
-~~~~~~
+Parameters:
+
 - sec_per_row (uint, optional, default 60)
     Sets the size of each bucket (resolution in seconds) in the sliding window.
 

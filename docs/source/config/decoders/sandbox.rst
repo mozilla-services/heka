@@ -1,6 +1,6 @@
 
 SandboxDecoder
-===============
+==============
 
 The SandboxDecoder provides an isolated execution environment for data parsing
 and complex transformations without the need to recompile Heka. See

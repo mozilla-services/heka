@@ -7,6 +7,16 @@ Decoders
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
 
+.. _config_nginx_access_log_decoder:
+Nginx Access Log Decoder
+========================
+
+.. versionadded:: 0.5
+
+.. include:: ../../../../sandbox/lua/decoders/nginx_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_payloadjson_decoder:
 .. include:: /config/decoders/payload_json.rst
 
@@ -18,6 +28,16 @@ Decoders
 
 .. _config_protobuf_decoder:
 .. include:: /config/decoders/protobuf.rst
+
+.. _config_rsyslog_decoder:
+Rsyslog Decoder
+===============
+
+.. versionadded:: 0.5
+
+.. include:: ../../../../sandbox/lua/decoders/rsyslog.lua
+   :start-after: --[[
+   :end-before: --]]
 
 .. _config_sandboxdecoder:
 .. include:: /config/decoders/sandbox.rst
