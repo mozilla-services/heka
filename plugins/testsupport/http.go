@@ -24,6 +24,12 @@ type HttpMethodServer struct {
 	listener net.Listener
 }
 
+// HTTP server that checks whether the correct headers were set in the request
+type HttpHeadersServer struct {
+	headers  map[string]string
+	listener net.Listener
+}
+
 func NewOneHttpServer(response_data string, hostname string, port int) (server *OneHttpServer, e error) {
 	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
 	if e != nil {
@@ -51,6 +57,15 @@ func NewHttpMethodServer(method string, hostname string, port int) (server *Http
 	return server, nil
 }
 
+func NewHttpHeadersServer(headers map[string]string, hostname string, port int) (server *HttpHeadersServer, e error) {
+	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
+	if e != nil {
+		return nil, e
+	}
+	server = &HttpHeadersServer{headers: headers, listener: l}
+	return server, nil
+}
+
 func (o *OneHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, o.response_data)
 	o.listener.Close()
@@ -71,6 +86,16 @@ func (m *HttpMethodServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.listener.Close()
 }
 
+func (h *HttpHeadersServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for k, v := range h.headers {
+		if r.Header.Get(k) != v {
+			http.Error(w, "Bad Request", 400)
+			break
+		}
+	}
+	h.listener.Close()
+}
+
 func (o *OneHttpServer) Start(urlpath string) {
 	http.Handle(urlpath, o)
 	http.Serve(o.listener, nil)
@@ -84,4 +109,9 @@ func (b *HttpBasicAuthServer) Start(urlpath string) {
 func (m *HttpMethodServer) Start(urlpath string) {
 	http.Handle(urlpath, m)
 	http.Serve(m.listener, nil)
+}
+
+func (h *HttpHeadersServer) Start(urlpath string) {
+	http.Handle(urlpath, h)
+	http.Serve(h.listener, nil)
 }

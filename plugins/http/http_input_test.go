@@ -237,6 +237,63 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(50 * time.Millisecond)
 		})
 
+		c.Specify("supports configuring HTTP headers", func() {
+			startInput := func() {
+				go func() {
+					err := httpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					c.Expect(err, gs.IsNil)
+				}()
+			}
+
+			ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
+			ith.PackSupply = make(chan *PipelinePack, 1)
+			ith.PackSupply <- ith.Pack
+
+			// Spin up a http server which expects requests with method "POST"
+			server, err := plugins_ts.NewHttpHeadersServer(map[string]string{"Accept": "text/plain"}, "localhost", 9873)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/HeadersTest")
+			time.Sleep(10 * time.Millisecond)
+
+			config := httpInput.ConfigStruct().(*HttpInputConfig)
+			decoderName := "PayloadJsonDecoder"
+			config.DecoderName = decoderName
+			config.Url = "http://localhost:9873/HeadersTest"
+			config.Headers = map[string]string{"Accept": "text/plain"}
+
+			tickChan := make(chan time.Time)
+
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
+
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+			mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+
+			// Stub out the DecoderRunner input channel so that we can
+			// inspect bytes later on
+			dRunnerInChan := make(chan *PipelinePack, 1)
+			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
+
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName).Return(mockDecoderRunner, true)
+
+			err = httpInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			startInput()
+
+			tickChan <- time.Now()
+
+			// we expect a statuscode 200 (i.e. success)
+			pack := <-dRunnerInChan
+			statusCode, ok := pack.Message.GetFieldValue("StatusCode")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(statusCode, gs.Equals, int64(200))
+
+			// We need for the pipeline to finish up
+			time.Sleep(50 * time.Millisecond)
+		})
+
 		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
 		httpInput.Stop()
 		runtime.Gosched() // Yield so the stop can happen before we return.
