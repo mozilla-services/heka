@@ -3,6 +3,7 @@ package testsupport
 import (
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 )
@@ -27,6 +28,11 @@ type HttpMethodServer struct {
 // HTTP server that checks whether the correct headers were set in the request
 type HttpHeadersServer struct {
 	headers  map[string]string
+	listener net.Listener
+}
+
+// HTTP server that echoes back the request body if there is one
+type HttpBodyServer struct {
 	listener net.Listener
 }
 
@@ -66,6 +72,15 @@ func NewHttpHeadersServer(headers map[string]string, hostname string, port int) 
 	return server, nil
 }
 
+func NewHttpBodyServer(hostname string, port int) (server *HttpBodyServer, e error) {
+	l, e := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
+	if e != nil {
+		return nil, e
+	}
+	server = &HttpBodyServer{listener: l}
+	return server, nil
+}
+
 func (o *OneHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, o.response_data)
 	o.listener.Close()
@@ -96,6 +111,14 @@ func (h *HttpHeadersServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.listener.Close()
 }
 
+func (b *HttpBodyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err == nil {
+		fmt.Fprintf(w, string(body))
+	}
+	b.listener.Close()
+}
+
 func (o *OneHttpServer) Start(urlpath string) {
 	http.Handle(urlpath, o)
 	http.Serve(o.listener, nil)
@@ -114,4 +137,9 @@ func (m *HttpMethodServer) Start(urlpath string) {
 func (h *HttpHeadersServer) Start(urlpath string) {
 	http.Handle(urlpath, h)
 	http.Serve(h.listener, nil)
+}
+
+func (b *HttpBodyServer) Start(urlpath string) {
+	http.Handle(urlpath, b)
+	http.Serve(b.listener, nil)
 }
