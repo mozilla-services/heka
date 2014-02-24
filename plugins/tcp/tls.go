@@ -16,8 +16,10 @@ package tcp
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 )
 
 var ciphers map[string]uint16 = map[string]uint16{
@@ -64,6 +66,8 @@ type TlsConfig struct {
 	SessionTicketKey       string `toml:"sesion_ticket_key"`
 	MinVersion             string `toml:"min_version"`
 	MaxVersion             string `toml:"max_version"`
+	ClientCAs              string `toml:"client_cafile"`
+	RootCAs                string `toml:"root_cafile"`
 }
 
 func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
@@ -99,6 +103,18 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 			tomlConf.MaxVersion, tomlConf.MinVersion)
 	}
 
+	if tomlConf.RootCAs != "" {
+		if goConf.RootCAs, err = certPoolFromFile(tomlConf.RootCAs); err != nil {
+			return nil, err
+		}
+	}
+
+	if tomlConf.ClientCAs != "" {
+		if goConf.ClientCAs, err = certPoolFromFile(tomlConf.ClientCAs); err != nil {
+			return nil, err
+		}
+	}
+
 	if tomlConf.ClientAuth != "" {
 		goConf.ClientAuth, ok = clientAuthTypes[tomlConf.ClientAuth]
 		if !ok {
@@ -130,4 +146,16 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 		goConf.CipherSuites = append(goConf.CipherSuites, cipher)
 	}
 	return
+}
+
+func certPoolFromFile(pemfile string) (*x509.CertPool, error) {
+	roots := x509.NewCertPool()
+	data, err := ioutil.ReadFile(pemfile)
+	if err != nil {
+		return nil, err
+	}
+	if roots.AppendCertsFromPEM(data) {
+		return roots, nil
+	}
+	return nil, fmt.Errorf("No PEM encoded certificates found in: %s\n", pemfile)
 }

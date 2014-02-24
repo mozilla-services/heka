@@ -77,6 +77,11 @@ Bug Handling
 
 Features
 --------
+* TLS Listeners can specify a 'client_cafile' which limits the CAs that a
+  client cert can be chained to. This provides a mechanism for TLS Client AUTH.
+
+* TLS Senders can specify a 'root_cafile' which limits the CAs that a
+  server cert can be chained to. This provides a mechanims for TLS Server AUTH.
 
 * The SandboxManagerFilter can now control the sandbox usage limits (issue #95)
 

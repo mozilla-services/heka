@@ -102,6 +102,16 @@ TLS configuration settings
 
 	Defaults to TLS12.
 
+- client_cafile (string, server):
+	File for server to authenticate client TLS handshake. Any client certs recieved by server
+	must be chained to a CA found in this PEM file.
+    
+	Has no effect when NoClientCert is set.
+
+- root_cafile (string, client):
+	File for client to authenticate server TLS handshake. Any server certs recieved by client
+	must be must be chained to a CA found in this PEM file.
+
 Sample TLS configuration
 ========================
 
