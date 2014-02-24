@@ -63,9 +63,9 @@ func main() {
 	}
 
 	// Filter out logstream inputs
-	basic := new(Basic)
 	inputs := make(map[string]toml.Primitive)
 	for name, prim := range fconfig {
+		basic := new(Basic)
 		if name == "LogstreamerInput" {
 			inputs[name] = prim
 		} else if err := toml.PrimitiveDecode(prim, &basic); err == nil {
