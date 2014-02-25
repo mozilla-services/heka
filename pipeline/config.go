@@ -65,6 +65,9 @@ type PluginHelper interface {
 	// created Decoder of the specified name.
 	DecoderRunner(name string) (dRunner DecoderRunner, ok bool)
 
+	// Stops and unregisters the provided DecoderRunner.
+	StopDecoderRunner(dRunner DecoderRunner) (ok bool)
+
 	// Expects a loop count value from an existing message (or zero if there's
 	// no relevant existing message), returns an initialized `PipelinePack`
 	// pointer that can be populated w/ message data and inserted into the
@@ -260,6 +263,21 @@ func (self *PipelineConfig) DecoderRunner(name string) (dRunner DecoderRunner, o
 		self.allDecodersLock.Unlock()
 		self.decodersWg.Add(1)
 		dRunner.Start(self, &self.decodersWg)
+	}
+	return
+}
+
+// Stops and unregisters the provided DecoderRunner.
+func (self *PipelineConfig) StopDecoderRunner(dRunner DecoderRunner) (ok bool) {
+	self.allDecodersLock.Lock()
+	defer self.allDecodersLock.Unlock()
+	for i, r := range self.allDecoders {
+		if r == dRunner {
+			close(dRunner.InChan())
+			self.allDecoders = append(self.allDecoders[:i], self.allDecoders[i+1:]...)
+			ok = true
+			break
+		}
 	}
 	return
 }

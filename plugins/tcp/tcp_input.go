@@ -180,6 +180,10 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 			}
 		}
 	}
+	// Stop the decoder, see Issue #713.
+	if dr != nil {
+		t.h.StopDecoderRunner(dr)
+	}
 }
 
 func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {

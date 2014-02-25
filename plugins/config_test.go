@@ -79,7 +79,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			// since each one needs to bind to the same address
 
 			// and the inputs section loads properly with a custom name
-			_, ok := pipeConfig.InputRunners["UdpInput"]
+			udp, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
@@ -95,6 +95,9 @@ func LoadFromConfigSpec(c gs.Context) {
 			// and the filters sections loads
 			_, ok = pipeConfig.FilterRunners["sample"]
 			c.Expect(ok, gs.Equals, true)
+
+			// Shut down UdpInput to free up the port for future tests.
+			udp.Input().Stop()
 		})
 
 		c.Specify("works w/ decoder defaults", func() {
@@ -121,7 +124,6 @@ func LoadFromConfigSpec(c gs.Context) {
 				}
 			}
 			c.Assume(hasSyncDecoder, gs.IsTrue)
-
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
@@ -282,6 +284,37 @@ DashboardOutput:
 				result := PrependShareDir(dir)
 				c.Expect(result, gs.Equals, dir)
 			})
+		})
+	})
+
+	c.Specify("PluginHelper", func() {
+		c.Specify("starts and stops DecoderRunners appropriately", func() {
+			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test.toml")
+			c.Assume(err, gs.IsNil)
+			// Start two DecoderRunners.
+			dr1, ok := pipeConfig.DecoderRunner("ProtobufDecoder")
+			c.Expect(ok, gs.IsTrue)
+			dr2, ok := pipeConfig.DecoderRunner("ProtobufDecoder")
+			c.Expect(ok, gs.IsTrue)
+			// Stop the second one.
+			ok = pipeConfig.StopDecoderRunner(dr2)
+			c.Expect(ok, gs.IsTrue)
+			// Verify that it's stopped, i.e. InChan is closed.
+			_, ok = <-dr2.InChan()
+			c.Expect(ok, gs.IsFalse)
+
+			// Verify that dr1 is *not* stopped, i.e. InChan is still open.
+			rChan := make(chan *PipelinePack, 1)
+			pack := NewPipelinePack(rChan)
+			dr1.InChan() <- pack // <-- Failure case means this will panic.
+
+			// Try to stop dr2 again. Shouldn't fail, but ok should be false.
+			ok = pipeConfig.StopDecoderRunner(dr2)
+			c.Expect(ok, gs.IsFalse)
+
+			// Clean up our UdpInput.
+			udp, _ := pipeConfig.InputRunners["UdpInput"]
+			udp.Input().Stop()
 		})
 	})
 }

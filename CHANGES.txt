@@ -50,6 +50,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* TcpInput now stops a given connection's decoder when the connection is
+  closed, preventing memory pooling (issue #713).
+
 * StatsdInput now doesn't fail with multiple stats in a single UDP packet.
 
 * Set default StatAccumInput stat namespace prefix values even when
@@ -82,6 +85,9 @@ Features
 
 * TLS Senders can specify a 'root_cafile' which limits the CAs that a
   server cert can be chained to. This provides a mechanims for TLS Server AUTH.
+
+* Added StopDecoderRunner function to PluginHelper API so inputs can manually
+  decommission decoders when they're no longer being used.
 
 * The SandboxManagerFilter can now control the sandbox usage limits (issue #95)
 
