@@ -129,6 +129,13 @@ func TcpInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
+		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
+
+		cleanup := func() {
+			mockListener.EXPECT().Close()
+			tcpInput.Stop()
+			tcpInput.wg.Wait()
+		}
 
 		c.Specify("reads a message from its connection", func() {
 			hbytes, _ := proto.Marshal(header)
@@ -136,11 +143,7 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Return(buflen, nil)
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			defer func() {
-				mockListener.EXPECT().Close()
-				tcpInput.Stop()
-				tcpInput.wg.Wait()
-			}()
+			defer cleanup()
 			ith.PackSupply <- ith.Pack
 			packRef := <-ith.DecodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
@@ -160,11 +163,7 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			defer func() {
-				mockListener.EXPECT().Close()
-				tcpInput.Stop()
-				tcpInput.wg.Wait()
-			}()
+			defer cleanup()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
 			go func() {
@@ -194,11 +193,7 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			defer func() {
-				mockListener.EXPECT().Close()
-				tcpInput.Stop()
-				tcpInput.wg.Wait()
-			}()
+			defer cleanup()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
 			go func() {
@@ -228,11 +223,7 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			defer func() {
-				mockListener.EXPECT().Close()
-				tcpInput.Stop()
-				tcpInput.wg.Wait()
-			}()
+			defer cleanup()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
 			go func() {
@@ -260,11 +251,7 @@ func TcpInputSpec(c gs.Context) {
 			readCall.Do(getPayloadBytes(hbytes, mbytes))
 
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			defer func() {
-				mockListener.EXPECT().Close()
-				tcpInput.Stop()
-				tcpInput.wg.Wait()
-			}()
+			defer cleanup()
 			ith.PackSupply <- ith.Pack
 			timeout := make(chan bool, 1)
 			go func() {
@@ -320,6 +307,7 @@ func TcpInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
 		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
+		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)
@@ -379,6 +367,7 @@ func TcpInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
 		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
+		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)

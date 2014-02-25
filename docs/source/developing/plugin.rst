@@ -301,7 +301,15 @@ the pack will typically be passed on to a decoder plugin, which will convert
 the raw bytes into a `Message` object, also an attribute of the
 `PipelinePack`. An input can gain access to the decoders that are available by
 calling `PluginHelper.DecoderRunner`, which can be used to access decoders by
-the name they have been registered as in the config.
+the name they have been registered as in the config. Each call to
+`PluginHelper.DecoderRunner` will spin up a new decoder in its own goroutine.
+It's perfectly fine for an input to ask for multiple decoders; for instance
+the TcpInput creates one for each separate TCP connection. All decoders will
+be closed when Heka shuts down, but if a decoder will not longer be used (e.g.
+when a TCP connection is closed in the TcpInput example mentioned above) it's
+a good idea to call `PluginHelper.StopDecoderRunner` to shut it down or else
+it will continue to consume system resources throughout the life of the Heka
+process.
 
 It is up to the input to decide which decoder should be used. Once the decoder
 has been determined and fetched from the `PluginHelper` the input can call

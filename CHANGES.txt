@@ -50,6 +50,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* TcpInput now stops a given connection's decoder when the connection is
+  closed, preventing memory pooling (issue #713).
+
 * StatsdInput now doesn't fail with multiple stats in a single UDP packet.
 
 * Set default StatAccumInput stat namespace prefix values even when
