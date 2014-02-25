@@ -81,6 +81,9 @@ Bug Handling
 Features
 --------
 
+* Added StopDecoderRunner function to PluginHelper API so inputs can manually
+  decommission decoders when they're no longer being used.
+
 * The SandboxManagerFilter can now control the sandbox usage limits (issue #95)
 
 * Added support for send_nsca to NagiosOutput as an alternative to direct http
