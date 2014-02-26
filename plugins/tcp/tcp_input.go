@@ -132,10 +132,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		ok bool
 	)
 	if t.config.Decoder != "" {
+		raddr := conn.RemoteAddr().String()
+		host, _, err := net.SplitHostPort(raddr)
+		if err != nil {
+			host = raddr
+		}
 		if dr, ok = t.h.DecoderRunner(t.config.Decoder,
-			fmt.Sprintf("%s_%s_%s", t.name,
-				conn.RemoteAddr().String(),
-				t.config.Decoder)); !ok {
+			fmt.Sprintf("%s_%s_%s", t.name, host, t.config.Decoder)); !ok {
 			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
 			return
 		}
