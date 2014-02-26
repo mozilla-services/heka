@@ -21,8 +21,8 @@ Stopping a SandboxFilter
 - Fields[name]: The SandboxFilter name specified in the configuration
 
 
-sbmgr
------
+heka-sbmgr
+----------
 Heka Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
 the control messages defined above.
 
@@ -31,8 +31,38 @@ Command Line Options
 heka-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
 [``-script`` `sandbox script filename`] [``-scriptconfig`` `sandbox script configuration filename`]
 
-sbmgrload
----------
+Configuration Variables
+
+- ip_address (string): IP address of the Heka server.
+- use_tls (bool): Specifies whether or not SSL/TLS encryption should be used for the TCP connections. Defaults to false.
+- signer (object): Signer information for the encoder.
+    - name (string): The name of the signer.
+    - hmac_hash (string): md5 or sha1
+    - hmac_key (string): The key the message will be signed with.
+    - version (int): The version number of the hmac_key.
+- tls (TlsConfig): A sub-section that specifies the settings to be used for any SSL/TLS encryption. This will only have any impact if `use_tls` is set to true. See :ref:`tls`.
+
+Example
+
+.. code-block:: ini
+
+    ip_address       = "127.0.0.1:5565"
+    use_tls          = true
+    [signer]
+        name         = "test"
+        hmac_hash    = "md5"
+        hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+        version      = 0
+
+    [tls]
+        cert_file = "heka.crt"
+        key_file = "heka.key"
+        client_auth = "NoClientCert"
+        prefer_server_ciphers = true
+        min_version = "TLS11"
+
+heka-sbmgrload
+--------------
 Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
 script and configuration are built into the tool and the filters will be named:
 CounterSandbox\ **N** where **N** is the instance number.
@@ -41,26 +71,7 @@ Command Line Options
 
 heka-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
 
-Configuration Variables
-
-- ip_address (string): IP address of the Heka server.
-- signer (object): Signer information for the encoder.
-    - name (string): The name of the signer.
-    - hmac_hash (string): md5 or sha1
-    - hmac_key (string): The key the message will be signed with.
-    - version (int): The version number of the hmac_key. 
-
-Example
-
-.. code-block:: ini
-
-    ip_address          = "127.0.0.1:5565"
-    [signer]
-        name         = "test"
-        hmac_hash    = "md5"
-        hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
-        version      = 0
-
+Configuration Variables (same as heka-sbmgr)
 
 .. _sandbox_manager_tutorial:
 
