@@ -145,7 +145,8 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(amqpInput.ch, gs.Equals, mch)
 
 			// Mock up our default decoder runner and decoder.
-			decCall := ith.MockHelper.EXPECT().DecoderRunner(decoderName)
+			ith.MockInputRunner.EXPECT().Name().Return("AMQPInput")
+			decCall := ith.MockHelper.EXPECT().DecoderRunner(decoderName, "AMQPInput_defaultDecoder")
 			decCall.Return(mockDRunner, true)
 			mockDecoder := NewMockDecoder(ctrl)
 			mockDRunner.EXPECT().Decoder().Return(mockDecoder)

@@ -132,7 +132,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	lw.Monitor.pendingErrors = make([]string, 0)
 
 	if lw.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(lw.decoderName); !ok {
+		if dRunner, ok = h.DecoderRunner(lw.decoderName, fmt.Sprintf("%s_%s", ir.Name(), lw.decoderName)); !ok {
 			return fmt.Errorf("Decoder not found: %s", lw.decoderName)
 		}
 	}

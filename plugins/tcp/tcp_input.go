@@ -132,7 +132,10 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		ok bool
 	)
 	if t.config.Decoder != "" {
-		if dr, ok = t.h.DecoderRunner(t.config.Decoder); !ok {
+		if dr, ok = t.h.DecoderRunner(t.config.Decoder,
+			fmt.Sprintf("%s_%s_%s", t.name,
+				conn.RemoteAddr().String(),
+				t.config.Decoder)); !ok {
 			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
 			return
 		}
@@ -190,6 +193,7 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.ir = ir
 	t.h = h
 	t.stopChan = make(chan bool)
+	t.name = ir.Name()
 
 	var conn net.Conn
 	var e error

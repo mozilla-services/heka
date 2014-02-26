@@ -116,7 +116,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	if hi.conf.DecoderName == "" {
 		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(hi.conf.DecoderName); !ok {
+	} else if dRunner, ok = h.DecoderRunner(hi.conf.DecoderName, fmt.Sprintf("%s_%s", ir.Name(), hi.conf.DecoderName)); !ok {
 		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
 	}
 

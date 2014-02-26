@@ -101,7 +101,7 @@ func LogstreamerInputSpec(c gs.Context) {
 			// Expect calls to get decoder and decode each message. Since the
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "_"+lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)

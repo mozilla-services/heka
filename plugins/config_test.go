@@ -292,9 +292,9 @@ DashboardOutput:
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test.toml")
 			c.Assume(err, gs.IsNil)
 			// Start two DecoderRunners.
-			dr1, ok := pipeConfig.DecoderRunner("ProtobufDecoder")
+			dr1, ok := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_1")
 			c.Expect(ok, gs.IsTrue)
-			dr2, ok := pipeConfig.DecoderRunner("ProtobufDecoder")
+			dr2, ok := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_2")
 			c.Expect(ok, gs.IsTrue)
 			// Stop the second one.
 			ok = pipeConfig.StopDecoderRunner(dr2)
