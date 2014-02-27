@@ -80,6 +80,9 @@ Bug Handling
 
 Features
 --------
+* HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP
+  Basic Authentication
+
 * TLS Listeners can specify a 'client_cafile' which limits the CAs that a
   client cert can be chained to. This provides a mechanism for TLS Client AUTH.
 
