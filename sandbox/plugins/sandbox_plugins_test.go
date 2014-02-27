@@ -238,12 +238,13 @@ func DecoderSpec(c gs.Context) {
 		conf.ScriptType = "lua"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("serialize")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
 
 		c.Specify("decodes simple messages", func() {
 			data := "1376389920 debug id=2321 url=example.com item=1"
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
@@ -273,9 +274,6 @@ func DecoderSpec(c gs.Context) {
 
 		c.Specify("decodes an invalid messages", func() {
 			data := "1376389920 bogus id=2321 url=example.com item=1"
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			packs, err := decoder.Decode(pack)
@@ -288,10 +286,8 @@ func DecoderSpec(c gs.Context) {
 		c.Specify("Preserves data", func() {
 			conf.ScriptFilename = "../lua/testsupport/serialize.lua"
 			conf.PreserveData = true
-			decoder.SetName("serialize")
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			decoder.Shutdown()
 			_, err = os.Stat("sandbox_preservation/serialize.data")
@@ -312,11 +308,12 @@ func DecoderSpec(c gs.Context) {
 
 		pack1 := pipeline.NewPipelinePack(supply)
 		pack2 := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
 
 		c.Specify("decodes into multiple packs", func() {
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
 			decoder.SetDecoderRunner(dRunner)
 			gomock.InOrder(
 				dRunner.EXPECT().NewPack().Return(pack1),
@@ -350,13 +347,14 @@ func DecoderSpec(c gs.Context) {
 		conf.Config["log_format"] = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
 
 		c.Specify("decodes simple messages", func() {
 			data := "127.0.0.1 - - [10/Feb/2014:08:46:41 -0800] \"GET / HTTP/1.1\" 304 0 \"-\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:26.0) Gecko/20100101 Firefox/26.0\""
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
-			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
@@ -385,10 +383,6 @@ func DecoderSpec(c gs.Context) {
 
 		c.Specify("decodes an invalid messages", func() {
 			data := "bogus message"
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
-			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			packs, err := decoder.Decode(pack)
 			c.Expect(len(packs), gs.Equals, 0)
@@ -410,13 +404,14 @@ func DecoderSpec(c gs.Context) {
 		conf.Config["tz"] = "America/Los_Angeles"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
 
 		c.Specify("decodes simple messages", func() {
 			data := "28 Feb 10 12:58:58 2014-02-10T12:58:59-08:00 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
-			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
@@ -448,10 +443,6 @@ func DecoderSpec(c gs.Context) {
 
 		c.Specify("decodes an invalid messages", func() {
 			data := "bogus message"
-			err := decoder.Init(conf)
-			c.Assume(err, gs.IsNil)
-			dRunner := pm.NewMockDecoderRunner(ctrl)
-			decoder.SetDecoderRunner(dRunner)
 			pack.Message.SetPayload(data)
 			packs, err := decoder.Decode(pack)
 			c.Expect(len(packs), gs.Equals, 0)
