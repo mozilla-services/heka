@@ -53,7 +53,7 @@ func ProcessInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
 		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
 
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "logger_RegexpDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "logger-RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 
 		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)

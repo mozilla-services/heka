@@ -87,7 +87,7 @@ func UdpInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("UdpInput")
-		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "UdpInput_ProtobufDecoder")
+		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "UdpInput-ProtobufDecoder")
 		encCall.Return(ith.Decoder, true)
 
 		c.Specify("reads a message from the connection and passes it to the decoder", func() {

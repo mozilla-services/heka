@@ -138,7 +138,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 			host = raddr
 		}
 		if dr, ok = t.h.DecoderRunner(t.config.Decoder,
-			fmt.Sprintf("%s_%s_%s", t.name, host, t.config.Decoder)); !ok {
+			fmt.Sprintf("%s-%s-%s", t.name, host, t.config.Decoder)); !ok {
 			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
 			return
 		}

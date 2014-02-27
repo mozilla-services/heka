@@ -81,7 +81,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput_PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)

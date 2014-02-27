@@ -105,7 +105,7 @@ func LogfileInputSpec0(c gs.Context) {
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockInputRunner.EXPECT().Name().Return("LogfileInput")
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput_"+lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput-"+lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -226,7 +226,7 @@ func LogfileInputSpec0(c gs.Context) {
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockInputRunner.EXPECT().Name().Return("LogfileInput")
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput_"+lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput-"+lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -309,7 +309,7 @@ func LogfileInputSpec0(c gs.Context) {
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockInputRunner.EXPECT().Name().Return("LogfileInput")
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput_"+lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput-"+lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -385,7 +385,7 @@ func LogfileInputSpec0(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
 			ith.MockInputRunner.EXPECT().Name().Return("LogfileInput")
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput_"+lfiConfig.Decoder)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(lfiConfig.Decoder, "LogfileInput-"+lfiConfig.Decoder)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)
@@ -505,7 +505,7 @@ func LogfileInputSpec1(c gs.Context) {
 			// decoding is a no-op, the message payload will be the log file
 			// line, unchanged.
 			ith.MockInputRunner.EXPECT().Name().Return("LogfileInput")
-			pbcall := ith.MockHelper.EXPECT().DecoderRunner(dName, "LogfileInput_"+dName)
+			pbcall := ith.MockHelper.EXPECT().DecoderRunner(dName, "LogfileInput-"+dName)
 			pbcall.Return(mockDecoderRunner, true)
 			decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 			decodeCall.Return(ith.DecodeChan)

@@ -131,7 +131,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "TcpInput_123_ProtobufDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "TcpInput-123-ProtobufDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
@@ -310,7 +310,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "TcpInput_123_RegexpDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "TcpInput-123-RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
@@ -371,7 +371,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder", "TcpInput_123_TokenDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder", "TcpInput-123-TokenDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
