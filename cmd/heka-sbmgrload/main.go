@@ -21,11 +21,13 @@ package main
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/plugins/tcp"
 	"log"
 	"os"
 	"time"
@@ -34,6 +36,8 @@ import (
 type SbmgrConfig struct {
 	IpAddress string                       `toml:"ip_address"`
 	Signer    message.MessageSigningConfig `toml:"signer"`
+	UseTls    bool                         `toml:"use_tls"`
+	Tls       tcp.TlsConfig
 }
 
 func main() {
@@ -102,7 +106,18 @@ preserve_data = true
 		log.Printf("Error decoding config file: %s", err)
 		return
 	}
-	sender, err := client.NewNetworkSender("tcp", config.IpAddress)
+	var sender *client.NetworkSender
+	var err error
+	if config.UseTls {
+		var goTlsConfig *tls.Config
+		goTlsConfig, err = tcp.CreateGoTlsConfig(&config.Tls)
+		if err != nil {
+			log.Fatalf("Error creating TLS config: %s\n", err)
+		}
+		sender, err = client.NewTlsSender("tcp", config.IpAddress, goTlsConfig)
+	} else {
+		sender, err = client.NewNetworkSender("tcp", config.IpAddress)
+	}
 	if err != nil {
 		log.Fatalf("Error creating sender: %s\n", err.Error())
 	}

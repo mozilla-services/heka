@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -49,17 +50,26 @@ type MonitorResponse struct {
 
 // Http Input config struct
 type HttpInputConfig struct {
-	// Url for HttpInput to GET.
+	// Url for HttpInput to request.
 	Url string
-	// Urls for HttpInput to GET.
+	// Urls for HttpInput to request.
 	Urls []string
+	// Request method. Default is "GET"
+	Method string
+	// Request headers
+	Headers map[string]string
+	// Request body for POST
+	Body string
+	// User and password for Basic Authentication
+	User     string
+	Password string
 	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
 	// Configured decoder instance used to decode http.Get payload.
 	DecoderName string `toml:"decoder"`
-	// Severity level of successful GETs. Default is 6 (information)
+	// Severity level of successful requests. Default is 6 (information)
 	SuccessSeverity int32 `toml:"success_severity"`
-	// Severity level of errors and unsuccessful GETs. Default is 1 (alert)
+	// Severity level of errors and unsuccessful requests. Default is 1 (alert)
 	ErrorSeverity int32 `toml:"error_severity"`
 }
 
@@ -69,6 +79,7 @@ func (hi *HttpInput) SetName(name string) {
 
 func (hi *HttpInput) ConfigStruct() interface{} {
 	return &HttpInputConfig{
+		Method:          "GET",
 		TickerInterval:  uint(10),
 		SuccessSeverity: int32(6),
 		ErrorSeverity:   int32(1),
@@ -92,7 +103,7 @@ func (hi *HttpInput) Init(config interface{}) error {
 	hi.errChan = make(chan *MonitorResponse)
 	hi.stopChan = make(chan bool)
 	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(hi.urls, hi.respChan, hi.errChan, hi.stopChan)
+	hi.Monitor.Init(hi.urls, hi.conf, hi.respChan, hi.errChan, hi.stopChan)
 
 	return nil
 }
@@ -192,6 +203,11 @@ func (hi *HttpInput) Stop() {
 
 type HttpInputMonitor struct {
 	urls     []string
+	method   string
+	headers  map[string]string
+	body     string
+	user     string
+	password string
 	respChan chan *MonitorResponse
 	errChan  chan *MonitorResponse
 	stopChan chan bool
@@ -200,8 +216,13 @@ type HttpInputMonitor struct {
 	tickChan <-chan time.Time
 }
 
-func (hm *HttpInputMonitor) Init(urls []string, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
+func (hm *HttpInputMonitor) Init(urls []string, config *HttpInputConfig, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
 	hm.urls = urls
+	hm.method = config.Method
+	hm.headers = config.Headers
+	hm.body = config.Body
+	hm.user = config.User
+	hm.password = config.Password
 	hm.respChan = respChan
 	hm.errChan = errChan
 	hm.stopChan = stopChan
@@ -221,8 +242,19 @@ func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
 				responseTimeStart := time.Now()
 				// Request URL(s)
 				httpClient := &http.Client{}
-				req, err := http.NewRequest("GET", url, nil)
+				req, err := http.NewRequest(hm.method, url, strings.NewReader(hm.body))
+
+				// HTTP Basic Authentication
+				if hm.user != "" {
+					req.SetBasicAuth(hm.user, hm.password)
+				}
+
+				// Request headers
 				req.Header.Add("User-Agent", "Heka")
+				for key, value := range hm.headers {
+					req.Header.Add(key, value)
+				}
+
 				resp, err := httpClient.Do(req)
 
 				responseTime := time.Since(responseTimeStart)
