@@ -78,6 +78,9 @@ Bug Handling
   (so setting 'num_messages' still works even if hekad stops responding,
   etc.).
 
+* stat_accum_input will not fail when flushing a timer where the percentile
+  is equal to the min value.
+
 Features
 --------
 * HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP
@@ -179,6 +182,8 @@ Features
 * Added SmtpOutput (issue #472)
 
 * Added preserve_data option to SandboxDecoder (issue #668).
+
+* Added sum and count_ps metrics to timers in stat_accum_input.
 
 0.4.2 (2013-12-02)
 ==================
