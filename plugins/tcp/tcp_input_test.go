@@ -92,6 +92,7 @@ func TcpInputSpec(c gs.Context) {
 	signer := "test"
 
 	c.Specify("A TcpInput protobuf parser", func() {
+		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
 		tcpInput := TcpInput{}
 		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Signers:    signers,
@@ -106,6 +107,9 @@ func TcpInputSpec(c gs.Context) {
 		mockListener := pipeline_ts.NewMockListener(ctrl)
 		tcpInput.listener = mockListener
 
+		addr := new(address)
+		addr.str = "123"
+		mockConnection.EXPECT().RemoteAddr().Return(addr)
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
 		header.SetMessageLength(uint32(len(mbytes)))
@@ -127,7 +131,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "TcpInput-123-ProtobufDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
@@ -268,6 +272,7 @@ func TcpInputSpec(c gs.Context) {
 	})
 
 	c.Specify("A TcpInput regexp parser", func() {
+		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
 		tcpInput := TcpInput{}
 		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "RegexpDecoder",
@@ -284,7 +289,7 @@ func TcpInputSpec(c gs.Context) {
 
 		addr := new(address)
 		addr.str = "123"
-		mockConnection.EXPECT().RemoteAddr().Return(addr)
+		mockConnection.EXPECT().RemoteAddr().Return(addr).Times(2)
 		mbytes := []byte("this is a test message\n")
 		err = errors.New("connection closed") // used in the read return(s)
 		readCall := mockConnection.EXPECT().Read(gomock.Any())
@@ -305,7 +310,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "TcpInput-123-RegexpDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
@@ -328,6 +333,7 @@ func TcpInputSpec(c gs.Context) {
 	})
 
 	c.Specify("A TcpInput token parser", func() {
+		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
 		tcpInput := TcpInput{}
 		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
 			Decoder:    "TokenDecoder",
@@ -344,7 +350,7 @@ func TcpInputSpec(c gs.Context) {
 
 		addr := new(address)
 		addr.str = "123"
-		mockConnection.EXPECT().RemoteAddr().Return(addr)
+		mockConnection.EXPECT().RemoteAddr().Return(addr).Times(2)
 		mbytes := []byte("this is a test message\n")
 		err = errors.New("connection closed") // used in the read return(s)
 		readCall := mockConnection.EXPECT().Read(gomock.Any())
@@ -365,7 +371,7 @@ func TcpInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder").AnyTimes()
+		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder", "TcpInput-123-TokenDecoder").AnyTimes()
 		enccall.Return(ith.Decoder, true)
 		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
@@ -403,6 +409,7 @@ func TcpInputSpec(c gs.Context) {
 		})
 
 		c.Specify("accepts TLS client connections", func() {
+			ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
 			config.Tls = TlsConfig{
 				CertFile: "./testsupport/cert.pem",
 				KeyFile:  "./testsupport/key.pem",
@@ -427,6 +434,7 @@ func TcpInputSpec(c gs.Context) {
 		})
 
 		c.Specify("doesn't accept connections below specified min TLS version", func() {
+			ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
 			config.Tls = TlsConfig{
 				CertFile:   "./testsupport/cert.pem",
 				KeyFile:    "./testsupport/key.pem",

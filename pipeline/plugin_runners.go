@@ -17,7 +17,6 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
 	"log"
@@ -249,9 +248,6 @@ type DecoderRunner interface {
 	// Returns the channel into which incoming PipelinePacks to be decoded
 	// should be dropped.
 	InChan() chan *PipelinePack
-	// UUID to distinguish the duplicate instances of the same registered
-	// Decoder plugin type from each other.
-	UUID() string
 	// Returns the running Heka router for direct use by decoder plugins.
 	Router() MessageRouter
 	// Fetches a new pack from the input supply and returns it to the caller,
@@ -263,7 +259,6 @@ type DecoderRunner interface {
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
-	uuid   string
 	router *messageRouter
 	h      PluginHelper
 }
@@ -279,7 +274,6 @@ func NewDecoderRunner(name string, decoder Decoder,
 			plugin:        decoder.(Plugin),
 			pluginGlobals: pluginGlobals,
 		},
-		uuid:   uuid.NewRandom().String(),
 		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 }
@@ -323,10 +317,6 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 
 func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
-}
-
-func (dr *dRunner) UUID() string {
-	return dr.uuid
 }
 
 func (dr *dRunner) Router() MessageRouter {

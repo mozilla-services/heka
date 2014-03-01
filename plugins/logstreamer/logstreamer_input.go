@@ -185,7 +185,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Setup the decoder runner that will be used
 	if li.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(li.decoderName); !ok {
+		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s", li.pluginName, li.decoderName)); !ok {
 			return fmt.Errorf("Decoder not found: %s", li.decoderName)
 		}
 	}

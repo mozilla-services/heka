@@ -63,7 +63,7 @@ type PluginHelper interface {
 
 	// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 	// created Decoder of the specified name.
-	DecoderRunner(name string) (dRunner DecoderRunner, ok bool)
+	DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool)
 
 	// Stops and unregisters the provided DecoderRunner.
 	StopDecoderRunner(dRunner DecoderRunner) (ok bool)
@@ -253,11 +253,11 @@ func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 
 // Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 // created Decoder of the specified name.
-func (self *PipelineConfig) DecoderRunner(name string) (dRunner DecoderRunner, ok bool) {
+func (self *PipelineConfig) DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool) {
 	var decoder Decoder
-	if decoder, ok = self.Decoder(name); ok {
+	if decoder, ok = self.Decoder(base_name); ok {
 		pluginGlobals := new(PluginGlobals)
-		dRunner = NewDecoderRunner(name, decoder, pluginGlobals)
+		dRunner = NewDecoderRunner(full_name, decoder, pluginGlobals)
 		self.allDecodersLock.Lock()
 		self.allDecoders = append(self.allDecoders, dRunner)
 		self.allDecodersLock.Unlock()
