@@ -4,10 +4,7 @@ PayloadRegexDecoder
 
 Decoder plugin that accepts messages of a specified form and generates new
 outgoing messages from extracted data, effectively transforming one message
-format into another. Can be combined w/ `message_matcher` capture groups (see
-:ref:`matcher_capture_groups`) to extract unstructured information from
-message payloads and use it to populate `Message` struct attributes and fields
-in a more structured manner.
+format into another.
 
 Config:
 
@@ -53,6 +50,7 @@ Config:
     can be parsed as specified in the `timestamp_layout`.
 - log_errors (bool):
     .. versionadded:: 0.5
+
     If set to false, payloads that can not be matched against the regex will
     not be logged as errors. Defaults to true.
 

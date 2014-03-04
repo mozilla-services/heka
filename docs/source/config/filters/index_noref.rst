@@ -1,10 +1,7 @@
-.. _config_filters:
 
 =======
 Filters
 =======
-
-.. _config_common_filter_parameters:
 
 Common Filter Parameters
 ========================
@@ -24,8 +21,6 @@ initialization code.
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
 
-.. _config_circular_buffer_delta_agg_filter:
-
 Circular Buffer Delta Aggregator
 ================================
 
@@ -34,8 +29,6 @@ Circular Buffer Delta Aggregator
 .. include:: /../../sandbox/lua/filters/cbufd_aggregator.lua
    :start-after: --[[
    :end-before: --]]
-
-.. _config_circular_buffer_delta_agg_by_host:
 
 CBuf Delta Aggregator By Hostname
 =================================
@@ -46,11 +39,7 @@ CBuf Delta Aggregator By Hostname
    :start-after: --[[
    :end-before: --]]
 
-.. _config_counter_filter:
-
 .. include:: /config/filters/counter.rst
-
-.. _config_frequent_items_filter:
 
 Frequent Items
 ==============
@@ -61,8 +50,6 @@ Frequent Items
    :start-after: --[[
    :end-before: --]]
 
-.. _config_message_schema_filter:
-
 Heka Message Schema
 ===================
 
@@ -71,8 +58,6 @@ Heka Message Schema
 .. include:: /../../sandbox/lua/filters/heka_message_schema.lua
    :start-after: --[[
    :end-before: --]]
-
-.. _config_http_status_graph_filter:
 
 HTTP Status Graph
 =================
@@ -83,11 +68,8 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
-.. _config_stat_filter:
 .. include:: /config/filters/stat.rst
 
-.. _config_sandbox_filter:
 .. include:: /config/filters/sandbox.rst
 
-.. _config_sandbox_manager_filter:
 .. include:: /config/filters/sandboxmanager.rst

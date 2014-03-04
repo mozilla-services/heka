@@ -14,7 +14,9 @@ Config:
 - use_tls (bool):
     Specifies whether or not SSL/TLS encryption should be used for the TCP
     connections. Defaults to false.
+
 .. versionadded:: 0.5
+
 - tls (TlsConfig):
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.

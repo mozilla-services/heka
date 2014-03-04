@@ -38,7 +38,9 @@ Config:
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of the message.
     - end - the regexp delimiter occurs at the end of the message (default).
+
 .. versionadded:: 0.5
+
 - use_tls (bool):
     Specifies whether or not SSL/TLS encryption should be used for the TCP
     connections. Defaults to false.

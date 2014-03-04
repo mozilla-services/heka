@@ -33,22 +33,27 @@ Config:
     attribute of the message.
 - send_nsca_bin (string, optional):
     .. versionadded:: 0.5
+
     Use send_nsca program, as provided, rather than sending HTTP requests. Not
     supplying this value means HTTP will be used, and any other send_nsca_*
     settings will be ignored.
 - send_nsca_args ([]string, optional):
     .. versionadded:: 0.5
+
     Arguments to use with send_nsca, usually at least the nagios hostname,
     e.g. `["-H", "nagios.somehost.com"]`. Defaults to an empty list.
 - send_nsca_timeout (int, optional):
     .. versionadded:: 0.5
+
     Timeout for the send_nsca command, in seconds. Defaults to 5.
 - use_tls (bool, optional):
     .. versionadded:: 0.5
+
     Specifies whether or not SSL/TLS encryption should be used for the TCP
     connections. Defaults to false.
 - tls (TlsConfig, optional):
     .. versionadded:: 0.5
+
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.

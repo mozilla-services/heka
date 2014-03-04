@@ -37,25 +37,31 @@ Config:
     cannot be used with the urls option. No default URL is specified.
 - urls (array):
     .. versionadded:: 0.5
+
     An array of HTTP URLs which this plugin will regularly poll for data. This
     option cannot be used with the url option. No default URLs are specified.
 - method (string):
     .. versionadded:: 0.5
+
     The HTTP method to use for the request. Defaults to "GET".
 - headers (subsection):
     .. versionadded:: 0.5
+
     Subsection defining headers for the request. By default the User-Agent
     header is set to "Heka"
 - body (string):
     .. versionadded:: 0.5
+
     The request body (e.g. for an HTTP POST request). No default body is
     specified.
 - username (string):
     .. versionadded:: 0.5
+
     The username for HTTP Basic Authentication. No default username is
     specified.
 - password (string):
     .. versionadded:: 0.5
+
     The password for HTTP Basic Authentication. No default password is
     specified.
 - ticker_interval (uint):
@@ -63,9 +69,11 @@ Config:
     to 10.
 - success_severity (uint):
     .. versionadded:: 0.5
+
     Severity level of successful HTTP request. Defaults to 6 (information).
 - error_severity (uint):
     .. versionadded:: 0.5
+
     Severity level of errors, unreachable connections, and non-200 responses
     of successful HTTP requests. Defaults to 1 (alert).
 - decoder (string):

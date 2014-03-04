@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -60,7 +61,7 @@ func ProcessInputSpec(c gs.Context) {
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
 
 		config := pInput.ConfigStruct().(*ProcessInputConfig)
-		config.Command = make(map[string]cmd_config)
+		config.Command = make(map[string]cmdConfig)
 
 		pConfig := NewPipelineConfig(nil)
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
@@ -70,13 +71,13 @@ func ProcessInputSpec(c gs.Context) {
 
 		c.Specify("reads a message from ProcessInput", func() {
 
-			config.Name = "SimpleTest"
+			pInput.SetName("SimpleTest")
 			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_TEST1_CMD, Args: PROCESSINPUT_TEST1_CMD_ARGS}
+			config.Command["0"] = cmdConfig{Bin: PROCESSINPUT_TEST1_CMD, Args: PROCESSINPUT_TEST1_CMD_ARGS}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
@@ -108,7 +109,7 @@ func ProcessInputSpec(c gs.Context) {
 
 		c.Specify("handles bad arguments", func() {
 
-			config.Name = "BadArgs"
+			pInput.SetName("BadArgs")
 			config.ParseStdout = false
 			config.ParseStderr = true
 			config.Decoder = "RegexpDecoder"
@@ -116,7 +117,7 @@ func ProcessInputSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
+			config.Command["0"] = cmdConfig{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
 
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -138,15 +139,15 @@ func ProcessInputSpec(c gs.Context) {
 
 		c.Specify("can pipe multiple commands together", func() {
 
-			config.Name = "PipedCmd"
+			pInput.SetName("PipedCmd")
 			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
 			// Overload the delimiter
 			config.Delimiter = " "
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD1, Args: PROCESSINPUT_PIPE_CMD1_ARGS}
-			config.Command["1"] = cmd_config{Bin: PROCESSINPUT_PIPE_CMD2, Args: PROCESSINPUT_PIPE_CMD2_ARGS}
+			config.Command["0"] = cmdConfig{Bin: PROCESSINPUT_PIPE_CMD1, Args: PROCESSINPUT_PIPE_CMD1_ARGS}
+			config.Command["1"] = cmdConfig{Bin: PROCESSINPUT_PIPE_CMD2, Args: PROCESSINPUT_PIPE_CMD2_ARGS}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 

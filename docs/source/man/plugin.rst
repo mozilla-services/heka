@@ -7,13 +7,13 @@ Description
 
 Available hekad plugins compiled with this version of hekad.
 
-.. include:: /config/inputs/index.rst
+.. include:: /config/inputs/index_noref.rst
 
-.. include:: /config/decoders/index.rst
+.. include:: /config/decoders/index_noref.rst
 
-.. include:: /config/filters/index.rst
+.. include:: /config/filters/index_noref.rst
 
-.. include:: /config/outputs/index.rst
+.. include:: /config/outputs/index_noref.rst
 
 See Also
 ========

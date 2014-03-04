@@ -1,13 +1,9 @@
-.. _config_decoders:
 
 ========
 Decoders
 ========
 
-.. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
-
-.. _config_nginx_access_log_decoder:
 
 Nginx Access Log Decoder
 ========================
@@ -18,19 +14,13 @@ Nginx Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. _config_payloadjson_decoder:
 .. include:: /config/decoders/payload_json.rst
 
-.. _config_payloadregex_decoder:
 .. include:: /config/decoders/payload_regex.rst
 
-.. _config_payload_xml_decoder:
 .. include:: /config/decoders/payload_xml.rst
 
-.. _config_protobuf_decoder:
 .. include:: /config/decoders/protobuf.rst
-
-.. _config_rsyslog_decoder:
 
 Rsyslog Decoder
 ===============
@@ -41,11 +31,8 @@ Rsyslog Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. _config_sandboxdecoder:
 .. include:: /config/decoders/sandbox.rst
 
-.. _config_scribbledecoder:
 .. include:: /config/decoders/scribble.rst
 
-.. _config_statstofieldsdecoder:
 .. include:: /config/decoders/stats_to_fields.rst

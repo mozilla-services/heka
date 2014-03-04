@@ -13,7 +13,9 @@ Config:
 - address (string):
     An IP address:port on which this plugin will write to.
     (default: "localhost:2003")
+
 .. versionadded:: 0.5
+
 - protocol (string):
     "tcp" or "udp"
     (default: "tcp")
