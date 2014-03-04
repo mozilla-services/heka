@@ -54,7 +54,14 @@ func StatAccumInputSpec(c gs.Context) {
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Inject(ith.Pack)
-		ith.MockInputRunner.EXPECT().Ticker()
+		var inputStarted sync.WaitGroup
+		inputStarted.Add(1)
+		// A call to Ticker() is the last step in the input's startup before
+		// it's ready to process packs. Any tests that need to pause until
+		// this happens can use `inputStarted.Wait()`.
+		ith.MockInputRunner.EXPECT().Ticker().Do(func() {
+			inputStarted.Done()
+		})
 
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
@@ -145,6 +152,47 @@ func StatAccumInputSpec(c gs.Context) {
 			sendTimer("sample2.timer", 10, 20)
 			msg := finalizeSendingStats()
 			validateValueAtKey(msg, "stats.statsd.numStats", int64(6))
+		})
+
+		c.Specify("emits proper idle stats", func() {
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			inputStarted.Wait() // Can't flush until the input has started.
+			statAccumInput.Flush()
+
+			ith.Pack.Recycle()
+			ith.PackSupply <- ith.Pack
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
+			validateValueAtKey(msg, "stats.counters.sample.cnt.count", int64(0))
+			validateValueAtKey(msg, "stats.timers.sample.timer.count", int64(0))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(3))
+		})
+
+		c.Specify("ommits idle stats", func() {
+			config.DeleteIdleStats = true
+			err := statAccumInput.Init(config)
+			c.Expect(err, gs.IsNil)
+
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			inputStarted.Wait() // Can't flush until the input has started.
+			statAccumInput.Flush()
+
+			sendTimer("sample2.timer", 10, 20)
+
+			ith.Pack.Recycle()
+			ith.PackSupply <- ith.Pack
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(1))
 		})
 	})
 
