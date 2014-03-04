@@ -244,9 +244,10 @@ func (sm *StatAccumInput) Flush() {
 		if count > 0 {
 			sort.Float64s(timings)
 
-			cumulativeValues := []float64{timings[0]}
+			cumulativeValues := make([]float64, count)
+			cumulativeValues[0] = timings[0]
 			for i := 1; i < count; i++ {
-				cumulativeValues = append(cumulativeValues, timings[i] + cumulativeValues[i-1])
+				cumulativeValues[i] = timings[i] + cumulativeValues[i-1]
 			}
 
 			rate = float64(count) / float64(sm.config.TickerInterval)
