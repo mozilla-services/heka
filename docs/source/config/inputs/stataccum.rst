@@ -49,3 +49,6 @@ Parameters:
     "gauges".
 - statsd_prefix (string):
     Prefix to use for the statsd `numStats` metric. Defaults to "statsd".
+- delete_idle_stats (bool):
+    Don't emit values for inactive stats instead of sending 0 or in the case
+    of gauges, sending the previous value. Defaults to false.

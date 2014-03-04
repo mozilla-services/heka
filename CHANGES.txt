@@ -160,6 +160,8 @@ Features
 
 * Added preserve_data option to SandboxDecoder (issue #668).
 
+* Added delete_idle_stats to StatAccumInput.
+
 0.4.2 (2013-12-02)
 ==================
 
