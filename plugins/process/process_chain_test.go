@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -19,82 +20,65 @@ import (
 	"fmt"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
+	"io/ioutil"
 	"strings"
 	"time"
 )
 
-func readCommandOutput(output_chan chan string, result_chan chan string) {
-	txt := ""
-	for {
-		select {
-		case data := <-output_chan:
-			if len(data) > 0 {
-				txt += data
-			} else {
-				result_chan <- txt
-				return
-			}
-		}
-	}
-}
-
 func ProcessChainSpec(c gs.Context) {
 
+	readCommandOutput := func(reader io.Reader, resultChan chan string) {
+		data, err := ioutil.ReadAll(reader)
+		c.Expect(err, gs.IsNil)
+		resultChan <- string(data)
+	}
+
 	c.Specify("A ManagedCommand", func() {
+
 		c.Specify("can run a single command", func() {
 			Path := SINGLE_CMD
 			cmd := NewManagedCmd(Path, SINGLE_CMD_ARGS, 0)
-
-			output_chan := cmd.StdoutChan()
 			output := make(chan string)
-			go readCommandOutput(output_chan, output)
 			cmd.Start(true)
+			go readCommandOutput(cmd.Stdout_r, output)
 			cmd.Wait()
-			output_str := <-output
-			c.Expect(fmt.Sprintf("%x", output_str), gs.Equals, fmt.Sprintf("%x", SINGLE_CMD_OUTPUT))
+			outputStr := <-output
+			c.Expect(fmt.Sprintf("%x", outputStr), gs.Equals,
+				fmt.Sprintf("%x", SINGLE_CMD_OUTPUT))
 		})
 
 		c.Specify("honors nonzero timeouts", func() {
 			// Timeout should always occur inside of 10 seconds.
 			Path := NONZERO_TIMEOUT_CMD
-
 			timeout := NONZERO_TIMEOUT
 			cmd := NewManagedCmd(Path, NONZERO_TIMEOUT_ARGS, timeout)
-
-			output_chan := cmd.StdoutChan()
 			output := make(chan string)
-
-			go readCommandOutput(output_chan, output)
-
 			cmd.Start(true)
 			start := time.Now()
+			go readCommandOutput(cmd.Stdout_r, output)
 			cmd.Wait()
 			end := time.Now()
 			<-output
-
-			actual_duration := end.Sub(start)
-			c.Expect(actual_duration < time.Second*10, gs.Equals, true)
+			actualDuration := end.Sub(start)
+			c.Expect(actualDuration < time.Second*10, gs.Equals, true)
 		})
 
 		c.Specify("reads process stderr properly", func() {
 			Path := STDERR_CMD
 			cmd := NewManagedCmd(Path, STDERR_CMD_ARGS, 0)
 
-			stdout_chan := cmd.StdoutChan()
-			stdout_results := make(chan string, 1)
-
-			stderr_chan := cmd.StderrChan()
-			stderr_results := make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_results)
-			go readCommandOutput(stderr_chan, stderr_results)
+			stdoutResults := make(chan string, 1)
+			stderrResults := make(chan string, 1)
 
 			cmd.Start(true)
+			go readCommandOutput(cmd.Stdout_r, stdoutResults)
+			go readCommandOutput(cmd.Stderr_r, stderrResults)
 			cmd.Wait()
-			// stderr messages will vary platform to platform, just check that there is some
-			// message which will be about "No such file found"
-			c.Expect(len(<-stderr_results) > 0, gs.Equals, true)
-			c.Expect(<-stdout_results, gs.Equals, "")
+
+			// Error messages will vary platform to platform, just check that
+			// there is some message which will be about "No such file found".
+			c.Expect(len(<-stderrResults) > 0, gs.Equals, true)
+			c.Expect(<-stdoutResults, gs.Equals, "")
 		})
 
 		c.Specify("can be terminated before timeout occurs", func() {
@@ -102,80 +86,71 @@ func ProcessChainSpec(c gs.Context) {
 			timeout := time.Second * 30
 			cmd := NewManagedCmd(Path, NONZERO_TIMEOUT_ARGS, timeout)
 
-			stdout_chan := cmd.StdoutChan()
-			stdout_results := make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_results)
+			stdoutResults := make(chan string, 1)
 
 			cmd.Start(true)
 			start := time.Now()
+			go readCommandOutput(cmd.Stdout_r, stdoutResults)
 			time.Sleep(NONZERO_TIMEOUT)
 			cmd.Stopchan <- true
 			cmd.Wait()
 			end := time.Now()
-			actual_duration := end.Sub(start)
-			c.Expect(actual_duration < timeout, gs.Equals, true)
+
+			actualDuration := end.Sub(start)
+			c.Expect(actualDuration < timeout, gs.Equals, true)
 		})
 
 		c.Specify("can reset commands to run again", func() {
 			Path := SINGLE_CMD
 			cmd := NewManagedCmd(Path, SINGLE_CMD_ARGS, 0)
 
-			stdout_chan := cmd.StdoutChan()
-			stdout_results := make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_results)
+			stdoutResults := make(chan string, 1)
 
 			cmd.Start(true)
+			go readCommandOutput(cmd.Stdout_r, stdoutResults)
 			cmd.Wait()
-			c.Expect(<-stdout_results, gs.Equals, SINGLE_CMD_OUTPUT)
+			c.Expect(<-stdoutResults, gs.Equals, SINGLE_CMD_OUTPUT)
 
-			// Reset and rerun it
+			// Reset and rerun it.
 			cmd = cmd.clone()
-
-			stdout_chan = cmd.StdoutChan()
-			stdout_results = make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_results)
-
 			cmd.Start(true)
+			go readCommandOutput(cmd.Stdout_r, stdoutResults)
 			cmd.Wait()
-			c.Expect(<-stdout_results, gs.Equals, SINGLE_CMD_OUTPUT)
+			c.Expect(<-stdoutResults, gs.Equals, SINGLE_CMD_OUTPUT)
 		})
 	})
 
 	c.Specify("A New ProcessChain", func() {
 		c.Specify("can pipe cat and grep", func() {
-			// This test assumes cat and grep
-			var err error
-
+			// This test assumes cat and grep.
 			chain := NewCommandChain(0)
 			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
 			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
 
-			stdout_chan, err := chain.StdoutChan()
+			err := chain.Start()
 			c.Expect(err, gs.IsNil)
-			stdout_result := make(chan string, 1)
 
-			stderr_chan, err := chain.StderrChan()
+			stdoutReader, err := chain.Stdout_r()
 			c.Expect(err, gs.IsNil)
-			stderr_result := make(chan string, 1)
+			stdoutResult := make(chan string, 1)
 
-			go readCommandOutput(stdout_chan, stdout_result)
-			go readCommandOutput(stderr_chan, stderr_result)
-
-			err = chain.Start()
+			stderrReader, err := chain.Stderr_r()
 			c.Expect(err, gs.IsNil)
+			stderrResult := make(chan string, 1)
+
+			go readCommandOutput(stdoutReader, stdoutResult)
+			go readCommandOutput(stderrReader, stderrResult)
+
 			err = chain.Wait()
 			c.Expect(err, gs.IsNil)
 
-			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
+			c.Expect(<-stderrResult, gs.Equals, "")
+			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)
 
 		})
 
 		c.Specify("will honor timeouts", func() {
-			// This test must timeout within 10 seconds
+			// This test must timeout within 10 seconds.
 			var err error
 
 			timeout := NONZERO_TIMEOUT
@@ -223,75 +198,48 @@ func ProcessChainSpec(c gs.Context) {
 			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
 			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
 
-			stdout_chan, err := chain.StdoutChan()
-			c.Expect(err, gs.IsNil)
-			stdout_result := make(chan string, 1)
-
-			stderr_chan, err := chain.StderrChan()
-			c.Expect(err, gs.IsNil)
-			stderr_result := make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_result)
-			go readCommandOutput(stderr_chan, stderr_result)
-
 			err = chain.Start()
 			c.Expect(err, gs.IsNil)
+
+			stdoutReader, err := chain.Stdout_r()
+			c.Expect(err, gs.IsNil)
+			stdoutResult := make(chan string, 1)
+
+			stderrReader, err := chain.Stderr_r()
+			c.Expect(err, gs.IsNil)
+			stderrResult := make(chan string, 1)
+
+			go readCommandOutput(stdoutReader, stdoutResult)
+			go readCommandOutput(stderrReader, stderrResult)
+
 			err = chain.Wait()
 			c.Expect(err, gs.IsNil)
 
-			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
+			c.Expect(<-stderrResult, gs.Equals, "")
+			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)
 
 			// Reset the chain for a second run
 			chain = chain.clone()
 
-			stdout_chan, err = chain.StdoutChan()
-			c.Expect(err, gs.IsNil)
-			stdout_result = make(chan string, 1)
-
-			stderr_chan, err = chain.StderrChan()
-			c.Expect(err, gs.IsNil)
-			stderr_result = make(chan string, 1)
-
-			go readCommandOutput(stdout_chan, stdout_result)
-			go readCommandOutput(stderr_chan, stderr_result)
-
 			err = chain.Start()
 			c.Expect(err, gs.IsNil)
+
+			stdoutReader, err = chain.Stdout_r()
+			c.Expect(err, gs.IsNil)
+
+			stderrReader, err = chain.Stderr_r()
+			c.Expect(err, gs.IsNil)
+
+			go readCommandOutput(stdoutReader, stdoutResult)
+			go readCommandOutput(stderrReader, stderrResult)
+
 			err = chain.Wait()
 			c.Expect(err, gs.IsNil)
 
-			c.Expect(<-stderr_result, gs.Equals, "")
-			c.Expect(<-stdout_result, gs.Equals, PIPE_CMD_OUTPUT)
-		})
-
-		c.Specify("can be used as a reader", func() {
-
-			// This test assumes cat and grep
-			var err error
-
-			chain := NewCommandChain(0)
-			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
-			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)
-
-			stdout_chan, err := chain.StdoutChan()
-			c.Expect(err, gs.IsNil)
-			reader := &StringChannelReader{input: stdout_chan}
-
-			read_channel := make(chan string)
-			go func() {
-				read_channel <- readoutput(reader)
-			}()
-
-			err = chain.Start()
-			c.Expect(err, gs.IsNil)
-			err = chain.Wait()
-			c.Expect(err, gs.IsNil)
-
-			c.Expect(<-read_channel, gs.Equals, PIPE_CMD_OUTPUT)
+			c.Expect(<-stderrResult, gs.Equals, "")
+			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)
 		})
 	})
-
 }
 
 func readoutput(r io.Reader) string {

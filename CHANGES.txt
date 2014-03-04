@@ -4,6 +4,13 @@
 Backwards Incompatibilities
 ---------------------------
 
+* ProcessInput no longer supports a separate'name' config setting, it uses the
+  specified plugin name from the TOML section header like all of the other
+  plugins.
+
+* Removed Stdout_chan and Stderr_chan from ManagedCmd and CommandChain, client
+  code now has direct access to Stdout_r and Stderr_r io.Reader providers.
+
 * The PluginHelper interface DecoderRunner prototype has changed (issue #717) 
   to allow for the base name e.g. "ProtobufDecoder" and a full instance name
   e.g. "MyInput-ProtobufDecoder" of the decoder to be specified.  This allows
@@ -87,6 +94,13 @@ Bug Handling
 
 Features
 --------
+
+* Added ProcessDirectoryInput.
+
+* InputRunners now support being specified as 'transient', meaning their
+  lifespan should be managed by the code that creates the InputRunner and not
+  Heka's pipeline code.
+
 * HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP
   Basic Authentication
 

@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Bryan Zubrod (bzubrod@gmail.com)
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 #***** END LICENSE BLOCK *****/
 
@@ -23,37 +24,34 @@ import (
 	"time"
 )
 
-// ManagedCmd extends exec.Cmd to support killing of a subprocess if
-// a timeout has been exceeded.  A timeout duration value of 0
-// indicates that no timeout is enforced.
+// ManagedCmd extends exec.Cmd to support killing of a subprocess if a timeout
+// has been exceeded. A timeout duration value of 0 indicates that no timeout
+// is enforced.
 type ManagedCmd struct {
 	exec.Cmd
 
 	Path string
 	Args []string
-	// Env specifies the environment of the process.
-	// If Env is nil, Run uses the current process's environment.
+	// Env specifies the environment of the process. If Env is nil, Run uses
+	// the current process's environment.
 	Env []string
 
-	// Dir specifies the working directory of the command.
-	// If Dir is the empty string, Run runs the command in the
-	// calling process's current directory.
+	// Dir specifies the working directory of the command. If Dir is the empty
+	// string, Run runs the command in the calling process's current
+	// directory.
 	Dir string
 
 	done     chan error
 	Stopchan chan bool
 
-	// Note that the timeout duration is only used when Wait() is called.
-	// If you put this command on a run interval where the interval time is
-	// very close to the timeout interval, it is possible that the
-	// timeout may only occur *after* the command has been restarted.
+	// Note that the timeout duration is only used when Wait() is called. If
+	// you put this command on a run interval where the interval time is very
+	// close to the timeout interval, it is possible that the timeout may only
+	// occur *after* the command has been restarted.
 	timeout_duration time.Duration
 
 	Stdout_r *io.PipeReader
 	Stderr_r *io.PipeReader
-
-	Stdout_chan chan string
-	Stderr_chan chan string
 }
 
 func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *ManagedCmd) {
@@ -63,30 +61,11 @@ func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *Manag
 	mc.Cmd = *exec.Command(mc.Path, mc.Args...)
 	mc.Cmd.Env = mc.Env
 	mc.Cmd.Dir = mc.Dir
-
-	mc.Stdout_chan = make(chan string)
-	mc.Stderr_chan = make(chan string)
 	return mc
 }
 
-func (mc *ManagedCmd) drainChannels() {
-	var done bool
-	chans := []chan string{mc.StdoutChan(), mc.StderrChan()}
-	for _, ch := range chans {
-		done = false
-		for !done {
-			select {
-			case <-ch:
-				continue
-			default:
-				done = true
-			}
-		}
-	}
-}
-
-func (mc *ManagedCmd) Start(redirectToChannels bool) (err error) {
-	if redirectToChannels {
+func (mc *ManagedCmd) Start(pipeOutput bool) (err error) {
+	if pipeOutput {
 		var stdout_w *io.PipeWriter
 		var stderr_w *io.PipeWriter
 
@@ -95,44 +74,6 @@ func (mc *ManagedCmd) Start(redirectToChannels bool) (err error) {
 
 		mc.Cmd.Stdout = stdout_w
 		mc.Cmd.Stderr = stderr_w
-
-		// Process stdout
-		go func() {
-			var err error
-			var buffer []byte
-			var bytes_read int
-
-			buffer = make([]byte, 500)
-			for {
-				bytes_read, err = mc.Stdout_r.Read(buffer)
-				if bytes_read > 0 {
-					mc.Stdout_chan <- string(buffer[:bytes_read])
-				}
-				if err != nil {
-					close(mc.Stdout_chan)
-					return
-				}
-			}
-		}()
-
-		// Process stderr
-		go func() {
-			var err error
-			var buffer []byte
-			var bytes_read int
-
-			buffer = make([]byte, 1000)
-			for {
-				bytes_read, err = mc.Stderr_r.Read(buffer)
-				if bytes_read > 0 {
-					mc.Stderr_chan <- string(buffer[:bytes_read])
-				}
-				if err != nil {
-					close(mc.Stderr_chan)
-					return
-				}
-			}
-		}()
 	}
 
 	return mc.Cmd.Start()
@@ -179,8 +120,6 @@ func (mc *ManagedCmd) Wait() (err error) {
 		writer.Close()
 	}
 
-	mc.drainChannels()
-
 	return err
 }
 
@@ -201,22 +140,13 @@ func (mc *ManagedCmd) clone() (clone *ManagedCmd) {
 	return clone
 }
 
-func (mc *ManagedCmd) StdoutChan() (stream chan string) {
-	return mc.Stdout_chan
-}
-
-func (mc *ManagedCmd) StderrChan() (stream chan string) {
-	return mc.Stderr_chan
-}
-
-// A CommandChain lets you execute an ordered set of subprocesses
-// and pipe stdout to stdin for each stage.
+// A CommandChain lets you execute an ordered set of subprocesses and pipe
+// stdout to stdin for each stage.
 type CommandChain struct {
 	Cmds []*ManagedCmd
 
 	// The timeout duration is the maximum time that each stage of the
-	// pipeline should run for before the Wait() returns a
-	// timeout error.
+	// pipeline should run for before the Wait() returns a timeout error.
 	timeout_duration time.Duration
 
 	done     chan error
@@ -230,8 +160,8 @@ func NewCommandChain(timeout time.Duration) (cc *CommandChain) {
 	return cc
 }
 
-// Add a single command to our command chain, piping stdout to stdin
-// for each stage.
+// Add a single command to our command chain, piping stdout to stdin for each
+// stage.
 func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 	cmd = NewManagedCmd(Path, Args, cc.timeout_duration)
 
@@ -244,18 +174,18 @@ func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 	return cmd
 }
 
-func (cc *CommandChain) StdoutChan() (stream chan string, err error) {
+func (cc *CommandChain) Stdout_r() (stdout io.Reader, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
 	}
-	return cc.Cmds[len(cc.Cmds)-1].Stdout_chan, nil
+	return cc.Cmds[len(cc.Cmds)-1].Stdout_r, nil
 }
 
-func (cc *CommandChain) StderrChan() (stream chan string, err error) {
+func (cc *CommandChain) Stderr_r() (stderr io.Reader, err error) {
 	if len(cc.Cmds) == 0 {
 		return nil, fmt.Errorf("No commands are in this chain")
 	}
-	return cc.Cmds[len(cc.Cmds)-1].Stderr_chan, nil
+	return cc.Cmds[len(cc.Cmds)-1].Stderr_r, nil
 }
 
 func (cc *CommandChain) Start() (err error) {
@@ -331,32 +261,4 @@ func (cc *CommandChain) clone() (clone *CommandChain) {
 		clone.AddStep(cmd.Path, cmd.Args...)
 	}
 	return clone
-}
-
-type StringChannelReader struct {
-	input  chan string
-	buffer string
-}
-
-func (scr *StringChannelReader) Read(p []byte) (n int, err error) {
-	// This call blocks until we get some data
-	select {
-	case inbound := <-scr.input:
-		if len(inbound) > 0 {
-			scr.buffer += inbound
-		} else {
-			// The channel is closed
-			err = io.EOF
-			break
-		}
-	}
-
-	if len(scr.buffer) <= len(p) {
-		n = copy(p, []byte(scr.buffer))
-		scr.buffer = ""
-	} else {
-		n = copy(p, []byte(scr.buffer[:len(p)]))
-		scr.buffer = scr.buffer[len(p):]
-	}
-	return n, err
 }

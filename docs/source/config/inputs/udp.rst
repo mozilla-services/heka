@@ -43,7 +43,9 @@ Config:
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of the message.
     - end - the regexp delimiter occurs at the end of the message (default).
+
 .. versionadded:: 0.5
+
 - net (string, optional, default: "udp")
     Network value must be one of: "udp", "udp4" or "udp6".
 

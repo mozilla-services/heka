@@ -687,7 +687,7 @@ func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper
 					ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.Name, err))
 					return err
 				}
-				lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals)
+				lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals, true)
 				err = h.PipelineConfig().AddInputRunner(lfir, wrapper)
 			}
 		}
@@ -708,7 +708,7 @@ func (ldm *LogfileDirectoryManagerInput) Run(ir InputRunner, h PluginHelper) (er
 	for ok {
 		select {
 		case _, ok = <-ldm.stopped:
-		case _ = <-ticker:
+		case <-ticker:
 			if err = ldm.scanPath(ir, h); err != nil {
 				return
 			}

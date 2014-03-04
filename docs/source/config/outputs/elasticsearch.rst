@@ -53,6 +53,7 @@ Config:
     instead of the current time. Defaults to false.
 - id (string):
     .. versionadded:: 0.5
+
     Allows you to optionally specify the document id for ES to use. Useful for
     overwriting existing ES documents. If the value specified is placed within
     %{}, it will be interpolated to its Field value. Default is allow ES to

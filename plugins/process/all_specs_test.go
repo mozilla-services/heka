@@ -25,6 +25,7 @@ func TestAllSpecs(t *testing.T) {
 
 	r.AddSpec(ProcessChainSpec)
 	r.AddSpec(ProcessInputSpec)
+	r.AddSpec(ProcessDirectoryInputSpec)
 
 	gospec.MainGoTest(r, t)
 }
