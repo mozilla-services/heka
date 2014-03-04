@@ -121,8 +121,7 @@ func ProcessChainSpec(c gs.Context) {
 	})
 
 	c.Specify("A New ProcessChain", func() {
-		c.Specify("can pipe cat and grep", func() {
-			// This test assumes cat and grep.
+		c.Specify("pipes multiple commands correctly", func() {
 			chain := NewCommandChain(0)
 			chain.AddStep(PIPE_CMD1, PIPE_CMD1_ARGS...)
 			chain.AddStep(PIPE_CMD2, PIPE_CMD2_ARGS...)

@@ -44,7 +44,7 @@ the following restrictions:
   other than ProcessInput will be ignored.
 
 - Any specified `ticker_interval` value will be *ignored*. The ticker interval
-  value to use will be parsed from the name 
+  value to use will be parsed from the directory path.
 
 If the specified process fails to run or the ProcessInput config fails for any
 other reason, ProcessDirectoryInput will log an error message and continue.

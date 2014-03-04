@@ -57,7 +57,7 @@ func (pdi *ProcessDirectoryInput) Init(config interface{}) (err error) {
 	conf := config.(*ProcessDirectoryInputConfig)
 	pdi.inputs = make(map[string]*ProcessEntry)
 	pdi.stopChan = make(chan bool)
-	pdi.procDir = PrependShareDir(conf.ProcessDir)
+	pdi.procDir = filepath.Clean(PrependShareDir(conf.ProcessDir))
 	return
 }
 
@@ -159,19 +159,14 @@ func (pdi *ProcessDirectoryInput) procDirWalkFunc(path string, info os.FileInfo,
 	if info == nil {
 		return nil
 	}
-	// Skip directories.
-	if info.IsDir() {
+	// Skip directories or anything that doesn't end in `.toml`.
+	if info.IsDir() || filepath.Ext(path) != ".toml" {
 		return nil
 	}
-	// Skip anything that doesn't end in `.toml`.
-	dir, scriptName := filepath.Split(path)
-	if !strings.HasSuffix(scriptName, ".toml") {
-		return nil
-	}
-	dir = strings.TrimSuffix(dir, string(os.PathSeparator))
 
 	// Make sure that the path doesn't get deeper than one level past
 	// procDir. It should match `/procDir/<time_interval>/`.
+	dir := filepath.Dir(path)
 	parentDir, timeInterval := filepath.Split(dir)
 	parentDir = strings.TrimSuffix(parentDir, string(os.PathSeparator))
 	if parentDir != pdi.procDir {

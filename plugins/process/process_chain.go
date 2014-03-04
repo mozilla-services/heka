@@ -37,8 +37,8 @@ type ManagedCmd struct {
 	Env []string
 
 	// Dir specifies the working directory of the command. If Dir is the empty
-	// string, Run runs the command in the calling process's current
-	// directory.
+	// string, the calling process's current directory will be used as the
+	// working directory.
 	Dir string
 
 	done     chan error
