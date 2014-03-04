@@ -19,9 +19,10 @@ Command Line Options
 ``-version``
     Output the version number, then exit.
 
-``-config`` `config_file`
-    Specify the configuration file to use; the default is /etc/hekad.toml.  (See hekad.config(5).)
-
+``-config`` `config_path`
+    Specify the configuration file or directory to use; the default is
+    /etc/hekad.toml. If `config_path` resolves to a directory, all files in
+    that directory must be valid TOML files. (See hekad.config(5).)
 
 .. end-options
 
