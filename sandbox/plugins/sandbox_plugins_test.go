@@ -345,6 +345,7 @@ func DecoderSpec(c gs.Context) {
 		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
 		conf.Config["log_format"] = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
+		conf.Config["user_agent_transform"] = true
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		dRunner := pm.NewMockDecoderRunner(ctrl)
@@ -370,6 +371,18 @@ func DecoderSpec(c gs.Context) {
 			value, ok = pack.Message.GetFieldValue("remote_addr")
 			c.Expect(ok, gs.Equals, true)
 			c.Expect(value, gs.Equals, "127.0.0.1")
+
+			value, ok = pack.Message.GetFieldValue("user_agent_browser")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "Firefox")
+			value, ok = pack.Message.GetFieldValue("user_agent_version")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(26))
+			value, ok = pack.Message.GetFieldValue("user_agent_os")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "Linux")
+			_, ok = pack.Message.GetFieldValue("http_user_agent")
+			c.Expect(ok, gs.Equals, false)
 
 			value, ok = pack.Message.GetFieldValue("body_bytes_sent")
 			c.Expect(ok, gs.Equals, true)
