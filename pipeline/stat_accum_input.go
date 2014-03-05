@@ -88,6 +88,10 @@ type StatAccumInputConfig struct {
 	TimerPrefix      string `toml:"timer_prefix"`
 	GaugePrefix      string `toml:"gauge_prefix"`
 	StatsdPrefix     string `toml:"statsd_prefix"`
+
+	// Don't emit values for inactive stats instead of sending 0 or in the case
+	// of gauges, sending the previous value. Defaults to false
+	DeleteIdleStats	bool	`toml:"delete_idle_stats"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -102,6 +106,7 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		CounterPrefix:    "counters",
 		TimerPrefix:      "timers",
 		GaugePrefix:      "gauges",
+		DeleteIdleStats:  false,
 	}
 }
 
@@ -229,11 +234,18 @@ func (sm *StatAccumInput) Flush() {
 			counterKey.Emit("rate", ratePerSecond)
 			counterKey.Emit("count", c)
 		}
-		sm.counters[key] = 0
+		if sm.config.DeleteIdleStats {
+			delete(sm.counters, key)
+		} else {
+			sm.counters[key] = 0
+		}
 		numStats++
 	}
 	for key, gauge := range sm.gauges {
 		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, int64(gauge))
+		if sm.config.DeleteIdleStats {
+			delete(sm.gauges, key)
+		}
 		numStats++
 	}
 
@@ -292,7 +304,11 @@ func (sm *StatAccumInput) Flush() {
 		timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), meanPercentile)
 		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), upperPercentile)
 
-		sm.timers[key] = timings[:0]
+		if sm.config.DeleteIdleStats {
+			delete(sm.timers, key)
+		} else {
+			sm.timers[key] = timings[:0]
+		}
 		numStats++
 	}
 

@@ -204,6 +204,8 @@ Features
 
 * Added preserve_data option to SandboxDecoder (issue #668).
 
+* Added delete_idle_stats to StatAccumInput.
+
 * Added sum and count_ps metrics to timers in stat_accum_input.
 
 0.4.2 (2013-12-02)
