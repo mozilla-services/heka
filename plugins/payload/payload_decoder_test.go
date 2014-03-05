@@ -82,48 +82,48 @@ func PayloadDecodersSpec(c gospec.Context) {
 
 		c.Specify("test require_all_fields", func() {
 			json_data := `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "2013-08-13T10:32:00.000Z"}`
-                        conf.JsonMap = map[string]string{"Count": "$.statsd.count",
-                                "Name":          "$.statsd.name",
-                                "Pid":           "$.pid",
-                                "Timestamp":     "$.timestamp",
+			conf.JsonMap = map[string]string{"Count": "$.statsd.count",
+				"Name":          "$.statsd.name",
+				"Pid":           "$.pid",
+				"Timestamp":     "$.timestamp",
 				"RequiredField": "$.required_field",
-                        }
+			}
 
-                        conf.MessageFields = MessageTemplate{
-                                "Pid":           "%Pid%",
-                                "StatCount":     "%Count%",
-                                "StatName":      "%Name%",
-                                "Timestamp":     "%Timestamp%",
+			conf.MessageFields = MessageTemplate{
+				"Pid":           "%Pid%",
+				"StatCount":     "%Count%",
+				"StatName":      "%Name%",
+				"Timestamp":     "%Timestamp%",
 				"RequiredField": "%RequiredField%",
-                        }
+			}
 
 			conf.RequireAllFields = true
 
 			err := decoder.Init(conf)
-                        c.Assume(err, gs.IsNil)
-                        dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-                        decoder.SetDecoderRunner(dRunner)
-                        pack.Message.SetPayload(json_data)
-                        _, err = decoder.Decode(pack)
-                        c.Assume(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(json_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
 
 			var ok bool
-                        var count, required_field interface{}
-                        count, ok = pack.Message.GetFieldValue("StatCount")
-                        c.Expect(ok, gs.Equals, false)
-                        c.Expect(count, gs.IsNil)
+			var count, required_field interface{}
+			count, ok = pack.Message.GetFieldValue("StatCount")
+			c.Expect(ok, gs.Equals, false)
+			c.Expect(count, gs.IsNil)
 
 			json_data = `{"statsd": {"count": 1, "name": "some.counter"}, "pid": 532, "timestamp": "2013-08-13T10:32:00.000Z", "required_field": "foo"}`
 
 			pack.Message.SetPayload(json_data)
-                        _, err = decoder.Decode(pack)
-                        c.Assume(err, gs.IsNil)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
 
-                        count, ok = pack.Message.GetFieldValue("StatCount")
-                        c.Expect(ok, gs.Equals, true)
-                        c.Expect(count, gs.Equals, "1")
+			count, ok = pack.Message.GetFieldValue("StatCount")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(count, gs.Equals, "1")
 			required_field, ok = pack.Message.GetFieldValue("RequiredField")
-                        c.Expect(ok, gs.Equals, true)
+			c.Expect(ok, gs.Equals, true)
 			c.Expect(required_field, gs.Equals, "foo")
 		})
 	})
@@ -250,7 +250,7 @@ func PayloadDecodersSpec(c gospec.Context) {
 			pack.Message.SetPayload("invalid payload")
 			_, err = decoder.Decode(pack)
 			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), gs.Equals, "No match")
+			c.Expect(err.Error(), gs.Equals, "No match: invalid payload")
 			pack.Zero()
 		})
 
