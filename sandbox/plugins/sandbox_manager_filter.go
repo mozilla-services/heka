@@ -34,11 +34,11 @@ import (
 // dynamically creates, manages, and destroys sandboxed filter scripts as
 // instructed.
 type SandboxManagerFilter struct {
+	processMessageCount int64
 	maxFilters          int
 	currentFilters      int
 	workingDirectory    string
 	moduleDirectory     string
-	processMessageCount int64
 	memoryLimit         uint
 	instructionLimit    uint
 	outputLimit         uint

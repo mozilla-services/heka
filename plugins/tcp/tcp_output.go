@@ -35,6 +35,9 @@ import (
 
 // Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
+	processMessageCount int64
+	sentMessageCount    int64
+	readOffset          int64
 	conf                *TcpOutputConfig
 	parser              *MessageProtoParser
 	address             string
@@ -43,14 +46,11 @@ type TcpOutput struct {
 	writeId             uint
 	readFile            *os.File
 	readId              uint
-	readOffset          int64
 	checkpointFilename  string
 	checkpointFile      *os.File
 	queue               string
 	name                string
 	reportLock          sync.Mutex
-	processMessageCount int64
-	sentMessageCount    int64
 }
 
 // ConfigStruct for TcpOutput plugin.

@@ -157,11 +157,13 @@ func (lw *LogfileInput) Stop() {
 // Handles the actual mechanics of finding, watching, and reading from file
 // system files.
 type FileMonitor struct {
+	seek               int64
+	last_logline_start int64
+
 	// Channel onto which FileMonitor will place PipelinePack objects as the file
 	// is being read.
 	outChan  chan *PipelinePack
 	stopChan chan bool
-	seek     int64
 
 	logfile         string
 	seekJournalPath string
@@ -175,9 +177,8 @@ type FileMonitor struct {
 	pendingMessages []string
 	pendingErrors   []string
 
-	last_logline       string
-	last_logline_start int64
-	resumeFromStart    bool
+	last_logline    string
+	resumeFromStart bool
 
 	parser        StreamParser
 	parseFunction func(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)

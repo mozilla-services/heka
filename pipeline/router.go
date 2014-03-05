@@ -49,13 +49,13 @@ type MessageRouter interface {
 }
 
 type messageRouter struct {
+	processMessageCount int64
 	inChan              chan *PipelinePack
 	addFilterMatcher    chan *MatchRunner
 	removeFilterMatcher chan *MatchRunner
 	removeOutputMatcher chan *MatchRunner
 	fMatchers           []*MatchRunner
 	oMatchers           []*MatchRunner
-	processMessageCount int64
 }
 
 // Creates and returns a (not yet started) Heka message router.
@@ -178,12 +178,12 @@ func (self *messageRouter) Start() {
 // Encapsulates the mechanics of testing messages against a specific plugin's
 // message_matcher value.
 type MatchRunner struct {
+	matchSamples  int64
+	matchDuration int64
 	spec          *message.MatcherSpecification
 	signer        string
 	inChan        chan *PipelinePack
 	pluginRunner  PluginRunner
-	matchSamples  int64
-	matchDuration int64
 	reportLock    sync.Mutex
 }
 
