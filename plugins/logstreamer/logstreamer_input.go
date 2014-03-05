@@ -185,7 +185,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Setup the decoder runner that will be used
 	if li.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(li.decoderName); !ok {
+		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s", li.pluginName, li.decoderName)); !ok {
 			return fmt.Errorf("Decoder not found: %s", li.decoderName)
 		}
 	}
@@ -363,9 +363,6 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop
 			pack.Message.SetUuid(uuid.NewRandom())
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("logfile")
-			pack.Message.SetSeverity(int32(0))
-			pack.Message.SetEnvVersion("0.8")
-			pack.Message.SetPid(0)
 			pack.Message.SetHostname(lsi.hostName)
 			pack.Message.SetLogger(lsi.loggerIdent)
 			pack.Message.SetPayload(payload)

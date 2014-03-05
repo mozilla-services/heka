@@ -8,7 +8,7 @@ the signature is not valid the message is discarded otherwise the signer name
 is added to the pipeline pack and can be use to accept messages using the
 message_signer configuration option.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will listen.
@@ -38,7 +38,9 @@ Parameters:
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of the message.
     - end - the regexp delimiter occurs at the end of the message (default).
+
 .. versionadded:: 0.5
+
 - use_tls (bool):
     Specifies whether or not SSL/TLS encryption should be used for the TCP
     connections. Defaults to false.

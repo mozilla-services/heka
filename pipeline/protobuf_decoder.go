@@ -17,22 +17,70 @@ package pipeline
 
 import (
 	"code.google.com/p/goprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"math/rand"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // Decoder for converting ProtocolBuffer data into Message objects.
-type ProtobufDecoder struct{}
+type ProtobufDecoder struct {
+	processMessageCount    int64
+	processMessageFailures int64
+	processMessageSamples  int64
+	processMessageDuration int64
+	reportLock             sync.Mutex
+	sample                 bool
+}
 
-func (self *ProtobufDecoder) Init(config interface{}) error {
+func (p *ProtobufDecoder) Init(config interface{}) error {
+	p.sample = true
 	return nil
 }
 
-func (self *ProtobufDecoder) Decode(pack *PipelinePack) (
+func (p *ProtobufDecoder) Decode(pack *PipelinePack) (
 	packs []*PipelinePack, err error) {
+
+	atomic.AddInt64(&p.processMessageCount, 1)
+
+	var startTime time.Time
+	if p.sample {
+		startTime = time.Now()
+	}
 
 	if err = proto.Unmarshal(pack.MsgBytes, pack.Message); err == nil {
 		packs = []*PipelinePack{pack}
+	} else {
+		atomic.AddInt64(&p.processMessageFailures, 1)
 	}
+
+	if p.sample {
+		duration := time.Since(startTime).Nanoseconds()
+		p.reportLock.Lock()
+		p.processMessageDuration += duration
+		p.processMessageSamples++
+		p.reportLock.Unlock()
+	}
+	p.sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
 	return
+}
+
+func (p *ProtobufDecoder) ReportMsg(msg *message.Message) error {
+	p.reportLock.Lock()
+	defer p.reportLock.Unlock()
+
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&p.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&p.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", p.processMessageSamples, "count")
+
+	var tmp int64 = 0
+	if p.processMessageSamples > 0 {
+		tmp = p.processMessageDuration / p.processMessageSamples
+	}
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+
+	return nil
 }
 
 func init() {

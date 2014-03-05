@@ -85,36 +85,55 @@ define(
       },
 
       /**
-      * Friendly description of the timespan in seconds, minutes, or hours.
+      * Friendly description of the aggregation units in seconds, 
+      * minutes, hours, or days. 
       *
-      * @method timespanDescription
+      * @method aggregationUnits
       * @return {String} description
       */
-      timespanDescription: function() {
-        if (this.hasHeader()) {
+      aggregationUnits: function(seconds, plural) {
           var secondsInAMinute = 60;
           var secondsInAnHour = 3600;
-
-          var seconds = this.header.seconds_per_row * this.header.rows;
+          var secondsInADay = secondsInAnHour * 24;
+          var description;
           var numericValue;
-          var timespanDescription;
 
           if (seconds < secondsInAMinute) {
             numericValue = seconds;
-            timespanDescription = numericValue.toString() + " second";
+            description = numericValue.toString() + " second";
           } else if (seconds < secondsInAnHour) {
             numericValue = this._round(seconds / secondsInAMinute);
-            timespanDescription = numericValue.toString() + " minute";
-          } else {
+            description = numericValue.toString() + " minute";
+          } else if (seconds < secondsInADay) {
             numericValue = this._round(seconds / secondsInAnHour);
-            timespanDescription = numericValue.toString() + " hour";
+            description = numericValue.toString() + " hour";
+          } else {
+            numericValue = this._round(seconds / secondsInADay);
+            description = numericValue.toString() + " day";
+          }
+          
+          if (plural && numericValue != 1) {
+            description += "s";
+          }
+          if (plural && numericValue == 1) {
+              description = description.substr(2)
           }
 
-          if (numericValue != 1) {
-            timespanDescription += "s";
-          }
+          return description;
+      },
 
-          return timespanDescription;
+      /**
+      * Friendly description of the circular buffer aggregation 
+      * window. 
+      *
+      * @method aggregationDescription
+      * @return {String} description
+      */
+      aggregationDescription: function() {
+        if (this.hasHeader()) {
+          var aggregate = this.aggregationUnits(this.header.seconds_per_row, false);
+          var span = this.aggregationUnits(this.header.seconds_per_row * this.header.rows, true);
+          return aggregate + " aggregation for the last " + span;
         }
       },
 

@@ -25,6 +25,9 @@ Inputs
 .. _config_process_input:
 .. include:: /config/inputs/process.rst
 
+.. _config_process_directory_input:
+.. include:: /config/inputs/processdir.rst
+
 .. _config_stat_accum_input:
 .. include:: /config/inputs/stataccum.rst
 

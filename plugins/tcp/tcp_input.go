@@ -132,7 +132,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		ok bool
 	)
 	if t.config.Decoder != "" {
-		if dr, ok = t.h.DecoderRunner(t.config.Decoder); !ok {
+		raddr := conn.RemoteAddr().String()
+		host, _, err := net.SplitHostPort(raddr)
+		if err != nil {
+			host = raddr
+		}
+		if dr, ok = t.h.DecoderRunner(t.config.Decoder,
+			fmt.Sprintf("%s-%s-%s", t.name, host, t.config.Decoder)); !ok {
 			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
 			return
 		}
@@ -180,12 +186,17 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 			}
 		}
 	}
+	// Stop the decoder, see Issue #713.
+	if dr != nil {
+		t.h.StopDecoderRunner(dr)
+	}
 }
 
 func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.ir = ir
 	t.h = h
 	t.stopChan = make(chan bool)
+	t.name = ir.Name()
 
 	var conn net.Conn
 	var e error

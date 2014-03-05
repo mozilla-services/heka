@@ -5,8 +5,8 @@
 --[[
 Parses the rsyslog output using the string based configuration template.
 
-Config
-~~~~~~
+Config:
+
 - template (string)
     The 'template' configuration string from rsyslog.conf.
 
@@ -34,11 +34,10 @@ Config
 :Pid: 0
 :UUID: e0eef205-0b64-41e8-a307-5772b05e16c1
 :Logger: RsyslogInput
-:Payload:
+:Payload: "imklog 5.8.6, log source = /proc/kmsg started."
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"msg" value_string:"imklog 5.8.6, log source = /proc/kmsg started."
     | name:"syslogtag" value_string:"kernel:"]
 --]]
 
@@ -47,10 +46,11 @@ local syslog = require "syslog"
 local template = read_config("template")
 
 local msg = {
-Timestamp = nil,
-Hostname = nil,
-Severity = nil,
-Fields = nil
+Timestamp   = nil,
+Hostname    = nil,
+Payload     = nil,
+Severity    = nil,
+Fields      = nil
 }
 
 local grammar = syslog.build_rsyslog_grammar(template)
@@ -82,6 +82,9 @@ function process_message ()
     msg.Hostname = fields.hostname or fields.source
     fields.hostname = nil
     fields.source = nil
+
+    msg.Payload = fields.msg
+    fields.msg = nil
 
     msg.Fields = fields
     inject_message(msg)

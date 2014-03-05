@@ -1,6 +1,6 @@
 
 ScribbleDecoder
-================
+===============
 
 .. versionadded:: 0.5
 
@@ -15,7 +15,7 @@ value should be, or whether it should be applied to a specific message, a
 :ref:`config_sandboxdecoder` using the provided `write_message` API call
 should be used instead.
 
-Parameters:
+Config:
 
 - message_fields:
     Subsection defining message fields to populate. Optional representation

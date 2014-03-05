@@ -63,7 +63,10 @@ type PluginHelper interface {
 
 	// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 	// created Decoder of the specified name.
-	DecoderRunner(name string) (dRunner DecoderRunner, ok bool)
+	DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool)
+
+	// Stops and unregisters the provided DecoderRunner.
+	StopDecoderRunner(dRunner DecoderRunner) (ok bool)
 
 	// Expects a loop count value from an existing message (or zero if there's
 	// no relevant existing message), returns an initialized `PipelinePack`
@@ -250,16 +253,31 @@ func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 
 // Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 // created Decoder of the specified name.
-func (self *PipelineConfig) DecoderRunner(name string) (dRunner DecoderRunner, ok bool) {
+func (self *PipelineConfig) DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool) {
 	var decoder Decoder
-	if decoder, ok = self.Decoder(name); ok {
+	if decoder, ok = self.Decoder(base_name); ok {
 		pluginGlobals := new(PluginGlobals)
-		dRunner = NewDecoderRunner(name, decoder, pluginGlobals)
+		dRunner = NewDecoderRunner(full_name, decoder, pluginGlobals)
 		self.allDecodersLock.Lock()
 		self.allDecoders = append(self.allDecoders, dRunner)
 		self.allDecodersLock.Unlock()
 		self.decodersWg.Add(1)
 		dRunner.Start(self, &self.decodersWg)
+	}
+	return
+}
+
+// Stops and unregisters the provided DecoderRunner.
+func (self *PipelineConfig) StopDecoderRunner(dRunner DecoderRunner) (ok bool) {
+	self.allDecodersLock.Lock()
+	defer self.allDecodersLock.Unlock()
+	for i, r := range self.allDecoders {
+		if r == dRunner {
+			close(dRunner.InChan())
+			self.allDecoders = append(self.allDecoders[:i], self.allDecoders[i+1:]...)
+			ok = true
+			break
+		}
 	}
 	return
 }
@@ -330,7 +348,9 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginWrapper) error {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
-	self.inputWrappers[wrapper.Name] = wrapper
+	if wrapper != nil {
+		self.inputWrappers[wrapper.Name] = wrapper
+	}
 	self.InputRunners[iRunner.Name()] = iRunner
 	self.inputsWg.Add(1)
 	if err := iRunner.Start(self, &self.inputsWg); err != nil {
@@ -338,6 +358,17 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginW
 		return fmt.Errorf("AddInputRunner '%s' failed to start: %s", iRunner.Name(), err)
 	}
 	return nil
+}
+
+func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
+	self.inputsLock.Lock()
+	defer self.inputsLock.Unlock()
+	name := iRunner.Name()
+	if _, ok := self.inputWrappers[name]; ok {
+		delete(self.inputWrappers, name)
+	}
+	delete(self.InputRunners, name)
+	iRunner.Input().Stop()
 }
 
 // Deprecated.
@@ -589,7 +620,7 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	// For inputs we just store the InputRunner and we're done.
 	if pluginCategory == "Input" {
 		self.InputRunners[wrapper.Name] = NewInputRunner(wrapper.Name,
-			plugin.(Input), &pluginGlobals)
+			plugin.(Input), &pluginGlobals, false)
 		self.inputWrappers[wrapper.Name] = wrapper
 
 		if pluginGlobals.Ticker != 0 {

@@ -13,7 +13,7 @@ message_signer configuration option.
     The UDP payload is not restricted to a single message; since the stream
     parser is being used multiple messages can be sent in a single payload.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will listen.
@@ -43,7 +43,9 @@ Parameters:
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of the message.
     - end - the regexp delimiter occurs at the end of the message (default).
+
 .. versionadded:: 0.5
+
 - net (string, optional, default: "udp")
     Network value must be one of: "udp", "udp4" or "udp6".
 

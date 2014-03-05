@@ -60,9 +60,6 @@ func (s *SandboxDecoder) SetName(name string) {
 }
 
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
-	if s.sb != nil {
-		return // no-op already initialized
-	}
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
 
@@ -84,21 +81,11 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 
 	switch s.sbc.ScriptType {
 	case "lua":
-		s.sb, err = lua.CreateLuaSandbox(s.sbc)
-		if err != nil {
-			return
-		}
 	default:
 		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
 	s.sample = true
-	s.preservationFile = filepath.Join(data_dir, s.name+DATA_EXT)
-	if s.sbc.PreserveData && fileExists(s.preservationFile) {
-		err = s.sb.Init(s.preservationFile, "decoder")
-	} else {
-		err = s.sb.Init("", "decoder")
-	}
 	return
 }
 
@@ -145,8 +132,33 @@ func copyMessageHeaders(dst *message.Message, src *message.Message) {
 }
 
 func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
+	if s.sb != nil {
+		return // no-op already initialized
+	}
+
 	s.dRunner = dr
 	var original *message.Message
+
+	switch s.sbc.ScriptType {
+	case "lua":
+		s.sb, s.err = lua.CreateLuaSandbox(s.sbc)
+	default:
+		s.err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
+	}
+
+	if s.err == nil {
+		s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
+		if s.sbc.PreserveData && fileExists(s.preservationFile) {
+			s.err = s.sb.Init(s.preservationFile, "decoder")
+		} else {
+			s.err = s.sb.Init("", "decoder")
+		}
+	}
+	if s.err != nil {
+		dr.LogError(s.err)
+		pipeline.Globals().ShutDown()
+		return
+	}
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if s.pack == nil {

@@ -4,6 +4,20 @@
 Backwards Incompatibilities
 ---------------------------
 
+* ProcessInput no longer supports a separate'name' config setting, it uses the
+  specified plugin name from the TOML section header like all of the other
+  plugins.
+
+* Removed Stdout_chan and Stderr_chan from ManagedCmd and CommandChain, client
+  code now has direct access to Stdout_r and Stderr_r io.Reader providers.
+
+* The PluginHelper interface DecoderRunner prototype has changed (issue #717) 
+  to allow for the base name e.g. "ProtobufDecoder" and a full instance name
+  e.g. "MyInput-ProtobufDecoder" of the decoder to be specified.  This allows
+  multiple decoders of the same type to show up on the DashboardOutput and 
+  sandbox decoder state preservation to work properly. Also the DecoderRunner
+  UUID interface method was removed.
+
 * FileOutput `flushinterval` config setting changed to `flush_interval` to
   match config naming conventions.
 
@@ -50,6 +64,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* TcpInput now stops a given connection's decoder when the connection is
+  closed, preventing memory pooling (issue #713).
+
 * StatsdInput now doesn't fail with multiple stats in a single UDP packet.
 
 * Set default StatAccumInput stat namespace prefix values even when
@@ -75,8 +92,35 @@ Bug Handling
   (so setting 'num_messages' still works even if hekad stops responding,
   etc.).
 
+* stat_accum_input will not fail when flushing a timer where the percentile
+  is equal to the min value.
+
 Features
 --------
+
+* Added ProcessDirectoryInput.
+
+* InputRunners now support being specified as 'transient', meaning their
+  lifespan should be managed by the code that creates the InputRunner and not
+  Heka's pipeline code.
+
+* HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP
+  Basic Authentication
+
+* TLS Listeners can specify a 'client_cafile' which limits the CAs that a
+  client cert can be chained to. This provides a mechanism for TLS Client AUTH.
+
+* TLS Senders can specify a 'root_cafile' which limits the CAs that a
+  server cert can be chained to. This provides a mechanims for TLS Server AUTH.
+
+* Added StopDecoderRunner function to PluginHelper API so inputs can manually
+  decommission decoders when they're no longer being used.
+
+* The SandboxManagerFilter can now control the sandbox usage limits (issue #95)
+
+* Added support for send_nsca to NagiosOutput as an alternative to direct http
+  submission; also a way to explicitely specify service_description and host
+  to match Nagios config
 
 * Added configurable network types to TcpInput "tcp", "tcp4", "tcp6", "unix" and
  "unixpacket" (issue #539)
@@ -99,10 +143,10 @@ Features
 * Added an Nginx access log decoder based on the Nginx 'log_format'
   configuration directive.
 
-* heka-cat: A command-line utility for counting, viewing, filtering, and 
+* heka-cat: A command-line utility for counting, viewing, filtering, and
   extracting Heka protobuf logs.
 
-* TcpOutput has been redesigned to handle unavailable endpoints and dropped 
+* TcpOutput has been redesigned to handle unavailable endpoints and dropped
   connections without data loss (issue #355).
 
 * CarbonOutput now supports submitting messages via UDP, persistent TCP
@@ -161,6 +205,8 @@ Features
 * Added preserve_data option to SandboxDecoder (issue #668).
 
 * Added delete_idle_stats to StatAccumInput.
+
+* Added sum and count_ps metrics to timers in stat_accum_input.
 
 0.4.2 (2013-12-02)
 ==================

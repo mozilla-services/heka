@@ -151,8 +151,6 @@ func (p *PipelinePack) Zero() {
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	p.Message = new(message.Message)
-	p.Message.SetSeverity(7)
-
 }
 
 // Decrement the ref count and, if ref count == zero, zero the pack and put it
@@ -229,7 +227,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
 
 	for !globals.Stopping {
 		select {
@@ -240,7 +238,7 @@ func Run(config *PipelineConfig) {
 				if err := notify.Post(RELOAD, nil); err != nil {
 					log.Println("Error sending reload event: ", err)
 				}
-			case syscall.SIGINT:
+			case syscall.SIGINT, syscall.SIGTERM:
 				log.Println("Shutdown initiated.")
 				globals.Stopping = true
 			case SIGUSR1:

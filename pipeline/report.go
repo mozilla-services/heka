@@ -120,6 +120,9 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 
 	pc.inputsLock.Lock()
 	for name, runner := range pc.InputRunners {
+		if runner.Transient() {
+			continue
+		}
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", name)
 		message.NewStringField(pack.Message, "key", "inputs")

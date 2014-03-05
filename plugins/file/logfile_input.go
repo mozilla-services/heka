@@ -132,7 +132,7 @@ func (lw *LogfileInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	lw.Monitor.pendingErrors = make([]string, 0)
 
 	if lw.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(lw.decoderName); !ok {
+		if dRunner, ok = h.DecoderRunner(lw.decoderName, fmt.Sprintf("%s-%s", ir.Name(), lw.decoderName)); !ok {
 			return fmt.Errorf("Decoder not found: %s", lw.decoderName)
 		}
 	}
@@ -373,9 +373,6 @@ func payloadParser(fm *FileMonitor, isRotated bool) (bytesRead int64, err error)
 			pack.Message.SetUuid(uuid.NewRandom())
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetType("logfile")
-			pack.Message.SetSeverity(int32(0))
-			pack.Message.SetEnvVersion("0.8")
-			pack.Message.SetPid(0)
 			pack.Message.SetHostname(fm.hostname)
 			pack.Message.SetLogger(fm.logger_ident)
 			pack.Message.SetPayload(payload)
@@ -690,7 +687,7 @@ func (ldm *LogfileDirectoryManagerInput) scanPath(ir InputRunner, h PluginHelper
 					ir.LogError(fmt.Errorf("Initialization failed for '%s': %s", wrapper.Name, err))
 					return err
 				}
-				lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals)
+				lfir := NewInputRunner(wrapper.Name, plugin.(Input), &pluginGlobals, true)
 				err = h.PipelineConfig().AddInputRunner(lfir, wrapper)
 			}
 		}
@@ -711,7 +708,7 @@ func (ldm *LogfileDirectoryManagerInput) Run(ir InputRunner, h PluginHelper) (er
 	for ok {
 		select {
 		case _, ok = <-ldm.stopped:
-		case _ = <-ticker:
+		case <-ticker:
 			if err = ldm.scanPath(ir, h); err != nil {
 				return
 			}

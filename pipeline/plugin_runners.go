@@ -17,7 +17,6 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
 	"log"
@@ -97,19 +96,21 @@ type InputRunner interface {
 	InChan() chan *PipelinePack
 	// Associated Input plugin object.
 	Input() Input
-
 	SetTickLength(tickLength time.Duration)
-
 	// Returns a ticker channel configured to send ticks at an interval
 	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
-
 	// Starts Input in a separate goroutine and returns. Should decrement the
 	// plugin when the Input stops and the goroutine has completed.
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	// Injects PipelinePack into the Heka Router's input channel for delivery
 	// to all Filter and Output plugins with corresponding message_matchers.
 	Inject(pack *PipelinePack)
+	// If Transient returns true, Heka won't try to keep the Input running,
+	// nor will it generate reporting data. Life span and reporting for a
+	// transient InputRunner must be managed by the code that creates the
+	// runner.
+	Transient() bool
 }
 
 type iRunner struct {
@@ -118,6 +119,7 @@ type iRunner struct {
 	inChan     chan *PipelinePack
 	tickLength time.Duration
 	ticker     <-chan time.Time
+	transient  bool
 }
 
 func (ir *iRunner) SetTickLength(tickLength time.Duration) {
@@ -128,17 +130,24 @@ func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
 	return ir.ticker
 }
 
+func (ir *iRunner) Transient() bool {
+	return ir.transient
+}
+
 // Creates and returns a new (not yet started) InputRunner associated w/ the
-// provided Input.
-func NewInputRunner(name string, input Input, pluginGlobals *PluginGlobals) (
-	ir InputRunner) {
+// provided Input. If transient is true Heka won't try to manage the input's
+// life span at all, it's up to the caller to do so.
+func NewInputRunner(name string, input Input, pluginGlobals *PluginGlobals,
+	transient bool) (ir InputRunner) {
+
 	return &iRunner{
 		pRunnerBase: pRunnerBase{
 			name:          name,
 			plugin:        input.(Plugin),
 			pluginGlobals: pluginGlobals,
 		},
-		input: input,
+		input:     input,
+		transient: transient,
 	}
 }
 
@@ -179,16 +188,21 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		// ir.Input().Run() shouldn't return unless error or shutdown
 		if err := ir.Input().Run(ir, h); err != nil {
 			ir.LogError(err)
-		} else {
+		} else if !ir.transient {
 			ir.LogMessage("stopped")
 		}
 
-		// Are we supposed to stop? Save ourselves some time by exiting now
+		// Are we supposed to stop? Save ourselves some time by exiting now.
 		if globals.Stopping {
 			return
 		}
 
-		// We stop and let this quit if its not a restarting plugin
+		// If we're transient we just exit.
+		if ir.transient {
+			return
+		}
+		// We're not transient, we either try to restart or we shut down
+		// altogether.
 		if recon, ok := ir.plugin.(Restarting); ok {
 			recon.CleanupForRestart()
 		} else {
@@ -197,13 +211,13 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
-		// Re-initialize our plugin using its wrapper
+		// Re-initialize our plugin using its wrapper.
 		h.PipelineConfig().inputsLock.Lock()
 		pw := h.PipelineConfig().inputWrappers[ir.name]
 		h.PipelineConfig().inputsLock.Unlock()
 
-		// Attempt to recreate the plugin until it works without error
-		// or until we were told to stop
+		// Attempt to recreate the plugin until it works without error or
+		// until we were told to stop.
 	createLoop:
 		for !globals.Stopping {
 			err := rh.Wait()
@@ -249,9 +263,6 @@ type DecoderRunner interface {
 	// Returns the channel into which incoming PipelinePacks to be decoded
 	// should be dropped.
 	InChan() chan *PipelinePack
-	// UUID to distinguish the duplicate instances of the same registered
-	// Decoder plugin type from each other.
-	UUID() string
 	// Returns the running Heka router for direct use by decoder plugins.
 	Router() MessageRouter
 	// Fetches a new pack from the input supply and returns it to the caller,
@@ -263,7 +274,6 @@ type DecoderRunner interface {
 type dRunner struct {
 	pRunnerBase
 	inChan chan *PipelinePack
-	uuid   string
 	router *messageRouter
 	h      PluginHelper
 }
@@ -279,7 +289,6 @@ func NewDecoderRunner(name string, decoder Decoder,
 			plugin:        decoder.(Plugin),
 			pluginGlobals: pluginGlobals,
 		},
-		uuid:   uuid.NewRandom().String(),
 		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
 	}
 }
@@ -323,10 +332,6 @@ func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 
 func (dr *dRunner) InChan() chan *PipelinePack {
 	return dr.inChan
-}
-
-func (dr *dRunner) UUID() string {
-	return dr.uuid
 }
 
 func (dr *dRunner) Router() MessageRouter {

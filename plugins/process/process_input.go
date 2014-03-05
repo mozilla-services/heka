@@ -1,4 +1,4 @@
-/***** iEGIN LICENSE BLOCK *****
+/***** BEGIN LICENSE BLOCK *****
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Bryan Zubrod (bzubrod@gmail.com)
 #   Victor Ng (vng@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 #***** END LICENSE BLOCK *****/
 
@@ -28,56 +29,127 @@ import (
 	"time"
 )
 
-type cmd_config struct {
+type cmdConfig struct {
+	// Path to executable file.
 	Bin string
 
-	// Command arguments
+	// Command arguments.
 	Args []string
 
-	// Enviroment variables
+	// Environment variables.
 	Env []string
 
-	// Dir specifies the working directory of Command.  Defaults to
-	// the directory where the program resides.
+	// Dir specifies the working directory of Command.  Defaults to the
+	// directory where the program resides.
 	Directory string
 }
 
+// Helper function for manually comparing structs since slice attributes mean
+// we can't use `==`.
+func (c *cmdConfig) Equals(otherC *cmdConfig) bool {
+	if c.Bin != otherC.Bin {
+		return false
+	}
+	if c.Directory != otherC.Directory {
+		return false
+	}
+	if len(c.Args) != len(otherC.Args) {
+		return false
+	}
+	for i, v := range c.Args {
+		if otherC.Args[i] != v {
+			return false
+		}
+	}
+	if len(c.Env) != len(otherC.Env) {
+		return false
+	}
+	for i, v := range c.Env {
+		if otherC.Env[i] != v {
+			return false
+		}
+	}
+	return true
+}
+
 type ProcessInputConfig struct {
-	// Some name to tag this commandchain
-	Name string
+	// Command(s) to run. If multiple commands are specified they will be run
+	// in the order specified, and the standard output stream will be piped to
+	// the standard input of the next command.
+	Command map[string]cmdConfig
 
-	// Command(s) to run.  If multiple commands are specified they will
-	// be run in the order specified, and the standard output stream
-	// will be piped to the standard input of the next command.
-	Command map[string]cmd_config
-
-	// TickerInterval is the number of seconds to wait between
-	// runnning Command.
+	// Number of seconds to wait between runnning command(s).
 	TickerInterval uint `toml:"ticker_interval"`
 
 	// Name of configured decoder instance.
 	Decoder string
 
-	// ParserType is the parser used to split program output into
-	// heka messages. Defaults to "token".
+	// ParserType is the parser used to split program output into heka
+	// messages. Defaults to "token".
 	ParserType string `toml:"parser_type"`
 
-	// Delimiter used to split the output stream into heka messages.
-	// Defaults to newline.
+	// Delimiter used to split the output stream into heka messages. Defaults
+	// to newline.
 	Delimiter string
 
 	// String indicating if the delimiter is at the start or end of the line.
 	// Only used for regexp delimiters
 	DelimiterLocation string `toml:"delimiter_location"`
 
-	// Trim newline characters from the right side
+	// Trim newline characters from the right side of each record.
 	Trim bool `toml: trim`
 
-	// Timeout in seconds
+	// Timeout in seconds.
 	TimeoutSeconds uint `toml:"timeout"`
 
 	ParseStdout bool `toml:"stdout"`
 	ParseStderr bool `toml:"stderr"`
+}
+
+// Helper function for manually comparing structs since a map attribute means
+// we can't use `==`.
+func (pic *ProcessInputConfig) Equals(otherPic *ProcessInputConfig) bool {
+	if pic.TickerInterval != otherPic.TickerInterval {
+		return false
+	}
+	if pic.Decoder != otherPic.Decoder {
+		return false
+	}
+	if pic.ParserType != otherPic.ParserType {
+		return false
+	}
+	if pic.Delimiter != otherPic.Delimiter {
+		return false
+	}
+	if pic.DelimiterLocation != otherPic.DelimiterLocation {
+		return false
+	}
+	if pic.Trim != otherPic.Trim {
+		return false
+	}
+	if pic.TimeoutSeconds != otherPic.TimeoutSeconds {
+		return false
+	}
+	if pic.ParseStdout != otherPic.ParseStdout {
+		return false
+	}
+	if pic.ParseStderr != otherPic.ParseStderr {
+		return false
+	}
+	if len(pic.Command) != len(otherPic.Command) {
+		return false
+	}
+	for k, v := range pic.Command {
+		cmd := &v
+		otherV, ok := otherPic.Command[k]
+		if !ok {
+			return false
+		}
+		if !cmd.Equals(&otherV) {
+			return false
+		}
+	}
+	return true
 }
 
 // Heka Input plugin that runs external programs and processes their
@@ -109,7 +181,6 @@ type ProcessInput struct {
 // defaults.
 func (pi *ProcessInput) ConfigStruct() interface{} {
 	return &ProcessInputConfig{
-		Name:           "UnnamedProcessInput",
 		TickerInterval: uint(15),
 		ParserType:     "token",
 		ParseStdout:    true,
@@ -128,11 +199,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 
 	pi.trim = conf.Trim
 
-	if conf.Name == "" {
-		return fmt.Errorf("Name field is required for ProcessInput plugin")
-	}
-	pi.ProcessName = conf.Name
-
 	pi.tickInterval = conf.TickerInterval
 	pi.parseStdout = conf.ParseStdout
 	pi.parseStderr = conf.ParseStderr
@@ -146,18 +212,19 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	// We need to mangle the indexes to be integers
 	for idx := 0; idx < len(conf.Command); idx++ {
 		str_idx := strconv.Itoa(idx)
-		cmd_cfg, ok := conf.Command[str_idx]
+		cmdCfg, ok := conf.Command[str_idx]
 		if !ok {
-			return fmt.Errorf("Expected to find a command at index [%s][%d]", conf.Name, idx)
+			return fmt.Errorf("Expected to find a command at index [%s][%d]",
+				pi.ProcessName, idx)
 		}
 
-		cmd := pi.cc.AddStep(cmd_cfg.Bin, cmd_cfg.Args...)
+		cmd := pi.cc.AddStep(cmdCfg.Bin, cmdCfg.Args...)
 
-		if cmd_cfg.Directory != "" {
-			cmd.Dir = cmd_cfg.Directory
+		if cmdCfg.Directory != "" {
+			cmd.Dir = cmdCfg.Directory
 		}
-		if cmd_cfg.Env != nil {
-			cmd.Env = cmd_cfg.Env
+		if cmdCfg.Env != nil {
+			cmd.Env = cmdCfg.Env
 		}
 	}
 
@@ -200,6 +267,10 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	return nil
 }
 
+func (pi *ProcessInput) SetName(name string) {
+	pi.ProcessName = name
+}
+
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	var (
 		pack                *PipelinePack
@@ -216,7 +287,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	if pi.decoderName == "" {
 		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(pi.decoderName); !ok {
+	} else if dRunner, ok = h.DecoderRunner(pi.decoderName, fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)); !ok {
 		return fmt.Errorf("Decoder not found: %s", pi.decoderName)
 	}
 
@@ -259,15 +330,13 @@ func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("ProcessInput")
-	pack.Message.SetSeverity(int32(0))
-	pack.Message.SetEnvVersion("0.8")
 	pack.Message.SetPid(pi.heka_pid)
 	pack.Message.SetHostname(pi.hostname)
 	pack.Message.SetLogger(pi.ir.Name())
 	pack.Message.SetPayload(data)
-	if fPInputName, err := message.NewField("ProcessInputName",
-		fmt.Sprintf("%s.%s", pi.ProcessName, stream_name),
-		""); err == nil {
+	fPInputName, err := message.NewField("ProcessInputName",
+		fmt.Sprintf("%s.%s", pi.ProcessName, stream_name), "")
+	if err == nil {
 		pack.Message.AddField(fPInputName)
 	} else {
 		pi.ir.LogError(err)
@@ -279,9 +348,8 @@ func (pi *ProcessInput) Stop() {
 	close(pi.stopChan)
 }
 
-// RunCmd pipes multiple commands together, runs them
-// per the configured msInterval, and passes the output to
-// the provided stdout.
+// RunCmd pipes multiple commands together, runs them per the configured
+// msInterval, and passes the output to the provided stdout.
 func (pi *ProcessInput) RunCmd() {
 	var err error
 	if pi.tickInterval == 0 {
@@ -292,7 +360,7 @@ func (pi *ProcessInput) RunCmd() {
 			select {
 			case <-tickChan:
 				// No need to spin up a new goroutine as we've already
-				// detached from the main thread
+				// detached from the main thread.
 				pi.cc = pi.cc.clone()
 
 				if err != nil {
@@ -312,37 +380,33 @@ func (pi *ProcessInput) runOnce() {
 	// Stdout of the last command in the pipe gets sent to provided stdout.
 	var err error
 
-	var stdout_chan chan string
-	var stderr_chan chan string
-
-	stdout_chan, err = pi.cc.StdoutChan()
-	if err != nil {
-		pi.ir.LogError(err)
+	if err = pi.cc.Start(); err != nil {
+		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]",
+			pi.ProcessName, err.Error()))
 	}
-
-	stderr_chan, err = pi.cc.StderrChan()
-	if err != nil {
-		pi.ir.LogError(err)
-	}
-
-	stdout_reader := &StringChannelReader{input: stdout_chan}
-	stderr_reader := &StringChannelReader{input: stderr_chan}
 
 	if pi.parseStdout {
-		go pi.ParseOutput(stdout_reader, pi.stdoutChan)
-	}
-	if pi.parseStderr {
-		go pi.ParseOutput(stderr_reader, pi.stderrChan)
+		var stdoutReader io.Reader
+		if stdoutReader, err = pi.cc.Stdout_r(); err == nil {
+			go pi.ParseOutput(stdoutReader, pi.stdoutChan)
+		} else {
+			pi.ir.LogError(fmt.Errorf("Error getting stdout channel: %s", err))
+		}
 	}
 
-	err = pi.cc.Start()
-	if err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]", pi.ProcessName, err.Error()))
+	if pi.parseStderr {
+		var stderrReader io.Reader
+		if stderrReader, err = pi.cc.Stderr_r(); err == nil {
+			go pi.ParseOutput(stderrReader, pi.stderrChan)
+		} else {
+			pi.ir.LogError(fmt.Errorf("Error getting stderr channel: %s", err))
+		}
 	}
 
 	err = pi.cc.Wait()
 	if err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]", pi.ProcessName, err.Error()))
+		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]",
+			pi.ProcessName, err.Error()))
 	}
 }
 
@@ -352,14 +416,15 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 		err    error
 	)
 
-	for {
+	for err == nil {
 		// Use configured StreamParser to split output from commands.
 		_, record, err = pi.parser.Parse(r)
 		if err != nil {
 			if err == io.EOF {
 				record = pi.parser.GetRemainingData()
 			} else if err == io.ErrShortBuffer {
-				pi.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
+				pi.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d",
+					message.MAX_RECORD_SIZE))
 				err = nil // non-fatal, keep going
 			}
 		}
@@ -374,10 +439,9 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 		}
 
 		if err != nil {
-			// golang doesn't seem to have a good solution to
-			// streaming output between subprocesses.  It seems like
-			// you have to read *all* the content in a goroutine
-			// instead of just streaming the content.
+			// Go doesn't seem to have a good solution to streaming output
+			// between subprocesses.  It seems like you have to read *all* the
+			// content in a goroutine instead of just streaming the content.
 			//
 			// See: http://code.google.com/p/go/issues/detail?id=2266
 			// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
@@ -385,7 +449,6 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
 				(err != io.EOF) {
 				pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
 			}
-			return
 		}
 	}
 }

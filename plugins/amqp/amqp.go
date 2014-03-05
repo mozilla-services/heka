@@ -423,7 +423,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	// abstract out the stream parsing code so it can used here w/o having to
 	// reimplement the entire stream_type -> stream parser mapping.
 	if conf.Decoder != "" {
-		if dRunner, ok = h.DecoderRunner(conf.Decoder); !ok {
+		if dRunner, ok = h.DecoderRunner(conf.Decoder, fmt.Sprintf("%s-%s", ir.Name(), conf.Decoder)); !ok {
 			return fmt.Errorf("Decoder not found: %s", conf.Decoder)
 		}
 		decoder = dRunner.Decoder()

@@ -64,9 +64,6 @@ func NetworkPayloadParser(conn net.Conn,
 		pack.Message.SetUuid(uuid.NewRandom())
 		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetType("NetworkInput")
-		pack.Message.SetSeverity(int32(0))
-		pack.Message.SetEnvVersion("0.8")
-		pack.Message.SetPid(0)
 		// Only TCP packets have a remote address.
 		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
 			pack.Message.SetHostname(remoteAddr.String())

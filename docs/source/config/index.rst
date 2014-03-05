@@ -12,6 +12,11 @@ outputs will be loaded. The configuration file is in `TOML
 configuration formats, but with slightly more rich data structures and nesting
 support.
 
+If hekad's config file is specified to be a directory, all files will be
+loaded and merged into a single config. Merging will happen in alphabetical
+order, settings specified later in the merge sequence will win conflicts. All
+files in the folder must be valid TOML configuration or hekad will not start.
+
 The config file is broken into sections, with each section representing a
 single instance of a plugin. The section name specifies the name of the
 plugin, and the "type" parameter specifies the plugin type; this must match
@@ -69,7 +74,7 @@ Global configuration options
 You can optionally declare a `[hekad]` section in your configuration file to
 configure some global options for the heka daemon.
 
-Parameters:
+Config:
 
 - cpuprof (string `output_file`):
     Turn on CPU profiling of hekad; output is logged to the `output_file`.
@@ -125,9 +130,15 @@ Parameters:
 
 - base_dir (string):
     Base working directory Heka will use for persistent storage through
-    process and server restarts. Defaults to `/var/cache/hekad` (or
-    `c:\var\cache\hekad` on windows).
+    process and server restarts. The hekad process must have read and write
+    access to this directory. Defaults to `/var/cache/hekad` (or
+    `c:\var\cache\hekad` on Windows).
 
+- share_dir (string):
+    Root path of Heka's "share directory", where Heka will expect to find
+    certain resources it needs to consume. The hekad process should have read-
+    only access to this directory. Defaults to `/usr/share/heka` (or
+    `c:\usr\share\heka` on Windows).
 
 Example hekad.toml file
 =======================
@@ -191,7 +202,7 @@ Adding the restarting configuration is done by adding a config section to the
 plugins' config called `retries`. A small amount of jitter will be added to
 the delay between restart attempts.
 
-Parameters:
+Config:
 
 - max_jitter (string):
     The longest jitter duration to add to the delay between restarts. Jitter

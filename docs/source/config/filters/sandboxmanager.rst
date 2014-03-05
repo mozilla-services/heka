@@ -29,6 +29,22 @@ SandboxManagerFilter Settings
 - max_filters (uint):
     The maximum number of filters this manager can run.
 
+.. versionadded:: 0.5
+
+- memory_limit (uint):
+    The number of bytes managed sandboxes are allowed to consume before being
+    terminated (max 8MiB, default max).
+
+- instruction_limit (uint):
+    The number of instructions managed sandboxes are allowed the execute during 
+    the process_message/timer_event functions before being terminated (max 1M,
+    default max).
+
+- output_limit (uint):
+    The number of bytes managed sandbox output buffers can hold before before 
+    being terminated (max 63KiB, default max).  Anything less than 64B is set to
+    64B.
+
 Example
 
 .. code-block:: ini

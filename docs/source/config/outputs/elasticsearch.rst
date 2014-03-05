@@ -5,7 +5,7 @@ ElasticSearchOutput
 Output plugin that serializes messages into JSON structures and uses HTTP requests
 to insert them into an ElasticSearch database.
 
-Parameters:
+Config:
 
 - cluster (string):
     ElasticSearch cluster name. Defaults to "elasticsearch"
@@ -53,6 +53,7 @@ Parameters:
     instead of the current time. Defaults to false.
 - id (string):
     .. versionadded:: 0.5
+
     Allows you to optionally specify the document id for ES to use. Useful for
     overwriting existing ES documents. If the value specified is placed within
     %{}, it will be interpolated to its Field value. Default is allow ES to

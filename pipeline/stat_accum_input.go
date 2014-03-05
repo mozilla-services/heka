@@ -251,46 +251,60 @@ func (sm *StatAccumInput) Flush() {
 
 	for key, timings := range sm.timers {
 		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
-		if len(timings) > 0 {
+		var min, max, sum, mean, rate, meanPercentile, upperPercentile float64
+		count := len(timings)
+		if count > 0 {
 			sort.Float64s(timings)
-			min := timings[0]
-			max := timings[len(timings)-1]
-			count := len(timings)
+
+			cumulativeValues := make([]float64, count)
+			cumulativeValues[0] = timings[0]
+			for i := 1; i < count; i++ {
+				cumulativeValues[i] = timings[i] + cumulativeValues[i-1]
+			}
+
+			rate = float64(count) / float64(sm.config.TickerInterval)
+			min = timings[0]
+			max = timings[count-1]
+			mean = min
+			thresholdBoundary := max
+
 			if count > 1 {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
 				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
-				values := timings[0:numInThreshold]
-				max := timings[numInThreshold-1]
-				var sum float64
-				for _, v := range values {
-					sum += v
+
+				if numInThreshold > 0 {
+					mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
+					thresholdBoundary = timings[numInThreshold-1]
+				} else {
+					mean = min
+					thresholdBoundary = max
 				}
-				mean := sum / float64(numInThreshold)
-				timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), max)
-				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
 			}
+			meanPercentile = mean
+			upperPercentile = thresholdBoundary
 
-			sm.timers[key] = timings[:0]
-			var sum float64
-			for _, v := range timings {
-				sum += v
-			}
-			mean := sum / float64(count)
-
-			timerNs.Emit("mean", mean)
-			timerNs.Emit("upper", max)
-			timerNs.Emit("lower", min)
-			timerNs.Emit("count", count)
-		} else if sm.config.DeleteIdleStats {
-			delete(sm.timers, key)
+			sum = cumulativeValues[len(cumulativeValues)-1]
+			mean = sum / float64(count)
 		} else {
-			timerNs.Emit("mean", 0)
-			timerNs.Emit("upper", 0)
-			timerNs.Emit("lower", 0)
-			timerNs.Emit("count", 0)
-			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), 0)
-			timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), 0)
+			rate = 0.
+			min = 0.
+			max = 0.
+			sum = 0.
+			mean = 0.
+			meanPercentile = 0.
+			upperPercentile = 0.
 		}
+
+		timerNs.Emit("count", count)
+		timerNs.Emit("count_ps", rate)
+		timerNs.Emit("lower", min)
+		timerNs.Emit("upper", max)
+		timerNs.Emit("sum", sum)
+		timerNs.Emit("mean", mean)
+		timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), meanPercentile)
+		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), upperPercentile)
+
+		sm.timers[key] = timings[:0]
 		numStats++
 	}
 

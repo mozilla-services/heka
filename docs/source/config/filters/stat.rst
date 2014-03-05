@@ -6,7 +6,7 @@ Filter plugin that accepts messages of a specfied form and uses extracted
 message data to generate statsd-style numerical metrics in the form of `Stat`
 objects that can be consumed by a `StatAccumulator`.
 
-Parameters:
+Config:
 
 - Metric:
     Subsection defining a single metric to be generated

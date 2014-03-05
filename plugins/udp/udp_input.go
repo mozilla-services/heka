@@ -128,7 +128,7 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 		ok bool
 	)
 	if u.config.Decoder != "" {
-		if dr, ok = h.DecoderRunner(u.config.Decoder); !ok {
+		if dr, ok = h.DecoderRunner(u.config.Decoder, fmt.Sprintf("%s-%s", ir.Name(), u.config.Decoder)); !ok {
 			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
 		}
 	}

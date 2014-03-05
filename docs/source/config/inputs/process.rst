@@ -2,34 +2,35 @@
 ProcessInput
 ============
 
-Executes one or more external programs on an interval, creating
-messages from the output.  If a chain of commands is used, stdout is
-piped into the next command's stdin. In the event the program returns a
-non-zero exit code, ProcessInput will stop, logging the exit error.
+Executes one or more external programs on an interval, creating messages from
+the output.  Supports a chain of commands, where stdout from each process will
+be piped into the stdin for the next process in the chain. In the event the
+program returns a non-zero exit code, ProcessInput will stop, logging the exit
+error.
 
-Each command is defined with the following parameters:
+Config:
 
-
-- name (string):
-    Each ProcessInput *must* have a name defined for logging purposes. The
-    messages will be tagged with `name`.stdout or `name`.stderr in the
-    `ProcessInputName` field of the heka message.
 - command (map[uint]cmd_config):
     The command is a structure that contains the full path to the binary,
     command line arguments, optional enviroment variables and an optional
-    working directory. See the :ref:`cmd_config` definition below.
-    ProcessInput expects the commands to be indexed by integers starting with
-    0.
+    working directory (see below). ProcessInput expects the commands to be
+    indexed by integers starting with 0, where 0 is the first process in the
+    chain.
 - ticker_interval (uint):
-    The number of seconds to wait between runnning `command`.  Defaults to 15.
-    A ticker_interval of 0 indicates that the command is run once.
+    The number of seconds to wait between each run of `command`.  Defaults to
+    15. A ticker_interval of 0 indicates that the command is run only once,
+    useful for long running processes.
 - stdout (bool):
-    Capture stdout from `command`.  Defaults to true.
+    If true, for each run of the process chain a message will be generated
+    with the last command in the chain's stdout as the payload. Defaults to
+    true.
 - stderr (bool):
-    Capture stderr from `command`.  Defaults to false.
+    If true, for each run of the process chain a message will be generated
+    with the last command in the chain's stderr as the payload. Defaults to
+    false.
 - decoder (string):
-    Name of the decoder instance to send messages to.  Default is to inject
-    messages back into the main heka router.
+    Name of the decoder instance to send messages to. If omitted messages will
+    be injected directly into Heka's message router.
 - parser_type (string):
     - token - splits the log on a byte delimiter (default).
     - regexp - splits the log on a regexp delimiter.
@@ -65,10 +66,12 @@ cmd_config structure:
     Used to set the working directory of `Bin` Default is "", which
     uses the heka process's working directory.
 
+Example:
+
 .. code-block:: ini
 
-    [ProcessInput]
-    name = "DemoProcessInput"
+    [DemoProcessInput]
+    type = "ProcessInput"
     ticker_interval = 2
     parser_type = "token"
     delimiter = " "
@@ -76,10 +79,10 @@ cmd_config structure:
     stderr = false
     trim = true
 
-    [ProcessInput.command.0]
-    bin = "/bin/cat"
-    args = ["../testsupport/process_input_pipes_test.txt"]
+        [ProcessInput.command.0]
+        bin = "/bin/cat"
+        args = ["../testsupport/process_input_pipes_test.txt"]
 
-    [ProcessInput.command.1]
-    bin = "/usr/bin/grep"
-    args = ["ignore"]
+        [ProcessInput.command.1]
+        bin = "/usr/bin/grep"
+        args = ["ignore"]

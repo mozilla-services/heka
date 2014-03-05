@@ -8,12 +8,14 @@ a `graphite <http://graphite.wikidot.com/>`_ compatible `carbon
 <http://graphite.wikidot.com/carbon>`_ daemon.  Output is written over
 a TCP or UDP socket using the `plaintext <http://graphite.readthedocs.org/en/1.0/feeding-carbon.html#the-plaintext-protocol>`_ protocol.
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will write to.
     (default: "localhost:2003")
+
 .. versionadded:: 0.5
+
 - protocol (string):
     "tcp" or "udp"
     (default: "tcp")

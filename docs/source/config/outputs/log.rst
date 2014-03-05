@@ -4,7 +4,7 @@ LogOutput
 
 Logs messages to stdout using Go's `log` package.
 
-Parameters:
+Config:
 
 - payload_only (bool, optional):
     If set to true, then only the message payload string will be output,

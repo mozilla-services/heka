@@ -111,7 +111,7 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	hli.pConfig = h.PipelineConfig()
 
 	if hli.decoderName != "" {
-		if hli.dRunner, ok = h.DecoderRunner(hli.decoderName); !ok {
+		if hli.dRunner, ok = h.DecoderRunner(hli.decoderName, fmt.Sprintf("%s-%s", ir.Name(), hli.decoderName)); !ok {
 			return fmt.Errorf("Decoder not found: %s", hli.decoderName)
 		}
 	}

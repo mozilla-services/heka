@@ -237,6 +237,9 @@ func (t *TcpOutput) sendRecord(record []byte) (err error) {
 	var n int
 	if t.connection == nil {
 		if err = t.connect(); err != nil {
+			// Explicitly set t.connection to nil b/c Go, see
+			// http://golang.org/doc/faq#nil_error.
+			t.connection = nil
 			return
 		}
 	}

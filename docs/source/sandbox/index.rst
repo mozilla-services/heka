@@ -29,4 +29,5 @@ Features
 .. include:: decoder.rst
 .. include:: lpeg.rst
 .. include:: filter.rst
+.. include:: development.rst
 .. include:: cookbook.rst

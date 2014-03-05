@@ -20,7 +20,7 @@ as the message payload. Messages will be populated as follows:
 - Fields["Protocol"] (string): HTTP protocol used for the request (e.g.
                                "HTTP/1.0")
 
-Parameters:
+Config:
 
 - address (string):
     An IP address:port on which this plugin will expose a HTTP server.

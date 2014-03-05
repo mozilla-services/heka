@@ -108,5 +108,20 @@ func TlsSpec(c gs.Context) {
 			c.Expect(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), gs.Equals, "Invalid cipher string: foo")
 		})
+
+		c.Specify("root_cafile loads CA", func() {
+			tomlConf.ClientCAs = "./testsupport/cert.pem"
+			goConf, err = CreateGoTlsConfig(tomlConf)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(goConf.ClientCAs.Subjects()), gs.Equals, 1)
+		})
+
+		c.Specify("client_cafile loads CA", func() {
+			tomlConf.RootCAs = "./testsupport/cert.pem"
+			goConf, err = CreateGoTlsConfig(tomlConf)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(goConf.RootCAs.Subjects()), gs.Equals, 1)
+		})
+
 	})
 }
