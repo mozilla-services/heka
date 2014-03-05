@@ -135,7 +135,7 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack
 	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
 		if ld.logErrors {
-			err = fmt.Errorf("No match")
+			err = fmt.Errorf("No match: %s", pack.Message.GetPayload())
 		}
 		return
 	}
