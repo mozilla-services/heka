@@ -304,7 +304,11 @@ func (sm *StatAccumInput) Flush() {
 		timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), meanPercentile)
 		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), upperPercentile)
 
-		sm.timers[key] = timings[:0]
+		if sm.config.DeleteIdleStats {
+			delete(sm.timers, key)
+		} else {
+			sm.timers[key] = timings[:0]
+		}
 		numStats++
 	}
 
