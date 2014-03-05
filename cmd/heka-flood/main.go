@@ -48,16 +48,16 @@ import (
 )
 
 type FloodTest struct {
+	NumMessages          uint64                       `toml:"num_messages"`
+	StaticMessageSize    uint64                       `toml:"static_message_size"`
 	IpAddress            string                       `toml:"ip_address"`
 	Sender               string                       `toml:"sender"`
 	PprofFile            string                       `toml:"pprof_file"`
 	Encoder              string                       `toml:"encoder"`
-	NumMessages          uint64                       `toml:"num_messages"`
 	Signer               message.MessageSigningConfig `toml:"signer"`
 	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
 	SignedPercentage     float64                      `toml:"signed_percentage"`
 	VariableSizeMessages bool                         `toml:"variable_size_messages"`
-	StaticMessageSize    uint64                       `toml:"static_message_size"`
 	AsciiOnly            bool                         `toml:"ascii_only"`
 	UseTls               bool                         `toml:"use_tls"`
 	Tls                  tcp.TlsConfig                `toml:"tls"`

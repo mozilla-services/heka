@@ -33,13 +33,13 @@ import (
 
 // Decoder for converting structured/unstructured data into Heka messages.
 type SandboxDecoder struct {
-	sb                     Sandbox
-	sbc                    *SandboxConfig
-	preservationFile       string
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageSamples  int64
 	processMessageDuration int64
+	sb                     Sandbox
+	sbc                    *SandboxConfig
+	preservationFile       string
 	reportLock             sync.Mutex
 	sample                 bool
 	err                    error

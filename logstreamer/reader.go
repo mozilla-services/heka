@@ -27,8 +27,8 @@ import (
 
 // A location in a logstream indicating the farthest that has been read
 type LogstreamLocation struct {
-	Filename     string           `json:"file_name"`
 	SeekPosition int64            `json:"seek"`
+	Filename     string           `json:"file_name"`
 	Hash         string           `json:"last_hash"`
 	JournalPath  string           `json:"-"`
 	lastLine     *ringbuf.Ringbuf `json:"-"`

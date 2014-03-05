@@ -36,12 +36,12 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
+	MaxMsgProcessDuration uint64
 	PoolSize              int
 	DecoderPoolSize       int
 	PluginChanSize        int
 	MaxMsgLoops           uint
 	MaxMsgProcessInject   uint
-	MaxMsgProcessDuration uint64
 	MaxMsgTimerInject     uint
 	MaxPackIdle           time.Duration
 	Stopping              bool

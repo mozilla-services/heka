@@ -44,9 +44,6 @@ func fileExists(path string) bool {
 // dynamically loaded through the sandbox manager) maps to exactly one
 // SandboxFilter instance.
 type SandboxFilter struct {
-	sb                     Sandbox
-	sbc                    *SandboxConfig
-	preservationFile       string
 	processMessageCount    int64
 	processMessageFailures int64
 	injectMessageCount     int64
@@ -56,6 +53,9 @@ type SandboxFilter struct {
 	profileMessageDuration int64
 	timerEventSamples      int64
 	timerEventDuration     int64
+	sb                     Sandbox
+	sbc                    *SandboxConfig
+	preservationFile       string
 	reportLock             sync.Mutex
 	name                   string
 }
