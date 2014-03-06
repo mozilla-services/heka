@@ -17,13 +17,9 @@
 package pipeline
 
 import (
-	"crypto/rand"
-	"errors"
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"log"
-	"math/big"
 	"os"
 	"os/signal"
 	"sync"
@@ -40,16 +36,17 @@ const (
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
+	MaxMsgProcessDuration uint64
 	PoolSize              int
 	DecoderPoolSize       int
 	PluginChanSize        int
 	MaxMsgLoops           uint
 	MaxMsgProcessInject   uint
-	MaxMsgProcessDuration uint64
 	MaxMsgTimerInject     uint
 	MaxPackIdle           time.Duration
 	Stopping              bool
 	BaseDir               string
+	ShareDir              string
 	sigChan               chan os.Signal
 }
 
@@ -65,6 +62,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgProcessDuration: 1000000,
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
+		sigChan:               make(chan os.Signal, 1),
 	}
 }
 
@@ -90,456 +88,11 @@ func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 // make it easier to change the underlying implementation.
 var Globals func() *GlobalConfigStruct
 
-// Diagnostic object for packet tracking
-type PacketTracking struct {
-	// Records last accessed time
-	LastAccess time.Time
-
-	// Records the plugins the packet has been handed to
-	lastPlugins []PluginRunner
-}
-
-// Create a new blank PacketTracking
-func NewPacketTracking() *PacketTracking {
-	return &PacketTracking{time.Now(), make([]PluginRunner, 0, 8)}
-}
-
-// Stamps a packet with the tracking data for the plugin its handed to,
-// clearing any existing stamps
-func (p *PacketTracking) Stamp(pluginRunner PluginRunner) {
-	p.lastPlugins = p.lastPlugins[:0]
-	p.lastPlugins = append(p.lastPlugins, pluginRunner)
-	p.LastAccess = time.Now()
-}
-
-// Adds a stamp to the packet
-func (p *PacketTracking) AddStamp(pluginRunner PluginRunner) {
-	p.lastPlugins = append(p.lastPlugins, pluginRunner)
-	p.LastAccess = time.Now()
-}
-
-// Resets the packet stamping
-func (p *PacketTracking) Reset() {
-	p.lastPlugins = p.lastPlugins[:0]
-	p.LastAccess = time.Now()
-}
-
-// Returns the names of the plugins that have last accessed the packet
-func (p *PacketTracking) PluginNames() (names []string) {
-	names = make([]string, 0, 4)
-	for _, pr := range p.lastPlugins {
-		names = append(names, pr.Name())
-	}
-	return
-}
-
-// Returns the names of the plugin runners that last access the packet
-func (p *PacketTracking) Runners() (runners []PluginRunner) {
-	return p.lastPlugins
-}
-
-// A diagnostic tracker that can track pipeline packs and do accounting
-// to determine possible leaks
-type DiagnosticTracker struct {
-	// Track all the packs that have been created
-	packs []*PipelinePack
-
-	// Identify the name of the recycle channel it monitors packs for
-	ChannelName string
-}
-
-// Create and return a new diagnostic tracker
-func NewDiagnosticTracker(channelName string) *DiagnosticTracker {
-	return &DiagnosticTracker{make([]*PipelinePack, 0, 50), channelName}
-}
-
-// Add a pipeline pack for monitoring
-func (d *DiagnosticTracker) AddPack(pack *PipelinePack) {
-	d.packs = append(d.packs, pack)
-}
-
-// Run the monitoring routine, this should be spun up in a new goroutine
-func (d *DiagnosticTracker) Run() {
-	var (
-		pack           *PipelinePack
-		earliestAccess time.Time
-		pluginCounts   map[PluginRunner]int
-		count          int
-		runner         PluginRunner
-	)
-	g := Globals()
-	idleMax := g.MaxPackIdle
-	probablePacks := make([]*PipelinePack, 0, len(d.packs))
-	ticker := time.NewTicker(time.Duration(30) * time.Second)
-	for {
-		<-ticker.C
-		probablePacks = probablePacks[:0]
-		pluginCounts = make(map[PluginRunner]int)
-
-		// Locate all the packs that have not been touched in idleMax duration
-		// that are not recycled
-		earliestAccess = time.Now().Add(-idleMax)
-		for _, pack = range d.packs {
-			if len(pack.diagnostics.lastPlugins) == 0 {
-				continue
-			}
-			if pack.diagnostics.LastAccess.Before(earliestAccess) {
-				probablePacks = append(probablePacks, pack)
-				for _, runner = range pack.diagnostics.Runners() {
-					pluginCounts[runner] += 1
-				}
-			}
-		}
-
-		// Drop a warning about how many packs have been idle
-		if len(probablePacks) > 0 {
-			g.LogMessage("Diagnostics", fmt.Sprintf("%d packs have been idle more than %d seconds.",
-				d.ChannelName, len(probablePacks), idleMax))
-			g.LogMessage("Diagnostics", fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
-				d.ChannelName))
-			for runner, count = range pluginCounts {
-				runner.SetLeakCount(count)
-				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", runner.Name(), count))
-			}
-			log.Println("")
-		}
-	}
-}
-
 // Interface for Heka plugins that can be wired up to the config system.
 type Plugin interface {
 	// Receives either PluginConfig or custom config struct, populated from
 	// the TOML config, and uses that data to initialize the plugin.
 	Init(config interface{}) error
-}
-
-// Base interface for the Heka plugin runners.
-type PluginRunner interface {
-	// Plugin name.
-	Name() string
-
-	// Plugin name mutator.
-	SetName(name string)
-
-	// Underlying plugin object.
-	Plugin() Plugin
-
-	// Plugins should call `LogError` on their runner to log error messages
-	// rather than doing logging directly.
-	LogError(err error)
-
-	// Plugins should call `LogMessage` on their runner to write to the log
-	// rather than doing so directly.
-	LogMessage(msg string)
-
-	// Plugin Globals, these are the globals accepted for the plugin in the
-	// config file
-	PluginGlobals() *PluginGlobals
-
-	// Sets the amount of currently 'leaked' packs that have gone through
-	// this plugin. The new value will overwrite prior ones.
-	SetLeakCount(count int)
-
-	// Returns the current leak count
-	LeakCount() int
-}
-
-// Base struct for the specialized PluginRunners
-type pRunnerBase struct {
-	name          string
-	plugin        Plugin
-	pluginGlobals *PluginGlobals
-	h             PluginHelper
-	leakCount     int
-}
-
-func (pr *pRunnerBase) Name() string {
-	return pr.name
-}
-
-func (pr *pRunnerBase) SetName(name string) {
-	pr.name = name
-}
-
-func (pr *pRunnerBase) Plugin() Plugin {
-	return pr.plugin
-}
-
-func (pr *pRunnerBase) PluginGlobals() *PluginGlobals {
-	return pr.pluginGlobals
-}
-
-func (pr *pRunnerBase) SetLeakCount(count int) {
-	pr.leakCount = count
-}
-
-func (pr *pRunnerBase) LeakCount() int {
-	return pr.leakCount
-}
-
-// Retry helper, created with a RetryOptions struct
-//
-// Everytime Wait is called, the times this has been used is incremented.
-// Calling Reset will reset the time counter indicating the operation that
-// was being retried succeeded.
-type RetryHelper struct {
-	maxDelay  time.Duration
-	delay     time.Duration
-	curDelay  time.Duration
-	maxJitter time.Duration
-	retries   int
-	times     int
-}
-
-// Creates and returns a RetryHelper pointer to be used when retrying
-// plugin restarts or other parts that require exponential backoff
-func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
-	if opts.Delay == "" {
-		opts.Delay = "250ms"
-	}
-	if opts.MaxDelay == "" {
-		opts.MaxDelay = "30s"
-	}
-	if opts.MaxJitter == "" {
-		opts.MaxJitter = "500ms"
-	}
-	delay, err := time.ParseDuration(opts.Delay)
-	if err != nil {
-		return
-	}
-	maxDelay, err := time.ParseDuration(opts.MaxDelay)
-	if err != nil {
-		return
-	}
-	maxJitter, err := time.ParseDuration(opts.MaxJitter)
-	if err != nil {
-		return
-	}
-	helper = &RetryHelper{
-		maxDelay:  maxDelay,
-		delay:     delay,
-		curDelay:  delay,
-		retries:   opts.MaxRetries,
-		maxJitter: maxJitter,
-		times:     0,
-	}
-	return
-}
-
-// Wait for a retry
-//
-// If the max retries has been exceeded, an error will be returned
-func (r *RetryHelper) Wait() error {
-	if r.retries != -1 && r.times >= r.retries {
-		return errors.New("Max retries exceeded")
-	}
-	jitter, _ := rand.Int(rand.Reader, big.NewInt(r.maxJitter.Nanoseconds()))
-	jitterWait := time.Duration(jitter.Int64()) * time.Nanosecond
-	timer := time.NewTimer(r.curDelay + jitterWait)
-	select {
-	case <-timer.C:
-		break
-	}
-	r.curDelay *= 2
-	r.times += 1
-	if r.curDelay > r.maxDelay {
-		r.curDelay = r.maxDelay
-	}
-	return nil
-}
-
-// Reset the retry counter
-func (r *RetryHelper) Reset() {
-	r.times = 0
-	r.curDelay = r.delay
-}
-
-// This one struct provides the implementation of both FilterRunner and
-// OutputRunner interfaces.
-type foRunner struct {
-	pRunnerBase
-	matcher    *MatchRunner
-	tickLength time.Duration
-	ticker     <-chan time.Time
-	inChan     chan *PipelinePack
-	h          PluginHelper
-	retainPack *PipelinePack
-	leakCount  int
-}
-
-// Creates and returns foRunner pointer for use as either a FilterRunner or an
-// OutputRunner.
-func NewFORunner(name string, plugin Plugin,
-	pluginGlobals *PluginGlobals) (runner *foRunner) {
-	runner = &foRunner{
-		pRunnerBase: pRunnerBase{
-			name:          name,
-			plugin:        plugin,
-			pluginGlobals: pluginGlobals,
-		},
-	}
-	runner.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
-	return
-}
-
-func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
-	foRunner.h = h
-	if foRunner.tickLength != 0 {
-		foRunner.ticker = time.Tick(foRunner.tickLength)
-	}
-
-	go foRunner.Starter(h, wg)
-	return
-}
-
-func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
-	var (
-		pluginType string
-		err        error
-	)
-	globals := Globals()
-	defer func() {
-		wg.Done()
-	}()
-
-	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
-	if err != nil {
-		foRunner.LogError(err)
-		globals.ShutDown()
-		return
-	}
-
-	var pw *PluginWrapper
-	pc := h.PipelineConfig()
-
-	for !globals.Stopping {
-		if foRunner.matcher != nil {
-			foRunner.matcher.Start(foRunner.inChan)
-		}
-
-		// `Run` method only returns if there's an error or we're shutting
-		// down.
-		if filter, ok := foRunner.plugin.(Filter); ok {
-			pluginType = "filter"
-			err = filter.Run(foRunner, h)
-		} else if output, ok := foRunner.plugin.(Output); ok {
-			pluginType = "output"
-			err = output.Run(foRunner, h)
-		} else {
-			foRunner.LogError(errors.New(
-				"Unable to assert this is an Output or Filter"))
-			return
-		}
-		if err != nil {
-			foRunner.LogError(err)
-		} else {
-			foRunner.LogMessage("stopped")
-		}
-
-		// Are we supposed to stop? Save ourselves some time by exiting now
-		if globals.Stopping {
-			return
-		}
-
-		// If its a lua sandbox, we let it shut down
-		if _, ok := foRunner.plugin.(*SandboxFilter); ok {
-			return
-		}
-
-		// We stop and let this quit if its not a restarting plugin
-		if recon, ok := foRunner.plugin.(Restarting); ok {
-			recon.CleanupForRestart()
-		} else {
-			foRunner.LogMessage("has stopped, shutting down.")
-			globals.ShutDown()
-			return
-		}
-
-		// Re-initialize our plugin using its wrapper
-		if pluginType == "filter" {
-			pw = pc.filterWrappers[foRunner.name]
-		} else {
-			pw = pc.outputWrappers[foRunner.name]
-		}
-		// Attempt to recreate the plugin until it works without error
-		// or until we were told to stop
-	createLoop:
-		for !globals.Stopping {
-			err = rh.Wait()
-			if err != nil {
-				foRunner.LogError(err)
-				globals.ShutDown()
-				return
-			}
-			p, err := pw.CreateWithError()
-			if err != nil {
-				foRunner.LogError(err)
-				continue
-			}
-			foRunner.plugin = p.(Plugin)
-			rh.Reset()
-			break createLoop
-		}
-		foRunner.LogMessage("exited, now restarting.")
-	}
-}
-
-func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
-	spec := foRunner.MatchRunner().MatcherSpecification()
-	match := spec.Match(pack.Message)
-	if match {
-		pack.Recycle()
-		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
-		return false
-	}
-	// Do the actual injection in a separate goroutine so we free up the
-	// caller; this prevents deadlocks when the caller's InChan is backed up,
-	// backing up the router, which would block us here.
-	go func() {
-		foRunner.h.PipelineConfig().router.InChan() <- pack
-	}()
-	return true
-}
-
-func (foRunner *foRunner) LogError(err error) {
-	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
-}
-
-func (foRunner *foRunner) LogMessage(msg string) {
-	log.Printf("Plugin '%s': %s", foRunner.name, msg)
-}
-
-func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
-	return foRunner.ticker
-}
-
-func (foRunner *foRunner) RetainPack(pack *PipelinePack) {
-	foRunner.retainPack = pack
-}
-
-func (foRunner *foRunner) InChan() (inChan chan *PipelinePack) {
-	if foRunner.retainPack != nil {
-		retainChan := make(chan *PipelinePack)
-		go func() {
-			retainChan <- foRunner.retainPack
-			foRunner.retainPack = nil
-			close(retainChan)
-		}()
-		return retainChan
-	}
-	return foRunner.inChan
-}
-
-func (foRunner *foRunner) MatchRunner() *MatchRunner {
-	return foRunner.matcher
-}
-
-func (foRunner *foRunner) Output() Output {
-	return foRunner.plugin.(Output)
-}
-
-func (foRunner *foRunner) Filter() Filter {
-	return foRunner.plugin.(Filter)
 }
 
 // Main Heka pipeline data structure containing raw message data, a Message
@@ -573,6 +126,7 @@ type PipelinePack struct {
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
+	message.SetSeverity(7)
 
 	return &PipelinePack{
 		MsgBytes:     msgBytes,
@@ -619,8 +173,6 @@ func Run(config *PipelineConfig) {
 	var err error
 
 	globals := Globals()
-	sigChan := make(chan os.Signal)
-	globals.sigChan = sigChan
 
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
@@ -675,18 +227,18 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
 
 	for !globals.Stopping {
 		select {
-		case sig := <-sigChan:
+		case sig := <-globals.sigChan:
 			switch sig {
 			case syscall.SIGHUP:
 				log.Println("Reload initiated.")
 				if err := notify.Post(RELOAD, nil); err != nil {
 					log.Println("Error sending reload event: ", err)
 				}
-			case syscall.SIGINT:
+			case syscall.SIGINT, syscall.SIGTERM:
 				log.Println("Shutdown initiated.")
 				globals.Stopping = true
 			case SIGUSR1:

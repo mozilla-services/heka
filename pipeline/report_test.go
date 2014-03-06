@@ -17,7 +17,7 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"github.com/mozilla-services/heka/message"
-	ts "github.com/mozilla-services/heka/testsupport"
+	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
@@ -32,7 +32,7 @@ func (f *CounterFilter) ReportMsg(msg *message.Message) (err error) {
 	return
 }
 
-func (i *UdpInput) ReportMsg(msg *message.Message) (err error) {
+func (i *StatAccumInput) ReportMsg(msg *message.Message) (err error) {
 	msg.AddField(f0)
 	msg.AddField(f1)
 	return
@@ -86,12 +86,12 @@ func ReportSpec(c gs.Context) {
 	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
 	fRunner.SetLeakCount(10)
 
-	iName := "udp"
-	input := new(UdpInput)
-	iRunner := NewInputRunner(iName, input, nil)
+	iName := "stat_accum"
+	input := new(StatAccumInput)
+	iRunner := NewInputRunner(iName, input, nil, false)
 
 	c.Specify("`PopulateReportMsg`", func() {
-		msg := getTestMessage()
+		msg := ts.GetTestMessage()
 
 		c.Specify("w/ a filter", func() {
 			err := PopulateReportMsg(fRunner, msg)

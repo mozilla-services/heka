@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # if the environment has been setup before clean it up
 if [ $GOBIN ]; then
@@ -12,6 +12,6 @@ export GOBIN=$GOPATH/bin
 export PATH=$PATH:$GOBIN
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=release ..
 make
 

@@ -1,36 +1,6 @@
 .. _sandboxmanager:
 
-Sandbox Manager
-===============
-The SandboxManagerFilter allows SandboxFilters to be dynamically started and
-stopped using a signed Heka message.  The intent is to have one 
-manager per access control group each with their own message signing key. Users
-in each group can submit a signed control message to manage any filters running
-under the associated manager.  A signed message is not an enforced requirement
-but it is highly recommended in order to restrict access to this functionality.
-
-.. _sandboxmanagerfilter_settings:
-
-SandboxManagerFilter Settings
------------------------------
-
-- :ref:`config_common_parameters`
-
-- working_directory (string): 
-    The directory where the filter configurations, code, and states are preserved.  The directory can be unique or shared between sandbox managers since the filter names are unique per manager. Defaults to a directory in ${BASE_DIR}/sbxmgrs with a name generated from the plugin name.
-
-- max_filters (uint): 
-    The maximum number of filters this manager can run.
-
-Example
-
-.. code-block:: ini
-
-    [OpsSandboxManager]
-    type = "SandboxManagerFilter"
-    message_signer = "ops"
-    message_matcher = "Type == 'heka.control.sandbox'"
-    max_filters = 100
+.. include:: ../config/filters/sandboxmanager.rst
 
 Control Message
 ---------------
@@ -51,46 +21,57 @@ Stopping a SandboxFilter
 - Fields[name]: The SandboxFilter name specified in the configuration
 
 
-sbmgr
------
-Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
+heka-sbmgr
+----------
+Heka Sbmgr is a tool for managing (starting/stopping) sandbox filters by generating
 the control messages defined above.
 
 Command Line Options
 
-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
+heka-sbmgr [``-config`` `config_file`] [``-action`` `load|unload`] [``-filtername`` `specified on unload`]
 [``-script`` `sandbox script filename`] [``-scriptconfig`` `sandbox script configuration filename`]
-
-sbmgrload
----------
-Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
-script and configuration are built into the tool and the filters will be named:
-CounterSandbox\ **N** where **N** is the instance number.
-
-Command Line Options
-
-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
 
 Configuration Variables
 
 - ip_address (string): IP address of the Heka server.
+- use_tls (bool): Specifies whether or not SSL/TLS encryption should be used for the TCP connections. Defaults to false.
 - signer (object): Signer information for the encoder.
     - name (string): The name of the signer.
     - hmac_hash (string): md5 or sha1
     - hmac_key (string): The key the message will be signed with.
-    - version (int): The version number of the hmac_key. 
+    - version (int): The version number of the hmac_key.
+- tls (TlsConfig): A sub-section that specifies the settings to be used for any SSL/TLS encryption. This will only have any impact if `use_tls` is set to true. See :ref:`tls`.
 
 Example
 
 .. code-block:: ini
 
-    ip_address          = "127.0.0.1:5565"
+    ip_address       = "127.0.0.1:5565"
+    use_tls          = true
     [signer]
         name         = "test"
         hmac_hash    = "md5"
         hmac_key     = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
         version      = 0
 
+    [tls]
+        cert_file = "heka.crt"
+        key_file = "heka.key"
+        client_auth = "NoClientCert"
+        prefer_server_ciphers = true
+        min_version = "TLS11"
+
+heka-sbmgrload
+--------------
+Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
+script and configuration are built into the tool and the filters will be named:
+CounterSandbox\ **N** where **N** is the instance number.
+
+Command Line Options
+
+heka-sbmgrload [``-config`` `config_file`] [``-action`` `load|unload`] [``-num`` `number of sandbox instances`]
+
+Configuration Variables (same as heka-sbmgr)
 
 .. _sandbox_manager_tutorial:
 
@@ -100,14 +81,16 @@ Tutorial - How to use the dynamic sandboxes
 SandboxManager/Heka Setup
 -------------------------
 
-1. The SandboxManagerFilters are defined in the hekad configuration file and 
-are created when hekad starts. The manager provides a location/namespace for 
-SandboxFilters to run and controls access to this space via a signed Heka 
-message. By associating a message_signer with the manager we can restrict 
-who can load and unload the associated filters. Lets start by 
-configuring a SandboxManager for a specific set of users; platform developers. 
-Choose a unique filter name [PlatformDevs] and a signer name 
-"PlatformDevs", in this case we will use the same name for each.
+1. Configure the SandboxManagerFilter.
+
+The SandboxManagerFilters are defined in the hekad configuration file and are
+created when hekad starts. The manager provides a location/namespace for
+SandboxFilters to run and controls access to this space via a signed Heka
+message. By associating a message_signer with the manager we can restrict who
+can load and unload the associated filters. Lets start by  configuring a
+SandboxManager for a specific set of users; platform developers. Choose a
+unique filter name [PlatformDevs] and a signer name "PlatformDevs", in this
+case we will use the same name for each.
 
 .. code-block:: ini
 
@@ -120,12 +103,13 @@ Choose a unique filter name [PlatformDevs] and a signer name
 
 
 2. Configure the input that will receive the SandboxManager control messages.
-For this setup we will extend the current TCP input to handle our signed 
-messages. The signer section consists of the signer name followed by an 
+
+For this setup we will extend the current TCP input to handle our signed
+messages. The signer section consists of the signer name followed by an
 underscore and the key version number (the reason for this notation is to
-simply flatten the signer configuration structure into a single map).  Multiple
-key versions are allowed to be active at the same time facilitating the rollout 
-of new keys.
+simply flatten the signer configuration structure into a single map).
+Multiple key versions are allowed to be active at the same time facilitating
+the rollout  of new keys.
 
 .. code-block:: ini
 
@@ -153,9 +137,12 @@ messages will be discarded. Save the file as PlatformDevs.toml.
 SandboxFilter Setup
 -------------------
 
-1. Create a SandboxFilter script and save it as "example.lua". See :ref:`lua_tutorials` for more detail.
+1. Create a SandboxFilter script and save it as "example.lua". See
+   :ref:`lua_tutorials` for more detail.
 
 .. code-block:: lua
+
+    require "circular_buffer"
 
     data = circular_buffer.new(1440, 1, 60) -- message count per minute
     local COUNT = data:set_header(1, "Messages", "count")
@@ -166,8 +153,7 @@ SandboxFilter Setup
     end
 
     function timer_event(ns)
-        output(data)
-        inject_message("cbuf")
+        inject_message(data)
     end
 
 2. Create the SandboxFilter configuration and save it as "example.toml".
@@ -186,9 +172,6 @@ this case, "PlatformDevs-Example".
     script_type = "lua"
     filename = ""
     preserve_data = false
-    memory_limit = 64000
-    instruction_limit = 100
-    output_limit = 64000
 
 3. Load the filter using sbmgr.
 
@@ -199,8 +182,11 @@ this case, "PlatformDevs-Example".
 If you are running the :ref:`config_dashboard_output` the following links are 
 available:
 
-- Information about the running filters: http://localhost:4352/heka_report.html.
-- Graphical Output (after 1 minute in this case): http://localhost:4352/PlatformDevs-Example.html
+- Information about the running filters:
+  http://localhost:4352/heka_report.html.
+
+- Graphical Output (after 1 minute in this case): http://localhost:4352
+  /PlatformDevs-Example.html
 
 Otherwise
 
@@ -211,10 +197,13 @@ Otherwise
     A running filter cannot be 'reloaded' it must be unloaded and loaded again.  
     The state is not preserved in this case for two reasons (in the future we 
     hope to remedy this):
-        1. During the unload/load process some data can be missed creating a small gap in the analysis causing anomalies and confusion.
-        2. The internal data representation may have changed and restoration may be problematic.
 
-4. Unload the filter using sbmgr 
+    1. During the unload/load process some data can be missed creating a small
+    gap in the analysis causing anomalies and confusion.
+    2. The internal data representation may have changed and restoration may
+    be problematic.
+
+4. Unload the filter using sbmgr.
 
 ::
 

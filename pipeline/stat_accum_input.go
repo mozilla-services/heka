@@ -78,12 +78,20 @@ type StatAccumInputConfig struct {
 	// seconds. Defaults to 10.
 	TickerInterval uint `toml:"ticker_interval"`
 
+	// The remaining settings are used to specify the namespaces used for
+	// various stat types, modeled on the behavior of etsy's standalond statsd
+	// server implementation, see
+	// https://github.com/etsy/statsd/blob/master/docs/namespacing.md.
 	LegacyNamespaces bool   `toml:"legacy_namespaces"`
 	GlobalPrefix     string `toml:"global_prefix"`
 	CounterPrefix    string `toml:"counter_prefix"`
 	TimerPrefix      string `toml:"timer_prefix"`
 	GaugePrefix      string `toml:"gauge_prefix"`
 	StatsdPrefix     string `toml:"statsd_prefix"`
+
+	// Don't emit values for inactive stats instead of sending 0 or in the case
+	// of gauges, sending the previous value. Defaults to false
+	DeleteIdleStats	bool	`toml:"delete_idle_stats"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -94,6 +102,11 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		TickerInterval:   uint(10),
 		LegacyNamespaces: false,
 		StatsdPrefix:     "statsd",
+		GlobalPrefix:     "stats",
+		CounterPrefix:    "counters",
+		TimerPrefix:      "timers",
+		GaugePrefix:      "gauges",
+		DeleteIdleStats:  false,
 	}
 }
 
@@ -109,17 +122,6 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
 		)
-	}
-	if sm.config.LegacyNamespaces {
-		if sm.config.GlobalPrefix == "" {
-			sm.config.GlobalPrefix = "stats"
-		}
-		if sm.config.TimerPrefix == "" {
-			sm.config.TimerPrefix = "timers"
-		}
-		if sm.config.GaugePrefix == "" {
-			sm.config.GaugePrefix = "gauges"
-		}
 	}
 	return nil
 }
@@ -224,61 +226,88 @@ func (sm *StatAccumInput) Flush() {
 	for key, c := range sm.counters {
 		ratePerSecond := float64(c) / float64(sm.config.TickerInterval)
 		if sm.config.LegacyNamespaces {
-			counterNs.EmitInField(key, int(ratePerSecond))
-			counterNs.EmitInPayload(key, ratePerSecond)
+			globalNs.EmitInField(key, int(ratePerSecond))
+			globalNs.EmitInPayload(key, ratePerSecond)
 			rootNs.Namespace("stats_counts").Emit(key, c)
 		} else {
 			counterKey := counterNs.Namespace(key)
 			counterKey.Emit("rate", ratePerSecond)
 			counterKey.Emit("count", c)
 		}
-		sm.counters[key] = 0
+		if sm.config.DeleteIdleStats {
+			delete(sm.counters, key)
+		} else {
+			sm.counters[key] = 0
+		}
 		numStats++
 	}
 	for key, gauge := range sm.gauges {
 		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, int64(gauge))
+		if sm.config.DeleteIdleStats {
+			delete(sm.gauges, key)
+		}
 		numStats++
 	}
 
 	for key, timings := range sm.timers {
 		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
-		if len(timings) > 0 {
+		var min, max, sum, mean, rate, meanPercentile, upperPercentile float64
+		count := len(timings)
+		if count > 0 {
 			sort.Float64s(timings)
-			min := timings[0]
-			max := timings[len(timings)-1]
-			count := len(timings)
+
+			cumulativeValues := make([]float64, count)
+			cumulativeValues[0] = timings[0]
+			for i := 1; i < count; i++ {
+				cumulativeValues[i] = timings[i] + cumulativeValues[i-1]
+			}
+
+			rate = float64(count) / float64(sm.config.TickerInterval)
+			min = timings[0]
+			max = timings[count-1]
+			mean = min
+			thresholdBoundary := max
+
 			if count > 1 {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
 				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
-				values := timings[0:numInThreshold]
-				max := timings[numInThreshold-1]
-				var sum float64
-				for _, v := range values {
-					sum += v
+
+				if numInThreshold > 0 {
+					mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
+					thresholdBoundary = timings[numInThreshold-1]
+				} else {
+					mean = min
+					thresholdBoundary = max
 				}
-				mean := sum / float64(numInThreshold)
-				timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), max)
-				timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), mean)
 			}
+			meanPercentile = mean
+			upperPercentile = thresholdBoundary
 
-			sm.timers[key] = timings[:0]
-			var sum float64
-			for _, v := range timings {
-				sum += v
-			}
-			mean := sum / float64(count)
-
-			timerNs.Emit("mean", mean)
-			timerNs.Emit("upper", max)
-			timerNs.Emit("lower", min)
-			timerNs.Emit("count", count)
+			sum = cumulativeValues[len(cumulativeValues)-1]
+			mean = sum / float64(count)
 		} else {
-			timerNs.Emit("mean", 0)
-			timerNs.Emit("upper", 0)
-			timerNs.Emit("lower", 0)
-			timerNs.Emit("count", 0)
-			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), 0)
-			timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), 0)
+			rate = 0.
+			min = 0.
+			max = 0.
+			sum = 0.
+			mean = 0.
+			meanPercentile = 0.
+			upperPercentile = 0.
+		}
+
+		timerNs.Emit("count", count)
+		timerNs.Emit("count_ps", rate)
+		timerNs.Emit("lower", min)
+		timerNs.Emit("upper", max)
+		timerNs.Emit("sum", sum)
+		timerNs.Emit("mean", mean)
+		timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), meanPercentile)
+		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), upperPercentile)
+
+		if sm.config.DeleteIdleStats {
+			delete(sm.timers, key)
+		} else {
+			sm.timers[key] = timings[:0]
 		}
 		numStats++
 	}
@@ -338,12 +367,14 @@ func (ns *namespaceTree) EmitInField(key string, value interface{}) *namespaceTr
 	}
 	return ns
 }
+
 func (ns *namespaceTree) EmitInPayload(key string, value interface{}) *namespaceTree {
 	if ns.Emitters.EmitInPayload != nil {
 		ns.Emitters.EmitInPayload(ns.prefix+key, value)
 	}
 	return ns
 }
+
 func (ns *namespaceTree) Emit(key string, value interface{}) *namespaceTree {
 	if ns.Emitters.EmitInPayload != nil {
 		ns.Emitters.EmitInPayload(ns.prefix+key, value)
@@ -352,4 +383,10 @@ func (ns *namespaceTree) Emit(key string, value interface{}) *namespaceTree {
 		ns.Emitters.EmitInField(ns.prefix+key, value)
 	}
 	return ns
+}
+
+func init() {
+	RegisterPlugin("StatAccumInput", func() interface{} {
+		return new(StatAccumInput)
+	})
 }

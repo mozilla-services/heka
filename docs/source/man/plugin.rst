@@ -7,21 +7,13 @@ Description
 
 Available hekad plugins compiled with this version of hekad.
 
-.. include:: /configuration.rst
-    :start-after: start-inputs
-    :end-before: end-inputs
+.. include:: /config/inputs/index_noref.rst
 
-.. include:: /configuration.rst
-    :start-after: start-decoders
-    :end-before: end-decoders
+.. include:: /config/decoders/index_noref.rst
 
-.. include:: /configuration.rst
-    :start-after: start-filters
-    :end-before: end-filters
+.. include:: /config/filters/index_noref.rst
 
-.. include:: /configuration.rst
-    :start-after: start-outputs
-    :end-before: end-outputs
+.. include:: /config/outputs/index_noref.rst
 
 See Also
 ========

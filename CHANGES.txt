@@ -1,3 +1,216 @@
+0.5.0 (2014-03-06)
+==================
+
+Backwards Incompatibilities
+---------------------------
+
+* ProcessInput no longer supports a separate'name' config setting, it uses the
+  specified plugin name from the TOML section header like all of the other
+  plugins.
+
+* Removed Stdout_chan and Stderr_chan from ManagedCmd and CommandChain, client
+  code now has direct access to Stdout_r and Stderr_r io.Reader providers.
+
+* The PluginHelper interface DecoderRunner prototype has changed (issue #717) 
+  to allow for the base name e.g. "ProtobufDecoder" and a full instance name
+  e.g. "MyInput-ProtobufDecoder" of the decoder to be specified.  This allows
+  multiple decoders of the same type to show up on the DashboardOutput and 
+  sandbox decoder state preservation to work properly. Also the DecoderRunner
+  UUID interface method was removed.
+
+* FileOutput `flushinterval` config setting changed to `flush_interval` to
+  match config naming conventions.
+
+* SandboxDecoder, SandboxFilter, and SandboxManagerFilter now all use
+  `${SHARE_DIR}/lua_modules` as the default `module_directory` setting.
+  SandboxDecoder and SandboxFilter both now interpret relative paths to lua
+  source code to be relative to ${SHARE_DIR} instead of ${BASE_DIR}.
+
+* DashboardOutput `static_directory` setting now defaults to
+  `${SHARE_DIR}/dasher` instead of `${BASE_DIR}/dashboard_static`.
+
+* The sandbox preservation data is now stored in the
+  {base_dir}/sandbox_preservation directory instead of with the plugin source.
+  On the initial restart no preserved data will be restored unless it is
+  manually moved to this directory first. (issue #626)
+
+* The Heka utilities (flood, sbmgr, sbmgrload, inject) have been namespaced
+  with a `heka-` prefix for their respective binaries. I.e. Flood has been
+  renamed heka-flood., etc.
+
+* MultiDecoder now gets its name from the TOML section name like the rest of
+  the plugins, instead of a separate 'name' config option.
+
+* Major reorganization of the `pipeline` package, moving the implementation of
+  most plugins to sub-packages of a separate `plugins` package.
+
+* Removed the wrapper 'table' element from the JSON serialization (issue #525)
+  i.e., {"table":{"value":1}} is now simply {"value":1}.  The change also
+  removes the special '_name' metadata arribute; the top level _name element
+  should be created in the Lua structure if it is required.
+
+* In the process of removing the core sandbox code from Heka (issue #464), the
+  sandbox was streamlined to only load the base library by default. All sandbox
+  plugins must now explictly load additional libraries with the require
+  function.
+
+* Removed DecoderSet method from PluginHelper interface (and DecoderSet
+  abstraction entirely) and replaced it with Decoder and DecoderRunner methods
+  that return a Decoder or a DecoderRunner by name.
+
+* Changed Decoder interface to support one input pack generating multiple
+  output packs.
+
+Bug Handling
+------------
+
+* Network parsers now return all records available in the parse buffer
+  (issue #732).
+
+* TcpInput now stops a given connection's decoder when the connection is
+  closed, preventing memory pooling (issue #713).
+
+* StatsdInput now doesn't fail with multiple stats in a single UDP packet.
+
+* Set default StatAccumInput stat namespace prefix values even when
+  `legacy_namespaces` is set to false (issue #630).
+
+* Fixed cpuprof file from being closed right after opening so no data was
+  being logged.
+
+* Fixed LogfileInput so it will only override the default delimiter for a
+  RegexpParser if a delimiter is specified in the config.
+
+* PluginWrapper will now check for the WantsName interface when creating a
+  plugin, and will set the plugin's name if appropriate.
+
+* SandboxDecoder now explicitly logs a fatal error before triggering shutdown
+  to ensure error message is actually emitted.
+
+* Message severity now defaults to the highest RFC 5424 value (i.e. 7) implies
+  low severity, rather than zero, which implies `emergency`, (issue #518).
+
+* 'flood' command now outputs every send error (even 'connection refused'), and
+  always increments 'messages sent' count even when there is a sending error
+  (so setting 'num_messages' still works even if hekad stops responding,
+  etc.).
+
+* stat_accum_input will not fail when flushing a timer where the percentile
+  is equal to the min value.
+
+Features
+--------
+
+* Added ProcessDirectoryInput.
+
+* InputRunners now support being specified as 'transient', meaning their
+  lifespan should be managed by the code that creates the InputRunner and not
+  Heka's pipeline code.
+
+* HttpInput: now supports configuring the HTTP method, HTTP headers and HTTP
+  Basic Authentication
+
+* TLS Listeners can specify a 'client_cafile' which limits the CAs that a
+  client cert can be chained to. This provides a mechanism for TLS Client AUTH.
+
+* TLS Senders can specify a 'root_cafile' which limits the CAs that a
+  server cert can be chained to. This provides a mechanims for TLS Server AUTH.
+
+* Added StopDecoderRunner function to PluginHelper API so inputs can manually
+  decommission decoders when they're no longer being used.
+
+* The SandboxManagerFilter can now control the sandbox usage limits (issue #95)
+
+* Added support for send_nsca to NagiosOutput as an alternative to direct http
+  submission; also a way to explicitely specify service_description and host
+  to match Nagios config
+
+* Added configurable network types to TcpInput "tcp", "tcp4", "tcp6", "unix" and
+ "unixpacket" (issue #539)
+
+* Added configurable network types to UdpInput "udp", "udp4", "udp6"
+  (issue #539)
+
+* Added flush_count config setting to FileOutput to complement existing
+  flush_interval. Also added flush_operator setting which can be "AND" or "OR"
+  to specify how flush_count and flush_interval should be combined.
+
+* Introduced `share_dir` global config setting, which specifies where Heka's
+  read only resources should live. Defaults to `/usr/share/heka`. Also added
+  `pipeline.PrependShareDir()` function for use within plugin initialization
+  code.
+
+* Added an rsyslog decoder based on the rsyslog string configuration template
+  (issue #432).
+
+* Added an Nginx access log decoder based on the Nginx 'log_format'
+  configuration directive.
+
+* heka-cat: A command-line utility for counting, viewing, filtering, and
+  extracting Heka protobuf logs.
+
+* TcpOutput has been redesigned to handle unavailable endpoints and dropped
+  connections without data loss (issue #355).
+
+* CarbonOutput now supports submitting messages via UDP, persistent TCP
+  connection.
+
+* Added Logstreamer Input [LogstreamerInput]: An input that replaces the
+  Logfile and Logfile Directory Inputs and supports sequential reading of
+  logstreams that span sets of ordered logfiles (issue #372).
+
+* TcpInput, TcpOutput, and flood client now all support TLS encrypted TCP
+  connections using Go's crypto/tls package.
+
+* Added Http Listen Input [HttpListenInput]: An input that listens for
+  HTTP requests on the specified address. If a decoder is not specified the
+  input generates a message with the HTML request body as the payload.
+  This input is especially useful for consuming and processing webhooks.
+  (Issue #431)
+
+* Added support for local external packages (issue #393)
+
+* Inject: A command-line utility for injecting arbitrary messages into
+  a Heka pipeline.
+
+* Added Go ScribbleDecoder for efficient setting of purely static message
+  field values.
+
+* Exposed `write_message` API function to Lua decoders to allow mutation of
+  existing decoded message (issue #577).
+
+* HttpInput: Added urls (array) option.
+
+* HttpInput: Failed and successful HTTP GET actions produce messages of Type
+  "heka.httpinput.data", Logger = Request URL, and severity appropriate to
+  HTTP status 200 or not. I.e. Connections responding with a status of 200
+  produce a message with Severity 6, non-200 statuses Severity 1. Failure to
+  connect produces a message with Severity 1 and Type "heka.httpinput.error".
+
+* HttpInput: Fields[ResponseTime] populates with time duration in seconds for
+  HTTP GET of URL, Fields[Status] with HTTP Status, Fields[Protocol] with HTTP
+  protocol and version, Fields[StatusCode] with HTTP Response Status Code for
+  successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts)
+  (http://hekad.readthedocs.org/en/latest/sandbox/graph_annotation.html) plugin
+  is compatible with the HttpInput plugin.
+
+* HttpInput: Added success_severity and error_severity options for GET actions.
+
+* HttpInput: Messages now set Logger, UUID, and Timestamp.
+
+* Added log_errors option to PayloadregexDecoder to allow skipping invalid
+  payloads.
+
+* Added "id" flag to elasticsearch output (issue #386).
+
+* Added SmtpOutput (issue #472)
+
+* Added preserve_data option to SandboxDecoder (issue #668).
+
+* Added delete_idle_stats to StatAccumInput.
+
+* Added sum and count_ps metrics to timers in stat_accum_input.
+
 0.4.2 (2013-12-02)
 ==================
 
@@ -14,7 +227,7 @@ Bug Handling
 
 * Explicitly exclude system level folders from those that CPack will include
   as part of the Heka RPM (requires CMake >= 2.8.12) (see
-  https://github.com/mozilla-services/heka/issues/548). 
+  https://github.com/mozilla-services/heka/issues/548).
 
 0.4.1 (2013-11-05)
 ==================
@@ -28,6 +241,12 @@ Bug Handling
 
 * Changed default DashboardOutput.StaticDirectory value to
   `/usr/share/heka/dasher`, to match where the packages put the files.
+
+Features
+--------
+
+* add require_all_fields flag to PayloadJsonDecoder
+  (issue #528)
 
 0.4.0 (2013-10-30)
 ==================
@@ -106,6 +325,8 @@ Bug Handling
 
 Features
 --------
+
+* Added a sandbox message field iterator (issue #460)
 
 * Added ProcessInput. (issue #406)
 

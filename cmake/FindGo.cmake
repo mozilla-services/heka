@@ -9,7 +9,7 @@
 #   GO_PLATFORM - i.e. linux
 #   GO_ARCH - i.e. amd64
 # Example usage:
-#   find_package(Go 1.1 REQUIRED)
+#   find_package(Go 1.2 REQUIRED)
 
 
 find_program(GO_EXECUTABLE go PATHS ENV GOROOT GOPATH GOBIN PATH_SUFFIXES bin)

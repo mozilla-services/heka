@@ -14,30 +14,28 @@
 
 package sandbox
 
-/*
-#include "sandbox.h"
-*/
-import "C"
-
-import "github.com/mozilla-services/heka/message"
+import "github.com/mozilla-services/heka/pipeline"
 
 const (
-	STATUS_UNKNOWN    = C.STATUS_UNKNOWN
-	STATUS_RUNNING    = C.STATUS_RUNNING
-	STATUS_TERMINATED = C.STATUS_TERMINATED
+	STATUS_UNKNOWN    = 0
+	STATUS_RUNNING    = 1
+	STATUS_TERMINATED = 2
 
-	STAT_LIMIT   = C.USAGE_STAT_LIMIT
-	STAT_CURRENT = C.USAGE_STAT_CURRENT
-	STAT_MAXIMUM = C.USAGE_STAT_MAXIMUM
+	STAT_LIMIT   = 0
+	STAT_CURRENT = 1
+	STAT_MAXIMUM = 2
 
-	TYPE_MEMORY       = C.USAGE_TYPE_MEMORY
-	TYPE_INSTRUCTIONS = C.USAGE_TYPE_INSTRUCTION
-	TYPE_OUTPUT       = C.USAGE_TYPE_OUTPUT
+	TYPE_MEMORY       = 0
+	TYPE_INSTRUCTIONS = 1
+	TYPE_OUTPUT       = 2
+
+	DATA_DIR = "sandbox_preservation"
+	DATA_EXT = ".data"
 )
 
 type Sandbox interface {
 	// Sandbox control
-	Init(dataFile string) error
+	Init(dataFile, pluginType string) error
 	Destroy(dataFile string) error
 
 	// Sandbox state
@@ -46,7 +44,7 @@ type Sandbox interface {
 	Usage(utype, ustat int) uint
 
 	// Plugin functions
-	ProcessMessage(msg *message.Message) int
+	ProcessMessage(pack *pipeline.PipelinePack) int
 	TimerEvent(ns int64) int
 
 	// Go callback
@@ -56,10 +54,20 @@ type Sandbox interface {
 type SandboxConfig struct {
 	ScriptType       string `toml:"script_type"`
 	ScriptFilename   string `toml:"filename"`
+	ModuleDirectory  string `toml:"module_directory"`
 	PreserveData     bool   `toml:"preserve_data"`
 	MemoryLimit      uint   `toml:"memory_limit"`
 	InstructionLimit uint   `toml:"instruction_limit"`
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+}
+
+func NewSandboxConfig() interface{} {
+	return &SandboxConfig{
+		ModuleDirectory:  pipeline.PrependShareDir("lua_modules"),
+		MemoryLimit:      8 * 1024 * 1024,
+		InstructionLimit: 1e6,
+		OutputLimit:      63 * 1024,
+	}
 }

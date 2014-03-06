@@ -3,5 +3,7 @@ sandbox/lua/lua_sandbox.go.in
 build
 cmake/plugin_loader.cmake
 etc/
+pipeline/mock_*.go
 var/
 *.sw?
+externals

@@ -1,0 +1,122 @@
+[hekad]
+maxprocs = 4
+base_dir = "."
+share_dir = "."
+
+[TCP:5565]
+type = "TcpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
+address = "127.0.0.1:5565"
+	[TCP:5565.signer.test_0]
+	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+
+[UDP:5565]
+type = "UdpInput"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
+address = "127.0.0.1:5565"
+	[UDP:5565.signer.test_0]
+	hmac_key = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
+
+[ProtobufDecoder]
+type = "ProtobufDecoder"
+
+[LogOutput]
+type = "LogOutput"
+message_matcher = "Type == 'heka.report'"
+
+[Dashboard]
+type = "DashboardOutput"
+address = "127.0.0.1:4352"
+ticker_interval = 5
+working_directory = "dashboard"
+static_directory = "../dasher"
+
+[TestSandboxManager]
+type = "SandboxManagerFilter"
+message_signer = "test"
+message_matcher = "Type == 'heka.control.sandbox'"
+working_directory = "sandbox" # this directory can be unique or shared between sandbox managers the filter names are unique per manager
+max_filters = 100
+
+[StaticSandbox]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/counter.lua"
+preserve_data = true
+
+[HekabenchCbufCounter]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/hekabench_cbuf_counter.lua"
+preserve_data = true
+memory_limit = 256000
+output_limit = 64000
+profile = true
+
+[SlowMatcher]
+type = "SandboxFilter"
+message_matcher = "(Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT') || (Type =~ /(hekabench)/ && Hostname =~ /(.*)/ && Uuid =~ /([a-z0-9]{8}-[a-z0-9]{4}-4[a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{12})/ && Payload =~ /(.*)/ && Type =~ /(?P<one>hekabench)/ && Hostname =~ /(?P<two>.*)/ && Uuid =~ /(?P<three>[a-z0-9]{8}-[a-z0-9]{4}-4[a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{12})/ && Payload =~ /(?P<four>.*)/)"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/hekabench_cbuf_counter.lua"
+preserve_data = false
+memory_limit = 256000
+output_limit = 64000
+
+[LoopToSelf]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench' || (Logger == 'LoopToSelf' && Type != 'heka.sandbox-terminated')"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/loop.lua"
+preserve_data = true
+
+[LoopToOtherA]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench' || Logger == 'LoopToOtherB'"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/counter.lua"
+preserve_data = false
+
+[LoopToOtherB]
+type = "SandboxFilter"
+message_matcher = "Logger == 'LoopToOtherA'"
+ticker_interval = 1
+script_type = "lua"
+filename = "testsupport/counter.lua"
+preserve_data = false
+
+[Counter]
+type = "CounterFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 1
+
+[NagiosOutput]
+url = "http://localhost/nagios/cgi-bin/cmd.cgi"
+username = "nagiosadmin"
+password = "4bob"
+message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'nagios-external-command' && Fields[payload_name] == 'PROCESS_SERVICE_CHECK_RESULT'"
+
+[nagios-sandbox]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 10
+script_type = "lua"
+filename = "testsupport/nagios.lua"
+preserve_data = false
+
+[BackPressure]
+type = "SandboxFilter"
+message_matcher = "Type == 'hekabench'"
+ticker_interval = 60
+script_type = "lua"
+filename = "testsupport/backpressure.lua"
+preserve_data = false
+instruction_limit = 1000000

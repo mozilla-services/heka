@@ -2,6 +2,8 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+require "circular_buffer"
+
 last_inject = 0
 count = 0
 cnts = circular_buffer.new(3600, 1, 1) -- 1 hour window with 1 second resolution

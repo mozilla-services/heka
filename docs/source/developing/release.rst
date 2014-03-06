@@ -18,6 +18,10 @@ of the Heka server.
 #. If this release is the highest released version number to date, the
    verified commit should be merged into the master branch.
 
+#. If there have been any changes made on the release branch that should also
+   be applied to the dev branch, those changes should be merged into the dev
+   branch.
+
 #. Bump version number (in `cmd/hekad/main.go`, `docs/source/conf.py`, and
    `CMakeLists.txt`) and add section for future release to changelog
    (`CHANGES.txt`). Commit "version bump" revision to the released version

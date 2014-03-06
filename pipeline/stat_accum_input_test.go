@@ -17,13 +17,25 @@ package pipeline
 import (
 	"code.google.com/p/gomock/gomock"
 	"github.com/mozilla-services/heka/message"
-	ts "github.com/mozilla-services/heka/testsupport"
+	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+type InputTestHelper struct {
+	Msg             *message.Message
+	Pack            *PipelinePack
+	AddrStr         string
+	ResolvedAddrStr string
+	MockHelper      *MockPluginHelper
+	MockInputRunner *MockInputRunner
+	Decoder         DecoderRunner
+	PackSupply      chan *PipelinePack
+	DecodeChan      chan *PipelinePack
+}
 
 func StatAccumInputSpec(c gs.Context) {
 	t := &ts.SimpleT{}
@@ -42,7 +54,14 @@ func StatAccumInputSpec(c gs.Context) {
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Inject(ith.Pack)
-		ith.MockInputRunner.EXPECT().Ticker()
+		var inputStarted sync.WaitGroup
+		inputStarted.Add(1)
+		// A call to Ticker() is the last step in the input's startup before
+		// it's ready to process packs. Any tests that need to pause until
+		// this happens can use `inputStarted.Wait()`.
+		ith.MockInputRunner.EXPECT().Ticker().Do(func() {
+			inputStarted.Done()
+		})
 
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
@@ -90,17 +109,27 @@ func StatAccumInputSpec(c gs.Context) {
 		c.Specify("emits timer with correct prefixes", func() {
 			prepareSendingStats()
 			sendTimer("sample.timer", 10, 10, 20, 20)
-			sendTimer("sample2.timer", 10, 20)
+			sendTimer("sample2.timer", 10)
 			msg := finalizeSendingStats()
 
-			validateValueAtKey(msg, "sample.timer.count", int64(4))
-			validateValueAtKey(msg, "sample.timer.mean", 15.0)
-			validateValueAtKey(msg, "sample.timer.lower", 10.0)
-			validateValueAtKey(msg, "sample2.timer.count", int64(2))
-			validateValueAtKey(msg, "sample2.timer.mean", 15.0)
-			validateValueAtKey(msg, "sample2.timer.lower", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.count", int64(4))
+			validateValueAtKey(msg, "stats.timers.sample.timer.count_ps", 0.4)
+			validateValueAtKey(msg, "stats.timers.sample.timer.mean", 15.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.lower", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.upper", 20.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.sum", 60.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.mean_90", 15.0)
+			validateValueAtKey(msg, "stats.timers.sample.timer.upper_90", 20.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.count", int64(1))
+			validateValueAtKey(msg, "stats.timers.sample2.timer.count_ps", 0.1)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.mean", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.lower", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.upper", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.sum", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.mean_90", 10.0)
+			validateValueAtKey(msg, "stats.timers.sample2.timer.upper_90", 10.0)
 
-			validateValueAtKey(msg, "statsd.numStats", int64(2))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(2))
 		})
 		c.Specify("emits counters with correct prefixes", func() {
 			prepareSendingStats()
@@ -108,19 +137,19 @@ func StatAccumInputSpec(c gs.Context) {
 			sendCounter("sample2.cnt", 159, 951)
 			msg := finalizeSendingStats()
 
-			validateValueAtKey(msg, "sample.cnt.count", int64(15))
-			validateValueAtKey(msg, "sample.cnt.rate", 1.5)
+			validateValueAtKey(msg, "stats.counters.sample.cnt.count", int64(15))
+			validateValueAtKey(msg, "stats.counters.sample.cnt.rate", 1.5)
 
-			validateValueAtKey(msg, "sample2.cnt.count", int64(1110))
-			validateValueAtKey(msg, "sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
+			validateValueAtKey(msg, "stats.counters.sample2.cnt.count", int64(1110))
+			validateValueAtKey(msg, "stats.counters.sample2.cnt.rate", 1110.0/float64(config.TickerInterval))
 		})
 		c.Specify("emits gauge with correct prefixes", func() {
 			prepareSendingStats()
 			sendGauge("sample.gauge", 1, 2)
 			sendGauge("sample2.gauge", 1, 2, 3, 4, 5)
 			msg := finalizeSendingStats()
-			validateValueAtKey(msg, "sample.gauge", int64(2))
-			validateValueAtKey(msg, "sample2.gauge", int64(5))
+			validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
+			validateValueAtKey(msg, "stats.gauges.sample2.gauge", int64(5))
 		})
 
 		c.Specify("emits correct statsd.numStats count", func() {
@@ -132,7 +161,48 @@ func StatAccumInputSpec(c gs.Context) {
 			sendTimer("sample.timer", 10, 10, 20, 20)
 			sendTimer("sample2.timer", 10, 20)
 			msg := finalizeSendingStats()
-			validateValueAtKey(msg, "statsd.numStats", int64(6))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(6))
+		})
+
+		c.Specify("emits proper idle stats", func() {
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			inputStarted.Wait() // Can't flush until the input has started.
+			statAccumInput.Flush()
+
+			ith.Pack.Recycle()
+			ith.PackSupply <- ith.Pack
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
+			validateValueAtKey(msg, "stats.counters.sample.cnt.count", int64(0))
+			validateValueAtKey(msg, "stats.timers.sample.timer.count", int64(0))
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(3))
+		})
+
+		c.Specify("ommits idle stats", func() {
+			config.DeleteIdleStats = true
+			err := statAccumInput.Init(config)
+			c.Expect(err, gs.IsNil)
+
+			prepareSendingStats()
+			sendGauge("sample.gauge", 1, 2)
+			sendCounter("sample.cnt", 1, 2, 3, 4, 5)
+			sendTimer("sample.timer", 10, 10, 20, 20)
+			inputStarted.Wait() // Can't flush until the input has started.
+			statAccumInput.Flush()
+
+			sendTimer("sample2.timer", 10, 20)
+
+			ith.Pack.Recycle()
+			ith.PackSupply <- ith.Pack
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+			msg := finalizeSendingStats()
+			validateValueAtKey(msg, "stats.statsd.numStats", int64(1))
 		})
 	})
 
