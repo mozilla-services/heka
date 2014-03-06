@@ -59,7 +59,6 @@ func UdpInputSpec(c gs.Context) {
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(config.InputRecycleChan())
 
-	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
 	ith.ResolvedAddrStr = "127.0.0.1:55565"
 
@@ -106,6 +105,42 @@ func UdpInputSpec(c gs.Context) {
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Decoded, gs.IsFalse)
+		})
+	})
+
+	c.Specify("A UdpInput Multiline input", func() {
+		ith.AddrStr = "localhost:55566"
+		ith.ResolvedAddrStr = "127.0.0.1:55566"
+		udpInput := UdpInput{}
+		err := udpInput.Init(&UdpInputConfig{Net: "udp", Address: ith.AddrStr,
+			Decoder:    "test",
+			ParserType: "token"})
+		c.Assume(err, gs.IsNil)
+		realListener := (udpInput.listener).(*net.UDPConn)
+		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
+
+		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
+		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).Times(2)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(2)
+		ith.MockInputRunner.EXPECT().Name().Return("UdpInput").AnyTimes()
+		encCall := ith.MockHelper.EXPECT().DecoderRunner("test", "UdpInput-test")
+		encCall.Return(ith.Decoder, true)
+
+		c.Specify("reads two messages from a packet and passes them to the decoder", func() {
+			go func() {
+				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+			}()
+			conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+			c.Assume(err, gs.IsNil)
+			_, err = conn.Write([]byte("message1\nmessage2\n"))
+			c.Assume(err, gs.IsNil)
+			ith.PackSupply <- ith.Pack
+			packRef := <-ith.DecodeChan
+			c.Expect(string(packRef.Message.GetPayload()), gs.Equals, "message1\n")
+			ith.PackSupply <- ith.Pack
+			packRef = <-ith.DecodeChan
+			c.Expect(string(packRef.Message.GetPayload()), gs.Equals, "message2\n")
+			udpInput.Stop()
 		})
 	})
 }

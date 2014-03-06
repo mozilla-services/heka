@@ -58,8 +58,18 @@ func NetworkPayloadParser(conn net.Conn,
 		pack   *PipelinePack
 		record []byte
 	)
-	_, record, err = parser.Parse(conn)
-	if len(record) > 0 {
+
+	for true {
+		_, record, err = parser.Parse(conn)
+		if err != nil {
+			if err == io.ErrShortBuffer {
+				ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", MAX_RECORD_SIZE))
+				err = nil // non-fatal
+			}
+		}
+		if len(record) == 0 {
+			break
+		}
 		pack = <-ir.InChan()
 		pack.Message.SetUuid(uuid.NewRandom())
 		pack.Message.SetTimestamp(time.Now().UnixNano())
@@ -89,14 +99,17 @@ func NetworkMessageProtoParser(conn net.Conn,
 		pack   *PipelinePack
 		record []byte
 	)
-	_, record, err = parser.Parse(conn)
-	if err != nil {
-		if err == io.ErrShortBuffer {
-			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", MAX_RECORD_SIZE))
-			err = nil // non-fatal, keep going
+	for true {
+		_, record, err = parser.Parse(conn)
+		if err != nil {
+			if err == io.ErrShortBuffer {
+				ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", MAX_RECORD_SIZE))
+				err = nil // non-fatal
+			}
 		}
-	}
-	if len(record) > 0 {
+		if len(record) == 0 {
+			break
+		}
 		pack = <-ir.InChan()
 		headerLen := int(record[1]) + HEADER_FRAMING_SIZE
 		messageLen := len(record) - headerLen
