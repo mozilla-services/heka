@@ -65,7 +65,7 @@ Bug Handling
 ------------
 
 * Network parsers now return all records available in the parse buffer
-  (issue #732)
+  (issue #732).
 
 * TcpInput now stops a given connection's decoder when the connection is
   closed, preventing memory pooling (issue #713).
