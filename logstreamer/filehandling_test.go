@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -69,9 +70,10 @@ func FilehandlingSpec(c gs.Context) {
 			translation := make(SubmatchTranslationMap)
 			translation["LogNumber"] = make(MatchTranslationMap)
 			translation["LogNumber"]["23"] = 22
+			translation["LogNumber"]["999"] = 999 // Non-"missing" submatches must be len > 1.
 			err := logfile.PopulateMatchParts(subexpNames, matches, translation)
 			c.Assume(err, gs.Not(gs.IsNil))
-			c.Expect(err.Error(), gs.Equals, "Unable to locate value: (24) in translation map: LogNumber")
+			c.Expect(err.Error(), gs.Equals, "Value '24' not found in translation map 'LogNumber'.")
 		})
 
 		c.Specify("works with custom value in submatch translation map", func() {
@@ -80,6 +82,7 @@ func FilehandlingSpec(c gs.Context) {
 			translation := make(SubmatchTranslationMap)
 			translation["LogNumber"] = make(MatchTranslationMap)
 			translation["LogNumber"]["24"] = 2
+			translation["LogNumber"]["999"] = 999 // Non-"missing" submatches must be len > 1.
 			logfile.PopulateMatchParts(subexpNames, matches, translation)
 			c.Expect(logfile.MatchParts["MonthName"], gs.Equals, 10)
 			c.Expect(logfile.MatchParts["LogNumber"], gs.Equals, 2)
@@ -102,6 +105,7 @@ func FilehandlingSpec(c gs.Context) {
 		c.Specify("returns errors", func() {
 			translation["FileNumber"] = make(MatchTranslationMap)
 			translation["FileNumber"]["23"] = 22
+			translation["FileNumber"]["999"] = 999 // Non-"missing" submatches must be len > 1.
 			err := logfiles.PopulateMatchParts(matchRegex, translation)
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(len(logfiles), gs.Equals, 3)
@@ -112,28 +116,48 @@ func FilehandlingSpec(c gs.Context) {
 		translation := make(SubmatchTranslationMap)
 		matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log\.?(?P<FileNumber>.*)?`)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
-		err := logfiles.PopulateMatchParts(matchRegex, translation)
-		c.Assume(err, gs.IsNil)
-		c.Expect(len(logfiles), gs.Equals, 3)
 
-		c.Specify("can be sorted newest to oldest", func() {
-			byp := ByPriority{Logfiles: logfiles, Priority: []string{"FileNumber"}}
-			sort.Sort(byp)
-			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, -1)
-			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+		c.Specify("with no 'missing' translation value", func() {
+			err := logfiles.PopulateMatchParts(matchRegex, translation)
+			c.Assume(err, gs.IsNil)
+			c.Expect(len(logfiles), gs.Equals, 3)
+
+			c.Specify("can be sorted newest to oldest", func() {
+				byp := ByPriority{Logfiles: logfiles, Priority: []string{"FileNumber"}}
+				sort.Sort(byp)
+				c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, -1)
+				c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+			})
+
+			c.Specify("can be sorted oldest to newest", func() {
+				byp := ByPriority{Logfiles: logfiles, Priority: []string{"^FileNumber"}}
+				sort.Sort(byp)
+				c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, 2)
+				c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+			})
 		})
 
-		c.Specify("can be sorted oldest to newest", func() {
-			byp := ByPriority{Logfiles: logfiles, Priority: []string{"^FileNumber"}}
-			sort.Sort(byp)
-			c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, 2)
-			c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 1)
+		c.Specify("with 'missing' translation value", func() {
+			translation["FileNumber"] = make(MatchTranslationMap)
+			translation["FileNumber"]["missing"] = 5
+			err := logfiles.PopulateMatchParts(matchRegex, translation)
+			c.Assume(err, gs.IsNil)
+			c.Expect(len(logfiles), gs.Equals, 3)
+
+			c.Specify("honors 'missing' translation value", func() {
+				byp := ByPriority{Logfiles: logfiles, Priority: []string{"FileNumber"}}
+				sort.Sort(byp)
+				c.Expect(logfiles[0].MatchParts["FileNumber"], gs.Equals, 1)
+				c.Expect(logfiles[1].MatchParts["FileNumber"], gs.Equals, 2)
+				c.Expect(logfiles[2].MatchParts["FileNumber"], gs.Equals, 5)
+			})
 		})
 	})
 
 	c.Specify("Sorting out a directory of access/error logs", func() {
 		translation := make(SubmatchTranslationMap)
-		matchRegex := regexp.MustCompile(dirPath + `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`)
+		matchRegex := regexp.MustCompile(dirPath +
+			`/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
 		err := logfiles.PopulateMatchParts(matchRegex, translation)
 		c.Assume(err, gs.IsNil)

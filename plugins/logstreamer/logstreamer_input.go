@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package logstreamer
@@ -120,6 +121,16 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	// If no differentiator is present than we use the plugin
 	if len(conf.Differentiator) == 0 {
 		conf.Differentiator = []string{li.pluginName}
+	}
+
+	for name, submap := range conf.Translation {
+		if len(submap) == 1 {
+			if _, ok := submap["missing"]; !ok {
+				err = fmt.Errorf("A translation map with one entry ('%s') must be "+
+					"specifying a 'missing' key.", name)
+				return
+			}
+		}
 	}
 
 	// Create the main sort pattern
