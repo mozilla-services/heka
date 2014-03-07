@@ -4,6 +4,15 @@
 Bug Handling
 ------------
 
+* Logstreamer package's NewLogstreamSet function no longer lowercases the
+  match part names when constructing match translation maps since the
+  PopulateMatchParts method doesn't actually expect the names to be
+  lowercased.
+
+* Added support for use of "missing" value in Logstreamer translation maps to
+  allow users to place missing values at the end of the list instead of the
+  beginning (issue #735).
+
 0.5.0 (2014-03-06)
 ==================
 
