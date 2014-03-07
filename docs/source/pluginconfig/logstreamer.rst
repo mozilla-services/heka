@@ -359,7 +359,7 @@ In the examples above, the years and months were embedded in the file
 path as directory names, but what if the date was embedded into the
 filenames themselves, with a file naming schema like so?
 
-.. code-block::
+.. code-block:: txt
 
     /var/log/nginx/sally.com/access.log
     /var/log/nginx/sally.com/access-20140803.log
