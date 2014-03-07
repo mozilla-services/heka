@@ -60,7 +60,7 @@ Example (Parsing Apache Combined Log Format):
 
     [apache_transform_decoder]
     type = "PayloadRegexDecoder"
-    match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    match_regex = '^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"'
     timestamp_layout = "02/Jan/2006:15:04:05 -0700"
 
     # severities in this case would work only if a (?P<Severity>...) matching
