@@ -65,11 +65,11 @@ configuration for such a case looks like:
 .. note::
 
     The ``file_match`` config value above is delimited with single quotes
-    instead of double quotes (i.e. `'system\.log'` vs. `"system\.log"`)
+    instead of double quotes (i.e. `'system\\.log'` vs. `"system\\.log"`)
     because single quotes indicate raw strings that do not require backslashes
     to be escaped. If you use double quotes around your regular expressions
     you'll need to escape backslashes by doubling them up, e.g.
-    `"system\\.log"`.
+    `"system\\\\.log"`.
 
 We start with the highest directory to start scanning for files under, in
 this case ``/var/log``. Then the files under that directory (recursively
@@ -401,11 +401,13 @@ associate a sort index with the 'missing' value, like so:
     [accesslogs.translation.Year]
     missing = 9999
 
-Note that if you create a translation map with only one key, that key *must*
-be 'missing'. It's possible to use the 'missing' value in a translation map
-that also contains other keys, but if you have any other key in the map you
-must include *all* possible match values, or else Heka will raise an error
-when it finds a match value that can't be converted.
+.. note::
+
+    If you create a translation map with only one key, that key *must* be
+    'missing'. It's possible to use the 'missing' value in a translation map
+    that also contains other keys, but if you have any other key in the map
+    you must include *all* possible match values, or else Heka will raise an
+    error when it finds a match value that can't be converted.
 
 Verifying Settings
 ==================
