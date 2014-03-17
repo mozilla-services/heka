@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* heka-logstreamer command now supports config directories in addition to
+  single config files, just like hekad itself (issue #742).
+
 * Logstreamer package's NewLogstreamSet function no longer lowercases the
   match part names when constructing match translation maps since the
   PopulateMatchParts method doesn't actually expect the names to be
