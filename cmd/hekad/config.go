@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -61,7 +62,6 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	}
 
 	var configFile map[string]toml.Primitive
-	var filename string
 	p, err := os.Open(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening config file: %s", err)
@@ -74,8 +74,14 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	if fi.IsDir() {
 		files, _ := ioutil.ReadDir(configPath)
 		for _, f := range files {
-			filename = filepath.Join(configPath, f.Name())
-			if _, err = toml.DecodeFile(filename, &configFile); err != nil {
+			fName := f.Name()
+			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
+				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
+				// Skip obviously non-relevant files.
+				continue
+			}
+			fPath := filepath.Join(configPath, fName)
+			if _, err = toml.DecodeFile(fPath, &configFile); err != nil {
 				return nil, fmt.Errorf("Error decoding config file: %s", err)
 			}
 		}
