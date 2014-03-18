@@ -6,6 +6,12 @@ Decoder plugin that accepts messages of a specified form and generates new
 outgoing messages from extracted data, effectively transforming one message
 format into another.
 
+.. note::
+
+    The `Go regular expression tester <https://regoio.herokuapp.com/>`_ is an
+    invaluable tool for constructing and debugging regular expressions to be
+    used for parsing your input data.
+
 Config:
 
 - match_regex:
