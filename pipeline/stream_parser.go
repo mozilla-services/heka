@@ -135,8 +135,10 @@ func (t *TokenParser) Parse(reader io.Reader) (bytesRead int, record []byte, err
 		if t.readPos == t.scanPos {
 			t.readPos = 0
 			t.scanPos = 0
+			t.needData = true
+		} else {
+			t.needData = false
 		}
-		t.needData = false
 	}
 	return
 }
@@ -214,8 +216,10 @@ func (r *RegexpParser) Parse(reader io.Reader) (bytesRead int, record []byte, er
 		if r.readPos == r.scanPos {
 			r.readPos = 0
 			r.scanPos = 0
+			r.needData = true
+		} else {
+			r.needData = false
 		}
-		r.needData = false
 	}
 	return
 }
@@ -270,10 +274,12 @@ func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []by
 		m.needData = true
 	} else {
 		if m.readPos == m.scanPos {
-			//m.readPos = 0
-			//m.scanPos = 0
+			m.readPos = 0
+			m.scanPos = 0
+			m.needData = true
+		} else {
+			m.needData = false
 		}
-		m.needData = false
 	}
 	return
 }

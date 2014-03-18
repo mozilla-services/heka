@@ -11,19 +11,19 @@ sequential user-defined order, differentiating multiple logstreams
 found in a search based on a user-defined differentiator. This plugin
 supercedes the LogfileInput and the LogfileDirectoryInput.
 
-A "log stream" is a single, linear data stream that is spread across
+A "logstream" is a single, linear data stream that is spread across
 one or more sequential log files. For instance, an Apache or nginx
-server typically generates two log streams for each domain: an access
+server typically generates two logstreams for each domain: an access
 log and an error log. Each stream might be written to a single log file
 that is periodically truncated (ick!) or rotated (better), with some
 number of historical versions being kept (e.g. access-example.com.log,
 access-example.com.log.0, access-example.com.log.1, etc.). Or, better
 yet, the server might periodically create new timestamped files so that
-the 'tip' of the log stream jumps from file to file (e.g. access-
+the 'tip' of the logstream jumps from file to file (e.g. access-
 example.com-2014.01.28.log, access-example.com-2014.01.27.log, access-
 example.com-2014.01.26.log, etc.). The job of Heka's Logstreamer plugin
 is to understand the file naming and ordering conventions for a single
-type of log stream (e.g. "all of the nginx server's domain access
+type of logstream (e.g. "all of the nginx server's domain access
 logs"), and to use that to watch the specified directories and load the
 right files in the right order. The plugin will also track its
 location in the stream so it can resume from where it left off after a
@@ -61,6 +61,15 @@ configuration for such a case looks like:
     type = "LogstreamerInput"
     log_directory = "/var/log"
     file_match = 'system\.log'
+
+.. note::
+
+    The ``file_match`` config value above is delimited with single quotes
+    instead of double quotes (i.e. `'system\\.log'` vs. `"system\\.log"`)
+    because single quotes indicate raw strings that do not require backslashes
+    to be escaped. If you use double quotes around your regular expressions
+    you'll need to escape backslashes by doubling them up, e.g.
+    `"system\\\\.log"`.
 
 We start with the highest directory to start scanning for files under, in
 this case ``/var/log``. Then the files under that directory (recursively
@@ -132,7 +141,8 @@ Or a combination of them?
     /var/log/nginx/2014/08/access.log.2
     /var/log/nginx/2014/08/access.log.3
 
-(Hopefully your setup isn't worse than any of these... but even if it is then Logstreamer can handle it.)
+(Hopefully your setup isn't worse than any of these... but even if it is then
+Logstreamer can handle it.)
 
 Handling a single access log that is sequential and rotated (the first
 example) can be tricky. The second case where rotation doesn't occur
@@ -236,8 +246,8 @@ separate logstream.
 
 .. seealso:: :ref:`Full set of configuration options <config_logstreamer_input>`
 
-Custom String Mappings
-======================
+String-based Order Mappings
+===========================
 
 In the standard configurations above, the assumption has been that any
 part matched for sorting will be digit(s). This is because the
@@ -334,12 +344,70 @@ Now to supply the important mapping of how to translate ``Month`` and
 
 .. note::
 
-    The keys and matched values used are all lowercased before
-    comparison.
+    The matched values used are all lowercased before comparison, so 'lunes'
+    in the example above would match captured values of 'lunes', 'Lunes', and
+    'LuNeS' equivalently.
 
 We left off the rest of the month names and day names not used for
 example purposes. Note that if you prefer the week to begin on a
 Saturday instead of Monday you can configure it with a custom mapping.
+
+Mappings with Missing Values
+----------------------------
+
+In the examples above, the years and months were embedded in the file
+path as directory names, but what if the date was embedded into the
+filenames themselves, with a file naming schema like so?
+
+.. code-block:: txt
+
+    /var/log/nginx/sally.com/access.log
+    /var/log/nginx/sally.com/access-20140803.log
+    /var/log/nginx/sally.com/access-20140804.log
+    /var/log/nginx/sally.com/access-20140805.log
+    /var/log/nginx/sally.com/access-20140806.log
+    /var/log/nginx/sally.com/access-20140807.log
+    /var/log/nginx/sally.com/access-20140808.log
+
+Notice how the currently active log file contains no date information at all.
+As long as you construct your file_match regex correctly this will be fine,
+Logstreamer will capture all of the files and won't complain about entries
+that are missing the match portions. The following config would work to
+capture all of these files:
+
+.. code-block:: ini
+
+    [accesslogs]
+    type = "LogstreamerInput"
+    log_directory = "/var/log/nginx"
+    file_match = '(?P<Domain>[^/]+)/access-?(?P<Year>\d4)(?P<Month>\d2)(?P<Day>\d2)\.log'
+    priority = ["Year", "Month", "Day"]
+    differentiator = ["nginx-", "Domain", "-access"]
+
+This works to match all of the files because match groups are implicitly
+optional and we explicitly made the hyphen separator optional by following it
+with a question mark (i.e. `-?`). We still have a problem, however. Heka will
+automatically assign a missing match a sort value of -1. Because we're sorting
+by date values, which sort naturally in ascending order, the -1 value will
+come before every other value, it will be considered the oldest file in the
+stream. This is clearly incorrect, since the currently active file is actually
+the newest file in the stream.
+
+It is possible to fix this by using a custom translation map to explicitly
+associate a sort index with the 'missing' value, like so:
+
+.. code-block:: ini
+
+    [accesslogs.translation.Year]
+    missing = 9999
+
+.. note::
+
+    If you create a translation map with only one key, that key *must* be
+    'missing'. It's possible to use the 'missing' value in a translation map
+    that also contains other keys, but if you have any other key in the map
+    you must include *all* possible match values, or else Heka will raise an
+    error when it finds a match value that can't be converted.
 
 Verifying Settings
 ==================

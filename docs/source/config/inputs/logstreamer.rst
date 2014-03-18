@@ -36,9 +36,13 @@ Config:
     usually fine. This interval is in milliseconds.
 - file_match (string):
     Regular expression used to match files located under the
-    ``log_directory``. This regular expression has ``$`` added to the
-    end automatically if not already present, and ``log_directory`` as the
-    prefix.
+    ``log_directory``. This regular expression has ``$`` added to the end
+    automatically if not already present, and ``log_directory`` as the prefix.
+    WARNING: file_match should typically be delimited with single quotes,
+    indicating use of a raw string, rather than double quotes, which require
+    all backslashes to be escaped. For example, `'access\\.log'` will work as
+    expected, but `"access\\.log"` will not, you would need `"access\\\\.log"`
+    to achieve the same result.
 - priority (list of strings):
     When using sequential logstreams, the priority is how to sort the logfiles
     in order from oldest to newest.
