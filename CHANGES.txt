@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Skip *.bak, *.tmp, *~, and .files in a config dir as a non-breaking band-aid
+  until we require an explicit naming convention in 0.6 (see issue #750).
+
 * heka-logstreamer command now supports config directories in addition to
   single config files, just like hekad itself (issue #742).
 
