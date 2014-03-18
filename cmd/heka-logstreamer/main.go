@@ -29,6 +29,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -70,11 +71,16 @@ func main() {
 
 	fconfig := make(FileConfig)
 	if fi.IsDir() {
-		var filename string
 		files, _ := ioutil.ReadDir(*configFile)
 		for _, f := range files {
-			filename = filepath.Join(*configFile, f.Name())
-			if _, err = toml.DecodeFile(filename, &fconfig); err != nil {
+			fName := f.Name()
+			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
+				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
+				// Skip obviously non-relevant files.
+				continue
+			}
+			fPath := filepath.Join(*configFile, fName)
+			if _, err = toml.DecodeFile(fPath, &fconfig); err != nil {
 				log.Fatalf("Error decoding config file: %s", err)
 			}
 		}
