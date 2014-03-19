@@ -24,8 +24,8 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -41,119 +41,6 @@ func TcpOutputSpec(c gs.Context) {
 		c.Expect(tmpErr, gs.Equals, nil)
 	}()
 	pConfig := NewPipelineConfig(nil)
-
-	c.Specify("TcpOutput Internals", func() {
-		tcpOutput := new(TcpOutput)
-		tcpOutput.connection = pipeline_ts.NewMockConn(ctrl)
-
-		msg := pipeline_ts.GetTestMessage()
-		pack := NewPipelinePack(pConfig.InputRecycleChan())
-		pack.Message = msg
-		pack.Decoded = true
-
-		c.Specify("SetName", func() {
-			tcpOutput.SetName("this-is a test")
-			c.Expect(tcpOutput.name, gs.Equals, "this_is_a_test")
-		})
-
-		c.Specify("fileExists", func() {
-			c.Expect(fileExists(tmpDir), gs.IsTrue)
-			c.Expect(fileExists(filepath.Join(tmpDir, "test.log")), gs.IsFalse)
-		})
-
-		c.Specify("extractBufferId", func() {
-			id, err := extractBufferId("555.log")
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(555))
-			id, err = extractBufferId("")
-			c.Expect(err, gs.Not(gs.IsNil))
-			id, err = extractBufferId("a.log")
-			c.Expect(err, gs.Not(gs.IsNil))
-		})
-
-		c.Specify("findBufferId", func() {
-			c.Expect(findBufferId(tmpDir, true), gs.Equals, uint(0))
-			c.Expect(findBufferId(tmpDir, false), gs.Equals, uint(0))
-			_, err := os.OpenFile(filepath.Join(tmpDir, "4.log"), os.O_CREATE, 0644)
-			c.Expect(err, gs.IsNil)
-			_, err = os.OpenFile(filepath.Join(tmpDir, "5.log"), os.O_CREATE, 0644)
-			c.Expect(err, gs.IsNil)
-			_, err = os.OpenFile(filepath.Join(tmpDir, "6a.log"), os.O_CREATE, 0644)
-			c.Expect(err, gs.IsNil)
-			c.Expect(findBufferId(tmpDir, false), gs.Equals, uint(4))
-			c.Expect(findBufferId(tmpDir, true), gs.Equals, uint(5))
-		})
-
-		c.Specify("writeCheckpoint", func() {
-			tcpOutput.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
-			err := tcpOutput.writeCheckpoint(43, 99999)
-			c.Expect(err, gs.IsNil)
-			c.Expect(fileExists(tcpOutput.checkpointFilename), gs.IsTrue)
-
-			id, offset, err := readCheckpoint(tcpOutput.checkpointFilename)
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(43))
-			c.Expect(offset, gs.Equals, int64(99999))
-
-			err = tcpOutput.writeCheckpoint(43, 1)
-			c.Expect(err, gs.IsNil)
-			id, offset, err = readCheckpoint(tcpOutput.checkpointFilename)
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(43))
-			c.Expect(offset, gs.Equals, int64(1))
-			tcpOutput.checkpointFile.Close()
-		})
-
-		c.Specify("readCheckpoint", func() {
-			cp := filepath.Join(tmpDir, "cp.txt")
-			file, err := os.OpenFile(cp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			c.Expect(err, gs.IsNil)
-			id, offset, err := readCheckpoint(cp)
-			c.Expect(err, gs.Not(gs.IsNil))
-
-			file.WriteString("22")
-			id, offset, err = readCheckpoint(cp)
-			c.Expect(err.Error(), gs.Equals, "invalid checkpoint format")
-
-			file.Seek(0, 0)
-			file.WriteString("aa 22")
-			id, offset, err = readCheckpoint(cp)
-			c.Expect(err.Error(), gs.Equals, "invalid checkpoint id")
-
-			file.Seek(0, 0)
-			file.WriteString("43 aa")
-			id, offset, err = readCheckpoint(cp)
-			c.Expect(err.Error(), gs.Equals, "invalid checkpoint offset")
-
-			file.Seek(0, 0)
-			file.WriteString("43 22")
-			file.Close()
-
-			id, offset, err = readCheckpoint(cp)
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(43))
-			c.Expect(offset, gs.Equals, int64(22))
-		})
-
-		c.Specify("writeToNextFile", func() {
-			tcpOutput.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
-			tcpOutput.queue = tmpDir
-			err := tcpOutput.writeToNextFile()
-			c.Expect(err, gs.IsNil)
-			c.Expect(fileExists(getQueueFilename(tcpOutput.queue, tcpOutput.writeId)), gs.IsTrue)
-			tcpOutput.writeFile.WriteString("this is a test item")
-			tcpOutput.writeFile.Close()
-			tcpOutput.writeCheckpoint(tcpOutput.writeId, 10)
-			tcpOutput.checkpointFile.Close()
-			err = tcpOutput.readFromNextFile()
-			buf := make([]byte, 4)
-			n, err := tcpOutput.readFile.Read(buf)
-			c.Expect(n, gs.Equals, 4)
-			c.Expect("test", gs.Equals, string(buf))
-			tcpOutput.writeFile.Close()
-			tcpOutput.readFile.Close()
-		})
-	})
 
 	c.Specify("TcpOutput", func() {
 		origBaseDir := Globals().BaseDir
@@ -217,17 +104,22 @@ func TcpOutputSpec(c gs.Context) {
 				wg.Done()
 			}()
 
+			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
+			c.Expect(msgcount, gs.Equals, int64(0))
 			inChan <- pack
 
 			output := false
 			for x := 0; x < 5; x++ {
-				if fileExists(tcpOutput.checkpointFilename) {
+
+				if i := atomic.LoadInt64(&tcpOutput.processMessageCount); i > msgcount {
+					msgcount = i
 					output = true
 					break
 				}
 				time.Sleep(time.Duration(500) * time.Millisecond)
 			}
 			c.Expect(output, gs.Equals, true)
+			c.Expect(msgcount, gs.Equals, int64(1))
 
 			close(inChan)
 			wg.Wait() // wait for close to finish, prevents intermittent test failures
@@ -243,10 +135,6 @@ func TcpOutputSpec(c gs.Context) {
 
 			result = <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
-			id, offset, err := readCheckpoint(tcpOutput.checkpointFilename)
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(1))
-			c.Expect(offset, gs.Equals, int64(115))
 		})
 
 		c.Specify("far end not initially listening", func() {
@@ -265,18 +153,22 @@ func TcpOutputSpec(c gs.Context) {
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				wg.Done()
 			}()
+			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
+			c.Expect(msgcount, gs.Equals, int64(0))
 			inChan <- pack
 
 			output := false
 			for x := 0; x < 5; x++ {
-				if fileExists(getQueueFilename(tcpOutput.queue, tcpOutput.writeId)) {
+				if i := atomic.LoadInt64(&tcpOutput.processMessageCount); i > msgcount {
+					msgcount = i
 					output = true
-					time.Sleep(time.Duration(1) * time.Second) // give the send time to fail
 					break
 				}
+
 				time.Sleep(time.Duration(500) * time.Millisecond)
 			}
 			c.Expect(output, gs.Equals, true)
+			c.Expect(msgcount, gs.Equals, int64(1))
 
 			collectData := func(ch chan string) {
 				ln, err := net.Listen("tcp", "localhost:9125")
@@ -312,10 +204,7 @@ func TcpOutputSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 
 			c.Expect(result, gs.Equals, string(matchBytes))
-			id, offset, err := readCheckpoint(tcpOutput.checkpointFilename)
-			c.Expect(err, gs.IsNil)
-			c.Expect(id, gs.Equals, uint(1))
-			c.Expect(offset, gs.Equals, int64(115))
+
 		})
 	})
 }
