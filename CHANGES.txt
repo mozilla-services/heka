@@ -10,6 +10,9 @@ Bug Handling
 Features
 --------
 
+* Added an Apache access log decoder based on the Apache 'LogFormat'
+  configuration directive.
+
 0.5.1 (2014-03-18)
 ==================
 
