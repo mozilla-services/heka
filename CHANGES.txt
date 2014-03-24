@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* The cbufd_host_aggregator filter now properly reclaims expired hosts.
+
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
 sandbox plugin output() call.
 
