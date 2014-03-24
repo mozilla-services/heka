@@ -10,6 +10,14 @@ Bug Handling
 Features
 --------
 
+* Added BufferedOutput. Extracts the queuing functionality out 
+  of TcpOutput.go into a general purpose lib for use in any 
+  output module. Callers get messages buffered to disk while 
+  another goroutine consumes and forwards data. Any errors
+  encountered can cause the sending goroutine to backoff and
+  resend data.
+
+
 0.5.1 (2014-03-18)
 ==================
 
