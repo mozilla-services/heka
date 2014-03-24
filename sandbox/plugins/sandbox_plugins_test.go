@@ -405,6 +405,75 @@ func DecoderSpec(c gs.Context) {
 		})
 	})
 
+	c.Specify("Apache access log decoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/apache_access.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.ScriptType = "lua"
+		conf.Config = make(map[string]interface{})
+		conf.Config["log_format"] = "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+		conf.Config["user_agent_transform"] = true
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decodes simple messages", func() {
+			data := "127.0.0.1 - - [10/Feb/2014:08:46:41 -0800] \"GET / HTTP/1.1\" 304 0 \"-\" \"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:26.0) Gecko/20100101 Firefox/26.0\""
+			pack.Message.SetPayload(data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1392050801000000000))
+
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("remote_addr")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "127.0.0.1")
+
+			value, ok = pack.Message.GetFieldValue("user_agent_browser")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "Firefox")
+			value, ok = pack.Message.GetFieldValue("user_agent_version")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(26))
+			value, ok = pack.Message.GetFieldValue("user_agent_os")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, "Linux")
+			_, ok = pack.Message.GetFieldValue("http_user_agent")
+			c.Expect(ok, gs.Equals, false)
+
+			value, ok = pack.Message.GetFieldValue("body_bytes_sent")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(0))
+
+			value, ok = pack.Message.GetFieldValue("status")
+			c.Expect(ok, gs.Equals, true)
+			c.Expect(value, gs.Equals, float64(304))
+			decoder.Shutdown()
+		})
+
+		c.Specify("decodes an invalid messages", func() {
+			data := "bogus message"
+			pack.Message.SetPayload(data)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
+			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+			decoder.Shutdown()
+		})
+	})
+
 	c.Specify("rsyslog decoder", func() {
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
