@@ -20,6 +20,17 @@ Features
   encountered can cause the sending goroutine to backoff and
   resend data.
 
+0.5.2 (2014-MM-DD)
+==================
+
+Bug Handling
+------------
+
+* The cbufd_host_aggregator filter now properly reclaims expired hosts.
+
+* Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
+sandbox plugin output() call.
+
 0.5.1 (2014-03-18)
 ==================
 

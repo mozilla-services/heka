@@ -86,9 +86,9 @@ function process_message ()
         return -1
     end
 
-    host = hosts[hostname]
+    local host = hosts[hostname]
     if not host then
-        if hosts_size == rows then
+        if hosts_size == cols then
             for k,v in pairs(hosts) do
                 if ts - v.last_update >= host_expiration then
                     -- leave the cbuf data intact
