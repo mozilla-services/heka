@@ -3,16 +3,17 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Parses the Nginx access logs based on the Nginx 'log_format' configuration
-directive.
+Parses the Apache access logs based on the Apache 'LogFormat' configuration
+directive. The Apache format specifiers are mapped onto the Nginx variable
+names where applicable e.g. %a -> remote_addr.  This allows generic web
+filters and outputs to work with any HTTP server input.
 
 Config:
 
 - log_format (string)
-    The 'log_format' configuration directive from the nginx.conf.
-    $time_local or $time_iso8601 variable is converted to the number of
-    nanosecond since the Unix epoch and used to set the Timestamp on the
-    message.
+    The 'LogFormat' configuration directive from the apache2.conf.
+    %t variables are converted to the number of nanosecond since the Unix epoch
+    and used to set the Timestamp on the message.
 
 - type (string, optional, default nil):
     Sets the message 'Type' header to the specified value
@@ -31,13 +32,13 @@ Config:
 
 .. code-block:: ini
 
-    [FxaNginxAccessDecoder]
+    [ApacheAccessDecoder]
     type = "SandboxDecoder"
     script_type = "lua"
-    filename = "lua_decoders/nginx_access.lua"
+    filename = "lua_decoders/apache_access.lua"
 
-    [FxaNginxAccessDecoder.config]
-    log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for"'
+    [ApacheAccessDecoder.config]
+    log_format = '%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
     user_agent_transform = true
 
 *Example Heka Message*
@@ -47,7 +48,7 @@ Config:
 :Hostname: trink-x230
 :Pid: 0
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
-:Logger: FxaNginxAccessInput
+:Logger: ApacheAccessInput
 :Payload:
 :EnvVersion:
 :Severity: 7
@@ -78,7 +79,7 @@ Type        = msg_type,
 Fields      = nil
 }
 
-local grammar = clf.build_nginx_grammar(log_format)
+local grammar = clf.build_apache_grammar(log_format)
 
 function process_message ()
     local log = read_message("Payload")

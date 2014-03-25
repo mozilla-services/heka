@@ -4,6 +4,14 @@
 Decoders
 ========
 
+Apache Access Log Decoder
+=========================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/apache_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
 
