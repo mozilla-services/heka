@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* LogstreamerInput no longer causes Heka to fail to start on empty or
+  whitespace-only journal files (issue #755).
+
 * The cbufd_host_aggregator filter now properly reclaims expired hosts.
 
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
