@@ -26,6 +26,15 @@ Features
 Bug Handling
 ------------
 
+* Fixed SIGUSR1 triggered text report to stdout to work with updated
+  heka.all-report JSON data structure (issue #762).
+
+* MultiDecoder now uses message.GetType() instead of Message.Type so
+  emitted message type will be generated correctly (issue #761).
+
+* LogstreamerInput no longer causes Heka to fail to start on empty or
+  whitespace-only journal files (issue #755).
+
 * The cbufd_host_aggregator filter now properly reclaims expired hosts.
 
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
