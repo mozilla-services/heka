@@ -78,7 +78,7 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	}()
 
 	cBytes := contents.Bytes()
-	cBytes = bytes.Trim(cBytes, " \n\r\t")
+	cBytes = bytes.TrimSpace(cBytes)
 	if len(cBytes) == 0 {
 		// File is empty, skip it.
 		return
