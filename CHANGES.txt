@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed SIGUSR1 triggered text report to stdout to work with updated
+  heka.all-report JSON data structure (issue #762).
+
 * MultiDecoder now uses message.GetType() instead of Message.Type so
   emitted message type will be generated correctly (issue #761).
 
