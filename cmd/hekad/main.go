@@ -56,7 +56,6 @@ const (
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
 	maxprocs := config.Maxprocs
 	poolSize := config.PoolSize
-	decoderPoolSize := config.DecoderPoolSize
 	chanSize := config.ChanSize
 	cpuProfName := config.CpuProfName
 	memProfName := config.MemProfName
@@ -69,7 +68,6 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 
 	globals := pipeline.DefaultGlobals()
 	globals.PoolSize = poolSize
-	globals.DecoderPoolSize = decoderPoolSize
 	globals.PluginChanSize = chanSize
 	globals.MaxMsgLoops = maxMsgLoops
 	if globals.MaxMsgLoops == 0 {

@@ -32,10 +32,12 @@ type ProtobufDecoder struct {
 	processMessageDuration int64
 	reportLock             sync.Mutex
 	sample                 bool
+	sampleDenominator      int
 }
 
 func (p *ProtobufDecoder) Init(config interface{}) error {
 	p.sample = true
+	p.sampleDenominator = Globals().SampleDenominator
 	return nil
 }
 
@@ -62,7 +64,7 @@ func (p *ProtobufDecoder) Decode(pack *PipelinePack) (
 		p.processMessageSamples++
 		p.reportLock.Unlock()
 	}
-	p.sample = 0 == rand.Intn(DURATION_SAMPLE_DENOMINATOR)
+	p.sample = 0 == rand.Intn(p.sampleDenominator)
 	return
 }
 
