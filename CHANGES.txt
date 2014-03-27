@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* MultiDecoder now uses message.GetType() instead of Message.Type so
+  emitted message type will be generated correctly (issue #761).
+
 * LogstreamerInput no longer causes Heka to fail to start on empty or
   whitespace-only journal files (issue #755).
 
