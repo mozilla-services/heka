@@ -48,6 +48,7 @@ type SandboxDecoder struct {
 	dRunner                pipeline.DecoderRunner
 	name                   string
 	tz                     *time.Location
+	sampleDenominator      int
 }
 
 func (pd *SandboxDecoder) ConfigStruct() interface{} {
@@ -62,6 +63,7 @@ func (s *SandboxDecoder) SetName(name string) {
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
+	s.sampleDenominator = pipeline.Globals().SampleDenominator
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
@@ -253,7 +255,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		s.processMessageSamples++
 		s.reportLock.Unlock()
 	}
-	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
+	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
 		s.err = errors.New("FATAL: " + s.sb.LastError())
 		s.dRunner.LogError(s.err)

@@ -228,6 +228,7 @@ func (mr *MatchRunner) GetAvgDuration() (duration int64) {
 // channel for a specific Filter or Output plugin). Any messages that are not a
 // match will be immediately recycled.
 func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
+	sampleDenominator := Globals().SampleDenominator
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -244,7 +245,7 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 
 		var (
 			startTime time.Time
-			random    int = rand.Intn(1000) + DURATION_SAMPLE_DENOMINATOR
+			random    int = rand.Intn(1000) + sampleDenominator
 			// Don't have everyone sample at the same time. We always start with
 			// a sample so there will be a ballpark figure immediately. We could
 			// use a ticker to sample at a regular interval but that seems like

@@ -28,9 +28,6 @@ import (
 	"time"
 )
 
-// Set a sample rate for match and message processing timing i.e. 1 in a million
-const DURATION_SAMPLE_DENOMINATOR = 1e3
-
 var (
 	AvailablePlugins = make(map[string]func() interface{})
 	PluginTypeRegex  = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
