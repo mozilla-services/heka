@@ -19,6 +19,9 @@ Bug Handling
   allow users to place missing values at the end of the list instead of the
   beginning (issue #735).
 
+* Added http_timeout to elasticsearch output to prevent slow or stale connections 
+  from holding up the flow. (issue #769)
+
 0.5.0 (2014-03-06)
 ==================
 
