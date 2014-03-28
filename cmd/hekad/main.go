@@ -78,6 +78,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.MaxMsgTimerInject = maxMsgTimerInject
 	globals.BaseDir = config.BaseDir
 	globals.ShareDir = config.ShareDir
+	globals.SampleDenominator = config.SampleDenominator
 
 	return globals, cpuProfName, memProfName
 }
@@ -108,10 +109,13 @@ func main() {
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
+	if config.SampleDenominator <= 0 {
+		log.Fatalln("'sample_denominator' value must be greater than 0.")
+	}
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
-		log.Fatalf("Error creating base_dir %s: %s", config.BaseDir, err)
+		log.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
 	}
 
 	if cpuProfName != "" {
