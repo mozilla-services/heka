@@ -493,7 +493,7 @@ func DecoderSpec(c gs.Context) {
 		decoder.SetDecoderRunner(dRunner)
 
 		c.Specify("decodes simple messages", func() {
-			data := "28 Feb 10 12:58:58 2014-02-10T12:58:59-08:00 testhost kernel: imklog 5.8.6, log source = /proc/kmsg started.\n"
+			data := "28 Feb 10 12:58:58 2014-02-10T12:58:59-08:00 testhost widget[4322]: test message.\n"
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
@@ -504,13 +504,14 @@ func DecoderSpec(c gs.Context) {
 
 			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(4))
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "testhost")
-			c.Expect(pack.Message.GetPayload(), gs.Equals, "imklog 5.8.6, log source = /proc/kmsg started.")
+			c.Expect(pack.Message.GetPid(), gs.Equals, int32(4322))
+			c.Expect(pack.Message.GetPayload(), gs.Equals, "test message.")
 
 			var ok bool
 			var value interface{}
 			value, ok = pack.Message.GetFieldValue("programname")
 			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "kernel")
+			c.Expect(value, gs.Equals, "widget")
 
 			value, ok = pack.Message.GetFieldValue("syslogfacility")
 			c.Expect(ok, gs.Equals, true)
