@@ -38,7 +38,6 @@ const (
 type GlobalConfigStruct struct {
 	MaxMsgProcessDuration uint64
 	PoolSize              int
-	DecoderPoolSize       int
 	PluginChanSize        int
 	MaxMsgLoops           uint
 	MaxMsgProcessInject   uint
@@ -47,6 +46,7 @@ type GlobalConfigStruct struct {
 	Stopping              bool
 	BaseDir               string
 	ShareDir              string
+	SampleDenominator     int
 	sigChan               chan os.Signal
 }
 
@@ -55,13 +55,13 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 	idle, _ := time.ParseDuration("2m")
 	return &GlobalConfigStruct{
 		PoolSize:              100,
-		DecoderPoolSize:       2,
 		PluginChanSize:        50,
 		MaxMsgLoops:           4,
 		MaxMsgProcessInject:   1,
 		MaxMsgProcessDuration: 1000000,
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
+		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
 	}
 }

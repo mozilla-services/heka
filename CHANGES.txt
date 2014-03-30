@@ -8,11 +8,17 @@ Backwards Incompatibilities
 fields.syslogtag no longer exists and is replaced by fields.programname and
 message.Pid (issue #677).
 
+* Removed no-longer-used 'decoder_poolsize' global config setting.
+
 Bug Handling
 ------------
 
 Features
 --------
+
+* Added 'sample_denominator' global config setting to allow tweaking the
+  sample interval when computing timing of certain operations, replacing prior
+  hard-coded DURATION_SAMPLE_DENOMINATOR constant (issue #625).
 
 * Added an Apache access log decoder based on the Apache 'LogFormat'
   configuration directive.

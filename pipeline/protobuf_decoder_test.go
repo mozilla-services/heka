@@ -36,13 +36,14 @@ func ProtobufDecoderSpec(c gospec.Context) {
 	defer ctrl.Finish()
 
 	msg := ts.GetTestMessage()
-	config := NewPipelineConfig(nil)
+	config := NewPipelineConfig(nil) // Initializes globals.
 
 	c.Specify("A ProtobufDecoder", func() {
 		encoded, err := proto.Marshal(msg)
 		c.Assume(err, gs.IsNil)
 		pack := NewPipelinePack(config.inputRecycleChan)
 		decoder := new(ProtobufDecoder)
+		decoder.sampleDenominator = 1000 // Since we don't call decoder.Init().
 
 		c.Specify("decodes a protobuf message", func() {
 			pack.MsgBytes = encoded
