@@ -508,9 +508,9 @@ func DecoderSpec(c gs.Context) {
 
 			var ok bool
 			var value interface{}
-			value, ok = pack.Message.GetFieldValue("syslogtag")
+			value, ok = pack.Message.GetFieldValue("programname")
 			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "kernel:")
+			c.Expect(value, gs.Equals, "kernel")
 
 			value, ok = pack.Message.GetFieldValue("syslogfacility")
 			c.Expect(ok, gs.Equals, true)
