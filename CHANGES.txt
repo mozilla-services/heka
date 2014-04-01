@@ -4,6 +4,10 @@
 Backwards Incompatibilities
 ---------------------------
 
+* The rsyslog decoder now further parses the %SYSLOGTAG% variable. The 
+fields.syslogtag no longer exists and is replaced by fields.programname and
+message.Pid (issue #677).
+
 * Removed no-longer-used 'decoder_poolsize' global config setting.
 
 Bug Handling
