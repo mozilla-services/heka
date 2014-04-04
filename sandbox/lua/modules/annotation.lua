@@ -12,8 +12,8 @@ API
         - name (string) circular buffer payload name.
         - ns (int64) current time in nanoseconds since the UNIX epoch.
         - col (uint) circular buffer column to annotate.
-        - stext (string) short test to display on the graph.
-        - test (string) long text to display in the rollover.
+        - stext (string) short text to display on the graph.
+        - text (string) long text to display in the rollover.
 
     *Return*
         - none
@@ -25,8 +25,8 @@ API
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch.
         - col (uint) circular buffer column to annotate.
-        - stext (string) short test to display on the graph.
-        - test (string) long text to display in the rollover.
+        - stext (string) short text to display on the graph.
+        - text (string) long text to display in the rollover.
 
     *Return*
         - annotation table
