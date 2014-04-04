@@ -17,7 +17,7 @@ API
 
 
 **send(ns, msg)**
-    Send and alert message.
+    Send an alert message.
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch.
