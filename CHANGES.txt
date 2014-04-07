@@ -16,6 +16,8 @@ Bug Handling
 Features
 --------
 
+* Add anomaly, alert, annotation modules (issue #677)
+
 * Added 'sample_denominator' global config setting to allow tweaking the
   sample interval when computing timing of certain operations, replacing prior
   hard-coded DURATION_SAMPLE_DENOMINATOR constant (issue #625).
