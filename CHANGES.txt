@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* Terminated plugins are now removed from the SandboxManager quota (issue #774).
+
 * Fixed SIGUSR1 triggered text report to stdout to work with updated
   heka.all-report JSON data structure (issue #762).
 
