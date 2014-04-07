@@ -59,6 +59,7 @@ type SandboxFilter struct {
 	reportLock             sync.Mutex
 	name                   string
 	sampleDenominator      int
+	manager                *SandboxManagerFilter
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -318,6 +319,9 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
+	if this.manager != nil {
+		this.manager.PluginExited()
+	}
 	if this.sbc.PreserveData {
 		this.sb.Destroy(this.preservationFile)
 	} else {
