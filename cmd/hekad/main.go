@@ -47,6 +47,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
+	"strings"
+	"syscall"
 )
 
 const (
@@ -88,6 +91,9 @@ func main() {
 		"Config file or directory. If directory is specified then all files "+
 			"in the directory will be loaded.")
 	version := flag.Bool("version", false, "Output version and exit")
+	pidPath := flag.String("pidfile", "",
+		"Specifies the name and directory where the process id will be "+
+			"written to.")
 	flag.Parse()
 
 	config := &HekadConfig{}
@@ -103,6 +109,30 @@ func main() {
 	if *version {
 		fmt.Println(VERSION)
 		os.Exit(0)
+	}
+
+	if *pidPath != "" {
+		log.Printf("Using %s as path to pidfile.", *pidPath)
+		contents, err := ioutil.ReadFile(*pidPath)
+		if err == nil {
+			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
+			if err != nil {
+				log.Fatal(err)
+			}
+			if err := syscall.Kill(pid, 0); err == nil {
+				log.Fatalf("Process %d is already running.", pid)
+			}
+		}
+
+		if err := ioutil.WriteFile(*pidPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			log.Printf("Removing pidfile %s", *pidPath)
+			if err := os.Remove(*pidPath); err != nil {
+				log.Println(err)
+			}
+		}()
 	}
 
 	config, err = LoadHekadConfig(*configPath)
