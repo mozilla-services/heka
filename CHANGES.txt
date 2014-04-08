@@ -32,6 +32,9 @@ Features
   encountered can cause the sending goroutine to backoff and
   resend data.
 
+* Added http_timeout to elasticsearch output to prevent slow or stale connections 
+  from holding up the flow. (issue #769)
+
 0.5.2 (2014-MM-DD)
 ==================
 

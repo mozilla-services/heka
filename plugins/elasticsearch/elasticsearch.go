@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"strings"
@@ -53,6 +54,10 @@ type ElasticSearchOutput struct {
 	bulkIndexer BulkIndexer
 	// Specify the document id or field name
 	id string
+
+	// Specify a timeout value in milliseconds for bulk request to complete.
+	// Default is 0 (infinite)
+	http_timeout	     uint32
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -88,6 +93,8 @@ type ElasticSearchOutputConfig struct {
 	ESIndexFromTimestamp bool
 	// Document ID
 	Id string
+	// Timeout
+	HTTPTimeout uint32 `toml:"http_timeout"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -102,6 +109,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Server:               "http://localhost:9200",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
+		HTTPTimeout:	      0,
 	}
 }
 
@@ -117,6 +125,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.format = conf.Format
 	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
 	o.id = conf.Id
+	o.http_timeout = conf.HTTPTimeout
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
@@ -134,7 +143,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
 			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
-				o.flushCount)
+				o.flushCount, o.http_timeout)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		}
@@ -621,11 +630,15 @@ type HttpBulkIndexer struct {
 	// Maximum number of documents
 	MaxCount int
 	// Internal HTTP Client
-	client *http.Client
+	clientConn *httputil.ClientConn
+	// TCP Connection for HTTP client
+	tcpConn net.Conn
+	// Timeout in milliseconds for HTTP post
+	HTTPTimeout uint32
 }
 
-func NewHttpBulkIndexer(protocol string, domain string, maxCount int) *HttpBulkIndexer {
-	return &HttpBulkIndexer{Protocol: protocol, Domain: domain, MaxCount: maxCount}
+func NewHttpBulkIndexer(protocol string, domain string, maxCount int, http_timeout uint32) *HttpBulkIndexer {
+	return &HttpBulkIndexer{Protocol: protocol, Domain: domain, MaxCount: maxCount, HTTPTimeout: http_timeout}
 }
 
 func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
@@ -636,8 +649,9 @@ func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
 }
 
 func (h *HttpBulkIndexer) Index(body []byte) (success bool, err error) {
-	if h.client == nil {
-		h.client = &http.Client{}
+	if h.clientConn == nil {
+		h.tcpConn, _ = net.Dial("tcp", h.Domain)
+		h.clientConn = httputil.NewClientConn(h.tcpConn, nil)
 	}
 	url := fmt.Sprintf("%s://%s%s", h.Protocol, h.Domain, "/_bulk")
 
@@ -647,7 +661,24 @@ func (h *HttpBulkIndexer) Index(body []byte) (success bool, err error) {
 		return false, err
 	} else {
 		request.Header.Add("Accept", "application/json")
-		response, err := h.client.Do(request)
+		if h.HTTPTimeout != 0 {
+			h.tcpConn.SetDeadline(time.Now().Add(time.Duration(h.HTTPTimeout) * time.Millisecond))
+		}
+		response, err := h.clientConn.Do(request)
+
+		if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+			//Post timed out. Close connection.
+			h.clientConn.Close()
+			h.clientConn = nil
+			err = fmt.Errorf("Bulk post connection has timed out: %s", err)
+			return false, err
+		} else {
+			//Post was successful. Extend the deadline for the connection.
+			if h.HTTPTimeout != 0 {
+				h.tcpConn.SetDeadline(time.Now().Add(time.Duration(h.HTTPTimeout) * time.Millisecond))
+			}
+		}
+ 
 		if err != nil {
 			err = fmt.Errorf("Error executing bulk request: %s", err)
 			return false, err
