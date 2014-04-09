@@ -58,6 +58,9 @@ Config:
     overwriting existing ES documents. If the value specified is placed within
     %{}, it will be interpolated to its Field value. Default is allow ES to
     auto-generate the id.
+- raw_bytes_field ([]string):
+        This option allows you to specify a list of fields to be passed through
+        the "clean" or "logstash_v0" formatters unchanged.
 
 Example:
 
@@ -73,3 +76,4 @@ Example:
     flush_interval = 5000
     flush_count = 10
     id = %{id}
+    raw_bytes_field = ["geoip"]
