@@ -672,12 +672,7 @@ func (h *HttpBulkIndexer) Index(body []byte) (success bool, err error) {
 			h.clientConn = nil
 			err = fmt.Errorf("Bulk post connection has timed out: %s", err)
 			return false, err
-		} else {
-			//Post was successful. Extend the deadline for the connection.
-			if h.HTTPTimeout != 0 {
-				h.tcpConn.SetDeadline(time.Now().Add(time.Duration(h.HTTPTimeout) * time.Millisecond))
-			}
-		}
+		} 
  
 		if err != nil {
 			err = fmt.Errorf("Error executing bulk request: %s", err)
