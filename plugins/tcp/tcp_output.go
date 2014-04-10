@@ -30,7 +30,7 @@ import (
 type TcpOutput struct {
 	conf                *TcpOutputConfig
 	address             string
-	localaddress        net.Addr
+	localAddress        net.Addr
 	connection          net.Conn
 	processMessageCount int64
 	name                string
@@ -43,8 +43,8 @@ type TcpOutputConfig struct {
 	// String representation of the TCP address to which this output should be
 	// sending data.
 	Address      string
-	LocalAddress string
-	UseTls       bool `toml:"use_tls"`
+	LocalAddress string `toml:"local_address"`
+	UseTls       bool   `toml:"use_tls"`
 	Tls          TlsConfig
 	// Interval at which the output queue logs will roll, in
 	// seconds. Defaults to 300.
@@ -66,7 +66,11 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	t.address = t.conf.Address
 
 	if t.conf.LocalAddress != "" {
-		t.localaddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
+		// Error out if use_tls and local_address options are both set for now
+		if t.conf.UseTls {
+			return fmt.Errorf("Cannot combine local_address %s and use_tls config options", t.localAddress)
+		}
+		t.localAddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
 	}
 
 	if t.bufferedOut, err = NewBufferedOutput("output_queue", t.name); err != nil {
@@ -76,7 +80,7 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 }
 
 func (t *TcpOutput) connect() (err error) {
-	dialer := &net.Dialer{LocalAddr: t.localaddress}
+	dialer := &net.Dialer{LocalAddr: t.localAddress}
 
 	if t.conf.UseTls {
 		var goTlsConf *tls.Config

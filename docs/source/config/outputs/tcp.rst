@@ -27,8 +27,9 @@ Config:
 
 .. versionadded:: 0.6
 
-- localaddress (string):
-    An optional local  IP address to use as the source address for outgoing traffic to this destination.
+- local_address (string):
+    An optional local IP address to use as the source address for outgoing 
+    traffic to this destination. Cannot currently be combined with TLS connections.
 
 Example:
 
