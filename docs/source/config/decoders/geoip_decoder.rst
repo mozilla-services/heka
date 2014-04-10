@@ -19,21 +19,22 @@ Config:
         The name of the field containing the IP address you want to derive the location for.
 
 - target_field: 
-        The name of the new field created by the decoder. The decoder will output a JSON object in the following format:
-        latitute: string,
-        longitude: string,
-        location: [ float64, float64 ],
-                - GeoJSON format intended for use as a `geo_point <http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-geo-point-type.html/>`_ for ES output.  
+        The name of the new field created by the decoder. The decoder will output a JSON object with the following elements:
+
+        - latitute: string,
+        - longitude: string,
+        - location: [ float64, float64 ],
+                - GeoJSON format intended for use as a `geo_point <http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-geo-point-type.html/>`_ for ES output.
                   Useful when using Kibana's `Bettermap panel <http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-geo-point-type.html http://www.elasticsearch.org/guide/en/kibana/current/_bettermap.html/>`_
-        coordinates: [ string, string ],
-        countrycode: string,
-        countrycode3: string,
-        region: string,
-        city: string,
-        postalcode: string,
-        areacode: int,
-        charset: int,
-        continentalcode: string
+        - coordinates: [ string, string ],
+        - countrycode: string,
+        - countrycode3: string,
+        - region: string,
+        - city: string,
+        - postalcode: string,
+        - areacode: int,
+        - charset: int,
+        - continentalcode: string
 
 .. code-block:: ini
 
