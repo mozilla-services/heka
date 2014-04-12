@@ -38,5 +38,5 @@ Example:
     [aggregator_output]
     type = "TcpOutput"
     address = "heka-aggregator.mydomain.com:55"
-    localaddress = "127.0.0.1"
+    local_address = "127.0.0.1"
     message_matcher = "Type != 'logfile' && Type != 'heka.counter-output' && Type != 'heka.all-report'"
