@@ -91,9 +91,6 @@ func main() {
 		"Config file or directory. If directory is specified then all files "+
 			"in the directory will be loaded.")
 	version := flag.Bool("version", false, "Output version and exit")
-	pidPath := flag.String("pidfile", "",
-		"Specifies the name and directory where the process id will be "+
-			"written to.")
 	flag.Parse()
 
 	config := &HekadConfig{}
@@ -111,30 +108,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *pidPath != "" {
-		log.Printf("Using %s as path to pidfile.", *pidPath)
-		contents, err := ioutil.ReadFile(*pidPath)
-		if err == nil {
-			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
-			if err != nil {
-				log.Fatal(err)
-			}
-			if err := syscall.Kill(pid, 0); err == nil {
-				log.Fatalf("Process %d is already running.", pid)
-			}
-		}
-
-		if err := ioutil.WriteFile(*pidPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
-			log.Fatal(err)
-		}
-		defer func() {
-			log.Printf("Removing pidfile %s", *pidPath)
-			if err := os.Remove(*pidPath); err != nil {
-				log.Println(err)
-			}
-		}()
-	}
-
 	config, err = LoadHekadConfig(*configPath)
 	if err != nil {
 		log.Fatal("Error reading config: ", err)
@@ -146,6 +119,28 @@ func main() {
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
 		log.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
+	}
+
+	if config.PidFile != "" {
+		contents, err := ioutil.ReadFile(config.PidFile)
+		if err == nil {
+			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
+			if err != nil {
+				log.Fatalf("Error reading proccess id from pidfile '%s': %s", config.PidFile, err)
+			}
+			if err := syscall.Kill(pid, 0); err == nil {
+				log.Fatalf("Process %d is already running.", pid)
+			}
+		}
+		if err := ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
+		}
+		log.Printf("Wrote pid to pidfile '%s'", config.PidFile)
+		defer func() {
+			if err := os.Remove(config.PidFile); err != nil {
+				log.Printf("Unable to remove pidfile '%s': %s", config.PidFile, err)
+			}
+		}()
 	}
 
 	if cpuProfName != "" {

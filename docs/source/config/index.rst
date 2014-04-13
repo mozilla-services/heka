@@ -141,6 +141,15 @@ Config:
     against a message matcher. Defaults to 1000, i.e. duration will be
     calculated for one message out of 1000.
 
+.. versionadded:: 0.6
+- pidfile (string):
+    Optionally specify the location of a pidfile where the process id of
+    the running hekad process will be written. The hekad process must have
+    read and write access to the parent directory (which is not automatically
+    created). On a successful exit the pidfile will be removed. If the path
+    already exists the contained pid will be checked for a running process.
+    If one is found, the current process will exit with an error.
+
 Example hekad.toml file
 =======================
 
