@@ -96,7 +96,7 @@ type ElasticSearchOutputConfig struct {
 	// Timeout
 	HTTPTimeout uint32 `toml:"http_timeout"`
 	// Fields to ignore formatting on
-	RawBytesFields []interface{} `toml:"raw_bytes_fields"`
+	RawBytesFields []string `toml:"raw_bytes_fields"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -305,20 +305,20 @@ type CleanMessageFormatter struct {
 	// Field names to include in ElasticSearch document for "clean" format
 	fields          []string
 	timestampFormat string
-	rawBytesFields  []interface{}
+	rawBytesFields  []string
 }
 
 type KibanaFormatter struct {
-	rawBytesFields  []interface{}
+	rawBytesFields  []string
 }
 
-func NewKibanaFormatter(rawBytesFields []interface{}) *KibanaFormatter {
+func NewKibanaFormatter(rawBytesFields []string) *KibanaFormatter {
         return &KibanaFormatter{
                 rawBytesFields: rawBytesFields,
         }
 }
 
-func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []interface{}) *CleanMessageFormatter {
+func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []string) *CleanMessageFormatter {
 	if fields == nil || len(fields) == 0 {
 		return &CleanMessageFormatter{
 			fields: []string{
