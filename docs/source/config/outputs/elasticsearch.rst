@@ -58,6 +58,10 @@ Config:
     overwriting existing ES documents. If the value specified is placed within
     %{}, it will be interpolated to its Field value. Default is allow ES to
     auto-generate the id.
+- http_timeout (int):
+    Time in milliseconds to wait for a response for each http post to ES.
+    This may drop data as there is currently no retry.
+    Default is 0 (infinite)
 - raw_bytes_field ([]string):
         This option allows you to specify a list of fields to be passed through
         the "clean" or "logstash_v0" formatters unchanged.
