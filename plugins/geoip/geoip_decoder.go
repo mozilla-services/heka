@@ -4,6 +4,7 @@ package geoip
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/abh/geoip"
 	"github.com/mozilla-services/heka/message"
@@ -37,34 +38,35 @@ func (ld *GeoIpDecoder) ConfigStruct() interface{} {
 func (ld *GeoIpDecoder) Init(config interface{}) (err error) {
 	conf := config.(*GeoIpDecoderConfig)
 
+        if string(conf.SourceIpField) == ""  {
+                return errors.New("`source_ip_field` must be specified")
+        }
 
-        if len(conf.DatabaseFile) > 0 {
-                ld.DatabaseFile = conf.DatabaseFile
-	}
+        if conf.TargetField == "" {
+                return errors.New("`target_field` must be specified")
+        }
+
+        ld.TargetField = conf.TargetField
+        ld.SourceIpField = conf.SourceIpField
+
+        if ld.gi == nil {
+                ld.gi, err = geoip.Open(conf.DatabaseFile)
+        }
+        if err != nil {
+                return fmt.Errorf("Could not open GeoIP database: %s\n")
+        }
 	
-	if len(conf.SourceIpField) > 0 {
-		ld.SourceIpField = conf.SourceIpField
-	} else {
-		err = fmt.Errorf("Missing required flag: source_ip_field", err)
-	}
-
-	if len(conf.TargetField) > 0 {
-                ld.TargetField = conf.TargetField
-	} else {
-		err = fmt.Errorf("Missing required flag: target_field", err)
-	}
 
 	return
 }
 
 func (ld *GeoIpDecoder) GetRecord(ip string) *geoip.GeoIPRecord {
-                rec := ld.gi.GetRecord(ip)
-                return rec
+	return ld.gi.GetRecord(ip)
 }
 
 func (ld *GeoIpDecoder) GeoBuff(rec *geoip.GeoIPRecord) bytes.Buffer {
-
         buf := bytes.Buffer{}
+
         latitudeString := strconv.FormatFloat(float64(rec.Latitude), 'g', 16, 32)
         longitudeString := strconv.FormatFloat(float64(rec.Longitude), 'g', 16, 32)
         areacodeString := strconv.FormatInt(int64(rec.AreaCode), 10)
@@ -131,41 +133,37 @@ func (ld *GeoIpDecoder) GeoBuff(rec *geoip.GeoIPRecord) bytes.Buffer {
 }
 
 func (ld *GeoIpDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
-	defer func() { 
-		if r := recover(); r != nil {
-		   return 
-	        }
-	}()
+	var buf bytes.Buffer
+        var ipAddr, _ = pack.Message.GetFieldValue(ld.SourceIpField)
 
-	buf := bytes.Buffer{}
-        file := ld.DatabaseFile
-	ip := ""
+        ip, ok := ipAddr.(string)
 
-	if len(ld.SourceIpField) > 0 {
-		var ipAddr, _ = pack.Message.GetFieldValue(ld.SourceIpField)
-		ip = ipAddr.(string)
-	}
-
-	if ld.gi == nil {
-	        ld.gi, err = geoip.Open(file)
-	}
-        if err != nil {
-                fmt.Printf("Could not open GeoIP database: %s\n", err)
+        if !ok {
+                // IP field was not a string. Field could just be blank. Return without error.
+                packs = []*PipelinePack{pack}
+                return
         }
+
         if ld.gi != nil {
-		rec := ld.gi.GetRecord(ip)
-                buf = ld.GeoBuff(rec)		
+                rec := ld.gi.GetRecord(ip)
+                if rec != nil {
+                        buf = ld.GeoBuff(rec)
+                } else {
+                        // IP address did not return a valid GeoIp record but that's ok sometimes(private ip?). Return without error.
+                        packs = []*PipelinePack{pack}
+                        return
+                }
         }
 
-	if len(ld.TargetField) > 0 {
-		if buf.Len() > 0  {
-			nf, _ := message.NewField(ld.TargetField, buf.Bytes(), "")
-			pack.Message.AddField(nf)
-		} 
-	} 
-	packs = []*PipelinePack{pack}
-	
-    return
+        if buf.Len() > 0  {
+                var nf *message.Field
+                nf, err = message.NewField(ld.TargetField, buf.Bytes(), "")
+                pack.Message.AddField(nf)
+        }
+
+        packs = []*PipelinePack{pack}
+
+	return
 }
 
 func init() {
