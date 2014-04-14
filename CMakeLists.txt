@@ -7,7 +7,7 @@ project(heka C)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High performance data gathering, analysis, monitoring, and reporting.")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
 set(CPACK_PACKAGE_VERSION_MINOR 5)
-set(CPACK_PACKAGE_VERSION_PATCH 1)
+set(CPACK_PACKAGE_VERSION_PATCH 1.jimdo1)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
@@ -20,6 +20,7 @@ set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+set(GO_EXECUTABLE "/usr/local/go/bin/go")
 find_package(Go 1.2 REQUIRED)
 find_package(Git REQUIRED)
 find_package(Protobuf 2.3 QUIET)
@@ -73,6 +74,26 @@ elseif(UNIX)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "RPM")
         set(CPACK_RPM_PACKAGE_LICENSE "MPLv2.0")
     endif()
+endif()
+
+if (UNIX AND DPKG_EXECUTABLE)
+    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
+    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.11)")
+    get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
+    set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_SOURCE_DIR}/debian/postinst;${CMAKE_SOURCE_DIR}/debian/postrm;${CMAKE_SOURCE_DIR}/debian/preinst;")
+
+    install(PROGRAMS ${CMAKE_SOURCE_DIR}/debian/heka DESTINATION /etc/init.d)
+    install(FILES ${CMAKE_SOURCE_DIR}/debian/hekad.toml DESTINATION /etc)
+
+    add_custom_target(deb
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
+    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
+    DEPENDS hekad
+    COMMENT "Custom deb target")
 endif()
 
 include(CTest)
@@ -204,22 +225,6 @@ install(PROGRAMS "${SBMGR_EXE}" DESTINATION bin)
 add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
-
-if (UNIX AND DPKG_EXECUTABLE)
-    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
-    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
-    get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
-    set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
-
-    add_custom_target(deb
-    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
-    DEPENDS hekad
-    COMMENT "Custom deb target")
-endif()
 
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
