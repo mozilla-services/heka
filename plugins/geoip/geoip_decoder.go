@@ -3,11 +3,12 @@
 package geoip
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/abh/geoip"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"bytes"
+	"path/filepath"
 	"strconv"
 )
 
@@ -27,7 +28,7 @@ type GeoIpDecoder struct {
 
 func (ld *GeoIpDecoder) ConfigStruct() interface{} {
 	return &GeoIpDecoderConfig{
-		DatabaseFile:	"/var/cache/hekad/GeoLiteCity.dat",
+		DatabaseFile:   filepath.Join(Globals().ShareDir,"GeoLiteCity.dat"),
 		SourceIpField:	"",
 		TargetField:	"geoip",
 	}
