@@ -15,6 +15,8 @@ Config:
     Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
     per row is a 24 sliding hour window with 1 minute resolution.
 
+- anomaly_config(string) - (see :ref:`sandboxmodules`)
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -30,20 +32,27 @@ Config:
     [FxaAuthServerHTTPStatus.config]
     sec_per_row = 60
     rows = 1440
+    anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false)'
 --]]
 
 require "circular_buffer"
 require "string"
+local alert         = require "alert"
+local annotation    = require "annotation"
+local anomaly       = require "anomaly"
 
-local rows        = read_config("rows") or 1440
-local sec_per_row = read_config("sec_per_row") or 60
+local title             = "HTTP Status"
+local rows              = read_config("rows") or 1440
+local sec_per_row       = read_config("sec_per_row") or 60
+local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
+annotation.set_prune(title, rows * sec_per_row * 1e9)
 
 status = circular_buffer.new(rows, 5, sec_per_row)
-local HTTP_200          = status:set_header(1, "HTTP_200"      , "count")
-local HTTP_300          = status:set_header(2, "HTTP_300"      , "count")
-local HTTP_400          = status:set_header(3, "HTTP_400"      , "count")
-local HTTP_500          = status:set_header(4, "HTTP_500"      , "count")
-local HTTP_UNKNOWN      = status:set_header(5, "HTTP_UNKNOWN"  , "count")
+local HTTP_200      = status:set_header(1, "HTTP_200")
+local HTTP_300      = status:set_header(2, "HTTP_300")
+local HTTP_400      = status:set_header(3, "HTTP_400")
+local HTTP_500      = status:set_header(4, "HTTP_500")
+local HTTP_UNKNOWN  = status:set_header(5, "HTTP_UNKNOWN")
 
 function process_message ()
     local ts = read_message("Timestamp")
@@ -65,5 +74,17 @@ function process_message ()
 end
 
 function timer_event(ns)
-    inject_message(status, "HTTP Status")
+    if anomaly_config then
+        if not alert.throttled(ns) then
+            local msg, annos = anomaly.detect(ns, title, status, anomaly_config)
+            if msg then
+                annotation.concat(title, annos)
+                alert.send(ns, msg)
+            end
+        end
+        output({annotations = annotation.prune(title)}, status)
+        inject_message("cbuf", title)
+    else
+        inject_message(status, title)
+    end
 end

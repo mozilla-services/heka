@@ -51,6 +51,15 @@ API
     *Return*
         - The pruned list of annotations.
 
+**remove(name)**
+    Entirely remove the payload name from the global *_ANNOTATIONS* table.
+
+    *Arguments*
+        - name (string) circular buffer payload name.
+
+    *Return*
+        - none
+
 **set_prune(name, ns_duration)**
 
     *Arguments*
@@ -96,6 +105,11 @@ end
 function add(name, ns, col, stext, text)
     local a = create_key(name)
     table.insert(a, create(ns, col, stext, text))
+end
+
+
+function remove(name)
+    _ANNOTATIONS[name] = nil
 end
 
 
