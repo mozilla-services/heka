@@ -41,7 +41,7 @@ type HekadConfig struct {
 	BaseDir               string        `toml:"base_dir"`
 	ShareDir              string        `toml:"share_dir"`
 	SampleDenominator     int           `toml:"sample_denominator"`
-	PidFile               string        `toml:"pidfile"`
+	PidFile               string        `toml:"pid_file"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
