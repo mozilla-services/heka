@@ -142,7 +142,7 @@ Config:
     calculated for one message out of 1000.
 
 .. versionadded:: 0.6
-- pidfile (string):
+- pid_file (string):
     Optionally specify the location of a pidfile where the process id of
     the running hekad process will be written. The hekad process must have
     read and write access to the parent directory (which is not automatically

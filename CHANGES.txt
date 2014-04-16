@@ -16,7 +16,7 @@ Bug Handling
 Features
 --------
 
-* Added the optional 'pidfile' configuration setting (issue #777).
+* Added the optional 'pid_file' configuration setting (issue #777).
 
 * Add anomaly, alert, annotation modules (issue #677)
 
