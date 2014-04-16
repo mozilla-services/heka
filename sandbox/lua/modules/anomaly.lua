@@ -271,7 +271,7 @@ function parse_config(config)
     local col = l.P"," * l.space^0 * l.Cg(l.digit^1 / tonumber, "col")
     local name = l.P'"' * l.Cs(((l.P(1) - '"') + l.P'""' / '"')^1) * '"'
 
-    local tf = l.P"true" + "false"
+    local tf = l.P"true" / function() return true end + l.P"false" / function() return false end
     local start_of_data = sep * l.Cg(tf, "start_of_data")
     local loss_of_data = sep*  l.Cg(tf, "loss_of_data")
     local sd = sep * l.Cg(l.digit^1 * (l.P"." * l.digit^1)^-1 / tonumber, "sd")

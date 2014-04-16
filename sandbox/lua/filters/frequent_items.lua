@@ -45,44 +45,40 @@ require "math"
 require "os"
 require "string"
 
-local message_variable = read_config("message_variable")
-local max_items = read_config("max_items") or 1000
+local message_variable  = read_config("message_variable")
+local max_items         = read_config("max_items") or 1000
 local min_output_weight = read_config("min_output_weight") or 100
-local reset_days = read_config("reset_days") or 1
-
-local WEIGHT = 1
+local reset_days        = read_config("reset_days") or 1
 
 local function get_day_number()
     return math.floor(os.time() / (60 * 60 * 24))
 end
 
-items = {}
-items_size = 0
-day = get_day_number()
+items       = {}
+items_size  = 0
+day         = get_day_number()
 
 function process_message ()
     local item = read_message(message_variable)
-    if item == nil then return 0 end
+    if not item then return -1 end
 
     local i = items[item]
-    if i == nil  then
+    if i then
+        items[item] = i + 1
+    else
         if items_size == max_items then
             for k,v in pairs(items) do
-                v[WEIGHT] = v[WEIGHT] - 1
-                if  v[WEIGHT] == 0 then
+                if v == 1 then
                     items[k] = nil
                     items_size = items_size - 1
+                else
+                    items[k] = v - 1
                 end
             end
         else
-            i = {0}
-            items[item] = i
+            items[item] = 1
             items_size = items_size + 1
         end
-    end
-
-    if i ~= nil then
-        i[WEIGHT] = i[WEIGHT] + 1
     end
 
     return 0
@@ -91,8 +87,8 @@ end
 function timer_event(ns)
     output(message_variable, "\tWeight\n")
     for k, v in pairs(items) do
-        if v[WEIGHT] > min_output_weight then
-            output(string.format("%s\t%d\n", k, v[WEIGHT]))
+        if v > min_output_weight then
+            output(string.format("%s\t%d\n", k, v))
         end
     end
     inject_message("tsv", string.format("Weighting by %s", message_variable))
@@ -106,4 +102,3 @@ function timer_event(ns)
         end
     end
 end
-

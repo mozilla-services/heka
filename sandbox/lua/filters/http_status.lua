@@ -44,7 +44,7 @@ local anomaly       = require "anomaly"
 local title             = "HTTP Status"
 local rows              = read_config("rows") or 1440
 local sec_per_row       = read_config("sec_per_row") or 60
-local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
+local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
 status = circular_buffer.new(rows, 5, sec_per_row)
@@ -82,7 +82,7 @@ function timer_event(ns)
                 alert.send(ns, msg)
             end
         end
-        output({annotations = annotation.prune(title)}, status)
+        output({annotations = annotation.prune(title, ns)}, status)
         inject_message("cbuf", title)
     else
         inject_message(status, title)

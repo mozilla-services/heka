@@ -104,7 +104,7 @@ function timer_event(ns)
                     annotation.concat(k, annos)
                 end
             end
-            output({annotations = annotation.prune(k)}, v)
+            output({annotations = annotation.prune(k, ns)}, v)
             inject_message("cbuf", k)
         else
             inject_message(v, k)
