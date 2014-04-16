@@ -16,6 +16,8 @@ Bug Handling
 Features
 --------
 
+* Added the optional 'pidfile' configuration setting (issue #777).
+
 * Add anomaly, alert, annotation modules (issue #677)
 
 * Added 'sample_denominator' global config setting to allow tweaking the
