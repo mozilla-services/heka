@@ -35,6 +35,8 @@ Features
 * Added http_timeout to elasticsearch output to prevent slow or stale connections 
   from holding up the flow. (issue #769)
 
+* Add query parameters to the Message as Fields in the HttpListenInput
+
 0.5.2 (2014-MM-DD)
 ==================
 
