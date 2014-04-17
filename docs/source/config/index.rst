@@ -174,16 +174,16 @@ Example hekad.toml file
     # Counts throughput of messages sent from a Heka load testing tool.
     [CounterFilter]
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
+    ticker_interval = 1
 
     # Defines a sandboxed filter that will be written in Lua.
     [lua_sandbox]
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
+    ticker_interval = 1
     script_type = "lua"
     preserve_data = true
-    filename = "lua/sandbox.lua"
+    filename = "lua_filters/sandbox.lua"
 
 .. end-hekad-toml
 
