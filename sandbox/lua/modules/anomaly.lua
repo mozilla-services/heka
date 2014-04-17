@@ -5,7 +5,7 @@
 --[[
 API
 ---
-**parse(anomaly_config)**
+**parse_config(anomaly_config)**
     Parses the anomaly_config into a Lua table. If the configuration is invalid
     an error is thrown.
 
@@ -133,7 +133,7 @@ local function mww(name, cbuf, cfg)
     local end_time = start_time + win_size - ns_per_row
     local mean = cbuf:compute("avg", cfg.col, start_time, end_time)
     local result = 0
-    for s=start_time + win_size, current_time-1, win_size do
+    for s=start_time + win_size, current_time - ns_per_row - 1, win_size do
         local e = s + win_size - ns_per_row
         if cfg.trend == "decreasing" then
             if cbuf:compute("avg", cfg.col, s, e) - mean < 0 then
