@@ -24,6 +24,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(HttpInputSpec)
+	r.AddSpec(HttpListenInputSpec)
 
 	gospec.MainGoTest(r, t)
 }

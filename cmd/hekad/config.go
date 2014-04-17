@@ -41,6 +41,7 @@ type HekadConfig struct {
 	BaseDir               string        `toml:"base_dir"`
 	ShareDir              string        `toml:"share_dir"`
 	SampleDenominator     int           `toml:"sample_denominator"`
+	PidFile               string        `toml:"pid_file"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -59,6 +60,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
 		ShareDir:              filepath.FromSlash("/usr/share/heka"),
 		SampleDenominator:     1000,
+		PidFile:               "",
 	}
 
 	var configFile map[string]toml.Primitive
