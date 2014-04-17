@@ -71,19 +71,18 @@ API
 --]]
 
 -- Global Exports
-
 _ANNOTATIONS = {} -- throw the annotations into global space so they are
                   -- preserved. Not really liking this but from a usability
                   -- and preservation perspective it makes things more seamless.
 
 -- Imports
-local math  = require "math"
-local table = require "table"
-local ipairs = ipairs
-local _ANNOTATIONS = _ANNOTATIONS
+require "math"
+require "table"
 
 local M = {}
-setfenv(1, M) -- Remove external access to contain everything in the module
+-- We cannot remove external access because we need to use the global
+-- _ANNOTATIONS which will not be the same table as we import after a data
+-- restoration.
 
 local prune_duration = 60 * 60 * 24 * 1e9 -- default it to a day
 
@@ -97,23 +96,23 @@ local function create_key(name)
 end
 
 
-function create(ns, col, stext, text)
+function M.create(ns, col, stext, text)
     return {x = math.floor(ns/1e6), col = col, shortText = stext, text = text}
 end
 
 
-function add(name, ns, col, stext, text)
+function M.add(name, ns, col, stext, text)
     local a = create_key(name)
-    table.insert(a, create(ns, col, stext, text))
+    table.insert(a, M.create(ns, col, stext, text))
 end
 
 
-function remove(name)
+function M.remove(name)
     _ANNOTATIONS[name] = nil
 end
 
 
-function concat(name, annotations)
+function M.concat(name, annotations)
     local a = create_key(name)
     for i, v in ipairs(annotations) do
         table.insert(a, v)
@@ -121,7 +120,7 @@ function concat(name, annotations)
 end
 
 
-function prune(name, ns)
+function M.prune(name, ns)
     local a = _ANNOTATIONS[name]
     if not a then
         return
@@ -153,7 +152,7 @@ function prune(name, ns)
 end
 
 
-function set_prune(name, ns_duration)
+function M.set_prune(name, ns_duration)
     local a = create_key(name)
     a._prune_duration = ns_duration
 end
