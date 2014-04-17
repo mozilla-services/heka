@@ -1,3 +1,5 @@
+// +build geoip
+
 /***** BEGIN LICENSE BLOCK *****
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -40,7 +42,15 @@ func GeoIpDecoderSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+        origGlobals := Globals
+        Globals = func() *GlobalConfigStruct {
+                return DefaultGlobals()
+        }
+        defer func() {
+                Globals = origGlobals
+        }()
 
+	Globals().ShareDir = "/usr/share/heka/"
 
 	c.Specify("A GeoIpDecoder", func() {
 		decoder := new(GeoIpDecoder)
