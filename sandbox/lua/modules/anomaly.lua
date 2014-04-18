@@ -59,7 +59,22 @@ API
             - trend (string)
                 (decreasing|increasing|any)
 
-            e.g. mww("Output1", 2, 15, 10, 0.0001, decreasing)
+            e.g. mww("Output1", 2, 60, 10, 0.0001, decreasing)
+
+        *mww_nonparametric("payload name", col, win, nwin, trend)*
+            - col (uint)
+                The circular buffer column to perform the analysis on.
+
+            - win (uint)
+                The number of intervals in an analysis window.
+
+            - nwin (uint)
+                The number of analysis windows to compare.
+
+            - trend (string)
+                (decreasing|increasing)
+
+            e.g. mww_nonparametric("Output1", 2, 15, 10, increasing)
 
     *Return*
         - configuration table if parsing was successful or nil, if nil was passed in.
@@ -109,7 +124,7 @@ Arguments:
 
 - cfg (table)
     - algorithm (string)
-        "roc"
+        "mww"
 
     - configuration args documented above.
 
@@ -129,21 +144,21 @@ local function mww(name, cbuf, cfg)
     end
 
     local win_size = cfg.win * ns_per_row
-    local start_time = current_time - win_size * cfg.nwin
+    local start_time = current_time - win_size
     local end_time = start_time + win_size - ns_per_row
     local mean = cbuf:compute("avg", cfg.col, start_time, end_time)
     local result = 0
-    for s=start_time + win_size, current_time - ns_per_row - 1, win_size do
+    for s=start_time - win_size, current_time - win_size * cfg.nwin + 1, -win_size do
         local e = s + win_size - ns_per_row
         if cfg.trend == "decreasing" then
-            if cbuf:compute("avg", cfg.col, s, e) - mean < 0 then
+            if cbuf:compute("avg", cfg.col, s, e) - mean > 0 then
                 local u, p = cbuf:mannwhitneyu(cfg.col, start_time, end_time, s, e)
                 if p and p < cfg.pvalue then
                     result = result + 1
                 end
             end
         elseif cfg.trend == "increasing" then
-            if cbuf:compute("avg", cfg.col, s, e) - mean > 0 then
+            if cbuf:compute("avg", cfg.col, s, e) - mean < 0 then
                 local u, p = cbuf:mannwhitneyu(cfg.col, start_time, end_time, s, e)
                 if p and p < cfg.pvalue then
                     result = result + 1
@@ -164,6 +179,62 @@ local function mww(name, cbuf, cfg)
             msg = string.format("detected anomaly, %s values", cfg.trend)
         end
 
+        anno = annotation.create(current_time, cfg.col, "A", msg)
+        msg = string.format("%s - algorithm: %s col: %d msg: %s", name, cfg.algorithm, cfg.col, msg)
+    end
+
+    return msg, anno
+end
+
+--[[
+Detect a changing trend in a non parametric data distribution using the Mann-Whitney U test.
+
+Arguments:
+
+- name (string)
+    The name of the circular buffer
+
+- cbuf (circular buffer userdata object)
+
+- cfg (table)
+    - algorithm (string)
+        "mww_nonparametric"
+
+    - configuration args documented above.
+
+Return:
+
+    The error message and annotation if an anomaly is detected, otherwise nil.
+--]]
+local function mww_nonparametric(name, cbuf, cfg)
+    local msg = nil
+    local anno = nil
+    local rows, cols, ns_per_row = cbuf:get_configuration()
+    ns_per_row = ns_per_row * 1e9
+    local current_time = cbuf:current_time()
+
+    if cfg.win * cfg.nwin >=  rows then
+        error(string.format("%s - algorithm: %s col: %d msg: arguments out of range", name, cfg.algorithm, cfg.col))
+    end
+
+    local win_size = cfg.win * ns_per_row
+    local start_time = current_time - win_size
+    local end_time = start_time + win_size - ns_per_row
+    local mean = cbuf:compute("avg", cfg.col, start_time, end_time)
+    local result = 0
+    for s=start_time - win_size, current_time - win_size * cfg.nwin + 1, -win_size do
+        local e = s + win_size - ns_per_row
+        local u, p = cbuf:mannwhitneyu(cfg.col, start_time, end_time, s, e)
+        local pstat = u / (cfg.win * cfg.win)
+        if cfg.trend == "decreasing" and pstat > 0.5 then
+            result = result + 1
+        elseif cfg.trend == "increasing" and pstat < 0.5 then
+            result = result + 1
+        end
+    end
+
+    if result > cfg.nwin / 2 then
+        msg = string.format("detected anomaly, %s values", cfg.trend)
         anno = annotation.create(current_time, cfg.col, "A", msg)
         msg = string.format("%s - algorithm: %s col: %d msg: %s", name, cfg.algorithm, cfg.col, msg)
     end
@@ -282,10 +353,13 @@ function parse_config(config)
     local nwin = sep * l.Cg(l.digit^1 / tonumber, "nwin")
     local pvalue = sep * l.Cg(l.digit^1 * (l.P"." * l.digit^1)^-1 / tonumber, "pvalue")
     local trend = sep * l.Cg(l.P"decreasing" + "increasing" + "any", "trend")
+    local nonparametric_trend = sep * l.Cg(l.P"decreasing" + "increasing", "trend")
     local mww_args = l.Ct(col * win * nwin * pvalue * trend * l.Cg(l.Cc("mww"), "algorithm"))
     local mww = l.space^0 * "mww(" * name * mww_args * ")"
+    local mww_noparametric_args = l.Ct(col * win * nwin * nonparametric_trend * l.Cg(l.Cc("mww_nonparametric"), "algorithm"))
+    local mww_nonparametric = l.space^0 * "mww_nonparametric(" * name * mww_noparametric_args * ")"
 
-    local grammar = l.Cf(l.Ct"" * l.Cg(roc + mww)^1, build_config_table) * -1
+    local grammar = l.Cf(l.Ct"" * l.Cg(roc + mww_nonparametric + mww)^1, build_config_table) * -1
 
     local c = grammar:match(config)
     if not c then
@@ -324,6 +398,8 @@ function detect(ns, name, cbuf, anomaly_config)
             msg, anno = roc(name, cbuf, cfg)
         elseif cfg.algorithm == "mww" then
             msg, anno = mww(name, cbuf, cfg)
+        elseif cfg.algorithm == "mww_nonparametric" then
+            msg, anno = mww_nonparametric(name, cbuf, cfg)
         else
             error(string.format("%s - algorithm: %s col: %d msg: unknown algorithm", name, cfg.algorithm, cfg.col))
         end
