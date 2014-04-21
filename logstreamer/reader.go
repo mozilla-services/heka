@@ -16,6 +16,7 @@ package logstreamer
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha1"
 	"encoding/json"
 	"errors"
@@ -147,6 +148,22 @@ func (l *LogstreamLocation) Save() error {
 		return fmt.Errorf("Error writing seek recovery log: %s", file_err.Error())
 	}
 	return nil
+}
+
+func (l *Logstream) OpenLogfile(filename string) (fd *os.File, reader io.Reader, err error) {
+	fd, err = os.Open(filename)
+	if err != nil {
+		return
+	}
+	// If file looks gzipped, create a gzip reader.
+	if filename[len(filename)-3:] == ".gz" {
+		if reader, err = gzip.NewReader(fd); err != nil {
+			return
+		}
+	} else {
+		reader = fd
+	}
+	return
 }
 
 // Determine if a newer file is available, if it is, return the filename of it.
