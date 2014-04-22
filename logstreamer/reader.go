@@ -16,6 +16,7 @@ package logstreamer
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha1"
 	"encoding/json"
 	"errors"
@@ -183,7 +184,7 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 	if ok {
 		// 1. NO - Try and find our location
-		fd, err := l.LocatePriorLocation(false)
+		fd, _, err := l.LocatePriorLocation(false)
 
 		if err != nil && IsFileError(err) {
 			return "", false
@@ -275,7 +276,7 @@ func (l *Logstream) FileHashMismatch() bool {
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
 // reflect the move.
-func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err error) {
+func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader, err error) {
 	var info os.FileInfo
 	l.lfMutex.RLock()
 	defer l.lfMutex.RUnlock()
@@ -283,7 +284,7 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err er
 	if checkFilename {
 		fileIndex := l.logfiles.IndexOf(l.position.Filename)
 		if fileIndex != -1 {
-			fd, err = SeekInFile(l.position.Filename, l.position)
+			fd, reader, err = SeekInFile(l.position.Filename, l.position)
 			if err == nil {
 				return
 			}
@@ -310,7 +311,7 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err er
 			continue
 		}
 
-		fd, err = SeekInFile(logfile.FileName, l.position)
+		fd, reader, err = SeekInFile(logfile.FileName, l.position)
 		if err == nil {
 			// Located the position! Update the filename in the position
 			l.position.Filename = logfile.FileName
@@ -327,8 +328,18 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, err er
 	return
 }
 
+// Guess if the file is gzipped and create a gzip reader if so.
+func CreateFileReader(path string, fd *os.File) (reader io.Reader, err error) {
+	if path[len(path)-3:] == ".gz" {
+		reader, err = gzip.NewReader(fd)
+	} else {
+		reader = fd
+	}
+	return
+}
+
 // Seek into a file, return an error if a match wasn't found
-func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err error) {
+func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, reader io.Reader, err error) {
 	if fd, err = os.Open(path); err != nil {
 		return
 	}
@@ -336,6 +347,7 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 	// Try to get to our seek position, if our seek is 0, then start at the
 	// beginning
 	if position.SeekPosition == 0 {
+		reader, err = CreateFileReader(path, fd)
 		return
 	}
 
@@ -350,11 +362,13 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, err erro
 			tmp := fmt.Sprintf("%x", h.Sum(nil))
 			if tmp == position.Hash {
 				position.lastLine.Write(buf)
-				return fd, nil
+				// Now that seeking is done, create a gzip reader if needed.
+				reader, err = CreateFileReader(path, fd)
+				return fd, reader, nil
 			}
 		}
 	}
-	return nil, errors.New("Unable to locate position")
+	return nil, nil, errors.New("Unable to locate position")
 }
 
 // TODO:: Refactor into a different heka package for use by all plugins
@@ -413,9 +427,11 @@ func (l *Logstream) Read(p []byte) (n int, err error) {
 	// This is a fresh read attempt with no existing file descriptor
 	// If we have a position, attempt to restore it
 	var fd *os.File
+	var reader io.Reader
 	if l.position.Filename != "" {
-		if fd, err = l.LocatePriorLocation(true); err == nil {
+		if fd, reader, err = l.LocatePriorLocation(true); err == nil {
 			l.fd = fd
+			l.reader = reader
 			return l.readBytes(p)
 		}
 		// Did we get an OS level error attempting to open a file somewhere?
@@ -458,7 +474,8 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	}
 
 	// We're ready to read, commit the read and update our position
-	n, err = l.fd.Read(p)
+	// TODO: should anything be done with the fd?
+	n, err = l.reader.Read(p)
 
 	// If we read any bytes, write them to our saveBuffer.
 	// If our saveBuffer is smaller than the buffer we were just passed,
@@ -483,6 +500,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		// Some unexpected error, reset everything
 		l.fd.Close()
 		l.fd = nil
+		l.reader = nil
 		l.position.Reset()
 		return
 	}
@@ -522,6 +540,13 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 		return
 	}
 
+	// Create a gzip reader if needed.
+	var reader io.Reader
+	reader, err = CreateFileReader(newerFilename, fd)
+	if err != nil {
+		return
+	}
+
 	// Verify that our newerFilename is still what we think it should
 	// be and our files didn't move around between calls, if we were
 	// rotated after the other NewerFileAvailable call then the filename
@@ -539,8 +564,10 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 	l.FlushBuffer(0)
 	l.fd.Close()
 	l.position.Reset()
+
 	l.position.Filename = newerFilename
 	l.fd = fd
+	l.reader = reader
 	l.priorEOF = false
 
 	// Now attempt to read
