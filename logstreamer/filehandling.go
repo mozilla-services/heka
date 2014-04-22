@@ -17,6 +17,7 @@ package logstreamer
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -298,6 +299,9 @@ type Logstream struct {
 	logfiles Logfiles
 	position *LogstreamLocation
 	fd       *os.File
+	// If the file is gzipped, reader is a gzip reader. Otherwise,
+	// reader is the fd.
+	reader io.Reader
 	// Buffer data read in blocks so that we can control precisely how
 	// much of the data read is saved in the logstream location each time
 	// to saving into a record partially.
