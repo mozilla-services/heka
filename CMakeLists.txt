@@ -45,7 +45,7 @@ if (NOT INCLUDE_GEOIP)
     message(STATUS "GeoIP.h was not found, GeoIP functionality will not be included in this build.")
 else()
     message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
-    set(TAGS ${TAGS} geoip)
+    set(TAGS "${TAGS} geoip")
 endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
