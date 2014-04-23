@@ -4,11 +4,25 @@
 Backwards Incompatibilities
 ---------------------------
 
+* The rsyslog decoder now further parses the %SYSLOGTAG% variable. The 
+fields.syslogtag no longer exists and is replaced by fields.programname and
+message.Pid (issue #677).
+
+* Removed no-longer-used 'decoder_poolsize' global config setting.
+
 Bug Handling
 ------------
 
 Features
 --------
+
+* Added the optional 'pid_file' configuration setting (issue #777).
+
+* Add anomaly, alert, annotation modules (issue #677)
+
+* Added 'sample_denominator' global config setting to allow tweaking the
+  sample interval when computing timing of certain operations, replacing prior
+  hard-coded DURATION_SAMPLE_DENOMINATOR constant (issue #625).
 
 * Added an Apache access log decoder based on the Apache 'LogFormat'
   configuration directive.
@@ -20,11 +34,27 @@ Features
   encountered can cause the sending goroutine to backoff and
   resend data.
 
+* Added http_timeout to elasticsearch output to prevent slow or stale connections 
+  from holding up the flow. (issue #769)
+
+* Add query parameters to the Message as Fields in the HttpListenInput
+
 0.5.2 (2014-MM-DD)
 ==================
 
 Bug Handling
 ------------
+
+* Terminated plugins are now removed from the SandboxManager quota (issue #774).
+
+* Fixed SIGUSR1 triggered text report to stdout to work with updated
+  heka.all-report JSON data structure (issue #762).
+
+* MultiDecoder now uses message.GetType() instead of Message.Type so
+  emitted message type will be generated correctly (issue #761).
+
+* LogstreamerInput no longer causes Heka to fail to start on empty or
+  whitespace-only journal files (issue #755).
 
 * The cbufd_host_aggregator filter now properly reclaims expired hosts.
 

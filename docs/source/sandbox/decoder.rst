@@ -7,6 +7,12 @@
 Available Sandbox Decoders
 ==========================
 
+Apache Access Log Decoder
+------------------------
+.. include:: ../../../sandbox/lua/decoders/apache_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Nginx Access Log Decoder
 ------------------------
 .. include:: ../../../sandbox/lua/decoders/nginx_access.lua

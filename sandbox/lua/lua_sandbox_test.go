@@ -1018,6 +1018,123 @@ func TestReadNextField(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestAlert(t *testing.T) {
+	var sbc SandboxConfig
+	tests := []string{
+		"alert1\nalert2\nalert3",
+		"alert5",
+		"alert8",
+	}
+
+	sbc.ScriptFilename = "./testsupport/alert.lua"
+	sbc.ModuleDirectory = "./modules"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("", "")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	cnt := 0
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if pt != "alert" {
+			t.Errorf("Payload type, expected: \"alert\" received: \"%s\"", pt)
+		}
+		if p != tests[cnt] {
+			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", tests[cnt], p)
+		}
+		cnt++
+		return 0
+	})
+
+	for i, _ := range tests {
+		pack.Message.SetTimestamp(int64(i))
+		r := sb.ProcessMessage(pack)
+		if r != 0 {
+			t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+		}
+	}
+	sb.Destroy("")
+	if cnt != len(tests) {
+		t.Errorf("Executed %d test, expected %d", cnt, len(tests))
+	}
+}
+
+func TestAnnotation(t *testing.T) {
+	var sbc SandboxConfig
+	tests := []string{
+		"{\"annotations\":[{\"text\":\"anomaly\",\"x\":1000,\"shortText\":\"A\",\"col\":1},{\"text\":\"anomaly2\",\"x\":5000,\"shortText\":\"A\",\"col\":2},{\"text\":\"maintenance\",\"x\":60000,\"shortText\":\"M\",\"col\":1}]}\n",
+		"{\"annotations\":[{\"text\":\"maintenance\",\"x\":60000,\"shortText\":\"M\",\"col\":1}]}\n",
+		"{\"annotations\":{}}\n",
+		"ok",
+	}
+
+	sbc.ScriptFilename = "./testsupport/annotation.lua"
+	sbc.ModuleDirectory = "./modules"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("", "")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	cnt := 0
+	sb.InjectMessage(func(p, pt, pn string) int {
+		if p != tests[cnt] {
+			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", tests[cnt], p)
+		}
+		cnt++
+		return 0
+	})
+
+	for i, _ := range tests {
+		pack.Message.SetTimestamp(int64(i))
+		r := sb.ProcessMessage(pack)
+		if r != 0 {
+			t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+		}
+	}
+	sb.Destroy("")
+	if cnt != len(tests) {
+		t.Errorf("Executed %d test, expected %d", cnt, len(tests))
+	}
+}
+
+func TestAnomaly(t *testing.T) {
+	var sbc SandboxConfig
+
+	sbc.ScriptFilename = "./testsupport/anomaly.lua"
+	sbc.ModuleDirectory = "./modules"
+	sbc.MemoryLimit = 1e6
+	sbc.InstructionLimit = 1e6
+	sbc.OutputLimit = 1000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("", "")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	r := sb.ProcessMessage(pack)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
+	}
+	sb.Destroy("")
+}
+
 func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/serialize.lua"

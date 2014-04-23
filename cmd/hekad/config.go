@@ -30,7 +30,6 @@ import (
 type HekadConfig struct {
 	Maxprocs              int           `toml:"maxprocs"`
 	PoolSize              int           `toml:"poolsize"`
-	DecoderPoolSize       int           `toml:"decoder_poolsize"`
 	ChanSize              int           `toml:"plugin_chansize"`
 	CpuProfName           string        `toml:"cpuprof"`
 	MemProfName           string        `toml:"memprof"`
@@ -41,6 +40,8 @@ type HekadConfig struct {
 	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
 	BaseDir               string        `toml:"base_dir"`
 	ShareDir              string        `toml:"share_dir"`
+	SampleDenominator     int           `toml:"sample_denominator"`
+	PidFile               string        `toml:"pid_file"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -48,7 +49,6 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:              100,
-		DecoderPoolSize:       4,
 		ChanSize:              50,
 		CpuProfName:           "",
 		MemProfName:           "",
@@ -59,6 +59,8 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxPackIdle:           idle,
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
 		ShareDir:              filepath.FromSlash("/usr/share/heka"),
+		SampleDenominator:     1000,
+		PidFile:               "",
 	}
 
 	var configFile map[string]toml.Primitive

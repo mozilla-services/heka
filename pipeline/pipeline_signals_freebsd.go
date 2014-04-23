@@ -8,23 +8,12 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Rob Miller (rmiller@mozilla.com)
+#   Victor Ng (vng@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
-package http
+package pipeline
 
-import (
-	"github.com/rafrombrc/gospec/src/gospec"
-	"testing"
-)
+import "syscall"
 
-func TestAllSpecs(t *testing.T) {
-	r := gospec.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(HttpInputSpec)
-	r.AddSpec(HttpListenInputSpec)
-
-	gospec.MainGoTest(r, t)
-}
+const SIGUSR1 = syscall.SIGUSR1

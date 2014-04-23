@@ -182,7 +182,7 @@ func (md *MultiDecoder) loadSection(sectionName string,
 	}
 	wrapper.ConfigCreator = func() interface{} { return config }
 
-  if wantsName, ok := plugin.(WantsName); ok {
+	if wantsName, ok := plugin.(WantsName); ok {
 		wantsName.SetName(wrapper.Name)
 	}
 
@@ -281,7 +281,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 	if pack.Message.GetType() == "" {
 		newType = fmt.Sprintf("heka.%s", md.Name)
 	} else {
-		newType = fmt.Sprintf("heka.%s.%s", md.Name, pack.Message.Type)
+		newType = fmt.Sprintf("heka.%s.%s", md.Name, pack.Message.GetType())
 	}
 	pack.Message.SetType(newType)
 

@@ -58,6 +58,8 @@ type SandboxFilter struct {
 	preservationFile       string
 	reportLock             sync.Mutex
 	name                   string
+	sampleDenominator      int
+	manager                *SandboxManagerFilter
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
@@ -80,6 +82,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	}
 	this.sbc = config.(*SandboxConfig)
 	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
+	this.sampleDenominator = pipeline.Globals().SampleDenominator
 
 	data_dir := pipeline.PrependBaseDir(DATA_DIR)
 	if !fileExists(data_dir) {
@@ -265,7 +268,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				if retval < 0 {
 					atomic.AddInt64(&this.processMessageFailures, 1)
 				}
-				sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
+				sample = 0 == rand.Intn(this.sampleDenominator)
 			} else {
 				terminated = true
 			}
@@ -316,6 +319,9 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
+	if this.manager != nil {
+		this.manager.PluginExited()
+	}
 	if this.sbc.PreserveData {
 		this.sb.Destroy(this.preservationFile)
 	} else {
