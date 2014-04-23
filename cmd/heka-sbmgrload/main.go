@@ -130,6 +130,7 @@ preserve_data = true
 		for i := 0; i < *numItems; i++ {
 			conf := fmt.Sprintf(confFmt, i)
 			msg := &message.Message{}
+			msg.SetLogger("heka-sbmgrload")
 			msg.SetType("heka.control.sandbox")
 			msg.SetTimestamp(time.Now().UnixNano())
 			msg.SetUuid(uuid.NewRandom())

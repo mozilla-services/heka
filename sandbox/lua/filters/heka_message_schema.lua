@@ -32,6 +32,7 @@ Config:
 |      msg (string)
 --]]
 
+loggers  = {}
 messages = {}
 
 local cnt_key = "_cnt_"
@@ -50,12 +51,22 @@ local function get_type(t)
 end
 
 function process_message ()
+    local l = read_message("Logger")
     local t = read_message("Type")
-    local m = messages[t]
+
+    local logger = loggers[l]
+    if not logger then
+        logger = {}
+        logger[cnt_key] = 0
+        loggers[l] = logger
+    end
+    logger[cnt_key] = logger[cnt_key] + 1
+
+    local m = logger[t]
     if not m then
         m = {}
         m[cnt_key] = 0
-        messages[t] = m
+        logger[t] = m
     end
     m[cnt_key] = m[cnt_key] + 1
 
@@ -76,18 +87,23 @@ function process_message ()
 end
 
 function timer_event(ns)
-    output("Message Types and their associated field attributes. The number in brackets is the number of occurrences of each log type/attribute.\n\n")
-    for k,v in pairs(messages) do
-        local cnt = v[cnt_key]
-         output(k, " [", cnt, "]\n")
-         for m,n in pairs(v) do
-             if m ~= cnt_key then
-                 output("    ", m, " (", get_type(n.type))
-                 if cnt ~= n[cnt_key] then
-                     output(" - optional [", n[cnt_key], "]")
-                 end
-                 output(")\n")
-             end
+    output("Logger -> Message Types -> Field Attributes.\nThe number in brackets is the number of occurrences of each logger/type/attribute.\n\n")
+    for l,t in pairs(loggers) do
+        output(l, " [", t[cnt_key], "]\n")
+        for k,v in pairs(t) do
+            if k ~= cnt_key then
+                local cnt = v[cnt_key]
+                output("    ", k, " [", cnt, "]\n")
+                for m,n in pairs(v) do
+                    if m ~= cnt_key then
+                        output("        ", m, " (", get_type(n.type))
+                        if cnt ~= n[cnt_key] then
+                            output(" - optional [", n[cnt_key], "]")
+                        end
+                        output(")\n")
+                    end
+                end
+            end
         end
     end
     inject_message("txt", "Message Schema")

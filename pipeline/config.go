@@ -28,6 +28,8 @@ import (
 	"time"
 )
 
+const HEKA_DAEMON = "hekad"
+
 var (
 	AvailablePlugins = make(map[string]func() interface{})
 	PluginTypeRegex  = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
@@ -697,7 +699,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	// Load all the plugins
 	var errcnt uint
 	for name, conf := range configFile {
-		if name == "hekad" {
+		if name == HEKA_DAEMON {
 			continue
 		}
 		log.Printf("Loading: [%s]\n", name)
