@@ -127,7 +127,7 @@ local function test_all_nan()
 end
 
 local function test_mww_nonparametric_increasing()
-    local cfg = anomaly.parse_config('mww_nonparametric("Output1", 1, 20, 10, increasing)')
+    local cfg = anomaly.parse_config('mww_nonparametric("Output1", 1, 20, 10, 0.6)')
     local cb = circular_buffer.new(220, 1, 1)
     local i = 1000
     for x = 300, 520 do
@@ -135,7 +135,7 @@ local function test_mww_nonparametric_increasing()
         i = i + 1
     end
     local msg, a = anomaly.detect(520*1e9, "Output1", cb, cfg)
-    assert(msg == "Output1 - algorithm: mww_nonparametric col: 1 msg: detected anomaly, increasing values", msg)
+    assert(msg == "Output1 - algorithm: mww_nonparametric col: 1 msg: detected anomaly, pstat: 0.944444", msg)
     assert(#a == 1, #a)
 end
 

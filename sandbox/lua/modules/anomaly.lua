@@ -61,7 +61,7 @@ API
 
             e.g. mww("Output1", 2, 60, 10, 0.0001, decreasing)
 
-        *mww_nonparametric("payload name", col, win, nwin, trend)*
+        *mww_nonparametric("payload name", col, win, nwin, pstat)*
             - col (uint)
                 The circular buffer column to perform the analysis on.
 
@@ -71,10 +71,11 @@ API
             - nwin (uint)
                 The number of analysis windows to compare.
 
-            - trend (string)
-                (decreasing|increasing)
+            - pstat (double)
+                Value between 0 and 1. Anything above 0.5 is an increasing trend
+                anything below 0.5 is a decreasing trend.
 
-            e.g. mww_nonparametric("Output1", 2, 15, 10, increasing)
+            e.g. mww_nonparametric("Output1", 2, 15, 10, 0.55)
 
     *Return*
         - configuration table if parsing was successful or nil, if nil was passed in.
@@ -207,6 +208,7 @@ Return:
     The error message and annotation if an anomaly is detected, otherwise nil.
 --]]
 local function mww_nonparametric(name, cbuf, cfg)
+    local complete_overlap = 0.5
     local msg = nil
     local anno = nil
     local rows, cols, ns_per_row = cbuf:get_configuration()
@@ -220,21 +222,19 @@ local function mww_nonparametric(name, cbuf, cfg)
     local win_size = cfg.win * ns_per_row
     local start_time = current_time - win_size
     local end_time = start_time + win_size - ns_per_row
-    local mean = cbuf:compute("avg", cfg.col, start_time, end_time)
     local result = 0
     for s=start_time - win_size, current_time - win_size * cfg.nwin + 1, -win_size do
         local e = s + win_size - ns_per_row
         local u, p = cbuf:mannwhitneyu(cfg.col, start_time, end_time, s, e)
-        local pstat = u / (cfg.win * cfg.win)
-        if cfg.trend == "decreasing" and pstat > 0.5 then
-            result = result + 1
-        elseif cfg.trend == "increasing" and pstat < 0.5 then
-            result = result + 1
+        if u then
+            result = result + u / (cfg.win * cfg.win) - complete_overlap
         end
     end
 
-    if result > cfg.nwin / 2 then
-        msg = string.format("detected anomaly, %s values", cfg.trend)
+    local pstat = result / (cfg.nwin - 1) + complete_overlap
+    if cfg.pstat < complete_overlap and pstat < cfg.pstat
+    or cfg.pstat > complete_overlap and pstat > cfg.pstat then
+        msg = string.format("detected anomaly, pstat: %G", pstat)
         anno = annotation.create(current_time, cfg.col, "A", msg)
         msg = string.format("%s - algorithm: %s col: %d msg: %s", name, cfg.algorithm, cfg.col, msg)
     end
@@ -352,11 +352,11 @@ function parse_config(config)
 
     local nwin = sep * l.Cg(l.digit^1 / tonumber, "nwin")
     local pvalue = sep * l.Cg(l.digit^1 * (l.P"." * l.digit^1)^-1 / tonumber, "pvalue")
+    local pstat = sep * l.Cg(l.P"0" * (l.P"." * l.digit^1)^-1 / tonumber, "pstat")
     local trend = sep * l.Cg(l.P"decreasing" + "increasing" + "any", "trend")
-    local nonparametric_trend = sep * l.Cg(l.P"decreasing" + "increasing", "trend")
     local mww_args = l.Ct(col * win * nwin * pvalue * trend * l.Cg(l.Cc("mww"), "algorithm"))
     local mww = l.space^0 * "mww(" * name * mww_args * ")"
-    local mww_noparametric_args = l.Ct(col * win * nwin * nonparametric_trend * l.Cg(l.Cc("mww_nonparametric"), "algorithm"))
+    local mww_noparametric_args = l.Ct(col * win * nwin * pstat * l.Cg(l.Cc("mww_nonparametric"), "algorithm"))
     local mww_nonparametric = l.space^0 * "mww_nonparametric(" * name * mww_noparametric_args * ")"
 
     local grammar = l.Cf(l.Ct"" * l.Cg(roc + mww_nonparametric + mww)^1, build_config_table) * -1
