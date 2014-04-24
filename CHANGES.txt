@@ -39,6 +39,8 @@ Features
 
 * Add query parameters to the Message as Fields in the HttpListenInput
 
+* Add QueueTTL option to AMQPInput to allow specifying message expiration.
+
 0.5.2 (2014-MM-DD)
 ==================
 
