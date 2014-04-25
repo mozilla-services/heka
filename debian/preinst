@@ -31,3 +31,5 @@ fi
 
 # end of NIS tolerance zone
 set -e
+
+install -d -m0755 -o$USER -g$USER /var/cache/hekad
