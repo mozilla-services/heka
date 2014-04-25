@@ -28,27 +28,41 @@ Config:
 - user_agent_conditional (bool, optional, default false)
     Only preserve the http_user_agent value if transform is enabled and fails.
 
+- payload_keep (bool, optional, default false)
+    Always preserve the original log line in the message payload.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
 
-    [ApacheAccessDecoder]
+    [CombinedLogDecoder]
     type = "SandboxDecoder"
     script_type = "lua"
     filename = "lua_decoders/apache_access.lua"
 
-    [ApacheAccessDecoder.config]
-    log_format = '%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
+    [CombinedLogDecoder.config]
+    type = "combined"
     user_agent_transform = true
+    # combined log format
+    log_format = '%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
+
+    # common log format
+    # log_format = '%h %l %u %t \"%r\" %>s %O'
+
+    # vhost_combined log format
+    # log_format = '%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
+
+    # referer log format
+    # log_format = '%{Referer}i -> %U'
 
 *Example Heka Message*
 
 :Timestamp: 2014-01-10 07:04:56 -0800 PST
-:Type: logfile
-:Hostname: trink-x230
+:Type: combined
+:Hostname: test.example.com
 :Pid: 0
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
-:Logger: ApacheAccessInput
+:Logger: TestWebserver
 :Payload:
 :EnvVersion:
 :Severity: 7
@@ -72,10 +86,12 @@ local msg_type      = read_config("type")
 local uat           = read_config("user_agent_transform")
 local uak           = read_config("user_agent_keep")
 local uac           = read_config("user_agent_conditional")
+local payload_keep  = read_config("payload_keep")
 
 local msg = {
 Timestamp   = nil,
 Type        = msg_type,
+Payload     = nil,
 Fields      = nil
 }
 
@@ -88,6 +104,10 @@ function process_message ()
 
     msg.Timestamp = fields.time
     fields.time = nil
+
+    if payload_keep then
+        msg.Payload = log
+    end
 
     if fields.http_user_agent and uat then
         fields.user_agent_browser,
