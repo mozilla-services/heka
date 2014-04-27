@@ -254,19 +254,37 @@ func (l *Logstream) FileHashMismatch() bool {
 	}
 	defer fd.Close()
 
-	// Try to get to our seek position.
-	if _, err = fd.Seek(l.position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
-		// We should be at the beginning of the last line read the last
-		// time Heka ran.
-		buf := make([]byte, LINEBUFFERLEN)
-		n, err := fd.Read(buf)
-		if err == nil && n == LINEBUFFERLEN {
-			h := sha1.New()
-			h.Write(buf)
-			tmp := fmt.Sprintf("%x", h.Sum(nil))
-			if tmp == l.position.Hash {
-				return false
-			}
+	// Try to seek (or read, if the file is gzipped) to the last line but one.
+	var reader io.Reader
+	seekPos := l.position.SeekPosition - int64(LINEBUFFERLEN)
+
+	if isGzipFile(l.position.Filename) {
+		reader, err = gzip.NewReader(fd)
+		if err != nil {
+			return false
+		}
+		garbage := make([]byte, seekPos)
+		n, err := reader.Read(garbage)
+		if err != nil || int64(n) != seekPos {
+			return false
+		}
+	} else {
+		reader = fd
+		_, err = fd.Seek(l.position.SeekPosition-int64(LINEBUFFERLEN), 0)
+		if err != nil {
+			return false
+		}
+	}
+
+	// Check if the last line corresponds to the current hash.
+	buf := make([]byte, LINEBUFFERLEN)
+	n, err := reader.Read(buf)
+	if err == nil && n == LINEBUFFERLEN {
+		h := sha1.New()
+		h.Write(buf)
+		tmp := fmt.Sprintf("%x", h.Sum(nil))
+		if tmp == l.position.Hash {
+			return false
 		}
 	}
 	return true
@@ -356,27 +374,54 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, reader i
 	// Try to get to our seek position, if our seek is 0, then start at the
 	// beginning
 	if position.SeekPosition == 0 {
-		reader, err = CreateFileReader(path, fd)
+		reader, err = createFileReader(path, fd)
 		return
 	}
 
-	if _, err = fd.Seek(position.SeekPosition-int64(LINEBUFFERLEN), 0); err == nil {
-		// We should be at the beginning of the last line read the last
-		// time Heka ran.
-		buf := make([]byte, LINEBUFFERLEN)
-		n, err := fd.Read(buf)
-		if err == nil && n == LINEBUFFERLEN {
-			h := sha1.New()
-			h.Write(buf)
-			tmp := fmt.Sprintf("%x", h.Sum(nil))
-			if tmp == position.Hash {
-				position.lastLine.Write(buf)
-				// Now that seeking is done, create a gzip reader if needed.
-				reader, err = CreateFileReader(path, fd)
-				return fd, reader, nil
-			}
+	seekPos := position.SeekPosition - int64(LINEBUFFERLEN)
+	gzipped := isGzipFile(path)
+	if gzipped {
+		reader, err = gzip.NewReader(fd)
+		if err != nil {
+			return nil, nil, err
+		}
+		garbage := make([]byte, seekPos)
+		n, err := reader.Read(garbage)
+		if err != nil {
+			return nil, nil, err
+		}
+		if int64(n) != seekPos {
+			return nil, nil, errors.New("Couldn't read gzip to seek position")
+		}
+
+	} else {
+		reader = fd
+		_, err = fd.Seek(seekPos, 0)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
+
+	// We should be at the beginning of the last line read the last
+	// time Heka ran.
+	buf := make([]byte, LINEBUFFERLEN)
+	var n int
+	if gzipped {
+		n, err = reader.Read(buf)
+	} else {
+		n, err = fd.Read(buf)
+	}
+
+	if err == nil && n == LINEBUFFERLEN {
+		h := sha1.New()
+		h.Write(buf)
+		tmp := fmt.Sprintf("%x", h.Sum(nil))
+		if tmp == position.Hash {
+			position.lastLine.Write(buf)
+			return fd, reader, nil
+		}
+	}
+
 	return nil, nil, errors.New("Unable to locate position")
 }
 
