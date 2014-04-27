@@ -325,8 +325,10 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 		if err != nil {
 			return
 		}
-		if info.Size() < l.position.SeekPosition {
-			continue
+		if !isGzipFile(logfile.FileName) {
+			if info.Size() < l.position.SeekPosition {
+				continue
+			}
 		}
 
 		fd, reader, err = SeekInFile(logfile.FileName, l.position)
