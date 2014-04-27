@@ -329,13 +329,22 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 }
 
 // Guess if the file is gzipped and create a gzip reader if so.
-func CreateFileReader(path string, fd *os.File) (reader io.Reader, err error) {
-	if path[len(path)-3:] == ".gz" {
+func createFileReader(path string, fd *os.File) (reader io.Reader, err error) {
+	if isGzipFile(path) {
 		reader, err = gzip.NewReader(fd)
 	} else {
 		reader = fd
 	}
 	return
+}
+
+// Guesses if the given file is gzipped. Currently this uses the filename,
+// but it could sniff the file header.
+func isGzipFile(path string) bool {
+	if path[len(path)-3:] == ".gz" {
+		return true
+	}
+	return false
 }
 
 // Seek into a file, return an error if a match wasn't found
@@ -542,7 +551,7 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 
 	// Create a gzip reader if needed.
 	var reader io.Reader
-	reader, err = CreateFileReader(newerFilename, fd)
+	reader, err = createFileReader(newerFilename, fd)
 	if err != nil {
 		return
 	}
