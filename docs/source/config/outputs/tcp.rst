@@ -25,6 +25,12 @@ Config:
     Specifies how often, in seconds, the output queue files are rolled.
     Defaults to 300.
 
+.. versionadded:: 0.6
+
+- local_address (string):
+    An optional local IP address to use as the source address for outgoing 
+    traffic to this destination. Cannot currently be combined with TLS connections.
+
 Example:
 
 .. code-block:: ini
@@ -32,4 +38,5 @@ Example:
     [aggregator_output]
     type = "TcpOutput"
     address = "heka-aggregator.mydomain.com:55"
+    local_address = "127.0.0.1"
     message_matcher = "Type != 'logfile' && Type != 'heka.counter-output' && Type != 'heka.all-report'"

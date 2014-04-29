@@ -1,4 +1,3 @@
-
 ProcessInput
 ============
 
@@ -79,10 +78,10 @@ Example:
     stderr = false
     trim = true
 
-        [ProcessInput.command.0]
+        [DemoProcessInput.command.0]
         bin = "/bin/cat"
         args = ["../testsupport/process_input_pipes_test.txt"]
 
-        [ProcessInput.command.1]
+        [DemoProcessInput.command.1]
         bin = "/usr/bin/grep"
         args = ["ignore"]

@@ -30,6 +30,7 @@ import (
 type TcpOutput struct {
 	conf                *TcpOutputConfig
 	address             string
+	localAddress        net.Addr
 	connection          net.Conn
 	processMessageCount int64
 	name                string
@@ -41,9 +42,10 @@ type TcpOutput struct {
 type TcpOutputConfig struct {
 	// String representation of the TCP address to which this output should be
 	// sending data.
-	Address string
-	UseTls  bool `toml:"use_tls"`
-	Tls     TlsConfig
+	Address      string
+	LocalAddress string `toml:"local_address"`
+	UseTls       bool   `toml:"use_tls"`
+	Tls          TlsConfig
 	// Interval at which the output queue logs will roll, in
 	// seconds. Defaults to 300.
 	TickerInterval uint `toml:"ticker_interval"`
@@ -63,23 +65,34 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	t.conf = config.(*TcpOutputConfig)
 	t.address = t.conf.Address
 
+	if t.conf.LocalAddress != "" {
+		// Error out if use_tls and local_address options are both set for now
+		if t.conf.UseTls {
+			return fmt.Errorf("Cannot combine local_address %s and use_tls config options", t.localAddress)
+		}
+		t.localAddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
+	}
+
 	if t.bufferedOut, err = NewBufferedOutput("output_queue", t.name); err != nil {
 		return
 	}
 	return
 }
 
-
-
 func (t *TcpOutput) connect() (err error) {
+	dialer := &net.Dialer{LocalAddr: t.localAddress}
+
 	if t.conf.UseTls {
 		var goTlsConf *tls.Config
 		if goTlsConf, err = CreateGoTlsConfig(&t.conf.Tls); err != nil {
 			return fmt.Errorf("TLS init error: %s", err)
 		}
+		// We should use DialWithDialer but its not in GOLANG release yet.
+		// https://code.google.com/p/go/source/detail?r=3d37606fb79393f22a69573afe31f0b0cd4866e3&name=default
+		// t.connection, err = tls.DialWithDialer(dialer, "tcp", t.address, goTlsConf)
 		t.connection, err = tls.Dial("tcp", t.address, goTlsConf)
 	} else {
-		t.connection, err = net.Dial("tcp", t.address)
+		t.connection, err = dialer.Dial("tcp", t.address)
 	}
 	return
 }
@@ -102,7 +115,6 @@ func (t *TcpOutput) SendRecord(record []byte) (err error) {
 		}
 	}
 
-
 	if n, err = t.connection.Write(record); err != nil {
 		cleanupConn()
 		err = fmt.Errorf("writing to %s: %s", t.address, err)
@@ -113,7 +125,6 @@ func (t *TcpOutput) SendRecord(record []byte) (err error) {
 
 	return
 }
-
 
 func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
@@ -132,8 +143,6 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			t.connection = nil
 		}
 	}()
-
-
 
 	t.bufferedOut.Output(t, outputError, outputExit, stopChan)
 

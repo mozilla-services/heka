@@ -141,6 +141,15 @@ Config:
     against a message matcher. Defaults to 1000, i.e. duration will be
     calculated for one message out of 1000.
 
+.. versionadded:: 0.6
+- pid_file (string):
+    Optionally specify the location of a pidfile where the process id of
+    the running hekad process will be written. The hekad process must have
+    read and write access to the parent directory (which is not automatically
+    created). On a successful exit the pidfile will be removed. If the path
+    already exists the contained pid will be checked for a running process.
+    If one is found, the current process will exit with an error.
+
 Example hekad.toml file
 =======================
 
@@ -174,16 +183,16 @@ Example hekad.toml file
     # Counts throughput of messages sent from a Heka load testing tool.
     [CounterFilter]
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
+    ticker_interval = 1
 
     # Defines a sandboxed filter that will be written in Lua.
     [lua_sandbox]
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
+    ticker_interval = 1
     script_type = "lua"
     preserve_data = true
-    filename = "lua/sandbox.lua"
+    filename = "lua_filters/sandbox.lua"
 
 .. end-hekad-toml
 

@@ -73,6 +73,7 @@ func main() {
 
 	hostname, _ := os.Hostname()
 	msg := &message.Message{}
+	msg.SetLogger("heka-sbmgr")
 	msg.SetType("heka.control.sandbox")
 	msg.SetTimestamp(time.Now().UnixNano())
 	msg.SetUuid(uuid.NewRandom())
