@@ -50,6 +50,9 @@ Features
 Bug Handling
 ------------
 
+* Fix the FileOutput panic when HUP'ed.  Modified the CheckWritePermission
+  utility function to use a unique filename for each check. (issue #808)
+
 * Terminated plugins are now removed from the SandboxManager quota (issue #774).
 
 * Fixed SIGUSR1 triggered text report to stdout to work with updated
