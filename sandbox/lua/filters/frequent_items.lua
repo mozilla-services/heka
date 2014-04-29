@@ -73,20 +73,21 @@ function process_message ()
     local i = items[item]
     if i then
         items[item] = i + 1
-    else
-        if items_size == max_items then
-            for k,v in pairs(items) do
-                if v == 1 then
-                    items[k] = nil
-                    items_size = items_size - 1
-                else
-                    items[k] = v - 1
-                end
+        return 0
+    end
+
+    if items_size == max_items then
+        for k,v in pairs(items) do
+            if v == 1 then
+                items[k] = nil
+                items_size = items_size - 1
+            else
+                items[k] = v - 1
             end
-        else
-            items[item] = 1
-            items_size = items_size + 1
         end
+    else
+        items[item] = 1
+        items_size = items_size + 1
     end
 
     return 0
