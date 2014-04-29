@@ -5,6 +5,9 @@
 --[[
 API
 ---
+Stores the last alert time in the global *_LAST_ALERT* so alert throttling will
+persist between restarts.
+
 **queue(ns, msg)**
     Queue an alert message to be sent.
 
@@ -58,20 +61,24 @@ API
     Use a zero timestamp to override message throttling.
 --]]
 
+
+-- Global Exports
+_LAST_ALERT = 0 -- throw the time into global space so it is preserved. Not
+                -- really liking this but from a usability and preservation
+                -- perspective it makes things more seamless.
+
 -- Imports
-local table = require "table"
-local output = output
-local inject_message = inject_message
+require "table"
 
 local M = {}
-setfenv(1, M) -- Remove external access to contain everything in the module
+-- We cannot remove external access because we need to use the global
+-- _LAST_ALERT and have access to the value after data restoration.
 
 local alerts        = nil
-local last_alert    = 0
 local throttle      = 60 * 60 * 1e9 -- maximum 1 message per hour
 
-function queue(ns, msg)
-    if not msg or msg == "" or throttled(ns) then
+function M.queue(ns, msg)
+    if not msg or msg == "" or M.throttled(ns) then
         return false
     end
 
@@ -84,22 +91,22 @@ function queue(ns, msg)
 end
 
 
-function send(ns, msg)
-    if not msg or msg == "" or throttled(ns) then
+function M.send(ns, msg)
+    if not msg or msg == "" or M.throttled(ns) then
         return false
     end
     output(msg)
     inject_message("alert")
 
-    if ns > last_alert then
-        last_alert = ns
+    if ns > _LAST_ALERT then
+        _LAST_ALERT = ns
     end
 
     return true
 end
 
 
-function send_queue(ns)
+function M.send_queue(ns)
     if alerts == nil then
         return false
     end
@@ -107,19 +114,19 @@ function send_queue(ns)
     local msg = table.concat(alerts, "\n")
     alerts = nil
 
-    return send(ns, msg)
+    return M.send(ns, msg)
 end
 
 
-function set_throttle(ns_duration)
+function M.set_throttle(ns_duration)
     throttle = ns_duration
 end
 
 
-function throttled(ns)
+function M.throttled(ns)
     if ns == 0 then
         return false
-    elseif ns < last_alert or ns - last_alert <= throttle then
+    elseif ns < _LAST_ALERT or ns - _LAST_ALERT <= throttle then
         return true
     end
     return false
