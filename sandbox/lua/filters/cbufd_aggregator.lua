@@ -100,7 +100,7 @@ function timer_event(ns)
             if not alert.throttled(ns) then
                 local msg, annos = anomaly.detect(ns, k, v, anomaly_config)
                 if msg then
-                    alert.queue_alert(msg)
+                    alert.queue(ns, msg)
                     annotation.concat(k, annos)
                 end
             end
