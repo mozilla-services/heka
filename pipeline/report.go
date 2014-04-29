@@ -81,6 +81,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.inputRecycleChan), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.input-report")
 	message.NewStringField(msg, "name", "inputRecycleChan")
 	message.NewStringField(msg, "key", "globals")
@@ -90,6 +91,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.injectRecycleChan), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.inject-report")
 	message.NewStringField(msg, "name", "injectRecycleChan")
 	message.NewStringField(msg, "key", "globals")
@@ -100,6 +102,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	message.NewIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&pc.router.processMessageCount), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.router-report")
 	message.NewStringField(msg, "name", "Router")
 	message.NewStringField(msg, "key", "globals")
@@ -113,6 +116,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 			if e == nil {
 				msg.AddField(f)
 			}
+			msg.SetLogger(HEKA_DAEMON)
 			msg.SetType("heka.plugin-report")
 		}
 		return
@@ -216,6 +220,7 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	report_type, msg_payload := pc.allReportsData()
 
 	pack := pc.PipelinePack(0)
+	pack.Message.SetLogger(HEKA_DAEMON)
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
