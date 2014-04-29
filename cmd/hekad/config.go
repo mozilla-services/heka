@@ -18,6 +18,7 @@
 package main
 
 import (
+	"github.com/mozilla-services/heka/pipeline"
 	"fmt"
 	"github.com/bbangert/toml"
 	"io/ioutil"
@@ -94,7 +95,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	}
 
 	empty_ignore := map[string]interface{}{}
-	parsed_config, ok := configFile["hekad"]
+	parsed_config, ok := configFile[pipeline.HEKA_DAEMON]
 	if ok {
 		if err = toml.PrimitiveDecodeStrict(parsed_config, config, empty_ignore); err != nil {
 			err = fmt.Errorf("Can't unmarshal config: %s", err)

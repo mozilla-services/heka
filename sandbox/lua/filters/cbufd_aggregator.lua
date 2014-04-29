@@ -100,11 +100,11 @@ function timer_event(ns)
             if not alert.throttled(ns) then
                 local msg, annos = anomaly.detect(ns, k, v, anomaly_config)
                 if msg then
-                    alert.queue_alert(msg)
+                    alert.queue(ns, msg)
                     annotation.concat(k, annos)
                 end
             end
-            output({annotations = annotation.prune(k)}, v)
+            output({annotations = annotation.prune(k, ns)}, v)
             inject_message("cbuf", k)
         else
             inject_message(v, k)
