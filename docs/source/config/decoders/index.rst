@@ -21,8 +21,15 @@ Nginx Access Log Decoder
 ========================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/decoders/nginx_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Nginx Error Log Decoder
+=======================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/nginx_error.lua
    :start-after: --[[
    :end-before: --]]
 

@@ -19,6 +19,12 @@ Nginx Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+Nginx Error Log Decoder
+-----------------------
+.. include:: ../../../sandbox/lua/decoders/nginx_error.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Rsyslog Decoder
 ---------------
 .. include:: ../../../sandbox/lua/decoders/rsyslog.lua
