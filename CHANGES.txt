@@ -16,6 +16,8 @@ Bug Handling
 Features
 --------
 
+* Added an Nginx error log decoder (issue #785)
+
 * Added the optional 'pid_file' configuration setting (issue #777).
 
 * Add anomaly, alert, annotation modules (issue #677)
