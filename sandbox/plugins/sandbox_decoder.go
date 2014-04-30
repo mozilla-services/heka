@@ -227,11 +227,14 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 func (s *SandboxDecoder) Shutdown() {
 	if s.sb != nil {
 		if s.sbc.PreserveData {
-			s.sb.Destroy(s.preservationFile)
+			s.err = s.sb.Destroy(s.preservationFile)
 		} else {
-			s.sb.Destroy("")
+			s.err = s.sb.Destroy("")
 		}
 		s.sb = nil
+		if s.err != nil {
+			s.dRunner.LogError(s.err)
+		}
 	}
 }
 

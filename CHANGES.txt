@@ -16,6 +16,11 @@ Bug Handling
 Features
 --------
 
+* Added an Nginx error log decoder (issue #785)
+
+* Added the ability to preserve the webserver log line in message payload
+  (issue #784)
+
 * Added the optional 'pid_file' configuration setting (issue #777).
 
 * Add anomaly, alert, annotation modules (issue #677)
@@ -46,6 +51,9 @@ Features
 
 Bug Handling
 ------------
+
+* Fix the FileOutput panic when HUP'ed.  Modified the CheckWritePermission
+  utility function to use a unique filename for each check. (issue #808)
 
 * Terminated plugins are now removed from the SandboxManager quota (issue #774).
 

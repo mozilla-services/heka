@@ -323,9 +323,9 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		this.manager.PluginExited()
 	}
 	if this.sbc.PreserveData {
-		this.sb.Destroy(this.preservationFile)
+		err = this.sb.Destroy(this.preservationFile)
 	} else {
-		this.sb.Destroy("")
+		err = this.sb.Destroy("")
 	}
 	this.sb = nil
 	return
