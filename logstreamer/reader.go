@@ -349,7 +349,7 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 	return
 }
 
-// Guess if the file is gzipped and create a gzip reader if so.
+// Returns an io.Reader. If file is gzipped, returns a gzip.Reader.
 func createFileReader(path string, fd *os.File) (reader io.Reader, err error) {
 	if isGzipFile(path) {
 		reader, err = gzip.NewReader(fd)
