@@ -409,11 +409,7 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, reader i
 	// time Heka ran.
 	buf := make([]byte, LINEBUFFERLEN)
 	var n int
-	if gzipped {
-		n, err = reader.Read(buf)
-	} else {
-		n, err = fd.Read(buf)
-	}
+	n, err = reader.Read(buf)
 
 	if err == nil && n == LINEBUFFERLEN {
 		h := sha1.New()
