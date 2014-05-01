@@ -24,6 +24,7 @@ import (
 	"github.com/mozilla-services/heka/ringbuf"
 	"io"
 	"os"
+	"strings"
 )
 
 // A location in a logstream indicating the farthest that has been read
@@ -361,7 +362,7 @@ func createFileReader(path string, fd *os.File) (reader io.Reader, err error) {
 // Guesses if the given file is gzipped. Currently this uses the filename,
 // but it could sniff the file header.
 func isGzipFile(path string) bool {
-	if path[len(path)-3:] == ".gz" {
+	if strings.HasSuffix(path, ".gz") {
 		return true
 	}
 	return false
