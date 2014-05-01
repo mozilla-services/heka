@@ -24,7 +24,6 @@ import (
 	"github.com/abh/geoip"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-//	"path/filepath"
 	"strconv"
 )
 
