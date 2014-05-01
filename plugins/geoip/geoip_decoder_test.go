@@ -39,21 +39,17 @@ func GeoIpDecoderSpec(c gs.Context) {
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+        NewPipelineConfig(nil)
 
-        origGlobals := Globals
-        Globals = func() *GlobalConfigStruct {
-                return DefaultGlobals()
-        }
-        defer func() {
-                Globals = origGlobals
-        }()
-
-	Globals().ShareDir = "/usr/share/heka/"
+	Globals().ShareDir = "/foo/bar/baz"
 
 	c.Specify("A GeoIpDecoder", func() {
 		decoder := new(GeoIpDecoder)
 		rec := new(geoip.GeoIPRecord)	
 		conf := decoder.ConfigStruct().(*GeoIpDecoderConfig)
+
+                c.Expect(conf.DatabaseFile, gs.Equals, "/foo/bar/baz/GeoLiteCity.dat")
+
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 
