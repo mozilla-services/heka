@@ -63,8 +63,10 @@ Config:
     This may drop data as there is currently no retry.
     Default is 0 (infinite)
 - raw_bytes_field ([]string):
-        This option allows you to specify a list of fields to be passed through
-        the "clean" or "logstash_v0" formatters unchanged.
+    .. versionadded:: 0.6
+
+    This option allows you to specify a list of fields to be passed through
+    the "clean" or "logstash_v0" formatters unchanged.
 
 Example:
 
