@@ -1,0 +1,113 @@
+!_TAG_FILE_FORMAT	2	
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted/
+!_TAG_PROGRAM_AUTHOR	Joel Stemmer	/stemmertech@gmail.com/
+!_TAG_PROGRAM_NAME	gotags	
+!_TAG_PROGRAM_URL	https://github.com/jstemmer/gotags	
+!_TAG_PROGRAM_VERSION	1.2.0	
+AddMessage	logstreamer/filehandling.go	91;"	m	access:public	ctype:MultipleError	line:91	signature:(s string)
+BufferSave	logstreamer/reader.go	398;"	m	access:public	ctype:Logstream	line:398	signature:(p []byte)
+ByPriority	logstreamer/filehandling.go	250;"	t	access:public	line:250	type:struct
+CreateFileReader	logstreamer/reader.go	332;"	f	access:public	line:332	signature:(path string, fd *os.File)	type:io.Reader, error
+DayLookup	logstreamer/filehandling.go	57;"	v	access:public	line:57
+Debug	logstreamer/reader.go	91;"	m	access:public	ctype:LogstreamLocation	line:91	signature:()	type:string
+Differentiator	logstreamer/filehandling.go	569;"	w	access:public	ctype:SortPattern	line:569	type:[]string
+DumpDebug	logstreamer/filehandling.go	322;"	m	access:public	ctype:Logstream	line:322	signature:()	type:string
+Error	logstreamer/filehandling.go	87;"	m	access:public	ctype:MultipleError	line:87	signature:()	type:string
+FileHashMismatch	logstreamer/reader.go	245;"	m	access:public	ctype:Logstream	line:245	signature:()	type:bool
+FileMatch	logstreamer/filehandling.go	552;"	w	access:public	ctype:SortPattern	line:552	type:string
+FileName	logstreamer/filehandling.go	101;"	w	access:public	ctype:Logfile	line:101	type:string
+FileNames	logstreamer/filehandling.go	224;"	m	access:public	ctype:Logfiles	line:224	signature:()	type:[]string
+Filename	logstreamer/reader.go	32;"	w	access:public	ctype:LogstreamLocation	line:32	type:string
+FilterMultipleStreamFiles	logstreamer/filehandling.go	491;"	f	access:public	line:491	signature:(files Logfiles, differentiator []string)	type:LogfilesMap
+FilterOld	logstreamer/filehandling.go	234;"	m	access:public	ctype:Logfiles	line:234	signature:(oldTime time.Time)	type:Logfiles
+FlushBuffer	logstreamer/reader.go	384;"	m	access:public	ctype:Logstream	line:384	signature:(n int)
+GenerateHash	logstreamer/reader.go	101;"	m	access:public	ctype:LogstreamLocation	line:101	signature:()
+GetLogfiles	logstreamer/filehandling.go	347;"	m	access:public	ctype:Logstream	line:347	signature:()	type:Logfiles
+GetLogstream	logstreamer/filehandling.go	398;"	m	access:public	ctype:LogstreamSet	line:398	signature:(name string)	type:*Logstream, bool
+GetLogstreamNames	logstreamer/filehandling.go	406;"	m	access:public	ctype:LogstreamSet	line:406	signature:()	type:[]string
+Hash	logstreamer/reader.go	33;"	w	access:public	ctype:LogstreamLocation	line:33	type:string
+IndexOf	logstreamer/filehandling.go	195;"	m	access:public	ctype:Logfiles	line:195	signature:(s string)	type:int
+IsError	logstreamer/filehandling.go	95;"	m	access:public	ctype:MultipleError	line:95	signature:()	type:bool
+IsFileError	logstreamer/reader.go	41;"	f	access:public	line:41	signature:(err error)	type:bool
+JournalPath	logstreamer/reader.go	34;"	w	access:public	ctype:LogstreamLocation	line:34	type:string
+LINEBUFFERLEN	logstreamer/reader.go	38;"	v	access:public	line:38
+Len	logstreamer/filehandling.go	190;"	m	access:public	ctype:Logfiles	line:190	signature:()	type:int
+Less	logstreamer/filehandling.go	256;"	m	access:public	ctype:ByPriority	line:256	signature:(i, j int)	type:bool
+LocatePriorLocation	logstreamer/reader.go	279;"	m	access:public	ctype:Logstream	line:279	signature:(checkFilename bool)	type:*os.File, io.Reader, error
+LogError	logstreamer/reader.go	377;"	m	access:public	line:377	ntype:Logger	signature:(err error)
+LogMessage	logstreamer/reader.go	378;"	m	access:public	line:378	ntype:Logger	signature:(msg string)
+Logfile	logstreamer/filehandling.go	100;"	t	access:public	line:100	type:struct
+Logfiles	logstreamer/filehandling.go	187;"	t	access:public	line:187	type:[]*Logfile
+Logfiles	logstreamer/filehandling.go	251;"	e	access:public	ctype:ByPriority	line:251	type:Logfiles
+LogfilesMap	logstreamer/filehandling.go	358;"	t	access:public	line:358	type:map[string]Logfiles
+Logger	logstreamer/reader.go	376;"	n	access:public	line:376	type:interface
+Logstream	logstreamer/filehandling.go	294;"	t	access:public	line:294	type:struct
+LogstreamLocation	logstreamer/reader.go	30;"	t	access:public	line:30	type:struct
+LogstreamLocationFromFile	logstreamer/reader.go	56;"	f	access:public	ctype:LogstreamLocation	line:56	signature:(path string)	type:*LogstreamLocation, error
+LogstreamSet	logstreamer/filehandling.go	362;"	t	access:public	line:362	type:struct
+MatchParts	logstreamer/filehandling.go	108;"	w	access:public	ctype:Logfile	line:108	type:map[string]int
+MatchTranslationMap	logstreamer/filehandling.go	518;"	t	access:public	line:518	type:map[string]int
+MonthLookup	logstreamer/filehandling.go	31;"	v	access:public	line:31
+MultipleError	logstreamer/filehandling.go	80;"	t	access:public	line:80	type:[]string
+NewLogstream	logstreamer/filehandling.go	313;"	f	access:public	ctype:Logstream	line:313	signature:(logfiles Logfiles, position *LogstreamLocation)	type:*Logstream
+NewLogstreamSet	logstreamer/filehandling.go	373;"	f	access:public	ctype:LogstreamSet	line:373	signature:(sortPattern *SortPattern, oldest time.Duration, logRoot, journalRoot string)	type:*LogstreamSet
+NewMultipleError	logstreamer/filehandling.go	82;"	f	access:public	line:82	signature:()	type:*MultipleError
+NewerFileAvailable	logstreamer/reader.go	154;"	m	access:public	ctype:Logstream	line:154	signature:()	type:string, bool
+PopulateMatchParts	logstreamer/filehandling.go	114;"	m	access:public	ctype:Logfile	line:114	signature:(subexpNames, matches []string, translation SubmatchTranslationMap)	type:error
+PopulateMatchParts	logstreamer/filehandling.go	206;"	m	access:public	ctype:Logfiles	line:206	signature:(fileMatch *regexp.Regexp, translation SubmatchTranslationMap)	type:error
+Priority	logstreamer/filehandling.go	252;"	w	access:public	ctype:ByPriority	line:252	type:[]string
+Priority	logstreamer/filehandling.go	562;"	w	access:public	ctype:SortPattern	line:562	type:[]string
+Read	logstreamer/reader.go	421;"	m	access:public	ctype:Logstream	line:421	signature:(p []byte)	type:int, error
+Reset	logstreamer/reader.go	115;"	m	access:public	ctype:LogstreamLocation	line:115	signature:()
+ResolveDifferentiatedName	logstreamer/filehandling.go	505;"	f	access:public	line:505	signature:(l *Logfile, differentiator []string)	type:string
+Save	logstreamer/reader.go	122;"	m	access:public	ctype:LogstreamLocation	line:122	signature:()	type:error
+SavePosition	logstreamer/filehandling.go	342;"	m	access:public	ctype:Logstream	line:342	signature:()	type:error
+ScanDirectoryForLogfiles	logstreamer/filehandling.go	278;"	f	access:public	line:278	signature:(directoryPath string, fileMatch *regexp.Regexp)	type:Logfiles
+ScanForLogstreams	logstreamer/filehandling.go	419;"	m	access:public	ctype:LogstreamSet	line:419	signature:()	type:[]string, *MultipleError
+SeekInFile	logstreamer/reader.go	342;"	f	access:public	line:342	signature:(path string, position *LogstreamLocation)	type:*os.File, io.Reader, error
+SeekPosition	logstreamer/reader.go	31;"	w	access:public	ctype:LogstreamLocation	line:31	type:int64
+SortPattern	logstreamer/filehandling.go	546;"	t	access:public	line:546	type:struct
+StringMatchParts	logstreamer/filehandling.go	104;"	w	access:public	ctype:Logfile	line:104	type:map[string]string
+SubmatchTranslationMap	logstreamer/filehandling.go	522;"	t	access:public	line:522	type:map[string]MatchTranslationMap
+Swap	logstreamer/filehandling.go	191;"	m	access:public	ctype:Logfiles	line:191	signature:(i, j int)
+Translation	logstreamer/filehandling.go	556;"	w	access:public	ctype:SortPattern	line:556	type:SubmatchTranslationMap
+UpdateLogfiles	logstreamer/filehandling.go	335;"	m	access:public	ctype:Logstream	line:335	signature:(logfiles Logfiles)
+bytes	logstreamer/reader.go	18;"	i	line:18
+compress/gzip	logstreamer/reader.go	19;"	i	line:19
+crypto/sha1	logstreamer/reader.go	20;"	i	line:20
+digitRegex	logstreamer/filehandling.go	74;"	v	access:private	line:74
+encoding/json	logstreamer/reader.go	21;"	i	line:21
+errors	logstreamer/reader.go	22;"	i	line:22
+fd	logstreamer/filehandling.go	301;"	w	access:private	ctype:Logstream	line:301	type:*os.File
+fileMatch	logstreamer/filehandling.go	370;"	w	access:private	ctype:LogstreamSet	line:370	type:*regexp.Regexp
+fmt	logstreamer/filehandling.go	19;"	i	line:19
+fmt	logstreamer/reader.go	23;"	i	line:23
+github.com/mozilla-services/heka/ringbuf	logstreamer/reader.go	24;"	i	line:24
+io	logstreamer/filehandling.go	20;"	i	line:20
+io	logstreamer/reader.go	25;"	i	line:25
+journalRoot	logstreamer/filehandling.go	369;"	w	access:private	ctype:LogstreamSet	line:369	type:string
+lastLine	logstreamer/reader.go	35;"	w	access:private	ctype:LogstreamLocation	line:35	type:*ringbuf.Ringbuf
+lfMutex	logstreamer/filehandling.go	298;"	w	access:private	ctype:Logstream	line:298	type:*sync.RWMutex
+logRoot	logstreamer/filehandling.go	368;"	w	access:private	ctype:LogstreamSet	line:368	type:string
+logfiles	logstreamer/filehandling.go	299;"	w	access:private	ctype:Logstream	line:299	type:Logfiles
+logstreamMutex	logstreamer/filehandling.go	367;"	w	access:private	ctype:LogstreamSet	line:367	type:*sync.RWMutex
+logstreamer	logstreamer/filehandling.go	16;"	p	line:16
+logstreamer	logstreamer/reader.go	15;"	p	line:15
+logstreams	logstreamer/filehandling.go	363;"	w	access:private	ctype:LogstreamSet	line:363	type:map[string]*Logstream
+oldestDuration	logstreamer/filehandling.go	365;"	w	access:private	ctype:LogstreamSet	line:365	type:time.Duration
+os	logstreamer/filehandling.go	21;"	i	line:21
+os	logstreamer/reader.go	26;"	i	line:26
+path/filepath	logstreamer/filehandling.go	22;"	i	line:22
+position	logstreamer/filehandling.go	300;"	w	access:private	ctype:Logstream	line:300	type:*LogstreamLocation
+priorEOF	logstreamer/filehandling.go	310;"	w	access:private	ctype:Logstream	line:310	type:bool
+readBytes	logstreamer/reader.go	458;"	m	access:private	ctype:Logstream	line:458	signature:(p []byte)	type:int, error
+reader	logstreamer/filehandling.go	304;"	w	access:private	ctype:Logstream	line:304	type:io.Reader
+regexp	logstreamer/filehandling.go	23;"	i	line:23
+rescanInterval	logstreamer/filehandling.go	364;"	w	access:private	ctype:LogstreamSet	line:364	type:time.Duration
+saveBuffer	logstreamer/filehandling.go	308;"	w	access:private	ctype:Logstream	line:308	type:[]byte
+sort	logstreamer/filehandling.go	24;"	i	line:24
+sortPattern	logstreamer/filehandling.go	366;"	w	access:private	ctype:LogstreamSet	line:366	type:*SortPattern
+strconv	logstreamer/filehandling.go	25;"	i	line:25
+strings	logstreamer/filehandling.go	26;"	i	line:26
+sync	logstreamer/filehandling.go	27;"	i	line:27
+time	logstreamer/filehandling.go	28;"	i	line:28
