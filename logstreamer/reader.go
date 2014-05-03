@@ -362,10 +362,7 @@ func createFileReader(path string, fd *os.File) (reader io.Reader, err error) {
 // Guesses if the given file is gzipped. Currently this uses the filename,
 // but it could sniff the file header.
 func isGzipFile(path string) bool {
-	if strings.HasSuffix(path, ".gz") {
-		return true
-	}
-	return false
+	return strings.HasSuffix(path, ".gz")
 }
 
 // Seek into a file, return an error if a match wasn't found
