@@ -39,6 +39,9 @@ Config:
 - QueueAutoDelete (bool):
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
+- QueueTTL (int):
+    Allows ability to specify TTL in milliseconds on Queue declaration for expiring messages.
+    Defaults to undefined/infinite.
 - Decoder (string):
     Decoder name used to transform a raw message body into a structured hekad
     message. Must be a decoder appropriate for the messages that come in from

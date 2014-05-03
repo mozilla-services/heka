@@ -94,6 +94,7 @@ func AMQPPluginSpec(c gs.Context) {
 			defaultConfig.Exchange = ""
 			defaultConfig.ExchangeType = ""
 			defaultConfig.RoutingKey = "test"
+			defaultConfig.QueueTTL = 300000
 			err := amqpInput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
@@ -140,6 +141,7 @@ func AMQPPluginSpec(c gs.Context) {
 			defaultConfig.ExchangeType = ""
 			defaultConfig.RoutingKey = "test"
 			defaultConfig.Decoder = decoderName
+			defaultConfig.QueueTTL = 300000
 			err := amqpInput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)

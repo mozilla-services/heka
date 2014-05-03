@@ -100,6 +100,10 @@ type AMQPInputConfig struct {
 	// Whether the queue is deleted when the last consumer un-subscribes
 	// Defaults to auto-delete
 	QueueAutoDelete bool
+	// How long a message published to a queue can live before it is discarded (milliseconds).
+	// 0 is a valid ttl which mimics "immediate" expiration.
+	// Default value is -1 which leaves it undefined.
+	QueueTTL int32
 }
 
 // AMQP Output config struct
@@ -362,6 +366,7 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 		QueueDurability:    false,
 		QueueExclusive:     false,
 		QueueAutoDelete:    true,
+		QueueTTL:	    -1,
 	}
 }
 
@@ -369,6 +374,14 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	conf := config.(*AMQPInputConfig)
 	ai.config = conf
 	ch, usageWg, connWg, err := amqpHub.GetChannel(conf.URL)
+	var args amqp.Table
+
+	ttl := conf.QueueTTL
+
+	if ttl != -1 {
+		args = amqp.Table{"x-message-ttl": int32(ttl)}
+	}
+
 	if err != nil {
 		return
 	}
@@ -387,7 +400,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	}
 	ai.ch = ch
 	_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
-		conf.QueueAutoDelete, conf.QueueExclusive, false, nil)
+		conf.QueueAutoDelete, conf.QueueExclusive, false, args)
 	if err != nil {
 		return
 	}
