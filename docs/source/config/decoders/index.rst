@@ -12,6 +12,10 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+.. versionadded:: 0.6
+.. _config_geoip_decoder:
+.. include:: /config/decoders/geoip_decoder.rst
+
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
 

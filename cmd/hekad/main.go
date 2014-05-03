@@ -41,6 +41,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/statsd"
 	_ "github.com/mozilla-services/heka/plugins/tcp"
 	_ "github.com/mozilla-services/heka/plugins/udp"
+	_ "github.com/mozilla-services/heka/plugins/geoip"
 	"io/ioutil"
 	"log"
 	"os"
@@ -93,6 +94,7 @@ func main() {
 	version := flag.Bool("version", false, "Output version and exit")
 	flag.Parse()
 
+	
 	config := &HekadConfig{}
 	var err error
 	var cpuProfName string

@@ -139,6 +139,10 @@ git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e
 git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 
+if (INCLUDE_GEOIP)
+    add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
+endif()
+
 if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 9e454bebb5085e25fc50f32556502141503b69e4)
 endif()

@@ -40,6 +40,14 @@ set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
 
+find_path(INCLUDE_GEOIP GeoIP.h /usr/local/include /usr/include /opt/local/include)
+if (NOT INCLUDE_GEOIP)
+    message(STATUS "GeoIP.h was not found, GeoIP functionality will not be included in this build.")
+else()
+    message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
+    set(TAGS "${TAGS} geoip")
+endif()
+
 option(BENCHMARK "Enable the benchmark tests" off)
 if (BENCHMARK)
     set(BENCHMARK_FLAG -bench .)
@@ -135,7 +143,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL
-${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
+${GO_EXECUTABLE} install ${LDFLAGS} -tags=\"${TAGS}\"  github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)
@@ -228,6 +236,9 @@ add_test(plugins/amqp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.
 add_test(plugins/dasher ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/dasher)
 add_test(plugins/elasticsearch ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/elasticsearch)
 add_test(plugins/file ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/file)
+if (INCLUDE_GEOIP)
+    add_test(plugins/geoip  ${GO_EXECUTABLE} test ${LDFLAGS} -tags=${TAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/geoip)
+endif()
 add_test(plugins/graphite ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/graphite)
 add_test(plugins/http ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/http)
 add_test(plugins/logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/logstreamer)
@@ -246,7 +257,6 @@ endif()
 if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
-
 install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)

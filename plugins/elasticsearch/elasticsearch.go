@@ -95,6 +95,8 @@ type ElasticSearchOutputConfig struct {
 	Id string
 	// Timeout
 	HTTPTimeout uint32 `toml:"http_timeout"`
+	// Fields to ignore formatting on
+	RawBytesFields []string `toml:"raw_bytes_fields"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -130,9 +132,9 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
-		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp)
+		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp, conf.RawBytesFields)
 	case "logstash_v0":
-		o.messageFormatter = new(KibanaFormatter)
+		o.messageFormatter = NewKibanaFormatter(conf.RawBytesFields)
 	case "payload":
 		o.messageFormatter = new(PayloadFormatter)
 	default:
@@ -303,12 +305,20 @@ type CleanMessageFormatter struct {
 	// Field names to include in ElasticSearch document for "clean" format
 	fields          []string
 	timestampFormat string
+	rawBytesFields  []string
 }
 
 type KibanaFormatter struct {
+	rawBytesFields  []string
 }
 
-func NewCleanMessageFormatter(fields []string, timestampFormat string) *CleanMessageFormatter {
+func NewKibanaFormatter(rawBytesFields []string) *KibanaFormatter {
+        return &KibanaFormatter{
+                rawBytesFields: rawBytesFields,
+        }
+}
+
+func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []string) *CleanMessageFormatter {
 	if fields == nil || len(fields) == 0 {
 		return &CleanMessageFormatter{
 			fields: []string{
@@ -324,9 +334,10 @@ func NewCleanMessageFormatter(fields []string, timestampFormat string) *CleanMes
 				"Fields",
 			},
 			timestampFormat: timestampFormat,
+			rawBytesFields: rawBytesFields,
 		}
 	} else {
-		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat}
+		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat, rawBytesFields: rawBytesFields}
 	}
 }
 
@@ -435,26 +446,42 @@ func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
 
 	buf.WriteString(`,"@fields":{`)
 	first := true
+	raw := false
 	for _, field := range m.Fields {
-		switch field.GetValueType() {
-		case message.Field_STRING:
-			writeStringField(first, &buf, *field.Name, field.GetValue().(string))
-			first = false
-		case message.Field_BYTES:
-			data := field.GetValue().([]byte)[:]
-			writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
-			first = false
-		case message.Field_INTEGER:
-			writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
-			first = false
-		case message.Field_DOUBLE:
-			writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
-				'g', -1, 64))
-			first = false
-		case message.Field_BOOL:
-			writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
-			first = false
-		}
+                if len(c.rawBytesFields) > 0 {
+                        for _, raw_field_name := range c.rawBytesFields {
+                                if *field.Name == raw_field_name {
+                                        raw = true
+                                }
+                        }
+                }
+
+                if raw {
+                        data := field.GetValue().([]byte)[:]
+                        writeField(&buf, *field.Name, string(data))
+                        first = false
+                        raw = false
+                } else {
+                        switch field.GetValueType() {
+                        case message.Field_STRING:
+                                writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+                                first = false
+                        case message.Field_BYTES:
+                                data := field.GetValue().([]byte)[:]
+                                writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
+                                first = false
+                        case message.Field_INTEGER:
+                                writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+                                first = false
+                        case message.Field_DOUBLE:
+                                writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+                                        'g', -1, 64))
+                                first = false
+                        case message.Field_BOOL:
+                                writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+                                first = false
+                        }
+                }
 	}
 	buf.WriteString(`}`) // end of fields
 	buf.WriteString(`}`)
@@ -490,21 +517,35 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 		case "hostname":
 			writeField(&buf, f, strconv.Quote(m.GetHostname()))
 		case "fields":
+                        raw := false
 			for _, field := range m.Fields {
-				switch field.GetValueType() {
-				case message.Field_STRING:
-					writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
-				case message.Field_BYTES:
-					data := field.GetValue().([]byte)[:]
-					writeField(&buf, *field.Name, strconv.Quote(base64.StdEncoding.EncodeToString(data)))
-				case message.Field_INTEGER:
-					writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
-				case message.Field_DOUBLE:
-					writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
-						'g', -1, 64))
-				case message.Field_BOOL:
-					writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
-				}
+                                if len(c.rawBytesFields) > 0 {
+                                        for _, raw_field_name := range c.rawBytesFields {
+                                                if *field.Name == raw_field_name {
+                                                        raw = true
+                                                }
+                                        }
+                                }
+                                if raw {
+                                        data := field.GetValue().([]byte)[:]
+                                        writeField(&buf, *field.Name, string(data))
+                                        raw = false
+                                } else {
+                                        switch field.GetValueType() {
+                                        case message.Field_STRING:
+                                                writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
+                                        case message.Field_BYTES:
+                                                data := field.GetValue().([]byte)[:]
+                                                writeField(&buf, *field.Name, strconv.Quote(base64.StdEncoding.EncodeToString(data)))
+                                        case message.Field_INTEGER:
+                                                writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+                                        case message.Field_DOUBLE:
+                                                writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+                                                        'g', -1, 64))
+                                        case message.Field_BOOL:
+                                                writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+                                        }
+                                }
 			}
 		default:
 			// Search fo a given fields in the message
