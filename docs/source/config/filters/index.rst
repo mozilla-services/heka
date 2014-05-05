@@ -83,7 +83,7 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
-.. _config_mysql_slow_guery_filter:
+.. _config_mysql_slow_query_filter:
 
 MySQL Slow Query
 ================
