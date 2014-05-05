@@ -66,6 +66,15 @@ func TcpOutputSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 
+		outStr := "Write me out to the network"
+		matchBytes := make([]byte, 0, 1000)
+		newpack := NewPipelinePack(nil)
+		newpack.Message = msg
+		newpack.Decoded = true
+		newpack.Message.SetPayload(outStr)
+		err := ProtobufEncodeMessage(newpack, &matchBytes)
+		c.Expect(err, gs.IsNil)
+
 		c.Specify("writes out to the network", func() {
 			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 			inChanCall.Return(inChan)
@@ -95,7 +104,6 @@ func TcpOutputSpec(c gs.Context) {
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 
-			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
 			go func() {
 				wg.Add(1)
@@ -106,35 +114,16 @@ func TcpOutputSpec(c gs.Context) {
 
 			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
 			c.Expect(msgcount, gs.Equals, int64(0))
+
 			inChan <- pack
+			result = <-ch
 
-			output := false
-			for x := 0; x < 5; x++ {
-
-				if i := atomic.LoadInt64(&tcpOutput.processMessageCount); i > msgcount {
-					msgcount = i
-					output = true
-					break
-				}
-				time.Sleep(time.Duration(500) * time.Millisecond)
-			}
-			c.Expect(output, gs.Equals, true)
+			msgcount = atomic.LoadInt64(&tcpOutput.processMessageCount)
 			c.Expect(msgcount, gs.Equals, int64(1))
+			c.Expect(result, gs.Equals, string(matchBytes))
 
 			close(inChan)
-			wg.Wait() // wait for close to finish, prevents intermittent test failures
-
-			matchBytes := make([]byte, 0, 1000)
-
-			newpack := NewPipelinePack(nil)
-			newpack.Message = msg
-			newpack.Decoded = true
-			newpack.Message.SetPayload(outStr)
-			err = ProtobufEncodeMessage(newpack, &matchBytes)
-			c.Expect(err, gs.IsNil)
-
-			result = <-ch
-			c.Expect(result, gs.Equals, string(matchBytes))
+			wg.Wait() // wait for output to finish shutting down
 		})
 
 		c.Specify("far end not initially listening", func() {
@@ -145,7 +134,6 @@ func TcpOutputSpec(c gs.Context) {
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 
-			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
 			go func() {
 				wg.Add(1)
@@ -155,21 +143,17 @@ func TcpOutputSpec(c gs.Context) {
 			}()
 			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
 			c.Expect(msgcount, gs.Equals, int64(0))
+
 			inChan <- pack
 
-			output := false
-			for x := 0; x < 5; x++ {
-				if i := atomic.LoadInt64(&tcpOutput.processMessageCount); i > msgcount {
-					msgcount = i
-					output = true
-					break
-				}
-
-				time.Sleep(time.Duration(500) * time.Millisecond)
+			for x := 0; x < 5 && msgcount == 0; x++ {
+				msgcount = atomic.LoadInt64(&tcpOutput.processMessageCount)
+				time.Sleep(time.Duration(100) * time.Millisecond)
 			}
-			c.Expect(output, gs.Equals, true)
-			c.Expect(msgcount, gs.Equals, int64(1))
 
+			// After the message is queued start the collector.
+			// However, we don't have a way guarantee a send attempt has already
+			// been made and that we are actually exercising the retry code.
 			collectData := func(ch chan string) {
 				ln, err := net.Listen("tcp", "localhost:9125")
 				if err != nil {
@@ -189,22 +173,11 @@ func TcpOutputSpec(c gs.Context) {
 			}
 			ch := make(chan string, 1) // don't block on put
 			go collectData(ch)
-			result := <-ch // wait for server
-
-			close(inChan)
-			wg.Wait() // wait for close to finish, prevents intermittent test failures
-
-			matchBytes := make([]byte, 0, 1000)
-
-			newpack := NewPipelinePack(nil)
-			newpack.Message = msg
-			newpack.Decoded = true
-			newpack.Message.SetPayload(outStr)
-			err = ProtobufEncodeMessage(newpack, &matchBytes)
-			c.Expect(err, gs.IsNil)
-
+			result := <-ch
 			c.Expect(result, gs.Equals, string(matchBytes))
 
+			close(inChan)
+			wg.Wait() // wait for output to finish shutting down
 		})
 	})
 }
