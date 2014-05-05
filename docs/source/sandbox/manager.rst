@@ -114,6 +114,8 @@ the rollout  of new keys.
 
     [TCP:5565]
     type = "TcpInput"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
     address = ":5565"
         [TCP:5565.signer.PlatformDevs_0]
         hmac_key = "Old Platform devs signing key"
