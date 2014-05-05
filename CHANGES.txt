@@ -61,6 +61,8 @@ Bug Handling
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
 sandbox plugin output() call.
 
+* use FindProcess instead of syscall.Kill to make the 'pid_file' configuration setting work on Windows
+
 0.5.1 (2014-03-18)
 ==================
 
