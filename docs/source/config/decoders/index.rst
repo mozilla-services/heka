@@ -4,6 +4,8 @@
 Decoders
 ========
 
+.. _config_apache_access_log_decoder:
+
 Apache Access Log Decoder
 =========================
 
@@ -24,6 +26,18 @@ Nginx Access Log Decoder
 .. include:: /../../sandbox/lua/decoders/nginx_access.lua
    :start-after: --[[
    :end-before: --]]
+
+.. _config_mysql_slow_query_log_decoder:
+
+MySQL Slow Query Log Decoder
+============================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_nginx_error_log_decoder:
 
 Nginx Error Log Decoder
 =======================

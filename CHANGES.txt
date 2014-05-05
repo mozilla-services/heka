@@ -16,6 +16,8 @@ Bug Handling
 Features
 --------
 
+* Turned the MySQL slow query log examples into a deployed decoder and filter.
+
 * Added an Nginx error log decoder (issue #785)
 
 * Added the ability to preserve the webserver log line in message payload

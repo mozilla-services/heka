@@ -14,7 +14,7 @@ Config:
 - enable_delta (bool, optional, default false)
     Specifies whether or not this aggregator should generate cbuf deltas.
 
-- anomaly_config (string, optional)
+- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
     A list of anomaly detection specifications.  If not specified no anomaly
     detection/alerting will be performed.
 

@@ -34,6 +34,12 @@ Config:
 
 .. code-block:: ini
 
+    [TestWebserver]
+    type = "LogstreamerInput"
+    log_directory = "/var/log/nginx"
+    file_match = 'access\.log'
+    decoder = "CombinedLogDecoder"
+
     [CombinedLogDecoder]
     type = "SandboxDecoder"
     script_type = "lua"
