@@ -223,11 +223,13 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			injectionCount = pipeline.Globals().MaxMsgProcessInject
 			msgLoopCount = pack.MsgLoopCount
 
-			// reading a channel length is generally fast ~1ns
-			// we need to check the entire chain back to the router
-			backpressure = len(inChan) >= capacity ||
-				fr.MatchRunner().InChanLen() >= capacity ||
-				len(h.PipelineConfig().Router().InChan()) >= capacity
+			if this.manager != nil { // only check for backpressure on dynamic plugins
+				// reading a channel length is generally fast ~1ns
+				// we need to check the entire chain back to the router
+				backpressure = len(inChan) >= capacity ||
+					fr.MatchRunner().InChanLen() >= capacity ||
+					len(h.PipelineConfig().Router().InChan()) >= capacity
+			}
 
 			// performing the timing is expensive ~40ns but if we are
 			// backpressured we need a decent sample set before triggering
