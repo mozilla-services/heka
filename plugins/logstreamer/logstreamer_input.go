@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -69,6 +70,7 @@ type LogstreamerInput struct {
 	delimiterLocation  string
 	hostName           string
 	pluginName         string
+	reportLock         sync.Mutex
 }
 
 func (li *LogstreamerInput) ConfigStruct() interface{} {
@@ -462,4 +464,20 @@ func init() {
 	p.RegisterPlugin("LogstreamerInput", func() interface{} {
 		return new(LogstreamerInput)
 	})
+}
+
+// ReportMsg provides plugin state to Heka report and dashboard.
+func (li *LogstreamerInput) ReportMsg(msg *message.Message) error {
+	li.reportLock.Lock()
+	defer li.reportLock.Unlock()
+
+	for _, name := range li.logstreamSet.GetLogstreamNames() {
+		logstream, ok := li.logstreamSet.GetLogstream(name)
+		if ok {
+			fname, bytes := logstream.ReportPosition()
+			message.NewStringField(msg, fmt.Sprintf("%s-filename", name), fname)
+			message.NewInt64Field(msg, fmt.Sprintf("%s-bytes", name), bytes, "count")
+		}
+	}
+	return nil
 }
