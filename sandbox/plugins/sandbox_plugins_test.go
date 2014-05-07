@@ -91,6 +91,11 @@ func FilterSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 
+		c.Specify("Uninitialized", func() {
+			err := sbFilter.ReportMsg(msg)
+			c.Expect(err, gs.IsNil)
+		})
+
 		c.Specify("Over inject messages from ProcessMessage", func() {
 			var timer <-chan time.Time
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)

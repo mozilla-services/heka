@@ -573,6 +573,7 @@ func (this *LuaSandbox) Destroy(dataFile string) error {
 	cs := C.CString(dataFile)
 	defer C.free(unsafe.Pointer(cs))
 	c := C.lsb_destroy(this.lsb, cs)
+	this.lsb = nil
 	if c != nil {
 		err := C.GoString(c)
 		C.free(unsafe.Pointer(c))
