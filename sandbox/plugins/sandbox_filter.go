@@ -117,6 +117,9 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	this.reportLock.Lock()
 	defer this.reportLock.Unlock()
+	if this.sb == nil { // Plugin not initialized or running
+		return nil
+	}
 
 	message.NewIntField(msg, "Memory", int(this.sb.Usage(TYPE_MEMORY,
 		STAT_CURRENT)), "B")
@@ -324,11 +327,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
+
+	this.reportLock.Lock()
 	if this.sbc.PreserveData {
 		err = this.sb.Destroy(this.preservationFile)
 	} else {
 		err = this.sb.Destroy("")
 	}
 	this.sb = nil
+	this.reportLock.Unlock()
 	return
 }
