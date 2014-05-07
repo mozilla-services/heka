@@ -13,6 +13,8 @@ message.Pid (issue #677).
 Bug Handling
 ------------
 
+* use FindProcess instead of syscall.Kill to make the 'pid_file' configuration setting work on Windows (issue #807)
+
 Features
 --------
 
