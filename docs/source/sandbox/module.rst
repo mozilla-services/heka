@@ -3,17 +3,23 @@
 Available Sandbox Modules
 =========================
 
+.. _sandbox_alert_module:
+
 Alert Module
 ------------
 .. include:: ../../../sandbox/lua/modules/alert.lua
    :start-after: --[[
    :end-before: --]]
 
+.. _sandbox_annotation_module:
+
 Annotation Module
 -----------------
 .. include:: ../../../sandbox/lua/modules/annotation.lua
    :start-after: --[[
    :end-before: --]]
+
+.. _sandbox_anomaly_module:
 
 Anomaly Detection Module
 ------------------------

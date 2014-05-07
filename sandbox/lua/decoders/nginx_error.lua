@@ -14,6 +14,12 @@ Config:
 
 .. code-block:: ini
 
+    [TestWebserverError]
+    type = "LogstreamerInput"
+    log_directory = "/var/log/nginx"
+    file_match = 'error\.log'
+    decoder = "NginxErrorDecoder"
+
     [NginxErrorDecoder]
     type = "SandboxDecoder"
     script_type = "lua"
@@ -29,7 +35,7 @@ Config:
 :Hostname: trink-x230
 :Pid: 16842
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
-:Logger: FxaWebserverError
+:Logger: TestWebserverError
 :Payload: using inherited sockets from "6;"
 :EnvVersion:
 :Severity: 5

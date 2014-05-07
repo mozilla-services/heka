@@ -13,6 +13,12 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+MySQL Slow Query Log Decoder
+----------------------------
+.. include:: ../../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Nginx Access Log Decoder
 ------------------------
 .. include:: ../../../sandbox/lua/decoders/nginx_access.lua

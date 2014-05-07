@@ -3,8 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Graphs HTTP status codes using the numeric Fields[status] variable collected
-from web server access logs.
+Graphs MySQL slow query data produced by the :ref:`config_mysql_slow_query_log_decoder`.
 
 Config:
 
@@ -21,70 +20,61 @@ Config:
 
 .. code-block:: ini
 
-    [FxaAuthServerHTTPStatus]
+    [Sync-1_5-SlowQueries]
     type = "SandboxFilter"
     script_type = "lua"
-    filename = "lua_filters/http_status.lua"
+    message_matcher = "Logger == 'Sync-1_5-SlowQuery'"
     ticker_interval = 60
-    preserve_data = true
-    message_matcher = "Logger == 'nginx.access' && Type == 'fxa-auth-server'"
+    filename = "lua_filters/mysql_slow_query.lua"
 
-    [FxaAuthServerHTTPStatus.config]
-    sec_per_row = 60
-    rows = 1440
-    anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false)'
+        [Sync-1_5-SlowQueries.config]
+        anomaly_config = 'mww_nonparametric("Statistics", 4, 15, 10, 0.8)'
 --]]
 
 require "circular_buffer"
-require "string"
 local alert         = require "alert"
 local annotation    = require "annotation"
 local anomaly       = require "anomaly"
 
-local title             = "HTTP Status"
+local title             = "Statistics"
 local rows              = read_config("rows") or 1440
 local sec_per_row       = read_config("sec_per_row") or 60
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-status = circular_buffer.new(rows, 5, sec_per_row)
-local HTTP_200      = status:set_header(1, "HTTP_200")
-local HTTP_300      = status:set_header(2, "HTTP_300")
-local HTTP_400      = status:set_header(3, "HTTP_400")
-local HTTP_500      = status:set_header(4, "HTTP_500")
-local HTTP_UNKNOWN  = status:set_header(5, "HTTP_UNKNOWN")
+data = circular_buffer.new(rows, 4, sec_per_row)
+sums = circular_buffer.new(rows, 3, sec_per_row)
+local QUERY_TIME    = data:set_header(1, "Query Time", "s", "none")
+local LOCK_TIME     = data:set_header(2, "Lock Time", "s", "none")
+local RESPONSE_SIZE = data:set_header(3, "Response Size", "B", "none")
+local COUNT         = data:set_header(4, "Count")
 
 function process_message ()
-    local ts = read_message("Timestamp")
-    local sc = read_message("Fields[status]")
+    local ns = read_message("Timestamp")
+    local cnt = data:add(ns, COUNT, 1)
+    if not cnt then return 0 end
 
-    if sc >= 200 and sc < 300 then
-        status:add(ts, HTTP_200, 1)
-    elseif sc >= 300  and sc < 400 then
-        status:add(ts, HTTP_300, 1)
-    elseif sc >= 400 and sc < 500 then
-        status:add(ts, HTTP_400, 1)
-    elseif sc >= 500  and sc < 600 then
-        status:add(ts, HTTP_500, 1)
-    else
-        status:add(ts, HTTP_UNKNOWN, 1)
-    end
-
+    local qt = read_message("Fields[Query_time]")
+    local lt = read_message("Fields[Lock_time]")
+    local bs = read_message("Fields[Bytes_sent]")
+    data:set(ns, QUERY_TIME, sums:add(ns, QUERY_TIME, qt)/cnt)
+    data:set(ns, LOCK_TIME, sums:add(ns, LOCK_TIME, lt)/cnt)
+    data:set(ns, RESPONSE_SIZE, sums:add(ns, RESPONSE_SIZE, bs)/cnt)
     return 0
 end
 
 function timer_event(ns)
     if anomaly_config then
         if not alert.throttled(ns) then
-            local msg, annos = anomaly.detect(ns, title, status, anomaly_config)
+            local msg, annos = anomaly.detect(ns, title, data, anomaly_config)
             if msg then
                 annotation.concat(title, annos)
                 alert.send(ns, msg)
             end
         end
-        output({annotations = annotation.prune(title, ns)}, status)
+        output({annotations = annotation.prune(title, ns)}, data)
         inject_message("cbuf", title)
     else
-        inject_message(status, title)
+        inject_message(data, title)
     end
 end
