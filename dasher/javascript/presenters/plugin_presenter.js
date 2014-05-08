@@ -192,7 +192,12 @@ define(
 
         _.each(this.plugin.attributes, function(value, key) {
           if (key != "Name" && key != "id" && key != "Outputs" && key != "Type") {
-            var formattedValue = numeral(value.value).format("0,0");
+            var formattedValue;
+            if (value.representation != "") {
+              formattedValue = numeral(value.value).format("0,0");
+            } else {
+              formattedValue = value.value;
+            }
 
             if (value.representation && value.representation != "count") {
               formattedValue += " " + value.representation;
