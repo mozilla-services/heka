@@ -248,6 +248,10 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	fullReport := make([]string, 0)
 	categories := []string{"globals", "inputs", "decoders", "filters", "outputs"}
 	for _, cat := range categories {
+		// Skip categories for which there are no reports.
+		if _, ok := m[cat]; !ok {
+			continue
+		}
 		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
 		for _, row := range m[cat].([]interface{}) {
 			pluginReport := make([]string, 0)
