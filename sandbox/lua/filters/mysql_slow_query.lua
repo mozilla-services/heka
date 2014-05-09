@@ -51,18 +51,18 @@ local ROWS_SENT     = data:set_header(4, "Rows Sent"    , "count"   , "none")
 local COUNT         = data:set_header(5, "Count")
 
 function process_message ()
-    local ns = read_message("Timestamp")
-    local cnt = data:add(ns, COUNT, 1)
+    local ts = read_message("Timestamp")
+    local cnt = data:add(ts, COUNT, 1)
     if not cnt then return 0 end
 
     local qt = read_message("Fields[Query_time]")
     local lt = read_message("Fields[Lock_time]")
     local re = read_message("Fields[Rows_examined]")
     local rs = read_message("Fields[Rows_sent]")
-    data:set(ns, QUERY_TIME, sums:add(ns, QUERY_TIME, qt)/cnt)
-    data:set(ns, LOCK_TIME, sums:add(ns, LOCK_TIME, lt)/cnt)
-    data:set(ns, ROWS_EXAMINED, sums:add(ns, ROWS_EXAMINED, re)/cnt)
-    data:set(ns, ROWS_SENT, sums:add(ns, ROWS_SENT, rs)/cnt)
+    data:set(ts, QUERY_TIME, sums:add(ts, QUERY_TIME, qt)/cnt)
+    data:set(ts, LOCK_TIME, sums:add(ts, LOCK_TIME, lt)/cnt)
+    data:set(ts, ROWS_EXAMINED, sums:add(ts, ROWS_EXAMINED, re)/cnt)
+    data:set(ts, ROWS_SENT, sums:add(ts, ROWS_SENT, rs)/cnt)
     return 0
 end
 
