@@ -28,7 +28,7 @@ Config:
     filename = "lua_filters/mysql_slow_query.lua"
 
         [Sync-1_5-SlowQueries.config]
-        anomaly_config = 'mww_nonparametric("Statistics", 4, 15, 10, 0.8)'
+        anomaly_config = 'mww_nonparametric("Statistics", 5, 15, 10, 0.8)'
 --]]
 
 require "circular_buffer"
@@ -42,24 +42,27 @@ local sec_per_row       = read_config("sec_per_row") or 60
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-data = circular_buffer.new(rows, 4, sec_per_row)
-sums = circular_buffer.new(rows, 3, sec_per_row)
-local QUERY_TIME    = data:set_header(1, "Query Time", "s", "none")
-local LOCK_TIME     = data:set_header(2, "Lock Time", "s", "none")
-local RESPONSE_SIZE = data:set_header(3, "Response Size", "B", "none")
-local COUNT         = data:set_header(4, "Count")
+data = circular_buffer.new(rows, 5, sec_per_row)
+sums = circular_buffer.new(rows, 4, sec_per_row)
+local QUERY_TIME    = data:set_header(1, "Query Time"   , "s"       , "none")
+local LOCK_TIME     = data:set_header(2, "Lock Time"    , "s"       , "none")
+local ROWS_EXAMINED = data:set_header(3, "Rows Examined", "count"   , "none")
+local ROWS_SENT     = data:set_header(4, "Rows Sent"    , "count"   , "none")
+local COUNT         = data:set_header(5, "Count")
 
 function process_message ()
-    local ns = read_message("Timestamp")
-    local cnt = data:add(ns, COUNT, 1)
+    local ts = read_message("Timestamp")
+    local cnt = data:add(ts, COUNT, 1)
     if not cnt then return 0 end
 
     local qt = read_message("Fields[Query_time]")
     local lt = read_message("Fields[Lock_time]")
-    local bs = read_message("Fields[Bytes_sent]")
-    data:set(ns, QUERY_TIME, sums:add(ns, QUERY_TIME, qt)/cnt)
-    data:set(ns, LOCK_TIME, sums:add(ns, LOCK_TIME, lt)/cnt)
-    data:set(ns, RESPONSE_SIZE, sums:add(ns, RESPONSE_SIZE, bs)/cnt)
+    local re = read_message("Fields[Rows_examined]")
+    local rs = read_message("Fields[Rows_sent]")
+    data:set(ts, QUERY_TIME, sums:add(ts, QUERY_TIME, qt)/cnt)
+    data:set(ts, LOCK_TIME, sums:add(ts, LOCK_TIME, lt)/cnt)
+    data:set(ts, ROWS_EXAMINED, sums:add(ts, ROWS_EXAMINED, re)/cnt)
+    data:set(ts, ROWS_SENT, sums:add(ts, ROWS_SENT, rs)/cnt)
     return 0
 end
 
