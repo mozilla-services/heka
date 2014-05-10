@@ -17,6 +17,8 @@ Bug Handling
 
 * Fix the SandboxFilter ReportMsg panic on termination/shutdown (issue #816)
 
+* Fix panic on SIGUSR1 caused by no reports in a given plugin category (issue #832)
+
 Features
 --------
 
