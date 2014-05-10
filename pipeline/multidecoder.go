@@ -114,6 +114,10 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		md.Decoders[name] = decoder
 	}
 
+	if len(md.Config.Order) == 0 {
+		return fmt.Errorf("An order must be specified.")
+	}
+
 	md.ordered = make([]Decoder, len(md.Config.Order))
 	for i, name := range md.Config.Order {
 		if decoder, ok = md.Decoders[name]; !ok {

@@ -15,7 +15,6 @@ Config:
 
 - order (list of strings):
     PipelinePack objects will be passed in order to each decoder in this list.
-    Default is an empty list.
 
 - log_sub_errors (bool):
     If true, the DecoderRunner will log the errors returned whenever a

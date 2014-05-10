@@ -17,6 +17,9 @@ Bug Handling
 
 * Fix the SandboxFilter ReportMsg panic on termination/shutdown (issue #816)
 
+* MultiDecoder with no 'order' set now fails on init instead of panicing on
+  first message.
+
 Features
 --------
 
