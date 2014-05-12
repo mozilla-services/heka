@@ -31,7 +31,8 @@ func BufferedOutputSpec(c gs.Context) {
 		c.Expect(tmpErr, gs.Equals, nil)
 	}()
 	c.Specify("BufferedOutput Internals", func() {
-		bufferedOutput, err := NewBufferedOutput(tmpDir, "test")
+		encoder := new(ProtobufEncoder)
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", encoder)
 		c.Expect(err, gs.IsNil)
 		msg := pipeline_ts.GetTestMessage()
 

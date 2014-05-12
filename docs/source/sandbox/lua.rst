@@ -84,6 +84,8 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+.. _write_message:
+
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
     .. versionadded:: 0.5
     Decoders only. Mutates specified field value on the message that is being
@@ -124,13 +126,16 @@ Heka specific functions that are exposed to the Lua sandbox
         value_type, name, value, representation, count (number of items in the field array)
 
 **inject_message(payload_type, payload_name)**
+
     Creates a new Heka message using the contents of the output payload buffer
-    and then clears the buffer. Two pieces of optional metadata are allowed and
-    included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
-    Fields[payload_name] == 'Android Usage Statistics'.  The number of messages
-    that may be injected by the process_message or timer_event functions are 
-    globally controlled by the hekad :ref:`hekad_command_line_options`; if
-    these values are exceeded the sandbox will be terminated.
+    and then clears the buffer. The payload_type and payload_name arguments
+    are two pieces of optional metadata. If specified, they will be included
+    as fields in the injected message e.g. Fields[payload_type] == 'csv',
+    Fields[payload_name] == 'Android Usage Statistics'.  The number of
+    messages that may be injected by the process_message or timer_event
+    functions are  globally controlled by the hekad :ref:`global configuration
+    options <hekad_global_config_options>`; if these values are exceeded the
+    sandbox will be terminated.
 
     *Arguments*
         - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
@@ -140,9 +145,11 @@ Heka specific functions that are exposed to the Lua sandbox
         none
 
 **inject_message(circular_buffer, payload_name)**
-    Creates a new Heka message placing the circular buffer output in the message payload (overwriting whatever is in the output buffer).
-    The payload_type is set to the circular buffer output format string. i.e., Fields[payload_type] == 'cbuf'.
-    The Fields[payload_name] is set to the provided payload_name.  
+    Creates a new Heka message placing the circular buffer output in the
+    message payload (overwriting whatever is in the output buffer). The
+    payload_type is set to the circular buffer output format string. i.e.,
+    Fields[payload_type] == 'cbuf'. The Fields[payload_name] is set to the
+    provided payload_name.
 
     *Arguments*
         - circular_buffer (circular_buffer)
@@ -154,6 +161,8 @@ Heka specific functions that are exposed to the Lua sandbox
     *Notes*
         - injection limits are enforced as described above
         - if the :ref:`config_dashboard_output` plugin is configured a graphical view of the data is automatically generated.
+
+.. _inject_message_message_table:
 
 **inject_message(message_table)**
     Creates a new Heka protocol buffer message using the contents of the

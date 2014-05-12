@@ -32,43 +32,45 @@ Overview
 Each Heka plugin type performs a specific task: inputs receive input from the
 outside world and inject the data into the Heka pipeline, decoders turn binary
 data into Message objects that Heka can process, filters perform arbitrary
-processing of Heka message data, and outputs send data from Heka back to the
-outside world. Each specific plugin has some custom behaviour, but it also
-shares behaviour w/ every other plugin of that type. A UDPInput and a TCPInput
-listen on the network differently, and a LogFileInput (reading logs off the
-file system) doesn't listen on the network at all, but all of these inputs
-need to interact w/ the Heka system to access data structures, gain access to
-decoders to which we pass our incoming data, respond to shutdown and other
-system events, etc.
+processing of Heka message data, encoders serialize Heka messages into
+arbitrary byte streams, and outputs send data from Heka back to the outside
+world. Each specific plugin has some custom behaviour, but it also shares
+behaviour w/ every other plugin of that type. A UDPInput and a TCPInput listen
+on the network differently, and a LogstreamerInput (reading files off the file
+system) doesn't listen on the network at all, but all of these inputs need to
+interact w/ the Heka system to access data structures, gain access to decoders
+to which we pass our incoming data, respond to shutdown and other system
+events, etc.
 
-To support this, each Heka plugin actually consists of two parts: the plugin
-itself, and an accompanying "plugin runner". Inputs have an InputRunner,
-decoders have a DecoderRunner, filters have a FilterRunner, and Outputs have
-an OutputRunner. The plugin itself contains the plugin-specific behaviour, and
-is provided by the plugin developer. The plugin runner contains the shared (by
-type) behaviour, and is provided by Heka. When Heka starts a plugin, it a)
-creates and configures a plugin instance of the appropriate type, b) creates a
-plugin runner instance of the appropriate type (passing in the plugin), and c)
-calls the Start method of the plugin runner. Most plugin runners (excepting
-decoders) then call the plugin's Run method, passing themselves and an
-additional PluginHelper object in as arguments so the plugin code can use
-their exposed APIs to interact w/ the Heka system.
+To support this all Heka plugins except encoders actually consist of two
+parts: the plugin itself, and an accompanying "plugin runner". Inputs have an
+InputRunner, decoders have a DecoderRunner, filters have a FilterRunner, and
+Outputs have an OutputRunner. The plugin itself contains the plugin-specific
+behaviour, and is provided by the plugin developer. The plugin runner contains
+the shared (by type) behaviour, and is provided by Heka. When Heka starts a
+plugin, it a) creates and configures a plugin instance of the appropriate
+type, b) creates a plugin runner instance of the appropriate type (passing in
+the plugin), and c) calls the Start method of the plugin runner. Most plugin
+runners (all except decoders) then call the plugin's Run method, passing
+themselves and an additional PluginHelper object in as arguments so the plugin
+code can use their exposed APIs to interact w/ the Heka system.
 
 For inputs, filters, and outputs, there's a 1:1 correspondence between
 sections specified in the config file and running plugin instances. This is
-not the case for decoders, however; decoder configurations are registered and
-then instances are created as needed when requested by input plugins calling
-the PluginHelper's DecoderRunner method.
+not the case for decoders and encoders, however. Decoder and encoder sections
+register possible configurations, but actual decoder and encoder instances
+aren't created until they are used by input or output plugins.
 
 .. _plugin_config:
 
 Plugin Configuration
 ====================
 
-Heka uses `TOML <https://github.com/mojombo/toml>`_ as its configuration file
-format (see: :ref:`configuration`), and provides a simple mechanism through
-which plugins can integrate with the configuration loading system to
-initialize themselves from settings in hekad's config file.
+Heka uses a slightly modified version of `TOML
+<https://github.com/mojombo/toml>`_ as its configuration file format (see:
+:ref:`configuration`), and provides a simple mechanism through which plugins
+can integrate with the configuration loading system to initialize themselves
+from settings in hekad's config file.
 
 The minimal shared interface that a Heka plugin must implement in order to use
 the config system is (unsurprisingly) `Plugin`, defined in `pipeline_runner.go
@@ -79,17 +81,19 @@ services/heka/blob/master/pipeline/pipeline_runner.go>`_::
         Init(config interface{}) error
     }
 
-During Heka initialization an instance of every input, filter, and output
-plugin (and many instances of every decoder) listed in the configuration file
-will be created. The TOML configuration for each plugin will be parsed and the
-resulting configuration object will be passed in to the above specified `Init`
-method. The argument is of type `interface{}`; by default the underlying type
-will be `*pipeline.PluginConfig`, a map object that provides config data as
-key/value pairs. There is also a way for plugins to specify a custom struct to
-be used instead of the generic `PluginConfig` type (see
-:ref:`custom_plugin_config`). In either case, the config object will be
-already loaded with values read in from the TOML file, which your plugin code
-can then use to initialize itself.
+During Heka initialization an instance of every plugin listed in the
+configuration file will be created. The TOML configuration for each plugin
+will be parsed and the resulting configuration object will be passed in to the
+above specified `Init` method. The argument is of type `interface{}`. By
+default the underlying type will be `*pipeline.PluginConfig`, a map object
+that provides config data as key/value pairs. There is also a way for plugins
+to specify a custom struct to be used instead of the generic `PluginConfig`
+type (see :ref:`custom_plugin_config`). In either case, the config object will
+be already loaded with values read in from the TOML file, which your plugin
+code can then use to initialize itself. The input, filter, and output plugins
+will then be started so they can begin processing messages. The decoder and
+encoder instances will be thrown away, with new ones created as needed when
+requested by input (for decoder) or output (for encoder) plugins.
 
 As an example, imagine we're writing a filter that will deliver messages to a
 specific output plugin, but only if they come from a list of approved hosts.
@@ -143,27 +147,26 @@ generally route messages to specific outputs using the
 Restarting Plugins
 ==================
 
-In the event that your plugin fails to initialize properly at startup,
-hekad will exit. However, once hekad is running, if a plugin should
-fail (perhaps because a network connection dropped, a file became
-unavailable, etc), then hekad will shutdown. This shutdown can be
-avoided if your plugin supports being restarted.
+In the event that your plugin fails to initialize properly at startup, hekad
+will exit. However, once hekad is running, if a plugin should fail (perhaps
+because a network connection dropped, a file became unavailable, etc), then
+hekad will shutdown. This shutdown can be avoided if your plugin supports
+being restarted.
 
-To add restart support to your plugin, the `Restarting` interface
-defined in the `config.go
-<https://github.com/mozilla-services/heka/blob/master/pipeline/config.go>`_
-file::
+To add restart support to your plugin, the `Restarting` interface defined in
+the `config.go <https://github.com/mozilla-
+services/heka/blob/master/pipeline/config.go>`_ file::
 
     type Restarting interface {
         CleanupForRestart()
     }
 
-A plugin that implements this interface will not trigger shutdown
-should it fail while hekad is running. The `CleanupForRestart` method
-will be called when the plugins' main run method exits, a single time.
-Then the runner will repeatedly call the plugins Init method until it
-initializes successfully. It will then resume running it unless it
-exits again at which point the restart process will begin anew.
+A plugin that implements this interface will not trigger shutdown should it
+fail while hekad is running. The `CleanupForRestart` method will be called
+when the plugins' main run method exits, a single time. Then the runner will
+repeatedly call the plugins Init method until it initializes successfully. It
+will then resume running it unless it exits again at which point the restart
+process will begin anew.
 
 .. _custom_plugin_config:
 
@@ -459,6 +462,55 @@ object on to another filter or output plugin for further processing, then you
 *must* call `PipelinePack.Recycle()` to tell Heka that you are through with
 the pack. Failure to do so will cause Heka to not free up the packs for reuse,
 exhausting the supply and eventually causing the entire pipeline to freeze.
+
+.. _encoders:
+
+Encoders
+========
+
+Encoder plugins are the inverse of decoders. They convert `Message` structs
+into raw bytes that can be delivered to the outside world. Some encoders will
+serialize an entire `Message` struct, such as the :ref:`protobuf_encoder`
+which uses Heka's native protocol buffers format. Other encoders extract data
+from the message and insert it into a different format such as plain text or
+JSON.
+
+The `Encoder` interface consists of one method::
+
+    Encode(pack *PipelinePack) (output []byte, err error)
+
+This method accepts a PiplelinePack containing a populated message object and
+returns a byte slice containing the data that should be sent out, or an error
+if serialization fails for some reason.
+
+Unlike the other plugin types, encoders don't have a PluginRunner, nor do they
+run in their own goroutines. Rather, encoders are made available to output
+plugins via the OutputRunner, and it is up to an output implementation to make
+use of the provided encoder by calling the Encode method to serialize the
+message before delivering it to its destination.
+
+Even so, it is possible that an encoder might need to perform some clean up at
+shutdown time. If this is so, the encoder can implement the `NeedsStopping`
+interface::
+
+    Stop()
+
+And the `Stop` method will be called during the shutdown sequence.
+
+Finally, since Message structs serialized to protocol buffers is Heka's native
+format, Heka is able to perform some optimizations if an encoder is generating
+protobuf encoded messages. If you implement an encoder that does so, your encoder
+should provide the `MightGenerateProtobuf` interface::
+
+    GeneratesProtobuf() bool
+
+The `GeneratesProtobuf` method should return true for all encoders instances
+that are returning protobuf encoded messages. It is unlikely that you will
+have to implement such an encoder, however, since we already provide a
+:ref:`protobuf_encoder` (which implements `GeneratesProtobuf` and always
+returns true) and a :ref:`sandbox_encoder` (which implements
+`GeneratesProtobuf` and can specify whether it returns true or false depending
+on whether protobuf messages are being generated.)
 
 .. _outputs:
 

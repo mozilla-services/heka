@@ -12,7 +12,7 @@ Starting a SandboxFilter
 - Type: "heka.control.sandbox"
 - Payload: *sandbox code*
 - Fields[action]: "load"
-- Fields[config]: the TOML configuration for the SandboxFilter :ref:`sandboxfilter_settings`
+- Fields[config]: the TOML configuration for the :ref:`config_sandbox_filter`
 
 Stopping a SandboxFilter
 

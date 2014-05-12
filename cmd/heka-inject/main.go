@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -35,8 +35,8 @@ import (
 
 type HekaClient struct {
 	client  client.Client
-	encoder client.Encoder // I.e. protobufs
-	sender  client.Sender  // I.e. tcp
+	encoder client.StreamEncoder // e.g. protobufs
+	sender  client.Sender        // e.g. tcp
 }
 
 // NewHekaClient returns a new HekaClient with pre-defined encoder and sender.

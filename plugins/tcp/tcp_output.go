@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -49,11 +49,15 @@ type TcpOutputConfig struct {
 	// Interval at which the output queue logs will roll, in
 	// seconds. Defaults to 300.
 	TickerInterval uint `toml:"ticker_interval"`
+	Encoder        string
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
-	return &TcpOutputConfig{Address: "localhost:9125",
-		TickerInterval: uint(300)}
+	return &TcpOutputConfig{
+		Address:        "localhost:9125",
+		TickerInterval: uint(300),
+		Encoder:        "ProtobufEncoder",
+	}
 }
 
 func (t *TcpOutput) SetName(name string) {
@@ -66,16 +70,14 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	t.address = t.conf.Address
 
 	if t.conf.LocalAddress != "" {
-		// Error out if use_tls and local_address options are both set for now
+		// Error out if use_tls and local_address options are both set for now.
 		if t.conf.UseTls {
-			return fmt.Errorf("Cannot combine local_address %s and use_tls config options", t.localAddress)
+			return fmt.Errorf("Cannot combine local_address %s and use_tls config options",
+				t.localAddress)
 		}
 		t.localAddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
 	}
 
-	if t.bufferedOut, err = NewBufferedOutput("output_queue", t.name); err != nil {
-		return
-	}
 	return
 }
 
@@ -101,7 +103,7 @@ func (t *TcpOutput) SendRecord(record []byte) (err error) {
 	var n int
 	if t.connection == nil {
 		if err = t.connect(); err != nil {
-			// Explicitly set t.connection to nil b/c Go, see
+			// Explicitly set t.connection to nil because Go, see
 			// http://golang.org/doc/faq#nil_error.
 			t.connection = nil
 			return
@@ -144,7 +146,11 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}()
 
-	t.bufferedOut.Output(t, outputError, outputExit, stopChan)
+	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or.Encoder())
+	if err != nil {
+		return
+	}
+	t.bufferedOut.Start(t, outputError, outputExit, stopChan)
 
 	for ok {
 		select {
@@ -188,7 +194,8 @@ func (t *TcpOutput) ReportMsg(msg *message.Message) error {
 	t.reportLock.Lock()
 	defer t.reportLock.Unlock()
 
-	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&t.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&t.processMessageCount), "count")
 	t.bufferedOut.ReportMsg(msg)
 	return nil
 }

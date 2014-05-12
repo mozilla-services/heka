@@ -16,7 +16,7 @@
 package file
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins"
@@ -29,19 +29,12 @@ import (
 )
 
 var (
-	FILEFORMATS = map[string]bool{
-		"json":           true,
-		"text":           true,
-		"protobufstream": true,
-	}
-
 	TSFORMAT = "[2006/Jan/02:15:04:05 -0700] "
 )
 
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
 	path          string
-	format        string
 	prefix_ts     bool
 	perm          os.FileMode
 	flushInterval uint32
@@ -52,19 +45,13 @@ type FileOutput struct {
 	backChan      chan []byte
 	folderPerm    os.FileMode
 	timerChan     <-chan time.Time
+	encoder       Encoder
 }
 
 // ConfigStruct for FileOutput plugin.
 type FileOutputConfig struct {
 	// Full output file path.
 	Path string
-
-	// Format for message serialization, from text (payload only), json, or
-	// protobufstream.
-	Format string
-
-	// Add timestamp prefix to each output line?
-	Prefix_ts bool
 
 	// Output file permissions (default "644").
 	Perm string
@@ -90,7 +77,6 @@ type FileOutputConfig struct {
 
 func (o *FileOutput) ConfigStruct() interface{} {
 	return &FileOutputConfig{
-		Format:        "text",
 		Perm:          "644",
 		FlushInterval: 1000,
 		FlushCount:    1,
@@ -101,14 +87,7 @@ func (o *FileOutput) ConfigStruct() interface{} {
 
 func (o *FileOutput) Init(config interface{}) (err error) {
 	conf := config.(*FileOutputConfig)
-	if _, ok := FILEFORMATS[conf.Format]; !ok {
-		err = fmt.Errorf("FileOutput '%s' unsupported format: %s", conf.Path,
-			conf.Format)
-		return
-	}
 	o.path = conf.Path
-	o.format = conf.Format
-	o.prefix_ts = conf.Prefix_ts
 	var intPerm int64
 
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
@@ -164,6 +143,10 @@ func (o *FileOutput) openFile() (err error) {
 }
 
 func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	o.encoder = or.Encoder()
+	if o.encoder == nil {
+		return errors.New("Encoder required.")
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go o.receiver(or, &wg)
@@ -183,10 +166,10 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 		timerDuration   time.Duration
 		msgCounter      uint32
 		intervalElapsed bool
+		outBytes        []byte
 	)
 	ok := true
 	outBatch := make([]byte, 0, 10000)
-	outBytes := make([]byte, 0, 1000)
 	inChan := or.InChan()
 
 	timerDuration = time.Duration(o.flushInterval) * time.Millisecond
@@ -206,13 +189,12 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				close(o.batchChan)
 				break
 			}
-			if e = o.handleMessage(pack, &outBytes); e != nil {
+			if outBytes, e = o.encoder.Encode(pack); e != nil {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)
 				msgCounter++
 			}
-			outBytes = outBytes[:0]
 			pack.Recycle()
 
 			// Trigger immediately when the message count threshold has been
@@ -249,34 +231,6 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 		}
 	}
 	wg.Done()
-}
-
-// Performs the actual task of extracting data from the pack and writing it
-// into the output buffer in the proper format.
-func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
-	if o.prefix_ts && o.format != "protobufstream" {
-		ts := time.Now().Format(TSFORMAT)
-		*outBytes = append(*outBytes, ts...)
-	}
-	switch o.format {
-	case "json":
-		if jsonMessage, err := json.Marshal(pack.Message); err == nil {
-			*outBytes = append(*outBytes, jsonMessage...)
-			*outBytes = append(*outBytes, NEWLINE)
-		} else {
-			err = fmt.Errorf("Can't encode to JSON: %s", err)
-		}
-	case "text":
-		*outBytes = append(*outBytes, *pack.Message.Payload...)
-		*outBytes = append(*outBytes, NEWLINE)
-	case "protobufstream":
-		if err = ProtobufEncodeMessage(pack, &*outBytes); err != nil {
-			err = fmt.Errorf("Can't encode to ProtoBuf: %s", err)
-		}
-	default:
-		err = fmt.Errorf("Invalid serialization format %s", o.format)
-	}
-	return
 }
 
 // Runs in a separate goroutine, waits for buffered data on the committer

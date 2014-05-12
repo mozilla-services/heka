@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013
+# Portions created by the Initial Developer are Copyright (C) 2013-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,7 +16,6 @@ package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -51,7 +50,7 @@ type SandboxDecoder struct {
 	sampleDenominator      int
 }
 
-func (pd *SandboxDecoder) ConfigStruct() interface{} {
+func (s *SandboxDecoder) ConfigStruct() interface{} {
 	return NewSandboxConfig()
 }
 
@@ -148,18 +147,17 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		s.err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
-	if s.err == nil {
-		s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
-		if s.sbc.PreserveData && fileExists(s.preservationFile) {
-			s.err = s.sb.Init(s.preservationFile, "decoder")
-		} else {
-			s.err = s.sb.Init("", "decoder")
-		}
-	}
 	if s.err != nil {
 		dr.LogError(s.err)
 		pipeline.Globals().ShutDown()
 		return
+	}
+
+	s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
+	if s.sbc.PreserveData && fileExists(s.preservationFile) {
+		s.err = s.sb.Init(s.preservationFile, "decoder")
+	} else {
+		s.err = s.sb.Init("", "decoder")
 	}
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -260,7 +258,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
-		s.err = errors.New("FATAL: " + s.sb.LastError())
+		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(s.err)
 		pipeline.Globals().ShutDown()
 	}

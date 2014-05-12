@@ -25,6 +25,7 @@ func TestAllSpecs(t *testing.T) {
 
 	r.AddSpec(LoadFromConfigSpec)
 	r.AddSpec(ScribbleDecoderSpec)
+	r.AddSpec(PayloadEncoderSpec)
 
 	gospec.MainGoTest(r, t)
 }

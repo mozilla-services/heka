@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -30,10 +30,7 @@ import (
 
 const HEKA_DAEMON = "hekad"
 
-var (
-	AvailablePlugins = make(map[string]func() interface{})
-	PluginTypeRegex  = regexp.MustCompile("^.*(Decoder|Filter|Input|Output)$")
-)
+var AvailablePlugins = make(map[string]func() interface{})
 
 // Adds a plugin to the set of usable Heka plugins that can be referenced from
 // a Heka config file.
@@ -52,9 +49,14 @@ type PluginHelper interface {
 	// specified name, or ok == false if no output by that name is registered.
 	Output(name string) (oRunner OutputRunner, ok bool)
 
-	// Returns an `FilterRunner` for a filter plugin registered using the
-	// specified name, or ok == false if no filter by that name is registered.
+	// Returns the running `FilterRunner` for a filter plugin registered using
+	// the specified name, or ok == false if no filter by that name is
+	// registered.
 	Filter(name string) (fRunner FilterRunner, ok bool)
+
+	// Instantiates and returns an `Encoder` plugin of the specified name, or
+	// ok == false if no encoder by that name is registered.
+	Encoder(base_name, full_name string) (encoder Encoder, ok bool)
 
 	// Returns the currently running Heka instance's unique PipelineConfig
 	// object.
@@ -122,6 +124,8 @@ type PipelineConfig struct {
 	FilterRunners map[string]FilterRunner
 	// PluginWrappers that can create Filter plugin objects.
 	filterWrappers map[string]*PluginWrapper
+	// PluginWrappers that can create Encoder plugin objects.
+	encoderWrappers map[string]*PluginWrapper
 	// All running OutputRunners, by name.
 	OutputRunners map[string]OutputRunner
 	// PluginWrappers that can create Output plugin objects.
@@ -146,6 +150,10 @@ type PipelineConfig struct {
 	allDecoders []DecoderRunner
 	// Mutex protecting allDecoders.
 	allDecodersLock sync.Mutex
+	// Slice providing access to all instantiated Encoders.
+	allEncoders map[string]Encoder
+	// Mutex protecting allEncoders.
+	allEncodersLock sync.Mutex
 	// Name of host on which Heka is running.
 	hostname string
 	// Heka process id.
@@ -175,8 +183,10 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.DecoderWrappers = make(map[string]*PluginWrapper)
 	config.FilterRunners = make(map[string]FilterRunner)
 	config.filterWrappers = make(map[string]*PluginWrapper)
+	config.encoderWrappers = make(map[string]*PluginWrapper)
 	config.OutputRunners = make(map[string]OutputRunner)
 	config.outputWrappers = make(map[string]*PluginWrapper)
+	config.allEncoders = make(map[string]Encoder)
 	config.router = NewMessageRouter()
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
@@ -252,7 +262,9 @@ func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 
 // Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 // created Decoder of the specified name.
-func (self *PipelineConfig) DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool) {
+func (self *PipelineConfig) DecoderRunner(base_name, full_name string) (
+	dRunner DecoderRunner, ok bool) {
+
 	var decoder Decoder
 	if decoder, ok = self.Decoder(base_name); ok {
 		pluginGlobals := new(PluginGlobals)
@@ -277,6 +289,23 @@ func (self *PipelineConfig) StopDecoderRunner(dRunner DecoderRunner) (ok bool) {
 			ok = true
 			break
 		}
+	}
+	return
+}
+
+// Instantiates and returns an Encoder of the specified name.
+func (self *PipelineConfig) Encoder(base_name, full_name string) (
+	encoder Encoder, ok bool) {
+
+	var wrapper *PluginWrapper
+	if wrapper, ok = self.encoderWrappers[base_name]; ok {
+		encoder = wrapper.Create().(Encoder)
+		if wantsName, ok2 := encoder.(WantsName); ok2 {
+			wantsName.SetName(full_name)
+		}
+		self.allEncodersLock.Lock()
+		self.allEncoders[full_name] = encoder
+		self.allEncodersLock.Unlock()
 	}
 	return
 }
@@ -415,21 +444,17 @@ type RetryOptions struct {
 	MaxRetries int `toml:"max_retries"`
 }
 
-// The TOML spec for plugin configuration options that will be pulled out  by
-// Heka itself for runner configuration before the config is passed to the
-// Plugin.Init method.
+// The TOML spec for plugin configuration options that will be pulled out by
+// Heka itself before the config is passed to the Plugin.Init method. Not all
+// options apply to all plugin types.
 type PluginGlobals struct {
 	Typ     string `toml:"type"`
 	Ticker  uint   `toml:"ticker_interval"`
-	Matcher string `toml:"message_matcher"`
-	Signer  string `toml:"message_signer"`
+	Matcher string `toml:"message_matcher"` // Filter and Output only.
+	Signer  string `toml:"message_signer"`  // Filter and Output only.
 	Retries RetryOptions
+	Encoder string // Output only.
 }
-
-// Default Decoders configuration.
-var defaultDecoderTOML = `
-[ProtobufDecoder]
-`
 
 // A helper object to support delayed plugin creation.
 type PluginWrapper struct {
@@ -530,100 +555,71 @@ func (self *PipelineConfig) log(msg string) {
 	log.Println(msg)
 }
 
-// loadSection must be passed a plugin name and the config for that plugin. It
-// will create a PluginWrapper (i.e. a factory). For decoders we store the
-// PluginWrappers and create pools of DecoderRunners for each type, stored in
-// our decoder channels. For the other plugin types, we create the plugin,
-// configure it, then create the appropriate plugin runner.
-func (self *PipelineConfig) loadSection(sectionName string,
-	configSection toml.Primitive) (errcnt uint) {
-	var ok bool
-	var err error
-	var pluginGlobals PluginGlobals
-	var pluginType string
+type ConfigSection struct {
+	name        string
+	category    string
+	tomlSection toml.Primitive
+	globals     *PluginGlobals
+}
 
+// Creates a PluginWrapper (i.e. a factory) for each provided config section.
+// For decoders and encoders PluginWrappers are stored for later use. For the
+// other plugin types a plugin instance is created, configured, and wrapped
+// with an appropriate plugin runner.
+func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	wrapper := new(PluginWrapper)
-	wrapper.Name = sectionName
-
-	// Setup default retry policy
-	pluginGlobals.Retries = RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
-	}
-
-	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		self.log(fmt.Sprintf("Unable to decode config for plugin: %s, error: %s",
-			wrapper.Name, err.Error()))
-		errcnt++
-		return
-	}
-	if pluginGlobals.Typ == "" {
-		pluginType = sectionName
-	} else {
-		pluginType = pluginGlobals.Typ
-	}
-
-	if wrapper.PluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-		self.log(fmt.Sprintf("No such plugin: %s", wrapper.Name))
-		errcnt++
-		return
-	}
+	wrapper.Name = section.name
+	// Check for existence of plugin type in AvailablePlugins map happens in
+	// loadPluginGlobals, we shouldn't get here if it doesn't exist.
+	wrapper.PluginCreator = AvailablePlugins[section.globals.Typ]
 
 	// Create plugin, test config object generation.
 	plugin := wrapper.PluginCreator()
 	var config interface{}
-	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
-		self.log(fmt.Sprintf("Can't load config for %s '%s': %s", sectionName,
-			wrapper.Name, err))
-		errcnt++
-		return
+	if config, err = LoadConfigStruct(section.tomlSection, plugin); err != nil {
+		return fmt.Errorf("Can't load config for %s: %s", section.name, err)
 	}
 	wrapper.ConfigCreator = func() interface{} { return config }
+
+	// Some plugins need access to their name before Init is called.
 	if wantsName, ok := plugin.(WantsName); ok {
-		wantsName.SetName(sectionName)
+		wantsName.SetName(section.name)
 	}
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(Plugin).Init(config); err != nil {
-		self.log(fmt.Sprintf("Initialization failed for '%s': %s",
-			sectionName, err))
-		errcnt++
-		return
+		return fmt.Errorf("Initialization failed for '%s': %s", section.name, err)
 	}
-
-	// Determine the plugin type
-	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
-	if len(pluginCats) < 2 {
-		self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s", pluginType))
-		errcnt++
-		return
-	}
-	pluginCategory := pluginCats[1]
 
 	// Decoders are registered but aren't instantiated until needed by a
 	// specific input plugin. We ignore the one that's already been created
 	// and just store the wrapper so we can create them when we need them.
-	if pluginCategory == "Decoder" {
+	if section.category == "Decoder" {
 		self.DecoderWrappers[wrapper.Name] = wrapper
+		return
+	}
+
+	// Encoders are also registered but not instantiated.
+	if section.category == "Encoder" {
+		self.encoderWrappers[wrapper.Name] = wrapper
 		return
 	}
 
 	// If no ticker_interval value was specified in the TOML, we check to see
 	// if a default TickerInterval value is specified on the config struct.
-	if pluginGlobals.Ticker == 0 {
+	if section.globals.Ticker == 0 {
 		tickerVal := getAttr(config, "TickerInterval", uint(0))
-		pluginGlobals.Ticker = tickerVal.(uint)
+		section.globals.Ticker = tickerVal.(uint)
 	}
 
 	// For inputs we just store the InputRunner and we're done.
-	if pluginCategory == "Input" {
+	if section.category == "Input" {
 		self.InputRunners[wrapper.Name] = NewInputRunner(wrapper.Name,
-			plugin.(Input), &pluginGlobals, false)
+			plugin.(Input), section.globals, false)
 		self.inputWrappers[wrapper.Name] = wrapper
 
-		if pluginGlobals.Ticker != 0 {
-			tickLength := time.Duration(pluginGlobals.Ticker) * time.Second
+		if section.globals.Ticker != 0 {
+			tickLength := time.Duration(section.globals.Ticker) * time.Second
 			self.InputRunners[wrapper.Name].SetTickLength(tickLength)
 		}
 
@@ -631,39 +627,34 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	}
 
 	// Filters and outputs have a few more config settings.
-	runner := NewFORunner(wrapper.Name, plugin.(Plugin), &pluginGlobals)
+	runner := NewFORunner(wrapper.Name, plugin.(Plugin), section.globals)
 	runner.name = wrapper.Name
 
-	if pluginGlobals.Ticker != 0 {
-		runner.tickLength = time.Duration(pluginGlobals.Ticker) * time.Second
+	if section.globals.Ticker != 0 {
+		runner.tickLength = time.Duration(section.globals.Ticker) * time.Second
 	}
 
-	// Similarly, if no message_matcher was specified in the TOML we look for
-	// a default value on the config struct as a MessageMatcher attribute.
-	if pluginGlobals.Matcher == "" {
+	// If no message_matcher was specified in the TOML we look for a default
+	// value on the config struct as a MessageMatcher attribute.
+	if section.globals.Matcher == "" {
 		matcherVal := getAttr(config, "MessageMatcher", "")
-		pluginGlobals.Matcher = matcherVal.(string)
+		section.globals.Matcher = matcherVal.(string)
 	}
 
 	var matcher *MatchRunner
-	if pluginGlobals.Matcher == "" {
-		// Filters and outputs must specify a message matcher
-		self.log(fmt.Sprintf("'%s' missing message matcher", wrapper.Name))
-		errcnt++
-		return
-	}
-	if pluginGlobals.Matcher != "" {
-		if matcher, err = NewMatchRunner(pluginGlobals.Matcher,
-			pluginGlobals.Signer, runner); err != nil {
-			self.log(fmt.Sprintf("Can't create message matcher for '%s': %s",
-				wrapper.Name, err))
-			errcnt++
-			return
-		}
-		runner.matcher = matcher
+	if section.globals.Matcher == "" {
+		// Filters and outputs must have a message matcher.
+		return fmt.Errorf("'%s' missing message matcher", wrapper.Name)
 	}
 
-	switch pluginCategory {
+	if matcher, err = NewMatchRunner(section.globals.Matcher,
+		section.globals.Signer, runner); err != nil {
+		return fmt.Errorf("Can't create message matcher for '%s': %s",
+			wrapper.Name, err)
+	}
+	runner.matcher = matcher
+
+	switch section.category {
 	case "Filter":
 		if matcher != nil {
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
@@ -674,6 +665,22 @@ func (self *PipelineConfig) loadSection(sectionName string,
 		}
 
 	case "Output":
+		// Check to see if a default encoder is specified if none was in the
+		// TOML.
+		if section.globals.Encoder == "" {
+			encoder := getAttr(config, "Encoder", "")
+			section.globals.Encoder = encoder.(string)
+		}
+		// Create the encoder if one was specified.
+		if section.globals.Encoder != "" {
+			full_name := fmt.Sprintf("%s-%s", section.name, section.globals.Encoder)
+			encoder, ok := self.Encoder(section.globals.Encoder, full_name)
+			if !ok {
+				return fmt.Errorf("Non-existent encoder '%s' specified by output '%s'",
+					section.globals.Encoder, section.name)
+			}
+			runner.encoder = encoder
+		}
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
@@ -684,36 +691,159 @@ func (self *PipelineConfig) loadSection(sectionName string,
 	return
 }
 
-// LoadFromConfigFile loads a TOML configuration file and stores the
-// result in the value pointed to by config. The maps in the config
-// will be initialized as needed.
-//
-// The PipelineConfig should be already initialized before passed in via
-// its Init function.
+// This function extracts the Heka specified config options (the poorly named
+// "PluginGlobals") from a given plugin's config section. If successful, the
+// PluginGlobals are stored on the provided ConfigSection. If unsuccessful,
+// ConfigSection will be unchanged and an error will be returned.
+func (self *PipelineConfig) loadPluginGlobals(section *ConfigSection) (err error) {
+	// Set up default retry policy.
+
+	pGlobals := new(PluginGlobals)
+	pGlobals.Retries = RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
+
+	if err = toml.PrimitiveDecode(section.tomlSection, pGlobals); err != nil {
+		err = fmt.Errorf("Unable to decode config for plugin '%s': %s",
+			section.name, err)
+		return
+	}
+
+	if pGlobals.Typ == "" {
+		pGlobals.Typ = section.name
+	}
+
+	if _, ok := AvailablePlugins[pGlobals.Typ]; !ok {
+		err = fmt.Errorf("No registered plugin type: %s", pGlobals.Typ)
+	} else {
+		section.globals = pGlobals
+	}
+	return
+}
+
+var PluginTypeRegex = regexp.MustCompile("^.*(Decoder|Encoder|Filter|Input|Output)$")
+
+func getPluginCategory(pluginType string) string {
+	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
+	if len(pluginCats) < 2 {
+		return ""
+	}
+	return pluginCats[1]
+}
+
+// Default protobuf configurations.
+const protobufDecoderToml = `
+[ProtobufDecoder]
+`
+
+const protobufEncoderToml = `
+[ProtobufEncoder]
+`
+
+// Loads all plugin configuration from a TOML configuration file. The
+// PipelineConfig should be already initialized via the Init function before
+// this method is called.
 func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	var configFile ConfigFile
+
 	if _, err = toml.DecodeFile(filename, &configFile); err != nil {
 		return fmt.Errorf("Error decoding config file: %s", err)
 	}
 
-	// Load all the plugins
-	var errcnt uint
+	var (
+		errcnt              uint
+		protobufDRegistered bool
+		protobufERegistered bool
+	)
+	sectionsByCategory := make(map[string][]*ConfigSection)
+
+	// Load all the plugin globals and file them by category.
 	for name, conf := range configFile {
 		if name == HEKA_DAEMON {
 			continue
 		}
-		log.Printf("Loading: [%s]\n", name)
-		errcnt += self.loadSection(name, conf)
+		log.Printf("Pre-loading: [%s]\n", name)
+		section := &ConfigSection{
+			name:        name,
+			tomlSection: conf,
+		}
+		if err = self.loadPluginGlobals(section); err != nil {
+			self.log(err.Error())
+			errcnt++
+			continue
+		}
+
+		category := getPluginCategory(section.globals.Typ)
+		if category == "" {
+			self.log(fmt.Sprintf("Type doesn't contain valid plugin name: %s\n",
+				section.globals.Typ))
+			errcnt++
+			continue
+		}
+		section.category = category
+		sectionsByCategory[category] = append(sectionsByCategory[category], section)
+		if name == "ProtobufDecoder" {
+			protobufDRegistered = true
+		}
+		if name == "ProtobufEncoder" {
+			protobufERegistered = true
+		}
 	}
 
-	// Add JSON/PROTOCOL_BUFFER decoders if none were configured
-	var configDefault ConfigFile
-	toml.Decode(defaultDecoderTOML, &configDefault)
-	dWrappers := self.DecoderWrappers
+	// Make sure ProtobufDecoder is registered.
+	if !protobufDRegistered {
+		var configDefault ConfigFile
+		toml.Decode(protobufDecoderToml, &configDefault)
+		log.Println("Pre-loading: [ProtobufDecoder]")
+		section := &ConfigSection{
+			name:        "ProtobufDecoder",
+			category:    "Decoder",
+			tomlSection: configDefault["ProtobufDecoder"],
+		}
+		if err = self.loadPluginGlobals(section); err != nil {
+			// This really shouldn't happen.
+			self.log(err.Error())
+			errcnt++
+		} else {
+			sectionsByCategory["Decoder"] = append(sectionsByCategory["Decoder"],
+				section)
+		}
+	}
 
-	if _, ok := dWrappers["ProtobufDecoder"]; !ok {
-		log.Println("Loading: [ProtobufDecoder]")
-		errcnt += self.loadSection("ProtobufDecoder", configDefault["ProtobufDecoder"])
+	// Make sure ProtobufEncoder is registered.
+	if !protobufERegistered {
+		var configDefault ConfigFile
+		toml.Decode(protobufEncoderToml, &configDefault)
+		log.Println("Pre-loading: [ProtobufEncoder]")
+		section := &ConfigSection{
+			name:        "ProtobufEncoder",
+			category:    "Encoder",
+			tomlSection: configDefault["ProtobufEncoder"],
+		}
+		if err = self.loadPluginGlobals(section); err != nil {
+			// This really shouldn't happen.
+			self.log(err.Error())
+			errcnt++
+		} else {
+			sectionsByCategory["Encoder"] = append(sectionsByCategory["Encoder"],
+				section)
+		}
+	}
+
+	// Force decoders and encoders to be registered before the other plugin
+	// types are initialized so we know they'll be there for inputs and
+	// outputs to use during initialization.
+	order := []string{"Decoder", "Encoder", "Input", "Filter", "Output"}
+	for _, category := range order {
+		for _, section := range sectionsByCategory[category] {
+			log.Printf("Loading: [%s]\n", section.name)
+			if err = self.loadSection(section); err != nil {
+				self.log(err.Error())
+				errcnt++
+			}
+		}
 	}
 
 	if errcnt != 0 {
