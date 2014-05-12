@@ -32,6 +32,7 @@ Config:
 --]]
 
 require "circular_buffer"
+require "math"
 local alert         = require "alert"
 local annotation    = require "annotation"
 local anomaly       = require "anomaly"
@@ -50,6 +51,7 @@ local ROWS_EXAMINED = data:set_header(3, "Rows Examined", "count"   , "none")
 local ROWS_SENT     = data:set_header(4, "Rows Sent"    , "count"   , "none")
 local COUNT         = data:set_header(5, "Count")
 
+local floor = math.floor
 function process_message ()
     local ts = read_message("Timestamp")
     local cnt = data:add(ts, COUNT, 1)
@@ -61,8 +63,8 @@ function process_message ()
     local rs = read_message("Fields[Rows_sent]")
     data:set(ts, QUERY_TIME, sums:add(ts, QUERY_TIME, qt)/cnt)
     data:set(ts, LOCK_TIME, sums:add(ts, LOCK_TIME, lt)/cnt)
-    data:set(ts, ROWS_EXAMINED, sums:add(ts, ROWS_EXAMINED, re)/cnt)
-    data:set(ts, ROWS_SENT, sums:add(ts, ROWS_SENT, rs)/cnt)
+    data:set(ts, ROWS_EXAMINED, floor(sums:add(ts, ROWS_EXAMINED, re)/cnt))
+    data:set(ts, ROWS_SENT, floor(sums:add(ts, ROWS_SENT, rs)/cnt))
     return 0
 end
 
