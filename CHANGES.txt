@@ -83,6 +83,9 @@ Bug Handling
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
 sandbox plugin output() call.
 
+* Fixed TcpInput so it will only override the default delimiter for a
+  RegexpParser if a delimiter is specified in the config.
+
 0.5.1 (2014-03-18)
 ==================
 

@@ -156,7 +156,9 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		rp := NewRegexpParser()
 		parser = rp
 		parseFunction = NetworkPayloadParser
-		rp.SetDelimiter(t.config.Delimiter)
+		if len(t.config.Delimiter) > 0 {
+			rp.SetDelimiter(t.config.Delimiter)
+                }
 		rp.SetDelimiterLocation(t.config.DelimiterLocation)
 	} else if t.config.ParserType == "token" {
 		tp := NewTokenParser()
