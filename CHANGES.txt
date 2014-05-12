@@ -20,6 +20,8 @@ Bug Handling
 Features
 --------
 
+* Added a bloom filter to the Lua sandbox and created a unique items filter.
+
 * Turned the MySQL slow query log examples into a deployed decoder and filter.
 
 * Added an Nginx error log decoder (issue #785)

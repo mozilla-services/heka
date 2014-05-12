@@ -102,3 +102,15 @@ MySQL Slow Query
 
 .. _config_sandbox_manager_filter:
 .. include:: /config/filters/sandboxmanager.rst
+
+.. _config_unique_items_filter:
+
+Unique Items
+============
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/unique_items.lua
+   :start-after: --[[
+   :end-before: --]]
+
