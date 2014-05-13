@@ -4,19 +4,23 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package plugins
 
 import (
+	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
+	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -36,6 +40,7 @@ func TestAllSpecs(t *testing.T) {
 
 	r.AddSpec(FilterSpec)
 	r.AddSpec(DecoderSpec)
+	r.AddSpec(EncoderSpec)
 
 	gs.MainGoTest(r, t)
 }
@@ -538,5 +543,116 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 			decoder.Shutdown()
 		})
+	})
+}
+
+func EncoderSpec(c gs.Context) {
+	t := new(ts.SimpleT)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// NewPipelineConfig sets up Globals which is needed for the
+	// pipeline.Prepend*Dir functions to not die during plugin Init().
+	_ = pipeline.NewPipelineConfig(nil)
+
+	c.Specify("A SandboxEncoder", func() {
+
+		encoder := new(SandboxEncoder)
+		conf := encoder.ConfigStruct().(*SandboxEncoderConfig)
+		conf.ScriptType = "lua"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		pack.Message.SetPayload("original")
+		pack.Message.SetType("my_type")
+		pack.Message.SetPid(12345)
+		pack.Message.SetSeverity(4)
+		pack.Message.SetHostname("hostname")
+		pack.Message.SetTimestamp(54321)
+		pack.Message.SetUuid(uuid.NewRandom())
+		var (
+			result []byte
+			err    error
+		)
+
+		c.Specify("emits JSON correctly", func() {
+			conf.ScriptFilename = "../lua/testsupport/encoder_json.lua"
+			err = encoder.Init(conf)
+			c.Expect(err, gs.IsNil)
+			c.Expect(encoder.GeneratesProtobuf(), gs.IsFalse)
+
+			result, err = encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			msg := new(message.Message)
+			err = json.Unmarshal(result, msg)
+			c.Expect(err, gs.IsNil)
+			c.Expect(msg.GetTimestamp(), gs.Equals, int64(54321))
+			c.Expect(msg.GetPid(), gs.Equals, int32(12345))
+			c.Expect(msg.GetSeverity(), gs.Equals, int32(4))
+			c.Expect(msg.GetHostname(), gs.Equals, "hostname")
+			c.Expect(msg.GetPayload(), gs.Equals, "original")
+			c.Expect(msg.GetType(), gs.Equals, "my_type")
+		})
+
+		c.Specify("emits text correctly", func() {
+			conf.ScriptFilename = "../lua/testsupport/encoder_text.lua"
+			err = encoder.Init(conf)
+			c.Expect(err, gs.IsNil)
+
+			result, err = encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(result), gs.Equals, "Prefixed original")
+		})
+
+		c.Specify("emits protobuf correctly", func() {
+			conf.EmitsProtobuf = true
+			parser := pipeline.NewMessageProtoParser()
+
+			c.Specify("when inject_message is used", func() {
+				conf.ScriptFilename = "../lua/testsupport/encoder_protobuf.lua"
+				err = encoder.Init(conf)
+				c.Expect(err, gs.IsNil)
+				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
+
+				result, err = encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				buffer := bytes.NewBuffer(result)
+				_, record, e := parser.Parse(buffer)
+				c.Expect(e, gs.IsNil)
+				headerLen := int(record[1] + message.HEADER_FRAMING_SIZE)
+				record = record[headerLen:]
+
+				msg := new(message.Message)
+				err = proto.Unmarshal(record, msg)
+				c.Expect(err, gs.IsNil)
+				c.Expect(msg.GetTimestamp(), gs.Equals, int64(54321))
+				c.Expect(msg.GetPid(), gs.Equals, int32(12345))
+				c.Expect(msg.GetSeverity(), gs.Equals, int32(4))
+				c.Expect(msg.GetHostname(), gs.Equals, "hostname")
+				c.Expect(msg.GetPayload(), gs.Equals, "mutated")
+				c.Expect(msg.GetType(), gs.Equals, "after")
+			})
+
+			c.Specify("when `write_message` is used", func() {
+				conf.ScriptFilename = "../lua/testsupport/encoder_writemessage.lua"
+				err = encoder.Init(conf)
+				c.Expect(err, gs.IsNil)
+				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
+
+				result, err = encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+				buffer := bytes.NewBuffer(result)
+				_, record, e := parser.Parse(buffer)
+				c.Expect(e, gs.IsNil)
+				headerLen := int(record[1] + message.HEADER_FRAMING_SIZE)
+				record = record[headerLen:]
+
+				msg := new(message.Message)
+				err = proto.Unmarshal(record, msg)
+				c.Expect(err, gs.IsNil)
+				c.Expect(msg.GetPayload(), gs.Equals, "mutated payload")
+			})
+		})
+
 	})
 }

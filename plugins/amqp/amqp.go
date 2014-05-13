@@ -287,7 +287,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		persist uint8
 		ok      bool = true
 		amqpMsg amqp.Publishing
-		encoder client.Encoder
+		encoder client.StreamEncoder
 		msgBody []byte = make([]byte, 0, 500)
 	)
 	if conf.Persistent {

@@ -374,7 +374,8 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_typ
     lsb_add_function(lsb, &read_next_field, "read_next_field");
     lsb_add_function(lsb, &inject_message, "inject_message");
 
-    if (strcmp(plugin_type, "decoder") == 0) {
+    if (strcmp(plugin_type, "decoder") == 0 ||
+        strcmp(plugin_type, "encoder") == 0) {
         lsb_add_function(lsb, &write_message, "write_message");
     }
 

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -78,7 +78,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
 
-			// and the inputs section loads properly with a custom name
+			// and the inputs sections load properly with a custom name
 			udp, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
@@ -88,12 +88,19 @@ func LoadFromConfigSpec(c gs.Context) {
 			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the outputs section loads
+			// and the outputs sections load
 			_, ok = pipeConfig.OutputRunners["LogOutput"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the filters sections loads
+			// and the filters sections load
 			_, ok = pipeConfig.FilterRunners["sample"]
+			c.Expect(ok, gs.Equals, true)
+
+			// and the encoders sections load
+			var encoder Encoder
+			encoder, ok = pipeConfig.Encoder("PayloadEncoder", "foo")
+			c.Expect(ok, gs.Equals, true)
+			_, ok = encoder.(*PayloadEncoder)
 			c.Expect(ok, gs.Equals, true)
 
 			// Shut down UdpInput to free up the port for future tests.
@@ -130,7 +137,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "2 errors loading plugins")
-			c.Expect(pipeConfig.LogMsgs, gs.ContainsAny, gs.Values("No such plugin: CounterOutput"))
+			c.Expect(pipeConfig.LogMsgs, gs.ContainsAny,
+				gs.Values("No registered plugin type: CounterOutput"))
 		})
 
 		c.Specify("handles missing config file correctly", func() {
@@ -148,7 +156,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
 			msg := pipeConfig.LogMsgs[0]
-			c.Expect(msg, ts.StringContains, "No such plugin")
+			c.Expect(msg, ts.StringContains, "No registered plugin type:")
 		})
 
 		c.Specify("for a DefaultsTestOutput", func() {
@@ -234,6 +242,10 @@ DashboardOutput:
     MatchChanCapacity: 50
     MatchChanLength: 0
     MatchAvgDuration: 336
+
+====Encoders====
+NONE
+
 ========
 `
 

@@ -7,7 +7,8 @@ define(
     "use strict";
 
     /**
-    * Plugin model representing any of the four plugin types: inputs, decoders, filters, or outputs.
+    * Plugin model representing any of the five plugin types: inputs, decoders, filters,
+    * outputs, or encoders.
     *
     * @class Plugin
     *

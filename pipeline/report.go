@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -101,7 +101,8 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
-	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&pc.router.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&pc.router.processMessageCount), "count")
 	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.router-report")
 	message.NewStringField(msg, "name", "Router")
@@ -138,6 +139,22 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", runner.Name())
 		message.NewStringField(pack.Message, "key", "decoders")
+		reportChan <- pack
+	}
+
+	for name, encoder := range pc.allEncoders {
+		pack = <-pc.reportRecycleChan
+		msg = pack.Message
+		msg.SetType("heka.plugin-report")
+		message.NewStringField(msg, "name", name)
+		message.NewStringField(msg, "key", "encoders")
+		if reporter, ok := encoder.(ReportingPlugin); ok {
+			if err = reporter.ReportMsg(msg); err != nil {
+				if f, e = message.NewField("Error", err.Error(), ""); e == nil {
+					msg.AddField(f)
+				}
+			}
+		}
 		reportChan <- pack
 	}
 
@@ -246,14 +263,15 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	json.Unmarshal([]byte(payload), &m)
 
 	fullReport := make([]string, 0)
-	categories := []string{"globals", "inputs", "decoders", "filters", "outputs"}
+	categories := []string{"globals", "inputs", "decoders", "filters", "outputs", "encoders"}
 	for _, cat := range categories {
-		// Skip categories for which there are no reports.
-		if _, ok := m[cat]; !ok {
+		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
+		catReports, ok := m[cat]
+		if !ok {
+			fullReport = append(fullReport, fmt.Sprintln("NONE"))
 			continue
 		}
-		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
-		for _, row := range m[cat].([]interface{}) {
+		for _, row := range catReports.([]interface{}) {
 			pluginReport := make([]string, 0)
 			pluginReport = append(pluginReport,
 				fmt.Sprintf("%s:", (row.(map[string]interface{}))["Name"].(string)))
@@ -261,7 +279,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 				data := row.(map[string]interface{})[colname]
 				if data != nil {
 					pluginReport = append(pluginReport,
-						fmt.Sprintf("    %s: %s",
+						fmt.Sprintf("    %s: %v",
 							colname,
 							data.(map[string]interface{})["value"]))
 				}

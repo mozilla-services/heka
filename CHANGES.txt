@@ -4,16 +4,20 @@
 Backwards Incompatibilities
 ---------------------------
 
-* The rsyslog decoder now further parses the %SYSLOGTAG% variable. The 
-fields.syslogtag no longer exists and is replaced by fields.programname and
-message.Pid (issue #677).
+* Changed TcpOutput, FileOutput, and LogOutput to use Encoder plugins for
+  output formatting instead of bespoke formatting implementations.
+
+* The rsyslog decoder now further parses the %SYSLOGTAG% variable. The
+  fields.syslogtag no longer exists and is replaced by fields.programname and
+  message.Pid (issue #677).
 
 * Removed no-longer-used 'decoder_poolsize' global config setting.
 
 Bug Handling
 ------------
 
-* use FindProcess instead of syscall.Kill to make the 'pid_file' configuration setting work on Windows (issue #807)
+* Use FindProcess instead of syscall.Kill to make the 'pid_file' configuration
+  setting work on Windows (issue #807)
 
 * Fix the SandboxFilter ReportMsg panic on termination/shutdown (issue #816)
 
@@ -25,6 +29,8 @@ Bug Handling
 
 Features
 --------
+
+* Introduced Encoder plugin type (issue #417).
 
 * Added a bloom filter to the Lua sandbox and created a unique items filter.
 
@@ -46,15 +52,14 @@ Features
 * Added an Apache access log decoder based on the Apache 'LogFormat'
   configuration directive.
 
-* Added BufferedOutput. Extracts the queuing functionality out 
-  of TcpOutput.go into a general purpose lib for use in any 
-  output module. Callers get messages buffered to disk while 
-  another goroutine consumes and forwards data. Any errors
-  encountered can cause the sending goroutine to backoff and
+* Added BufferedOutput. Extracts the queuing functionality out of TcpOutput.go
+  into a general purpose lib for use in any output module. Callers get
+  messages buffered to disk while another goroutine consumes and forwards
+  data. Any errors encountered can cause the sending goroutine to backoff and
   resend data.
 
-* Added http_timeout to elasticsearch output to prevent slow or stale connections 
-  from holding up the flow. (issue #769)
+* Added http_timeout to elasticsearch output to prevent slow or stale
+  connections from holding up the flow. (issue #769)
 
 * Add query parameters to the Message as Fields in the HttpListenInput
 

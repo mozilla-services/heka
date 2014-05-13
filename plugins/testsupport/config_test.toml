@@ -6,9 +6,12 @@ decoder = "ProtobufDecoder"
 [ProtobufDecoder]
 type = "ProtobufDecoder"
 
+[PayloadEncoder]
+
 [LogOutput]
 type = "LogOutput"
 message_matcher = "TRUE"
+encoder = "PayloadEncoder"
 
 [default]
 type ="StatFilter"

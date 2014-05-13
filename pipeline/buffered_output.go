@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,6 +18,7 @@ package pipeline
 import (
 	"bytes"
 	"fmt"
+	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"io"
 	"os"
@@ -29,27 +30,34 @@ import (
 )
 
 type BufferedOutput struct {
-    sentMessageCount    int64
-    readOffset          int64
-    parser              *MessageProtoParser
-    writeFile           *os.File
-    writeId             uint
-    readFile            *os.File
-    readId              uint
-    checkpointFilename  string
-    checkpointFile      *os.File
-    queue               string
-    name                string
-    outBytes            []byte
+	sentMessageCount   int64
+	readOffset         int64
+	parser             *MessageProtoParser
+	encoder            Encoder
+	isProtobufEncoder  bool
+	writeFile          *os.File
+	writeId            uint
+	readFile           *os.File
+	readId             uint
+	checkpointFilename string
+	checkpointFile     *os.File
+	queue              string
+	name               string
+	outBytes           []byte
 }
 
 type BufferedOutputSender interface {
-    SendRecord(record []byte) (err error)
+	SendRecord(record []byte) (err error)
 }
 
-func NewBufferedOutput(queue_dir, queue_name string) (*BufferedOutput, error) {
+func NewBufferedOutput(queue_dir, queue_name string, encoder Encoder) (
+	*BufferedOutput, error) {
 
 	b := new(BufferedOutput)
+	b.encoder = encoder
+	if pbCheck, ok := encoder.(MightGenerateProtobuf); ok {
+		b.isProtobufEncoder = pbCheck.GeneratesProtobuf()
+	}
 	b.parser = NewMessageProtoParser()
 	b.queue = PrependBaseDir(filepath.Join(queue_dir, queue_name))
 	b.checkpointFilename = filepath.Join(b.queue, "checkpoint.txt")
@@ -65,10 +73,20 @@ func NewBufferedOutput(queue_dir, queue_name string) (*BufferedOutput, error) {
 }
 
 func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
-	if err = ProtobufEncodeMessage(pack, &b.outBytes); err != nil {
+	var msgBytes []byte
+	if msgBytes, err = b.encoder.Encode(pack); err != nil {
 		return
 	}
 
+	// ProtobufEncoder does the framing for us, otherwise we have to do it
+	// ourselves.
+	if b.isProtobufEncoder {
+		b.outBytes = msgBytes
+	} else {
+		if err = client.CreateHekaStream(msgBytes, &b.outBytes, nil); err != nil {
+			return
+		}
+	}
 
 	if _, err = b.writeFile.Write(b.outBytes); err != nil {
 		return fmt.Errorf("writing to %s: %s", getQueueFilename(b.queue, b.writeId), err)
@@ -78,7 +96,9 @@ func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 
 func (b *BufferedOutput) writeCheckpoint(id uint, offset int64) (err error) {
 	if b.checkpointFile == nil {
-		if b.checkpointFile, err = os.OpenFile(b.checkpointFilename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+		if b.checkpointFile, err = os.OpenFile(b.checkpointFilename,
+			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+
 			return
 		}
 	}
@@ -97,7 +117,8 @@ func (b *BufferedOutput) RollQueue() (err error) {
 		b.writeFile = nil
 	}
 	b.writeId++
-	b.writeFile, err = os.OpenFile(getQueueFilename(b.queue, b.writeId), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	b.writeFile, err = os.OpenFile(getQueueFilename(b.queue, b.writeId),
+		os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	return err
 }
 
@@ -122,7 +143,9 @@ func (b *BufferedOutput) readFromNextFile() (err error) {
 	return
 }
 
-func (b *BufferedOutput) Output(sender BufferedOutputSender, outputError, outputExit chan error, stopChan chan bool) {
+func (b *BufferedOutput) Start(sender BufferedOutputSender, outputError,
+	outputExit chan error, stopChan chan bool) {
+
 	if err := b.RollQueue(); err != nil {
 		outputExit <- err
 		return
@@ -130,7 +153,9 @@ func (b *BufferedOutput) Output(sender BufferedOutputSender, outputError, output
 	go b.streamOutput(sender, outputError, outputExit, stopChan)
 }
 
-func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError, outputExit chan error, stopChan chan bool) {
+func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
+	outputExit chan error, stopChan chan bool) {
+
 	var (
 		err    error
 		n      int
@@ -191,6 +216,10 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError, 
 			}
 		} else {
 			if len(record) > 0 {
+				if !b.isProtobufEncoder {
+					headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
+					record = record[headerLen:]
+				}
 				rh.Reset()
 				for true {
 					err = sender.SendRecord(record)
@@ -312,4 +341,3 @@ func findBufferId(dir string, newest bool) uint {
 	}
 	return current
 }
-

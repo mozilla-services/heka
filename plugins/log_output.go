@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,52 +16,38 @@
 package plugins
 
 import (
-	"github.com/mozilla-services/heka/message"
+	"errors"
+	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	"log"
-	"time"
 )
 
 // Output plugin that writes message contents out using Go standard library's
 // `log` package.
 type LogOutput struct {
-	payloadOnly bool
 }
 
 func (self *LogOutput) Init(config interface{}) (err error) {
-	conf := config.(PluginConfig)
-	if p, ok := conf["payload_only"]; ok {
-		self.payloadOnly, ok = p.(bool)
-	}
 	return
 }
 
 func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	inChan := or.InChan()
+	encoder := or.Encoder()
+	if encoder == nil {
+		return errors.New("Encoder required.")
+	}
 
+	inChan := or.InChan()
 	var (
-		pack *PipelinePack
-		msg  *message.Message
+		pack     *PipelinePack
+		outBytes []byte
+		e        error
 	)
 	for pack = range inChan {
-		msg = pack.Message
-		if self.payloadOnly {
-			log.Printf(msg.GetPayload())
+		if outBytes, e = encoder.Encode(pack); e != nil {
+			or.LogError(fmt.Errorf("Error encoding message: %s", e))
 		} else {
-			log.Printf("<\n\tTimestamp: %s\n"+
-				"\tType: %s\n"+
-				"\tHostname: %s\n"+
-				"\tPid: %d\n"+
-				"\tUUID: %s\n"+
-				"\tLogger: %s\n"+
-				"\tPayload: %s\n"+
-				"\tEnvVersion: %s\n"+
-				"\tSeverity: %d\n"+
-				"\tFields: %+v\n>\n",
-				time.Unix(0, msg.GetTimestamp()), msg.GetType(),
-				msg.GetHostname(), msg.GetPid(), msg.GetUuidString(),
-				msg.GetLogger(), msg.GetPayload(), msg.GetEnvVersion(),
-				msg.GetSeverity(), msg.Fields)
+			log.Print(string(outBytes))
 		}
 		pack.Recycle()
 	}

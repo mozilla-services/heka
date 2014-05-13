@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -26,11 +26,11 @@ import (
 
 type Client struct {
 	Sender  Sender
-	Encoder Encoder
+	Encoder StreamEncoder
 	buf     []byte
 }
 
-func NewClient(sender Sender, encoder Encoder) (self *Client) {
+func NewClient(sender Sender, encoder StreamEncoder) (self *Client) {
 	self = &Client{Sender: sender, Encoder: encoder}
 	return
 }

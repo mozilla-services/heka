@@ -39,6 +39,7 @@ Contents:
    config/inputs/index
    config/decoders/index
    config/filters/index
+   config/encoders/index
    config/outputs/index
    monitoring/index
    developing/plugin

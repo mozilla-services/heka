@@ -6,11 +6,6 @@ Glossary
 .. glossary::
     :sorted:
 
-    DecoderPoolSize
-        A Heka configuration setting which specifies the number of decoder
-        sets that should be created to handle decoding of incoming message
-        data.
-
     hekad
         Daemon that routes messages from inputs to their outputs applying
         filters as configured.

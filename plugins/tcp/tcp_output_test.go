@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -57,6 +57,9 @@ func TcpOutputSpec(c gs.Context) {
 		tickChan := make(chan time.Time)
 		oth := plugins_ts.NewOutputTestHelper(ctrl)
 		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
+		encoder := new(ProtobufEncoder)
+		encoder.Init(nil)
+		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 		var wg sync.WaitGroup
 		inChan := make(chan *PipelinePack, 1)

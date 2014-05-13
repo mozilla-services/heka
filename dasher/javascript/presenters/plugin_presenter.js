@@ -134,7 +134,6 @@ define(
           case "Input":
             cssClass += "log-in";
             break;
-          case "DecoderPool":
           case "Decoder":
             cssClass += "import";
             break;
@@ -143,6 +142,9 @@ define(
             break;
           case "Output":
             cssClass += "log-out";
+            break;
+          case "Encoder":
+            cssClass += "export";
             break;
           default:
             cssClass = "no-icon";

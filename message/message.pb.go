@@ -2,6 +2,17 @@
 // source: message.proto
 // DO NOT EDIT!
 
+/*
+Package message is a generated protocol buffer package.
+
+It is generated from these files:
+	message.proto
+
+It has these top-level messages:
+	Header
+	Field
+	Message
+*/
 package message
 
 import proto "code.google.com/p/goprotobuf/proto"
