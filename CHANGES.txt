@@ -21,10 +21,18 @@ Bug Handling
 
 * Fix the SandboxFilter ReportMsg panic on termination/shutdown (issue #816)
 
+* MultiDecoder with no 'order' set now fails on init instead of panicking on
+  first message.
+
+* Fix panic on SIGUSR1 caused by no reports in a given plugin category (issue
+  #832).
+
 Features
 --------
 
 * Introduced Encoder plugin type (issue #417).
+
+* Added a bloom filter to the Lua sandbox and created a unique items filter.
 
 * Turned the MySQL slow query log examples into a deployed decoder and filter.
 
