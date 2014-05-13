@@ -91,18 +91,18 @@ func (p *ProtobufDecoder) ReportMsg(msg *message.Message) error {
 
 // Encoder for converting Message objects into Protocol Buffer data.
 type ProtobufEncoder struct {
-	cEncoder               *client.ProtobufEncoder
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageSamples  int64
 	processMessageDuration int64
+	cEncoder               *client.ProtobufEncoder
 	reportLock             sync.Mutex
 	sample                 bool
 	sampleDenominator      int
 }
 
 func (p *ProtobufEncoder) Init(config interface{}) error {
-	p.cEncoder = client.NewProtobufEncoder(nil) // TODO: Add signer support.
+	p.cEncoder = client.NewProtobufEncoder(nil)
 	p.sample = true
 	p.sampleDenominator = Globals().SampleDenominator
 	return nil

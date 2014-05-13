@@ -428,7 +428,7 @@ type foRunner struct {
 	h          PluginHelper
 	retainPack *PipelinePack
 	leakCount  int
-	encoder    Encoder
+	encoder    Encoder // output only
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an

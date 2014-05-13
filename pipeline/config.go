@@ -723,7 +723,7 @@ func (self *PipelineConfig) loadPluginGlobals(section *ConfigSection) (err error
 	return
 }
 
-var PluginTypeRegex = regexp.MustCompile("^.*(Decoder|Encoder|Filter|Input|Output)$")
+var PluginTypeRegex = regexp.MustCompile("(Decoder|Encoder|Filter|Input|Output)$")
 
 func getPluginCategory(pluginType string) string {
 	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)

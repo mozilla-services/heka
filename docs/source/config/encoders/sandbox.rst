@@ -60,7 +60,7 @@ Example
     [custom_json_encoder]
     type = "SandboxEncoder"
     script_type = "lua"
-    filename = "custom_json_decoder.lua"
+    filename = "path/to/custom_json_encoder.lua"
 
         [custom_json_encoder.config]
         msg_fields = ["field1", "field2"]

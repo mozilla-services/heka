@@ -28,10 +28,6 @@ import (
 	"time"
 )
 
-var (
-	TSFORMAT = "[2006/Jan/02:15:04:05 -0700] "
-)
-
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
 	path          string

@@ -50,8 +50,8 @@ type SandboxEncoder struct {
 }
 
 // This duplicates most of the SandboxConfig just so we can add a single
-// additional config option b/c struct embedding doesn't work w/ the TOML
-// parser. :(
+// additional config option because struct embedding doesn't work with the
+// TOML parser. :(
 type SandboxEncoderConfig struct {
 	ScriptType       string `toml:"script_type"`
 	ScriptFilename   string `toml:"filename"`
