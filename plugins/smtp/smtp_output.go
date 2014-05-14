@@ -17,9 +17,8 @@ package smtp
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
@@ -29,11 +28,10 @@ type SmtpOutput struct {
 	conf         *SmtpOutputConfig
 	auth         smtp.Auth
 	sendFunction func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
+	encoder      Encoder
 }
 
 type SmtpOutputConfig struct {
-	// Outputs the payload attribute in the email message vs a full JSON message dump
-	PayloadOnly bool `toml:"payload_only"`
 	// email addresses to send the output from
 	SendFrom string `toml:"send_from"`
 	// email addresses to send the output to
@@ -52,10 +50,9 @@ type SmtpOutputConfig struct {
 
 func (s *SmtpOutput) ConfigStruct() interface{} {
 	return &SmtpOutputConfig{
-		PayloadOnly: true,
-		SendFrom:    "heka@localhost.localdomain",
-		Host:        "127.0.0.1:25",
-		Auth:        "none",
+		SendFrom: "heka@localhost.localdomain",
+		Host:     "127.0.0.1:25",
+		Auth:     "none",
 	}
 }
 
@@ -86,11 +83,14 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 }
 
 func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	s.encoder = or.Encoder()
+	if s.encoder == nil {
+		return errors.New("Encoder required.")
+	}
 	inChan := or.InChan()
 
 	var (
 		pack       *PipelinePack
-		msg        *message.Message
 		contents   []byte
 		subject    string
 		message    string
@@ -115,22 +115,17 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	}
 
 	for pack = range inChan {
-		msg = pack.Message
 		message = headerText
-		if s.conf.PayloadOnly {
-			message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(msg.GetPayload()))
+
+		if contents, err = s.encoder.Encode(pack); err == nil {
+			message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
 			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
-		} else {
-			if contents, err = json.Marshal(msg); err == nil {
-				message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
-				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
-			} else {
-				or.LogError(err)
-			}
 		}
+
 		if err != nil {
 			or.LogError(err)
 		}
+
 		pack.Recycle()
 	}
 	return

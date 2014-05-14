@@ -31,6 +31,9 @@ Config:
     An optional local IP address to use as the source address for outgoing 
     traffic to this destination. Cannot currently be combined with TLS connections.
 
+- encoder (string, optional):
+    Encoder plugin used to format the output. Defaults to "ProtobufEncoder".
+
 Example:
 
 .. code-block:: ini

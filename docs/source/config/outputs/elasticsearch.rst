@@ -28,13 +28,6 @@ Config:
 - flush_count (int):
     Number of messages that, if processed, will trigger them to be bulk
     indexed into ElasticSearch. Defaults to 10.
-- format (string):
-    Message serialization format, either "clean", "logstash_v0", "payload" or
-    "raw". "clean" is a more concise JSON representation of the message,
-    "logstash_v0" outputs in a format similar to Logstash's original (i.e.
-    "version 0") ElasticSearch schema, "payload" passes the message payload
-    directly into ElasticSearch, and "raw" is a full JSON representation of
-    the message. Defaults to "clean".
 - fields ([]string):
     If the format is "clean", then the 'fields' parameter can be used to
     specify that only specific message data should be indexed into
@@ -62,9 +55,24 @@ Config:
     Time in milliseconds to wait for a response for each http post to ES.
     This may drop data as there is currently no retry.
     Default is 0 (infinite)
-- raw_bytes_field ([]string):
+
+- encoder (string, required):
     .. versionadded:: 0.6
 
+    Encoder plugin used to format the output.
+
+.. deprecated:: 0.6
+    Use encoder instead.
+
+- format (string):
+    Message serialization format, either "clean", "logstash_v0", "payload" or
+    "raw". "clean" is a more concise JSON representation of the message,
+    "logstash_v0" outputs in a format similar to Logstash's original (i.e.
+    "version 0") ElasticSearch schema, "payload" passes the message payload
+    directly into ElasticSearch, and "raw" is a full JSON representation of
+    the message. Defaults to "clean".
+
+- raw_bytes_field ([]string):
     This option allows you to specify a list of fields to be passed through
     the "clean" or "logstash_v0" formatters unchanged.
 
@@ -78,8 +86,7 @@ Example:
     index = "synclog-%{field1}-%{2006.01.02.15.04.05}"
     type_name = "sync.log.line-%{field1}"
     server = "http://es-server:9200"
-    format = "clean"
     flush_interval = 5000
     flush_count = 10
     id = %{id}
-    raw_bytes_field = ["geoip"]
+    encoder = "PayloadEncoder"

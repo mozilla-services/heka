@@ -14,3 +14,13 @@ Encoders
 
 .. _config_sandboxencoder:
 .. include:: /config/encoders/sandbox.rst
+
+.. _config_alert_encoder:
+
+Alert Encoder
+=============
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/encoders/alert.lua
+   :start-after: --[[
+   :end-before: --]]

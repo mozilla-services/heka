@@ -30,6 +30,8 @@ Bug Handling
 Features
 --------
 
+* Added an alert encoder to make the alert messages easier to read.
+
 * Introduced Encoder plugin type (issue #417).
 
 * Added a bloom filter to the Lua sandbox and created a unique items filter.
