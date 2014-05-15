@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed the SandboxDecoder to pass unaltered or messages altered with 
+  write_message to the router (issue #844).
+
 * Fixed TcpInput so it will only override the default delimiter for a
   RegexpParser if a delimiter is specified in the config.
 
