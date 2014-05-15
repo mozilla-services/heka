@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fix SandboxDecoder pass-through case so decoders that only use write_message
+  and not inject_message will emit messages correctly (issue #844).
+
 * Fixed TcpInput so it will only override the default delimiter for a
   RegexpParser if a delimiter is specified in the config.
 
