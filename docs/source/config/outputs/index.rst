@@ -24,12 +24,14 @@ initialization code.
 - ticker_interval (uint, optional):
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
-- encoder (string, optional):
-	Encoder to be used by the output. This should refer to the name of an
-	encoder plugin section that is specified elsewhere in the TOML
-	configuration. An instance of the specified encoder will be made available
-	to the output plugin via the `Encoder()` method on the OutputRunner.
-	Actual use of the specified encoder will vary from output to output.
+- encoder (string, optional):-    
+    .. versionadded:: 0.6
+
+    Encoder to be used by the output. This should refer to the name of an
+    encoder plugin section that is specified elsewhere in the TOML
+    configuration. An instance of the specified encoder will be made available
+    to the output plugin via the `Encoder()` method on the OutputRunner.
+    Actual use of the specified encoder will vary from output to output.
 
 .. _config_amqp_output:
 .. include:: /config/outputs/amqp.rst

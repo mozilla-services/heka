@@ -56,11 +56,6 @@ Config:
     This may drop data as there is currently no retry.
     Default is 0 (infinite)
 
-- encoder (string, required):
-    .. versionadded:: 0.6
-
-    Encoder plugin used to format the output.
-
 .. deprecated:: 0.6
     Use encoder instead.
 

@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/streadway/amqp"
@@ -128,10 +127,10 @@ type AMQPOutputConfig struct {
 	// Whether messages published should be marked as persistent or
 	// transient. Defaults to non-persistent.
 	Persistent bool
-	// Whether messages published should be fully serialized when
-	// published. The AMQP input will automatically detect these
-	// messages and deserialize them. Defaults to true.
-	Serialize bool
+	// MIME content type for the AMQP header.
+	ContentType string
+	// Default the encoder
+	Encoder string
 }
 
 // Connection tracker that stores the actual AMQP Connection object along
@@ -242,7 +241,8 @@ type AMQPOutput struct {
 	// connWg tracks whether the connection is no longer in use
 	// and is used as a barrier to ensure all users of the connection
 	// are done before we finish
-	connWg *sync.WaitGroup
+	connWg  *sync.WaitGroup
+	encoder Encoder
 }
 
 func (ao *AMQPOutput) ConfigStruct() interface{} {
@@ -251,7 +251,8 @@ func (ao *AMQPOutput) ConfigStruct() interface{} {
 		ExchangeAutoDelete: true,
 		RoutingKey:         "",
 		Persistent:         false,
-		Serialize:          true,
+		Encoder:            "ProtobufEncoder",
+		ContentType:        "application/hekad",
 	}
 }
 
@@ -278,24 +279,26 @@ func (ao *AMQPOutput) Init(config interface{}) (err error) {
 }
 
 func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	encoder := or.Encoder()
+	if encoder == nil {
+		return errors.New("Encoder required.")
+	}
+
 	inChan := or.InChan()
 	conf := ao.config
 
 	var (
-		pack    *PipelinePack
-		msg     *message.Message
-		persist uint8
-		ok      bool = true
-		amqpMsg amqp.Publishing
-		encoder client.StreamEncoder
-		msgBody []byte = make([]byte, 0, 500)
+		pack     *PipelinePack
+		persist  uint8
+		ok       bool = true
+		amqpMsg  amqp.Publishing
+		outBytes []byte
 	)
 	if conf.Persistent {
 		persist = uint8(1)
 	} else {
 		persist = uint8(0)
 	}
-	encoder = client.NewProtobufEncoder(nil)
 
 	for ok {
 		select {
@@ -305,27 +308,16 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
-			msg = pack.Message
-			if conf.Serialize {
-				if err = encoder.EncodeMessageStream(msg, &msgBody); err != nil {
-					or.LogError(err)
-					err = nil
-					pack.Recycle()
-					continue
-				}
-				amqpMsg = amqp.Publishing{
-					DeliveryMode: persist,
-					Timestamp:    time.Now(),
-					ContentType:  "application/hekad",
-					Body:         msgBody,
-				}
-			} else {
-				amqpMsg = amqp.Publishing{
-					DeliveryMode: persist,
-					Timestamp:    time.Now(),
-					ContentType:  "text/plain",
-					Body:         []byte(msg.GetPayload()),
-				}
+			if outBytes, err = encoder.Encode(pack); err != nil {
+				or.LogError(fmt.Errorf("Error encoding message: %s", err))
+				pack.Recycle()
+				continue
+			}
+			amqpMsg = amqp.Publishing{
+				DeliveryMode: persist,
+				Timestamp:    time.Now(),
+				ContentType:  conf.ContentType,
+				Body:         outBytes,
 			}
 			err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 				false, false, amqpMsg)
@@ -334,7 +326,6 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			} else {
 				pack.Recycle()
 			}
-			msgBody = msgBody[:0]
 		}
 	}
 	ao.usageWg.Done()
@@ -366,7 +357,7 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 		QueueDurability:    false,
 		QueueExclusive:     false,
 		QueueAutoDelete:    true,
-		QueueTTL:	    -1,
+		QueueTTL:           -1,
 	}
 }
 

@@ -28,12 +28,6 @@ Config:
     Operator describing how the two parameters "flush_interval" and
     "flush_count" are combined. Allowed values are "AND" or "OR" (default is
     "AND").
-
-- encoder (string, required):
-    .. versionadded:: 0.6
-
-    Encoder plugin used to format the output.
-
 - format (string, optional):
     .. deprecated:: 0.6
         Use encoder instead.

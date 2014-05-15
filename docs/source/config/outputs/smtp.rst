@@ -24,12 +24,6 @@ Config:
     SMTP user name
 - password (string, optional)
     SMTP user password
-
-- encoder (string, required):
-    .. versionadded:: 0.6
-
-    Encoder plugin used to format the output.
-
 - payload_only (bool)
     .. deprecated:: 0.6
         Use encoder instead.
