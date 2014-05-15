@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013
+# Portions created by the Initial Developer are Copyright (C) 2013-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -269,7 +270,14 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		}
 		s.packs = nil
 	}
-	packs = s.packs
+	if retval == 0 && s.pack != nil {
+		// InjectMessage was never called, we're passing the original message
+		// through.
+		packs = append(packs, pack)
+		s.pack = nil
+	} else {
+		packs = s.packs
+	}
 	s.packs = nil
 	err = s.err
 	return

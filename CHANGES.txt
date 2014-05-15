@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fix SandboxDecoder pass-through case so decoders that only use write_message
+  and not inject_message will emit messages correctly (issue #844).
+
 * Fix the FileOutput panic when HUP'ed.  Modified the CheckWritePermission
   utility function to use a unique filename for each check. (issue #808)
 
