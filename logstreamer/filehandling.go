@@ -370,6 +370,15 @@ type LogstreamSet struct {
 	fileMatch      *regexp.Regexp
 }
 
+// append a path separator if needed and escape regexp meta characters
+func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
+	if !os.IsPathSeparator(logRoot[len(logRoot)-1]) && !os.IsPathSeparator(fileMatch[0]) {
+		logRoot += string(os.PathSeparator)
+	}
+
+	return regexp.MustCompile("^" + regexp.QuoteMeta(logRoot) + fileMatch)
+}
+
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	logRoot, journalRoot string) *LogstreamSet {
 	// Lowercase the actual matching keys.
@@ -390,7 +399,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		logRoot:        logRoot,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
-		fileMatch:      regexp.MustCompile("^" + filepath.Join(logRoot, sortPattern.FileMatch)),
+		fileMatch:      fileMatchRegexp(logRoot, sortPattern.FileMatch),
 	}
 }
 

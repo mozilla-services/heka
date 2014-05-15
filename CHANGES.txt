@@ -92,6 +92,8 @@ Bug Handling
 * Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
 sandbox plugin output() call.
 
+* Escape regexp meta characters (notably '\') to prevent a panic in the LogstreamerInput on Windows
+
 0.5.1 (2014-03-18)
 ==================
 
