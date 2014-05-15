@@ -267,7 +267,7 @@ func (o *FileOutput) handleMessage(pack *PipelinePack, outBytes *[]byte) (err er
 			err = fmt.Errorf("Can't encode to JSON: %s", err)
 		}
 	case "text":
-		*outBytes = append(*outBytes, *pack.Message.Payload...)
+		*outBytes = append(*outBytes, pack.Message.GetPayload()...)
 		*outBytes = append(*outBytes, NEWLINE)
 	case "protobufstream":
 		if err = ProtobufEncodeMessage(pack, &*outBytes); err != nil {
