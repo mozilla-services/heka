@@ -28,14 +28,6 @@ Config:
     Operator describing how the two parameters "flush_interval" and
     "flush_count" are combined. Allowed values are "AND" or "OR" (default is
     "AND").
-- format (string, optional):
-    .. deprecated:: 0.6
-        Use encoder instead.
-
-    Output format for the message to be written. Supports `json` or
-    `protobufstream`, both of which will serialize the entire `Message`
-    struct, or `text`, which will output just the payload string. Defaults to
-    ``text``.
 
 Example:
 

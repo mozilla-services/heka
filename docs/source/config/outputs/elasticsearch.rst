@@ -56,21 +56,6 @@ Config:
     This may drop data as there is currently no retry.
     Default is 0 (infinite)
 
-.. deprecated:: 0.6
-    Use encoder instead.
-
-- format (string):
-    Message serialization format, either "clean", "logstash_v0", "payload" or
-    "raw". "clean" is a more concise JSON representation of the message,
-    "logstash_v0" outputs in a format similar to Logstash's original (i.e.
-    "version 0") ElasticSearch schema, "payload" passes the message payload
-    directly into ElasticSearch, and "raw" is a full JSON representation of
-    the message. Defaults to "clean".
-
-- raw_bytes_field ([]string):
-    This option allows you to specify a list of fields to be passed through
-    the "clean" or "logstash_v0" formatters unchanged.
-
 Example:
 
 .. code-block:: ini

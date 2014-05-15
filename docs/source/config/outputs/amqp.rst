@@ -28,13 +28,6 @@ Config:
 - Persistent (bool):
     Whether published messages should be marked as persistent or transient.
     Defaults to non-persistent.
-- Serialize (bool):
-    .. deprecated:: 0.6
-        Use encoder instead.
-
-    Whether published messages should be fully serialized. If set to true
-    then messages will be encoded to Protocol Buffers and have the AMQP
-    message Content-Type set to `application/hekad`. Defaults to true.
 
 .. versionadded:: 0.6
 

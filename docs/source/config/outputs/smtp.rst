@@ -24,14 +24,6 @@ Config:
     SMTP user name
 - password (string, optional)
     SMTP user password
-- payload_only (bool)
-    .. deprecated:: 0.6
-        Use encoder instead.
-
-    If set to true, then only the message payload string will be emailed,
-    otherwise the entire `Message` struct will be emailed in JSON format.
-    (default: true)
-
 
 Example:
 
