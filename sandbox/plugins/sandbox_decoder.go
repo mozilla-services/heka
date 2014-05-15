@@ -16,7 +16,6 @@ package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -255,11 +254,10 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
 	if retval > 0 {
-		s.err = errors.New("FATAL: " + s.sb.LastError())
+		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(s.err)
 		pipeline.Globals().ShutDown()
-	}
-	if retval < 0 {
+	} else if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
 		s.err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
 		if len(s.packs) > 1 {
@@ -268,6 +266,9 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 			}
 		}
 		s.packs = nil
+	} else if retval == 0 && s.packs == nil {
+		s.packs = append(s.packs, s.pack)
+		s.pack = nil
 	}
 	packs = s.packs
 	s.packs = nil
