@@ -8,11 +8,6 @@ Config:
 
 - path (string):
     Full path to the output file.
-- format (string, optional):
-    Output format for the message to be written. Supports `json` or
-    `protobufstream`, both of which will serialize the entire `Message`
-    struct, or `text`, which will output just the payload string. Defaults to
-    ``text``.
 - prefix_ts (bool, optional):
     Whether a timestamp should be prefixed to each message line in the file.
     Defaults to ``false``.
@@ -46,3 +41,4 @@ Example:
     perm = "666"
     flush_count = 100
     flush_operator = "OR"
+    encoder = "PayloadEncoder"

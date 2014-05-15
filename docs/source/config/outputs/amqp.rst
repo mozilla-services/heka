@@ -28,10 +28,14 @@ Config:
 - Persistent (bool):
     Whether published messages should be marked as persistent or transient.
     Defaults to non-persistent.
-- Serialize (bool):
-    Whether published messages should be fully serialized. If set to true
-    then messages will be encoded to Protocol Buffers and have the AMQP
-    message Content-Type set to `application/hekad`. Defaults to true.
+
+.. versionadded:: 0.6
+
+- ContentType (string):
+     MIME content type of the payload used in the AMQP header. Defaults to
+     "application/hekad".
+- Encoder (string)
+    Default to "ProtobufEncoder".
 
 Example (that sends log lines from the logger):
 
@@ -41,4 +45,4 @@ Example (that sends log lines from the logger):
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
-    message_matcher = 'Logger == "/var/log/system.log"'
+    message_matcher = 'Logger == "TestWebserver"'

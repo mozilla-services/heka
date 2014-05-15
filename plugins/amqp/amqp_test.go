@@ -23,6 +23,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	. "github.com/mozilla-services/heka/pipelinemock"
+	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
@@ -269,7 +270,14 @@ func AMQPPluginSpec(c gs.Context) {
 		pack.Decoded = true
 
 		c.Specify("publishes a plain message", func() {
-			defaultConfig.Serialize = false
+			encoder := new(plugins.PayloadEncoder)
+			econfig := encoder.ConfigStruct().(*plugins.PayloadEncoderConfig)
+			econfig.AppendNewlines = false
+			encoder.Init(econfig)
+
+			defaultConfig.Encoder = "PayloadEncoder"
+			defaultConfig.ContentType = "text/plain"
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 			err := amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
@@ -288,6 +296,10 @@ func AMQPPluginSpec(c gs.Context) {
 		})
 
 		c.Specify("publishes a serialized message", func() {
+			encoder := new(ProtobufEncoder)
+			encoder.Init(nil)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+
 			err := amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
