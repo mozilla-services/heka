@@ -92,7 +92,7 @@ func FileOutputSpec(c gs.Context) {
 				err = fileOutput.handleMessage(pack, &outData)
 				c.Expect(err, gs.IsNil)
 				strContents := toString(&outData)
-				c.Expect(strContents, gs.Equals, "<NIL>\n")
+				c.Expect(strContents, gs.Equals, "\n")
 			})
 
 			c.Specify("payload is nil and with a timestamp", func() {
@@ -105,7 +105,7 @@ func FileOutputSpec(c gs.Context) {
 				todayStr := time.Now().Format("[2006/Jan/02:")
 				strContents := toString(&outData)
 				c.Expect(strings.HasPrefix(strContents, todayStr), gs.IsTrue)
-				c.Expect(strings.HasSuffix(strContents, "<NIL>\n"), gs.IsTrue)
+				c.Expect(strings.HasSuffix(strContents, " \n"), gs.IsTrue)
 			})
 		})
 
