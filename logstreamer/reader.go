@@ -57,12 +57,12 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	l.JournalPath = path
 	l.lastLine = ringbuf.New(LINEBUFFERLEN)
 
-	// So that we can check to see if it exists or not
+	// So that we can check to see if it exists or not.
 	var seekJournal *os.File
 	if seekJournal, err = os.Open(l.JournalPath); err != nil {
-		// The logfile doesn't exist, nothing special to do
+		// The logfile doesn't exist, nothing special to do.
 		if os.IsNotExist(err) {
-			// file doesn't exist, but that's ok, not a real error
+			// File doesn't exist, but that's ok, not a real error.
 			err = nil
 		}
 		return
@@ -77,7 +77,13 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 		}
 	}()
 
-	err = json.Unmarshal(contents.Bytes(), l)
+	cBytes := contents.Bytes()
+	cBytes = bytes.TrimSpace(cBytes)
+	if len(cBytes) == 0 {
+		// File is empty, skip it.
+		return
+	}
+	err = json.Unmarshal(cBytes, l)
 	return
 }
 

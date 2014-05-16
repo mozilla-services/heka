@@ -241,21 +241,25 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	json.Unmarshal([]byte(payload), &m)
 
 	fullReport := make([]string, 0)
-	for _, row := range m["reports"].([]interface{}) {
-		pluginReport := make([]string, 0)
-		pluginReport = append(pluginReport,
-			fmt.Sprintf("%s:", (row.(map[string]interface{}))["Plugin"].(string)))
-		for _, colname := range header {
-			data := row.(map[string]interface{})[colname]
-			if data != nil {
-				pluginReport = append(pluginReport,
-					fmt.Sprintf("    %s: %s",
-						colname,
-						data.(map[string]interface{})["value"]))
+	categories := []string{"globals", "inputs", "decoders", "filters", "outputs"}
+	for _, cat := range categories {
+		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
+		for _, row := range m[cat].([]interface{}) {
+			pluginReport := make([]string, 0)
+			pluginReport = append(pluginReport,
+				fmt.Sprintf("%s:", (row.(map[string]interface{}))["Name"].(string)))
+			for _, colname := range header {
+				data := row.(map[string]interface{})[colname]
+				if data != nil {
+					pluginReport = append(pluginReport,
+						fmt.Sprintf("    %s: %s",
+							colname,
+							data.(map[string]interface{})["value"]))
+				}
 			}
-		}
 
-		fullReport = append(fullReport, strings.Join(pluginReport, "\n"))
+			fullReport = append(fullReport, strings.Join(pluginReport, "\n"))
+		}
 	}
 
 	stdout_report := fmt.Sprintf("========[%s]========\n%s\n========\n",

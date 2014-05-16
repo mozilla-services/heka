@@ -30,7 +30,6 @@ SandboxManagerFilter Settings
     The maximum number of filters this manager can run.
 
 .. versionadded:: 0.5
-
 - memory_limit (uint):
     The number of bytes managed sandboxes are allowed to consume before being
     terminated (max 8MiB, default max).
@@ -52,5 +51,5 @@ Example
     [OpsSandboxManager]
     type = "SandboxManagerFilter"
     message_signer = "ops"
-    message_matcher = "Type == 'heka.control.sandbox'"
+    # message_matcher = "Type == 'heka.control.sandbox'" # automatic default setting
     max_filters = 100

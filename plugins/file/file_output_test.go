@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -68,13 +69,15 @@ func FileOutputSpec(c gs.Context) {
 			outData := make([]byte, 0, 20)
 
 			c.Specify("by default", func() {
-				fileOutput.handleMessage(pack, &outData)
+				err = fileOutput.handleMessage(pack, &outData)
+				c.Expect(err, gs.IsNil)
 				c.Expect(toString(&outData), gs.Equals, *msg.Payload+"\n")
 			})
 
 			c.Specify("w/ a prepended timestamp when specified", func() {
 				fileOutput.prefix_ts = true
-				fileOutput.handleMessage(pack, &outData)
+				err = fileOutput.handleMessage(pack, &outData)
+				c.Expect(err, gs.IsNil)
 				// Test will fail if date flips btn handleMessage call and
 				// todayStr calculation... should be extremely rare.
 				todayStr := time.Now().Format("[2006/Jan/02:")
@@ -82,6 +85,27 @@ func FileOutputSpec(c gs.Context) {
 				payload := *msg.Payload
 				c.Expect(strContents, pipeline_ts.StringContains, payload)
 				c.Expect(strContents, pipeline_ts.StringStartsWith, todayStr)
+			})
+
+			c.Specify("even when payload is nil", func() {
+				pack.Message.Payload = nil
+				err = fileOutput.handleMessage(pack, &outData)
+				c.Expect(err, gs.IsNil)
+				strContents := toString(&outData)
+				c.Expect(strContents, gs.Equals, "\n")
+			})
+
+			c.Specify("payload is nil and with a timestamp", func() {
+				pack.Message.Payload = nil
+				fileOutput.prefix_ts = true
+				err = fileOutput.handleMessage(pack, &outData)
+				c.Expect(err, gs.IsNil)
+				// Test will fail if date flips btn handleMessage call and
+				// todayStr calculation... should be extremely rare.
+				todayStr := time.Now().Format("[2006/Jan/02:")
+				strContents := toString(&outData)
+				c.Expect(strings.HasPrefix(strContents, todayStr), gs.IsTrue)
+				c.Expect(strings.HasSuffix(strContents, " \n"), gs.IsTrue)
 			})
 		})
 
