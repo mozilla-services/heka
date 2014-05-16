@@ -91,8 +91,10 @@ func (t *TcpInput) Init(config interface{}) error {
 		}
 	} else if t.config.ParserType == "regexp" {
 		rp := NewRegexpParser() // temporary parser to test the config
-		if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
-			return err
+		if len(t.config.Delimiter) > 0 {
+			if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
+				return err
+			}
 		}
 		if err = rp.SetDelimiterLocation(t.config.DelimiterLocation); err != nil {
 			return err
@@ -156,7 +158,9 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		rp := NewRegexpParser()
 		parser = rp
 		parseFunction = NetworkPayloadParser
-		rp.SetDelimiter(t.config.Delimiter)
+		if len(t.config.Delimiter) > 0 {
+			rp.SetDelimiter(t.config.Delimiter)
+		}
 		rp.SetDelimiterLocation(t.config.DelimiterLocation)
 	} else if t.config.ParserType == "token" {
 		tp := NewTokenParser()

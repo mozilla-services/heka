@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -272,7 +273,14 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		}
 		s.packs = nil
 	}
-	packs = s.packs
+	if retval == 0 && s.pack != nil {
+		// InjectMessage was never called, we're passing the original message
+		// through.
+		packs = append(packs, pack)
+		s.pack = nil
+	} else {
+		packs = s.packs
+	}
 	s.packs = nil
 	err = s.err
 	return

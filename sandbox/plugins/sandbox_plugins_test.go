@@ -244,66 +244,172 @@ func DecoderSpec(c gs.Context) {
 
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/testsupport/decoder.lua"
-		conf.ScriptType = "lua"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		dRunner := pm.NewMockDecoderRunner(ctrl)
-		dRunner.EXPECT().Name().Return("serialize")
-		err := decoder.Init(conf)
-		c.Assume(err, gs.IsNil)
+		conf.ScriptType = "lua"
 
-		c.Specify("decodes simple messages", func() {
-			data := "1376389920 debug id=2321 url=example.com item=1"
-			decoder.SetDecoderRunner(dRunner)
-			pack.Message.SetPayload(data)
-			_, err = decoder.Decode(pack)
-			c.Assume(err, gs.IsNil)
-
-			c.Expect(pack.Message.GetTimestamp(),
-				gs.Equals,
-				int64(1376389920000000000))
-
-			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
-
-			var ok bool
-			var value interface{}
-			value, ok = pack.Message.GetFieldValue("id")
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "2321")
-
-			value, ok = pack.Message.GetFieldValue("url")
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "example.com")
-
-			value, ok = pack.Message.GetFieldValue("item")
-			c.Expect(ok, gs.Equals, true)
-			c.Expect(value, gs.Equals, "1")
-			decoder.Shutdown()
-		})
-
-		c.Specify("decodes an invalid messages", func() {
-			data := "1376389920 bogus id=2321 url=example.com item=1"
-			decoder.SetDecoderRunner(dRunner)
-			pack.Message.SetPayload(data)
-			packs, err := decoder.Decode(pack)
-			c.Expect(len(packs), gs.Equals, 0)
-			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
-			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
-			decoder.Shutdown()
-		})
-
-		c.Specify("Preserves data", func() {
-			conf.ScriptFilename = "../lua/testsupport/serialize.lua"
-			conf.PreserveData = true
+		c.Specify("that uses lpeg and inject_message", func() {
+			dRunner.EXPECT().Name().Return("serialize")
+			conf.ScriptFilename = "../lua/testsupport/decoder.lua"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
+
+			c.Specify("decodes simple messages", func() {
+				data := "1376389920 debug id=2321 url=example.com item=1"
+				decoder.SetDecoderRunner(dRunner)
+				pack.Message.SetPayload(data)
+				_, err = decoder.Decode(pack)
+				c.Assume(err, gs.IsNil)
+
+				c.Expect(pack.Message.GetTimestamp(),
+					gs.Equals,
+					int64(1376389920000000000))
+
+				c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+				var ok bool
+				var value interface{}
+				value, ok = pack.Message.GetFieldValue("id")
+				c.Expect(ok, gs.Equals, true)
+				c.Expect(value, gs.Equals, "2321")
+
+				value, ok = pack.Message.GetFieldValue("url")
+				c.Expect(ok, gs.Equals, true)
+				c.Expect(value, gs.Equals, "example.com")
+
+				value, ok = pack.Message.GetFieldValue("item")
+				c.Expect(ok, gs.Equals, true)
+				c.Expect(value, gs.Equals, "1")
+				decoder.Shutdown()
+			})
+
+			c.Specify("decodes an invalid messages", func() {
+				data := "1376389920 bogus id=2321 url=example.com item=1"
+				decoder.SetDecoderRunner(dRunner)
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(len(packs), gs.Equals, 0)
+				c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+				c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+				decoder.Shutdown()
+			})
+
+			c.Specify("Preserves data", func() {
+				conf.ScriptFilename = "../lua/testsupport/serialize.lua"
+				conf.PreserveData = true
+				err := decoder.Init(conf)
+				c.Assume(err, gs.IsNil)
+				decoder.SetDecoderRunner(dRunner)
+				decoder.Shutdown()
+				_, err = os.Stat("sandbox_preservation/serialize.data")
+				c.Expect(err, gs.IsNil)
+				err = os.Remove("sandbox_preservation/serialize.data")
+				c.Expect(err, gs.IsNil)
+			})
+		})
+
+		c.Specify("that only uses write_message", func() {
+			conf.ScriptFilename = "../lua/testsupport/write_message_decoder.lua"
+			dRunner.EXPECT().Name().Return("write_message")
+			err := decoder.Init(conf)
 			decoder.SetDecoderRunner(dRunner)
-			decoder.Shutdown()
-			_, err = os.Stat("sandbox_preservation/serialize.data")
-			c.Expect(err, gs.IsNil)
-			err = os.Remove("sandbox_preservation/serialize.data")
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
+
+			c.Specify("adds a string field to the message", func() {
+				data := "string field scribble"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				value, ok := pack.Message.GetFieldValue("scribble")
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(value.(string), gs.Equals, "foo")
+			})
+
+			c.Specify("adds a numeric field to the message", func() {
+				data := "num field scribble"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				value, ok := pack.Message.GetFieldValue("scribble")
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(value.(float64), gs.Equals, float64(1))
+			})
+
+			c.Specify("adds a boolean field to the message", func() {
+				data := "bool field scribble"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				value, ok := pack.Message.GetFieldValue("scribble")
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(value.(bool), gs.Equals, true)
+			})
+
+			c.Specify("sets type and payload", func() {
+				data := "set type and payload"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				c.Expect(pack.Message.GetType(), gs.Equals, "my_type")
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "my_payload")
+			})
+
+			c.Specify("sets field value with representation", func() {
+				data := "set field value with representation"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				fields := pack.Message.FindAllFields("rep")
+				c.Expect(len(fields), gs.Equals, 1)
+				field := fields[0]
+				values := field.GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "foo")
+				c.Expect(field.GetRepresentation(), gs.Equals, "representation")
+			})
+
+			c.Specify("sets multiple field string values", func() {
+				data := "set multiple field string values"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				fields := pack.Message.FindAllFields("multi")
+				c.Expect(len(fields), gs.Equals, 2)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "first")
+				values = fields[1].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "second")
+			})
+
+			c.Specify("sets field string array value", func() {
+				data := "set field string array value"
+				pack.Message.SetPayload(data)
+				packs, err := decoder.Decode(pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(packs), gs.Equals, 1)
+				c.Expect(packs[0], gs.Equals, pack)
+				fields := pack.Message.FindAllFields("array")
+				c.Expect(len(fields), gs.Equals, 1)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 2)
+				c.Expect(values[0], gs.Equals, "first")
+				c.Expect(values[1], gs.Equals, "second")
+			})
 		})
 	})
 

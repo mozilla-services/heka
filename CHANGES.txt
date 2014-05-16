@@ -73,10 +73,20 @@ Features
 Bug Handling
 ------------
 
+* FileOutput no longer panics when using `format = "text"` and payload is nil
+  (issue #843).
+
+* Fix SandboxDecoder pass-through case so decoders that only use write_message
+  and not inject_message will emit messages correctly (issue #844).
+
+* Fixed TcpInput so it will only override the default delimiter for a
+  RegexpParser if a delimiter is specified in the config.
+
 * Fix the FileOutput panic when HUP'ed.  Modified the CheckWritePermission
   utility function to use a unique filename for each check. (issue #808)
 
-* Terminated plugins are now removed from the SandboxManager quota (issue #774).
+* Terminated plugins are now removed from the SandboxManager quota (issue
+  #774).
 
 * Fixed SIGUSR1 triggered text report to stdout to work with updated
   heka.all-report JSON data structure (issue #762).
@@ -89,8 +99,8 @@ Bug Handling
 
 * The cbufd_host_aggregator filter now properly reclaims expired hosts.
 
-* Pull in a new lua_sandbox to fix JSON encoding of empty strings in the 
-sandbox plugin output() call.
+* Pull in a new lua_sandbox to fix JSON encoding of empty strings in the
+  sandbox plugin output() call.
 
 * Escape regexp meta characters (notably '\') to prevent a panic in the LogstreamerInput on Windows
 
