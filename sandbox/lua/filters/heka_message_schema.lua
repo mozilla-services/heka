@@ -3,10 +3,11 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Generates documentation for each message type in a data stream.  The output
-includes each message Type, its associated field attributes, and their
-counts (number in the brackets). This plugin is meant for data
-discovery/exploration and should not be left running on a production system.
+Generates documentation for each unique message in a data stream.  The output is
+a hierarchy of Logger, Type, EnvVersion, and a list of associated message field
+attributes including their counts (number in the brackets). This plugin is meant
+for data discovery/exploration and should not be left running on a production
+system.
 
 Config:
 
@@ -16,24 +17,38 @@ Config:
 
 .. code-block:: ini
 
-    [FxaAuthServerMessageSchema]
+    [SyncMessageSchema]
     type = "SandboxFilter"
     script_type = "lua"
     filename = "lua_filters/heka_message_schema.lua"
     ticker_interval = 60
     preserve_data = false
-    message_matcher = "Logger == 'fxa-auth-server'"
+    message_matcher = "Logger =~ /^Sync/"
 
 *Example Output*
 
-|  DB.getToken [11598]
-|      id (string)
-|      rid (string - optional [2])
-|      msg (string)
+| Sync-1_5-Webserver [54600]
+|     slf [54600]
+|          -no version- [54600]
+|             upstream_response_time (mismatch)
+|             http_user_agent (string)
+|             body_bytes_sent (number)
+|             remote_addr (string)
+|             request (string)
+|             upstream_status (mismatch)
+|             status (number)
+|             request_time (number)
+|             request_length (number)
+| Sync-1_5-SlowQuery [37]
+|     mysql.slow-query [37]
+|          -no version- [37]
+|             Query_time (number)
+|             Rows_examined (number)
+|             Rows_sent (number)
+|             Lock_time (number)
 --]]
 
-loggers  = {}
-messages = {}
+schema  = {}
 
 local cnt_key = "_cnt_"
 
@@ -50,61 +65,91 @@ local function get_type(t)
     return "unknown"
 end
 
+local function get_table(t, key)
+    local v = t[key]
+    if not v then
+        v = {}
+        v[cnt_key] = 0
+        t[key] = v
+    end
+    v[cnt_key] = v[cnt_key] + 1
+
+    return v
+end
+
 function process_message ()
-    local l = read_message("Logger")
-    local t = read_message("Type")
-
-    local logger = loggers[l]
-    if not logger then
-        logger = {}
-        logger[cnt_key] = 0
-        loggers[l] = logger
-    end
-    logger[cnt_key] = logger[cnt_key] + 1
-
-    local m = logger[t]
-    if not m then
-        m = {}
-        m[cnt_key] = 0
-        logger[t] = m
-    end
-    m[cnt_key] = m[cnt_key] + 1
+    local l = get_table(schema, read_message("Logger"))
+    local t = get_table(l, read_message("Type"))
+    local v = get_table(t, read_message("EnvVersion"))
 
     while true do
-        local h = {type = 0, name = "", value = 0, representation = "", count = 0, key = ""}
-        h.type, h.name, h.value, h.representation, h.count = read_next_field()
-        if not h.type then break end
-        if m[h.name] then
-            m[h.name][cnt_key] = m[h.name][cnt_key] + 1
-            if h.type ~= m[h.name].type then
-                m[h.name].type = -1 -- mis-matched types
+        typ, name, value, representation, count = read_next_field()
+        if not typ then break end
+
+        if v[name] then
+            v[name][cnt_key] = v[name][cnt_key] + 1
+            if typ ~= v[name].type then
+                v[name].type = -1 -- mis-matched types
             end
         else
-            m[h.name] = {[cnt_key] = 1, type = h.type}
+            v[name] = {[cnt_key] = 1, type = typ}
         end
     end
     return 0
 end
 
-function timer_event(ns)
-    output("Logger -> Message Types -> Field Attributes.\nThe number in brackets is the number of occurrences of each logger/type/attribute.\n\n")
-    for l,t in pairs(loggers) do
-        output(l, " [", t[cnt_key], "]\n")
-        for k,v in pairs(t) do
-            if k ~= cnt_key then
-                local cnt = v[cnt_key]
-                output("    ", k, " [", cnt, "]\n")
-                for m,n in pairs(v) do
-                    if m ~= cnt_key then
-                        output("        ", m, " (", get_type(n.type))
-                        if cnt ~= n[cnt_key] then
-                            output(" - optional [", n[cnt_key], "]")
-                        end
-                        output(")\n")
-                    end
-                end
+local function output_fields(t, cnt)
+    for k, v in pairs(t) do
+        if k ~= cnt_key then
+            output("            ", k, " (", get_type(v.type))
+            if cnt ~= v[cnt_key] then
+                output(" - optional [", v[cnt_key], "]")
             end
+            output(")\n")
         end
     end
+end
+
+local function output_versions(t)
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            local cnt = v[cnt_key]
+            if k == "" then
+                k = "-no version-"
+            end
+            output("         ", k, " [", cnt, "]\n")
+            output_fields(v, cnt)
+        end
+    end
+end
+
+local function output_types(t)
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            if k == "" then
+                k = "-no type-"
+            end
+            output("    ", k, " [", v[cnt_key], "]\n")
+            output_versions(v)
+        end
+    end
+end
+
+local function output_loggers(schema)
+    for k, v in pairs(schema) do
+        if type(v) == "table" then
+            if k == "" then
+                k = "-no logger-"
+            end
+            output(k, " [", v[cnt_key], "]\n")
+            output_types(v)
+        end
+    end
+end
+
+function timer_event(ns)
+    output("Logger -> Type -> EnvVersion -> Field Attributes.\n",
+           "The number in brackets is the number of occurrences of each logger/type/attribute.\n\n")
+    output_loggers(schema)
     inject_message("txt", "Message Schema")
 end
