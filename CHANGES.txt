@@ -67,7 +67,7 @@ Features
 
 * Add QueueTTL option to AMQPInput to allow specifying message expiration.
 
-0.5.2 (2014-MM-DD)
+0.5.2 (2014-05-16)
 ==================
 
 Bug Handling
