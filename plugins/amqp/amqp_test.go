@@ -57,7 +57,7 @@ func AMQPPluginSpec(c gs.Context) {
 
 	// Setup the mock amqpHub with the mock chan return
 	aqh := NewMockAMQPConnectionHub(ctrl)
-	aqh.EXPECT().GetChannel("").Return(mch, ug, cg, nil)
+	aqh.EXPECT().GetChannel("", AMQPDialer{}).Return(mch, ug, cg, nil)
 	var oldHub AMQPConnectionHub
 	oldHub = amqpHub
 	amqpHub = aqh

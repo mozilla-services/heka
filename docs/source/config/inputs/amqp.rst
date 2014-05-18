@@ -49,6 +49,13 @@ Config:
     AMQPOutput in another Heka process then this should be a
     :ref:`config_protobuf_decoder` instance.
 
+.. versionadded:: 0.6
+
+- tls (TlsConfig):
+    An optional sub-section that specifies the settings to be used for any
+    SSL/TLS encryption. This will only have any impact if `URL` uses the
+    `AMQPS` URI scheme. See :ref:`tls`.
+
 Since many of these parameters have sane defaults, a minimal configuration to
 consume serialized messages would look like:
 
