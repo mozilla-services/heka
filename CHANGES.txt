@@ -50,6 +50,8 @@ Features
 
 * Add QueueTTL option to AMQPInput to allow specifying message expiration.
 
+* Add LogstreamInput reporting to dasher.
+
 0.5.2 (2014-MM-DD)
 ==================
 
