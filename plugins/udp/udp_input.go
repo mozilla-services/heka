@@ -77,6 +77,11 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		if err != nil {
 			return fmt.Errorf("Error listening on unixgram: %s", err)
 		}
+		// Make sure socket file is world writable.
+		if err = os.Chmod(u.config.Address, 0666); err != nil {
+			return fmt.Errorf("Error changing unixgram socket permissions: ", err)
+		}
+
 	} else if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := u.config.Address[3:]
