@@ -67,6 +67,9 @@ Features
 
 * Add QueueTTL option to AMQPInput to allow specifying message expiration.
 
+* Added optional tls sub-section to AMQPInput and AMQPOutput for configuring
+  AMQPS TLS settings.
+
 0.5.2 (2014-05-16)
 ==================
 
