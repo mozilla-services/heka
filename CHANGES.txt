@@ -30,6 +30,9 @@ Bug Handling
 Features
 --------
 
+* Added support for unix datagram sockets to the UdpInput using net "unixgram"
+  (issue #790).
+
 * Added an alert encoder to make the alert messages easier to read.
 
 * Introduced Encoder plugin type (issue #417).

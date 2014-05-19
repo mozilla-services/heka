@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -15,12 +15,13 @@
 package udp
 
 import (
+	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"log"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -62,13 +63,27 @@ func (u *UdpInput) ConfigStruct() interface{} {
 
 func (u *UdpInput) Init(config interface{}) (err error) {
 	u.config = config.(*UdpInputConfig)
-	if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
+
+	if u.config.Net == "unixgram" {
+		if runtime.GOOS == "windows" {
+			return errors.New(
+				"*Unix* datagram sockets on Windows? What is this I don't even...")
+		}
+		unixAddr, err := net.ResolveUnixAddr(u.config.Net, u.config.Address)
+		if err != nil {
+			return fmt.Errorf("Error resolving unixgram address: %s", err)
+		}
+		u.listener, err = net.ListenUnixgram(u.config.Net, unixAddr)
+		if err != nil {
+			return fmt.Errorf("Error listening on unixgram: %s", err)
+		}
+	} else if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
 		// File descriptor
 		fdStr := u.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
-			log.Println(err)
-			return fmt.Errorf("Invalid file descriptor: %s", u.config.Address)
+			return fmt.Errorf("Error parsing file descriptor '%s': %s",
+				u.config.Address, err)
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
@@ -128,14 +143,18 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 		ok bool
 	)
 	if u.config.Decoder != "" {
-		if dr, ok = h.DecoderRunner(u.config.Decoder, fmt.Sprintf("%s-%s", ir.Name(), u.config.Decoder)); !ok {
+		if dr, ok = h.DecoderRunner(u.config.Decoder, fmt.Sprintf("%s-%s",
+			ir.Name(), u.config.Decoder)); !ok {
+
 			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
 		}
 	}
 
 	var err error
 	for !u.stopped {
-		if err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, dr); err != nil {
+		if err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers,
+			dr); err != nil {
+
 			if !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: ", err))
 			}
