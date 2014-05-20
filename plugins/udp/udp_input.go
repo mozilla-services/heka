@@ -67,7 +67,7 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 	if u.config.Net == "unixgram" {
 		if runtime.GOOS == "windows" {
 			return errors.New(
-				"*Unix* datagram sockets on Windows? What is this I don't even...")
+				"Can't use Unix datagram sockets on Windows.")
 		}
 		unixAddr, err := net.ResolveUnixAddr(u.config.Net, u.config.Address)
 		if err != nil {
