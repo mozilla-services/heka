@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -59,6 +60,7 @@ type LogstreamerInputConfig struct {
 
 type LogstreamerInput struct {
 	logstreamSet       *ls.LogstreamSet
+	logstreamSetLock   sync.RWMutex
 	rescanInterval     time.Duration
 	plugins            map[string]*LogstreamInput
 	stopLogstreamChans []chan chan bool
@@ -142,6 +144,8 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	}
 
 	// Create the main logstream set
+	li.logstreamSetLock.Lock()
+	defer li.logstreamSetLock.Unlock()
 	li.logstreamSet = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory, conf.JournalDirectory)
 
 	// Initial scan for logstreams
@@ -231,6 +235,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 			// Close our own stopChan to indicate we shut down
 			close(li.stopChan)
 		case <-rescan:
+			li.logstreamSetLock.Lock()
 			newstreams, errs = li.logstreamSet.ScanForLogstreams()
 			if errs.IsError() {
 				ir.LogError(errs)
@@ -253,6 +258,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 				go lsi.Run(ir, h, stop, dRunner)
 				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 			}
+			li.logstreamSetLock.Unlock()
 		}
 	}
 	err = nil
@@ -462,4 +468,20 @@ func init() {
 	p.RegisterPlugin("LogstreamerInput", func() interface{} {
 		return new(LogstreamerInput)
 	})
+}
+
+// ReportMsg provides plugin state to Heka report and dashboard.
+func (li *LogstreamerInput) ReportMsg(msg *message.Message) error {
+	li.logstreamSetLock.RLock()
+	defer li.logstreamSetLock.RUnlock()
+
+	for _, name := range li.logstreamSet.GetLogstreamNames() {
+		logstream, ok := li.logstreamSet.GetLogstream(name)
+		if ok {
+			fname, bytes := logstream.ReportPosition()
+			message.NewStringField(msg, fmt.Sprintf("%s-filename", name), fname)
+			message.NewInt64Field(msg, fmt.Sprintf("%s-bytes", name), bytes, "count")
+		}
+	}
+	return nil
 }

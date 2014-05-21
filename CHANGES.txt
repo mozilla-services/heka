@@ -30,8 +30,10 @@ Bug Handling
 Features
 --------
 
-* Added a HyperLogLog library to the Lua sandbox using the Redis implementation
-  http://antirez.com/news/75.
+* Add LogstreamInput seekjournal reporting to dashboard output (issue #445).
+
+* Added a HyperLogLog library to the Lua sandbox using the Redis
+  implementation http://antirez.com/news/75.
 
 * Added an alert encoder to make the alert messages easier to read.
 

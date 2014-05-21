@@ -331,6 +331,10 @@ func (l *Logstream) DumpDebug() string {
 	)
 }
 
+func (l *Logstream) ReportPosition() (string, int64) {
+	return l.position.Filename, l.position.SeekPosition
+}
+
 // Updates the logfiles safely
 func (l *Logstream) UpdateLogfiles(logfiles Logfiles) {
 	l.lfMutex.Lock()
