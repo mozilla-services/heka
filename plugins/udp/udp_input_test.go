@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -24,7 +24,10 @@ import (
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
 	"net"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -59,9 +62,6 @@ func UdpInputSpec(c gs.Context) {
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(config.InputRecycleChan())
 
-	ith.AddrStr = "localhost:55565"
-	ith.ResolvedAddrStr = "127.0.0.1:55565"
-
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
@@ -71,41 +71,86 @@ func UdpInputSpec(c gs.Context) {
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{Net: "udp", Address: ith.AddrStr,
+		config := &UdpInputConfig{
 			Decoder:    "ProtobufDecoder",
-			ParserType: "message.proto"})
-		c.Assume(err, gs.IsNil)
-		realListener := (udpInput.listener).(*net.UDPConn)
-		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
+			ParserType: "message.proto",
+		}
 
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
 		header.SetMessageLength(uint32(len(mbytes)))
+		hbytes, _ := proto.Marshal(header)
+		buf := encodeMessage(hbytes, mbytes)
 
 		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
 		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("UdpInput")
-		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "UdpInput-ProtobufDecoder")
+		encCall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder",
+			"UdpInput-ProtobufDecoder")
 		encCall.Return(ith.Decoder, true)
 
-		c.Specify("reads a message from the connection and passes it to the decoder", func() {
-			hbytes, _ := proto.Marshal(header)
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+		c.Specify("using a udp address", func() {
+			ith.AddrStr = "localhost:55565"
+			ith.ResolvedAddrStr = "127.0.0.1:55565"
+			config.Net = "udp"
+			config.Address = ith.AddrStr
+
+			err := udpInput.Init(config)
 			c.Assume(err, gs.IsNil)
-			buf := encodeMessage(hbytes, mbytes)
-			_, err = conn.Write(buf)
-			c.Assume(err, gs.IsNil)
-			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
-			udpInput.Stop()
-			c.Expect(ith.Pack, gs.Equals, packRef)
-			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
-			c.Expect(ith.Pack.Decoded, gs.IsFalse)
+			realListener := (udpInput.listener).(*net.UDPConn)
+			c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
+
+			c.Specify("reads a message from the connection and passes it to the decoder", func() {
+				go func() {
+					udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+				c.Assume(err, gs.IsNil)
+				_, err = conn.Write(buf)
+				c.Assume(err, gs.IsNil)
+				ith.PackSupply <- ith.Pack
+				packRef := <-ith.DecodeChan
+				udpInput.Stop()
+				c.Expect(ith.Pack, gs.Equals, packRef)
+				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+				c.Expect(ith.Pack.Decoded, gs.IsFalse)
+			})
 		})
+
+		if runtime.GOOS != "windows" {
+			c.Specify("using a unix datagram socket", func() {
+				tmpDir, err := ioutil.TempDir("", "heka-socket")
+				c.Assume(err, gs.IsNil)
+				unixPath := filepath.Join(tmpDir, "unixgram-socket")
+				ith.AddrStr = unixPath
+				config.Net = "unixgram"
+				config.Address = ith.AddrStr
+
+				err = udpInput.Init(config)
+				c.Assume(err, gs.IsNil)
+				realListener := (udpInput.listener).(*net.UnixConn)
+				c.Expect(realListener.LocalAddr().String(), gs.Equals, unixPath)
+
+				c.Specify("reads a message from the socket and passes it to the decoder", func() {
+					go func() {
+						udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					}()
+					unixAddr, err := net.ResolveUnixAddr("unixgram", unixPath)
+					c.Assume(err, gs.IsNil)
+					conn, err := net.DialUnix("unixgram", nil, unixAddr)
+					c.Assume(err, gs.IsNil)
+					_, err = conn.Write(buf)
+					c.Assume(err, gs.IsNil)
+					ith.PackSupply <- ith.Pack
+					packRef := <-ith.DecodeChan
+					udpInput.Stop()
+					c.Expect(ith.Pack, gs.Equals, packRef)
+					c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
+					c.Expect(ith.Pack.Decoded, gs.IsFalse)
+				})
+			})
+		}
 	})
 
 	c.Specify("A UdpInput Multiline input", func() {

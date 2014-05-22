@@ -30,6 +30,9 @@ Bug Handling
 Features
 --------
 
+* Added support for unix datagram sockets to the UdpInput using net "unixgram"
+  (issue #790).
+
 * Add LogstreamInput seekjournal reporting to dashboard output (issue #445).
 
 * Added a HyperLogLog library to the Lua sandbox using the Redis
