@@ -33,6 +33,11 @@ Features
 * Added support for unix datagram sockets to the UdpInput using net "unixgram"
   (issue #790).
 
+* Add LogstreamInput seekjournal reporting to dashboard output (issue #445).
+
+* Added a HyperLogLog library to the Lua sandbox using the Redis
+  implementation http://antirez.com/news/75.
+
 * Added an alert encoder to make the alert messages easier to read.
 
 * Introduced Encoder plugin type (issue #417).
@@ -72,6 +77,8 @@ Features
 
 * Added optional tls sub-section to AMQPInput and AMQPOutput for configuring
   AMQPS TLS settings.
+
+* Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 0.5.2 (2014-05-16)
 ==================

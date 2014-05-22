@@ -53,3 +53,30 @@ Field Variables
         * presentation i.e., graph labels, HTML links
 
 * value_* (optional, value_type) - Array of values, only one type will be active at a time.
+
+Protobuf Stream Framing
+=======================
+
+Heka has some custom framing that is used when generating a stream of protocol
+buffer encoded messages. The entire structure encapsulating a single message
+consists of a one byte record separator, one byte representing the header
+length, the protobuf encoded header, a one byte unit separator, and the
+protobuf encoded message, as indicated in this diagram:
+
+.. graphviz:: header.dot
+
+The header schema is as follows:
+
+* message_length (required, uint32) - length in bytes of the serialized message data
+* hmac_hash_function (optional, int32) - enum indicating the hash function
+  used to sign the message, 0 for MD5, 1, for SHA1
+* hmac_signer (optional, string) - string token identifying HMAC signer
+* hmac_key_version (optional, uint32) - version number of the provided HMAC key
+* hmac (optional, []byte) - binary representation of provided HMAC key
+
+Clients interested in decoding a Heka stream will need to read the header
+length byte to determine the length of the header, extract the encoded header
+data and decode this into a Header structure using an appropriate protobuf
+library. From this they can then extract the length of the encoded message
+data, which can then be extracted from the data stream and decoded into a
+Message structure.

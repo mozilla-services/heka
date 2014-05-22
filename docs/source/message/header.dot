@@ -1,0 +1,9 @@
+digraph header {
+	node [shape=record, fontsize=10];
+
+	struct1 [label="Record Separator\n(byte=0x1E) \
+	|Header Length\n(byte) \
+	|Header\n(protocol buffer) \
+	|Unit Separator\n(byte=0x1F) \
+	|Message"];
+}
