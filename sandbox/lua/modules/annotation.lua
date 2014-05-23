@@ -87,18 +87,23 @@ local M = {}
 
 local prune_duration = 60 * 60 * 24 * 1e9 -- default it to a day
 
-local function create_key(name)
-    local a = _ANNOTATIONS[name]
-    -- todo temporary schema migration, remove before 0.6 release
+-- todo temporary schema migration, remove before 0.6 release
+local function fix_up_schema(name, a)
     if a and not a.annotations then
         t = {}
         t.prune_duration = a._prune_duration
         a._prune_duration = nil
         t.annotations = a
-        a = t
-        ANNOTATIONS[name] = a
+        _ANNOTATIONS[name] = t
+        return t
     end
-    -- end todo
+    return a
+end
+-- end todo
+
+local function create_key(name)
+    local a = _ANNOTATIONS[name]
+    a = fix_up_schema(name, a) -- todo remove
     if not a then
         a = {annotations = {}, prune_duration = prune_duration}
         _ANNOTATIONS[name] = a
@@ -136,6 +141,7 @@ function M.prune(name, ns)
     if not a then
         return
     end
+    a = fix_up_schema(name, a) -- todo remove
 
     local len = #a.annotations
     local deletion = false
