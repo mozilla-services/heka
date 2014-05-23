@@ -101,11 +101,11 @@ end
 local function output_fields(t, cnt)
     for k, v in pairs(t) do
         if k ~= cnt_key then
-            output("            ", k, " (", get_type(v.type))
+            add_to_payload("            ", k, " (", get_type(v.type))
             if cnt ~= v[cnt_key] then
-                output(" - optional [", v[cnt_key], "]")
+                add_to_payload(" - optional [", v[cnt_key], "]")
             end
-            output(")\n")
+            add_to_payload(")\n")
         end
     end
 end
@@ -117,7 +117,7 @@ local function output_versions(t)
             if k == "" then
                 k = "-no version-"
             end
-            output("         ", k, " [", cnt, "]\n")
+            add_to_payload("         ", k, " [", cnt, "]\n")
             output_fields(v, cnt)
         end
     end
@@ -129,7 +129,7 @@ local function output_types(t)
             if k == "" then
                 k = "-no type-"
             end
-            output("    ", k, " [", v[cnt_key], "]\n")
+            add_to_payload("    ", k, " [", v[cnt_key], "]\n")
             output_versions(v)
         end
     end
@@ -141,15 +141,15 @@ local function output_loggers(schema)
             if k == "" then
                 k = "-no logger-"
             end
-            output(k, " [", v[cnt_key], "]\n")
+            add_to_payload(k, " [", v[cnt_key], "]\n")
             output_types(v)
         end
     end
 end
 
 function timer_event(ns)
-    output("Logger -> Type -> EnvVersion -> Field Attributes.\n",
+    add_to_payload("Logger -> Type -> EnvVersion -> Field Attributes.\n",
            "The number in brackets is the number of occurrences of each logger/type/attribute.\n\n")
     output_loggers(schema)
-    inject_message("txt", "Message Schema")
+    inject_payload("txt", "Message Schema")
 end

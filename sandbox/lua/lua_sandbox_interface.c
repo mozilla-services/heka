@@ -302,51 +302,61 @@ int read_next_field(lua_State* lua)
 ////////////////////////////////////////////////////////////////////////////////
 int inject_message(lua_State* lua)
 {
-    static const char* default_type = "txt";
-    static const char* default_name = "";
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
         luaL_error(lua, "inject_message() invalid lightuserdata");
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
-    void* ud = NULL;
-    const char* type = default_type;
-    const char* name = default_name;
-    switch (lua_gettop(lua)) {
-    case 0:
-        break;
-    case 2:
-        name = luaL_checkstring(lua, 2);
-        // fallthru
-    case 1:
-        switch (lua_type(lua, 1)) {
-        case LUA_TSTRING:
-            type = lua_tostring(lua, 1);
-            if (strlen(type) == 0) type = default_type;
-            break;
-        case LUA_TTABLE:
-            type = "";
-            if (lsb_output_protobuf(lsb, 1, 0) != 0) {
-              luaL_error(lua, "inject_message() could not encode protobuf - %s",
-                         lsb_get_error(lsb));
-            }
-            break;
-        case LUA_TUSERDATA:
-            type = lsb_output_userdata(lsb, 1, 0);
-            if (!type) {
-                luaL_error(lua, "inject_message() could not output userdata - %s",
-                           lsb_get_error(lsb));
-            }
-            break;
-        default:
-            luaL_typerror(lua, 1, "string, table, or circular_buffer");
-            break;
+    if (lua_gettop(lua) != 1 || lua_type(lua, 1) != LUA_TTABLE) {
+        luaL_error(lua, "inject_message() takes a single table argument");
+    }
+
+    if (lsb_output_protobuf(lsb, 1, 0) != 0) {
+      luaL_error(lua, "inject_message() could not encode protobuf - %s",
+                 lsb_get_error(lsb));
+    }
+    size_t len;
+    const char* output = lsb_get_output(lsb, &len);
+
+    if (len != 0) {
+        int result = go_lua_inject_message(lsb_get_parent(lsb),
+                                           (char*)output,
+                                           (int)len,
+                                           "",
+                                           "");
+        if (result != 0) {
+            luaL_error(lua, "inject_message() exceeded MaxMsgLoops");
         }
-        break;
-    default:
-        luaL_error(lua, "inject_message() takes a maximum of 2 arguments");
-        break;
+    }
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int inject_payload(lua_State* lua)
+{
+    static const char* default_type = "txt";
+
+    void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
+    if (NULL == luserdata) {
+        luaL_error(lua, "inject_message() invalid lightuserdata");
+    }
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+
+    const char* type = default_type;
+    const char* name = "";
+
+    int n = lua_gettop(lua);
+    if (n > 0) {
+        size_t len = 0;
+        type = luaL_checklstring(lua, 1, &len);
+        if (len == 0) type = default_type;
+    }
+    if (n > 1) {
+        name = luaL_checkstring(lua, 2);
+    }
+    if (n > 2) {
+        lsb_output(lsb, 3, n, 1);
     }
     size_t len;
     const char* output = lsb_get_output(lsb, &len);
@@ -358,7 +368,7 @@ int inject_message(lua_State* lua)
                                            (char*)type,
                                            (char*)name);
         if (result != 0) {
-            luaL_error(lua, "inject_message() exceeded MaxMsgLoops");
+            luaL_error(lua, "inject_payload() exceeded MaxMsgLoops");
         }
     }
     return 0;
@@ -367,11 +377,13 @@ int inject_message(lua_State* lua)
 ////////////////////////////////////////////////////////////////////////////////
 int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type)
 {
+    static const char *output = "output";
     if (!lsb) return 1;
 
     lsb_add_function(lsb, &read_config, "read_config");
     lsb_add_function(lsb, &read_message, "read_message");
     lsb_add_function(lsb, &read_next_field, "read_next_field");
+    lsb_add_function(lsb, &inject_payload, "inject_payload");
     lsb_add_function(lsb, &inject_message, "inject_message");
 
     if (strcmp(plugin_type, "decoder") == 0 ||
@@ -381,6 +393,13 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_typ
 
     int result = lsb_init(lsb, data_file);
     if (result) return result;
+
+    // rename output to add_to_payload
+    lua_State* lua = lsb_get_lua(lsb);
+    lua_getglobal(lua, output);
+    lua_setglobal(lua, "add_to_payload");
+    lua_pushnil(lua);
+    lua_setglobal(lua, output);
 
     return 0;
 }

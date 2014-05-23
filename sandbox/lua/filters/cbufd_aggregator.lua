@@ -40,7 +40,6 @@ local annotation= require "annotation"
 local anomaly   = require "anomaly"
 local cbufd     = require "cbufd"
 require "circular_buffer"
-require "cjson"
 
 local enable_delta = read_config("enable_delta") or false
 local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
@@ -48,8 +47,8 @@ local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
 cbufs = {}
 
 local function init_cbuf(payload_name, data)
-    local h = cjson.decode(data.header)
-    if not h then
+    local ok, h = pcall(cjson.decode, data.header)
+    if not ok then
         return nil
     end
 
@@ -104,14 +103,13 @@ function timer_event(ns)
                     annotation.concat(k, annos)
                 end
             end
-            output({annotations = annotation.prune(k, ns)}, v)
-            inject_message("cbuf", k)
+            inject_payload("cbuf", k, annotation.prune(k, ns), v)
         else
-            inject_message(v, k)
+            inject_payload("cbuf", k, v)
         end
 
         if enable_delta then
-            inject_message(v:format("cbufd"), k)
+            inject_payload("cbufd", k, v:format("cbufd"))
         end
     end
     alert.send_queue(ns)

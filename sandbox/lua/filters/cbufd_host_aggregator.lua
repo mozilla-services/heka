@@ -58,8 +58,8 @@ hosts_size = 0
 payloads = {}
 
 function init_payload(hostname, payload_name, data)
-    local h = cjson.decode(data.header)
-    if not h then
+    local ok, h = pcall(cjson.decode, data.header)
+    if not ok then
         return nil
     end
 
@@ -144,11 +144,11 @@ function process_message ()
     return 0
 end
 
+local options = '{"options":{"stackedGraph":true,"fillGraph":true}}\n'
 function timer_event(ns)
     for k,v in pairs(payloads) do
         for i, cb in ipairs(v.cbufs) do
-            output({options = {stackedGraph = true, fillGraph = true}}, cb)
-            inject_message("cbuf", string.format("%s (%s)", k, v.header.column_info[i].name))
+            inject_payload("cbuf", string.format("%s (%s)", k, v.header.column_info[i].name), options, cb)
         end
     end
 end

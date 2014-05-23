@@ -137,11 +137,11 @@ func TestInit(t *testing.T) {
 		t.Errorf("memory limit should be %d, using %d", sbc.MemoryLimit, b)
 	}
 	b = sb.Usage(TYPE_INSTRUCTIONS, STAT_CURRENT)
-	if b != 9 {
+	if b != 6 {
 		t.Errorf("current instructions should be 9, using %d", b)
 	}
 	b = sb.Usage(TYPE_INSTRUCTIONS, STAT_MAXIMUM)
-	if b != 9 {
+	if b != 6 {
 		t.Errorf("maximum instructions should be 9, using %d", b)
 	}
 	b = sb.Usage(TYPE_INSTRUCTIONS, STAT_LIMIT)
@@ -294,7 +294,7 @@ func TestAPIErrors(t *testing.T) {
 	pack := getTestPack()
 	tests := []string{
 		"require unknown",
-		"output() no arg",
+		"add_to_payload() no arg",
 		"out of memory",
 		"out of instructions",
 		"operation on a nil",
@@ -311,7 +311,7 @@ func TestAPIErrors(t *testing.T) {
 	}
 	msgs := []string{
 		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
-		"process_message() ./testsupport/errors.lua:13: output() must have at least one argument",
+		"process_message() ./testsupport/errors.lua:13: bad argument #0 to 'add_to_payload' (must have at least one argument)",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
 		"process_message() ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
@@ -700,7 +700,7 @@ func TestFailedMessageInjection(t *testing.T) {
 			STATUS_TERMINATED, sb.Status())
 	}
 	s := sb.LastError()
-	errMsg := "process_message() ./testsupport/loop.lua:7: inject_message() exceeded MaxMsgLoops"
+	errMsg := "process_message() ./testsupport/loop.lua:6: inject_payload() exceeded MaxMsgLoops"
 	if s != errMsg {
 		t.Errorf("error should be \"%s\", received \"%s\"", errMsg, s)
 	}
@@ -715,7 +715,6 @@ func TestInjectMessage(t *testing.T) {
 		"external reference",
 		"array only",
 		"private keys",
-		"global table",
 		"special characters",
 		"message",
 		"message field",
@@ -724,22 +723,15 @@ func TestInjectMessage(t *testing.T) {
 		"message field metadata array",
 		"message field all types",
 		"message force memmove",
+        "internal reference",
 	}
 	outputs := []string{
-		`{"value":1}
-1.2 string nil true false`,
-		`{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}
-`,
-		`{"a":{"y":2,"x":1}}
-`,
-		`[1,2,3]
-`,
-		`{"x":1}
-`,
-		`{}
-`,
-		`{"special\tcharacters":"\"\t\r\n\b\f\\\/"}
-`,
+		`{"value":1}1.2 string nil true false`,
+		`{"StatisticValues":[{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0},{"Minimum":0,"SampleCount":0,"Sum":0,"Maximum":0}],"Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}],"MetricName":"example","Timestamp":0,"Value":0,"Unit":"s"}`,
+		`{"a":{"y":2,"x":1}}`,
+		`[1,2,3]`,
+		`{"x":1,"_m":1,"_private":[1,2]}`,
+		`{"special\tcharacters":"\"\t\r\n\b\f\\\/"}`,
 		"\x10\x80\x94\xeb\xdc\x03\x1a\x04\x74\x79\x70\x65\x22\x06\x6c\x6f\x67\x67\x65\x72\x28\x09\x32\x07\x70\x61\x79\x6c\x6f\x61\x64\x3a\x0b\x65\x6e\x76\x5f\x76\x65\x72\x73\x69\x6f\x6e\x4a\x08\x68\x6f\x73\x74\x6e\x61\x6d\x65",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x12\x0a\x05\x63\x6f\x75\x6e\x74\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x25\x0a\x06\x63\x6f\x75\x6e\x74\x73\x10\x03\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x39\x00\x00\x00\x00\x00\x00\x10\x40",
@@ -747,11 +739,12 @@ func TestInjectMessage(t *testing.T) {
 		"\x10\x80\x94\xeb\xdc\x03\x52\x2c\x0a\x06\x63\x6f\x75\x6e\x74\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\x18\x40\x39\x00\x00\x00\x00\x00\x00\x1c\x40\x39\x00\x00\x00\x00\x00\x00\x20\x40",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33",
 		"\x10\x80\x94\xeb\xdc\x03\x52\x8d\x01\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x82\x01\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39\x30\x31\x32\x33\x34\x35\x36\x37\x38\x39",
+            `{"y":[2],"x":[1,2,3],"ir":[1,2,3]}`,
 	}
 	if false { // lua jit values
 		outputs[1] = `{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}
 `
-		outputs[13] = "\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33"
+		outputs[12] = "\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x0f\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x40\x01\x40\x00\x40\x00\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x2d\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x39\x00\x00\x00\x00\x00\x00\x00\x40\x39\x00\x00\x00\x00\x00\x00\x08\x40\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33"
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
@@ -778,7 +771,7 @@ func TestInjectMessage(t *testing.T) {
 				t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", outputs[cnt], p)
 			}
 		}
-		if cnt == 12 {
+		if cnt == 11 {
 			msg := new(message.Message)
 			err := proto.Unmarshal([]byte(p), msg)
 			if err != nil {
@@ -831,26 +824,24 @@ func TestInjectMessage(t *testing.T) {
 func TestInjectMessageError(t *testing.T) {
 	var sbc SandboxConfig
 	tests := []string{
-		"error internal reference",
 		"error circular reference",
 		"error escape overflow",
 		"error mis-match field array",
 		"error nil field",
 		"error nil type arg",
 		"error nil name arg",
-		"error incorrect number of args",
+		"error nil message",
 		"error userdata output_limit",
 	}
 	errors := []string{
-		"process_message() ./testsupport/inject_message.lua:42: table contains an internal or circular reference",
-		"process_message() ./testsupport/inject_message.lua:47: table contains an internal or circular reference",
 		"process_message() not enough memory",
-		"process_message() ./testsupport/inject_message.lua:76: inject_message() could not encode protobuf - array has mixed types",
-		"process_message() ./testsupport/inject_message.lua:79: inject_message() could not encode protobuf - unsupported type 0",
-		"process_message() ./testsupport/inject_message.lua:81: bad argument #1 to 'inject_message' (string, table, or circular_buffer expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:83: bad argument #2 to 'inject_message' (string expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:85: inject_message() takes a maximum of 2 arguments",
-		"process_message() ./testsupport/inject_message.lua:91: inject_message() could not output userdata - output_limit exceeded",
+		"process_message() not enough memory",
+		"process_message() ./testsupport/inject_message.lua:65: inject_message() could not encode protobuf - array has mixed types",
+		"process_message() ./testsupport/inject_message.lua:68: inject_message() could not encode protobuf - unsupported type: nil",
+		"process_message() ./testsupport/inject_message.lua:70: bad argument #1 to 'inject_payload' (string expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:72: bad argument #2 to 'inject_payload' (string expected, got nil)",
+		"process_message() ./testsupport/inject_message.lua:74: inject_message() takes a single table argument",
+		"process_message() ./testsupport/inject_message.lua:80: output_limit exceeded",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
@@ -870,7 +861,7 @@ func TestInjectMessageError(t *testing.T) {
 		pack.Message.SetPayload(v)
 		r := sb.ProcessMessage(pack)
 		if r != 1 {
-			t.Errorf("ProcessMessage should return 1, received %d", r)
+			t.Errorf("ProcessMessage test: %s should return 1, received %d", v, r)
 		} else {
 			if sb.LastError() != errors[i] {
 				t.Errorf("Expected: \"%s\" received: \"%s\"", errors[i], sb.LastError())
@@ -896,8 +887,7 @@ func TestLpeg(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	sb.InjectMessage(func(p, pt, pn string) int {
-		expected := `["1","string with spaces","quoted string, with comma and \"quoted\" text"]
-`
+		expected := `["1","string with spaces","quoted string, with comma and \"quoted\" text"]`
 		if p != expected {
 			t.Errorf("Output is incorrect, expected: \"%s\" received: \"%s\"", expected, p)
 		}
