@@ -83,6 +83,15 @@ Features
 
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
+0.5.3 (2014-MM-DD)
+==================
+
+Bug Handling
+------------
+
+* StatFilter now correctly handles values from integer or float fields (issue
+  #612).
+
 0.5.2 (2014-05-16)
 ==================
 
