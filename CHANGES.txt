@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Changed the Lua sandbox API.  inject_message is no longer overloaded, output
+  has been renamed to add_to_payload, and inject_payload has been introduced. 
+
 * Changed TcpOutput, FileOutput, and LogOutput to use Encoder plugins for
   output formatting instead of bespoke formatting implementations.
 

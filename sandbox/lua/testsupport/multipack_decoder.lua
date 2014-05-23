@@ -1,8 +1,6 @@
 function process_message ()
-    output("message one")
-    inject_message()
-    output("message two")
-    inject_message()
+    inject_payload("txt", "", "message one")
+    inject_payload("txt", "", "message two")
 
     local hm = {Payload = "message three"}
     inject_message(hm)

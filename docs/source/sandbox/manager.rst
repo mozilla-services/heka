@@ -154,7 +154,7 @@ SandboxFilter Setup
     end
 
     function timer_event(ns)
-        inject_message(data)
+        inject_payload("cbuf", "", data)
     end
 
 2. Create the SandboxFilter configuration and save it as "example.toml".

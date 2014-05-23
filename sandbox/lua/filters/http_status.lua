@@ -82,9 +82,8 @@ function timer_event(ns)
                 alert.send(ns, msg)
             end
         end
-        output({annotations = annotation.prune(title, ns)}, status)
-        inject_message("cbuf", title)
+        inject_payload("cbuf", title, annotation.prune(title, ns), status)
     else
-        inject_message(status, title)
+        inject_payload("cbuf", title, status)
     end
 end

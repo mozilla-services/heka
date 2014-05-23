@@ -6,7 +6,6 @@ local result
 
 function process_message()
     result = "Prefixed " .. read_message("Payload")
-    output(result)
-    inject_message()
+    inject_payload("txt", "", result)
     return 0
 end

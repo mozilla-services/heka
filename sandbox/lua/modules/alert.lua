@@ -95,8 +95,7 @@ function M.send(ns, msg)
     if not msg or msg == "" or M.throttled(ns) then
         return false
     end
-    output(msg)
-    inject_message("alert")
+    inject_payload("alert", "", msg)
 
     if ns > _LAST_ALERT then
         _LAST_ALERT = ns

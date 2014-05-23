@@ -46,8 +46,8 @@ function process_message ()
     local pi = read_message("Logger")
     local pl = read_message("Payload")
 
-    output(string.format("Timestamp: %s\nHostname: %s\nPlugin: %s\nAlert: %s\n", ts, hn, pi, pl))
-    inject_message()
+    inject_payload("txt", "",
+                   string.format("Timestamp: %s\nHostname: %s\nPlugin: %s\nAlert: %s\n", ts, hn, pi, pl))
     return 0
 end
 

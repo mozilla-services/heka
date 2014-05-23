@@ -49,7 +49,7 @@ API
         - ns (int64) current time in nanoseconds since the UNIX epoch.
 
     *Return*
-        - The pruned list of annotations.
+        - The json encoded list of annotations.
 
 **remove(name)**
     Entirely remove the payload name from the global *_ANNOTATIONS* table.
@@ -77,6 +77,7 @@ _ANNOTATIONS = {} -- throw the annotations into global space so they are
 
 -- Imports
 require "math"
+require "cjson"
 require "table"
 
 local M = {}
@@ -88,8 +89,18 @@ local prune_duration = 60 * 60 * 24 * 1e9 -- default it to a day
 
 local function create_key(name)
     local a = _ANNOTATIONS[name]
+    -- todo temporary schema migration, remove before 0.6 release
+    if a and not a.annotations then
+        t = {}
+        t.prune_duration = a._prune_duration
+        a._prune_duration = nil
+        t.annotations = a
+        a = t
+        ANNOTATIONS[name] = a
+    end
+    -- end todo
     if not a then
-        a = {_prune_duration = prune_duration}
+        a = {annotations = {}, prune_duration = prune_duration}
         _ANNOTATIONS[name] = a
     end
     return a
@@ -103,7 +114,7 @@ end
 
 function M.add(name, ns, col, stext, text)
     local a = create_key(name)
-    table.insert(a, M.create(ns, col, stext, text))
+    table.insert(a.annotations, M.create(ns, col, stext, text))
 end
 
 
@@ -115,7 +126,7 @@ end
 function M.concat(name, annotations)
     local a = create_key(name)
     for i, v in ipairs(annotations) do
-        table.insert(a, v)
+        table.insert(a.annotations, v)
     end
 end
 
@@ -126,11 +137,11 @@ function M.prune(name, ns)
         return
     end
 
-    local len = #a
+    local len = #a.annotations
     local deletion = false
     for i = 1, len do
-        if a[i].x * 1e6 + a._prune_duration <= ns then
-           a[i] = nil
+        if a.annotations[i].x * 1e6 + a.prune_duration <= ns then
+           a.annotations[i] = nil
            deletion = true
         end
     end
@@ -138,23 +149,23 @@ function M.prune(name, ns)
     if deletion then
         local j = 1
         for i = 1, len do
-            if a[i] then
+            if a.annotations[i] then
                 if j ~= i then
-                    a[j] = a[i]
-                    a[i] = nil
+                    a.annotations[j] = a.annotations[i]
+                    a.annotations[i] = nil
                 end
                 j = j + 1
             end
         end
     end
 
-    return a
+    return cjson.encode({annotations = a.annotations}) .. "\n"
 end
 
 
 function M.set_prune(name, ns_duration)
     local a = create_key(name)
-    a._prune_duration = ns_duration
+    a.prune_duration = ns_duration
 end
 
 return M

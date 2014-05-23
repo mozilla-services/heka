@@ -70,9 +70,9 @@ function process_message ()
 end
 
 function timer_event(ns)
-    inject_message(active:format("cbuf"), title)
+    inject_payload("cbuf", title, active:format("cbuf"))
     if enable_delta then
-        inject_message(active:format("cbufd"), title)
+        inject_payload("cbufd", title, active:format("cbufd"))
     end
 end
 

@@ -10,7 +10,6 @@ end
 
 function timer_event(ns)
     for i = 1, 11 do
-        output("test")
-        inject_message()
+        inject_payload("txt", "", "test")
     end
 end

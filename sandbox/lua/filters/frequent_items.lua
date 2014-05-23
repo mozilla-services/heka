@@ -94,11 +94,11 @@ function process_message ()
 end
 
 function timer_event(ns)
-    output(message_variable, "\tWeight\n")
+    add_to_payload(message_variable, "\tWeight\n")
     for k, v in pairs(items) do
         if v > min_output_weight then
-            output(string.format("%s\t%d\n", k, v))
+            add_to_payload(string.format("%s\t%d\n", k, v))
         end
     end
-    inject_message("tsv", string.format("Weighting by %s", message_variable))
+    inject_payload("tsv", string.format("Weighting by %s", message_variable))
 end
