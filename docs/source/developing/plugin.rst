@@ -525,16 +525,24 @@ The `Output` interface is nearly identical to the `Filter` interface::
         Run(or OutputRunner, h PluginHelper) (err error)
     }
 
-In fact, there is very little difference between filter and output plugins,
-other than tasks that they will be performing. Like filters, outputs should
-call the `InChan` method on the provided runner to get an input channel, which
-will feed `PipelinePack` objects. Like filters, outputs should listen on this 
-channel until it is closed, at which time they should perform any necessary 
-clean-up and thenreturn. And, like filters, any output plugin with a 
-`ticker_interval` value in the configuration will use that value to create a 
-ticker channel that can be accessed using the runner's `Ticker` method. And, 
-finally, outputs should also be sure to call `PipelinePack.Recycle()` when 
-they finish w/ a pack so that Heka knows the pack is freed up for reuse.
+In fact, there are many ways in which filter and output plugins are similar.
+Like filters, outputs should call the `InChan` method on the provided runner
+to get an input channel, which will feed `PipelinePack` objects. Like filters,
+outputs should listen on this channel until it is closed, at which time they
+should perform any necessary clean-up and then return. And, like filters, any
+output plugin with a `ticker_interval` value in the configuration will use
+that value to create a ticker channel that can be accessed using the runner's
+`Ticker` method. And, finally, outputs should also be sure to call
+`PipelinePack.Recycle()` when they finish w/ a pack so that Heka knows the
+pack is freed up for reuse.
+
+The primary way that outputs differ from filters, of course, is that outputs
+need to serialize (or extract data from) the messages they receive and then
+send that data to an external destination. The serialization (or data
+extraction) should be performed by the output's specified encoder plugin,
+which can be accessed by calling the OutputRunner's `Encoder` method. Then you
+can pass the PipelinePack in to the encoder's `Encode` method to get back the
+raw bytes that should be sent out over the wire.
 
 .. _register_custom_plugins:
 
