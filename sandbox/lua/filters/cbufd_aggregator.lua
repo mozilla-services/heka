@@ -47,8 +47,8 @@ local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
 cbufs = {}
 
 local function init_cbuf(payload_name, data)
-    local h = cjson.decode(data.header)
-    if not h then
+    local ok, h = pcall(cjson.decode, data.header)
+    if not ok then
         return nil
     end
 

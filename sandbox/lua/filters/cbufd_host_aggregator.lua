@@ -58,8 +58,8 @@ hosts_size = 0
 payloads = {}
 
 function init_payload(hostname, payload_name, data)
-    local h = cjson.decode(data.header)
-    if not h then
+    local ok, h = pcall(cjson.decode, data.header)
+    if not ok then
         return nil
     end
 
