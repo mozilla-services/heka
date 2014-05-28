@@ -57,7 +57,7 @@ type ElasticSearchOutput struct {
 
 	// Specify a timeout value in milliseconds for bulk request to complete.
 	// Default is 0 (infinite)
-	http_timeout	     uint32
+	http_timeout uint32
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -111,7 +111,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		Server:               "http://localhost:9200",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
-		HTTPTimeout:	      0,
+		HTTPTimeout:          0,
 	}
 }
 
@@ -309,13 +309,13 @@ type CleanMessageFormatter struct {
 }
 
 type KibanaFormatter struct {
-	rawBytesFields  []string
+	rawBytesFields []string
 }
 
 func NewKibanaFormatter(rawBytesFields []string) *KibanaFormatter {
-        return &KibanaFormatter{
-                rawBytesFields: rawBytesFields,
-        }
+	return &KibanaFormatter{
+		rawBytesFields: rawBytesFields,
+	}
 }
 
 func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []string) *CleanMessageFormatter {
@@ -334,7 +334,7 @@ func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesF
 				"Fields",
 			},
 			timestampFormat: timestampFormat,
-			rawBytesFields: rawBytesFields,
+			rawBytesFields:  rawBytesFields,
 		}
 	} else {
 		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat, rawBytesFields: rawBytesFields}
@@ -448,40 +448,40 @@ func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
 	first := true
 	raw := false
 	for _, field := range m.Fields {
-                if len(c.rawBytesFields) > 0 {
-                        for _, raw_field_name := range c.rawBytesFields {
-                                if *field.Name == raw_field_name {
-                                        raw = true
-                                }
-                        }
-                }
+		if len(c.rawBytesFields) > 0 {
+			for _, raw_field_name := range c.rawBytesFields {
+				if *field.Name == raw_field_name {
+					raw = true
+				}
+			}
+		}
 
-                if raw {
-                        data := field.GetValue().([]byte)[:]
-                        writeField(&buf, *field.Name, string(data))
-                        first = false
-                        raw = false
-                } else {
-                        switch field.GetValueType() {
-                        case message.Field_STRING:
-                                writeStringField(first, &buf, *field.Name, field.GetValue().(string))
-                                first = false
-                        case message.Field_BYTES:
-                                data := field.GetValue().([]byte)[:]
-                                writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
-                                first = false
-                        case message.Field_INTEGER:
-                                writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
-                                first = false
-                        case message.Field_DOUBLE:
-                                writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
-                                        'g', -1, 64))
-                                first = false
-                        case message.Field_BOOL:
-                                writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
-                                first = false
-                        }
-                }
+		if raw {
+			data := field.GetValue().([]byte)[:]
+			writeField(&buf, *field.Name, string(data))
+			first = false
+			raw = false
+		} else {
+			switch field.GetValueType() {
+			case message.Field_STRING:
+				writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+				first = false
+			case message.Field_BYTES:
+				data := field.GetValue().([]byte)[:]
+				writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
+				first = false
+			case message.Field_INTEGER:
+				writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+				first = false
+			case message.Field_DOUBLE:
+				writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+					'g', -1, 64))
+				first = false
+			case message.Field_BOOL:
+				writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+				first = false
+			}
+		}
 	}
 	buf.WriteString(`}`) // end of fields
 	buf.WriteString(`}`)
@@ -517,35 +517,35 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 		case "hostname":
 			writeField(&buf, f, strconv.Quote(m.GetHostname()))
 		case "fields":
-                        raw := false
+			raw := false
 			for _, field := range m.Fields {
-                                if len(c.rawBytesFields) > 0 {
-                                        for _, raw_field_name := range c.rawBytesFields {
-                                                if *field.Name == raw_field_name {
-                                                        raw = true
-                                                }
-                                        }
-                                }
-                                if raw {
-                                        data := field.GetValue().([]byte)[:]
-                                        writeField(&buf, *field.Name, string(data))
-                                        raw = false
-                                } else {
-                                        switch field.GetValueType() {
-                                        case message.Field_STRING:
-                                                writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
-                                        case message.Field_BYTES:
-                                                data := field.GetValue().([]byte)[:]
-                                                writeField(&buf, *field.Name, strconv.Quote(base64.StdEncoding.EncodeToString(data)))
-                                        case message.Field_INTEGER:
-                                                writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
-                                        case message.Field_DOUBLE:
-                                                writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
-                                                        'g', -1, 64))
-                                        case message.Field_BOOL:
-                                                writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
-                                        }
-                                }
+				if len(c.rawBytesFields) > 0 {
+					for _, raw_field_name := range c.rawBytesFields {
+						if *field.Name == raw_field_name {
+							raw = true
+						}
+					}
+				}
+				if raw {
+					data := field.GetValue().([]byte)[:]
+					writeField(&buf, *field.Name, string(data))
+					raw = false
+				} else {
+					switch field.GetValueType() {
+					case message.Field_STRING:
+						writeField(&buf, *field.Name, strconv.Quote(field.GetValue().(string)))
+					case message.Field_BYTES:
+						data := field.GetValue().([]byte)[:]
+						writeField(&buf, *field.Name, strconv.Quote(base64.StdEncoding.EncodeToString(data)))
+					case message.Field_INTEGER:
+						writeField(&buf, *field.Name, strconv.FormatInt(field.GetValue().(int64), 10))
+					case message.Field_DOUBLE:
+						writeField(&buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
+							'g', -1, 64))
+					case message.Field_BOOL:
+						writeField(&buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
+					}
+				}
 			}
 		default:
 			// Search fo a given fields in the message
@@ -713,8 +713,8 @@ func (h *HttpBulkIndexer) Index(body []byte) (success bool, err error) {
 			h.clientConn = nil
 			err = fmt.Errorf("Bulk post connection has timed out: %s", err)
 			return false, err
-		} 
- 
+		}
+
 		if err != nil {
 			err = fmt.Errorf("Error executing bulk request: %s", err)
 			return false, err
