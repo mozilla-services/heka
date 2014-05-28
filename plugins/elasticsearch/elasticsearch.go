@@ -97,6 +97,9 @@ type ElasticSearchOutputConfig struct {
 	HTTPTimeout uint32 `toml:"http_timeout"`
 	// Fields to ignore formatting on
 	RawBytesFields []string `toml:"raw_bytes_fields"`
+	// If true, the payload is assumed to be structured JSON and will
+	// be embedded into the ES document rather than escaped.
+	EmbedJson bool `toml:"embed_json"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -112,6 +115,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		ESIndexFromTimestamp: false,
 		Id:                   "",
 		HTTPTimeout:          0,
+		EmbedJson:            false,
 	}
 }
 
@@ -128,13 +132,14 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.esIndexFromTimestamp = conf.ESIndexFromTimestamp
 	o.id = conf.Id
 	o.http_timeout = conf.HTTPTimeout
+
 	switch strings.ToLower(conf.Format) {
 	case "raw":
 		o.messageFormatter = NewRawMessageFormatter()
 	case "clean":
-		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp, conf.RawBytesFields)
+		o.messageFormatter = NewCleanMessageFormatter(conf.Fields, conf.Timestamp, conf.RawBytesFields, conf.EmbedJson)
 	case "logstash_v0":
-		o.messageFormatter = NewKibanaFormatter(conf.RawBytesFields)
+		o.messageFormatter = NewKibanaFormatter(conf.RawBytesFields, conf.EmbedJson)
 	case "payload":
 		o.messageFormatter = new(PayloadFormatter)
 	default:
@@ -306,19 +311,22 @@ type CleanMessageFormatter struct {
 	fields          []string
 	timestampFormat string
 	rawBytesFields  []string
+	embedJson       bool
 }
 
 type KibanaFormatter struct {
 	rawBytesFields []string
+	embedJson      bool
 }
 
-func NewKibanaFormatter(rawBytesFields []string) *KibanaFormatter {
+func NewKibanaFormatter(rawBytesFields []string, embedJson bool) *KibanaFormatter {
 	return &KibanaFormatter{
 		rawBytesFields: rawBytesFields,
+		embedJson:      embedJson,
 	}
 }
 
-func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []string) *CleanMessageFormatter {
+func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesFields []string, embedJson bool) *CleanMessageFormatter {
 	if fields == nil || len(fields) == 0 {
 		return &CleanMessageFormatter{
 			fields: []string{
@@ -335,9 +343,10 @@ func NewCleanMessageFormatter(fields []string, timestampFormat string, rawBytesF
 			},
 			timestampFormat: timestampFormat,
 			rawBytesFields:  rawBytesFields,
+			embedJson:       embedJson,
 		}
 	} else {
-		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat, rawBytesFields: rawBytesFields}
+		return &CleanMessageFormatter{fields: fields, timestampFormat: timestampFormat, rawBytesFields: rawBytesFields, embedJson: embedJson}
 	}
 }
 
@@ -439,7 +448,11 @@ func (c *KibanaFormatter) Format(m *message.Message) (doc []byte, err error) {
 	writeStringField(false, &buf, `@type`, m.GetType())
 	writeStringField(false, &buf, `@logger`, m.GetLogger())
 	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))
-	writeStringField(false, &buf, `@message`, m.GetPayload())
+	if c.embedJson {
+		writeField(&buf, `@message`, strings.TrimSpace(m.GetPayload()))
+	} else {
+		writeStringField(false, &buf, `@message`, m.GetPayload())
+	}
 	writeRawField(false, &buf, `@envversion`, strconv.Quote(m.GetEnvVersion()))
 	writeRawField(false, &buf, `@pid`, strconv.Itoa(int(m.GetPid())))
 	writeStringField(false, &buf, `@source_host`, m.GetHostname())
@@ -508,7 +521,11 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 			writeField(&buf, f, strconv.Itoa(int(m.GetSeverity())))
 		case "payload":
 			if utf8.ValidString(m.GetPayload()) {
-				writeField(&buf, f, strconv.Quote(m.GetPayload()))
+				if c.embedJson {
+					writeField(&buf, f, strings.TrimSpace(m.GetPayload()))
+				} else {
+					writeField(&buf, f, strconv.Quote(m.GetPayload()))
+				}
 			}
 		case "envversion":
 			writeField(&buf, f, strconv.Quote(m.GetEnvVersion()))
@@ -555,6 +572,7 @@ func (c *CleanMessageFormatter) Format(m *message.Message) (doc []byte, err erro
 	}
 	buf.WriteString(`}`)
 	doc = buf.Bytes()
+
 	return
 }
 
