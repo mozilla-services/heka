@@ -745,7 +745,9 @@ func EncoderSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
 
-				result, err = encoder.Encode(pack)
+				cowpack := new(pipeline.PipelinePack)
+				cowpack.Message = pack.Message
+				result, err = encoder.Encode(cowpack)
 				c.Expect(err, gs.IsNil)
 				buffer := bytes.NewBuffer(result)
 				_, record, e := parser.Parse(buffer)
@@ -757,6 +759,7 @@ func EncoderSpec(c gs.Context) {
 				err = proto.Unmarshal(record, msg)
 				c.Expect(err, gs.IsNil)
 				c.Expect(msg.GetPayload(), gs.Equals, "mutated payload")
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "original")
 			})
 		})
 
