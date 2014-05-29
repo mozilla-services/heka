@@ -745,9 +745,7 @@ func EncoderSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
 
-				cowpack := new(pipeline.PipelinePack)
-				cowpack.Message = pack.Message
-				result, err = encoder.Encode(cowpack)
+				result, err = encoder.Encode(pack)
 				c.Expect(err, gs.IsNil)
 				buffer := bytes.NewBuffer(result)
 				_, record, e := parser.Parse(buffer)
