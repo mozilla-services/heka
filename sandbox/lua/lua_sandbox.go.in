@@ -271,6 +271,10 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
 		return 1
 	}
+	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
+		lsb.messageCopied = true
+	}
 
 	fieldName := C.GoString(c)
 	switch fieldName {
@@ -367,6 +371,10 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		pipeline.Globals().LogMessage("go_lua_write_message_double", "No sandbox pack.")
 		return 1
 	}
+	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
+		lsb.messageCopied = true
+	}
 
 	switch fieldName {
 	case "Severity":
@@ -404,6 +412,10 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 	if lsb.pack == nil {
 		pipeline.Globals().LogMessage("go_lua_write_message_bool", "No sandbox pack.")
 		return 1
+	}
+	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
+		lsb.messageCopied = true
 	}
 
 	if fn, found := extractLuaFieldName(fieldName); found {
@@ -528,6 +540,8 @@ type LuaSandbox struct {
 	injectMessage func(payload, payload_type, payload_name string) int
 	config        map[string]interface{}
 	field         int
+	messageCopied bool
+	pluginType    string
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
@@ -554,6 +568,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 }
 
 func (this *LuaSandbox) Init(dataFile, pluginType string) error {
+	this.pluginType = pluginType
 	csDataFile := C.CString(dataFile)
 	csPluginType := C.CString(pluginType)
 	defer func() {
@@ -595,6 +610,7 @@ func (this *LuaSandbox) Usage(utype, ustat int) uint {
 
 func (this *LuaSandbox) ProcessMessage(pack *pipeline.PipelinePack) int {
 	this.field = 0
+	this.messageCopied = false
 	this.pack = pack
 	r := int(C.process_message(this.lsb))
 	this.pack = nil

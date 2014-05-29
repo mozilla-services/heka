@@ -171,11 +171,13 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	if s.sample {
 		startTime = time.Now()
 	}
-	retval := s.sb.ProcessMessage(pack)
+	cowpack := new(pipeline.PipelinePack)
+	cowpack.Message = pack.Message
+	retval := s.sb.ProcessMessage(cowpack)
 	if retval == 0 && !s.injected {
-		// `inject_message` was never called, protobuf encode the original
-		// `message.
-		err = s.cEncoder.EncodeMessageStream(pack.Message, &s.output)
+		// `inject_message` was never called, protobuf encode the copy on write
+		// message.
+		err = s.cEncoder.EncodeMessageStream(cowpack.Message, &s.output)
 		if err != nil {
 			return
 		}

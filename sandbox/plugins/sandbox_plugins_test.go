@@ -757,6 +757,7 @@ func EncoderSpec(c gs.Context) {
 				err = proto.Unmarshal(record, msg)
 				c.Expect(err, gs.IsNil)
 				c.Expect(msg.GetPayload(), gs.Equals, "mutated payload")
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "original")
 			})
 		})
 
