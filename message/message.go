@@ -297,7 +297,7 @@ func (f *Field) AddValue(value interface{}) error {
 	}
 	if t != f.GetValueType() {
 		return fmt.Errorf("The field contains: %v; attempted to add %v",
-			Field_ValueType_name[int32(*f.ValueType)], Field_ValueType_name[int32(t)])
+			Field_ValueType_name[int32(f.GetValueType())], Field_ValueType_name[int32(t)])
 	}
 
 	switch f.GetValueType() {
@@ -394,7 +394,20 @@ func CopyField(src *Field) *Field {
 	if src == nil {
 		return nil
 	}
-	dst := NewFieldInit(*src.Name, *src.ValueType, *src.Representation)
+
+	dst := &Field{}
+	if src.Name != nil {
+		dst.Name = new(string)
+		*dst.Name = *src.Name
+	}
+	if src.ValueType != nil {
+		dst.ValueType = new(Field_ValueType)
+		*dst.ValueType = *src.ValueType
+	}
+	if src.Representation != nil {
+		dst.Representation = new(string)
+		*dst.Representation = *src.Representation
+	}
 
 	if src.ValueString != nil {
 		dst.ValueString = make([]string, len(src.ValueString))
@@ -425,11 +438,9 @@ func (m *Message) FindFirstField(name string) *Field {
 	if m == nil {
 		return nil
 	}
-	if m.Fields != nil {
-		for i := 0; i < len(m.Fields); i++ {
-			if m.Fields[i].Name != nil && *m.Fields[i].Name == name {
-				return m.Fields[i]
-			}
+	for _, v := range m.Fields {
+		if v != nil && v.GetName() == name {
+			return v
 		}
 	}
 	return nil
@@ -453,20 +464,18 @@ func (m *Message) FindAllFields(name string) (all []*Field) {
 	if m == nil {
 		return
 	}
-	if m.Fields != nil {
-		for _, v := range m.Fields {
-			if v != nil && *v.Name == name {
-				l := len(all)
-				c := cap(all)
-				if l == c {
-					tmp := make([]*Field, l+1, c*2+1)
-					copy(tmp, all)
-					all = tmp
-				} else {
-					all = all[0 : l+1]
-				}
-				all[l] = v
+	for _, v := range m.Fields {
+		if v != nil && v.GetName() == name {
+			l := len(all)
+			c := cap(all)
+			if l == c {
+				tmp := make([]*Field, l+1, c*2+1)
+				copy(tmp, all)
+				all = tmp
+			} else {
+				all = all[0 : l+1]
 			}
+			all[l] = v
 		}
 	}
 	return
