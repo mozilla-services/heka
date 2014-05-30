@@ -33,6 +33,8 @@ Bug Handling
 Features
 --------
 
+* Added support for Lua sandbox preservation versioning (issue #701).
+
 * Added support for unix datagram sockets to the UdpInput using net "unixgram"
   (issue #790).
 
