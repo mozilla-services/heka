@@ -119,7 +119,7 @@ type ESCleanJsonEncoder struct {
 	fields          []string
 	timestampFormat string
 	rawBytesFields  []string
-	cgen            *ESCoordGenerator
+	coord           *ElasticSearchCoordinates
 }
 
 type ESCleanJsonEncoderConfig struct {
@@ -171,10 +171,9 @@ func (e *ESCleanJsonEncoder) Init(config interface{}) (err error) {
 	e.fields = conf.Fields
 	e.timestampFormat = conf.Timestamp
 	e.rawBytesFields = conf.RawBytesFields
-	e.cgen = &ESCoordGenerator{
+	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
-		TimestampFormat:      conf.Timestamp,
 		ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
 		Id:                   conf.Id,
 	}
@@ -184,7 +183,7 @@ func (e *ESCleanJsonEncoder) Init(config interface{}) (err error) {
 func (e *ESCleanJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	m := pack.Message
 	buf := bytes.Buffer{}
-	e.cgen.GenerateCoordinates(pack, &buf)
+	e.coord.PopulateBuffer(pack.Message, &buf)
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 	// Iterates over fields configured for clean formating
@@ -261,7 +260,7 @@ func (e *ESCleanJsonEncoder) Encode(pack *PipelinePack) (output []byte, err erro
 // 1" schema, for compatibility with Kibana's out-of-box Logstash dashboards.
 type LogstashV0Encoder struct {
 	rawBytesFields []string
-	cgen           *ESCoordGenerator
+	coord          *ElasticSearchCoordinates
 }
 
 type LogstashV0EncoderConfig struct {
@@ -296,10 +295,9 @@ func (e *LogstashV0Encoder) ConfigStruct() interface{} {
 func (e *LogstashV0Encoder) Init(config interface{}) (err error) {
 	conf := config.(*LogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
-	e.cgen = &ESCoordGenerator{
+	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
-		TimestampFormat:      conf.Timestamp,
 		ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
 		Id:                   conf.Id,
 	}
@@ -309,13 +307,13 @@ func (e *LogstashV0Encoder) Init(config interface{}) (err error) {
 func (e *LogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	m := pack.Message
 	buf := bytes.Buffer{}
-	e.cgen.GenerateCoordinates(pack, &buf)
+	e.coord.PopulateBuffer(pack.Message, &buf)
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 
 	writeStringField(true, &buf, `@uuid`, m.GetUuidString())
-	t := time.Unix(0, m.GetTimestamp()) // time.Unix gives local time back
-	writeStringField(false, &buf, `@timestamp`, t.UTC().Format("2006-01-02T15:04:05.000Z"))
+	t := time.Unix(0, m.GetTimestamp()).UTC()
+	writeStringField(false, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
 	writeStringField(false, &buf, `@type`, m.GetType())
 	writeStringField(false, &buf, `@logger`, m.GetLogger())
 	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))

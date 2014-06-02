@@ -43,9 +43,9 @@ func getTestMessageWithFunnyFields() *message.Message {
 
 	msg := &message.Message{}
 	msg.SetType("TEST")
-	utc, _ := time.LoadLocation("UTC")
+	loc, _ := time.LoadLocation("UTC")
 	t, _ := time.ParseInLocation("2006-01-02T15:04:05.000Z", "2013-07-16T15:49:05.070Z",
-		utc)
+		loc)
 	msg.SetTimestamp(t.UnixNano())
 	msg.SetUuid(uuid.Parse("87cf1ac2-e810-4ddf-a02d-a5ce44d13a85"))
 	msg.SetLogger("GoSpec")
@@ -132,7 +132,6 @@ func ESEncodersSpec(c gs.Context) {
 			t := time.Now()
 			c.Expect(sub["_index"], gs.Equals, "logstash-"+t.Format("2006.01.02"))
 			c.Expect(sub["_type"], gs.Equals, "message")
-			c.Expect(sub["_timestamp"], gs.Equals, "2013-07-16T08:49:05.070Z")
 
 			decoded = make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[1]), &decoded)

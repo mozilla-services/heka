@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"strconv"
 	"strings"
 	"time"
@@ -31,8 +30,6 @@ type ElasticSearchCoordinates struct {
 	Index                string
 	Type                 string
 	Id                   string
-	Timestamp            *int64
-	TimestampFormat      string
 	ESIndexFromTimestamp bool
 }
 
@@ -64,12 +61,6 @@ func (e *ElasticSearchCoordinates) PopulateBuffer(m *message.Message, buf *bytes
 		buf.WriteString(`,"_id":`)
 		buf.WriteString(strconv.Quote(interpId))
 	}
-	if e.Timestamp != nil {
-		t := time.Unix(0, *e.Timestamp)
-		buf.WriteString(`,"_timestamp":"`)
-		buf.WriteString(t.Format(e.TimestampFormat))
-		buf.WriteString(`"`)
-	}
 	buf.WriteString(`}}`)
 }
 
@@ -78,7 +69,6 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
 	interpolatedValue string, err error) {
 
 	iSlice := strings.Split(name, "%{")
-	var t time.Time
 
 	for i, element := range iSlice {
 		elEnd := strings.Index(element, "}")
@@ -106,8 +96,9 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
 				if fname, ok := m.GetFieldValue(elVal); ok {
 					iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], fname.(string), -1)
 				} else {
-					if e.ESIndexFromTimestamp && e.Timestamp != nil {
-						t = time.Unix(0, *e.Timestamp).UTC()
+					var t time.Time
+					if e.ESIndexFromTimestamp && m.Timestamp != nil {
+						t = time.Unix(0, *m.Timestamp).UTC()
 					} else {
 						t = time.Now()
 					}
@@ -121,27 +112,4 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
 	}
 	interpolatedValue = strings.Join(iSlice, "")
 	return
-}
-
-type ESCoordGenerator struct {
-	Index                string
-	Type                 string
-	TimestampFormat      string
-	ESIndexFromTimestamp bool
-	Id                   string
-}
-
-// Creates an ElasticSearchCoordinates struct, serializes it, and appends the
-// result onto the provided byte slice.
-func (cgen *ESCoordGenerator) GenerateCoordinates(pack *PipelinePack, buf *bytes.Buffer) {
-	coordinates := &ElasticSearchCoordinates{
-		Index:                cgen.Index,
-		Type:                 cgen.Type,
-		Timestamp:            pack.Message.Timestamp,
-		TimestampFormat:      cgen.TimestampFormat,
-		ESIndexFromTimestamp: cgen.ESIndexFromTimestamp,
-		Id:                   cgen.Id,
-	}
-
-	coordinates.PopulateBuffer(pack.Message, buf)
 }
