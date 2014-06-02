@@ -6,6 +6,12 @@
 Encoders
 ========
 
+.. _config_escleanjsonencoder:
+.. include:: /config/encoders/escleanjson.rst
+
+.. _config_logstashv0encoder:
+.. include:: /config/encoders/logstashv0.rst
+
 .. _config_payloadencoder:
 .. include:: /config/encoders/payload.rst
 
