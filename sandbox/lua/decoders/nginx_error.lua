@@ -22,7 +22,6 @@ Config:
 
     [NginxErrorDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/nginx_error.lua"
 
     [NginxErrorDecoder.config]

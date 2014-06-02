@@ -26,7 +26,6 @@ Config:
 
     [AlertEncoder]
     type = "SandboxEncoder"
-    script_type = "lua"
     filename = "lua_encoders/alert.lua"
 
 *Example Output*

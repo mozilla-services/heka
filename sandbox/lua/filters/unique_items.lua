@@ -24,7 +24,6 @@ Config:
 
     [FxaActiveDailyUsers]
     type = "SandboxFilter"
-    script_type = "lua"
     filename = "lua_filters/unique_items.lua"
     ticker_interval = 60
     preserve_data = true

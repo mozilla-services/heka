@@ -86,7 +86,6 @@ func FilterSpec(c gs.Context) {
 	c.Specify("A SandboxFilter", func() {
 		sbFilter := new(SandboxFilter)
 		config := sbFilter.ConfigStruct().(*sandbox.SandboxConfig)
-		config.ScriptType = "lua"
 		config.MemoryLimit = 32000
 		config.InstructionLimit = 1000
 		config.OutputLimit = 1024
@@ -247,7 +246,6 @@ func DecoderSpec(c gs.Context) {
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		dRunner := pm.NewMockDecoderRunner(ctrl)
-		conf.ScriptType = "lua"
 
 		c.Specify("that uses lpeg and inject_message", func() {
 			dRunner.EXPECT().Name().Return("serialize")
@@ -417,7 +415,6 @@ func DecoderSpec(c gs.Context) {
 		decoder := new(SandboxDecoder)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/testsupport/multipack_decoder.lua"
-		conf.ScriptType = "lua"
 		supply := make(chan *pipeline.PipelinePack, 3)
 		pack := pipeline.NewPipelinePack(supply)
 		pack.Message = getTestMessage()
@@ -458,7 +455,6 @@ func DecoderSpec(c gs.Context) {
 		conf.ScriptFilename = "../lua/decoders/nginx_access.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
-		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
 		conf.Config["log_format"] = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
 		conf.Config["user_agent_transform"] = true
@@ -527,7 +523,6 @@ func DecoderSpec(c gs.Context) {
 		conf.ScriptFilename = "../lua/decoders/apache_access.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
-		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
 		conf.Config["log_format"] = "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
 		conf.Config["user_agent_transform"] = true
@@ -596,7 +591,6 @@ func DecoderSpec(c gs.Context) {
 		conf.ScriptFilename = "../lua/decoders/rsyslog.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
-		conf.ScriptType = "lua"
 		conf.Config = make(map[string]interface{})
 		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED:::date-rfc3339% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
 		conf.Config["tz"] = "America/Los_Angeles"
@@ -665,7 +659,6 @@ func EncoderSpec(c gs.Context) {
 
 		encoder := new(SandboxEncoder)
 		conf := encoder.ConfigStruct().(*SandboxEncoderConfig)
-		conf.ScriptType = "lua"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		pack.Message.SetPayload("original")

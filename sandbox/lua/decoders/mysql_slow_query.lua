@@ -27,7 +27,6 @@ Config:
 
     [MySqlSlowQueryDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/mysql_slow_query.lua"
 
         [MySqlSlowQueryDecoder.config]

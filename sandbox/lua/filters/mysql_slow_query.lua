@@ -22,7 +22,6 @@ Config:
 
     [Sync-1_5-SlowQueries]
     type = "SandboxFilter"
-    script_type = "lua"
     message_matcher = "Logger == 'Sync-1_5-SlowQuery'"
     ticker_interval = 60
     filename = "lua_filters/mysql_slow_query.lua"

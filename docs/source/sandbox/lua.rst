@@ -253,7 +253,6 @@ How to create a simple sandbox filter
     type = "SandboxFilter"
     message_matcher = "Type == 'demo'"
     ticker_interval = 60
-    script_type = "lua"
     filename = "counter.lua"
     preserve_data = true
 

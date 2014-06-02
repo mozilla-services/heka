@@ -43,7 +43,6 @@ Config:
 
     [CombinedLogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/apache_access.lua"
 
     [CombinedLogDecoder.config]

@@ -19,7 +19,6 @@ Config:
 
     [RsyslogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/rsyslog.lua"
 
     [RsyslogDecoder.config]

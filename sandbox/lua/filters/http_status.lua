@@ -23,7 +23,6 @@ Config:
 
     [FxaAuthServerHTTPStatus]
     type = "SandboxFilter"
-    script_type = "lua"
     filename = "lua_filters/http_status.lua"
     ticker_interval = 60
     preserve_data = true

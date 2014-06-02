@@ -28,7 +28,6 @@ Config:
 
     [FxaAuthServerFrequentIP]
     type = "SandboxFilter"
-    script_type = "lua"
     filename = "lua_filters/frequent_items.lua"
     ticker_interval = 60
     preserve_data = true
