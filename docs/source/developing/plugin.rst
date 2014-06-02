@@ -5,17 +5,18 @@ Extending Heka
 ==============
 
 The core of the Heka engine is written in the `Go <http://golang.org>`_
-programming language. Heka supports four different types of plugins (inputs,
-decoders, filters, and outputs), which are also written in Go. This document
-will try to provide enough information for developers to extend Heka by
-implementing their own custom plugins. It assumes a small amount of
+programming language. Heka supports five different types of plugins (inputs,
+decoders, filters, encoders, and outputs), which are also written in Go. This
+document will try to provide enough information for developers to extend Heka
+by implementing their own custom plugins. It assumes a small amount of
 familiarity with Go, although any reasonably experienced programmer will
 probably be able to follow along with no trouble.
 
-*NOTE*: Heka also supports the use of `Lua <http://www.lua.org>`_ for
-dynamically loaded, security sandboxed filter plugins. This document only
-covers the use of Go plugins. You can learn more about sandboxed plugins in
-the :ref:`sandbox` section.
+*NOTE*: Heka also supports the use of security sandboxed `Lua
+<http://www.lua.org>`_ code for implementing the core logic of decoder,
+filter, and encoder plugins. This document only covers the development of Go
+plugins. You can learn more about sandboxed plugins in the :ref:`sandbox`
+section.
 
 .. _extending_definitions:
 
