@@ -233,10 +233,6 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
-				// check/clear the old state preservation file
-				// this avoids issues with changes to the data model since the last load
-				// and prevents holes in the graph from looking like anomalies
-				os.Remove(filepath.Join(pipeline.PrependBaseDir(DATA_DIR), name+DATA_EXT))
 				var runner pipeline.FilterRunner
 				runner, err = this.createRunner(dir, name, conf)
 				if err != nil {

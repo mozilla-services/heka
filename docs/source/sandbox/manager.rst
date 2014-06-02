@@ -196,13 +196,9 @@ Otherwise
 .. note::
 
     A running filter cannot be 'reloaded' it must be unloaded and loaded again.  
-    The state is not preserved in this case for two reasons (in the future we 
-    hope to remedy this):
-
-    1. During the unload/load process some data can be missed creating a small
-    gap in the analysis causing anomalies and confusion.
-    2. The internal data representation may have changed and restoration may
-    be problematic.
+    During the unload/load process some data can be missed and gaps will be
+    created.  In the future we hope to remedy this but for now it is a 
+    limitation of the dynamic sandbox.
 
 4. Unload the filter using sbmgr.
 
