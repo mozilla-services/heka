@@ -200,7 +200,6 @@ Example hekad.toml file
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
     ticker_interval = 1
-    script_type = "lua"
     preserve_data = true
     filename = "lua_filters/sandbox.lua"
 

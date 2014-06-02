@@ -20,7 +20,6 @@ Example:
     type = "SandboxFilter"
     message_matcher = "Type == 'hekabench'"
     ticker_interval = 1
-    script_type  = "lua"
     filename = "counter.lua"
     preserve_data = true
     profile = false

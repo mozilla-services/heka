@@ -170,7 +170,6 @@ this case, "PlatformDevs-Example".
     type = "SandboxFilter"
     message_matcher = "Type == 'Widget'"
     ticker_interval = 60
-    script_type = "lua"
     filename = ""
     preserve_data = false
 

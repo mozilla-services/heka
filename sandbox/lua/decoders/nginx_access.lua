@@ -42,7 +42,6 @@ Config:
 
     [CombinedLogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/nginx_access.lua"
 
     [CombinedLogDecoder.config]

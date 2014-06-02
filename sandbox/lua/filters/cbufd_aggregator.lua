@@ -26,7 +26,6 @@ Config:
     type = "SandboxFilter"
     message_matcher = "Logger == 'TelemetryServerMetrics' && Fields[payload_type] == 'cbufd'"
     ticker_interval = 60
-    script_type = "lua"
     filename = "lua_filters/cbufd_aggregator.lua"
     preserve_data = true
 

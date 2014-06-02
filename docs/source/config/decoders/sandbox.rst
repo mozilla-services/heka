@@ -18,6 +18,5 @@ Example
 
     [sql_decoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "sql_decoder.lua"
 

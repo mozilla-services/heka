@@ -94,7 +94,6 @@ end
 type = "SandboxFilter"
 message_matcher = "Type == 'hekabench'"
 ticker_interval = 1
-script_type = "lua"
 filename = ""
 preserve_data = true
 `

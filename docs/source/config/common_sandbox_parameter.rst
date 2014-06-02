@@ -7,7 +7,7 @@ Sandbox plugins. The are consumed by Heka when it initializes the plugin.
 
 - script_type (string):
     The language the sandbox is written in. Currently the only valid option is
-    'lua'.
+    'lua' which is the default.
 
 - filename (string):
     The path to the sandbox code; if specified as a relative path it will be

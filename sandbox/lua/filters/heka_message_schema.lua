@@ -19,7 +19,6 @@ Config:
 
     [SyncMessageSchema]
     type = "SandboxFilter"
-    script_type = "lua"
     filename = "lua_filters/heka_message_schema.lua"
     ticker_interval = 60
     preserve_data = false

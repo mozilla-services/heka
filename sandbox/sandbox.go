@@ -69,5 +69,6 @@ func NewSandboxConfig() interface{} {
 		MemoryLimit:      8 * 1024 * 1024,
 		InstructionLimit: 1e6,
 		OutputLimit:      63 * 1024,
+		ScriptType:       "lua",
 	}
 }
