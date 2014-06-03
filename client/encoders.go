@@ -82,7 +82,7 @@ func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
 	if requiredSize > message.MAX_RECORD_SIZE {
 		return fmt.Errorf("Message too big, requires %d (MAX_RECORD_SIZE = %d)",
-			message.MAX_RECORD_SIZE, requiredSize)
+			requiredSize, message.MAX_RECORD_SIZE)
 	}
 	if cap(*outBytes) < requiredSize {
 		*outBytes = make([]byte, requiredSize)
