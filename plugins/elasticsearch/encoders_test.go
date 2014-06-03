@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/json"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -112,8 +113,8 @@ func ESEncodersSpec(c gs.Context) {
 		})
 	})
 
-	c.Specify("LogstashV0Encoder", func() {
-		encoder := new(LogstashV0Encoder)
+	c.Specify("ESLogstashV0Encoder", func() {
+		encoder := new(ESLogstashV0Encoder)
 		config := encoder.ConfigStruct()
 
 		c.Specify("Should properly encode a message", func() {
@@ -133,6 +134,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(sub["_index"], gs.Equals, "logstash-"+t.Format("2006.01.02"))
 			c.Expect(sub["_type"], gs.Equals, "message")
 
+			fmt.Println(lines[1])
 			decoded = make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
 			c.Expect(err, gs.IsNil)
@@ -149,6 +151,46 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["@envversion"], gs.Equals, "0.8")
 			c.Expect(decoded["@pid"], gs.Equals, 14098.0)
 			c.Expect(decoded["@source_host"], gs.Equals, "hostname")
+		})
+	})
+
+	c.Specify("ESJsonEncoder", func() {
+		encoder := new(ESJsonEncoder)
+		config := encoder.ConfigStruct()
+
+		c.Specify("Should properly encode a message", func() {
+			err := encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			b, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+
+			output := string(b)
+			lines := strings.Split(output, string(NEWLINE))
+
+			decoded := make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[0]), &decoded)
+			c.Expect(err, gs.IsNil)
+			sub := decoded["index"].(map[string]interface{})
+			t := time.Now()
+			c.Expect(sub["_index"], gs.Equals, "heka-"+t.Format("2006.01.02"))
+			c.Expect(sub["_type"], gs.Equals, "message")
+
+			fmt.Println(lines[1])
+			decoded = make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[1]), &decoded)
+			c.Expect(err, gs.IsNil)
+			c.Expect(decoded[`"foo`], gs.Equals, "bar\n")
+			c.Expect(decoded[`"number`], gs.Equals, 64.0)
+			c.Expect(decoded["\xEF\xBF\xBD"], gs.Equals, "\xEF\xBF\xBD")
+			c.Expect(decoded["Uuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
+			c.Expect(decoded["Timestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
+			c.Expect(decoded["Type"], gs.Equals, "TEST")
+			c.Expect(decoded["Logger"], gs.Equals, "GoSpec")
+			c.Expect(decoded["Severity"], gs.Equals, 6.0)
+			c.Expect(decoded["Payload"], gs.Equals, "Test Payload")
+			c.Expect(decoded["EnvVersion"], gs.Equals, "0.8")
+			c.Expect(decoded["Pid"], gs.Equals, 14098.0)
+			c.Expect(decoded["Hostname"], gs.Equals, "hostname")
 		})
 	})
 }

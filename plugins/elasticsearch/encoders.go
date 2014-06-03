@@ -24,7 +24,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 )
 
 // Append a field (with a name and a value) to a Buffer.
@@ -114,7 +113,7 @@ func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
 }
 
 // Manually encodes the Heka message into an ElasticSearch friendly way.
-type ESCleanJsonEncoder struct {
+type ESJsonEncoder struct {
 	// Field names to include in ElasticSearch document for "clean" format.
 	fields          []string
 	timestampFormat string
@@ -122,7 +121,7 @@ type ESCleanJsonEncoder struct {
 	coord           *ElasticSearchCoordinates
 }
 
-type ESCleanJsonEncoderConfig struct {
+type ESJsonEncoderConfig struct {
 	// Name of the index in which the messages will be indexed. Defaults
 	// to "heka-%{2006.01.02}".
 	Index string
@@ -141,8 +140,8 @@ type ESCleanJsonEncoderConfig struct {
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 }
 
-func (e *ESCleanJsonEncoder) ConfigStruct() interface{} {
-	config := &ESCleanJsonEncoderConfig{
+func (e *ESJsonEncoder) ConfigStruct() interface{} {
+	config := &ESJsonEncoderConfig{
 		Index:                "heka-%{2006.01.02}",
 		TypeName:             "message",
 		Timestamp:            "2006-01-02T15:04:05.000Z",
@@ -166,8 +165,8 @@ func (e *ESCleanJsonEncoder) ConfigStruct() interface{} {
 	return config
 }
 
-func (e *ESCleanJsonEncoder) Init(config interface{}) (err error) {
-	conf := config.(*ESCleanJsonEncoderConfig)
+func (e *ESJsonEncoder) Init(config interface{}) (err error) {
+	conf := config.(*ESJsonEncoderConfig)
 	e.fields = conf.Fields
 	e.timestampFormat = conf.Timestamp
 	e.rawBytesFields = conf.RawBytesFields
@@ -180,36 +179,34 @@ func (e *ESCleanJsonEncoder) Init(config interface{}) (err error) {
 	return
 }
 
-func (e *ESCleanJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
+func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	m := pack.Message
 	buf := bytes.Buffer{}
 	e.coord.PopulateBuffer(pack.Message, &buf)
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
-	// Iterates over fields configured for clean formating
+	first := true
 	for _, f := range e.fields {
 		switch strings.ToLower(f) {
 		case "uuid":
-			writeField(true, &buf, f, strconv.Quote(m.GetUuidString()))
+			writeStringField(first, &buf, f, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeField(false, &buf, f, strconv.Quote(t.Format(e.timestampFormat)))
+			writeStringField(first, &buf, f, t.Format(e.timestampFormat))
 		case "type":
-			writeField(false, &buf, f, strconv.Quote(m.GetType()))
+			writeStringField(first, &buf, f, m.GetType())
 		case "logger":
-			writeField(false, &buf, f, strconv.Quote(m.GetLogger()))
+			writeStringField(first, &buf, f, m.GetLogger())
 		case "severity":
-			writeField(false, &buf, f, strconv.Itoa(int(m.GetSeverity())))
+			writeRawField(first, &buf, f, strconv.Itoa(int(m.GetSeverity())))
 		case "payload":
-			if utf8.ValidString(m.GetPayload()) {
-				writeField(false, &buf, f, strconv.Quote(m.GetPayload()))
-			}
+			writeStringField(first, &buf, f, m.GetPayload())
 		case "envversion":
-			writeField(false, &buf, f, strconv.Quote(m.GetEnvVersion()))
+			writeRawField(first, &buf, f, strconv.Quote(m.GetEnvVersion()))
 		case "pid":
-			writeField(false, &buf, f, strconv.Itoa(int(m.GetPid())))
+			writeRawField(first, &buf, f, strconv.Itoa(int(m.GetPid())))
 		case "hostname":
-			writeField(false, &buf, f, strconv.Quote(m.GetHostname()))
+			writeStringField(first, &buf, f, m.GetHostname())
 		case "fields":
 			raw := false
 			for _, field := range m.Fields {
@@ -222,34 +219,33 @@ func (e *ESCleanJsonEncoder) Encode(pack *PipelinePack) (output []byte, err erro
 				}
 				if raw {
 					data := field.GetValue().([]byte)[:]
-					writeField(false, &buf, *field.Name, string(data))
+					writeField(first, &buf, *field.Name, string(data))
 					raw = false
 				} else {
 					switch field.GetValueType() {
 					case message.Field_STRING:
-						writeField(false, &buf, *field.Name,
-							strconv.Quote(field.GetValue().(string)))
+						writeStringField(first, &buf, *field.Name, field.GetValue().(string))
 					case message.Field_BYTES:
 						data := field.GetValue().([]byte)[:]
-						writeField(false, &buf, *field.Name,
-							strconv.Quote(base64.StdEncoding.EncodeToString(data)))
+						writeStringField(first, &buf, *field.Name,
+							base64.StdEncoding.EncodeToString(data))
 					case message.Field_INTEGER:
-						writeField(false, &buf, *field.Name,
+						writeRawField(first, &buf, *field.Name,
 							strconv.FormatInt(field.GetValue().(int64), 10))
 					case message.Field_DOUBLE:
-						writeField(false, &buf, *field.Name,
+						writeRawField(first, &buf, *field.Name,
 							strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
 					case message.Field_BOOL:
-						writeField(false, &buf, *field.Name,
+						writeRawField(first, &buf, *field.Name,
 							strconv.FormatBool(field.GetValue().(bool)))
 					}
 				}
 			}
 		default:
-			// Search fo a given fields in the message
 			err = fmt.Errorf("Unable to find field: %s", f)
 			return
 		}
+		first = false
 	}
 	buf.WriteString(`}`)
 	buf.WriteByte(NEWLINE)
@@ -258,12 +254,12 @@ func (e *ESCleanJsonEncoder) Encode(pack *PipelinePack) (output []byte, err erro
 
 // Manually encodes messages into JSON structure matching Logstash's "version
 // 1" schema, for compatibility with Kibana's out-of-box Logstash dashboards.
-type LogstashV0Encoder struct {
+type ESLogstashV0Encoder struct {
 	rawBytesFields []string
 	coord          *ElasticSearchCoordinates
 }
 
-type LogstashV0EncoderConfig struct {
+type ESLogstashV0EncoderConfig struct {
 	// Name of the index in which the messages will be indexed. Defaults
 	// to "logstash-%{2006.01.02}".
 	Index string
@@ -271,8 +267,6 @@ type LogstashV0EncoderConfig struct {
 	TypeName string `toml:"type_name"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
-	// Timestamp format. Defaults to "2006-01-02T15:04:05.000Z"
-	Timestamp string
 	// When formating the Index use the Timestamp from the Message instead of
 	// time of processing. Defaults to false.
 	ESIndexFromTimestamp bool `toml:"es_index_from_timestamp"`
@@ -282,18 +276,17 @@ type LogstashV0EncoderConfig struct {
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 }
 
-func (e *LogstashV0Encoder) ConfigStruct() interface{} {
-	return &LogstashV0EncoderConfig{
+func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
+	return &ESLogstashV0EncoderConfig{
 		Index:                "logstash-%{2006.01.02}",
 		TypeName:             "message",
-		Timestamp:            "2006-01-02T15:04:05.000Z",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
 	}
 }
 
-func (e *LogstashV0Encoder) Init(config interface{}) (err error) {
-	conf := config.(*LogstashV0EncoderConfig)
+func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
+	conf := config.(*ESLogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
@@ -304,7 +297,7 @@ func (e *LogstashV0Encoder) Init(config interface{}) (err error) {
 	return
 }
 
-func (e *LogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err error) {
+func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	m := pack.Message
 	buf := bytes.Buffer{}
 	e.coord.PopulateBuffer(pack.Message, &buf)
@@ -337,30 +330,27 @@ func (e *LogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err error
 		if raw {
 			data := field.GetValue().([]byte)[:]
 			writeField(false, &buf, *field.Name, string(data))
-			first = false
 			raw = false
 		} else {
 			switch field.GetValueType() {
 			case message.Field_STRING:
 				writeStringField(first, &buf, *field.Name, field.GetValue().(string))
-				first = false
 			case message.Field_BYTES:
 				data := field.GetValue().([]byte)[:]
-				writeStringField(first, &buf, *field.Name, base64.StdEncoding.EncodeToString(data))
-				first = false
+				writeStringField(first, &buf, *field.Name,
+					base64.StdEncoding.EncodeToString(data))
 			case message.Field_INTEGER:
-				writeRawField(first, &buf, *field.Name, strconv.FormatInt(field.GetValue().(int64),
-					10))
-				first = false
+				writeRawField(first, &buf, *field.Name,
+					strconv.FormatInt(field.GetValue().(int64), 10))
 			case message.Field_DOUBLE:
-				writeRawField(first, &buf, *field.Name, strconv.FormatFloat(field.GetValue().(float64),
-					'g', -1, 64))
-				first = false
+				writeRawField(first, &buf, *field.Name,
+					strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
 			case message.Field_BOOL:
-				writeRawField(first, &buf, *field.Name, strconv.FormatBool(field.GetValue().(bool)))
-				first = false
+				writeRawField(first, &buf, *field.Name,
+					strconv.FormatBool(field.GetValue().(bool)))
 			}
 		}
+		first = false
 	}
 	buf.WriteString(`}`) // end of fields
 	buf.WriteString(`}`)
@@ -369,10 +359,10 @@ func (e *LogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err error
 }
 
 func init() {
-	RegisterPlugin("ESCleanJsonEncoder", func() interface{} {
-		return new(ESCleanJsonEncoder)
+	RegisterPlugin("ESJsonEncoder", func() interface{} {
+		return new(ESJsonEncoder)
 	})
-	RegisterPlugin("LogstashV0Encoder", func() interface{} {
-		return new(LogstashV0Encoder)
+	RegisterPlugin("ESLogstashV0Encoder", func() interface{} {
+		return new(ESLogstashV0Encoder)
 	})
 }

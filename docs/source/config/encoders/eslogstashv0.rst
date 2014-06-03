@@ -1,20 +1,22 @@
 
-LogstashV0Encoder
+ESLogstashV0Encoder
 =================
 
 This encoder serializes a Heka message into a JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch
-indexing. The message JSON structure uses the original (i.e. "v0") schema
-popularized by `Logstash <http://logstash.net/>`_. Using this schema can aid
-integration with existing Logstash deployments. This schema also plays nicely
-with the default Logstash dashboard provided by `Kibana
+`BulkAPI
+<http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-
+bulk.html>`_ indexing. The message JSON structure uses the original (i.e.
+"v0") schema popularized by `Logstash <http://logstash.net/>`_. Using this
+schema can aid integration with existing Logstash deployments. This schema
+also plays nicely with the default Logstash dashboard provided by `Kibana
 <http://www.elasticsearch.org/overview/kibana/>`_.
 
 The JSON serialization is done by hand, without using Go's stdlib JSON
 marshalling. This is so serialization can succeed even if the message contains
 invalid UTF-8 characters, which will be encoded as U+FFFD.
 
-.. _logstashv0encoder_settings
+.. _eslogstashv0encoder_settings
 
 Config:
 
@@ -38,9 +40,6 @@ Config:
     "Hostname", and "Fields" (where "Fields" causes the inclusion of any and
     all dynamically specified message fields. Defaults to including all of the
     supported message fields.
-- timestamp (string):
-    Format to use for timestamps in generated ES documents. Defaults to
-    "2006-01-02T15:04:05.000Z".
 - es_index_from_timestamp (bool):
     When generating the index name use the timestamp from the message instead
     of the current time. Defaults to false.
@@ -50,21 +49,21 @@ Config:
     %{}, it will be interpolated to its Field value. Default is allow ES to
     auto-generate the id.
 - raw_bytes_fields ([]string):
-	This specifies a set of fields which will be passed through to the encoded
-	JSON output without any processing or escaping. This is useful for fields
-	which contain embedded JSON objects to prevent the embedded JSON from
-	being escaped as normal strings. Currently only supports dynamically
-	specified message fields.
+    This specifies a set of fields which will be passed through to the encoded
+    JSON output without any processing or escaping. This is useful for fields
+    which contain embedded JSON objects to prevent the embedded JSON from
+    being escaped as normal strings. Only supports dynamically specified
+    message fields.
 
 Example
 
 .. code-block:: ini
 
-	[LogstashV0Encoder]
+	[ESLogstashV0Encoder]
 	es_index_from_timestamp = true
 	type_name = "%{Type}"
 
 	[ElasticSearchOutput]
 	message_matcher = "Type == 'nginx.access'"
-	encoder = "ESCleanJsonEncoder"
+	encoder = "ESLogstashV0Encoder"
 	flush_interval = 50

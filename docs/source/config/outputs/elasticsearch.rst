@@ -5,9 +5,11 @@ ElasticSearchOutput
 Output plugin that uses HTTP or UDP to insert records into an ElasticSearch
 database. Note that it is up to the specified encoder to both serialize the
 message into a JSON structure *and* to prepend that with the appropriate
-ElasticSearch indexing JSON. Usually this output is used in conjunction with
+ElasticSearch `BulkAPI
+<http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-
+bulk.html>`_ indexing JSON. Usually this output is used in conjunction with
 one of the ElasticSearch-specific encoder plugins, such as
-:ref:`config_escleanjsonencoder` or :ref:`config_logstashv0encoder`.
+:ref:`config_esjsonencoder` or :ref:`config_eslogstashv0encoder`.
 
 Config:
 
@@ -33,4 +35,4 @@ Example:
     server = "http://es-server:9200"
     flush_interval = 5000
     flush_count = 10
-    encoder = "ESCleanJsonEncoder"
+    encoder = "ESJsonEncoder"

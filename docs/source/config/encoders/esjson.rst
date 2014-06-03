@@ -1,14 +1,17 @@
 
-ESCleanJsonEncoder
+ESJsonEncoder
 ==================
 
 This encoder serializes a Heka message into a clean JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch
-indexing. The JSON serialization is done by hand, without the use of Go's
-stdlib JSON marshalling. This is so serialization can succeed even if the
-message contains invalid UTF-8 characters, which will be encoded as U+FFFD.
+`BulkAPI
+<http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-
+bulk.html>`_ indexing. The JSON serialization is done by hand, without the use
+of Go's stdlib JSON marshalling. This is so serialization can succeed even if
+the message contains invalid UTF-8 characters, which will be encoded as
+U+FFFD.
 
-.. _escleanjsonencoder_settings
+.. _esjsonencoder_settings
 
 Config:
 
@@ -44,22 +47,22 @@ Config:
     %{}, it will be interpolated to its Field value. Default is allow ES to
     auto-generate the id.
 - raw_bytes_fields ([]string):
-	This specifies a set of fields which will be passed through to the encoded
-	JSON output without any processing or escaping. This is useful for fields
-	which contain embedded JSON objects to prevent the embedded JSON from
-	being escaped as normal strings. Currently only supports dynamically
-	specified message fields.
+    This specifies a set of fields which will be passed through to the encoded
+    JSON output without any processing or escaping. This is useful for fields
+    which contain embedded JSON objects to prevent the embedded JSON from
+    being escaped as normal strings. Only supports dynamically specified
+    message fields.
 
 Example
 
 .. code-block:: ini
 
-	[ESCleanJsonEncoder]
+	[ESJsonEncoder]
 	index = "%{Type}-%{2006.01.02}"
 	es_index_from_timestamp = true
 	type_name = "%{Type}"
 
 	[ElasticSearchOutput]
 	message_matcher = "Type == 'nginx.access'"
-	encoder = "ESCleanJsonEncoder"
+	encoder = "ESJsonEncoder"
 	flush_interval = 50
