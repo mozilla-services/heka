@@ -23,6 +23,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Updated SmtpOutput to use a slice instead of a map to generate SMTP headers
+  so the order will remain consistent when using Go 1.3 or later.
+
 * Use FindProcess instead of syscall.Kill to make the 'pid_file' configuration
   setting work on Windows (issue #807)
 

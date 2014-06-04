@@ -48,6 +48,11 @@ type SmtpOutputConfig struct {
 	Password string
 }
 
+type smtpHeader struct {
+	name  string
+	value string
+}
+
 func (s *SmtpOutput) ConfigStruct() interface{} {
 	return &SmtpOutputConfig{
 		SendFrom: "heka@localhost.localdomain",
@@ -103,15 +108,15 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		subject = s.conf.Subject
 	}
 
-	header := make(map[string]string)
-	header["From"] = s.conf.SendFrom
-	header["Subject"] = subject
-	header["MIME-Version"] = "1.0"
-	header["Content-Type"] = "text/plain; charset=\"utf-8\""
-	header["Content-Transfer-Encoding"] = "base64"
+	headers := make([]smtpHeader, 5)
+	headers[0] = smtpHeader{"From", s.conf.SendFrom}
+	headers[1] = smtpHeader{"Subject", subject}
+	headers[2] = smtpHeader{"MIME-Version", "1.0"}
+	headers[3] = smtpHeader{"Content-Type", "text/plain; charset=\"utf-8\""}
+	headers[4] = smtpHeader{"Content-Transfer-Encoding", "base64"}
 
-	for k, v := range header {
-		headerText += fmt.Sprintf("%s: %s\r\n", k, v)
+	for _, header := range headers {
+		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
 	}
 
 	for pack = range inChan {
