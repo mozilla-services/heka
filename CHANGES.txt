@@ -4,6 +4,10 @@
 Backwards Incompatibilities
 ---------------------------
 
+* ElasticSearchOutput now uses an Encoder plugin instead of MessageFormatters.
+  Created ESCleanJsonEncoder LogstashV0Encoder to replicate prior formatter
+  behavior.
+
 * Changed the Lua sandbox API.  inject_message is no longer overloaded, output
   has been renamed to add_to_payload, and inject_payload has been introduced. 
 
