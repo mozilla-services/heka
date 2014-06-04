@@ -31,7 +31,6 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/dasher"
 	_ "github.com/mozilla-services/heka/plugins/elasticsearch"
 	_ "github.com/mozilla-services/heka/plugins/file"
-	_ "github.com/mozilla-services/heka/plugins/geoip"
 	_ "github.com/mozilla-services/heka/plugins/graphite"
 	_ "github.com/mozilla-services/heka/plugins/http"
 	_ "github.com/mozilla-services/heka/plugins/logstreamer"

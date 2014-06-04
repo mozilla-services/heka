@@ -46,6 +46,7 @@ if (NOT INCLUDE_GEOIP)
 else()
     message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
     set(TAGS "${TAGS} geoip")
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/geoip")
 endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
