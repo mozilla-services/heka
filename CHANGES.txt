@@ -5,11 +5,12 @@ Backwards Incompatibilities
 ---------------------------
 
 * ElasticSearchOutput now uses an Encoder plugin instead of MessageFormatters.
-  Created ESCleanJsonEncoder LogstashV0Encoder to replicate prior formatter
-  behavior.
+  Created ESJsonEncoder, ESLogstashV0Encoder, and ESPayloadEncoder
+  (implemented as a SandboxEncoder in es_payload.lua) to replicate prior
+  formatter behavior.
 
 * Changed the Lua sandbox API.  inject_message is no longer overloaded, output
-  has been renamed to add_to_payload, and inject_payload has been introduced. 
+  has been renamed to add_to_payload, and inject_payload has been introduced.
 
 * Changed TcpOutput, FileOutput, and LogOutput to use Encoder plugins for
   output formatting instead of bespoke formatting implementations.
@@ -36,6 +37,8 @@ Bug Handling
 
 Features
 --------
+
+* Added `elasticsearch` Lua module to generate BulkAPI index JSON (issue #875).
 
 * Added support for Lua sandbox preservation versioning (issue #701).
 

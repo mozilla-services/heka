@@ -27,3 +27,11 @@ Anomaly Detection Module
    :start-after: --[[
    :end-before: --]]
 
+.. _sandbox_elasticsearch_module:
+
+ElasticSearch Module
+--------------------
+.. include:: ../../../sandbox/lua/modules/elasticsearch.lua
+   :start-after: --[[
+   :end-before: --]]
+
