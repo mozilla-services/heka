@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Output plugin that sends messages via TCP using the Heka protocol.
@@ -50,6 +51,10 @@ type TcpOutputConfig struct {
 	// seconds. Defaults to 300.
 	TickerInterval uint `toml:"ticker_interval"`
 	Encoder        string
+	// Set to true if TCP Keep Alive should be used.
+	KeepAlive bool `toml:"keep_alive"`
+	// Integer indicating seconds between keep alives.
+	KeepAlivePeriod int `toml:"keep_alive_period"`
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
@@ -95,6 +100,10 @@ func (t *TcpOutput) connect() (err error) {
 		t.connection, err = tls.Dial("tcp", t.address, goTlsConf)
 	} else {
 		t.connection, err = dialer.Dial("tcp", t.address)
+	}
+	if t.conf.KeepAlive {
+		t.connection.(*net.TCPConn).SetKeepAlive(t.conf.KeepAlive)
+		t.connection.(*net.TCPConn).SetKeepAlivePeriod(time.Duration(t.conf.KeepAlivePeriod) * time.Second)
 	}
 	return
 }
