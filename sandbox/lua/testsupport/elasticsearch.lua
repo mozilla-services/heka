@@ -56,5 +56,5 @@ function process_message()
     test_interp_no_match()
     test_time_interp()
     test_time_provided()
-    return 0   
+    return 0
 end
