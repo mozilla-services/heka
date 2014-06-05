@@ -58,6 +58,10 @@ type TcpInputConfig struct {
 	UseTls bool `toml:"use_tls"`
 	// Subsection for TLS configuration.
 	Tls TlsConfig
+	// Set to true if TCP Keep Alive should be used.
+	KeepAlive bool `toml:"keep_alive"`
+	// Integer indicating seconds between keep alives.
+	KeepAlivePeriod int `toml:"keep_alive_period"`
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
@@ -69,7 +73,11 @@ func (t *TcpInput) ConfigStruct() interface{} {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*TcpInputConfig)
-	t.listener, err = net.Listen(t.config.Net, t.config.Address)
+	address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
+	if err != nil {
+		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+	}
+	t.listener, err = net.ListenTCP(t.config.Net, address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
@@ -214,6 +222,11 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 			}
 		}
 		t.wg.Add(1)
+		if t.config.KeepAlive {
+			conn.(*net.TCPConn).SetKeepAlive(t.config.KeepAlive)
+			conn.(*net.TCPConn).SetKeepAlivePeriod(time.Duration(t.config.KeepAlivePeriod) * time.Second)
+		}
+
 		go t.handleConnection(conn)
 	}
 	t.wg.Wait()
