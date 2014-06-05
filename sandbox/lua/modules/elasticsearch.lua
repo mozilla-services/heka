@@ -48,6 +48,8 @@ local os = require "os"
 local string = require "string"
 local cjson = require "cjson"
 local read_message = read_message
+local tostring = tostring
+local type = type
 
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module.
@@ -80,12 +82,8 @@ local function interpolate_match(match)
     -- Second check for a dynamic field.
     fname = string.format("Fields[%s]", match)
     local fval = read_message(fname)
-    -- A bit janky, but I can't find a more elegant way to handle boolean
-    -- values.
-    if fval == false then
-        return "false"
-    elseif fval == true then
-        return "true"
+    if type(fval) == "boolean" then
+        return tostring(fval)
     elseif fval then
         return fval
     end
