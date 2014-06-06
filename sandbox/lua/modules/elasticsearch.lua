@@ -25,18 +25,22 @@ API
             String to use as the `_id` key' value in the generated JSON, or
             nil to omit the key. Supports field interpolation as described
             below.
-        - ns (int64 or nil)
+        - ns (number or nil)
             Nanosecond timestamp to use for any strftime field interpolation
             into the above fields. Current system time will be used if nil.
 
     *Field interpolation*
+
         Data from the current message can be interpolated into any of the
         string arguments listed above. A `%{}` enclosed field name will be
         replaced by the field value from the current message. Supported
         default field names are "Type", "Hostname", "Pid", "UUID", "Logger",
         "EnvVersion", and "Severity". Any other values will be checked against
-        the defined dynamic message fields. If no field matches, then a C
-        strftime type time substitution will be attempted, using the
+        the defined dynamic message fields. If no field matches, then a `C
+        strftime <http://man7.org/linux/man-pages/man3/strftime.3.html>`_ (on
+        non-Windows platforms) of `C89 formatting codes
+        <http://msdn.microsoft.com/en- us/library/fe06s4ak.aspx>`_ (on
+        Windows) type time substitution will be attempted, using the
         nanosecond timestamp (if provided) or the system clock (if not).
 
     *Return*
