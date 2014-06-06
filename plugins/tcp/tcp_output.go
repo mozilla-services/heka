@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Carlos Diaz-Padron (cpadron@mozilla.com,carlos@carlosdp.io)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -24,6 +25,7 @@ import (
 	"regexp"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Output plugin that sends messages via TCP using the Heka protocol.
@@ -36,6 +38,7 @@ type TcpOutput struct {
 	name                string
 	reportLock          sync.Mutex
 	bufferedOut         *BufferedOutput
+	or                  OutputRunner
 }
 
 // ConfigStruct for TcpOutput plugin.
@@ -50,6 +53,10 @@ type TcpOutputConfig struct {
 	// seconds. Defaults to 300.
 	TickerInterval uint `toml:"ticker_interval"`
 	Encoder        string
+	// Set to true if TCP Keep Alive should be used.
+	KeepAlive bool `toml:"keep_alive"`
+	// Integer indicating seconds between keep alives.
+	KeepAlivePeriod int `toml:"keep_alive_period"`
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
@@ -96,6 +103,15 @@ func (t *TcpOutput) connect() (err error) {
 	} else {
 		t.connection, err = dialer.Dial("tcp", t.address)
 	}
+	if t.conf.KeepAlive {
+		tcpConn, ok := t.connection.(*net.TCPConn)
+		if !ok {
+			t.or.LogError(fmt.Errorf("KeepAlive only supported for TCP Connections."))
+		} else {
+			tcpConn.SetKeepAlive(t.conf.KeepAlive)
+			tcpConn.SetKeepAlivePeriod(time.Duration(t.conf.KeepAlivePeriod) * time.Second)
+		}
+	}
 	return
 }
 
@@ -138,6 +154,8 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		outputError = make(chan error, 5)
 		stopChan    = make(chan bool, 1)
 	)
+
+	t.or = or
 
 	defer func() {
 		if t.connection != nil {
