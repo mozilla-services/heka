@@ -28,8 +28,12 @@ function process_message()
         return 6
     end
     type, name, value, representation, count = read_next_field()
-    if not(type == nil and name == nil and value == nil and representation == nil and count == nil) then
+    if not(type == 4 and name == "false" and value == false and representation == "" and count == 1) then
         return 7
+    end
+    type, name, value, representation, count = read_next_field()
+    if not(type == nil and name == nil and value == nil and representation == nil and count == nil) then
+        return 8
     end
 
     return 0
