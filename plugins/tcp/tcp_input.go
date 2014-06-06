@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Carlos Diaz-Padron (cpadron@mozilla.com,carlos@carlosdp.io)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -223,8 +224,12 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 		}
 		t.wg.Add(1)
 		if t.config.KeepAlive {
-			conn.(*net.TCPConn).SetKeepAlive(t.config.KeepAlive)
-			conn.(*net.TCPConn).SetKeepAlivePeriod(time.Duration(t.config.KeepAlivePeriod) * time.Second)
+			tcpConn, ok := conn.(*net.TCPConn)
+			if !ok {
+				return errors.New("KeepAlive only supported for TCP Connections.")
+			}
+			tcpConn.SetKeepAlive(t.config.KeepAlive)
+			tcpConn.SetKeepAlivePeriod(time.Duration(t.config.KeepAlivePeriod) * time.Second)
 		}
 
 		go t.handleConnection(conn)
