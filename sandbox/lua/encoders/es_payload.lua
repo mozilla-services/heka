@@ -30,8 +30,8 @@ Field interpolation:
     "Severity". Any other values will be checked against the defined dynamic
     message fields. If no field matches, then a `C strftime
     <http://man7.org/linux/man-pages/man3/strftime.3.html>`_ (on non-Windows
-    platforms) of `C89 formatting codes <http://msdn.microsoft.com/en-
-    us/library/fe06s4ak.aspx>`_ (on Windows) type time substitution will be
+    platforms) or `C89 strftime <http://msdn.microsoft.com/en-
+    us/library/fe06s4ak.aspx>`_ (on Windows) time substitution will be
     attempted.
 
 *Example Heka Configuration*
@@ -63,9 +63,9 @@ local ts_from_message = read_config("es_index_from_timestamp")
 local index = read_config("index") or "heka-%{%Y.%m.%d}"
 local type_name = read_config("type_name") or "message"
 local id = read_config("id")
-local ns
 
 function process_message()
+    local ns
     if ts_from_message then
         ns = read_message("Timestamp")
     end

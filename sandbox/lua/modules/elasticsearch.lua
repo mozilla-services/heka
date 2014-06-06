@@ -38,10 +38,10 @@ API
         "EnvVersion", and "Severity". Any other values will be checked against
         the defined dynamic message fields. If no field matches, then a `C
         strftime <http://man7.org/linux/man-pages/man3/strftime.3.html>`_ (on
-        non-Windows platforms) of `C89 formatting codes
-        <http://msdn.microsoft.com/en- us/library/fe06s4ak.aspx>`_ (on
-        Windows) type time substitution will be attempted, using the
-        nanosecond timestamp (if provided) or the system clock (if not).
+        non-Windows platforms) or `C89 strftime <http://msdn.microsoft.com/en-
+        us/library/fe06s4ak.aspx>`_ (on Windows) time substitution will be
+        attempted, using the nanosecond timestamp (if provided) or the system
+        clock (if not).
 
     *Return*
         - JSON string suitable for use as ElasticSearch BulkAPI index
@@ -107,19 +107,19 @@ function bulkapi_index_json(index, type_name, id, ns)
         secs = nil
     end
     if index then
-        result_inner["_index"] = string.gsub(index, pattern, interpolate_match)
+        result_inner._index = string.gsub(index, pattern, interpolate_match)
     else
-        result_inner["_index"] = nil
+        result_inner._index = nil
     end
     if type_name then
-        result_inner["_type"] = string.gsub(type_name, pattern, interpolate_match)
+        result_inner._type = string.gsub(type_name, pattern, interpolate_match)
     else
-        result_inner["_type"] = nil
+        result_inner._type = nil
     end
     if id then
-        result_inner["_id"] = string.gsub(id, pattern, interpolate_match)
+        result_inner._id = string.gsub(id, pattern, interpolate_match)
     else
-        result_inner["_id"] = nil
+        result_inner._id = nil
     end
     return cjson.encode({index = result_inner})
 end
