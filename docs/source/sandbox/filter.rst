@@ -36,3 +36,10 @@ HTTP Status Graph
 .. include:: ../../../sandbox/lua/filters/http_status.lua
    :start-after: --[[
    :end-before: --]]
+
+Unique Items
+------------
+.. include:: ../../../sandbox/lua/filters/unique_items.lua
+   :start-after: --[[
+   :end-before: --]]
+

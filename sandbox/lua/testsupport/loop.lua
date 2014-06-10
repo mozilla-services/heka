@@ -3,8 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 function process_message ()
-    output("loop to self")
-    inject_message()
+    inject_payload("txt", "", "loop to self")
     return 0
 end
 

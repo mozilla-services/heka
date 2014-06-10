@@ -12,7 +12,7 @@ Starting a SandboxFilter
 - Type: "heka.control.sandbox"
 - Payload: *sandbox code*
 - Fields[action]: "load"
-- Fields[config]: the TOML configuration for the SandboxFilter :ref:`sandboxfilter_settings`
+- Fields[config]: the TOML configuration for the :ref:`config_sandbox_filter`
 
 Stopping a SandboxFilter
 
@@ -97,7 +97,6 @@ case we will use the same name for each.
     [PlatformDevs]
     type = "SandboxManagerFilter"
     message_signer = "PlatformDevs"
-    message_matcher = "Type == 'heka.control.sandbox'"
     working_directory = "/var/heka/sandbox"
     max_filters = 100
 
@@ -115,6 +114,8 @@ the rollout  of new keys.
 
     [TCP:5565]
     type = "TcpInput"
+    parser_type = "message.proto"
+    decoder = "ProtobufDecoder"
     address = ":5565"
         [TCP:5565.signer.PlatformDevs_0]
         hmac_key = "Old Platform devs signing key"
@@ -153,7 +154,7 @@ SandboxFilter Setup
     end
 
     function timer_event(ns)
-        inject_message(data)
+        inject_payload("cbuf", "", data)
     end
 
 2. Create the SandboxFilter configuration and save it as "example.toml".
@@ -169,7 +170,6 @@ this case, "PlatformDevs-Example".
     type = "SandboxFilter"
     message_matcher = "Type == 'Widget'"
     ticker_interval = 60
-    script_type = "lua"
     filename = ""
     preserve_data = false
 
@@ -195,13 +195,9 @@ Otherwise
 .. note::
 
     A running filter cannot be 'reloaded' it must be unloaded and loaded again.  
-    The state is not preserved in this case for two reasons (in the future we 
-    hope to remedy this):
-
-    1. During the unload/load process some data can be missed creating a small
-    gap in the analysis causing anomalies and confusion.
-    2. The internal data representation may have changed and restoration may
-    be problematic.
+    During the unload/load process some data can be missed and gaps will be
+    created.  In the future we hope to remedy this but for now it is a 
+    limitation of the dynamic sandbox.
 
 4. Unload the filter using sbmgr.
 

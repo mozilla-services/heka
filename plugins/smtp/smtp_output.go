@@ -17,9 +17,8 @@ package smtp
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
@@ -29,11 +28,10 @@ type SmtpOutput struct {
 	conf         *SmtpOutputConfig
 	auth         smtp.Auth
 	sendFunction func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
+	encoder      Encoder
 }
 
 type SmtpOutputConfig struct {
-	// Outputs the payload attribute in the email message vs a full JSON message dump
-	PayloadOnly bool `toml:"payload_only"`
 	// email addresses to send the output from
 	SendFrom string `toml:"send_from"`
 	// email addresses to send the output to
@@ -50,12 +48,16 @@ type SmtpOutputConfig struct {
 	Password string
 }
 
+type smtpHeader struct {
+	name  string
+	value string
+}
+
 func (s *SmtpOutput) ConfigStruct() interface{} {
 	return &SmtpOutputConfig{
-		PayloadOnly: true,
-		SendFrom:    "heka@localhost.localdomain",
-		Host:        "127.0.0.1:25",
-		Auth:        "none",
+		SendFrom: "heka@localhost.localdomain",
+		Host:     "127.0.0.1:25",
+		Auth:     "none",
 	}
 }
 
@@ -86,11 +88,14 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 }
 
 func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	s.encoder = or.Encoder()
+	if s.encoder == nil {
+		return errors.New("Encoder required.")
+	}
 	inChan := or.InChan()
 
 	var (
 		pack       *PipelinePack
-		msg        *message.Message
 		contents   []byte
 		subject    string
 		message    string
@@ -103,34 +108,29 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		subject = s.conf.Subject
 	}
 
-	header := make(map[string]string)
-	header["From"] = s.conf.SendFrom
-	header["Subject"] = subject
-	header["MIME-Version"] = "1.0"
-	header["Content-Type"] = "text/plain; charset=\"utf-8\""
-	header["Content-Transfer-Encoding"] = "base64"
+	headers := make([]smtpHeader, 5)
+	headers[0] = smtpHeader{"From", s.conf.SendFrom}
+	headers[1] = smtpHeader{"Subject", subject}
+	headers[2] = smtpHeader{"MIME-Version", "1.0"}
+	headers[3] = smtpHeader{"Content-Type", "text/plain; charset=\"utf-8\""}
+	headers[4] = smtpHeader{"Content-Transfer-Encoding", "base64"}
 
-	for k, v := range header {
-		headerText += fmt.Sprintf("%s: %s\r\n", k, v)
+	for _, header := range headers {
+		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
 	}
 
 	for pack = range inChan {
-		msg = pack.Message
 		message = headerText
-		if s.conf.PayloadOnly {
-			message += "\r\n" + base64.StdEncoding.EncodeToString([]byte(msg.GetPayload()))
+
+		if contents, err = s.encoder.Encode(pack); err == nil {
+			message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
 			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
-		} else {
-			if contents, err = json.Marshal(msg); err == nil {
-				message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
-				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
-			} else {
-				or.LogError(err)
-			}
 		}
+
 		if err != nil {
 			or.LogError(err)
 		}
+
 		pack.Recycle()
 	}
 	return

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -27,11 +27,15 @@ import (
 
 type Encoder interface {
 	EncodeMessage(msg *message.Message) ([]byte, error)
+}
+
+type StreamEncoder interface {
+	Encoder
 	EncodeMessageStream(msg *message.Message, outBytes *[]byte) error
 }
 
 type ProtobufEncoder struct {
-	signer *message.MessageSigningConfig
+	Signer *message.MessageSigningConfig
 }
 
 func NewProtobufEncoder(signer *message.MessageSigningConfig) *ProtobufEncoder {
@@ -42,15 +46,21 @@ func (p *ProtobufEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
 	return proto.Marshal(msg)
 }
 
-func (p *ProtobufEncoder) EncodeMessageStream(msg *message.Message, outBytes *[]byte) (err error) {
-	msgBytes, err := p.EncodeMessage(msg) // TODO if we compute the size of the header first this can be marshaled directly to outBytes
+func (p *ProtobufEncoder) EncodeMessageStream(msg *message.Message,
+	outBytes *[]byte) (err error) {
+
+	msgBytes, err := p.EncodeMessage(msg)
+	// TODO if we compute the size of the header first this can be marshaled
+	// directly to outBytes.
 	if err == nil {
-		err = createStream(msgBytes, outBytes, p.signer)
+		err = CreateHekaStream(msgBytes, outBytes, p.Signer)
 	}
 	return
 }
 
-func createStream(msgBytes []byte, outBytes *[]byte, msc *message.MessageSigningConfig) error {
+func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
+	msc *message.MessageSigningConfig) error {
+
 	h := &message.Header{}
 	h.SetMessageLength(uint32(len(msgBytes)))
 	if msc != nil {
@@ -72,7 +82,7 @@ func createStream(msgBytes []byte, outBytes *[]byte, msc *message.MessageSigning
 	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
 	if requiredSize > message.MAX_RECORD_SIZE {
 		return fmt.Errorf("Message too big, requires %d (MAX_RECORD_SIZE = %d)",
-			message.MAX_RECORD_SIZE, requiredSize)
+			requiredSize, message.MAX_RECORD_SIZE)
 	}
 	if cap(*outBytes) < requiredSize {
 		*outBytes = make([]byte, requiredSize)

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -411,6 +411,10 @@ type OutputRunner interface {
 	RetainPack(pack *PipelinePack)
 	// Parsing engine for this Output's message_matcher.
 	MatchRunner() *MatchRunner
+	// Returns an instance of the Encoder specified by the output's config, or
+	// nil if none was specified. Multiple calls will return the same
+	// instance.
+	Encoder() Encoder
 }
 
 // This one struct provides the implementation of both FilterRunner and
@@ -424,6 +428,7 @@ type foRunner struct {
 	h          PluginHelper
 	retainPack *PipelinePack
 	leakCount  int
+	encoder    Encoder // output only
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -446,7 +451,6 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	if foRunner.tickLength != 0 {
 		foRunner.ticker = time.Tick(foRunner.tickLength)
 	}
-
 	go foRunner.Starter(h, wg)
 	return
 }
@@ -607,4 +611,8 @@ func (foRunner *foRunner) Output() Output {
 
 func (foRunner *foRunner) Filter() Filter {
 	return foRunner.plugin.(Filter)
+}
+
+func (foRunner *foRunner) Encoder() Encoder {
+	return foRunner.encoder
 }

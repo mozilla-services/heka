@@ -83,6 +83,17 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
+.. _config_mysql_slow_query_filter:
+
+MySQL Slow Query
+================
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_stat_filter:
 .. include:: /config/filters/stat.rst
 
@@ -91,3 +102,15 @@ HTTP Status Graph
 
 .. _config_sandbox_manager_filter:
 .. include:: /config/filters/sandboxmanager.rst
+
+.. _config_unique_items_filter:
+
+Unique Items
+============
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/unique_items.lua
+   :start-after: --[[
+   :end-before: --]]
+

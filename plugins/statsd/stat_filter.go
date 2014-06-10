@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	"strconv"
 )
 
 // Simple struct representing a single statsd-style metric value.
@@ -79,6 +80,7 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		pack   *PipelinePack
 		values = make(map[string]string)
 		stat   Stat
+		val    string
 	)
 
 	inChan := fr.InChan()
@@ -90,9 +92,17 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 		values["Payload"] = pack.Message.GetPayload()
 
 		for _, field := range pack.Message.Fields {
+			// It's painful to be converting these numeric values to strings,
+			// but for now it's the only way to get numeric data into the stat
+			// accumulator.
 			if field.GetValueType() == message.Field_STRING && len(field.ValueString) > 0 {
-				values[field.GetName()] = field.ValueString[0]
+				val = field.ValueString[0]
+			} else if field.GetValueType() == message.Field_DOUBLE {
+				val = strconv.FormatFloat(field.ValueDouble[0], 'f', -1, 64)
+			} else if field.GetValueType() == message.Field_INTEGER {
+				val = strconv.FormatInt(field.ValueInteger[0], 10)
 			}
+			values[field.GetName()] = val
 		}
 
 		// We matched, generate appropriate metrics

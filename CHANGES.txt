@@ -1,4 +1,170 @@
-0.5.0 (2014-??-??)
+0.6.0 (2014-??-??)
+==================
+
+Backwards Incompatibilities
+---------------------------
+
+* ElasticSearchOutput now uses an Encoder plugin instead of MessageFormatters.
+  Created ESJsonEncoder, ESLogstashV0Encoder, and ESPayloadEncoder
+  (implemented as a SandboxEncoder in es_payload.lua) to replicate prior
+  formatter behavior.
+
+* Changed the Lua sandbox API.  inject_message is no longer overloaded, output
+  has been renamed to add_to_payload, and inject_payload has been introduced.
+
+* Changed TcpOutput, FileOutput, and LogOutput to use Encoder plugins for
+  output formatting instead of bespoke formatting implementations.
+
+* The rsyslog decoder now further parses the %SYSLOGTAG% variable. The
+  fields.syslogtag no longer exists and is replaced by fields.programname and
+  message.Pid (issue #677).
+
+* Removed no-longer-used 'decoder_poolsize' global config setting.
+
+Bug Handling
+------------
+
+* Updated SmtpOutput to use a slice instead of a map to generate SMTP headers
+  so the order will remain consistent when using Go 1.3 or later.
+
+* Use FindProcess instead of syscall.Kill to make the 'pid_file' configuration
+  setting work on Windows (issue #807)
+
+* Fix the SandboxFilter ReportMsg panic on termination/shutdown (issue #816)
+
+* MultiDecoder with no 'order' set now fails on init instead of panicking on
+  first message.
+
+* Fix panic on SIGUSR1 caused by no reports in a given plugin category (issue
+  #832).
+
+Features
+--------
+
+* Added `elasticsearch` Lua module to generate BulkAPI index JSON (issue #875).
+
+* Added support for Lua sandbox preservation versioning (issue #701).
+
+* Added support for unix datagram sockets to the UdpInput using net "unixgram"
+  (issue #790).
+
+* Add LogstreamInput seekjournal reporting to dashboard output (issue #445).
+
+* Added a HyperLogLog library to the Lua sandbox using the Redis
+  implementation http://antirez.com/news/75.
+
+* Added an alert encoder to make the alert messages easier to read.
+
+* Introduced Encoder plugin type (issue #417).
+
+* Added a bloom filter to the Lua sandbox and created a unique items filter.
+
+* Turned the MySQL slow query log examples into a deployed decoder and filter.
+
+* Added an Nginx error log decoder (issue #785)
+
+* Added the ability to preserve the webserver log line in message payload
+  (issue #784)
+
+* Added the optional 'pid_file' configuration setting (issue #777).
+
+* Add anomaly, alert, annotation modules (issue #677)
+
+* Added 'sample_denominator' global config setting to allow tweaking the
+  sample interval when computing timing of certain operations, replacing prior
+  hard-coded DURATION_SAMPLE_DENOMINATOR constant (issue #625).
+
+* Added an Apache access log decoder based on the Apache 'LogFormat'
+  configuration directive.
+
+* Added BufferedOutput. Extracts the queuing functionality out of TcpOutput.go
+  into a general purpose lib for use in any output module. Callers get
+  messages buffered to disk while another goroutine consumes and forwards
+  data. Any errors encountered can cause the sending goroutine to backoff and
+  resend data.
+
+* Added http_timeout to elasticsearch output to prevent slow or stale
+  connections from holding up the flow. (issue #769)
+
+* Add query parameters to the Message as Fields in the HttpListenInput
+
+* Add QueueTTL option to AMQPInput to allow specifying message expiration.
+
+* Added optional tls sub-section to AMQPInput and AMQPOutput for configuring
+  AMQPS TLS settings.
+
+* Add detection and handling of gzipped files to LogstreamerInput (issue #648).
+
+* Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
+
+0.5.3 (2014-MM-DD)
+==================
+
+Bug Handling
+------------
+
+* StatFilter now correctly handles values from integer or float fields (issue
+  #612).
+
+0.5.2 (2014-05-16)
+==================
+
+Bug Handling
+------------
+
+* FileOutput no longer panics when using `format = "text"` and payload is nil
+  (issue #843).
+
+* Fix SandboxDecoder pass-through case so decoders that only use write_message
+  and not inject_message will emit messages correctly (issue #844).
+
+* Fixed TcpInput so it will only override the default delimiter for a
+  RegexpParser if a delimiter is specified in the config.
+
+* Fix the FileOutput panic when HUP'ed.  Modified the CheckWritePermission
+  utility function to use a unique filename for each check. (issue #808)
+
+* Terminated plugins are now removed from the SandboxManager quota (issue
+  #774).
+
+* Fixed SIGUSR1 triggered text report to stdout to work with updated
+  heka.all-report JSON data structure (issue #762).
+
+* MultiDecoder now uses message.GetType() instead of Message.Type so
+  emitted message type will be generated correctly (issue #761).
+
+* LogstreamerInput no longer causes Heka to fail to start on empty or
+  whitespace-only journal files (issue #755).
+
+* The cbufd_host_aggregator filter now properly reclaims expired hosts.
+
+* Pull in a new lua_sandbox to fix JSON encoding of empty strings in the
+  sandbox plugin output() call.
+
+* Escape regexp meta characters (notably '\') to prevent a panic in the LogstreamerInput on Windows
+
+0.5.1 (2014-03-18)
+==================
+
+Bug Handling
+------------
+
+* Skip *.bak, *.tmp, *~, and .files in a config dir as a non-breaking band-aid
+  until we require an explicit naming convention in 0.6 (see issue #750).
+
+* heka-logstreamer command now supports config directories in addition to
+  single config files, just like hekad itself (issue #742).
+
+* Logstreamer package's NewLogstreamSet function no longer lowercases the
+  match part names when constructing match translation maps since the
+  PopulateMatchParts method doesn't actually expect the names to be
+  lowercased.
+
+* Added support for use of "missing" value in Logstreamer translation maps to
+  allow users to place missing values at the end of the list instead of the
+  beginning (issue #735).
+
+0.5.0 (2014-03-06)
 ==================
 
 Backwards Incompatibilities
@@ -63,6 +229,9 @@ Backwards Incompatibilities
 
 Bug Handling
 ------------
+
+* Network parsers now return all records available in the parse buffer
+  (issue #732).
 
 * TcpInput now stops a given connection's decoder when the connection is
   closed, preventing memory pooling (issue #713).

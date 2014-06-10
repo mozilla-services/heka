@@ -19,8 +19,8 @@ end
 function timer_event(ns)
     cnts:add(ns, MESSAGES, count)
     count = 0
-    if ns - last_inject > 60e9 then -- write the aggregate once a minute 
-        inject_message(cnts)
+    if ns - last_inject > 60e9 then -- write the aggregate once a minute
+        inject_payload("cbuf", "", cnts)
         last_inject = ns
     end
 end

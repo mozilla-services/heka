@@ -12,17 +12,17 @@ end
 function timer_event(ns)
 
     if state == 0 then
-        output("OK:Ok alerts are working!")
+        add_to_payload("OK:Ok alerts are working!")
     elseif state == 1 then
-        output("WARNING:Warning alerts are working!")
+        add_to_payload("WARNING:Warning alerts are working!")
     elseif state == 2 then
-        output("CRITICAL:Critical alerts are working!")
+        add_to_payload("CRITICAL:Critical alerts are working!")
     elseif state == 3 then
-        output("UNKNOWN:Unknown alerts are working!")
+        add_to_payload("UNKNOWN:Unknown alerts are working!")
     end
     state = state + 1
     if state == 4 then state = 0 end
 
-    inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
+    inject_payload("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
 end
 

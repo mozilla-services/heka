@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Carlos Diaz-Padron (cpadron@mozilla.com,carlos@carlosdp.io)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -58,6 +59,10 @@ type TcpInputConfig struct {
 	UseTls bool `toml:"use_tls"`
 	// Subsection for TLS configuration.
 	Tls TlsConfig
+	// Set to true if TCP Keep Alive should be used.
+	KeepAlive bool `toml:"keep_alive"`
+	// Integer indicating seconds between keep alives.
+	KeepAlivePeriod int `toml:"keep_alive_period"`
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
@@ -69,7 +74,11 @@ func (t *TcpInput) ConfigStruct() interface{} {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*TcpInputConfig)
-	t.listener, err = net.Listen(t.config.Net, t.config.Address)
+	address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
+	if err != nil {
+		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+	}
+	t.listener, err = net.ListenTCP(t.config.Net, address)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
@@ -91,8 +100,10 @@ func (t *TcpInput) Init(config interface{}) error {
 		}
 	} else if t.config.ParserType == "regexp" {
 		rp := NewRegexpParser() // temporary parser to test the config
-		if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
-			return err
+		if len(t.config.Delimiter) > 0 {
+			if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
+				return err
+			}
 		}
 		if err = rp.SetDelimiterLocation(t.config.DelimiterLocation); err != nil {
 			return err
@@ -156,7 +167,9 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		rp := NewRegexpParser()
 		parser = rp
 		parseFunction = NetworkPayloadParser
-		rp.SetDelimiter(t.config.Delimiter)
+		if len(t.config.Delimiter) > 0 {
+			rp.SetDelimiter(t.config.Delimiter)
+		}
 		rp.SetDelimiterLocation(t.config.DelimiterLocation)
 	} else if t.config.ParserType == "token" {
 		tp := NewTokenParser()
@@ -210,6 +223,15 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 			}
 		}
 		t.wg.Add(1)
+		if t.config.KeepAlive {
+			tcpConn, ok := conn.(*net.TCPConn)
+			if !ok {
+				return errors.New("KeepAlive only supported for TCP Connections.")
+			}
+			tcpConn.SetKeepAlive(t.config.KeepAlive)
+			tcpConn.SetKeepAlivePeriod(time.Duration(t.config.KeepAlivePeriod) * time.Second)
+		}
+
 		go t.handleConnection(conn)
 	}
 	t.wg.Wait()

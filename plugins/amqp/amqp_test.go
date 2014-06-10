@@ -23,6 +23,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	. "github.com/mozilla-services/heka/pipelinemock"
+	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
@@ -56,7 +57,7 @@ func AMQPPluginSpec(c gs.Context) {
 
 	// Setup the mock amqpHub with the mock chan return
 	aqh := NewMockAMQPConnectionHub(ctrl)
-	aqh.EXPECT().GetChannel("").Return(mch, ug, cg, nil)
+	aqh.EXPECT().GetChannel("", AMQPDialer{}).Return(mch, ug, cg, nil)
 	var oldHub AMQPConnectionHub
 	oldHub = amqpHub
 	amqpHub = aqh
@@ -94,6 +95,7 @@ func AMQPPluginSpec(c gs.Context) {
 			defaultConfig.Exchange = ""
 			defaultConfig.ExchangeType = ""
 			defaultConfig.RoutingKey = "test"
+			defaultConfig.QueueTTL = 300000
 			err := amqpInput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
@@ -140,6 +142,7 @@ func AMQPPluginSpec(c gs.Context) {
 			defaultConfig.ExchangeType = ""
 			defaultConfig.RoutingKey = "test"
 			defaultConfig.Decoder = decoderName
+			defaultConfig.QueueTTL = 300000
 			err := amqpInput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
@@ -267,7 +270,14 @@ func AMQPPluginSpec(c gs.Context) {
 		pack.Decoded = true
 
 		c.Specify("publishes a plain message", func() {
-			defaultConfig.Serialize = false
+			encoder := new(plugins.PayloadEncoder)
+			econfig := encoder.ConfigStruct().(*plugins.PayloadEncoderConfig)
+			econfig.AppendNewlines = false
+			encoder.Init(econfig)
+
+			defaultConfig.Encoder = "PayloadEncoder"
+			defaultConfig.ContentType = "text/plain"
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 			err := amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
@@ -286,6 +296,10 @@ func AMQPPluginSpec(c gs.Context) {
 		})
 
 		c.Specify("publishes a serialized message", func() {
+			encoder := new(ProtobufEncoder)
+			encoder.Init(nil)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+
 			err := amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)

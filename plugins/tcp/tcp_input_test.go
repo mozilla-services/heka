@@ -273,11 +273,16 @@ func TcpInputSpec(c gs.Context) {
 
 	c.Specify("A TcpInput regexp parser", func() {
 		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
-		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
+
+		config := &TcpInputConfig{
+			Net:        "tcp",
+			Address:    ith.AddrStr,
 			Decoder:    "RegexpDecoder",
 			ParserType: "regexp",
-			Delimiter:  "\n"})
+		}
+
+		tcpInput := TcpInput{}
+		err := tcpInput.Init(config)
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
 		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -466,6 +471,6 @@ func TcpInputSpecFailure(c gs.Context) {
 		Decoder:    "ProtobufDecoder",
 		ParserType: "message.proto"})
 	c.Assume(err, gs.Not(gs.IsNil))
-	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: listen udp 127.0.0.1:55565: unexpected address type localhost:55565\n")
+	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: unknown network udp\n")
 
 }

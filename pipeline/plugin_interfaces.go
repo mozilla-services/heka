@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -15,6 +15,13 @@
 # ***** END LICENSE BLOCK *****/
 
 package pipeline
+
+// Interface for Heka plugins that can be wired up to the config system.
+type Plugin interface {
+	// Receives either PluginConfig or custom config struct, populated from
+	// the TOML config, and uses that data to initialize the plugin.
+	Init(config interface{}) error
+}
 
 // Input plugin interface type.
 type Input interface {
@@ -48,6 +55,26 @@ type Filter interface {
 	// shutdown (i.e. not due to an error processing an isolated message, in
 	// that case use FilterRunner.LogError).
 	Run(r FilterRunner, h PluginHelper) (err error)
+}
+
+// Heka Encoder plugin interface.
+type Encoder interface {
+	// Extract data from the provided pack / message and use it to generate a
+	// serialized byte stream suitable for writing to disk or over a network.
+	Encode(pack *PipelinePack) (output []byte, err error)
+}
+
+// Can be implemented by Encoders to tell Heka that the Encoder needs to
+// perform some clean-up at shutdown time.
+type NeedsStopping interface {
+	Stop()
+}
+
+// Can be implemented by Encoders to communicate to outputs whether or not the
+// Encoder is generating protocol buffer content, so the output can handle
+// framing correctly.
+type MightGenerateProtobuf interface {
+	GeneratesProtobuf() bool
 }
 
 // Heka Output plugin type.

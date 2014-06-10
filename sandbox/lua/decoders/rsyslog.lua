@@ -19,7 +19,6 @@ Config:
 
     [RsyslogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/rsyslog.lua"
 
     [RsyslogDecoder.config]
@@ -38,7 +37,7 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"syslogtag" value_string:"kernel:"]
+    | name:"programname" value_string:"kernel"]
 --]]
 
 local syslog = require "syslog"
@@ -49,6 +48,7 @@ local msg = {
 Timestamp   = nil,
 Hostname    = nil,
 Payload     = nil,
+Pid         = nil,
 Severity    = nil,
 Fields      = nil
 }
@@ -77,6 +77,12 @@ function process_message ()
         fields["syslogseverity-text"] = nil
         fields.syslogpriority = nil
         fields["syslogpriority-text"] = nil
+    end
+
+    if fields.syslogtag then
+        fields.programname = fields.syslogtag.programname
+        msg.Pid = fields.syslogtag.pid
+        fields.syslogtag = nil
     end
 
     msg.Hostname = fields.hostname or fields.source

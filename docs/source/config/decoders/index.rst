@@ -4,6 +4,20 @@
 Decoders
 ========
 
+.. _config_apache_access_log_decoder:
+
+Apache Access Log Decoder
+=========================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/apache_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. versionadded:: 0.6
+.. _config_geoip_decoder:
+.. include:: /config/decoders/geoip_decoder.rst
+
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
 
@@ -13,8 +27,27 @@ Nginx Access Log Decoder
 ========================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/decoders/nginx_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_mysql_slow_query_log_decoder:
+
+MySQL Slow Query Log Decoder
+============================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_nginx_error_log_decoder:
+
+Nginx Error Log Decoder
+=======================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/nginx_error.lua
    :start-after: --[[
    :end-before: --]]
 

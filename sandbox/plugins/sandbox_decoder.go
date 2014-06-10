@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013
+# Portions created by the Initial Developer are Copyright (C) 2013-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -16,7 +17,6 @@ package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -48,9 +48,10 @@ type SandboxDecoder struct {
 	dRunner                pipeline.DecoderRunner
 	name                   string
 	tz                     *time.Location
+	sampleDenominator      int
 }
 
-func (pd *SandboxDecoder) ConfigStruct() interface{} {
+func (s *SandboxDecoder) ConfigStruct() interface{} {
 	return NewSandboxConfig()
 }
 
@@ -62,6 +63,7 @@ func (s *SandboxDecoder) SetName(name string) {
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
+	s.sampleDenominator = pipeline.Globals().SampleDenominator
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
@@ -146,18 +148,17 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		s.err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
-	if s.err == nil {
-		s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
-		if s.sbc.PreserveData && fileExists(s.preservationFile) {
-			s.err = s.sb.Init(s.preservationFile, "decoder")
-		} else {
-			s.err = s.sb.Init("", "decoder")
-		}
-	}
 	if s.err != nil {
 		dr.LogError(s.err)
 		pipeline.Globals().ShutDown()
 		return
+	}
+
+	s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
+	if s.sbc.PreserveData && fileExists(s.preservationFile) {
+		s.err = s.sb.Init(s.preservationFile, "decoder")
+	} else {
+		s.err = s.sb.Init("", "decoder")
 	}
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -225,11 +226,14 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 func (s *SandboxDecoder) Shutdown() {
 	if s.sb != nil {
 		if s.sbc.PreserveData {
-			s.sb.Destroy(s.preservationFile)
+			s.err = s.sb.Destroy(s.preservationFile)
 		} else {
-			s.sb.Destroy("")
+			s.err = s.sb.Destroy("")
 		}
 		s.sb = nil
+		if s.err != nil {
+			s.dRunner.LogError(s.err)
+		}
 	}
 }
 
@@ -253,9 +257,9 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		s.processMessageSamples++
 		s.reportLock.Unlock()
 	}
-	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
+	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
-		s.err = errors.New("FATAL: " + s.sb.LastError())
+		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(s.err)
 		pipeline.Globals().ShutDown()
 	}
@@ -269,7 +273,14 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		}
 		s.packs = nil
 	}
-	packs = s.packs
+	if retval == 0 && s.pack != nil {
+		// InjectMessage was never called, we're passing the original message
+		// through.
+		packs = append(packs, pack)
+		s.pack = nil
+	} else {
+		packs = s.packs
+	}
 	s.packs = nil
 	err = s.err
 	return

@@ -4,19 +4,20 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package logstreamer
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -110,9 +111,14 @@ type Logfile struct {
 // Populate the MatchParts of a Logfile supplied with the sub-expression names,
 // and the match parts out of the regex along with a translation map to derive
 // sorting ints from
-func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation SubmatchTranslationMap) error {
-	var score int
-	var ok bool
+func (l *Logfile) PopulateMatchParts(subexpNames, matches []string,
+	translation SubmatchTranslationMap) error {
+
+	var (
+		score  int
+		ok     bool
+		submap MatchTranslationMap
+	)
 	if l.MatchParts == nil {
 		l.MatchParts = make(map[string]int)
 	}
@@ -124,25 +130,53 @@ func (l *Logfile) PopulateMatchParts(subexpNames, matches []string, translation 
 		// Store the raw string
 		l.StringMatchParts[name] = matchValue
 
+		if matchValue == "" {
+			matchValue = "missing"
+		}
 		lowerValue := strings.ToLower(matchValue)
 		score = -1
 		if name == "" {
 			continue
 		}
+
+		// Warning: nested ifs ahead. A MatchTranslationMap has to cover every
+		// possible value *or* contain only the "missing" value or else it
+		// will raise an error.
 		if name == "MonthName" {
 			if score, ok = MonthLookup[lowerValue]; !ok {
-				return errors.New("Unable to locate month name: " + matchValue)
+				return fmt.Errorf("Unable to locate month name: %s", matchValue)
 			}
 		} else if name == "DayName" {
 			if score, ok = DayLookup[lowerValue]; !ok {
-				return errors.New("Unable to locate day name : " + matchValue)
+				return fmt.Errorf("Unable to locate day name: %s", matchValue)
 			}
-		} else if submap, ok := translation[name]; ok {
+		} else if submap, ok = translation[name]; ok && len(submap) > 1 {
 			if score, ok = submap[lowerValue]; !ok {
-				return errors.New("Unable to locate value: (" + matchValue + ") in translation map: " + name)
+				return fmt.Errorf("Value '%s' not found in translation map '%s'.",
+					matchValue, name)
 			}
-		} else if digitRegex.MatchString(matchValue) {
-			score, _ = strconv.Atoi(matchValue)
+		} else if ok {
+			// 'ok' value falls through from above, i.e. submap exists and has
+			// 'len > 1.
+			if lowerValue == "missing" {
+				if score, ok = submap["missing"]; !ok {
+					// This shouldn't happen, config validation should prevent
+					// a translation map of len 1 that contains anything other
+					// than "missing".
+					score = -1
+					ok = true
+				}
+			} else {
+				// We're not the "missing" value, '!ok' signals that we should
+				// convert from integer if possible.
+				ok = false
+			}
+		}
+		if !ok {
+			// We didn't match, try to convert to an int.
+			if digitRegex.MatchString(matchValue) {
+				score, _ = strconv.Atoi(matchValue)
+			}
 		}
 		l.MatchParts[name] = score
 	}
@@ -169,7 +203,9 @@ func (l Logfiles) IndexOf(s string) int {
 
 // Provided the fileMatch regexp and translation map, populate all the Logfile
 // matchparts for use in sorting.
-func (l Logfiles) PopulateMatchParts(fileMatch *regexp.Regexp, translation SubmatchTranslationMap) error {
+func (l Logfiles) PopulateMatchParts(fileMatch *regexp.Regexp,
+	translation SubmatchTranslationMap) error {
+
 	errorlist := NewMultipleError()
 	subexpNames := fileMatch.SubexpNames()
 	for _, logfile := range l {
@@ -263,6 +299,9 @@ type Logstream struct {
 	logfiles Logfiles
 	position *LogstreamLocation
 	fd       *os.File
+	// If the file is gzipped, reader is a gzip reader. Otherwise,
+	// reader is the fd.
+	reader io.Reader
 	// Buffer data read in blocks so that we can control precisely how
 	// much of the data read is saved in the logstream location each time
 	// to saving into a record partially.
@@ -290,6 +329,10 @@ func (l *Logstream) DumpDebug() string {
 		l.position.Debug(),
 		finfo,
 	)
+}
+
+func (l *Logstream) ReportPosition() (string, int64) {
+	return l.position.Filename, l.position.SeekPosition
 }
 
 // Updates the logfiles safely
@@ -331,16 +374,25 @@ type LogstreamSet struct {
 	fileMatch      *regexp.Regexp
 }
 
+// append a path separator if needed and escape regexp meta characters
+func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
+	if !os.IsPathSeparator(logRoot[len(logRoot)-1]) && !os.IsPathSeparator(fileMatch[0]) {
+		logRoot += string(os.PathSeparator)
+	}
+
+	return regexp.MustCompile("^" + regexp.QuoteMeta(logRoot) + fileMatch)
+}
+
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	logRoot, journalRoot string) *LogstreamSet {
-	// Lowercase all the keys
+	// Lowercase the actual matching keys.
 	newTranslation := make(SubmatchTranslationMap)
 	for key, val := range sortPattern.Translation {
 		newValMap := make(MatchTranslationMap)
 		for matchPart, intVal := range val {
 			newValMap[strings.ToLower(matchPart)] = intVal
 		}
-		newTranslation[strings.ToLower(key)] = newValMap
+		newTranslation[key] = newValMap
 	}
 	sortPattern.Translation = newTranslation
 
@@ -351,7 +403,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		logRoot:        logRoot,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
-		fileMatch:      regexp.MustCompile("^" + filepath.Join(logRoot, sortPattern.FileMatch)),
+		fileMatch:      fileMatchRegexp(logRoot, sortPattern.FileMatch),
 	}
 }
 

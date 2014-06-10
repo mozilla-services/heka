@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -38,7 +38,6 @@ const (
 type GlobalConfigStruct struct {
 	MaxMsgProcessDuration uint64
 	PoolSize              int
-	DecoderPoolSize       int
 	PluginChanSize        int
 	MaxMsgLoops           uint
 	MaxMsgProcessInject   uint
@@ -47,6 +46,7 @@ type GlobalConfigStruct struct {
 	Stopping              bool
 	BaseDir               string
 	ShareDir              string
+	SampleDenominator     int
 	sigChan               chan os.Signal
 }
 
@@ -55,13 +55,13 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 	idle, _ := time.ParseDuration("2m")
 	return &GlobalConfigStruct{
 		PoolSize:              100,
-		DecoderPoolSize:       2,
 		PluginChanSize:        50,
 		MaxMsgLoops:           4,
 		MaxMsgProcessInject:   1,
 		MaxMsgProcessDuration: 1000000,
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
+		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
 	}
 }
@@ -87,13 +87,6 @@ func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 // we're at least using a function instead of a struct for global state to
 // make it easier to change the underlying implementation.
 var Globals func() *GlobalConfigStruct
-
-// Interface for Heka plugins that can be wired up to the config system.
-type Plugin interface {
-	// Receives either PluginConfig or custom config struct, populated from
-	// the TOML config, and uses that data to initialize the plugin.
-	Init(config interface{}) error
-}
 
 // Main Heka pipeline data structure containing raw message data, a Message
 // object, and other Heka related message metadata.
@@ -282,5 +275,13 @@ func Run(config *PipelineConfig) {
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
+
+	for name, encoder := range config.allEncoders {
+		if stopper, ok := encoder.(NeedsStopping); ok {
+			log.Printf("Stopping encoder '%s'", name)
+			stopper.Stop()
+		}
+	}
+
 	log.Println("Shutdown complete.")
 }

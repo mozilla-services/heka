@@ -6,8 +6,7 @@ count = 0
 
 function process_message ()
     count = count + 1
-    output(count)
-    inject_message()
+    inject_payload("txt", "", count)
     return 0
 end
 

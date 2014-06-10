@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -24,8 +25,11 @@ import (
 	"fmt"
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/logstreamer"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -56,10 +60,34 @@ func main() {
 		os.Exit(0)
 	}
 
+	p, err := os.Open(*configFile)
+	if err != nil {
+		log.Fatalf("Error opening config file: %s", err)
+	}
+	fi, err := p.Stat()
+	if err != nil {
+		log.Fatalf("Error fetching config file info: %s", err)
+	}
+
 	fconfig := make(FileConfig)
-	if _, err := toml.DecodeFile(*configFile, &fconfig); err != nil {
-		log.Printf("Error decoding config file: %s", err)
-		return
+	if fi.IsDir() {
+		files, _ := ioutil.ReadDir(*configFile)
+		for _, f := range files {
+			fName := f.Name()
+			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
+				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
+				// Skip obviously non-relevant files.
+				continue
+			}
+			fPath := filepath.Join(*configFile, fName)
+			if _, err = toml.DecodeFile(fPath, &fconfig); err != nil {
+				log.Fatalf("Error decoding config file: %s", err)
+			}
+		}
+	} else {
+		if _, err := toml.DecodeFile(*configFile, &fconfig); err != nil {
+			log.Fatalf("Error decoding config file: %s", err)
+		}
 	}
 
 	// Filter out logstream inputs

@@ -88,6 +88,17 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 	}
 
+	for key, values := range req.URL.Query() {
+		for i := range values {
+			value := values[i]
+			if field, err := message.NewField(key, value, ""); err == nil {
+				pack.Message.AddField(field)
+			} else {
+				hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+			}
+		}
+	}
+
 	if hli.dRunner == nil {
 		hli.ir.Inject(pack)
 	} else {

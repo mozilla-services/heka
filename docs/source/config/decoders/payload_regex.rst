@@ -6,6 +6,12 @@ Decoder plugin that accepts messages of a specified form and generates new
 outgoing messages from extracted data, effectively transforming one message
 format into another.
 
+.. note::
+
+    The `Go regular expression tester <https://regoio.herokuapp.com/>`_ is an
+    invaluable tool for constructing and debugging regular expressions to be
+    used for parsing your input data.
+
 Config:
 
 - match_regex:
@@ -60,7 +66,7 @@ Example (Parsing Apache Combined Log Format):
 
     [apache_transform_decoder]
     type = "PayloadRegexDecoder"
-    match_regex = '/^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"/'
+    match_regex = '^(?P<RemoteIP>\S+) \S+ \S+ \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)"'
     timestamp_layout = "02/Jan/2006:15:04:05 -0700"
 
     # severities in this case would work only if a (?P<Severity>...) matching

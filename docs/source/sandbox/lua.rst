@@ -45,9 +45,18 @@ See: https://github.com/mozilla-services/lua_sandbox/blob/master/docs/sandbox_ap
 
 **require(libraryName)**
 
-**output(arg0, arg1, ...argN)**
+**add_to_payload(arg1, arg2, ...argN)** 
+    Appends the arguments to the payload buffer for incremental construction of
+    the final payload output (inject_payload finalizes the buffer and sends the
+    message to Heka).  This function is simply a rename of the generic sandbox
+    *output* function to improve the readability of the plugin code. 
 
-    In most cases circular buffers should be directly output using inject_message.  However, in order to create graph annotations the annotation table has to be written to the output buffer followed by the circular buffer.  The output function is the only way to combine this data before injection (use a unique payload_type when injecting a message with a non-standard circular buffer mashups). :ref:`graph_annotation`
+    *Arguments*
+        - arg (number, string, bool, nil, circular_buffer)
+
+    *Return*
+        none
+    
 
 Heka specific functions that are exposed to the Lua sandbox
 -----------------------------------------------------------
@@ -83,6 +92,8 @@ Heka specific functions that are exposed to the Lua sandbox
 
     *Return*
         number, string, bool, nil depending on the type of variable requested
+
+.. _write_message:
 
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
     .. versionadded:: 0.5
@@ -123,37 +134,30 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         value_type, name, value, representation, count (number of items in the field array)
 
-**inject_message(payload_type, payload_name)**
-    Creates a new Heka message using the contents of the output payload buffer
-    and then clears the buffer. Two pieces of optional metadata are allowed and
-    included as fields in the injected message i.e., Fields[payload_type] == 'csv' 
-    Fields[payload_name] == 'Android Usage Statistics'.  The number of messages
-    that may be injected by the process_message or timer_event functions are 
-    globally controlled by the hekad :ref:`hekad_command_line_options`; if
-    these values are exceeded the sandbox will be terminated.
+**inject_payload(payload_type, payload_name, arg3, ..., argN)**
+
+    Creates a new Heka message using the contents of the payload buffer
+    (pre-populated with *add_to_payload*) combined with any additional 
+    payload_args passed to this function.  The output buffer is cleared after
+    the injection. The payload_type and payload_name arguments are two pieces of
+    optional metadata. If specified, they will be included as fields in the 
+    injected message e.g., Fields[payload_type] == 'csv', 
+    Fields[payload_name] == 'Android Usage Statistics'. The number of messages 
+    that may be injected by the process_message or timer_event functions are
+    globally controlled by the hekad :ref:`global configuration options <hekad_global_config_options>`;
+    if these values are exceeded the sandbox will be terminated.
 
     *Arguments*
         - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
         - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
+        - arg3 (**optional) Same type restrictions as add_to_payload.
+        ...
+        - argN
 
     *Return*
         none
 
-**inject_message(circular_buffer, payload_name)**
-    Creates a new Heka message placing the circular buffer output in the message payload (overwriting whatever is in the output buffer).
-    The payload_type is set to the circular buffer output format string. i.e., Fields[payload_type] == 'cbuf'.
-    The Fields[payload_name] is set to the provided payload_name.  
-
-    *Arguments*
-        - circular_buffer (circular_buffer)
-        - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
-
-    *Return*
-        none
-
-    *Notes*
-        - injection limits are enforced as described above
-        - if the :ref:`config_dashboard_output` plugin is configured a graphical view of the data is automatically generated.
+.. _inject_message_message_table:
 
 **inject_message(message_table)**
     Creates a new Heka protocol buffer message using the contents of the
@@ -236,9 +240,9 @@ How to create a simple sandbox filter
     end
 
     function timer_event(ns)
-        output(string.format("%d messages in the last minute; total=%d", count, total))
         count = 0
-        inject_message()
+        inject_payload("txt", "",
+                       string.format("%d messages in the last minute; total=%d", count, total))
     end
 
 3. Setup the configuration
@@ -249,7 +253,6 @@ How to create a simple sandbox filter
     type = "SandboxFilter"
     message_matcher = "Type == 'demo'"
     ticker_interval = 60
-    script_type = "lua"
     filename = "counter.lua"
     preserve_data = true
 
@@ -280,10 +283,10 @@ per device)
     end
 
     function timer_event(ns)
-        output("#device_name\tcount\ttotal\n")
+        add_to_payload("#device_name\tcount\ttotal\n")
         for k, v in pairs(device_counters) do
-            output(string.format("%s\t%d\t%d\n", k, v.count, v.total))
+            add_to_payload(string.format("%s\t%d\t%d\n", k, v.count, v.total))
             v.count = 0
         end
-        inject_message()
+        inject_payload()
     end

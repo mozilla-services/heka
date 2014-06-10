@@ -35,8 +35,8 @@ import (
 // instructed.
 type SandboxManagerFilter struct {
 	processMessageCount int64
+	currentFilters      int32
 	maxFilters          int
-	currentFilters      int
 	workingDirectory    string
 	moduleDirectory     string
 	memoryLimit         uint
@@ -64,6 +64,8 @@ type SandboxManagerFilterConfig struct {
 	InstructionLimit uint `toml:"instruction_limit"`
 	// Output limit applied to all managed sandboxes.
 	OutputLimit uint `toml:"output_limit"`
+	// Default message matcher.
+	MessageMatcher string `toml:"message_matcher"`
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
@@ -74,11 +76,16 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 		MemoryLimit:      sbDefaults.MemoryLimit,
 		InstructionLimit: sbDefaults.InstructionLimit,
 		OutputLimit:      sbDefaults.OutputLimit,
+		MessageMatcher:   "Type == 'heka.control.sandbox'",
 	}
 }
 
 func (s *SandboxManagerFilter) IsStoppable() {
 	return
+}
+
+func (s *SandboxManagerFilter) PluginExited() {
+	atomic.AddInt32(&s.currentFilters, -1)
 }
 
 // Creates the working directory to store the submitted scripts,
@@ -97,7 +104,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
-	message.NewIntField(msg, "RunningFilters", this.currentFilters, "count")
+	message.NewIntField(msg, "RunningFilters", int(atomic.LoadInt32(&this.currentFilters)), "count")
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
 	return nil
 }
@@ -141,6 +148,7 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	conf.InstructionLimit = this.instructionLimit
 	conf.OutputLimit = this.outputLimit
 	plugin.(*SandboxFilter).name = wrapper.Name // preserve the reserved manager hyphenated name
+	plugin.(*SandboxFilter).manager = this
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(pipeline.Plugin).Init(config); err != nil {
@@ -225,10 +233,6 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
-				// check/clear the old state preservation file
-				// this avoids issues with changes to the data model since the last load
-				// and prevents holes in the graph from looking like anomalies
-				os.Remove(filepath.Join(pipeline.PrependBaseDir(DATA_DIR), name+DATA_EXT))
 				var runner pipeline.FilterRunner
 				runner, err = this.createRunner(dir, name, conf)
 				if err != nil {
@@ -237,7 +241,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 				}
 				err = h.PipelineConfig().AddFilterRunner(runner)
 				if err == nil {
-					this.currentFilters++
+					atomic.AddInt32(&this.currentFilters, 1)
 				}
 				break // only interested in the first item
 			}
@@ -272,7 +276,7 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h p
 					if err != nil {
 						fr.LogError(err)
 					} else {
-						this.currentFilters++
+						atomic.AddInt32(&this.currentFilters, 1)
 					}
 					break // only interested in the first item
 				}
@@ -305,7 +309,8 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.Plugi
 			action, _ := pack.Message.GetFieldValue("action")
 			switch action {
 			case "load":
-				if this.currentFilters < this.maxFilters {
+				current := int(atomic.LoadInt32(&this.currentFilters))
+				if current < this.maxFilters {
 					err := this.loadSandbox(fr, h, this.workingDirectory, pack.Message)
 					if err != nil {
 						fr.LogError(err)
@@ -319,7 +324,6 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.Plugi
 				if name, ok := fv.(string); ok {
 					name = getSandboxName(fr.Name(), name)
 					if h.PipelineConfig().RemoveFilterRunner(name) {
-						this.currentFilters--
 						removeAll(this.workingDirectory, fmt.Sprintf("%s.*", name))
 					}
 				}

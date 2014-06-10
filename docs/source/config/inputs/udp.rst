@@ -16,7 +16,8 @@ message_signer configuration option.
 Config:
 
 - address (string):
-    An IP address:port on which this plugin will listen.
+    An IP address:port or Unix datagram socket file path on which this plugin
+    will listen.
 - signer:
     Optional TOML subsection. Section name consists of a signer name,
     underscore, and numeric version of the key.
@@ -47,7 +48,7 @@ Config:
 .. versionadded:: 0.5
 
 - net (string, optional, default: "udp")
-    Network value must be one of: "udp", "udp4" or "udp6".
+    Network value must be one of: "udp", "udp4", "udp6", or "unixgram".
 
 Example:
 

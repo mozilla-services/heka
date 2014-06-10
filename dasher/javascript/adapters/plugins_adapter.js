@@ -35,13 +35,6 @@ define(
       this.inputs = new Plugins();
 
       /**
-      * Decoder pool plugins. These have decoders nested under each of them.
-      *
-      * @property {Plugins} decoderPools
-      */
-      this.decoderPools = new Plugins();
-
-      /**
       * Decoder plugins.
       *
       * @property {Plugins} decoders
@@ -61,6 +54,13 @@ define(
       * @property {Plugins} outputs
       */
       this.outputs = new Plugins();
+
+      /**
+      * Encoder plugins.
+      *
+      * @property {Plugins} encoders
+      */
+      this.encoders = new Plugins();
     };
 
     /**
@@ -106,19 +106,6 @@ define(
       },
 
       /**
-      * Finds decoder pool plugin asynchronously.
-      *
-      * @method findGlobalWhere
-      *
-      * @param {Object} options Search options that are passed to `Backbone.Collection.findWhere`
-      * @param {Function} callback Function called when find is complete
-      * @param {String} callback.result Model found from the search.
-      */
-      findDecoderPoolWhere: function(options, callback) {
-        this.findWhere(this.decoderPools, options, callback);
-      },
-
-      /**
       * Finds decoder asynchronously.
       *
       * @method findGlobalWhere
@@ -159,8 +146,21 @@ define(
       },
 
       /**
-      * Fills globals, inputs, decoderPools, filters, and outputs with data fetched from the server.
-      * Polls the server for updates after fetching data.
+      * Finds encoder asynchronously.
+      *
+      * @method findGlobalWhere
+      *
+      * @param {Object} options Search options that are passed to `Backbone.Collection.findWhere`
+      * @param {Function} callback Function called when find is complete
+      * @param {String} callback.result Model found from the search.
+      */
+      findEncoderWhere: function(options, callback) {
+        this.findWhere(this.encoders, options, callback);
+      },
+
+      /**
+      * Fills globals, inputs, decoders, filters, outputs, and encoders with data fetched
+      * from the server. Polls the server for updates after fetching data.
       *
       * @method fill
       *
@@ -173,8 +173,6 @@ define(
           this.parseArrayIntoCollection(response.globals, this.globals, "Global");
           this.parseArrayIntoCollection(response.inputs, this.inputs, "Input");
 
-          this.mapDecodersToPools(response.decoderPools, response.decoders);
-          this.parseArrayIntoCollection(response.decoderPools, this.decoderPools, "DecoderPool");
           this.parseArrayIntoCollection(response.decoders, this.decoders, "Decoder");
 
           this.parseArrayIntoCollection(response.filters, this.filters, "Filter");
@@ -182,7 +180,10 @@ define(
 
           this.parseArrayIntoCollection(response.outputs, this.outputs, "Output");
 
-          deferred.resolve(this.globals, this.inputs, this.decoderPools, this.decoders, this.filters, this.outputs);
+          this.parseArrayIntoCollection(response.encoders, this.encoders, "Encoder");
+
+          deferred.resolve(this.globals, this.inputs, this.decoders, this.filters,
+            this.outputs, this.encoders);
 
           this.pollForUpdates();
         }.bind(this));
@@ -201,16 +202,6 @@ define(
         var plugins = _.collect(array, function(p) {
           // No id is provided but the name is unique so use it as the id.
           var plugin = new Plugin(_.extend(p, { id: p.Name, Type: type }));
-
-          // Convert decoders attribute into a plugins collection.
-          if (plugin.has("decoders")) {
-            var decoders = new Plugins();
-
-            this.parseArrayIntoCollection(plugin.get("decoders"), decoders);
-
-            plugin.set("decoders", decoders);
-          }
-
           return plugin;
         }.bind(this));
 
@@ -221,28 +212,6 @@ define(
         } else {
           collection.reset(plugins);
         }
-      },
-
-      /**
-      * Maps decoders array to corresponding decoderPools array.
-      *
-      * @method mapDecodersToPools
-      * @param {Object[]} decoderPools Decoder pools array.
-      * @param {Object[]} decoders Decoders array.
-      */
-      mapDecodersToPools: function(decoderPools, decoders) {
-        _.each(decoderPools, function(decoderPool) {
-          decoderPool.decoders = [];
-
-          // Extract the name of the decoder from the pool name.
-          var basePoolName = decoderPool.Name.replace(/^DecoderPool\-/, "");
-
-          _.each(decoders, function(decoder) {
-            if (decoder.Name.indexOf(basePoolName) >= 0) {
-              decoderPool.decoders.push(decoder);
-            }
-          });
-        }.bind(this));
       },
 
       /**

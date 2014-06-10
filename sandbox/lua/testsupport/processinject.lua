@@ -5,8 +5,7 @@
 
 function process_message ()
     for i = 1, 2 do
-        output("test")
-        inject_message()
+        inject_payload("txt", "", "test")
     end
     return 0
 end

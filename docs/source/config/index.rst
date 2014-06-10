@@ -6,8 +6,8 @@ Configuring hekad
 
 .. start-hekad-config
 
-A hekad configuration file specifies what inputs, decoders, filters, and
-outputs will be loaded. The configuration file is in `TOML
+A hekad configuration file specifies what inputs, decoders, filters, encoders,
+and outputs will be loaded. The configuration file is in `TOML
 <https://github.com/mojombo/toml>`_ format. TOML looks very similar to INI
 configuration formats, but with slightly more rich data structures and nesting
 support.
@@ -68,6 +68,8 @@ down to a likely plugin(s) that failed to properly recycle the pack.
 
 .. end-hekad-config
 
+.. _hekad_global_config_options:
+
 Global configuration options
 ============================
 
@@ -116,13 +118,6 @@ Config:
     Specify the pool size of maximum messages that can exist; default is 100
     which is usually sufficient and of optimal performance.
 
-- decoder_poolsize (int):
-    Specify the number of decoder sets to spin up for use converting input
-    data to Heka's Message objects. Default is 4, optimal value is variable,
-    depending on number of total running plugins, number of expected
-    concurrent connections, amount of expected traffic, and number of
-    available cores on the host.
-
 - plugin_chansize (int):
     Specify the buffer size for the input channel for the various Heka
     plugins. Defaults to 50, which is usually sufficient and of optimal
@@ -138,7 +133,24 @@ Config:
     Root path of Heka's "share directory", where Heka will expect to find
     certain resources it needs to consume. The hekad process should have read-
     only access to this directory. Defaults to `/usr/share/heka` (or
-    `c:\usr\share\heka` on Windows).
+    `c:\\usr\\share\\heka` on Windows).
+
+.. versionadded:: 0.6
+- sample_denominator (int):
+    Specifies the denominator of the sample rate Heka will use when computing
+    the time required to perform certain operations, such as for the
+    ProtobufDecoder to decode a message, or the router to compare a message
+    against a message matcher. Defaults to 1000, i.e. duration will be
+    calculated for one message out of 1000.
+
+.. versionadded:: 0.6
+- pid_file (string):
+    Optionally specify the location of a pidfile where the process id of
+    the running hekad process will be written. The hekad process must have
+    read and write access to the parent directory (which is not automatically
+    created). On a successful exit the pidfile will be removed. If the path
+    already exists the contained pid will be checked for a running process.
+    If one is found, the current process will exit with an error.
 
 Example hekad.toml file
 =======================
@@ -148,41 +160,60 @@ Example hekad.toml file
 .. code-block:: ini
 
     [hekad]
-    cpuprof = "/var/log/hekad/cpuprofile.log"
-    decoder_poolsize = 10
-    max_message_loops = 4
-    max_process_inject = 10
-    max_timer_inject  = 10
-    maxprocs = 10
-    memprof = "/var/log/hekad/memprof.log"
-    plugin_chansize = 10
-    poolsize = 100
+    maxprocs = 4
 
-    # Listens for Heka messages on TCP port 5565.
-    [TcpInput]
-    address = ":5565"
-    parser_type = "message.proto"
-    decoder = "ProtobufDecoder"
+    # Heka dashboard for internal metrics and time series graphs
+    [Dashboard]
+    type = "DashboardOutput"
+    address = ":4352"
+    ticker_interval = 15
 
-    # Writes output from `CounterFilter`, `lua_sandbox`, and Heka's internal
-    # reports to stdout.
-    [debug]
-    type = "LogOutput"
-    message_matcher = "Type == 'heka.counter-output' || Type == 'heka.all-report' || Type == 'heka.sandbox-output'"
+    # Email alerting for anomaly detection
+    [Alert]
+    type = "SmtpOutput"
+    message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'alert'"
+    send_from = "acme-alert@example.com"
+    send_to = ["admin@example.com"]
+    auth = "Plain"
+    user = "smtp-user"
+    password = "smtp-pass"
+    host = "mail.example.com:25"
+    encoder = "AlertEncoder"
+    
+    # User friendly formatting of alert messages
+    [AlertEncoder]
+    type = "SandboxEncoder"
+    filename = "lua_encoders/alert.lua"
 
-    # Counts throughput of messages sent from a Heka load testing tool.
-    [CounterFilter]
-    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
+    # Nginx access log reader
+    [AcmeWebserver]
+    type = "LogstreamerInput"
+    log_directory = "/var/log/nginx"
+    file_match = 'access\.log'
+    decoder = "CombinedNginxDecoder"
 
-    # Defines a sandboxed filter that will be written in Lua.
-    [lua_sandbox]
+    # Nginx access 'combined' log parser
+    [CombinedNginxDecoder]
+    type = "SandboxDecoder"
+    filename = "lua_decoders/nginx_access.lua"
+
+        [CombinedNginxDecoder.config]
+        user_agent_transform = true
+        user_agent_conditional = true
+        type = "combined"
+        log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
+
+    # Collection and visualization of the HTTP status codes
+    [AcmeHTTPStatus]
     type = "SandboxFilter"
-    message_matcher = "Type == 'hekabench' && EnvVersion == '0.8'"
-    output_timer = 1
-    script_type = "lua"
+    filename = "lua_filters/http_status.lua"
+    ticker_interval = 60
     preserve_data = true
-    filename = "lua/sandbox.lua"
+    message_matcher = "Logger == 'AcmeWebserver'"
+
+        # rate of change anomaly detection on column 1 (HTTP 200)
+        [AcmeHTTPStatus.config]
+        anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false)'
 
 .. end-hekad-toml
 

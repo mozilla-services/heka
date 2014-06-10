@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -78,7 +78,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			// pipeConfig can't be re-loaded per child as gospec will do
 			// since each one needs to bind to the same address
 
-			// and the inputs section loads properly with a custom name
+			// and the inputs sections load properly with a custom name
 			udp, ok := pipeConfig.InputRunners["UdpInput"]
 			c.Expect(ok, gs.Equals, true)
 
@@ -88,12 +88,19 @@ func LoadFromConfigSpec(c gs.Context) {
 			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the outputs section loads
+			// and the outputs sections load
 			_, ok = pipeConfig.OutputRunners["LogOutput"]
 			c.Expect(ok, gs.Equals, true)
 
-			// and the filters sections loads
+			// and the filters sections load
 			_, ok = pipeConfig.FilterRunners["sample"]
+			c.Expect(ok, gs.Equals, true)
+
+			// and the encoders sections load
+			var encoder Encoder
+			encoder, ok = pipeConfig.Encoder("PayloadEncoder", "foo")
+			c.Expect(ok, gs.Equals, true)
+			_, ok = encoder.(*PayloadEncoder)
 			c.Expect(ok, gs.Equals, true)
 
 			// Shut down UdpInput to free up the port for future tests.
@@ -130,7 +137,8 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_bad_test.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "2 errors loading plugins")
-			c.Expect(pipeConfig.LogMsgs, gs.ContainsAny, gs.Values("No such plugin: CounterOutput"))
+			c.Expect(pipeConfig.LogMsgs, gs.ContainsAny,
+				gs.Values("No registered plugin type: CounterOutput"))
 		})
 
 		c.Specify("handles missing config file correctly", func() {
@@ -148,7 +156,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
 			msg := pipeConfig.LogMsgs[0]
-			c.Expect(msg, ts.StringContains, "No such plugin")
+			c.Expect(msg, ts.StringContains, "No registered plugin type:")
 		})
 
 		c.Specify("for a DefaultsTestOutput", func() {
@@ -172,11 +180,13 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_defaults2.toml")
 			c.Expect(err, gs.IsNil)
 
-			data := `{"reports":[{"Plugin":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Plugin":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Plugin":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}},{"Plugin":"ProtobufDecoder-0","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-1","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-2","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"ProtobufDecoder-3","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}},{"Plugin":"DecoderPool-ProtobufDecoder","InChanCapacity":{"value":"4", "representation":"count"},"InChanLength":{"value":"4", "representation":"count"}},{"Plugin":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Plugin":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}},{"Plugin":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Plugin":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
+			data := `{"globals":[{"Name":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Name":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Name":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}}], "inputs": [{"Name": "TcpInput"}], "decoders": [{"Name":"ProtobufDecoder","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}}], "filters": [{"Name":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Name":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}}], "outputs": [{"Name":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Name":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
 
 			report := pipeConfig.FormatTextReport("heka.all-report", data)
 
 			expected := `========[heka.all-report]========
+
+====Globals====
 inputRecycleChan:
     InChanCapacity: 100
     InChanLength: 99
@@ -187,21 +197,16 @@ Router:
     InChanCapacity: 50
     InChanLength: 0
     ProcessMessageCount: 26
-ProtobufDecoder-0:
+
+====Inputs====
+TcpInput:
+
+====Decoders====
+ProtobufDecoder:
     InChanCapacity: 50
     InChanLength: 0
-ProtobufDecoder-1:
-    InChanCapacity: 50
-    InChanLength: 0
-ProtobufDecoder-2:
-    InChanCapacity: 50
-    InChanLength: 0
-ProtobufDecoder-3:
-    InChanCapacity: 50
-    InChanLength: 0
-DecoderPool-ProtobufDecoder:
-    InChanCapacity: 4
-    InChanLength: 4
+
+====Filters====
 OpsSandboxManager:
     InChanCapacity: 50
     InChanLength: 0
@@ -223,6 +228,8 @@ hekabench_counter:
     MaxOutput: 0
     ProcessMessageAvgDuration: 0
     TimerEventAvgDuration: 78532
+
+====Outputs====
 LogOutput:
     InChanCapacity: 50
     InChanLength: 0
@@ -235,6 +242,10 @@ DashboardOutput:
     MatchChanCapacity: 50
     MatchChanLength: 0
     MatchAvgDuration: 336
+
+====Encoders====
+NONE
+
 ========
 `
 

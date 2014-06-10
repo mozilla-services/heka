@@ -129,6 +129,14 @@ func MultiDecoderSpec(c gospec.Context) {
 			c.Expect(subRunner.Decoder(), gs.Equals, sub)
 		})
 
+		c.Specify("fails to init with no order set", func() {
+			conf.Order = []string{}
+			err := decoder.Init(conf)
+			c.Expect(err.Error(), gs.Equals, "An order must be specified.")
+
+			dRunner.LogError(errors.New("foo"))
+		})
+
 		c.Specify("with multiple registered decoders", func() {
 			conf.Subs["StartsWithS"] = make(map[string]interface{}, 0)
 			withS := conf.Subs["StartsWithS"].(map[string]interface{})

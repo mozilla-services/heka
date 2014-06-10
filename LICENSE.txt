@@ -11,3 +11,5 @@
 #   Mike Trinkala (mtrinkala@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
 #   Victor Ng (vng@mozilla.com)
+#   David Birdsong (david@imgix.com)
+#   Michael Gibson (michael.gibson79@gmail.com)

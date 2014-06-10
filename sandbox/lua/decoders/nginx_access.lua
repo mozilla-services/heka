@@ -27,27 +27,37 @@ Config:
 - user_agent_conditional (bool, optional, default false)
     Only preserve the http_user_agent value if transform is enabled and fails.
 
+- payload_keep (bool, optional, default false)
+    Always preserve the original log line in the message payload.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
 
-    [FxaNginxAccessDecoder]
+    [TestWebserver]
+    type = "LogstreamerInput"
+    log_directory = "/var/log/nginx"
+    file_match = 'access\.log'
+    decoder = "CombinedLogDecoder"
+
+    [CombinedLogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/nginx_access.lua"
 
-    [FxaNginxAccessDecoder.config]
-    log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for"'
+    [CombinedLogDecoder.config]
+    type = "combined"
     user_agent_transform = true
+    # combined log format
+    log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
 
 *Example Heka Message*
 
 :Timestamp: 2014-01-10 07:04:56 -0800 PST
-:Type: logfile
-:Hostname: trink-x230
+:Type: combined
+:Hostname: test.example.com
 :Pid: 0
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
-:Logger: FxaNginxAccessInput
+:Logger: TestWebserver
 :Payload:
 :EnvVersion:
 :Severity: 7
@@ -56,7 +66,7 @@ Config:
     | name:"http_x_forwarded_for" value_string:"-"
     | name:"http_referer" value_string:"-"
     | name:"body_bytes_sent" value_type:DOUBLE representation:"B" value_double:82
-    | name:"remote_addr" value_string:"62.195.113.219"
+    | name:"remote_addr" value_string:"62.195.113.219" representation:"ipv4"
     | name:"status" value_type:DOUBLE value_double:200
     | name:"request" value_string:"GET /v1/recovery_email/status HTTP/1.1"
     | name:"user_agent_os" value_string:"FirefoxOS"
@@ -66,20 +76,21 @@ Config:
 
 local clf = require "common_log_format"
 
-local log_format = read_config("log_format")
-local msg_type = read_config("type")
-local uat = read_config("user_agent_transform")
-local uak = read_config("user_agent_keep")
-local uac = read_config("user_agent_conditional")
+local log_format    = read_config("log_format")
+local msg_type      = read_config("type")
+local uat           = read_config("user_agent_transform")
+local uak           = read_config("user_agent_keep")
+local uac           = read_config("user_agent_conditional")
+local payload_keep  = read_config("payload_keep")
 
 local msg = {
-Timestamp = nil,
-Type = msg_type,
-Fields = nil
+Timestamp   = nil,
+Type        = msg_type,
+Payload     = nil,
+Fields      = nil
 }
 
 local grammar = clf.build_nginx_grammar(log_format)
-if not grammar then error("could not parse the log_format configuration") end
 
 function process_message ()
     local log = read_message("Payload")
@@ -88,6 +99,10 @@ function process_message ()
 
     msg.Timestamp = fields.time
     fields.time = nil
+
+    if payload_keep then
+        msg.Payload = log
+    end
 
     if fields.http_user_agent and uat then
         fields.user_agent_browser,

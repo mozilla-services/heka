@@ -17,12 +17,14 @@ package amqp
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/streadway/amqp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -100,6 +102,13 @@ type AMQPInputConfig struct {
 	// Whether the queue is deleted when the last consumer un-subscribes
 	// Defaults to auto-delete
 	QueueAutoDelete bool
+	// How long a message published to a queue can live before it is discarded (milliseconds).
+	// 0 is a valid ttl which mimics "immediate" expiration.
+	// Default value is -1 which leaves it undefined.
+	QueueTTL int32
+	// Optional subsection for TLS configuration of AMQPS connections. If
+	// unspecified, the default AMQPS settings will be used.
+	Tls tcp.TlsConfig
 }
 
 // AMQP Output config struct
@@ -128,6 +137,13 @@ type AMQPOutputConfig struct {
 	// published. The AMQP input will automatically detect these
 	// messages and deserialize them. Defaults to true.
 	Serialize bool
+	// Optional subsection for TLS configuration of AMQPS connections. If
+	// unspecified, the default AMQPS settings will be used.
+	Tls tcp.TlsConfig
+	// MIME content type for the AMQP header.
+	ContentType string
+	// Default the encoder
+	Encoder string
 }
 
 // Connection tracker that stores the actual AMQP Connection object along
@@ -140,13 +156,29 @@ type AMQPConnectionTracker struct {
 	connWg  *sync.WaitGroup
 }
 
+// AMQP connection dialer
+type AMQPDialer struct {
+	tlsConfig *tls.Config
+}
+
+// If additional TLS settings were specified, the dialer uses amqp.DialTLS
+// instead of amqp.Dial.
+func (dialer *AMQPDialer) Dial(url string) (conn AMQPConnection, err error) {
+	if dialer.tlsConfig != nil {
+		conn, err = amqp.DialTLS(url, dialer.tlsConfig)
+	} else {
+		conn, err = amqp.Dial(url)
+	}
+	return
+}
+
 // Basic hub that manages AMQP Connections
 //
 // Since multiple channels should be utilized for a single connection,
 // this hub manages the connections, dispensing channels per broker
 // config.
 type AMQPConnectionHub interface {
-	GetChannel(url string) (ch AMQPChannel, usageWg, connectionWg *sync.WaitGroup, err error)
+	GetChannel(url string, dialer AMQPDialer) (ch AMQPChannel, usageWg, connectionWg *sync.WaitGroup, err error)
 	Close(url string, connWg *sync.WaitGroup)
 }
 
@@ -163,7 +195,7 @@ var amqpHub AMQPConnectionHub
 //
 // The caller may then wait for the connectionWg to get notified when the
 // connection has been torn down.
-func (ah *amqpConnectionHub) GetChannel(url string) (ch AMQPChannel,
+func (ah *amqpConnectionHub) GetChannel(url string, dialer AMQPDialer) (ch AMQPChannel,
 	usageWg, connectionWg *sync.WaitGroup, err error) {
 	ah.mutex.Lock()
 	defer ah.mutex.Unlock()
@@ -175,7 +207,7 @@ func (ah *amqpConnectionHub) GetChannel(url string) (ch AMQPChannel,
 	)
 	if trk, ok = ah.connections[url]; !ok {
 		// Create the connection
-		conn, err = amqp.Dial(url)
+		conn, err = dialer.Dial(url)
 		if err != nil {
 			return
 		}
@@ -238,7 +270,8 @@ type AMQPOutput struct {
 	// connWg tracks whether the connection is no longer in use
 	// and is used as a barrier to ensure all users of the connection
 	// are done before we finish
-	connWg *sync.WaitGroup
+	connWg  *sync.WaitGroup
+	encoder Encoder
 }
 
 func (ao *AMQPOutput) ConfigStruct() interface{} {
@@ -247,14 +280,23 @@ func (ao *AMQPOutput) ConfigStruct() interface{} {
 		ExchangeAutoDelete: true,
 		RoutingKey:         "",
 		Persistent:         false,
-		Serialize:          true,
+		Encoder:            "ProtobufEncoder",
+		ContentType:        "application/hekad",
 	}
 }
 
 func (ao *AMQPOutput) Init(config interface{}) (err error) {
 	conf := config.(*AMQPOutputConfig)
 	ao.config = conf
-	ch, usageWg, connectionWg, err := amqpHub.GetChannel(conf.URL)
+	var tlsConf *tls.Config = nil
+	if strings.HasPrefix(conf.URL, "amqps://") && &ao.config.Tls != nil {
+		if tlsConf, err = tcp.CreateGoTlsConfig(&ao.config.Tls); err != nil {
+			return fmt.Errorf("TLS init error: %s", err)
+		}
+	}
+
+	var dialer = AMQPDialer{tlsConf}
+	ch, usageWg, connectionWg, err := amqpHub.GetChannel(conf.URL, dialer)
 	if err != nil {
 		return
 	}
@@ -274,24 +316,26 @@ func (ao *AMQPOutput) Init(config interface{}) (err error) {
 }
 
 func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	encoder := or.Encoder()
+	if encoder == nil {
+		return errors.New("Encoder required.")
+	}
+
 	inChan := or.InChan()
 	conf := ao.config
 
 	var (
-		pack    *PipelinePack
-		msg     *message.Message
-		persist uint8
-		ok      bool = true
-		amqpMsg amqp.Publishing
-		encoder client.Encoder
-		msgBody []byte = make([]byte, 0, 500)
+		pack     *PipelinePack
+		persist  uint8
+		ok       bool = true
+		amqpMsg  amqp.Publishing
+		outBytes []byte
 	)
 	if conf.Persistent {
 		persist = uint8(1)
 	} else {
 		persist = uint8(0)
 	}
-	encoder = client.NewProtobufEncoder(nil)
 
 	for ok {
 		select {
@@ -301,27 +345,16 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
-			msg = pack.Message
-			if conf.Serialize {
-				if err = encoder.EncodeMessageStream(msg, &msgBody); err != nil {
-					or.LogError(err)
-					err = nil
-					pack.Recycle()
-					continue
-				}
-				amqpMsg = amqp.Publishing{
-					DeliveryMode: persist,
-					Timestamp:    time.Now(),
-					ContentType:  "application/hekad",
-					Body:         msgBody,
-				}
-			} else {
-				amqpMsg = amqp.Publishing{
-					DeliveryMode: persist,
-					Timestamp:    time.Now(),
-					ContentType:  "text/plain",
-					Body:         []byte(msg.GetPayload()),
-				}
+			if outBytes, err = encoder.Encode(pack); err != nil {
+				or.LogError(fmt.Errorf("Error encoding message: %s", err))
+				pack.Recycle()
+				continue
+			}
+			amqpMsg = amqp.Publishing{
+				DeliveryMode: persist,
+				Timestamp:    time.Now(),
+				ContentType:  conf.ContentType,
+				Body:         outBytes,
 			}
 			err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 				false, false, amqpMsg)
@@ -330,7 +363,6 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			} else {
 				pack.Recycle()
 			}
-			msgBody = msgBody[:0]
 		}
 	}
 	ao.usageWg.Done()
@@ -362,16 +394,34 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 		QueueDurability:    false,
 		QueueExclusive:     false,
 		QueueAutoDelete:    true,
+		QueueTTL:           -1,
 	}
 }
 
 func (ai *AMQPInput) Init(config interface{}) (err error) {
 	conf := config.(*AMQPInputConfig)
 	ai.config = conf
-	ch, usageWg, connWg, err := amqpHub.GetChannel(conf.URL)
+	var tlsConf *tls.Config = nil
+	if strings.HasPrefix(conf.URL, "amqps://") && &ai.config.Tls != nil {
+		if tlsConf, err = tcp.CreateGoTlsConfig(&ai.config.Tls); err != nil {
+			return fmt.Errorf("TLS init error: %s", err)
+		}
+	}
+
+	var dialer = AMQPDialer{tlsConf}
+	ch, usageWg, connWg, err := amqpHub.GetChannel(conf.URL, dialer)
 	if err != nil {
 		return
 	}
+
+	var args amqp.Table
+
+	ttl := conf.QueueTTL
+
+	if ttl != -1 {
+		args = amqp.Table{"x-message-ttl": int32(ttl)}
+	}
+
 	defer func() {
 		if err != nil {
 			usageWg.Done()
@@ -387,7 +437,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	}
 	ai.ch = ch
 	_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
-		conf.QueueAutoDelete, conf.QueueExclusive, false, nil)
+		conf.QueueAutoDelete, conf.QueueExclusive, false, args)
 	if err != nil {
 		return
 	}
