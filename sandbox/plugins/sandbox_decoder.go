@@ -161,6 +161,12 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		s.err = s.sb.Init("", "decoder")
 	}
 
+	if s.err != nil {
+		dr.LogError(s.err)
+		pipeline.Globals().ShutDown()
+		return
+	}
+
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if s.pack == nil {
 			s.pack = dr.NewPack()
