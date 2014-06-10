@@ -28,5 +28,5 @@ function process_message ()
 end
 
 function timer_event(ns)
-    inject_message(cbuf, "MemStats")
+    inject_payload("cbuf", "MemStats", cbuf)
 end
