@@ -148,21 +148,20 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		s.err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
+	if s.err == nil {
+		s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
+		if s.sbc.PreserveData && fileExists(s.preservationFile) {
+			s.err = s.sb.Init(s.preservationFile, "decoder")
+		} else {
+			s.err = s.sb.Init("", "decoder")
+		}
+	}
 	if s.err != nil {
 		dr.LogError(s.err)
-		pipeline.Globals().ShutDown()
-		return
-	}
-
-	s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
-	if s.sbc.PreserveData && fileExists(s.preservationFile) {
-		s.err = s.sb.Init(s.preservationFile, "decoder")
-	} else {
-		s.err = s.sb.Init("", "decoder")
-	}
-
-	if s.err != nil {
-		dr.LogError(s.err)
+        if s.sb != nil {
+            s.sb.Destroy("")
+            s.sb = nil
+        }
 		pipeline.Globals().ShutDown()
 		return
 	}
