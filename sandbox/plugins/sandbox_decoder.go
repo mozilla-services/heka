@@ -158,10 +158,10 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	}
 	if s.err != nil {
 		dr.LogError(s.err)
-        if s.sb != nil {
-            s.sb.Destroy("")
-            s.sb = nil
-        }
+		if s.sb != nil {
+			s.sb.Destroy("")
+			s.sb = nil
+		}
 		pipeline.Globals().ShutDown()
 		return
 	}
