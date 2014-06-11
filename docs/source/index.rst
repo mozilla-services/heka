@@ -42,7 +42,7 @@ plugins:
 
   Decoder plugins convert data that comes in through the Input plugins to
   Heka's internal Message data structure. Typically decoders are responsible
-  for any parsing, deserializing, or extracting of structur from unstructured
+  for any parsing, deserializing, or extracting of structure from unstructured
   data that needs to happen. They can be written entirely in Go, or the core
   logic can be written in sandboxed Lua code.
 
