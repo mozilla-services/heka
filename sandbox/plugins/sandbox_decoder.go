@@ -244,7 +244,7 @@ func (s *SandboxDecoder) Shutdown() {
 
 func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack, err error) {
 	if s.sb == nil {
-		err = fmt.Errorf("Decoder is not running")
+		err = fmt.Errorf("Decoder has been terminated")
 		return
 	}
 	s.pack = pack
