@@ -110,8 +110,8 @@ func TcpOutputSpec(c gs.Context) {
 			pack.Message.SetPayload(outStr)
 			go func() {
 				wg.Add(1)
-				c.Expect(err, gs.IsNil)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				c.Expect(err, gs.IsNil)
 				wg.Done()
 			}()
 
