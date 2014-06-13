@@ -47,6 +47,7 @@ type GlobalConfigStruct struct {
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
+	PipelineConfig        *PipelineConfig
 	sigChan               chan os.Signal
 }
 

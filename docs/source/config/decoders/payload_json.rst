@@ -68,40 +68,42 @@ Config:
     Useful when used in combination with a MultiDecoder and multiple JSON
     formats. Defaults to "false"
 
-    Example::
+    Example:
+
+    .. code-block:: ini
 
         [my_multi_decoder]
         type = "MultiDecoder"
-        order = ["amqp_decoder", "log1_json", "log2_json"]
+        subs = [log1_json", "log2_json"]
         cascade_strategy = "all"
 
-        [my_multi_decoder.subs.log1_json]
+        [log1_json]
         type = "PayloadJsonDecoder"
         require_all_fields = "true"
 
-        [my_multi_decoder.subs.log1_json.json_map]
-        field1 = "$.field1"
-        field2 = "$.field2"
-        field3 = "$.field3"
+            [log1_json.json_map]
+            field1 = "$.field1"
+            field2 = "$.field2"
+            field3 = "$.field3"
 
-        [my_multi_decoder.subs.log1_json.message_fields]
-        field1 = "%field1%"
-        field2 = "%field2%"
-        fieddld3 = "%field3%"
+            [log1_json.message_fields]
+            field1 = "%field1%"
+            field2 = "%field2%"
+            fieddld3 = "%field3%"
 
-        [my_multi_decoder.subs.log2_json]
+        [log2_json]
         type = "PayloadJsonDecoder"
         require_all_fields = "true"
 
-        [my_multi_decoder.subs.log2_json.json_map]
-        field4 = "$.field4"
-        field5 = "$.field5"
-        field6 = "$.field6"
+            [log2_json.json_map]
+            field4 = "$.field4"
+            field5 = "$.field5"
+            field6 = "$.field6"
 
-        [my_multi_decoder.subs.log2_json.message_fields]
-        field4 = "%field4%"
-        field5 = "%field5%"
-        field6 = "%field6%"
+            [log2_json.message_fields]
+            field4 = "%field4%"
+            field5 = "%field5%"
+            field6 = "%field6%"
 
 Example:
 
@@ -110,23 +112,23 @@ Example:
     [myjson_decoder]
     type = "PayloadJsonDecoder"
 
-    [myjson_decoder.json_map]
-    Count = "$.statsd.count"
-    Name = "$.statsd.name"
-    Pid = "$.pid"
-    Timestamp = "$.timestamp"
-    Severity = "$.log_level"
+        [myjson_decoder.json_map]
+        Count = "$.statsd.count"
+        Name = "$.statsd.name"
+        Pid = "$.pid"
+        Timestamp = "$.timestamp"
+        Severity = "$.log_level"
 
-    [myjson_decoder.severity_map]
-    DEBUG = 7
-    INFO = 6
-    WARNING = 4
+        [myjson_decoder.severity_map]
+        DEBUG = 7
+        INFO = 6
+        WARNING = 4
 
-    [myjson_decoder.message_fields]
-    Pid = "%Pid%"
-    StatCount = "%Count%"
-    StatName =  "%Name%"
-    Timestamp = "%Timestamp%"
+        [myjson_decoder.message_fields]
+        Pid = "%Pid%"
+        StatCount = "%Count%"
+        StatName =  "%Name%"
+        Timestamp = "%Timestamp%"
 
 PayloadJsonDecoder's json_map config subsection only supports a small
 subset of valid JSONPath expressions.

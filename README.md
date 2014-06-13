@@ -21,8 +21,7 @@ WARNING: YOU MUST *SOURCE* THE BUILD SCRIPT (i.e. `source build.sh`) TO
          `./build.sh`) these changes will not be made.
          
 Resources:
-* Heka project docs: http://heka-docs.readthedocs.org/
-* Heka daemon docs: http://hekad.readthedocs.org/
+* Heka project docs: http://hekad.readthedocs.org/
 * GoDoc package docs: http://godoc.org/github.com/mozilla-services/heka
 * Mailing list: https://mail.mozilla.org/listinfo/heka
 * IRC: #heka on irc.mozilla.org

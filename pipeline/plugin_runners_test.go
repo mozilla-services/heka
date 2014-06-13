@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -70,11 +70,9 @@ func InputRunnerSpec(c gs.Context) {
 		pc := new(PipelineConfig)
 		pc.inputWrappers = make(map[string]*PluginWrapper)
 
-		pw := &PluginWrapper{
-			Name:          "stopping",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StoppingInput) },
-		}
+		pw := NewPluginWrapper("stopping")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StoppingInput) }
 		pc.inputWrappers["stopping"] = pw
 
 		input := new(StoppingInput)
@@ -172,11 +170,9 @@ func OutputRunnerSpec(c gs.Context) {
 			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
-		pw := &PluginWrapper{
-			Name:          "stoppingOutput",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StoppingOutput) },
-		}
+		pw := NewPluginWrapper("stoppingOutput")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
 		output := new(StoppingOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingOutput"] = pw
@@ -199,11 +195,9 @@ func OutputRunnerSpec(c gs.Context) {
 			MaxJitter:  "1us",
 			MaxRetries: 4,
 		}
-		pw := &PluginWrapper{
-			Name:          "stoppingresumeOutput",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StopResumeOutput) },
-		}
+		pw := NewPluginWrapper("stoppingresumeOutput")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StopResumeOutput) }
 		output := new(StopResumeOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingresumeOutput"] = pw
