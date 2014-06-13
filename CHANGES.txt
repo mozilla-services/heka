@@ -38,6 +38,8 @@ Bug Handling
 * Fix panic on SIGUSR1 caused by no reports in a given plugin category (issue
   #832).
 
+* Fix file_match config of plugin logstreamer_input (issue #893).
+
 Features
 --------
 
