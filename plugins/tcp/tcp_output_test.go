@@ -58,7 +58,7 @@ func TcpOutputSpec(c gs.Context) {
 		oth := plugins_ts.NewOutputTestHelper(ctrl)
 		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
 		encoder := new(ProtobufEncoder)
-		encoder.Init(nil)
+		encoder.Init(encoder.ConfigStruct())
 		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 		var wg sync.WaitGroup
