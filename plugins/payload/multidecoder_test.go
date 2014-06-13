@@ -145,7 +145,7 @@ func MultiDecoderSpec(c gospec.Context) {
 			// gets handed to the subdecoder.
 			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals))
 			decoder.SetDecoderRunner(dr)
-			sub := decoder.Decoders["StartsWithM"]
+			sub := decoder.Decoders[0]
 			subRunner := sub.(*PayloadRegexDecoder).dRunner
 			c.Expect(subRunner.Name(), gs.Equals,
 				fmt.Sprintf("%s-StartsWithM", decoder.Name))
@@ -326,11 +326,9 @@ func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	pack.MsgBytes, _ = proto.Marshal(msg)
 	decoder := new(MultiDecoder)
 	decoder.CascStrat = CASC_FIRST_WINS
-	decoder.Decoders = make(map[string]Decoder)
 	sub := new(ProtobufDecoder)
 	sub.Init(nil)
-	decoder.Decoders["protobuf"] = sub
-	decoder.Ordered = []Decoder{sub}
+	decoder.Decoders = []Decoder{sub}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		decoder.Decode(pack)

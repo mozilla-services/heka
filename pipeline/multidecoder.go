@@ -57,8 +57,7 @@ func (mdr *mDRunner) LogMessage(msg string) {
 type MultiDecoder struct {
 	Config    *MultiDecoderConfig
 	Name      string
-	Decoders  map[string]Decoder
-	Ordered   []Decoder
+	Decoders  []Decoder
 	dRunner   DecoderRunner
 	CascStrat int
 }
@@ -94,8 +93,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		return errors.New("At least one subdecoder must be specified.")
 	}
 
-	md.Decoders = make(map[string]Decoder)
-	md.Ordered = make([]Decoder, len(md.Config.Subs))
+	md.Decoders = make([]Decoder, len(md.Config.Subs))
 	pConfig := Globals().PipelineConfig
 
 	var (
@@ -111,8 +109,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		if decoder, ok = pConfig.Decoder(name); !ok {
 			return fmt.Errorf("Non-existent subdecoder: %s", name)
 		}
-		md.Decoders[name] = decoder
-		md.Ordered[i] = decoder
+		md.Decoders[i] = decoder
 	}
 
 	return nil
@@ -123,7 +120,8 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 // that might need it.
 func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	md.dRunner = dr
-	for subName, decoder := range md.Decoders {
+	for i, decoder := range md.Decoders {
+		subName := md.Config.Subs[i]
 		if wanter, ok := decoder.(WantsDecoderRunner); ok {
 			// It wants a DecoderRunner, have to create one. But first we need
 			// to get our hands on a *dRunner.
@@ -178,7 +176,7 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 			packs = append(packs, ps...)
 		} else {
 			if err != nil && md.Config.LogSubErrors {
-				idx := len(md.Ordered) - len(chain)
+				idx := len(md.Decoders) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
 					md.Config.Subs[idx], err)
 				md.dRunner.LogError(err)
@@ -200,7 +198,7 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
 
 	if md.CascStrat == CASC_FIRST_WINS {
-		for i, d := range md.Ordered {
+		for i, d := range md.Decoders {
 			if packs, err = d.Decode(pack); packs != nil {
 				return
 			}
@@ -216,7 +214,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 	} else {
 		// If we get here we know cascade_strategy == "all.
 		var anyMatch bool
-		packs, anyMatch = md.getDecodedPacks(md.Ordered, []*PipelinePack{pack})
+		packs, anyMatch = md.getDecodedPacks(md.Decoders, []*PipelinePack{pack})
 		if !anyMatch {
 			err = errors.New("All subdecoders failed.")
 			packs = nil
