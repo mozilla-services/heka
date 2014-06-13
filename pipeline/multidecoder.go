@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,7 +18,6 @@ package pipeline
 import (
 	"errors"
 	"fmt"
-	"github.com/bbangert/toml"
 	"log"
 )
 
@@ -59,15 +58,13 @@ type MultiDecoder struct {
 	Config    *MultiDecoderConfig
 	Name      string
 	Decoders  map[string]Decoder
-	ordered   []Decoder
+	Ordered   []Decoder
 	dRunner   DecoderRunner
 	CascStrat int
 }
 
 type MultiDecoderConfig struct {
-	// subs is an ordered dictionary of other decoders
-	Subs            map[string]interface{}
-	Order           []string
+	Subs            []string
 	LogSubErrors    bool   `toml:"log_sub_errors"`
 	CascadeStrategy string `toml:"cascade_strategy"`
 }
@@ -80,9 +77,8 @@ const (
 var mdStrategies = map[string]int{"first-wins": CASC_FIRST_WINS, "all": CASC_ALL}
 
 func (md *MultiDecoder) ConfigStruct() interface{} {
-	subs := make(map[string]interface{})
-	order := make([]string, 0)
-	return &MultiDecoderConfig{subs, order, false, "first-wins"}
+	subs := make([]string, 0)
+	return &MultiDecoderConfig{subs, false, "first-wins"}
 }
 
 // Heka will call this before calling Init() to set the name of the
@@ -93,7 +89,14 @@ func (md *MultiDecoder) SetName(name string) {
 
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Config = config.(*MultiDecoderConfig)
-	md.Decoders = make(map[string]Decoder, 0)
+
+	if len(md.Config.Subs) == 0 {
+		return errors.New("At least one subdecoder must be specified.")
+	}
+
+	md.Decoders = make(map[string]Decoder)
+	md.Ordered = make([]Decoder, len(md.Config.Subs))
+	pConfig := Globals().PipelineConfig
 
 	var (
 		ok      bool
@@ -104,100 +107,15 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
 
-	// run PrimitiveDecode against each subsection here and bind
-	// it into the md.Decoders map
-	for name, conf := range md.Config.Subs {
-		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name, name))
-		if decoder, err = md.loadSection(name, conf); err != nil {
-			return
+	for i, name := range md.Config.Subs {
+		if decoder, ok = pConfig.Decoder(name); !ok {
+			return fmt.Errorf("Non-existent subdecoder: %s", name)
 		}
 		md.Decoders[name] = decoder
-	}
-
-	if len(md.Config.Order) == 0 {
-		return fmt.Errorf("An order must be specified.")
-	}
-
-	md.ordered = make([]Decoder, len(md.Config.Order))
-	for i, name := range md.Config.Order {
-		if decoder, ok = md.Decoders[name]; !ok {
-			return fmt.Errorf("Non-existent subdecoder '%s' in `order` config value.",
-				name)
-		}
-		md.ordered[i] = decoder
+		md.Ordered[i] = decoder
 	}
 
 	return nil
-}
-
-func (md *MultiDecoder) log(msg string) {
-	if md.dRunner != nil {
-		md.dRunner.LogMessage(msg)
-	} else {
-		log.Println(msg)
-	}
-}
-
-// loadSection must be passed a plugin name and the config for that plugin. It
-// will create a PluginWrapper (i.e. a factory).
-func (md *MultiDecoder) loadSection(sectionName string,
-	configSection toml.Primitive) (plugin Decoder, err error) {
-	var ok bool
-	var pluginGlobals PluginGlobals
-	var pluginType string
-
-	wrapper := new(PluginWrapper)
-	wrapper.Name = sectionName
-
-	// Setup default retry policy
-	pluginGlobals.Retries = RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
-	}
-
-	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		err = fmt.Errorf("%s Unable to decode config for plugin: %s, error: %s", md.Name, wrapper.Name, err.Error())
-		md.log(err.Error())
-		return
-	}
-
-	if pluginGlobals.Typ == "" {
-		pluginType = sectionName
-	} else {
-		pluginType = pluginGlobals.Typ
-	}
-
-	if wrapper.PluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-		err = fmt.Errorf("%s No such plugin: %s (type: %s)", md.Name, wrapper.Name, pluginType)
-		md.log(err.Error())
-		return
-	}
-
-	// Create plugin, test config object generation.
-	plugin = wrapper.PluginCreator().(Decoder)
-	var config interface{}
-	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
-		err = fmt.Errorf("%s Can't load config for %s '%s': %s", md.Name,
-			sectionName,
-			wrapper.Name, err)
-		md.log(err.Error())
-		return
-	}
-	wrapper.ConfigCreator = func() interface{} { return config }
-
-	if wantsName, ok := plugin.(WantsName); ok {
-		wantsName.SetName(wrapper.Name)
-	}
-
-	// Apply configuration to instantiated plugin.
-	if err = plugin.(Plugin).Init(config); err != nil {
-		err = fmt.Errorf("Initialization failed for '%s': %s",
-			sectionName, err)
-		md.log(err.Error())
-		return
-	}
-	return
 }
 
 // Heka will call this to give us access to the runner. We'll store it for
@@ -260,13 +178,12 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 			packs = append(packs, ps...)
 		} else {
 			if err != nil && md.Config.LogSubErrors {
-				idx := len(md.ordered) - len(chain)
+				idx := len(md.Ordered) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
-					md.Config.Order[idx], err)
+					md.Config.Subs[idx], err)
 				md.dRunner.LogError(err)
 			}
-			packs = inPacks
-			break
+			packs = append(packs, p)
 		}
 	}
 
@@ -281,21 +198,14 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 
 // Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
-	var newType string
-	if pack.Message.GetType() == "" {
-		newType = fmt.Sprintf("heka.%s", md.Name)
-	} else {
-		newType = fmt.Sprintf("heka.%s.%s", md.Name, pack.Message.GetType())
-	}
-	pack.Message.SetType(newType)
 
 	if md.CascStrat == CASC_FIRST_WINS {
-		for i, d := range md.ordered {
+		for i, d := range md.Ordered {
 			if packs, err = d.Decode(pack); packs != nil {
 				return
 			}
 			if err != nil && md.Config.LogSubErrors {
-				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Order[i],
+				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Subs[i],
 					err)
 				md.dRunner.LogError(err)
 			}
@@ -303,15 +213,13 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		// If we got this far none of the decoders succeeded.
 		err = errors.New("All subdecoders failed.")
 		packs = nil
-		pack.Recycle()
 	} else {
 		// If we get here we know cascade_strategy == "all.
 		var anyMatch bool
-		packs, anyMatch = md.getDecodedPacks(md.ordered, []*PipelinePack{pack})
+		packs, anyMatch = md.getDecodedPacks(md.Ordered, []*PipelinePack{pack})
 		if !anyMatch {
 			err = errors.New("All subdecoders failed.")
 			packs = nil
-			pack.Recycle()
 		}
 	}
 	return

@@ -121,7 +121,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			hasSyncDecoder := false
 
 			// ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 2)
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 4)
 
 			// Check that the MultiDecoder actually loaded
 			for k, _ := range pipeConfig.DecoderWrappers {

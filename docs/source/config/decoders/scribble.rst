@@ -32,13 +32,14 @@ Example (in MultiDecoder context)
 
         [mytypedecoder]
         type = "MultiDecoder"
-        order = ["proto", "mytype"]
+        subs = ["ProtobufDecoder", "mytype"]
+        cascade_strategy = "all"
+        log_sub_errors = true
 
-            [mytypedecoder.subs.proto]
-            type = "ProtobufDecoder"
+        [ProtobufDecoder]
 
-            [mytypedecoder.subs.mytype]
-            type = "ScribbleDecoder"
+        [mytype]
+        type = "ScribbleDecoder"
 
-                [mytypedecoder.subs.mytype.message_fields]
-                Type = "MyType"
+            [mytype.message_fields]
+            Type = "MyType"

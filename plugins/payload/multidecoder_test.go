@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -22,21 +22,44 @@ package payload
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"regexp"
+	"testing"
 )
+
+type MultiOutputDecoder struct {
+	recycleChan chan *PipelinePack
+}
+
+func (m *MultiOutputDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
+	if _, ok := pack.Message.GetFieldValue("skipit"); ok {
+		return nil, errors.New("Skipped")
+	}
+	pack2 := NewPipelinePack(m.recycleChan)
+	pack3 := NewPipelinePack(m.recycleChan)
+	pack2.Message = new(message.Message)
+	pack3.Message = new(message.Message)
+	pack.Message.Copy(pack2.Message)
+	pack.Message.Copy(pack3.Message)
+	message.NewStringField(pack2.Message, "skipit", "skipit")
+	packs = append(packs, pack, pack2, pack3)
+	return
+}
 
 func MultiDecoderSpec(c gospec.Context) {
 	t := &pipeline_ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	NewPipelineConfig(nil) // initializes Globals()
+	pConfig := NewPipelineConfig(nil) // initializes Globals()
 
 	c.Specify("A MultiDecoder", func() {
 		decoder := new(MultiDecoder)
@@ -46,18 +69,19 @@ func MultiDecoderSpec(c gospec.Context) {
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 
-		conf.Subs = make(map[string]interface{}, 0)
+		rDecoder0 := new(PayloadRegexDecoder)
+		rDecoder0.Match, _ = regexp.Compile("^(?P<TheData>m.*)")
+		rDecoder0.MessageFields = MessageTemplate{
+			"StartsWithM": "%TheData%",
+		}
+		rDecoder0.logErrors = true
+		wrapper0 := NewPluginWrapper("StartsWithM")
+		wrapper0.CreateWithError = func() (interface{}, error) {
+			return rDecoder0, nil
+		}
+		pConfig.DecoderWrappers["StartsWithM"] = wrapper0
 
-		conf.Subs["StartsWithM"] = make(map[string]interface{}, 0)
-		withM := conf.Subs["StartsWithM"].(map[string]interface{})
-		withM["type"] = "PayloadRegexDecoder"
-		withM["match_regex"] = "^(?P<TheData>m.*)"
-		withMFields := make(map[string]interface{}, 0)
-		withMFields["StartsWithM"] = "%TheData%"
-		withM["message_fields"] = withMFields
-
-		conf.Order = []string{"StartsWithM"}
-
+		conf.Subs = []string{"StartsWithM"}
 		errMsg := "All subdecoders failed."
 
 		dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
@@ -75,7 +99,6 @@ func MultiDecoderSpec(c gospec.Context) {
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
-			c.Expect(pack.Message.GetType(), gs.Equals, "heka.MyMultiDecoder")
 			value, ok := pack.Message.GetFieldValue("StartsWithM")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, regex_data)
@@ -129,32 +152,30 @@ func MultiDecoderSpec(c gospec.Context) {
 			c.Expect(subRunner.Decoder(), gs.Equals, sub)
 		})
 
-		c.Specify("fails to init with no order set", func() {
-			conf.Order = []string{}
-			err := decoder.Init(conf)
-			c.Expect(err.Error(), gs.Equals, "An order must be specified.")
-
-			dRunner.LogError(errors.New("foo"))
-		})
-
 		c.Specify("with multiple registered decoders", func() {
-			conf.Subs["StartsWithS"] = make(map[string]interface{}, 0)
-			withS := conf.Subs["StartsWithS"].(map[string]interface{})
-			withS["type"] = "PayloadRegexDecoder"
-			withS["match_regex"] = "^(?P<TheData>s.*)"
-			withSFields := make(map[string]interface{}, 0)
-			withSFields["StartsWithS"] = "%TheData%"
-			withS["message_fields"] = withSFields
+			rDecoder1 := new(PayloadRegexDecoder)
+			rDecoder1.Match, _ = regexp.Compile("^(?P<TheData>s.*)")
+			rDecoder1.MessageFields = MessageTemplate{
+				"StartsWithS": "%TheData%",
+			}
+			wrapper1 := NewPluginWrapper("StartsWithS")
+			wrapper1.CreateWithError = func() (interface{}, error) {
+				return rDecoder1, nil
+			}
+			pConfig.DecoderWrappers["StartsWithS"] = wrapper1
 
-			conf.Subs["StartsWithM2"] = make(map[string]interface{}, 0)
-			withM2 := conf.Subs["StartsWithM2"].(map[string]interface{})
-			withM2["type"] = "PayloadRegexDecoder"
-			withM2["match_regex"] = "^(?P<TheData>m.*)"
-			withM2Fields := make(map[string]interface{}, 0)
-			withM2Fields["StartsWithM2"] = "%TheData%"
-			withM2["message_fields"] = withM2Fields
+			rDecoder2 := new(PayloadRegexDecoder)
+			rDecoder2.Match, _ = regexp.Compile("^(?P<TheData>m.*)")
+			rDecoder2.MessageFields = MessageTemplate{
+				"StartsWithM2": "%TheData%",
+			}
+			wrapper2 := NewPluginWrapper("StartsWithM2")
+			wrapper2.CreateWithError = func() (interface{}, error) {
+				return rDecoder2, nil
+			}
+			pConfig.DecoderWrappers["StartsWithM2"] = wrapper2
 
-			conf.Order = append(conf.Order, "StartsWithS", "StartsWithM2")
+			conf.Subs = append(conf.Subs, "StartsWithS", "StartsWithM2")
 
 			var ok bool
 
@@ -167,8 +188,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				decoder.SetDecoderRunner(dRunner)
 
 				c.Specify("on a first match condition", func() {
-					regexData := "match first"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("match first")
 					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
@@ -180,8 +200,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				})
 
 				c.Specify("and a second match condition", func() {
-					regexData := "second match"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("second match")
 					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
@@ -193,8 +212,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				})
 
 				c.Specify("returning an error if they all fail", func() {
-					regexData := "won't match"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("won't match")
 					packs, err := decoder.Decode(pack)
 					c.Expect(len(packs), gs.Equals, 0)
 					c.Expect(err.Error(), gs.Equals, errMsg)
@@ -214,8 +232,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				decoder.SetDecoderRunner(dRunner)
 
 				c.Specify("matches multiples when appropriate", func() {
-					regexData := "matches twice"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("matches twice")
 					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
@@ -227,8 +244,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				})
 
 				c.Specify("matches singles when appropriate", func() {
-					regexData := "second match"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("second match")
 					_, err = decoder.Decode(pack)
 					c.Expect(err, gs.IsNil)
 					_, ok = pack.Message.GetFieldValue("StartsWithM")
@@ -240,8 +256,7 @@ func MultiDecoderSpec(c gospec.Context) {
 				})
 
 				c.Specify("returns an error if they all fail", func() {
-					regexData := "won't match"
-					pack.Message.SetPayload(regexData)
+					pack.Message.SetPayload("won't match")
 					packs, err := decoder.Decode(pack)
 					c.Expect(len(packs), gs.Equals, 0)
 					c.Expect(err.Error(), gs.Equals, errMsg)
@@ -255,4 +270,69 @@ func MultiDecoderSpec(c gospec.Context) {
 			})
 		})
 	})
+
+	c.Specify("A MultiDecoder w/ MultiOutput", func() {
+		decoder := new(MultiDecoder)
+		decoder.SetName("MyMultiDecoder")
+		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
+		conf.CascadeStrategy = "all"
+
+		supply := make(chan *PipelinePack, 10)
+		pack := NewPipelinePack(supply)
+
+		sub0 := &MultiOutputDecoder{supply}
+		sub1 := &MultiOutputDecoder{supply}
+		sub2 := &MultiOutputDecoder{supply}
+
+		wrapper0 := NewPluginWrapper("sub0")
+		wrapper0.CreateWithError = func() (interface{}, error) {
+			return sub0, nil
+		}
+		pConfig.DecoderWrappers["sub0"] = wrapper0
+
+		wrapper1 := NewPluginWrapper("sub1")
+		wrapper1.CreateWithError = func() (interface{}, error) {
+			return sub1, nil
+		}
+		pConfig.DecoderWrappers["sub1"] = wrapper1
+
+		wrapper2 := NewPluginWrapper("sub2")
+		wrapper2.CreateWithError = func() (interface{}, error) {
+			return sub2, nil
+		}
+		pConfig.DecoderWrappers["sub2"] = wrapper2
+
+		conf.Subs = []string{"sub0", "sub1", "sub2"}
+		dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+
+		c.Specify("always tries to decode all packs", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			decoder.SetDecoderRunner(dRunner)
+
+			packs, err := decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(packs), gs.Equals, 15)
+		})
+	})
+}
+
+func BenchmarkMultiDecodeProtobuf(b *testing.B) {
+	b.StopTimer()
+	msg := pipeline_ts.GetTestMessage()
+	msg.SetPayload("This is a test")
+	pConfig := NewPipelineConfig(DefaultGlobals())
+	pack := NewPipelinePack(pConfig.InputRecycleChan())
+	pack.MsgBytes, _ = proto.Marshal(msg)
+	decoder := new(MultiDecoder)
+	decoder.CascStrat = CASC_FIRST_WINS
+	decoder.Decoders = make(map[string]Decoder)
+	sub := new(ProtobufDecoder)
+	sub.Init(nil)
+	decoder.Decoders["protobuf"] = sub
+	decoder.Ordered = []Decoder{sub}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		decoder.Decode(pack)
+	}
 }
