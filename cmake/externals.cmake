@@ -35,7 +35,8 @@ function(parse_url url)
     string(REGEX REPLACE ".*/" "" _name ${url})
     set(name ${_name} PARENT_SCOPE)
 
-    string(REGEX REPLACE "https?://" "" _path ${url})
+    string(REGEX REPLACE "^https?://([A-Za-z0-9$-._~!:;=]+@)?" "" _path ${url})
+
     set(path ${_path} PARENT_SCOPE)
 endfunction(parse_url)
 
@@ -167,7 +168,7 @@ if (PLUGIN_LOADER)
     set(_PLUGIN_LOADER_OUTPUT "package main\n\nimport (")
     list(SORT PLUGIN_LOADER)
     foreach(PLUGIN IN ITEMS ${PLUGIN_LOADER})
-         set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n\t _ \"${PLUGIN}\"")
+        set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n\t _ \"${PLUGIN}\"")
     endforeach()
     set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n)\n")
     file(WRITE "${CMAKE_BINARY_DIR}/plugin_loader.go" ${_PLUGIN_LOADER_OUTPUT})
