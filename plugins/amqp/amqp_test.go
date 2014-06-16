@@ -297,7 +297,7 @@ func AMQPPluginSpec(c gs.Context) {
 
 		c.Specify("publishes a serialized message", func() {
 			encoder := new(ProtobufEncoder)
-			encoder.Init(nil)
+			encoder.Init(encoder.ConfigStruct())
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 			err := amqpOutput.Init(defaultConfig)

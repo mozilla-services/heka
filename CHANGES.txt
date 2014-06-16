@@ -120,6 +120,8 @@ Features
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
 
+* Added include_framing option to ProtobufEncoder to optionally disable framing (issue #902).
+
 0.5.3 (2014-MM-DD)
 ==================
 
