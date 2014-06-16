@@ -66,6 +66,8 @@ Bug Handling
 Features
 --------
 
+* Added a message type configuration option to the rsyslog decoder (issue #907).
+
 * Added `elasticsearch` Lua module to generate BulkAPI index JSON (issue #875).
 
 * Added support for Lua sandbox preservation versioning (issue #701).
