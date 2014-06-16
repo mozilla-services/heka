@@ -105,13 +105,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			continue
 		}
 
-		if stopped {
-			// If we're stopping, use synchronous call so we don't
-			// close the Packet channel too soon.
-			s.handleMessage(message[:n])
-		} else {
-			go s.handleMessage(message[:n])
-		}
+		s.handleMessage(message[:n])
 	}
 
 	return
