@@ -36,7 +36,7 @@ function(parse_url url)
     set(name ${_name} PARENT_SCOPE)
 
     string(REGEX REPLACE "https?://" "" _path ${url})
-    string(REGEX REPLACE "^[a-f0-9]+:.+@" "" _path ${_path})
+    string(REGEX REPLACE "^.*:.*@" "" _path ${_path})
 
     set(path ${_path} PARENT_SCOPE)
 endfunction(parse_url)
