@@ -22,13 +22,14 @@ Config:
     filename = "lua_decoders/rsyslog.lua"
 
     [RsyslogDecoder.config]
+    type = "RSYSLOG_TraditionalFileFormat"
     template = '%TIMESTAMP% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n'
     tz = "America/Los_Angeles"
 
 *Example Heka Message*
 
 :Timestamp: 2014-02-10 12:58:58 -0800 PST
-:Type: logfile
+:Type: RSYSLOG_TraditionalFileFormat
 :Hostname: trink-x230
 :Pid: 0
 :UUID: e0eef205-0b64-41e8-a307-5772b05e16c1
@@ -43,9 +44,11 @@ Config:
 local syslog = require "syslog"
 
 local template = read_config("template")
+local msg_type = read_config("type")
 
 local msg = {
 Timestamp   = nil,
+Type        = msg_type,
 Hostname    = nil,
 Payload     = nil,
 Pid         = nil,
