@@ -36,6 +36,8 @@ function(parse_url url)
     set(name ${_name} PARENT_SCOPE)
 
     string(REGEX REPLACE "https?://" "" _path ${url})
+    string(REGEX REPLACE "^[a-f0-9]+:.+@" "" _path ${_path})
+
     set(path ${_path} PARENT_SCOPE)
 endfunction(parse_url)
 
@@ -167,7 +169,6 @@ if (PLUGIN_LOADER)
     set(_PLUGIN_LOADER_OUTPUT "package main\n\nimport (")
     list(SORT PLUGIN_LOADER)
     foreach(PLUGIN IN ITEMS ${PLUGIN_LOADER})
-        string(REGEX REPLACE "^[a-f0-9]+:.+@" "" PLUGIN ${PLUGIN})
         set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n\t _ \"${PLUGIN}\"")
     endforeach()
     set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n)\n")
