@@ -35,6 +35,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* StatsdInput no longer spins up a new goroutine for each stat (issue #359).
+
 * MultiDecoder no longer prevents shutdown if a nested SandboxDecoder crashes
   during startup (issue #896).
 
