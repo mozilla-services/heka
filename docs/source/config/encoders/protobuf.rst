@@ -5,8 +5,7 @@ ProtobufEncoder
 The ProtobufEncoder is used to serialize Heka message objects back into Heka's
 standard protocol buffers format. This is the format that Heka uses to
 communicate with other Heka instances, so one will always be included in your
-Heka configuration whether specified or not. The ProtobufDecoder has no
-configuration options.
+Heka configuration whether specified or not.
 
 The hekad protocol buffers message schema is defined in the `message.proto`
 file in the `message` package.
