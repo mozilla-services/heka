@@ -9,12 +9,10 @@ failure to decode, MultiDecoder will return an error and recycle the message.
 
 Config:
 
-- subs:
-    A subsection is used to declare the TOML configuration for any delegate
-    decoders. The default is that no delegate decoders are defined.
-
-- order (list of strings):
-    PipelinePack objects will be passed in order to each decoder in this list.
+- subs ([]string):
+    An ordered list of subdecoders to which the MultiDecoder will delegate.
+    Each item in the list should specify another decoder configuration section
+    by section name. Must contain at least one entry.
 
 - log_sub_errors (bool):
     If true, the DecoderRunner will log the errors returned whenever a
@@ -29,35 +27,32 @@ Config:
     they succeed. In each case, decoding will only be considered to have
     failed if *none* of the sub-decoders succeed.
 
-Example (Two PayloadRegexDecoder delegates):
+Here is a slightly contrived example where we have protocol buffer encoded
+messages coming in over a TCP connection, with each message containin a single
+nginx log line. Our MultiDecoder will run each message through two decoders,
+the first to deserialize the protocol buffer and the second to parse the log
+text:
 
 .. code-block:: ini
 
-        [syncdecoder]
-        type = "MultiDecoder"
-        order = ['syncformat', 'syncraw']
+    [TcpInput]
+    address = ":5565"
+    parser_type = "message.proto"
+    decoder = "shipped-nginx-decoder"
 
-        [syncdecoder.subs.syncformat]
-        type = "PayloadRegexDecoder"
-        match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
-        timestamp_layout = "02/Jan/2006:15:04:05 -0700"
+    [shipped-nginx-decoder]
+    type = "MultiDecoder"
+    subs = ['ProtobufDecoder', 'nginx-access-decoder']
+    cascade_strategy = "all"
+    log_sub_errors = true
 
-        [syncdecoder.subs.syncformat.message_fields]
-        RemoteIP|ipv4 = "%RemoteIP%"
-        User = "%User%"
-        Method = "%Method%"
-        Url|uri = "%Url%"
-        StatusCode = "%StatusCode%"
-        RequestSize|B= "%RequestSize%"
-        Referer = "%Referer%"
-        Browser = "%Browser%"
-        ResponseTime|s = "%ResponseTime%"
-        ResponseSize|B = "%ResponseSize%"
-        Payload = ""
+    [ProtobufDecoder]
 
-        [syncdecoder.subs.syncraw]
-        type = "PayloadRegexDecoder"
-        match_regex = '^(?P<TheData>.*)'
+    [nginx-access-decoder]
+    type = "SandboxDecoder"
+    filename = "lua_decoders/nginx_access.lua"
 
-        [syncdecoder.subs.syncraw.message_fields]
-        Somedata = "%TheData%"
+        [nginx-access-decoder.config]
+        type = "combined"
+        user_agent_transform = true
+        log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'

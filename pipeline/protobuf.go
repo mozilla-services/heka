@@ -89,6 +89,10 @@ func (p *ProtobufDecoder) ReportMsg(msg *message.Message) error {
 	return nil
 }
 
+type ProtobufEncoderConfig struct {
+	IncludeFraming         bool `toml:"include_framing"`
+}
+
 // Encoder for converting Message objects into Protocol Buffer data.
 type ProtobufEncoder struct {
 	processMessageCount    int64
@@ -99,12 +103,20 @@ type ProtobufEncoder struct {
 	reportLock             sync.Mutex
 	sample                 bool
 	sampleDenominator      int
+	conf                   *ProtobufEncoderConfig
+}
+
+func (p *ProtobufEncoder) ConfigStruct() interface{} {
+  return &ProtobufEncoderConfig{
+    IncludeFraming: true,
+  }
 }
 
 func (p *ProtobufEncoder) Init(config interface{}) error {
 	p.cEncoder = client.NewProtobufEncoder(nil)
 	p.sample = true
 	p.sampleDenominator = Globals().SampleDenominator
+	p.conf = config.(*ProtobufEncoderConfig)
 	return nil
 }
 
@@ -115,8 +127,14 @@ func (p *ProtobufEncoder) Encode(pack *PipelinePack) (output []byte, err error) 
 		startTime = time.Now()
 	}
 
-	if err = p.cEncoder.EncodeMessageStream(pack.Message, &output); err != nil {
-		atomic.AddInt64(&p.processMessageFailures, 1)
+	if p.conf.IncludeFraming {
+		if err = p.cEncoder.EncodeMessageStream(pack.Message, &output); err != nil {
+			atomic.AddInt64(&p.processMessageFailures, 1)
+		}
+	} else {
+		if output, err = p.cEncoder.EncodeMessage(pack.Message); err != nil {
+			atomic.AddInt64(&p.processMessageFailures, 1)
+		}
 	}
 
 	if p.sample {

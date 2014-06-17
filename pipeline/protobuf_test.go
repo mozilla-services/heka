@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -76,10 +76,12 @@ func BenchmarkEncodeProtobuf(b *testing.B) {
 func BenchmarkDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
 	msg := ts.GetTestMessage()
+	msg.SetPayload("This is a test")
 	encoded, _ := proto.Marshal(msg)
-	config := NewPipelineConfig(nil)
+	config := NewPipelineConfig(DefaultGlobals())
 	pack := NewPipelinePack(config.inputRecycleChan)
 	decoder := new(ProtobufDecoder)
+	decoder.Init(nil)
 	pack.MsgBytes = encoded
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {

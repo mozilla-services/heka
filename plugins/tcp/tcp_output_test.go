@@ -58,7 +58,7 @@ func TcpOutputSpec(c gs.Context) {
 		oth := plugins_ts.NewOutputTestHelper(ctrl)
 		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
 		encoder := new(ProtobufEncoder)
-		encoder.Init(nil)
+		encoder.Init(encoder.ConfigStruct())
 		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
 		var wg sync.WaitGroup
@@ -110,8 +110,8 @@ func TcpOutputSpec(c gs.Context) {
 			pack.Message.SetPayload(outStr)
 			go func() {
 				wg.Add(1)
-				c.Expect(err, gs.IsNil)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				c.Expect(err, gs.IsNil)
 				wg.Done()
 			}()
 
@@ -140,8 +140,8 @@ func TcpOutputSpec(c gs.Context) {
 			pack.Message.SetPayload(outStr)
 			go func() {
 				wg.Add(1)
-				c.Expect(err, gs.IsNil)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				c.Expect(err, gs.IsNil)
 				wg.Done()
 			}()
 			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)

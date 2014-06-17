@@ -592,6 +592,7 @@ func DecoderSpec(c gs.Context) {
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
+		conf.Config["type"] = "MyTestFormat"
 		conf.Config["template"] = "%pri% %TIMESTAMP% %TIMEGENERATED:::date-rfc3339% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
 		conf.Config["tz"] = "America/Los_Angeles"
 		supply := make(chan *pipeline.PipelinePack, 1)
@@ -616,6 +617,7 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "testhost")
 			c.Expect(pack.Message.GetPid(), gs.Equals, int32(4322))
 			c.Expect(pack.Message.GetPayload(), gs.Equals, "test message.")
+			c.Expect(pack.Message.GetType(), gs.Equals, conf.Config["type"])
 
 			var ok bool
 			var value interface{}

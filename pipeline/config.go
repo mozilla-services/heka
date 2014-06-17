@@ -174,6 +174,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	if globals == nil {
 		globals = DefaultGlobals()
 	}
+	globals.PipelineConfig = config
 	// Replace global `Globals` function w/ one that returns our values.
 	Globals = func() *GlobalConfigStruct {
 		return globals
@@ -458,9 +459,17 @@ type PluginGlobals struct {
 
 // A helper object to support delayed plugin creation.
 type PluginWrapper struct {
-	Name          string
-	ConfigCreator func() interface{}
-	PluginCreator func() interface{}
+	Name            string
+	ConfigCreator   func() interface{}
+	PluginCreator   func() interface{}
+	CreateWithError func() (interface{}, error) // Replaced in tests.
+}
+
+func NewPluginWrapper(name string) (wrapper *PluginWrapper) {
+	wrapper = new(PluginWrapper)
+	wrapper.Name = name
+	wrapper.CreateWithError = wrapper.createWithError
+	return
 }
 
 // Create a new instance of the plugin and return it. Errors are ignored. Call
@@ -472,7 +481,7 @@ func (self *PluginWrapper) Create() (plugin interface{}) {
 
 // Create a new instance of the plugin and return it, or nil and appropriate
 // error value if this isn't possible.
-func (self *PluginWrapper) CreateWithError() (plugin interface{}, err error) {
+func (self *PluginWrapper) createWithError() (plugin interface{}, err error) {
 	plugin = self.PluginCreator()
 	if wantsName, ok := plugin.(WantsName); ok {
 		wantsName.SetName(self.Name)
@@ -567,8 +576,7 @@ type ConfigSection struct {
 // other plugin types a plugin instance is created, configured, and wrapped
 // with an appropriate plugin runner.
 func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
-	wrapper := new(PluginWrapper)
-	wrapper.Name = section.name
+	wrapper := NewPluginWrapper(section.name)
 	// Check for existence of plugin type in AvailablePlugins map happens in
 	// loadPluginGlobals, we shouldn't get here if it doesn't exist.
 	wrapper.PluginCreator = AvailablePlugins[section.globals.Typ]
@@ -783,7 +791,14 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 			continue
 		}
 		section.category = category
-		sectionsByCategory[category] = append(sectionsByCategory[category], section)
+		if section.globals.Typ == "MultiDecoder" {
+			// Special case MultiDecoders so we can make sure they get
+			// registered *after* all possible subdecoders.
+			sectionsByCategory["MultiDecoder"] = append(sectionsByCategory["MultiDecoder"],
+				section)
+		} else {
+			sectionsByCategory[category] = append(sectionsByCategory[category], section)
+		}
 		if name == "ProtobufDecoder" {
 			protobufDRegistered = true
 		}
@@ -831,6 +846,10 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 				section)
 		}
 	}
+
+	// Append MultiDecoders to the end of the Decoders list.
+	sectionsByCategory["Decoder"] = append(sectionsByCategory["Decoder"],
+		sectionsByCategory["MultiDecoder"]...)
 
 	// Force decoders and encoders to be registered before the other plugin
 	// types are initialized so we know they'll be there for inputs and

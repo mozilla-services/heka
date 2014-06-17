@@ -4,6 +4,17 @@
 Backwards Incompatibilities
 ---------------------------
 
+* MultiDecoder no longer sets prepends name of the decoder instance to the
+  message type value for every message. This was impacting performance, is
+  almost never what is needed, and is almost always overwritten by the nested
+  subdecoders anyway.
+
+* MultiDecoder now has a `subs` option that refers to other top level decoder
+  config definitions, instead of nested sub-configs and a separate `order`
+  option specifying the order. This makes for less typing and the ability to
+  reuse decoder definitions as both standalone decoders and across multiple
+  MultiDecoders (issue #485).
+
 * ElasticSearchOutput now uses an Encoder plugin instead of MessageFormatters.
   Created ESJsonEncoder, ESLogstashV0Encoder, and ESPayloadEncoder
   (implemented as a SandboxEncoder in es_payload.lua) to replicate prior
@@ -24,6 +35,18 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* StatsdInput no longer spins up a new goroutine for each stat (issue #359).
+
+* MultiDecoder no longer prevents shutdown if a nested SandboxDecoder crashes
+  during startup (issue #896).
+
+* MultiDecoder using `cascade_strategy = "all"` now passes all generated packs
+  to all nested decoders instead of skipping the remainder if an earlier pack
+  in the sequence fails to decode (issue #896).
+
+* MultiDecoder no longer tries to recycle the original pack, leaving that job
+  to the DecoderRunner as intended (issue #896).
+
 * Updated SmtpOutput to use a slice instead of a map to generate SMTP headers
   so the order will remain consistent when using Go 1.3 or later.
 
@@ -38,8 +61,12 @@ Bug Handling
 * Fix panic on SIGUSR1 caused by no reports in a given plugin category (issue
   #832).
 
+* Fix file_match config of plugin logstreamer_input (issue #893).
+
 Features
 --------
+
+* Added a message type configuration option to the rsyslog decoder (issue #907).
 
 * Added `elasticsearch` Lua module to generate BulkAPI index JSON (issue #875).
 
@@ -96,6 +123,8 @@ Features
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
+
+* Added include_framing option to ProtobufEncoder to optionally disable framing (issue #902).
 
 0.5.3 (2014-MM-DD)
 ==================

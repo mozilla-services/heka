@@ -1,6 +1,6 @@
-.. _config_encoders:
-
 .. versionadded:: 0.6
+
+.. _config_encoders:
 
 ========
 Encoders
@@ -11,7 +11,6 @@ Encoders
 Alert Encoder
 =============
 
-.. versionadded:: 0.6
 .. include:: /../../sandbox/lua/encoders/alert.lua
    :start-after: --[[
    :end-before: --]]

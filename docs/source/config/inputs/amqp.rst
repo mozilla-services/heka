@@ -26,8 +26,9 @@ Config:
     to empty string.
 - PrefetchCount (int):
     How many messages to fetch at once before message acks are sent. See
-    `RabbitMQ performance measurements <http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-measurements-part-2/>`_
-    for help in tuning this number. Defaults to 2.
+    `RabbitMQ performance measurements
+    <http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-
+    measurements-part-2/>`_ for help in tuning this number. Defaults to 2.
 - Queue (string):
     Name of the queue to consume from, an empty string will have the broker
     generate a name for the queue. Defaults to empty string.
@@ -40,8 +41,8 @@ Config:
     Whether the queue is deleted when the last consumer un-subscribes.
     Defaults to auto-delete.
 - QueueTTL (int):
-    Allows ability to specify TTL in milliseconds on Queue declaration for expiring messages.
-    Defaults to undefined/infinite.
+    Allows ability to specify TTL in milliseconds on Queue declaration for
+    expiring messages. Defaults to undefined/infinite.
 - Decoder (string):
     Decoder name used to transform a raw message body into a structured hekad
     message. Must be a decoder appropriate for the messages that come in from
@@ -79,13 +80,13 @@ following:
 
     [logparser]
     type = "MultiDecoder"
-    order = ["logline", "leftovers"]
+    subs = ["logline", "leftovers"]
 
-      [logparser.subs.logline]
-      type = "PayloadRegexDecoder"
-      MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P Remaining>.*)'
+    [logline]
+    type = "PayloadRegexDecoder"
+    MatchRegex = '\w+ \d+ \d+:\d+:\d+ \S+ (?P<Reporter>[^\[]+)\[(?P<Pid>\d+)](?P<Sandbox>[^:]+)?: (?P Remaining>.*)'
 
-        [logparser.subs.logline.MessageFields]
+        [logline.MessageFields]
         Type = "amqplogline"
         Hostname = "myhost"
         Reporter = "%Reporter%"
@@ -93,9 +94,9 @@ following:
         Logger = "%Logger%"
         Payload = "%Remaining%"
 
-      [leftovers]
-      type = "PayloadRegexDecoder"
-      MatchRegex = '.*'
+    [leftovers]
+    type = "PayloadRegexDecoder"
+    MatchRegex = '.*'
 
         [leftovers.MessageFields]
         Type = "drop"

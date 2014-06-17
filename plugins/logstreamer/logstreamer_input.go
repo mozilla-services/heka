@@ -100,7 +100,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		return err
 	}
 
-	if len(conf.FileMatch) > 0 && conf.FileMatch[len(conf.FileMatch)-2:] != "$" {
+	if len(conf.FileMatch) > 0 && conf.FileMatch[len(conf.FileMatch)-1:] != "$" {
 		conf.FileMatch += "$"
 	}
 
