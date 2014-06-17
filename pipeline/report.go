@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"runtime"
 	"strings"
 	"sync/atomic"
 )
@@ -241,6 +242,19 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
+
+	mempack := pc.PipelinePack(0)
+	mempack.Message.SetType("heka.memstat")
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	message.NewInt64Field(mempack.Message, "HeapSys", int64(m.HeapSys), "B")
+	message.NewInt64Field(mempack.Message, "HeapAlloc", int64(m.HeapAlloc), "B")
+	message.NewInt64Field(mempack.Message, "HeapIdle", int64(m.HeapIdle), "B")
+	message.NewInt64Field(mempack.Message, "HeapInuse", int64(m.HeapInuse), "B")
+	message.NewInt64Field(mempack.Message, "HeapReleased", int64(m.HeapReleased), "B")
+	message.NewInt64Field(mempack.Message, "HeapObjects", int64(m.HeapObjects), "count")
+	pc.router.InChan() <- mempack
 }
 
 func (pc *PipelineConfig) allReportsStdout() {

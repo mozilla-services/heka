@@ -25,6 +25,12 @@ Frequent Items
    :start-after: --[[
    :end-before: --]]
 
+Heka Memory Statistics (self monitoring)
+----------------------------------------
+.. include:: ../../../sandbox/lua/filters/heka_memstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Heka Message Schema (Message Documentation)
 -------------------------------------------
 .. include:: ../../../sandbox/lua/filters/heka_message_schema.lua
