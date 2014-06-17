@@ -66,6 +66,8 @@ Bug Handling
 Features
 --------
 
+* Added memory statistics to the Heka report output, for self monitoring.
+
 * Added a message type configuration option to the rsyslog decoder (issue #907).
 
 * Added `elasticsearch` Lua module to generate BulkAPI index JSON (issue #875).

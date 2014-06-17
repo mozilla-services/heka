@@ -61,6 +61,17 @@ Frequent Items
    :start-after: --[[
    :end-before: --]]
 
+.. _config_memstat_filter:
+
+Heka Memory Statistics
+======================
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/heka_memstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_message_schema_filter:
 
 Heka Message Schema
