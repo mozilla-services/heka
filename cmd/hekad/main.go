@@ -186,7 +186,14 @@ func main() {
 	if fi.IsDir() {
 		files, _ := ioutil.ReadDir(*configPath)
 		for _, f := range files {
-			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, f.Name()))
+			fName := f.Name()
+			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
+				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
+
+				// Skip obviously irrelevant files.
+				continue
+			}
+			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, fName))
 		}
 	} else {
 		err = pipeconf.LoadFromConfigFile(*configPath)

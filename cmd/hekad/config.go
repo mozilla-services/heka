@@ -18,9 +18,9 @@
 package main
 
 import (
-	"github.com/mozilla-services/heka/pipeline"
 	"fmt"
 	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -80,6 +80,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 			fName := f.Name()
 			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
 				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
+
 				// Skip obviously non-relevant files.
 				continue
 			}
