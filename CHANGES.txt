@@ -35,6 +35,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed the SandboxDecoder panic when failing the Decode() after successfully
+  injecting a message (issue #910).
+
 * StatsdInput no longer spins up a new goroutine for each stat (issue #359).
 
 * MultiDecoder no longer prevents shutdown if a nested SandboxDecoder crashes
