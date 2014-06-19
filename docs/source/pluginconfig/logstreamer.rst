@@ -8,8 +8,7 @@ Logstreamer
 
 The Logstreamer plugin scans, sorts, and reads logstreams in a
 sequential user-defined order, differentiating multiple logstreams
-found in a search based on a user-defined differentiator. This plugin
-supercedes the LogfileInput and the LogfileDirectoryInput.
+found in a search based on a user-defined differentiator.
 
 A "logstream" is a single, linear data stream that is spread across
 one or more sequential log files. For instance, an Apache or nginx
@@ -44,12 +43,11 @@ use-case and work towards the most complex.
 Single Rotating Logfile
 -----------------------
 
-This is the basic use-case that LogfileInput handled previously, where
-a single logfile should be read that the system may rotate/truncate at
-some time (hopefully not using truncation though that condition is
-handled). Log rotation inherently has a risk that some loglines written
-may be missed if the program reading the log happens to die at exactly
-the wrong time that the rotation is occuring.
+This is the basic use-case where a single logfile should be read that the
+system may rotate/truncate at some time (hopefully not using truncation though
+that condition is handled). Log rotation inherently has a risk that some
+loglines written may be missed if the program reading the log happens to die
+at exactly the wrong time that the rotation is occuring.
 
 An example of a single rotating logfile would be the case where you
 want to watch /var/log/system.log for all new entries. Here's what the
@@ -82,10 +80,8 @@ match to prevent excessive file scanning to locate the
 Multiple Single Rotating Logfiles
 ---------------------------------
 
-This use-case was previously handled by the
-LogfileDirectoryManagerInput which is similar to the single rotating
-logfile above except there are multiple separate ones with the same
-policy.
+This use-case is similar to the single rotating logfile above except there
+are multiple separate files with the same policy.
 
 An example of multiple single rotating logfiles would be a system that
 logs the access for each domain name to a separate access log. In this

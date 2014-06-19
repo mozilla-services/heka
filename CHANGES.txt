@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed LogfileInput and LogfileDirectoryManagerInput which were replaced
+  by LogstreamerInput in 0.5.0 (issue 914).
+
 * MultiDecoder no longer sets prepends name of the decoder instance to the
   message type value for every message. This was impacting performance, is
   almost never what is needed, and is almost always overwritten by the nested
