@@ -23,10 +23,7 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
 
-	r.AddSpec(FileMonitorSpec)
 	r.AddSpec(FileOutputSpec)
-	r.AddSpec(LogfileInputSpec0)
-	r.AddSpec(LogfileInputSpec1)
 
 	gospec.MainGoTest(r, t)
 }

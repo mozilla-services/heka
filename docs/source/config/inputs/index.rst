@@ -13,12 +13,6 @@ Inputs
 .. _config_http_listen_input:
 .. include:: /config/inputs/httplisten.rst
 
-.. _config_logfile_input:
-.. include:: /config/inputs/logfile.rst
-
-.. _config_logfile_directory_manager_input:
-.. include:: /config/inputs/logfiledirectorymanager.rst
-
 .. _config_logstreamer_input:
 .. include:: /config/inputs/logstreamer.rst
 
