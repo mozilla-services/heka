@@ -253,13 +253,12 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		var subStartTime time.Time
 
 		for i, d := range md.Decoders {
-			count := atomic.LoadInt64(&md.processMessageCount[i])
-			atomic.AddInt64(&md.processMessageCount[i], 1)
-			if md.sample || count == 0 {
+			count := atomic.AddInt64(&md.processMessageCount[i], 1)
+			if md.sample || count == 1 {
 				subStartTime = time.Now()
 			}
 			packs, err = d.Decode(pack)
-			if md.sample || count == 0 {
+			if md.sample || count == 1 {
 				duration := time.Since(subStartTime).Nanoseconds()
 				md.reportLock.Lock()
 				md.processMessageDuration[i] += duration
