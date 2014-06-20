@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the PayloadJsonDecoder which is replaced by the Lua sandbox cjson
+  module (issue 826).
+
 * Removed LogfileInput and LogfileDirectoryManagerInput which were replaced
   by LogstreamerInput in 0.5.0 (issue 914).
 
