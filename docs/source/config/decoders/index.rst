@@ -51,9 +51,6 @@ Nginx Error Log Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. _config_payloadjson_decoder:
-.. include:: /config/decoders/payload_json.rst
-
 .. _config_payloadregex_decoder:
 .. include:: /config/decoders/payload_regex.rst
 
