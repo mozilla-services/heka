@@ -72,6 +72,9 @@ Bug Handling
 Features
 --------
 
+* Added message processing stat reporting to the MultiDecoder for each
+  subdecoder and in aggregate (issue #719).
+
 * Added memory statistics to the Heka report output, for self monitoring.
 
 * Added a message type configuration option to the rsyslog decoder (issue #907).

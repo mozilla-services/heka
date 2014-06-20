@@ -49,8 +49,8 @@ type TcpOutputConfig struct {
 	LocalAddress string `toml:"local_address"`
 	UseTls       bool   `toml:"use_tls"`
 	Tls          TlsConfig
-	// Interval at which the output queue logs will roll, in
-	// seconds. Defaults to 300.
+	// Interval at which the output queue logs will roll, in seconds. Defaults
+	// to 300.
 	TickerInterval uint `toml:"ticker_interval"`
 	Encoder        string
 	// Set to true if TCP Keep Alive should be used.
