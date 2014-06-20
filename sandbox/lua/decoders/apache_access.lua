@@ -14,6 +14,7 @@ Config:
     The 'LogFormat' configuration directive from the apache2.conf.
     %t variables are converted to the number of nanosecond since the Unix epoch
     and used to set the Timestamp on the message.
+    http://httpd.apache.org/docs/2.4/mod/mod_log_config.html
 
 - type (string, optional, default nil):
     Sets the message 'Type' header to the specified value

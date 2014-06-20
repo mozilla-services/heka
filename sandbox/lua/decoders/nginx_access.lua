@@ -12,7 +12,7 @@ Config:
     The 'log_format' configuration directive from the nginx.conf.
     $time_local or $time_iso8601 variable is converted to the number of
     nanosecond since the Unix epoch and used to set the Timestamp on the
-    message.
+    message. http://nginx.org/en/docs/http/ngx_http_log_module.html
 
 - type (string, optional, default nil):
     Sets the message 'Type' header to the specified value

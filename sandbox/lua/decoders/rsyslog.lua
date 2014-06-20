@@ -9,6 +9,7 @@ Config:
 
 - template (string)
     The 'template' configuration string from rsyslog.conf.
+    http://rsyslog-5-8-6-doc.neocities.org/rsyslog_conf_templates.html
 
 - tz (string, optional, defaults to UTC)
     The conversion actually happens on the Go side since there isn't good TZ support here.
