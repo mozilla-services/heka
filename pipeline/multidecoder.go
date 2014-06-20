@@ -18,7 +18,12 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"log"
+	"math/rand"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // DecoderRunner wrapper that the MultiDecoder will hand to any subs that ask
@@ -55,11 +60,22 @@ func (mdr *mDRunner) LogMessage(msg string) {
 }
 
 type MultiDecoder struct {
-	Config    *MultiDecoderConfig
-	Name      string
-	Decoders  []Decoder
-	dRunner   DecoderRunner
-	CascStrat int
+	processMessageCount    []int64
+	processMessageFailures []int64
+	processMessageSamples  []int64
+	processMessageDuration []int64
+	totalMessageFailures   int64
+	totalMessageSamples    int64
+	totalMessageDuration   int64
+	idx                    uint8
+	sampleDenominator      int
+	sample                 bool
+	reportLock             sync.RWMutex
+	Config                 *MultiDecoderConfig
+	Name                   string
+	Decoders               []Decoder
+	dRunner                DecoderRunner
+	CascStrat              int
 }
 
 type MultiDecoderConfig struct {
@@ -89,7 +105,8 @@ func (md *MultiDecoder) SetName(name string) {
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Config = config.(*MultiDecoderConfig)
 
-	if len(md.Config.Subs) == 0 {
+	numSubs := len(md.Config.Subs)
+	if numSubs == 0 {
 		return errors.New("At least one subdecoder must be specified.")
 	}
 
@@ -112,6 +129,12 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		md.Decoders[i] = decoder
 	}
 
+	md.processMessageCount = make([]int64, numSubs)
+	md.processMessageFailures = make([]int64, numSubs)
+	md.processMessageSamples = make([]int64, numSubs)
+	md.processMessageDuration = make([]int64, numSubs)
+	md.sample = true
+	md.sampleDenominator = Globals().SampleDenominator
 	return nil
 }
 
@@ -169,12 +192,27 @@ func (md *MultiDecoder) Shutdown() {
 func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack) (
 	packs []*PipelinePack, anyMatch bool) {
 
+	var startTime time.Time
+
 	decoder := chain[0]
 	for _, p := range inPacks {
-		if ps, err := decoder.Decode(p); ps != nil {
+		atomic.AddInt64(&md.processMessageCount[md.idx], 1)
+		if md.sample {
+			startTime = time.Now()
+		}
+		ps, err := decoder.Decode(p)
+		if md.sample {
+			duration := time.Since(startTime).Nanoseconds()
+			md.reportLock.Lock()
+			md.processMessageDuration[md.idx] += duration
+			md.processMessageSamples[md.idx]++
+			md.reportLock.Unlock()
+		}
+		if ps != nil {
 			anyMatch = true
 			packs = append(packs, ps...)
 		} else {
+			atomic.AddInt64(&md.processMessageFailures[md.idx], 1)
 			if err != nil && md.Config.LogSubErrors {
 				idx := len(md.Decoders) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
@@ -186,6 +224,7 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 	}
 
 	if len(chain) > 1 {
+		md.idx++
 		var otherMatch bool
 		packs, otherMatch = md.getDecodedPacks(chain[1:], packs)
 		anyMatch = anyMatch || otherMatch
@@ -194,14 +233,45 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 	return
 }
 
+func (md *MultiDecoder) resetSampleFlag() {
+	md.sample = 0 == rand.Intn(md.sampleDenominator)
+}
+
 // Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
+	defer md.resetSampleFlag()
+	var startTime time.Time
+	if md.sample {
+		startTime = time.Now()
+		defer func() {
+			duration := time.Since(startTime).Nanoseconds()
+			md.reportLock.Lock()
+			md.totalMessageDuration += duration
+			md.totalMessageSamples++
+			md.reportLock.Unlock()
+		}()
+	}
 
 	if md.CascStrat == CASC_FIRST_WINS {
+		var subStartTime time.Time
+
 		for i, d := range md.Decoders {
-			if packs, err = d.Decode(pack); packs != nil {
+			atomic.AddInt64(&md.processMessageCount[i], 1)
+			if md.sample {
+				subStartTime = time.Now()
+			}
+			packs, err = d.Decode(pack)
+			if md.sample {
+				duration := time.Since(subStartTime).Nanoseconds()
+				md.reportLock.Lock()
+				md.processMessageDuration[i] += duration
+				md.processMessageSamples[i]++
+				md.reportLock.Unlock()
+			}
+			if packs != nil {
 				return
 			}
+			atomic.AddInt64(&md.processMessageFailures[i], 1)
 			if err != nil && md.Config.LogSubErrors {
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Subs[i],
 					err)
@@ -209,18 +279,60 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 			}
 		}
 		// If we got this far none of the decoders succeeded.
+		atomic.AddInt64(&md.totalMessageFailures, 1)
 		err = errors.New("All subdecoders failed.")
 		packs = nil
 	} else {
 		// If we get here we know cascade_strategy == "all.
 		var anyMatch bool
+		md.idx = 0
 		packs, anyMatch = md.getDecodedPacks(md.Decoders, []*PipelinePack{pack})
 		if !anyMatch {
+			atomic.AddInt64(&md.totalMessageFailures, 1)
 			err = errors.New("All subdecoders failed.")
 			packs = nil
 		}
 	}
 	return
+}
+
+func (md *MultiDecoder) ReportMsg(msg *message.Message) error {
+	md.reportLock.RLock()
+	defer md.reportLock.RUnlock()
+
+	var tmp int64
+	for i, sub := range md.Config.Subs {
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageCount-%s", sub),
+			atomic.LoadInt64(&md.processMessageCount[i]), "count")
+
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageFailures-%s", sub),
+			atomic.LoadInt64(&md.processMessageFailures[i]), "count")
+
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageSamples-%s", sub),
+			md.processMessageSamples[i], "count")
+
+		tmp = 0
+		if md.processMessageSamples[i] > 0 {
+			tmp = md.processMessageDuration[i] / md.processMessageSamples[i]
+		}
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageAvgDuration-%s", sub), tmp, "ns")
+	}
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&md.processMessageCount[0]), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures",
+		atomic.LoadInt64(&md.totalMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", md.totalMessageSamples, "count")
+	tmp = 0
+	if md.totalMessageSamples > 0 {
+		tmp = md.totalMessageDuration / md.totalMessageSamples
+	}
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+
+	return nil
 }
 
 func init() {

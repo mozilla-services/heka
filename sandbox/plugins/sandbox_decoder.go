@@ -40,7 +40,7 @@ type SandboxDecoder struct {
 	sb                     Sandbox
 	sbc                    *SandboxConfig
 	preservationFile       string
-	reportLock             sync.Mutex
+	reportLock             sync.RWMutex
 	sample                 bool
 	err                    error
 	pack                   *pipeline.PipelinePack
@@ -301,8 +301,8 @@ func (s *SandboxDecoder) ReportMsg(msg *message.Message) error {
 	if s.sb == nil {
 		return fmt.Errorf("Decoder is not running")
 	}
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
+	s.reportLock.RLock()
+	defer s.reportLock.RUnlock()
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,
 		STAT_CURRENT)), "B")
