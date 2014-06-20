@@ -133,7 +133,6 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.processMessageFailures = make([]int64, numSubs)
 	md.processMessageSamples = make([]int64, numSubs)
 	md.processMessageDuration = make([]int64, numSubs)
-	md.sample = true
 	md.sampleDenominator = Globals().SampleDenominator
 	return nil
 }
@@ -233,13 +232,11 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 	return
 }
 
-func (md *MultiDecoder) resetSampleFlag() {
-	md.sample = 0 == rand.Intn(md.sampleDenominator)
-}
-
 // Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
-	defer md.resetSampleFlag()
+	md.sample = (rand.Intn(md.sampleDenominator) == 0 ||
+		atomic.LoadInt64(&md.processMessageCount[0]) == 0)
+
 	var startTime time.Time
 	if md.sample {
 		startTime = time.Now()
@@ -256,12 +253,13 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		var subStartTime time.Time
 
 		for i, d := range md.Decoders {
+			count := atomic.LoadInt64(&md.processMessageCount[i])
 			atomic.AddInt64(&md.processMessageCount[i], 1)
-			if md.sample {
+			if md.sample || count == 0 {
 				subStartTime = time.Now()
 			}
 			packs, err = d.Decode(pack)
-			if md.sample {
+			if md.sample || count == 0 {
 				duration := time.Since(subStartTime).Nanoseconds()
 				md.reportLock.Lock()
 				md.processMessageDuration[i] += duration
