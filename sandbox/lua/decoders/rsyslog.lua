@@ -12,7 +12,11 @@ Config:
     http://rsyslog-5-8-6-doc.neocities.org/rsyslog_conf_templates.html
 
 - tz (string, optional, defaults to UTC)
-    The conversion actually happens on the Go side since there isn't good TZ support here.
+    If your rsyslog timestamp field in the template does not carry zone offset information, you may set an offset
+    to be applied to your events here. Typically this would be used with the "Traditional" rsyslog formats.
+
+    Parsing is done by `Go <http://golang.org/pkg/time/#LoadLocation>`_, supports values of "UTC", "Local",
+    or a location name corresponding to a file in the IANA Time Zone database, e.g. "America/New_York".
 
 *Example Heka Configuration*
 
