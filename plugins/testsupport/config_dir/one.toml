@@ -1,0 +1,14 @@
+[UdpInput]
+address = "127.0.0.1:29329"
+parser_type = "message.proto"
+decoder = "ProtobufDecoder"
+
+[ProtobufDecoder]
+type = "ProtobufDecoder"
+
+[PayloadEncoder]
+
+[LogOutput]
+type = "LogOutput"
+message_matcher = "TRUE"
+encoder = "PayloadEncoder"

@@ -1,6 +1,5 @@
 [hekad]
 cpuprof = "/var/log/hekad/cpuprof.log"
-decoder_poolsize = 10
 max_message_loops = 4
 max_process_inject = 10
 max_timer_inject  = 10

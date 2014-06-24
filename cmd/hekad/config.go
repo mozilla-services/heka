@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,9 +18,9 @@
 package main
 
 import (
-	"github.com/mozilla-services/heka/pipeline"
 	"fmt"
 	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -78,9 +78,8 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		files, _ := ioutil.ReadDir(configPath)
 		for _, f := range files {
 			fName := f.Name()
-			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
-				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
-				// Skip obviously non-relevant files.
+			if !strings.HasSuffix(fName, ".toml") {
+				// Skip non *.toml files in a config dir.
 				continue
 			}
 			fPath := filepath.Join(configPath, fName)
