@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* All files in a config directory that do not end in ".toml" will now be
+  ignored and not loaded as a part of the Heka configuration (issue #750).
+
 * Removed the PayloadJsonDecoder which is replaced by the Lua sandbox cjson
   module (issue 826).
 

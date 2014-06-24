@@ -12,10 +12,11 @@ and outputs will be loaded. The configuration file is in `TOML
 configuration formats, but with slightly more rich data structures and nesting
 support.
 
-If hekad's config file is specified to be a directory, all files will be
-loaded and merged into a single config. Merging will happen in alphabetical
-order, settings specified later in the merge sequence will win conflicts. All
-files in the folder must be valid TOML configuration or hekad will not start.
+If hekad's config file is specified to be a directory, all contained files
+with a filename ending in ".toml" will be loaded and merged into a single
+config. Files that don't end with ".toml" will be ignored. Merging will happen
+in alphabetical order, settings specified later in the merge sequence will win
+conflicts.
 
 The config file is broken into sections, with each section representing a
 single instance of a plugin. The section name specifies the name of the

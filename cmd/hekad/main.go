@@ -14,10 +14,8 @@
 
 /*
 
-Hekad daemon.
-
-This daemon runs the heka/pipeline Plugin's and runners for a complete
-message processing platform.
+Main entry point for the `hekad` daemon. Loads the specified config and calls
+`pipeline.Run` to launch the PluginRunners and all additional goroutines.
 
 */
 package main
@@ -137,18 +135,21 @@ func main() {
 					log.Fatalf("Process %d is already running.", pid)
 				}
 			} else if process != nil {
-				// err is always nil on POSIX, so we have to send the process a signal to check whether it exists
+				// err is always nil on POSIX, so we have to send the process
+				// a signal to check whether it exists
 				if err = process.Signal(syscall.Signal(0)); err == nil {
 					log.Fatalf("Process %d is already running.", pid)
 				}
 			}
 		}
-		if err := ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+		if err = ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())),
+			0644); err != nil {
+
 			log.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
 		}
 		log.Printf("Wrote pid to pidfile '%s'", config.PidFile)
 		defer func() {
-			if err := os.Remove(config.PidFile); err != nil {
+			if err = os.Remove(config.PidFile); err != nil {
 				log.Printf("Unable to remove pidfile '%s': %s", config.PidFile, err)
 			}
 		}()
@@ -180,20 +181,37 @@ func main() {
 
 	// Set up and load the pipeline configuration and start the daemon.
 	pipeconf := pipeline.NewPipelineConfig(globals)
+	if err = loadFullConfig(pipeconf, configPath); err != nil {
+		log.Fatal("Error reading config: ", err)
+	}
+	pipeline.Run(pipeconf)
+}
+
+func loadFullConfig(pipeconf *pipeline.PipelineConfig, configPath *string) (err error) {
 	p, err := os.Open(*configPath)
+	if err != nil {
+		return fmt.Errorf("error opening file: %s", err.Error())
+	}
 	fi, err := p.Stat()
+	if err != nil {
+		return fmt.Errorf("can't stat file: %s", err.Error())
+	}
 
 	if fi.IsDir() {
 		files, _ := ioutil.ReadDir(*configPath)
 		for _, f := range files {
-			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, f.Name()))
+			fName := f.Name()
+			if !strings.HasSuffix(fName, ".toml") {
+				// Skip non *.toml files in a config dir.
+				continue
+			}
+			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, fName))
+			if err != nil {
+				break
+			}
 		}
 	} else {
 		err = pipeconf.LoadFromConfigFile(*configPath)
 	}
-
-	if err != nil {
-		log.Fatal("Error reading config: ", err)
-	}
-	pipeline.Run(pipeconf)
+	return
 }
