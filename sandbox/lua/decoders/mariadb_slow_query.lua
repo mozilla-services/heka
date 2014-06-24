@@ -3,8 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Parses and transforms the MySQL slow query logs. Use mariadb_slow_query.lua to
-parse the MariaDB variant of the MySQL slow query logs.
+Parses and transforms the MariaDB variant of the MySQL slow query logs.
 
 Config:
 
@@ -19,24 +18,24 @@ Config:
 
     [Sync-1_5-SlowQuery]
     type = "LogstreamerInput"
-    log_directory = "/var/log/mysql"
-    file_match = 'mysql-slow\.log'
+    log_directory = "/var/log/mariadb"
+    file_match = 'mariadb-slow\.log'
     parser_type = "regexp"
     delimiter = "\n(# User@Host:)"
     delimiter_location = "start"
-    decoder = "MySqlSlowQueryDecoder"
+    decoder = "MariaDbSlowQueryDecoder"
 
-    [MySqlSlowQueryDecoder]
+    [MariaDbSlowQueryDecoder]
     type = "SandboxDecoder"
-    filename = "lua_decoders/mysql_slow_query.lua"
+    filename = "lua_decoders/mariadb_slow_query.lua"
 
-        [MySqlSlowQueryDecoder.config]
+        [MariaDbSlowQueryDecoder.config]
         truncate_sql = 64
 
 *Example Heka Message*
 
 :Timestamp: 2014-05-07 15:51:28 -0700 PDT
-:Type: mysql.slow-query
+:Type: mariadb.slow-query
 :Hostname: 127.0.0.1
 :Pid: 0
 :UUID: 5324dd93-47df-485b-a88e-429f0fcd57d6
@@ -49,6 +48,10 @@ Config:
     | name:"Query_time" value_type:DOUBLE representation:"s" value_double:7.24966
     | name:"Rows_sent" value_type:DOUBLE value_double:5001
     | name:"Lock_time" value_type:DOUBLE representation:"s" value_double:0.047038
+    | name:"QC_hit" value_type:STRING value_string:"No"
+    | name:"Thread_id" value_type:DOUBLE value_double:110804
+    | name:"Schema" value_type:STRING value_string:"weave0"
+
 --]]
 
 require "string"
@@ -58,10 +61,10 @@ local truncate_sql = read_config("truncate_sql")
 
 function process_message ()
     local log = read_message("Payload")
-    local msg = mysql.slow_query_grammar:match(log)
+    local msg = mysql.mariadb_slow_query_grammar:match(log)
     if not msg then return -1 end
 
-    msg.Type = "mysql.slow-query"
+    msg.Type = "mariadb.slow-query"
     if truncate_sql and #msg.Payload > truncate_sql then
         msg.Payload = string.format("%s...", msg.Payload:sub(1, truncate_sql))
     end
