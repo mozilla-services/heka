@@ -646,6 +646,85 @@ func DecoderSpec(c gs.Context) {
 			decoder.Shutdown()
 		})
 	})
+
+	c.Specify("mysql decoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/mysql_slow_query.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["truncate_sql"] = int64(5)
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decode standard slow query log", func() {
+			data := `# User@Host: syncrw[syncrw] @  [127.0.0.1]
+# Query_time: 2.964652  Lock_time: 0.000050 Rows_sent: 251  Rows_examined: 9773
+use widget;
+SET last_insert_id=999,insert_id=1000,timestamp=1399500744;
+# administrator command: do something
+/* [queryName=FIND_ITEMS] */ SELECT *
+FROM widget
+WHERE id = 10;
+`
+			pack.Message.SetPayload(data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1399500744000000000))
+			c.Expect(pack.Message.GetPayload(), gs.Equals, "/* [q...")
+			c.Expect(pack.Message.GetType(), gs.Equals, "mysql.slow-query")
+
+			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("mariadb decoder", func() {
+		decoder := new(SandboxDecoder)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/mariadb_slow_query.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["truncate_sql"] = int64(5)
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decode standard slow query log", func() {
+			data := `# User@Host: syncrw[syncrw] @  [127.0.0.1]
+# Thread_id: 110804  Schema: weave0  QC_hit: No
+# Query_time: 1.178108  Lock_time: 0.000053  Rows_sent: 198  Rows_examined: 198
+SET timestamp=1399500744;
+/* [queryName=FIND_ITEMS] */ SELECT *
+FROM widget
+WHERE id = 10;
+`
+			pack.Message.SetPayload(data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(pack.Message.GetTimestamp(),
+				gs.Equals,
+				int64(1399500744000000000))
+			c.Expect(pack.Message.GetPayload(), gs.Equals, "/* [q...")
+			c.Expect(pack.Message.GetType(), gs.Equals, "mariadb.slow-query")
+
+			decoder.Shutdown()
+		})
+	})
 }
 
 func EncoderSpec(c gs.Context) {
