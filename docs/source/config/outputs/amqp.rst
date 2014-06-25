@@ -34,8 +34,13 @@ Config:
 - ContentType (string):
      MIME content type of the payload used in the AMQP header. Defaults to
      "application/hekad".
-- Encoder (string)
-    Default to "ProtobufEncoder".
+- encoder (string, optional)
+    Specifies which of the registered encoders should be used for converting
+    Heka messages to binary data that is sent out over the AMQP connection.
+    Defaults to the always available "ProtobufEncoder".
+- use_framing (bool, optional):
+    Specifies whether or not the encoded data sent out over the TCP connection
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true.
 
 .. versionadded:: 0.6
 

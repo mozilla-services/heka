@@ -41,7 +41,6 @@ type FileOutput struct {
 	backChan      chan []byte
 	folderPerm    os.FileMode
 	timerChan     <-chan time.Time
-	encoder       Encoder
 }
 
 // ConfigStruct for FileOutput plugin.
@@ -139,8 +138,7 @@ func (o *FileOutput) openFile() (err error) {
 }
 
 func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	o.encoder = or.Encoder()
-	if o.encoder == nil {
+	if or.Encoder() == nil {
 		return errors.New("Encoder required.")
 	}
 	var wg sync.WaitGroup
@@ -185,7 +183,7 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				close(o.batchChan)
 				break
 			}
-			if outBytes, e = o.encoder.Encode(pack); e != nil {
+			if outBytes, e = or.Encode(pack); e != nil {
 				or.LogError(e)
 			} else {
 				outBatch = append(outBatch, outBytes...)

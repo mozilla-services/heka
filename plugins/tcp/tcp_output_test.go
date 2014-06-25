@@ -17,6 +17,7 @@ package tcp
 
 import (
 	"code.google.com/p/gomock/gomock"
+	"code.google.com/p/goprotobuf/proto"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
@@ -58,8 +59,7 @@ func TcpOutputSpec(c gs.Context) {
 		oth := plugins_ts.NewOutputTestHelper(ctrl)
 		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
 		encoder := new(ProtobufEncoder)
-		encoder.Init(encoder.ConfigStruct())
-		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+		encoder.Init(nil)
 
 		var wg sync.WaitGroup
 		inChan := make(chan *PipelinePack, 1)
@@ -70,12 +70,11 @@ func TcpOutputSpec(c gs.Context) {
 		pack.Decoded = true
 
 		outStr := "Write me out to the network"
-		matchBytes := make([]byte, 0, 1000)
 		newpack := NewPipelinePack(nil)
 		newpack.Message = msg
 		newpack.Decoded = true
 		newpack.Message.SetPayload(outStr)
-		err := ProtobufEncodeMessage(newpack, &matchBytes)
+		matchBytes, err := proto.Marshal(newpack.Message)
 		c.Expect(err, gs.IsNil)
 
 		c.Specify("writes out to the network", func() {
@@ -106,6 +105,9 @@ func TcpOutputSpec(c gs.Context) {
 
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
+
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
 
 			pack.Message.SetPayload(outStr)
 			go func() {
@@ -138,6 +140,9 @@ func TcpOutputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 
 			pack.Message.SetPayload(outStr)
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
+
 			go func() {
 				wg.Add(1)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -154,9 +159,9 @@ func TcpOutputSpec(c gs.Context) {
 				time.Sleep(time.Duration(100) * time.Millisecond)
 			}
 
-			// After the message is queued start the collector.
-			// However, we don't have a way guarantee a send attempt has already
-			// been made and that we are actually exercising the retry code.
+			// After the message is queued start the collector. However, we
+			// don't have a way guarantee a send attempt has already been made
+			// and that we are actually exercising the retry code.
 			collectData := func(ch chan string) {
 				ln, err := net.Listen("tcp", "localhost:9125")
 				if err != nil {

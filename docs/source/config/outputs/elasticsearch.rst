@@ -7,9 +7,9 @@ database. Note that it is up to the specified encoder to both serialize the
 message into a JSON structure *and* to prepend that with the appropriate
 ElasticSearch `BulkAPI
 <http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-
-bulk.html>`_ indexing JSON. Usually this output is used in conjunction with
-one of the ElasticSearch-specific encoder plugins, such as
-:ref:`config_esjsonencoder` or :ref:`config_eslogstashv0encoder`.
+bulk.html>`_ indexing JSON. Usually this output is used in conjunction with an
+ElasticSearch-specific encoder plugin, such as :ref:`config_esjsonencoder`,
+:ref:`config_eslogstashv0encoder`, or :ref:`config_espayload`.
 
 Config:
 

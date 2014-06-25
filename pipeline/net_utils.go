@@ -23,7 +23,6 @@ import (
 	"crypto/sha1"
 	"crypto/subtle"
 	"fmt"
-	"github.com/mozilla-services/heka/client"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"io"
@@ -33,14 +32,6 @@ import (
 )
 
 const NEWLINE byte = 10
-
-// Create a protocol buffers stream for the given message, put it in the
-// provided byte slice.
-func ProtobufEncodeMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
-	enc := client.NewProtobufEncoder(nil)
-	err = enc.EncodeMessageStream(pack.Message, outBytes)
-	return
-}
 
 type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,

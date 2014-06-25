@@ -54,14 +54,17 @@ Field Variables
 
 * value_* (optional, value_type) - Array of values, only one type will be active at a time.
 
-Protobuf Stream Framing
-=======================
+.. _stream_framing:
 
-Heka has some custom framing that is used when generating a stream of protocol
-buffer encoded messages. The entire structure encapsulating a single message
-consists of a one byte record separator, one byte representing the header
-length, the protobuf encoded header, a one byte unit separator, and the
-protobuf encoded message, as indicated in this diagram:
+Stream Framing
+==============
+
+Heka has some custom framing that can be used to delimit records when
+generating a stream of binary data. The entire structure encapsulating a
+single message consists of a one byte record separator, one byte representing
+the header length, a protobuf encoded message header, a one byte unit
+separator, and the binary record content (usually a protobuf encoded Heka
+message). This message structure is indicated in this diagram:
 
 .. graphviz:: header.dot
 
@@ -78,5 +81,5 @@ Clients interested in decoding a Heka stream will need to read the header
 length byte to determine the length of the header, extract the encoded header
 data and decode this into a Header structure using an appropriate protobuf
 library. From this they can then extract the length of the encoded message
-data, which can then be extracted from the data stream and decoded into a
-Message structure.
+data, which can then be extracted from the data stream and processed and/or
+decoded as needed.

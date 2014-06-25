@@ -32,8 +32,7 @@ func (self *LogOutput) Init(config interface{}) (err error) {
 }
 
 func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	encoder := or.Encoder()
-	if encoder == nil {
+	if or.Encoder() == nil {
 		return errors.New("Encoder required.")
 	}
 
@@ -44,7 +43,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		e        error
 	)
 	for pack = range inChan {
-		if outBytes, e = encoder.Encode(pack); e != nil {
+		if outBytes, e = or.Encode(pack); e != nil {
 			or.LogError(fmt.Errorf("Error encoding message: %s", e))
 		} else {
 			log.Print(string(outBytes))

@@ -471,7 +471,7 @@ Encoders
 
 Encoder plugins are the inverse of decoders. They convert `Message` structs
 into raw bytes that can be delivered to the outside world. Some encoders will
-serialize an entire `Message` struct, such as the :ref:`protobuf_encoder`
+serialize an entire `Message` struct, such as the :ref:`config_protobufencoder`
 which uses Heka's native protocol buffers format. Other encoders extract data
 from the message and insert it into a different format such as plain text or
 JSON.
@@ -485,33 +485,24 @@ returns a byte slice containing the data that should be sent out, or an error
 if serialization fails for some reason.
 
 Unlike the other plugin types, encoders don't have a PluginRunner, nor do they
-run in their own goroutines. Rather, encoders are made available to output
-plugins via the OutputRunner, and it is up to an output implementation to make
-use of the provided encoder by calling the Encode method to serialize the
-message before delivering it to its destination.
+run in their own goroutines. Outputs invoke encoders directly, by calling the
+Encode method exposed on the OutputRunner. This has the same signature as the
+Encoder interface's Encode method, to which it will will delegate. If `use_framing` is
+set to true in the output's configuration, however, the OutputRunner will
+prepend Heka's :ref:`stream_framing` to the generated binary data.
 
-Even so, it is possible that an encoder might need to perform some clean up at
-shutdown time. If this is so, the encoder can implement the `NeedsStopping`
-interface::
+Outputs can also directly access their encoder instance by calling
+OutputRunner.Encoder(). Encoders themselves don't handle the stream framing,
+however, so it is recommended that outputs use the OutputRunner method
+instead.
+
+Even though encoders don't run in their own goroutines, it is possible that
+they might need to perform some clean up at shutdown time. If this is so, the
+encoder can implement the `NeedsStopping` interface::
 
     Stop()
 
 And the `Stop` method will be called during the shutdown sequence.
-
-Finally, since Message structs serialized to protocol buffers is Heka's native
-format, Heka is able to perform some optimizations if an encoder is generating
-protobuf encoded messages. If you implement an encoder that does so, your encoder
-should provide the `MightGenerateProtobuf` interface::
-
-    GeneratesProtobuf() bool
-
-The `GeneratesProtobuf` method should return true for all encoders instances
-that are returning protobuf encoded messages. It is unlikely that you will
-have to implement such an encoder, however, since we already provide a
-:ref:`protobuf_encoder` (which implements `GeneratesProtobuf` and always
-returns true) and a :ref:`sandbox_encoder` (which implements
-`GeneratesProtobuf` and can specify whether it returns true or false depending
-on whether protobuf messages are being generated.)
 
 .. _outputs:
 
@@ -540,10 +531,21 @@ pack is freed up for reuse.
 The primary way that outputs differ from filters, of course, is that outputs
 need to serialize (or extract data from) the messages they receive and then
 send that data to an external destination. The serialization (or data
-extraction) should be performed by the output's specified encoder plugin,
-which can be accessed by calling the OutputRunner's `Encoder` method. Then you
-can pass the PipelinePack in to the encoder's `Encode` method to get back the
-raw bytes that should be sent out over the wire.
+extraction) should typically be performed by the output's specified encoder
+plugin. The OutputRunner exposes the following methods to assist with this::
+
+    Encode(pack *PipelinePack) (output []byte, err error)
+    UsesFraming() bool
+    Encoder() (encoder Encoder)
+
+The Encode method will use the specified encoder to convert the pack's message
+to binary data, then if `use_framing` was set to true in the output's
+configuration it will prepend Heka's :ref:`stream_framing`. The UsesFraming
+method will tell you whether or not `use_framing` was set to true. Finally,
+the Encoder method will return the actual encoder that was registered. This is
+useful to check to make sure that an encoder was actually registered, but
+generally you will want to use OutputRunner.Encode and not Encoder.Encode,
+since the latter will not honor the output's `use_framing` specification.
 
 .. _register_custom_plugins:
 

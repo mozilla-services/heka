@@ -16,7 +16,6 @@
 package plugins
 
 import (
-	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
@@ -758,7 +757,6 @@ func EncoderSpec(c gs.Context) {
 			conf.ScriptFilename = "../lua/testsupport/encoder_json.lua"
 			err = encoder.Init(conf)
 			c.Expect(err, gs.IsNil)
-			c.Expect(encoder.GeneratesProtobuf(), gs.IsFalse)
 
 			result, err = encoder.Encode(pack)
 			c.Expect(err, gs.IsNil)
@@ -784,26 +782,17 @@ func EncoderSpec(c gs.Context) {
 		})
 
 		c.Specify("emits protobuf correctly", func() {
-			conf.EmitsProtobuf = true
-			parser := pipeline.NewMessageProtoParser()
 
 			c.Specify("when inject_message is used", func() {
 				conf.ScriptFilename = "../lua/testsupport/encoder_protobuf.lua"
 				err = encoder.Init(conf)
 				c.Expect(err, gs.IsNil)
-				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
 
 				result, err = encoder.Encode(pack)
 				c.Expect(err, gs.IsNil)
 
-				buffer := bytes.NewBuffer(result)
-				_, record, e := parser.Parse(buffer)
-				c.Expect(e, gs.IsNil)
-				headerLen := int(record[1] + message.HEADER_FRAMING_SIZE)
-				record = record[headerLen:]
-
 				msg := new(message.Message)
-				err = proto.Unmarshal(record, msg)
+				err = proto.Unmarshal(result, msg)
 				c.Expect(err, gs.IsNil)
 				c.Expect(msg.GetTimestamp(), gs.Equals, int64(54321))
 				c.Expect(msg.GetPid(), gs.Equals, int32(12345))
@@ -817,18 +806,12 @@ func EncoderSpec(c gs.Context) {
 				conf.ScriptFilename = "../lua/testsupport/encoder_writemessage.lua"
 				err = encoder.Init(conf)
 				c.Expect(err, gs.IsNil)
-				c.Expect(encoder.GeneratesProtobuf(), gs.IsTrue)
 
 				result, err = encoder.Encode(pack)
 				c.Expect(err, gs.IsNil)
-				buffer := bytes.NewBuffer(result)
-				_, record, e := parser.Parse(buffer)
-				c.Expect(e, gs.IsNil)
-				headerLen := int(record[1] + message.HEADER_FRAMING_SIZE)
-				record = record[headerLen:]
 
 				msg := new(message.Message)
-				err = proto.Unmarshal(record, msg)
+				err = proto.Unmarshal(result, msg)
 				c.Expect(err, gs.IsNil)
 				c.Expect(msg.GetPayload(), gs.Equals, "mutated payload")
 				c.Expect(pack.Message.GetPayload(), gs.Equals, "original")

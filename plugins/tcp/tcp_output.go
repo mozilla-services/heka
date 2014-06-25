@@ -52,7 +52,10 @@ type TcpOutputConfig struct {
 	// Interval at which the output queue logs will roll, in seconds. Defaults
 	// to 300.
 	TickerInterval uint `toml:"ticker_interval"`
-	Encoder        string
+	// Allows for a default encoder.
+	Encoder string
+	// Allows us to use framing by default.
+	UseFraming bool `toml:"use_framing"`
 	// Set to true if TCP Keep Alive should be used.
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
@@ -64,6 +67,7 @@ func (t *TcpOutput) ConfigStruct() interface{} {
 		Address:        "localhost:9125",
 		TickerInterval: uint(300),
 		Encoder:        "ProtobufEncoder",
+		UseFraming:     true,
 	}
 }
 
@@ -164,7 +168,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}()
 
-	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or.Encoder())
+	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or)
 	if err != nil {
 		return
 	}

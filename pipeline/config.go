@@ -449,12 +449,13 @@ type RetryOptions struct {
 // Heka itself before the config is passed to the Plugin.Init method. Not all
 // options apply to all plugin types.
 type PluginGlobals struct {
-	Typ     string `toml:"type"`
-	Ticker  uint   `toml:"ticker_interval"`
-	Matcher string `toml:"message_matcher"` // Filter and Output only.
-	Signer  string `toml:"message_signer"`  // Filter and Output only.
-	Retries RetryOptions
-	Encoder string // Output only.
+	Typ        string `toml:"type"`
+	Ticker     uint   `toml:"ticker_interval"`
+	Matcher    string `toml:"message_matcher"` // Filter and Output only.
+	Signer     string `toml:"message_signer"`  // Filter and Output only.
+	Retries    RetryOptions
+	Encoder    string // Output only.
+	UseFraming *bool  `toml:"use_framing"` // Output only.
 }
 
 // A helper object to support delayed plugin creation.
@@ -673,6 +674,15 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		}
 
 	case "Output":
+		// Check to see if default value for UseFraming is set if none was in
+		// the TOML.
+		if section.globals.UseFraming == nil {
+			useFraming_ := getAttr(config, "UseFraming", false)
+			useFraming := useFraming_.(bool)
+			section.globals.UseFraming = &(useFraming)
+		}
+		runner.useFraming = *section.globals.UseFraming
+
 		// Check to see if a default encoder is specified if none was in the
 		// TOML.
 		if section.globals.Encoder == "" {
