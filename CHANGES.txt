@@ -147,6 +147,8 @@ Features
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
 
+* Added support to ESJSonEncoder to encode string fields that have multiple values.
+
 0.5.3 (2014-MM-DD)
 ==================
 

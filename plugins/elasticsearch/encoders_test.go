@@ -41,6 +41,9 @@ func getTestMessageWithFunnyFields() *message.Message {
 	field1, _ := message.NewField(`"number`, 64, "")
 	field2, _ := message.NewField("\xa3", "\xa3", "")
 	field3, _ := message.NewField("idField", "1234", "")
+	field4 := message.NewFieldInit("tags", message.Field_STRING, "")
+	field4.AddValue("asdf")
+	field4.AddValue("jkl;")
 
 	msg := &message.Message{}
 	msg.SetType("TEST")
@@ -59,6 +62,7 @@ func getTestMessageWithFunnyFields() *message.Message {
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
+	msg.AddField(field4)
 
 	return msg
 }
@@ -191,6 +195,11 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["EnvVersion"], gs.Equals, "0.8")
 			c.Expect(decoded["Pid"], gs.Equals, 14098.0)
 			c.Expect(decoded["Hostname"], gs.Equals, "hostname")
+			
+			tagsArray := decoded["tags"].([]interface{})
+			c.Expect(len(tagsArray), gs.Equals, 2)
+			c.Expect(tagsArray[0], gs.Equals, "asdf")
+			c.Expect(tagsArray[1], gs.Equals, "jkl;")
 		})
 	})
 }

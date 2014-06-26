@@ -103,6 +103,23 @@ func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
 	writeQuotedString(b, value)
 }
 
+func writeStringArrayField(first bool, b *bytes.Buffer, name string, values []string) {
+	if !first {
+		b.WriteString(`,`)
+	}
+	writeQuotedString(b, name)
+	b.WriteString(`:[`)
+	begining := true
+	for _, value := range values {
+		writeQuotedString(b, value)
+		if begining {
+			b.WriteString(`,`)
+		}
+		begining = false
+	}
+	b.WriteString(`]`)
+}
+
 func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
 	if !first {
 		b.WriteString(`,`)
@@ -224,7 +241,12 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 				} else {
 					switch field.GetValueType() {
 					case message.Field_STRING:
-						writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+						strings := field.GetValueString()
+						if len(strings) > 1 {
+							writeStringArrayField(first, &buf, *field.Name, field.GetValueString())
+						} else {
+							writeStringField(first, &buf, *field.Name, field.GetValue().(string))
+						}
 					case message.Field_BYTES:
 						data := field.GetValue().([]byte)[:]
 						writeStringField(first, &buf, *field.Name,
