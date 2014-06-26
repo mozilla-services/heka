@@ -37,7 +37,6 @@ type ElasticSearchOutput struct {
 	flushCount    int
 	batchChan     chan []byte
 	backChan      chan []byte
-	encoder       Encoder
 	// The BulkIndexer used to index documents
 	bulkIndexer BulkIndexer
 
@@ -96,7 +95,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 }
 
 func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	if o.encoder = or.Encoder(); o.encoder == nil {
+	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
 	}
 	var wg sync.WaitGroup
@@ -133,7 +132,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				close(o.batchChan)
 				break
 			}
-			outBytes, e = o.encoder.Encode(pack)
+			outBytes, e = or.Encode(pack)
 			pack.Recycle()
 			if e != nil {
 				or.LogError(e)

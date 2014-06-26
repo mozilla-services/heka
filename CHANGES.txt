@@ -4,6 +4,12 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Changed handling of message stream framing. Before stream framing was
+  presumed to always be required when encoding with protocol buffers, and not
+  required when using other encodings. Now all outputs support an optional
+  `use_framing` setting that will determine whether or not framing will be
+  applied when using the OutputRunner's Encode method (issue #922).
+
 * All files in a config directory that do not end in ".toml" will now be
   ignored and not loaded as a part of the Heka configuration (issue #750).
 
@@ -140,8 +146,6 @@ Features
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
-
-* Added include_framing option to ProtobufEncoder to optionally disable framing (issue #902).
 
 0.5.3 (2014-MM-DD)
 ==================

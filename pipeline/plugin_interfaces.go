@@ -70,13 +70,6 @@ type NeedsStopping interface {
 	Stop()
 }
 
-// Can be implemented by Encoders to communicate to outputs whether or not the
-// Encoder is generating protocol buffer content, so the output can handle
-// framing correctly.
-type MightGenerateProtobuf interface {
-	GeneratesProtobuf() bool
-}
-
 // Heka Output plugin type.
 type Output interface {
 	Run(or OutputRunner, h PluginHelper) (err error)

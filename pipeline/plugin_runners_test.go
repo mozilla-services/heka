@@ -112,7 +112,7 @@ func (s *StoppingOutput) Stop() {
 
 var (
 	stopresumeHolder   []string      = make([]string, 0, 10)
-	pack               *PipelinePack = new(PipelinePack)
+	_pack              *PipelinePack = new(PipelinePack)
 	stopresumerunTimes int
 )
 
@@ -127,11 +127,11 @@ func (s *StopResumeOutput) Init(config interface{}) (err error) {
 
 func (s *StopResumeOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	if stopresumerunTimes == 0 {
-		or.RetainPack(pack)
+		or.RetainPack(_pack)
 	} else if stopresumerunTimes == 1 {
 		inChan := or.InChan()
 		pk := <-inChan
-		if pk == pack {
+		if pk == _pack {
 			stopresumeHolder = append(stopresumeHolder, "success")
 		}
 	} else if stopresumerunTimes > 1 {

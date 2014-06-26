@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -142,8 +142,10 @@ type AMQPOutputConfig struct {
 	Tls tcp.TlsConfig
 	// MIME content type for the AMQP header.
 	ContentType string
-	// Default the encoder
+	// Allows for default encoder.
 	Encoder string
+	// Allows us to use framing by default.
+	UseFraming bool `toml:"use_framing"`
 }
 
 // Connection tracker that stores the actual AMQP Connection object along
@@ -270,8 +272,7 @@ type AMQPOutput struct {
 	// connWg tracks whether the connection is no longer in use
 	// and is used as a barrier to ensure all users of the connection
 	// are done before we finish
-	connWg  *sync.WaitGroup
-	encoder Encoder
+	connWg *sync.WaitGroup
 }
 
 func (ao *AMQPOutput) ConfigStruct() interface{} {
@@ -281,6 +282,7 @@ func (ao *AMQPOutput) ConfigStruct() interface{} {
 		RoutingKey:         "",
 		Persistent:         false,
 		Encoder:            "ProtobufEncoder",
+		UseFraming:         true,
 		ContentType:        "application/hekad",
 	}
 }
@@ -316,8 +318,7 @@ func (ao *AMQPOutput) Init(config interface{}) (err error) {
 }
 
 func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	encoder := or.Encoder()
-	if encoder == nil {
+	if or.Encoder() == nil {
 		return errors.New("Encoder required.")
 	}
 
@@ -345,7 +346,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
-			if outBytes, err = encoder.Encode(pack); err != nil {
+			if outBytes, err = or.Encode(pack); err != nil {
 				or.LogError(fmt.Errorf("Error encoding message: %s", err))
 				pack.Recycle()
 				continue

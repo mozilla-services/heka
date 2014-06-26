@@ -19,6 +19,7 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/client"
 	"log"
 	"sync"
 	"time"
@@ -415,6 +416,14 @@ type OutputRunner interface {
 	// nil if none was specified. Multiple calls will return the same
 	// instance.
 	Encoder() Encoder
+	// Uses the output's Encoder to encode the message attached to the
+	// provided PipelinePack. Will prepend a Heka stream framing header if
+	// use_framing was set to true in the output configuration.
+	Encode(pack *PipelinePack) (output []byte, err error)
+	// Returns whether or not use_framing was set to true in the output's
+	// configuration, i.e. whether or not Heka stream framing will be applied
+	// to the results of calls to the Encode method.
+	UsesFraming() bool
 }
 
 // This one struct provides the implementation of both FilterRunner and
@@ -429,6 +438,7 @@ type foRunner struct {
 	retainPack *PipelinePack
 	leakCount  int
 	encoder    Encoder // output only
+	useFraming bool    // output only
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -615,4 +625,21 @@ func (foRunner *foRunner) Filter() Filter {
 
 func (foRunner *foRunner) Encoder() Encoder {
 	return foRunner.encoder
+}
+
+func (foRunner *foRunner) Encode(pack *PipelinePack) (output []byte, err error) {
+	var encoded []byte
+	if encoded, err = foRunner.encoder.Encode(pack); err != nil {
+		return
+	}
+	if foRunner.useFraming {
+		client.CreateHekaStream(encoded, &output, nil)
+	} else {
+		output = encoded
+	}
+	return
+}
+
+func (foRunner *foRunner) UsesFraming() bool {
+	return foRunner.useFraming
 }

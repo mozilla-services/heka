@@ -45,7 +45,6 @@ func FileOutputSpec(c gs.Context) {
 		fileOutput := new(FileOutput)
 		encoder := new(plugins.PayloadEncoder)
 		encoder.Init(encoder.ConfigStruct())
-		fileOutput.encoder = encoder
 
 		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
 		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
@@ -66,6 +65,7 @@ func FileOutputSpec(c gs.Context) {
 			payload := fmt.Sprintf("%s\n", pack.Message.GetPayload())
 
 			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 			wg.Add(1)
 			go fileOutput.receiver(oth.MockOutputRunner, &wg)
 			inChan <- pack
@@ -191,6 +191,7 @@ func FileOutputSpec(c gs.Context) {
 			}
 
 			c.Specify("honors flush interval", func() {
+				oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 				recvWithConfig(config)
 				defer cleanUp()
 				inChan <- pack
@@ -208,6 +209,8 @@ func FileOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("honors flush interval AND flush count", func() {
+				oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+				oth.MockOutputRunner.EXPECT().Encode(pack2).Return(encoder.Encode(pack2))
 				config.FlushCount = 2
 				recvWithConfig(config)
 				defer cleanUp()
@@ -236,6 +239,7 @@ func FileOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("honors flush interval OR flush count", func() {
+				oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(encoder.Encode(pack))
 				config.FlushCount = 2
 				config.FlushOperator = "OR"
 				recvWithConfig(config)
@@ -258,6 +262,8 @@ func FileOutputSpec(c gs.Context) {
 				})
 
 				c.Specify("when count triggers first", func() {
+					out, err := encoder.Encode(pack2)
+					oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(out, err)
 					inChan <- pack2
 					runtime.Gosched()
 					select {

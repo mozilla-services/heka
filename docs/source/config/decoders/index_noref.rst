@@ -3,6 +3,17 @@
 Decoders
 ========
 
+Apache Access Log Decoder
+=========================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/apache_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. versionadded:: 0.6
+.. include:: /config/decoders/geoip_decoder.rst
+
 .. include:: /config/decoders/multi.rst
 
 Nginx Access Log Decoder
@@ -14,7 +25,22 @@ Nginx Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. include:: /config/decoders/payload_json.rst
+
+MySQL Slow Query Log Decoder
+============================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Nginx Error Log Decoder
+=======================
+
+.. versionadded:: 0.6
+.. include:: /../../sandbox/lua/decoders/nginx_error.lua
+   :start-after: --[[
+   :end-before: --]]
 
 .. include:: /config/decoders/payload_regex.rst
 

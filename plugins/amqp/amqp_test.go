@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -66,7 +66,6 @@ func AMQPPluginSpec(c gs.Context) {
 	}()
 
 	c.Specify("An amqp input", func() {
-
 		// Setup all the mock calls for Init
 		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false,
 			gomock.Any()).Return(nil)
@@ -274,12 +273,14 @@ func AMQPPluginSpec(c gs.Context) {
 			econfig := encoder.ConfigStruct().(*plugins.PayloadEncoderConfig)
 			econfig.AppendNewlines = false
 			encoder.Init(econfig)
+			payloadBytes, err := encoder.Encode(pack)
 
 			defaultConfig.Encoder = "PayloadEncoder"
 			defaultConfig.ContentType = "text/plain"
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(payloadBytes, nil)
 
-			err := amqpOutput.Init(defaultConfig)
+			err = amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 
@@ -297,10 +298,13 @@ func AMQPPluginSpec(c gs.Context) {
 
 		c.Specify("publishes a serialized message", func() {
 			encoder := new(ProtobufEncoder)
-			encoder.Init(encoder.ConfigStruct())
+			encoder.Init(nil)
+			protoBytes, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(protoBytes, nil)
 
-			err := amqpOutput.Init(defaultConfig)
+			err = amqpOutput.Init(defaultConfig)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 

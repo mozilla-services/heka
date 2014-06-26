@@ -50,6 +50,15 @@ Frequent Items
    :start-after: --[[
    :end-before: --]]
 
+Heka Memory Statistics
+======================
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/heka_memstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Heka Message Schema
 ===================
 
@@ -68,8 +77,27 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
+MySQL Slow Query
+================
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. include:: /config/filters/stat.rst
 
 .. include:: /config/filters/sandbox.rst
 
 .. include:: /config/filters/sandboxmanager.rst
+
+Unique Items
+============
+
+.. versionadded:: 0.6
+
+.. include:: /../../sandbox/lua/filters/unique_items.lua
+   :start-after: --[[
+   :end-before: --]]
+
