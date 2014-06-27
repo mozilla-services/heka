@@ -159,11 +159,13 @@ func FileOutputSpec(c gs.Context) {
 
 			c.Specify("honors folder_perm setting", func() {
 				config.FolderPerm = "750"
-				config.Path = tmpFilePath
+				subdir := filepath.Join(os.TempDir(), "subdir")
+				config.Path = filepath.Join(subdir, "out.txt")
 				err := fileOutput.Init(config)
+				defer os.RemoveAll(subdir)
 				c.Assume(err, gs.IsNil)
 
-				fi, err := os.Stat(tmpFilePath)
+				fi, err := os.Stat(subdir)
 				c.Expect(fi.IsDir(), gs.IsTrue)
 				c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
 			})
