@@ -319,16 +319,24 @@ func MultiDecoderSpec(c gospec.Context) {
 
 func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
+	pConfig := NewPipelineConfig(nil) // initializes Globals()
 	msg := pipeline_ts.GetTestMessage()
 	msg.SetPayload("This is a test")
-	pConfig := NewPipelineConfig(DefaultGlobals())
 	pack := NewPipelinePack(pConfig.InputRecycleChan())
 	pack.MsgBytes, _ = proto.Marshal(msg)
 	decoder := new(MultiDecoder)
-	decoder.CascStrat = CASC_FIRST_WINS
+	conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 	sub := new(ProtobufDecoder)
 	sub.Init(nil)
-	decoder.Decoders = []Decoder{sub}
+	wrapper0 := NewPluginWrapper("sub")
+	wrapper0.CreateWithError = func() (interface{}, error) {
+		return sub, nil
+	}
+	pConfig.DecoderWrappers["sub"] = wrapper0
+	conf.CascadeStrategy = "first-wins"
+	conf.Subs = []string{"sub"}
+	decoder.Init(conf)
+
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		decoder.Decode(pack)

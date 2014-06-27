@@ -171,6 +171,8 @@ if (MINGW AND INCLUDE_SANDBOX)
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
     COMMENT "Install dll's for the mock generation and unit tests")
 endif()
 

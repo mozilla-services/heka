@@ -65,7 +65,7 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A LogstreamerInput", func() {
-		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests-")
+		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests")
 		c.Expect(tmpErr, gs.Equals, nil)
 		origBaseDir := Globals().BaseDir
 		Globals().BaseDir = tmpDir

@@ -166,6 +166,10 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 			b.readFile.Close()
 			b.readFile = nil
 		}
+		if b.writeFile != nil {
+			b.writeFile.Close()
+			b.writeFile = nil
+		}
 	}()
 
 	if err = b.readFromNextFile(); err != nil {

@@ -28,8 +28,7 @@ import (
 )
 
 func BufferedOutputSpec(c gs.Context) {
-	tmpDir, tmpErr := ioutil.TempDir("", "bufferedout-tests-")
-	os.MkdirAll(tmpDir, 0777)
+	tmpDir, tmpErr := ioutil.TempDir("", "bufferedout-tests")
 
 	defer func() {
 		tmpErr = os.RemoveAll(tmpDir)
@@ -68,12 +67,15 @@ func BufferedOutputSpec(c gs.Context) {
 		c.Specify("findBufferId", func() {
 			c.Expect(findBufferId(tmpDir, true), gs.Equals, uint(0))
 			c.Expect(findBufferId(tmpDir, false), gs.Equals, uint(0))
-			_, err := os.OpenFile(filepath.Join(tmpDir, "4.log"), os.O_CREATE, 0644)
+			fd, err := os.Create(filepath.Join(tmpDir, "4.log"))
 			c.Expect(err, gs.IsNil)
-			_, err = os.OpenFile(filepath.Join(tmpDir, "5.log"), os.O_CREATE, 0644)
+			fd.Close()
+			fd, err = os.Create(filepath.Join(tmpDir, "5.log"))
 			c.Expect(err, gs.IsNil)
-			_, err = os.OpenFile(filepath.Join(tmpDir, "6a.log"), os.O_CREATE, 0644)
+			fd.Close()
+			fd, err = os.Create(filepath.Join(tmpDir, "6a.log"))
 			c.Expect(err, gs.IsNil)
+			fd.Close()
 			c.Expect(findBufferId(tmpDir, false), gs.Equals, uint(4))
 			c.Expect(findBufferId(tmpDir, true), gs.Equals, uint(5))
 		})
@@ -175,6 +177,7 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 
 				n, record, err := bufferedOutput.parser.Parse(f)
+				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
 				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
@@ -201,6 +204,7 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 
 				n, record, err := bufferedOutput.parser.Parse(f)
+				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
 				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE

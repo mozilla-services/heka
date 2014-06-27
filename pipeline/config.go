@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -408,11 +409,15 @@ func GetHekaConfigDir(inPath string) string {
 	return PrependBaseDir(inPath)
 }
 
+func isAbs(path string) bool {
+	return strings.HasPrefix(path, string(os.PathSeparator)) || len(filepath.VolumeName(path)) > 0
+}
+
 // Expects either an absolute or relative file path. If absolute, simply
 // returns the path unchanged. If relative, prepends
 // GlobalConfigStruct.BaseDir.
 func PrependBaseDir(path string) string {
-	if filepath.IsAbs(path) {
+	if isAbs(path) {
 		return path
 	}
 	return filepath.Join(Globals().BaseDir, path)
@@ -422,7 +427,7 @@ func PrependBaseDir(path string) string {
 // returns the path unchanged. If relative, prepends
 // GlobalConfigStruct.ShareDir.
 func PrependShareDir(path string) string {
-	if filepath.IsAbs(path) {
+	if isAbs(path) {
 		return path
 	}
 	return filepath.Join(Globals().ShareDir, path)
