@@ -18,6 +18,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -28,15 +29,19 @@ func ReaderSpec(c gs.Context) {
 	testDirPath := filepath.Join(here, "testdir", "filehandling")
 
 	c.Specify("A journal file can be read", func() {
-		l, err := LogstreamLocationFromFile(dirPath + "/location.json")
+		l, err := LogstreamLocationFromFile(filepath.Join(dirPath, "location.json"))
 
 		// Restore the oldest position
-		l.Filename = filepath.Join(testDirPath, "/2010/07/error.log.2")
+		l.Filename = filepath.Join(testDirPath, "2010", "07", "error.log.2")
 		l.SeekPosition = 500
 		l.Hash = "dc6d00ed4a287968635b8b5b96a505547e9161d3"
 
+		regex := `/(?P<Year>\d+)/(?P<Month>\d+)/error\.log(\.(?P<Seq>\d+))?`
+		if runtime.GOOS == "windows" {
+			regex = `\\(?P<Year>\d+)\\(?P<Month>\d+)\\error\.log(\.(?P<Seq>\d+))?`
+		}
 		sp := &SortPattern{
-			FileMatch:      `/(?P<Year>\d+)/(?P<Month>\d+)/error.log(\.(?P<Seq>\d+))?`,
+			FileMatch:      regex,
 			Translation:    make(SubmatchTranslationMap),
 			Priority:       []string{"Year", "Month", "^Seq"},
 			Differentiator: []string{"errorlog"},
@@ -65,7 +70,7 @@ func ReaderSpec(c gs.Context) {
 
 		// This should move us to the next file
 		n, err = stream.Read(b)
-		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2010/07/error.log"))
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "2010", "07", "error.log"))
 		c.Expect(err, gs.IsNil)
 		c.Expect(n, gs.Equals, 500)
 		stream.FlushBuffer(0)
@@ -82,7 +87,7 @@ func ReaderSpec(c gs.Context) {
 			}
 		}
 		// We should be at the last file
-		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "2013", "08", "error.log"))
 		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
 		b = b[:n]
@@ -91,8 +96,12 @@ func ReaderSpec(c gs.Context) {
 
 	c.Specify("Multiple journal files can be read", func() {
 		var err error
+		regex := `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>.*?)\.log(\.(?P<Seq>\d+))?`
+		if runtime.GOOS == "windows" {
+			regex = `\\(?P<Year>\d+)\\(?P<Month>\d+)\\(?P<Type>.*?)\.log(\.(?P<Seq>\d+))?`
+		}
 		sp := &SortPattern{
-			FileMatch:      `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>.*?).log(\.(?P<Seq>\d+))?`,
+			FileMatch:      regex,
 			Translation:    make(SubmatchTranslationMap),
 			Priority:       []string{"Year", "Month", "^Seq"},
 			Differentiator: []string{"Type", "-log"},
@@ -111,7 +120,7 @@ func ReaderSpec(c gs.Context) {
 
 		// Restore the oldest position
 		l := stream.position
-		l.Filename = filepath.Join(testDirPath, "/2010/07/error.log.2")
+		l.Filename = filepath.Join(testDirPath, "2010", "07", "error.log.2")
 		l.SeekPosition = 500
 		l.Hash = "dc6d00ed4a287968635b8b5b96a505547e9161d3"
 
@@ -130,7 +139,7 @@ func ReaderSpec(c gs.Context) {
 		}
 
 		// We should be at the last file
-		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/error.log"))
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "2013", "08", "error.log"))
 		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1969))
 		b = b[:n]
@@ -142,7 +151,7 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(len(stream.logfiles), gs.Equals, 26)
 
 		l = stream.position
-		l.Filename = filepath.Join(testDirPath, "/2010/05/access.log.3")
+		l.Filename = filepath.Join(testDirPath, "2010", "05", "access.log.3")
 		l.SeekPosition = 0
 		l.Hash = ""
 
@@ -157,7 +166,7 @@ func ReaderSpec(c gs.Context) {
 		}
 		l = stream.position
 		// We should be at the last file
-		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "/2013/08/access.log"))
+		c.Expect(l.Filename, gs.Equals, filepath.Join(testDirPath, "2013", "08", "access.log"))
 		stream.FlushBuffer(0)
 		c.Expect(l.SeekPosition, gs.Equals, int64(1174))
 		b = b[:n]

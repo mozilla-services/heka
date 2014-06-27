@@ -150,7 +150,7 @@ func CarbonOutputSpec(c gs.Context) {
 					select {
 					case port := <-chPort:
 						// data collection server is ready, start CarbonOutput
-						config.Address = fmt.Sprintf(":%d", port)
+						config.Address = fmt.Sprintf("127.0.0.1:%d", port)
 						config.Protocol = protocol
 						err := carbonOutput.Init(config)
 						c.Assume(err, gs.IsNil)

@@ -281,6 +281,14 @@ NONE
 				result := PrependBaseDir(dir)
 				c.Expect(result, gs.Equals, dir)
 			})
+
+			if runtime.GOOS == "windows" {
+				c.Specify("doesn't prepend for absolute paths with volume", func() {
+					dir := "c:\\absolute\\path"
+					result := PrependBaseDir(dir)
+					c.Expect(result, gs.Equals, dir)
+				})
+			}
 		})
 
 		c.Specify("PrependShareDir", func() {
@@ -295,6 +303,14 @@ NONE
 				result := PrependShareDir(dir)
 				c.Expect(result, gs.Equals, dir)
 			})
+
+			if runtime.GOOS == "windows" {
+				c.Specify("doesn't prepend for absolute path with volume", func() {
+					dir := "c:\\absolute\\path"
+					result := PrependShareDir(dir)
+					c.Expect(result, gs.Equals, dir)
+				})
+			}
 		})
 	})
 

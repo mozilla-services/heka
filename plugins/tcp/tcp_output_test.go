@@ -34,8 +34,7 @@ func TcpOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
 
-	tmpDir, tmpErr := ioutil.TempDir("", "tcp-tests-")
-	os.MkdirAll(tmpDir, 0777)
+	tmpDir, tmpErr := ioutil.TempDir("", "tcp-tests")
 	defer func() {
 		ctrl.Finish()
 		tmpErr = os.RemoveAll(tmpDir)

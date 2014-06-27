@@ -22,6 +22,7 @@ import (
 	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -327,6 +328,10 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:40: read_config() must have a single argument",
 		"process_message() ./testsupport/errors.lua:42: read_next_field() takes no arguments",
 		"process_message() ./testsupport/errors.lua:44: attempt to call global 'write_message' (a nil value)",
+	}
+
+	if runtime.GOOS == "windows" {
+		msgs[0] = "process_message() ./testsupport/errors.lua:11: cannot open \\unknown.lua: No such file or directory"
 	}
 
 	var sbc SandboxConfig

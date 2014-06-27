@@ -34,7 +34,13 @@ import (
 func FileOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
+	tmpFilePath := filepath.Join(os.TempDir(), tmpFileName)
+
+	defer func() {
+		ctrl.Finish()
+		os.Remove(tmpFilePath)
+	}()
 
 	oth := plugins_ts.NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
@@ -46,9 +52,6 @@ func FileOutputSpec(c gs.Context) {
 		encoder := new(plugins.PayloadEncoder)
 		encoder.Init(encoder.ConfigStruct())
 
-		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
-		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
-			tmpFileName)
 		config := fileOutput.ConfigStruct().(*FileOutputConfig)
 		config.Path = tmpFilePath
 
@@ -59,8 +62,8 @@ func FileOutputSpec(c gs.Context) {
 
 		c.Specify("processes incoming messages", func() {
 			err := fileOutput.Init(config)
-			defer os.Remove(tmpFilePath)
 			c.Assume(err, gs.IsNil)
+			fileOutput.file.Close()
 			// Save for comparison.
 			payload := fmt.Sprintf("%s\n", pack.Message.GetPayload())
 
@@ -75,22 +78,12 @@ func FileOutputSpec(c gs.Context) {
 			c.Expect(string(outBatch), gs.Equals, payload)
 		})
 
-		c.Specify("Init halts if basedirectory is not writable", func() {
-			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
-			err := os.MkdirAll(tmpdir, 0400)
-			c.Assume(err, gs.IsNil)
-			config.Path = tmpdir
-			err = fileOutput.Init(config)
-			c.Assume(err, gs.Not(gs.IsNil))
-		})
-
 		c.Specify("commits to a file", func() {
 			outStr := "Write me out to the log file"
 			outBytes := []byte(outStr)
 
 			c.Specify("with default settings", func() {
 				err := fileOutput.Init(config)
-				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
@@ -120,7 +113,6 @@ func FileOutputSpec(c gs.Context) {
 			c.Specify("with different Perm settings", func() {
 				config.Perm = "600"
 				err := fileOutput.Init(config)
-				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
@@ -154,17 +146,28 @@ func FileOutputSpec(c gs.Context) {
 			})
 		})
 
-		c.Specify("honors folder_perm setting", func() {
-			config.FolderPerm = "750"
-			config.Path = filepath.Join(tmpFilePath, "subfile")
-			err := fileOutput.Init(config)
-			defer os.Remove(config.Path)
-			c.Assume(err, gs.IsNil)
+		if runtime.GOOS != "windows" {
+			c.Specify("Init halts if basedirectory is not writable", func() {
+				tmpdir := filepath.Join(os.TempDir(), "tmpdir")
+				err := os.MkdirAll(tmpdir, 0400)
+				c.Assume(err, gs.IsNil)
+				config.Path = filepath.Join(tmpdir, "out.txt")
+				err = fileOutput.Init(config)
+				c.Assume(err, gs.Not(gs.IsNil))
+				os.RemoveAll(tmpdir)
+			})
 
-			fi, err := os.Stat(tmpFilePath)
-			c.Expect(fi.IsDir(), gs.IsTrue)
-			c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
-		})
+			c.Specify("honors folder_perm setting", func() {
+				config.FolderPerm = "750"
+				config.Path = tmpFilePath
+				err := fileOutput.Init(config)
+				c.Assume(err, gs.IsNil)
+
+				fi, err := os.Stat(tmpFilePath)
+				c.Expect(fi.IsDir(), gs.IsTrue)
+				c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
+			})
+		}
 
 		c.Specify("that starts receiving w/ a flush interval", func() {
 			config.FlushInterval = 100000000 // We'll trigger the timer manually.
@@ -187,6 +190,7 @@ func FileOutputSpec(c gs.Context) {
 
 			cleanUp := func() {
 				close(inChan)
+				fileOutput.file.Close()
 				wg.Done()
 			}
 
