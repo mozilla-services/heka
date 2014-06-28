@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"reflect"
 )
 
 // Append a field (with a name and a value) to a Buffer.
@@ -103,15 +104,29 @@ func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
 	writeQuotedString(b, value)
 }
 
-func writeStringArrayField(first bool, b *bytes.Buffer, name string, values []string) {
+func writeRawArrayField(first bool, b *bytes.Buffer, name string, values interface{}) {
 	if !first {
 		b.WriteString(`,`)
 	}
 	writeQuotedString(b, name)
 	b.WriteString(`:[`)
 	begining := true
-	for _, value := range values {
-		writeQuotedString(b, value)
+
+	s := reflect.ValueOf(values)
+	for i := 0; i < s.Len(); i++ {
+		switch s.Index(i).Kind() {
+			case reflect.String:
+				writeQuotedString(b, s.Index(i).String())
+			case reflect.Slice:
+				data := s.Index(i).Bytes()[:]
+				writeQuotedString(b, base64.StdEncoding.EncodeToString(data))
+			case reflect.Int64:
+				b.WriteString(strconv.FormatInt(s.Index(i).Int(), 10))
+			case reflect.Float64:
+				b.WriteString(strconv.FormatFloat(s.Index(i).Float(), 'g', -1, 64))
+			case reflect.Bool:
+				b.WriteString(strconv.FormatBool(s.Index(i).Bool()))
+		}
 		if begining {
 			b.WriteString(`,`)
 		}
@@ -243,23 +258,43 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					case message.Field_STRING:
 						strings := field.GetValueString()
 						if len(strings) > 1 {
-							writeStringArrayField(first, &buf, *field.Name, field.GetValueString())
+							writeRawArrayField(first, &buf, *field.Name, strings)
 						} else {
 							writeStringField(first, &buf, *field.Name, field.GetValue().(string))
 						}
 					case message.Field_BYTES:
-						data := field.GetValue().([]byte)[:]
-						writeStringField(first, &buf, *field.Name,
-							base64.StdEncoding.EncodeToString(data))
+						datas := field.GetValueBytes()
+						if len(datas) > 1 {
+							writeRawArrayField(first, &buf, *field.Name, datas)
+						} else {
+							data := field.GetValue().([]byte)[:]
+							writeStringField(first, &buf, *field.Name,
+								base64.StdEncoding.EncodeToString(data))
+						}
 					case message.Field_INTEGER:
-						writeRawField(first, &buf, *field.Name,
-							strconv.FormatInt(field.GetValue().(int64), 10))
+						integers := field.GetValueInteger()
+						if len(integers) > 1 {
+							writeRawArrayField(first, &buf, *field.Name, integers)
+						} else {
+							writeRawField(first, &buf, *field.Name,
+								strconv.FormatInt(field.GetValue().(int64), 10))
+						}
 					case message.Field_DOUBLE:
-						writeRawField(first, &buf, *field.Name,
-							strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+						doubles := field.GetValueDouble()
+						if len(doubles) > 1 {
+							writeRawArrayField(first, &buf, *field.Name, doubles)
+						} else {
+							writeRawField(first, &buf, *field.Name,
+								strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
+						}
 					case message.Field_BOOL:
-						writeRawField(first, &buf, *field.Name,
-							strconv.FormatBool(field.GetValue().(bool)))
+						bools := field.GetValueBool()
+						if len(bools) > 1 {
+							writeRawArrayField(first, &buf, *field.Name, bools)
+						} else {
+							writeRawField(first, &buf, *field.Name,
+								strconv.FormatBool(field.GetValue().(bool)))
+						}
 					}
 				}
 			}

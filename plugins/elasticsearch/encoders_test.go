@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"encoding/base64"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -41,9 +42,21 @@ func getTestMessageWithFunnyFields() *message.Message {
 	field1, _ := message.NewField(`"number`, 64, "")
 	field2, _ := message.NewField("\xa3", "\xa3", "")
 	field3, _ := message.NewField("idField", "1234", "")
-	field4 := message.NewFieldInit("tags", message.Field_STRING, "")
+	field4 := message.NewFieldInit("stringArray", message.Field_STRING, "")
 	field4.AddValue("asdf")
 	field4.AddValue("jkl;")
+	field5 := message.NewFieldInit("byteArray", message.Field_BYTES, "")
+	field5.AddValue([]byte("asdf"))
+	field5.AddValue([]byte("jkl;"))
+	field6 := message.NewFieldInit("integerArray", message.Field_INTEGER, "")
+	field6.AddValue(1)
+	field6.AddValue(8080)
+	field7 := message.NewFieldInit("doubleArray", message.Field_DOUBLE, "")
+	field7.AddValue(42.0)
+	field7.AddValue(19101.3)
+	field8 := message.NewFieldInit("boolArray", message.Field_BOOL, "")
+	field8.AddValue(true)
+	field8.AddValue(false)
 
 	msg := &message.Message{}
 	msg.SetType("TEST")
@@ -63,6 +76,10 @@ func getTestMessageWithFunnyFields() *message.Message {
 	msg.AddField(field2)
 	msg.AddField(field3)
 	msg.AddField(field4)
+	msg.AddField(field5)
+	msg.AddField(field6)
+	msg.AddField(field7)
+	msg.AddField(field8)
 
 	return msg
 }
@@ -196,10 +213,30 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["Pid"], gs.Equals, 14098.0)
 			c.Expect(decoded["Hostname"], gs.Equals, "hostname")
 			
-			tagsArray := decoded["tags"].([]interface{})
-			c.Expect(len(tagsArray), gs.Equals, 2)
-			c.Expect(tagsArray[0], gs.Equals, "asdf")
-			c.Expect(tagsArray[1], gs.Equals, "jkl;")
+			stringsArray := decoded["stringArray"].([]interface{})
+			c.Expect(len(stringsArray), gs.Equals, 2)
+			c.Expect(stringsArray[0], gs.Equals, "asdf")
+			c.Expect(stringsArray[1], gs.Equals, "jkl;")
+
+			bytesArray := decoded["byteArray"].([]interface{})
+			c.Expect(len(bytesArray), gs.Equals, 2)
+			c.Expect(bytesArray[0], gs.Equals, base64.StdEncoding.EncodeToString([]byte("asdf")))
+			c.Expect(bytesArray[1], gs.Equals, base64.StdEncoding.EncodeToString([]byte("jkl;")))
+
+			integerArray := decoded["integerArray"].([]interface{})
+			c.Expect(len(integerArray), gs.Equals, 2)
+			c.Expect(integerArray[0], gs.Equals, 1.0)
+			c.Expect(integerArray[1], gs.Equals, 8080.0)
+
+			doubleArray := decoded["doubleArray"].([]interface{})
+			c.Expect(len(doubleArray), gs.Equals, 2)
+			c.Expect(doubleArray[0], gs.Equals, 42.0)
+			c.Expect(doubleArray[1], gs.Equals, 19101.3)
+
+			boolArray := decoded["boolArray"].([]interface{})
+			c.Expect(len(boolArray), gs.Equals, 2)
+			c.Expect(boolArray[0], gs.Equals, true)
+			c.Expect(boolArray[1], gs.Equals, false)
 		})
 	})
 }
