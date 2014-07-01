@@ -50,6 +50,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed the ElasticSearchOutput to always use UTC times in the bulk API header
+  (issue #504).
+
 * Fixed the SandboxDecoder panic when failing the Decode() after successfully
   injecting a message (issue #910).
 
