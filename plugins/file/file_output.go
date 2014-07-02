@@ -31,7 +31,6 @@ import (
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
 	path          string
-	prefix_ts     bool
 	perm          os.FileMode
 	flushInterval uint32
 	flushCount    uint32
@@ -68,6 +67,9 @@ type FileOutputConfig struct {
 	// directory if it doesn't exist.  Must be a string representation of an
 	// octal integer. Defaults to "700".
 	FolderPerm string `toml:"folder_perm"`
+
+	// Allows us to use framing by default.
+	UseFraming bool `toml:"use_framing"`
 }
 
 func (o *FileOutput) ConfigStruct() interface{} {
@@ -77,6 +79,7 @@ func (o *FileOutput) ConfigStruct() interface{} {
 		FlushCount:    1,
 		FlushOperator: "AND",
 		FolderPerm:    "700",
+		UseFraming:    true,
 	}
 }
 
