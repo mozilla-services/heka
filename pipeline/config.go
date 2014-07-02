@@ -677,12 +677,18 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		// Check to see if default value for UseFraming is set if none was in
 		// the TOML.
 		if section.globals.UseFraming == nil {
-			useFraming_ := getAttr(config, "UseFraming", false)
-			if useFraming_ == nil {
-				useFraming_ = false
+			useFraming := getAttr(config, "UseFraming", false)
+			// We might have a bool or a *bool, gotta check both cases.
+			switch useFraming := useFraming.(type) {
+			case bool:
+				section.globals.UseFraming = &useFraming
+			case *bool:
+				if useFraming == nil {
+					b := false
+					useFraming = &b
+				}
+				section.globals.UseFraming = useFraming
 			}
-			useFraming := useFraming_.(bool)
-			section.globals.UseFraming = &(useFraming)
 		}
 		runner.useFraming = *section.globals.UseFraming
 

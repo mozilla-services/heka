@@ -8,9 +8,6 @@ Config:
 
 - path (string):
     Full path to the output file.
-- prefix_ts (bool, optional):
-    Whether a timestamp should be prefixed to each message line in the file.
-    Defaults to ``false``.
 - perm (string, optional):
     File permission for writing. A string of the octal digit representation.
     Defaults to "644".
