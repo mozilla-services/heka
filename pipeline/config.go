@@ -678,6 +678,9 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		// the TOML.
 		if section.globals.UseFraming == nil {
 			useFraming_ := getAttr(config, "UseFraming", false)
+			if useFraming_ == nil {
+				useFraming_ = false
+			}
 			useFraming := useFraming_.(bool)
 			section.globals.UseFraming = &(useFraming)
 		}

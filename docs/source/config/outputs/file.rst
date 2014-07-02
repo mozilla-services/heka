@@ -29,6 +29,13 @@ Config:
     "flush_count" are combined. Allowed values are "AND" or "OR" (default is
     "AND").
 
+.. versionadded:: 0.6
+
+- use_framing (bool, optional):
+    Specifies whether or not the encoded data sent out over the TCP connection
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
+    ProtobufEncoder is used, false otherwise.
+
 Example:
 
 .. code-block:: ini

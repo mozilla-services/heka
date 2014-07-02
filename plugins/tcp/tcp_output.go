@@ -54,12 +54,14 @@ type TcpOutputConfig struct {
 	TickerInterval uint `toml:"ticker_interval"`
 	// Allows for a default encoder.
 	Encoder string
-	// Allows us to use framing by default.
-	UseFraming bool `toml:"use_framing"`
 	// Set to true if TCP Keep Alive should be used.
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
 	KeepAlivePeriod int `toml:"keep_alive_period"`
+	// Specifies whether or not Heka's stream framing wil be applied to the
+	// output. We do some magic to default to true if ProtobufEncoder is used,
+	// false otherwise.
+	UseFraming *bool `toml:"use_framing"`
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
@@ -67,7 +69,6 @@ func (t *TcpOutput) ConfigStruct() interface{} {
 		Address:        "localhost:9125",
 		TickerInterval: uint(300),
 		Encoder:        "ProtobufEncoder",
-		UseFraming:     true,
 	}
 }
 
@@ -159,6 +160,13 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		stopChan    = make(chan bool, 1)
 	)
 
+	if t.conf.UseFraming == nil {
+		// Nothing was specified, we'll default to framing IFF ProtobufEncoder
+		// is being used.
+		if _, ok := or.Encoder().(*ProtobufEncoder); ok {
+			or.SetUseFraming(true)
+		}
+	}
 	t.or = or
 
 	defer func() {

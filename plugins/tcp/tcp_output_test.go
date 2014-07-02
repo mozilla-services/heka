@@ -20,6 +20,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
@@ -77,10 +78,48 @@ func TcpOutputSpec(c gs.Context) {
 		matchBytes, err := proto.Marshal(newpack.Message)
 		c.Expect(err, gs.IsNil)
 
-		c.Specify("writes out to the network", func() {
-			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
-			inChanCall.Return(inChan)
+		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
+		inChanCall.Return(inChan)
 
+		c.Specify("doesn't use framing w/o ProtobufEncoder", func() {
+			encoder := new(plugins.PayloadEncoder)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+			err := tcpOutput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			wg.Add(1)
+			go func() {
+				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				c.Expect(err, gs.IsNil)
+				wg.Done()
+			}()
+
+			close(inChan)
+			wg.Wait()
+			// We should fail if SetUseFraming is called since we didn't
+			// EXPECT it.
+		})
+
+		c.Specify("doesn't use framing if config says not to", func() {
+			useFraming := false
+			config.UseFraming = &useFraming
+			err := tcpOutput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			wg.Add(1)
+			go func() {
+				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				c.Expect(err, gs.IsNil)
+				wg.Done()
+			}()
+
+			close(inChan)
+			wg.Wait()
+			// We should fail if SetUseFraming is called since we didn't
+			// EXPECT it.
+		})
+
+		c.Specify("writes out to the network", func() {
 			collectData := func(ch chan string) {
 				ln, err := net.Listen("tcp", "localhost:9125")
 				if err != nil {
@@ -106,12 +145,14 @@ func TcpOutputSpec(c gs.Context) {
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+			oth.MockOutputRunner.EXPECT().SetUseFraming(true)
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
 
 			pack.Message.SetPayload(outStr)
+			wg.Add(1)
 			go func() {
-				wg.Add(1)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				c.Expect(err, gs.IsNil)
 				wg.Done()
@@ -132,19 +173,19 @@ func TcpOutputSpec(c gs.Context) {
 		})
 
 		c.Specify("far end not initially listening", func() {
-			inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
-			inChanCall.Return(inChan)
 			oth.MockOutputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 
 			pack.Message.SetPayload(outStr)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+			oth.MockOutputRunner.EXPECT().SetUseFraming(true)
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
 
+			wg.Add(1)
 			go func() {
-				wg.Add(1)
 				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				c.Expect(err, gs.IsNil)
 				wg.Done()

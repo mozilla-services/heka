@@ -36,7 +36,8 @@ Config:
     Defaults to the always available "ProtobufEncoder".
 - use_framing (bool, optional):
     Specifies whether or not the encoded data sent out over the TCP connection
-    should be delimited by Heka's :ref:`stream_framing`. Defaults to true.
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
+    ProtobufEncoder is used, false otherwise.
 
 Example:
 
