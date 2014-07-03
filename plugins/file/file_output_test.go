@@ -60,6 +60,48 @@ func FileOutputSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 
+		c.Specify("w/ ProtobufEncoder", func() {
+			encoder := new(ProtobufEncoder)
+			encoder.Init(nil)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+
+			c.Specify("uses framing", func() {
+				oth.MockOutputRunner.EXPECT().SetUseFraming(true)
+				err := fileOutput.Init(config)
+				defer os.Remove(tmpFilePath)
+				c.Assume(err, gs.IsNil)
+				oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+				wg.Add(1)
+				go func() {
+					err = fileOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+					c.Expect(err, gs.IsNil)
+					wg.Done()
+				}()
+				close(inChan)
+				wg.Wait()
+			})
+
+			c.Specify("but not if config says not to", func() {
+				useFraming := false
+				config.UseFraming = &useFraming
+				err := fileOutput.Init(config)
+				defer os.Remove(tmpFilePath)
+				c.Assume(err, gs.IsNil)
+				oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+				wg.Add(1)
+				go func() {
+					err = fileOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+					c.Expect(err, gs.IsNil)
+					wg.Done()
+				}()
+				close(inChan)
+				wg.Wait()
+				// We should fail if SetUseFraming is called since we didn't
+				// EXPECT it.
+
+			})
+		})
+
 		c.Specify("processes incoming messages", func() {
 			err := fileOutput.Init(config)
 			c.Assume(err, gs.IsNil)

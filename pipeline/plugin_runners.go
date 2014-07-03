@@ -424,6 +424,8 @@ type OutputRunner interface {
 	// configuration, i.e. whether or not Heka stream framing will be applied
 	// to the results of calls to the Encode method.
 	UsesFraming() bool
+	// Allows an output to specify whether or not it's using framing.
+	SetUseFraming(useFraming bool)
 }
 
 // This one struct provides the implementation of both FilterRunner and
@@ -642,4 +644,8 @@ func (foRunner *foRunner) Encode(pack *PipelinePack) (output []byte, err error) 
 
 func (foRunner *foRunner) UsesFraming() bool {
 	return foRunner.useFraming
+}
+
+func (foRunner *foRunner) SetUseFraming(useFraming bool) {
+	foRunner.useFraming = useFraming
 }

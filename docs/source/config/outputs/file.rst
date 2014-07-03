@@ -8,9 +8,6 @@ Config:
 
 - path (string):
     Full path to the output file.
-- prefix_ts (bool, optional):
-    Whether a timestamp should be prefixed to each message line in the file.
-    Defaults to ``false``.
 - perm (string, optional):
     File permission for writing. A string of the octal digit representation.
     Defaults to "644".
@@ -28,6 +25,13 @@ Config:
     Operator describing how the two parameters "flush_interval" and
     "flush_count" are combined. Allowed values are "AND" or "OR" (default is
     "AND").
+
+.. versionadded:: 0.6
+
+- use_framing (bool, optional):
+    Specifies whether or not the encoded data sent out over the TCP connection
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
+    ProtobufEncoder is used, false otherwise.
 
 Example:
 
