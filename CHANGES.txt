@@ -87,6 +87,8 @@ Bug Handling
 Features
 --------
 
+* Added general purpose HttpOutput (issue #820).
+
 * Added message processing stat reporting to the MultiDecoder for each
   subdecoder and in aggregate (issue #719).
 

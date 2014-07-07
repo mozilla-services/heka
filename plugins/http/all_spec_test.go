@@ -25,6 +25,7 @@ func TestAllSpecs(t *testing.T) {
 
 	r.AddSpec(HttpInputSpec)
 	r.AddSpec(HttpListenInputSpec)
+	r.AddSpec(HttpOutputSpec)
 
 	gospec.MainGoTest(r, t)
 }
