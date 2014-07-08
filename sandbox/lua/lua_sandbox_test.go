@@ -841,8 +841,8 @@ func TestInjectMessageError(t *testing.T) {
 		"error userdata output_limit",
 	}
 	errors := []string{
-		"process_message() not enough memory",
-		"process_message() not enough memory",
+		"process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)",
+		"process_message() ./testsupport/inject_message.lua:44: STRBUF_MAX_SIZE exceeded",
 		"process_message() ./testsupport/inject_message.lua:65: inject_message() could not encode protobuf - array has mixed types",
 		"process_message() ./testsupport/inject_message.lua:68: inject_message() could not encode protobuf - unsupported type: nil",
 		"process_message() ./testsupport/inject_message.lua:70: bad argument #1 to 'inject_payload' (string expected, got nil)",
@@ -852,7 +852,7 @@ func TestInjectMessageError(t *testing.T) {
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
-	sbc.MemoryLimit = 100000
+	sbc.MemoryLimit = 1000000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
 	pack := getTestPack()
@@ -867,17 +867,11 @@ func TestInjectMessageError(t *testing.T) {
 		}
 		pack.Message.SetPayload(v)
 		r := sb.ProcessMessage(pack)
-		var expected string
-		if i == 0 && runtime.GOARCH == "386" {
-			expected = "process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)"
-		} else {
-			expected = errors[i]
-		}
 		if r != 1 {
 			t.Errorf("ProcessMessage test: %s should return 1, received %d", v, r)
 		} else {
-			if sb.LastError() != expected {
-				t.Errorf("Expected: \"%s\" received: \"%s\"", expected, sb.LastError())
+			if sb.LastError() != errors[i] {
+				t.Errorf("Expected: \"%s\" received: \"%s\"", errors[i], sb.LastError())
 			}
 		}
 		sb.Destroy("")
