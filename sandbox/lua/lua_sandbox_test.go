@@ -867,11 +867,17 @@ func TestInjectMessageError(t *testing.T) {
 		}
 		pack.Message.SetPayload(v)
 		r := sb.ProcessMessage(pack)
+		var expected string
+		if i == 0 && runtime.GOARCH == "386" {
+			expected = "process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)"
+		} else {
+			expected = errors[i]
+		}
 		if r != 1 {
 			t.Errorf("ProcessMessage test: %s should return 1, received %d", v, r)
 		} else {
-			if sb.LastError() != errors[i] {
-				t.Errorf("Expected: \"%s\" received: \"%s\"", errors[i], sb.LastError())
+			if sb.LastError() != expected {
+				t.Errorf("Expected: \"%s\" received: \"%s\"", expected, sb.LastError())
 			}
 		}
 		sb.Destroy("")

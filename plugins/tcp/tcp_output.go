@@ -30,11 +30,11 @@ import (
 
 // Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
+	processMessageCount int64
 	conf                *TcpOutputConfig
 	address             string
 	localAddress        net.Addr
 	connection          net.Conn
-	processMessageCount int64
 	name                string
 	reportLock          sync.Mutex
 	bufferedOut         *BufferedOutput
