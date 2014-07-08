@@ -26,17 +26,6 @@ import (
 	"time"
 )
 
-// Append a field (with a name and a value) to a Buffer.
-func writeField(first bool, b *bytes.Buffer, name string, value string) {
-	if !first {
-		b.WriteString(`,`)
-	}
-	b.WriteString(`"`)
-	b.WriteString(name)
-	b.WriteString(`":`)
-	b.WriteString(value)
-}
-
 const lowerhex = "0123456789abcdef"
 
 func writeUTF16Escape(b *bytes.Buffer, c rune) {
@@ -94,61 +83,105 @@ func writeQuotedString(b *bytes.Buffer, str string) {
 
 }
 
+func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
+	if !first {
+		b.WriteString(`,`)
+	}
+
+	writeQuotedString(b, f.GetName())
+	b.WriteString(`:`)
+
+	if raw {
+		switch f.GetValueType() { 
+			case message.Field_STRING:
+				b.WriteString(f.GetValue().(string))
+			case message.Field_BYTES:
+				b.WriteString(string(f.GetValue().([]byte)))
+		}
+	} else {
+		switch f.GetValueType() {
+		case message.Field_STRING:
+			values := f.GetValueString()
+			if len(values) > 1 {
+				b.WriteString(`[`)
+				for i, value := range values {
+					writeQuotedString(b, value)
+					if i < len(values) - 1 {
+						b.WriteString(`,`)
+					}
+				}
+				b.WriteString(`]`)
+			} else {
+				writeQuotedString(b, f.GetValue().(string))
+			}
+		case message.Field_BYTES:
+			values := f.GetValueBytes()
+			if len(values) > 1 {
+				b.WriteString(`[`)
+				for i, value := range values {
+					writeQuotedString(b, base64.StdEncoding.EncodeToString(value))
+					if i < len(values) - 1 {
+						b.WriteString(`,`)
+					}
+				}
+				b.WriteString(`]`)
+			} else {
+				writeQuotedString(b, f.GetValue().(string))
+			}
+		case message.Field_INTEGER:
+			values := f.GetValueInteger()
+			if len(values) > 1 {
+				b.WriteString(`[`)
+				for i, value := range values {
+					b.WriteString(strconv.FormatInt(value, 10))
+					if i < len(values) - 1 {
+						b.WriteString(`,`)
+					}
+				}
+				b.WriteString(`]`)
+			} else {
+				b.WriteString(strconv.FormatInt(f.GetValue().(int64), 10))
+			}
+		case message.Field_DOUBLE:
+			values := f.GetValueDouble()
+			if len(values) > 1 {
+				b.WriteString(`[`)
+				for i, value := range values {
+					b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
+					if i < len(values) - 1 {
+						b.WriteString(`,`)
+					}
+				}
+				b.WriteString(`]`)
+			} else {
+				b.WriteString(strconv.FormatFloat(f.GetValue().(float64), 'g', -1, 64))
+			}
+		case message.Field_BOOL:
+			values := f.GetValueBool()
+			if len(values) > 1 {
+				b.WriteString(`[`)
+				for i, value := range values {
+					b.WriteString(strconv.FormatBool(value))
+					if i < len(values) - 1 {
+						b.WriteString(`,`)
+					}
+				}
+				b.WriteString(`]`)
+			} else {
+				b.WriteString(strconv.FormatBool(f.GetValue().(bool)))
+			}
+		}
+	}
+}
+
 func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
 	if !first {
 		b.WriteString(`,`)
 	}
+
 	writeQuotedString(b, name)
 	b.WriteString(`:`)
 	writeQuotedString(b, value)
-}
-
-func writeRawArrayField(first bool, b *bytes.Buffer, name string, field_type message.Field_ValueType, values interface{}) {
-	if !first {
-		b.WriteString(`,`)
-	}
-	writeQuotedString(b, name)
-	b.WriteString(`:[`)
-
-	switch field_type {
-		case message.Field_STRING:
-			for i, value := range values.([]string) {
-				writeQuotedString(b, value)
-				if i < len(values.([]string)) - 1 {
-					b.WriteString(`,`)
-				}
-			}
-		case message.Field_BYTES:
-			for i, value := range values.([][]byte) {
-				writeQuotedString(b, base64.StdEncoding.EncodeToString(value))
-				if i < len(values.([][]byte)) - 1 {
-					b.WriteString(`,`)
-				}
-			}
-		case message.Field_INTEGER:
-			for i, value := range values.([]int64) {
-				b.WriteString(strconv.FormatInt(value, 10))
-				if i < len(values.([]int64)) - 1 {
-					b.WriteString(`,`)
-				}
-			}
-		case message.Field_DOUBLE:
-			for i, value := range values.([]float64) {
-				b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
-				if i < len(values.([]float64)) - 1 {
-					b.WriteString(`,`)
-				}
-			}
-		case message.Field_BOOL:
-			for i, value := range values.([]bool) {
-				b.WriteString(strconv.FormatBool(value))
-				if i < len(values.([]bool)) - 1 {
-					b.WriteString(`,`)
-				}
-			}
-	}
-
-	b.WriteString(`]`)
 }
 
 func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
@@ -265,54 +298,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 						}
 					}
 				}
-				if raw {
-					data := field.GetValue().([]byte)[:]
-					writeField(first, &buf, *field.Name, string(data))
-					raw = false
-				} else {
-					switch field.GetValueType() {
-					case message.Field_STRING:
-						strings := field.GetValueString()
-						if len(strings) > 1 {
-							writeRawArrayField(first, &buf, *field.Name, message.Field_STRING, strings)
-						} else {
-							writeStringField(first, &buf, *field.Name, field.GetValue().(string))
-						}
-					case message.Field_BYTES:
-						datas := field.GetValueBytes()
-						if len(datas) > 1 {
-							writeRawArrayField(first, &buf, *field.Name, message.Field_BYTES, datas)
-						} else {
-							data := field.GetValue().([]byte)[:]
-							writeStringField(first, &buf, *field.Name,
-								base64.StdEncoding.EncodeToString(data))
-						}
-					case message.Field_INTEGER:
-						integers := field.GetValueInteger()
-						if len(integers) > 1 {
-							writeRawArrayField(first, &buf, *field.Name, message.Field_INTEGER, integers)
-						} else {
-							writeRawField(first, &buf, *field.Name,
-								strconv.FormatInt(field.GetValue().(int64), 10))
-						}
-					case message.Field_DOUBLE:
-						doubles := field.GetValueDouble()
-						if len(doubles) > 1 {
-							writeRawArrayField(first, &buf, *field.Name, message.Field_DOUBLE, doubles)
-						} else {
-							writeRawField(first, &buf, *field.Name,
-								strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
-						}
-					case message.Field_BOOL:
-						bools := field.GetValueBool()
-						if len(bools) > 1 {
-							writeRawArrayField(first, &buf, *field.Name, message.Field_BOOL, bools)
-						} else {
-							writeRawField(first, &buf, *field.Name,
-								strconv.FormatBool(field.GetValue().(bool)))
-						}
-					}
-				}
+				writeField(first, &buf, field, raw)
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
@@ -399,30 +385,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 				}
 			}
 		}
-
-		if raw {
-			data := field.GetValue().([]byte)[:]
-			writeField(false, &buf, *field.Name, string(data))
-			raw = false
-		} else {
-			switch field.GetValueType() {
-			case message.Field_STRING:
-				writeStringField(first, &buf, *field.Name, field.GetValue().(string))
-			case message.Field_BYTES:
-				data := field.GetValue().([]byte)[:]
-				writeStringField(first, &buf, *field.Name,
-					base64.StdEncoding.EncodeToString(data))
-			case message.Field_INTEGER:
-				writeRawField(first, &buf, *field.Name,
-					strconv.FormatInt(field.GetValue().(int64), 10))
-			case message.Field_DOUBLE:
-				writeRawField(first, &buf, *field.Name,
-					strconv.FormatFloat(field.GetValue().(float64), 'g', -1, 64))
-			case message.Field_BOOL:
-				writeRawField(first, &buf, *field.Name,
-					strconv.FormatBool(field.GetValue().(bool)))
-			}
-		}
+		writeField(first, &buf, field, raw)
 		first = false
 	}
 	buf.WriteString(`}`) // end of fields
