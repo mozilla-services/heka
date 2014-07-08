@@ -17,7 +17,6 @@ package http
 import (
 	"code.google.com/p/gomock/gomock"
 	"encoding/base64"
-	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
@@ -91,13 +90,6 @@ func HttpOutputSpec(c gs.Context) {
 	c.Specify("An HttpOutput", func() {
 		httpOutput := new(HttpOutput)
 		config := httpOutput.ConfigStruct().(*HttpOutputConfig)
-
-		c.Specify("doesn't allow zero for both flush values", func() {
-			config.FlushInterval = 0
-			config.FlushCount = 0
-			err := httpOutput.Init(config)
-			c.Expect(err, gs.Not(gs.IsNil))
-		})
 
 		c.Specify("barfs on bogus URLs", func() {
 			config.Address = "one-two-three-four"
@@ -203,32 +195,6 @@ func HttpOutputSpec(c gs.Context) {
 				decodedAuth, err := base64.StdEncoding.DecodeString(auth[6:])
 				c.Expect(err, gs.IsNil)
 				c.Expect(string(decodedAuth), gs.Equals, "user:pass")
-			})
-
-			c.Specify("honors flush count", func() {
-				config.FlushCount = 3
-				oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Times(3).Return(
-					[]byte(payload), nil)
-				err := httpOutput.Init(config)
-				c.Expect(err, gs.IsNil)
-				runWg.Add(1)
-				go runOutput()
-				handleWg.Add(1)
-				inChan <- pack
-				c.Expect(reqBody, gs.Equals, "")
-				inChan <- <-recycleChan
-				c.Expect(reqBody, gs.Equals, "")
-				inChan <- <-recycleChan
-				handleWg.Wait()
-				c.Expect(reqBody, gs.Equals, fmt.Sprintf("%s%s%s", payload, payload,
-					payload))
-				// Make sure it flushes the channel when we close it.
-				handleWg.Add(1)
-				inChan <- <-recycleChan
-				close(inChan)
-				handleWg.Wait()
-				runWg.Wait()
-				c.Expect(reqBody, gs.Equals, payload)
 			})
 
 			c.Specify("logs error responses", func() {

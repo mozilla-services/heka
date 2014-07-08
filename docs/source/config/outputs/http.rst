@@ -4,15 +4,21 @@
 HttpOutput
 ==========
 
-A simple output plugin that uses HTTP GET, POST, or PUT requests to deliver
-data to an HTTP endpoint. The output supports batching, i.e. accumulating data
-from multiple messages and combining it into a single HTTP request. When
-batching is used (specified by use of the `flush_interval` and/or
-`flush_count` configuration settings) each message will be encoded separately,
-and the output of the various encoding operations will be concatenated.
+A very simple output plugin that uses HTTP GET, POST, or PUT requests to
+deliver data to an HTTP endpoint. When using POST or PUT request methods the
+encoded output will be uploaded as the request body. When using GET the
+encoded output will be ignored.
 
-When using POST or PUT request methods the encoded output will be uploaded as
-the request body. When using GET the encoded output will be ignored.
+This output doesn't support any request batching; each received message will
+generate an HTTP request. Batching can be achieved by use of a filter plugin
+that accumulates message data, periodically emitting a single message
+containing the batched, encoded HTTP request data in the payload. An
+HttpOutput can then be configured to capture these batch messages, using a
+:ref:`config_payloadencoder` to extract the message payload.
+
+For now the HttpOutput only supports statically defined request parameters
+(URL, headers, auth, etc.). Future iterations will provide a mechanism for
+dynamically specifying these values on a per-message basis.
 
 Config:
 
@@ -22,15 +28,6 @@ Config:
 - method (string, optional):
 	HTTP request method to use, must be one of GET, POST, or PUT. Defaults to
 	POST.
-- flush_interval (uint32, optional):
-	Elapsed interval, in milliseconds, after which an HTTP request will be
-	made. A value of zero means time elapsed will never trigger a flush.
-	Defaults to zero.
-- flush_count (uint32, optional):
-	Number of messages that must be processed before an HTTP request will be
-	made. A value of zero means that message count will never trigger a flush.
-	Defaults to one. At least one of `flush_interval` and `flush_count` must
-	be non-zero.
 - username (string, optional):
 	If specified, HTTP Basic Auth will be used with the provided user name.
 - password (string, optional):

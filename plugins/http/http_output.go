@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -33,41 +32,30 @@ type HttpOutput struct {
 	*HttpOutputConfig
 	url          *url.URL
 	client       *http.Client
-	batchChan    chan []byte
-	backChan     chan []byte
 	useBasicAuth bool
 	sendBody     bool
 }
 
 type HttpOutputConfig struct {
-	HttpTimeout   uint32 `toml:"http_timeout"`
-	FlushInterval uint32 `toml:"flush_interval"`
-	FlushCount    uint32 `toml:"flush_count"`
-	Address       string
-	Method        string
-	Headers       http.Header
-	Username      string `toml:"username"`
-	Password      string `toml:"password"`
-	Tls           *tcp.TlsConfig
+	HttpTimeout uint32 `toml:"http_timeout"`
+	Address     string
+	Method      string
+	Headers     http.Header
+	Username    string `toml:"username"`
+	Password    string `toml:"password"`
+	Tls         *tcp.TlsConfig
 }
 
 func (o *HttpOutput) ConfigStruct() interface{} {
 	return &HttpOutputConfig{
-		FlushInterval: 0,
-		FlushCount:    1,
-		HttpTimeout:   0,
-		Headers:       make(http.Header),
-		Method:        "POST",
+		HttpTimeout: 0,
+		Headers:     make(http.Header),
+		Method:      "POST",
 	}
 }
 
 func (o *HttpOutput) Init(config interface{}) (err error) {
 	o.HttpOutputConfig = config.(*HttpOutputConfig)
-	o.batchChan = make(chan []byte)
-	o.backChan = make(chan []byte, 2)
-	if o.FlushInterval == 0 && o.FlushCount == 0 {
-		return errors.New("`flush_count` and `flush_interval` cannot both be zero.")
-	}
 	if o.url, err = url.Parse(o.Address); err != nil {
 		return fmt.Errorf("Can't parse URL '%s': %s", o.Address, err.Error())
 	}
@@ -102,78 +90,36 @@ func (o *HttpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
 	}
-	// Create waitgroup and launch the committer goroutine.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go o.committer(or, &wg)
 
 	var (
-		pack     *pipeline.PipelinePack
 		e        error
-		count    uint32
 		outBytes []byte
 	)
-	ok := true
-	ticker := time.Tick(time.Duration(o.FlushInterval) * time.Millisecond)
-	outBatch := make([]byte, 0, 10000)
 	inChan := or.InChan()
 
-	for ok {
-		select {
-		case pack, ok = <-inChan:
-			if !ok {
-				// Closed inChan => we're shutting down, flush data.
-				if len(outBatch) > 0 {
-					o.batchChan <- outBatch
-				}
-				close(o.batchChan)
-				break
-			}
-			outBytes, e = or.Encode(pack)
-			pack.Recycle()
-			if e != nil {
-				or.LogError(e)
-			} else {
-				outBatch = append(outBatch, outBytes...)
-				if count = count + 1; o.FlushCount > 0 && count >= o.FlushCount {
-					if len(outBatch) > 0 {
-						// This will block until the other side is ready to
-						// accept this batch, so we can't get too far ahead.
-						o.batchChan <- outBatch
-						outBatch = <-o.backChan
-						count = 0
-					}
-				}
-			}
-		case <-ticker:
-			if len(outBatch) > 0 {
-				// This will block until the other side is ready to accept
-				// this batch, freeing us to start on the next one.
-				o.batchChan <- outBatch
-				outBatch = <-o.backChan
-				count = 0
-			}
+	for pack := range inChan {
+		outBytes, e = or.Encode(pack)
+		pack.Recycle()
+		if e != nil {
+			or.LogError(e)
+			continue
+		}
+		if e = o.request(or, outBytes); e != nil {
+			or.LogError(e)
 		}
 	}
 
-	// Wait for the committer to finish before we exit.
-	wg.Wait()
 	return
 }
 
-func (o *HttpOutput) committer(or pipeline.OutputRunner, wg *sync.WaitGroup) {
-	initBatch := make([]byte, 0, 10000)
-	o.backChan <- initBatch
+func (o *HttpOutput) request(or pipeline.OutputRunner, outBytes []byte) (err error) {
 	var (
-		outBatch   []byte
-		req        *http.Request
 		resp       *http.Response
-		err        error
 		reader     io.Reader
 		readCloser io.ReadCloser
 	)
 
-	req = &http.Request{
+	req := &http.Request{
 		Method: o.Method,
 		URL:    o.url,
 		Header: o.Headers,
@@ -182,31 +128,25 @@ func (o *HttpOutput) committer(or pipeline.OutputRunner, wg *sync.WaitGroup) {
 		req.SetBasicAuth(o.Username, o.Password)
 	}
 
-	for outBatch = range o.batchChan {
-		if o.sendBody {
-			req.ContentLength = int64(len(outBatch))
-			reader = bytes.NewReader(outBatch)
-			readCloser = ioutil.NopCloser(reader)
-			req.Body = readCloser
-		}
-		if resp, err = o.client.Do(req); err != nil {
-			or.LogError(fmt.Errorf("Error making HTTP request: %s", err.Error()))
-			continue
-		}
-		if resp.StatusCode >= 400 {
-			var body []byte
-			if resp.ContentLength > 0 {
-				body = make([]byte, resp.ContentLength)
-				resp.Body.Read(body)
-			}
-			or.LogError(fmt.Errorf("HTTP Error code returned: %d %s - %s",
-				resp.StatusCode, resp.Status, string(body)))
-			continue
-		}
-		outBatch = outBatch[:0]
-		o.backChan <- outBatch
+	if o.sendBody {
+		req.ContentLength = int64(len(outBytes))
+		reader = bytes.NewReader(outBytes)
+		readCloser = ioutil.NopCloser(reader)
+		req.Body = readCloser
 	}
-	wg.Done()
+	if resp, err = o.client.Do(req); err != nil {
+		return fmt.Errorf("Error making HTTP request: %s", err.Error())
+	}
+	if resp.StatusCode >= 400 {
+		var body []byte
+		if resp.ContentLength > 0 {
+			body = make([]byte, resp.ContentLength)
+			resp.Body.Read(body)
+		}
+		return fmt.Errorf("HTTP Error code returned: %d %s - %s",
+			resp.StatusCode, resp.Status, string(body))
+	}
+	return
 }
 
 func init() {

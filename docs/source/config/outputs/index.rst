@@ -50,6 +50,9 @@ initialization code.
 .. _config_file_output:
 .. include:: /config/outputs/file.rst
 
+.. _config_http_output:
+.. include:: /config/outputs/http.rst
+
 .. _config_log_output:
 .. include:: /config/outputs/log.rst
 

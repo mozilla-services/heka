@@ -39,6 +39,8 @@ initialization code.
 
 .. include:: /config/outputs/file.rst
 
+.. include:: /config/outputs/http.rst
+
 .. include:: /config/outputs/log.rst
 
 .. include:: /config/outputs/nagios.rst
