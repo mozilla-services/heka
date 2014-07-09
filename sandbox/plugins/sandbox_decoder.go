@@ -17,7 +17,6 @@ package plugins
 
 import (
 	"code.google.com/p/goprotobuf/proto"
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -41,7 +40,7 @@ type SandboxDecoder struct {
 	sb                     Sandbox
 	sbc                    *SandboxConfig
 	preservationFile       string
-	reportLock             sync.Mutex
+	reportLock             sync.RWMutex
 	sample                 bool
 	err                    error
 	pack                   *pipeline.PipelinePack
@@ -49,9 +48,10 @@ type SandboxDecoder struct {
 	dRunner                pipeline.DecoderRunner
 	name                   string
 	tz                     *time.Location
+	sampleDenominator      int
 }
 
-func (pd *SandboxDecoder) ConfigStruct() interface{} {
+func (s *SandboxDecoder) ConfigStruct() interface{} {
 	return NewSandboxConfig()
 }
 
@@ -63,6 +63,7 @@ func (s *SandboxDecoder) SetName(name string) {
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
+	s.sampleDenominator = pipeline.Globals().SampleDenominator
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
@@ -157,6 +158,10 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	}
 	if s.err != nil {
 		dr.LogError(s.err)
+		if s.sb != nil {
+			s.sb.Destroy("")
+			s.sb = nil
+		}
 		pipeline.Globals().ShutDown()
 		return
 	}
@@ -226,17 +231,20 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 func (s *SandboxDecoder) Shutdown() {
 	if s.sb != nil {
 		if s.sbc.PreserveData {
-			s.sb.Destroy(s.preservationFile)
+			s.err = s.sb.Destroy(s.preservationFile)
 		} else {
-			s.sb.Destroy("")
+			s.err = s.sb.Destroy("")
 		}
 		s.sb = nil
+		if s.err != nil {
+			s.dRunner.LogError(s.err)
+		}
 	}
 }
 
 func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack, err error) {
 	if s.sb == nil {
-		err = s.err
+		err = fmt.Errorf("SandboxDecoder has been terminated")
 		return
 	}
 	s.pack = pack
@@ -254,15 +262,19 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		s.processMessageSamples++
 		s.reportLock.Unlock()
 	}
-	s.sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
+	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
-		s.err = errors.New("FATAL: " + s.sb.LastError())
+		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(s.err)
 		pipeline.Globals().ShutDown()
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		s.err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		if s.pack != nil {
+			s.err = fmt.Errorf("Failed parsing: %s", s.pack.Message.GetPayload())
+		} else {
+			s.err = fmt.Errorf("Failed after a successful inject_message call")
+		}
 		if len(s.packs) > 1 {
 			for _, p := range s.packs[1:] {
 				p.Recycle()
@@ -289,8 +301,8 @@ func (s *SandboxDecoder) ReportMsg(msg *message.Message) error {
 	if s.sb == nil {
 		return fmt.Errorf("Decoder is not running")
 	}
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
+	s.reportLock.RLock()
+	defer s.reportLock.RUnlock()
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,
 		STAT_CURRENT)), "B")

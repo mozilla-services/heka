@@ -23,10 +23,10 @@ define(
     * - `/#health`
     *
     * - `/#plugins/inputs/:name`
-    * - `/#plugins/decoderPools/:name`
     * - `/#plugins/decoders/:name`
     * - `/#plugins/filters/:name`
     * - `/#plugins/outputs/:name`
+    * - `/#plugins/encoders/:name`
     *
     * - `/#sandboxes`
     * - `/#sandboxes/:sandboxName/outputs/:shortFileName`
@@ -44,10 +44,10 @@ define(
         "health": "showHealthIndex",
 
         "plugins/inputs/:name": "showInput",
-        "plugins/decoderPools/:name": "showDecoderPool",
         "plugins/decoders/:name": "showDecoder",
         "plugins/filters/:name": "showFilter",
         "plugins/outputs/:name": "showOutput",
+        "plugins/encoders/:name": "showEncoder",
 
         "sandboxes": "showSandboxesIndex",
         "sandboxes/:sandboxName/outputs/:shortFileName": "showSandboxOutput",
@@ -73,17 +73,6 @@ define(
       showInput: function(name) {
         PluginsAdapter.instance().findInputWhere({ Name: name }, function(input) {
           this._switch(new PluginsShow({ model: input }));
-        }.bind(this));
-      },
-
-      /**
-      * Loads decoder pool plugin by name and navigates to plugin's show.
-      *
-      * @method showDecoderPool
-      */
-      showDecoderPool: function(name) {
-        PluginsAdapter.instance().findDecoderPoolWhere({ Name: name }, function(decoderPool) {
-          this._switch(new PluginsShow({ model: decoderPool }));
         }.bind(this));
       },
 
@@ -117,6 +106,17 @@ define(
       showOutput: function(name) {
         PluginsAdapter.instance().findOutputWhere({ Name: name }, function(output) {
           this._switch(new PluginsShow({ model: output }));
+        }.bind(this));
+      },
+
+      /**
+      * Loads encoder plugin by name and navigates to plugin's show.
+      *
+      * @method showEncoder
+      */
+      showEncoder: function(name) {
+        PluginsAdapter.instance().findEncoderWhere({ Name: name }, function(encoder) {
+          this._switch(new PluginsShow({ model: encoder }));
         }.bind(this));
       },
 

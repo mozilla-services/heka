@@ -40,21 +40,19 @@ func DashboardOutputSpec(c gs.Context) {
 	defer ctrl.Finish()
 	NewPipelineConfig(nil) // Needed for side effect of setting up Globals :P
 
-	c.Specify("A DashboardOutput", func() {
-		dashboardOutput := new(DashboardOutput)
+	if runtime.GOOS != "windows" {
+		c.Specify("A DashboardOutput", func() {
+			dashboardOutput := new(DashboardOutput)
 
-		config := dashboardOutput.ConfigStruct().(*DashboardOutputConfig)
-		c.Specify("Init halts if basedirectory is not writable", func() {
-			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
-			err := os.MkdirAll(tmpdir, 0400)
-			c.Assume(err, gs.IsNil)
-			config.WorkingDirectory = tmpdir
-			err = dashboardOutput.Init(config)
-			if runtime.GOOS == "windows" {
+			config := dashboardOutput.ConfigStruct().(*DashboardOutputConfig)
+			c.Specify("Init halts if basedirectory is not writable", func() {
+				tmpdir := filepath.Join(os.TempDir(), "tmpdir")
+				err := os.MkdirAll(tmpdir, 0400)
 				c.Assume(err, gs.IsNil)
-			} else {
+				config.WorkingDirectory = tmpdir
+				err = dashboardOutput.Init(config)
 				c.Assume(err, gs.Not(gs.IsNil))
-			}
+			})
 		})
-	})
+	}
 }

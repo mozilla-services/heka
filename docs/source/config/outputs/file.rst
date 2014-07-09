@@ -8,14 +8,6 @@ Config:
 
 - path (string):
     Full path to the output file.
-- format (string, optional):
-    Output format for the message to be written. Supports `json` or
-    `protobufstream`, both of which will serialize the entire `Message`
-    struct, or `text`, which will output just the payload string. Defaults to
-    ``text``.
-- prefix_ts (bool, optional):
-    Whether a timestamp should be prefixed to each message line in the file.
-    Defaults to ``false``.
 - perm (string, optional):
     File permission for writing. A string of the octal digit representation.
     Defaults to "644".
@@ -34,6 +26,13 @@ Config:
     "flush_count" are combined. Allowed values are "AND" or "OR" (default is
     "AND").
 
+.. versionadded:: 0.6
+
+- use_framing (bool, optional):
+    Specifies whether or not the encoded data sent out over the TCP connection
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
+    ProtobufEncoder is used, false otherwise.
+
 Example:
 
 .. code-block:: ini
@@ -46,3 +45,4 @@ Example:
     perm = "666"
     flush_count = 100
     flush_operator = "OR"
+    encoder = "PayloadEncoder"

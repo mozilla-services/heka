@@ -9,9 +9,14 @@ Config:
 
 - template (string)
     The 'template' configuration string from rsyslog.conf.
+    http://rsyslog-5-8-6-doc.neocities.org/rsyslog_conf_templates.html
 
 - tz (string, optional, defaults to UTC)
-    The conversion actually happens on the Go side since there isn't good TZ support here.
+    If your rsyslog timestamp field in the template does not carry zone offset information, you may set an offset
+    to be applied to your events here. Typically this would be used with the "Traditional" rsyslog formats.
+
+    Parsing is done by `Go <http://golang.org/pkg/time/#LoadLocation>`_, supports values of "UTC", "Local",
+    or a location name corresponding to a file in the IANA Time Zone database, e.g. "America/New_York".
 
 *Example Heka Configuration*
 
@@ -19,17 +24,17 @@ Config:
 
     [RsyslogDecoder]
     type = "SandboxDecoder"
-    script_type = "lua"
     filename = "lua_decoders/rsyslog.lua"
 
     [RsyslogDecoder.config]
+    type = "RSYSLOG_TraditionalFileFormat"
     template = '%TIMESTAMP% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n'
     tz = "America/Los_Angeles"
 
 *Example Heka Message*
 
 :Timestamp: 2014-02-10 12:58:58 -0800 PST
-:Type: logfile
+:Type: RSYSLOG_TraditionalFileFormat
 :Hostname: trink-x230
 :Pid: 0
 :UUID: e0eef205-0b64-41e8-a307-5772b05e16c1
@@ -38,17 +43,20 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"syslogtag" value_string:"kernel:"]
+    | name:"programname" value_string:"kernel"]
 --]]
 
 local syslog = require "syslog"
 
 local template = read_config("template")
+local msg_type = read_config("type")
 
 local msg = {
 Timestamp   = nil,
+Type        = msg_type,
 Hostname    = nil,
 Payload     = nil,
+Pid         = nil,
 Severity    = nil,
 Fields      = nil
 }
@@ -77,6 +85,12 @@ function process_message ()
         fields["syslogseverity-text"] = nil
         fields.syslogpriority = nil
         fields["syslogpriority-text"] = nil
+    end
+
+    if fields.syslogtag then
+        fields.programname = fields.syslogtag.programname
+        msg.Pid = fields.syslogtag.pid
+        fields.syslogtag = nil
     end
 
     msg.Hostname = fields.hostname or fields.source

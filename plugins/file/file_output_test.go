@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,20 +16,17 @@
 package file
 
 import (
-	"bytes"
 	"code.google.com/p/gomock/gomock"
-	"code.google.com/p/goprotobuf/proto"
-	"encoding/json"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 )
@@ -37,7 +34,13 @@ import (
 func FileOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
+	tmpFilePath := filepath.Join(os.TempDir(), tmpFileName)
+
+	defer func() {
+		ctrl.Finish()
+		os.Remove(tmpFilePath)
+	}()
 
 	oth := plugins_ts.NewOutputTestHelper(ctrl)
 	var wg sync.WaitGroup
@@ -46,10 +49,9 @@ func FileOutputSpec(c gs.Context) {
 
 	c.Specify("A FileOutput", func() {
 		fileOutput := new(FileOutput)
+		encoder := new(plugins.PayloadEncoder)
+		encoder.Init(encoder.ConfigStruct())
 
-		tmpFileName := fmt.Sprintf("fileoutput-test-%d", time.Now().UnixNano())
-		tmpFilePath := fmt.Sprint(os.TempDir(), string(os.PathSeparator),
-			tmpFileName)
 		config := fileOutput.ConfigStruct().(*FileOutputConfig)
 		config.Path = tmpFilePath
 
@@ -58,109 +60,57 @@ func FileOutputSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 
-		toString := func(outData interface{}) string {
-			return string(*(outData.(*[]byte)))
-		}
+		c.Specify("w/ ProtobufEncoder", func() {
+			encoder := new(ProtobufEncoder)
+			encoder.Init(nil)
+			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
-		c.Specify("correctly formats text output", func() {
-			err := fileOutput.Init(config)
-			defer os.Remove(tmpFilePath)
-			c.Assume(err, gs.IsNil)
-			outData := make([]byte, 0, 20)
-
-			c.Specify("by default", func() {
-				err = fileOutput.handleMessage(pack, &outData)
-				c.Expect(err, gs.IsNil)
-				c.Expect(toString(&outData), gs.Equals, *msg.Payload+"\n")
-			})
-
-			c.Specify("w/ a prepended timestamp when specified", func() {
-				fileOutput.prefix_ts = true
-				err = fileOutput.handleMessage(pack, &outData)
-				c.Expect(err, gs.IsNil)
-				// Test will fail if date flips btn handleMessage call and
-				// todayStr calculation... should be extremely rare.
-				todayStr := time.Now().Format("[2006/Jan/02:")
-				strContents := toString(&outData)
-				payload := *msg.Payload
-				c.Expect(strContents, pipeline_ts.StringContains, payload)
-				c.Expect(strContents, pipeline_ts.StringStartsWith, todayStr)
-			})
-
-			c.Specify("even when payload is nil", func() {
-				pack.Message.Payload = nil
-				err = fileOutput.handleMessage(pack, &outData)
-				c.Expect(err, gs.IsNil)
-				strContents := toString(&outData)
-				c.Expect(strContents, gs.Equals, "\n")
-			})
-
-			c.Specify("payload is nil and with a timestamp", func() {
-				pack.Message.Payload = nil
-				fileOutput.prefix_ts = true
-				err = fileOutput.handleMessage(pack, &outData)
-				c.Expect(err, gs.IsNil)
-				// Test will fail if date flips btn handleMessage call and
-				// todayStr calculation... should be extremely rare.
-				todayStr := time.Now().Format("[2006/Jan/02:")
-				strContents := toString(&outData)
-				c.Expect(strings.HasPrefix(strContents, todayStr), gs.IsTrue)
-				c.Expect(strings.HasSuffix(strContents, " \n"), gs.IsTrue)
-			})
-		})
-
-		c.Specify("correctly formats JSON output", func() {
-			config.Format = "json"
-			err := fileOutput.Init(config)
-			defer os.Remove(tmpFilePath)
-			c.Assume(err, gs.IsNil)
-			outData := make([]byte, 0, 200)
-
-			c.Specify("when specified", func() {
-				fileOutput.handleMessage(pack, &outData)
-				msgJson, err := json.Marshal(pack.Message)
+			c.Specify("uses framing", func() {
+				oth.MockOutputRunner.EXPECT().SetUseFraming(true)
+				err := fileOutput.Init(config)
+				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
-				c.Expect(toString(&outData), gs.Equals, string(msgJson)+"\n")
+				oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+				wg.Add(1)
+				go func() {
+					err = fileOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+					c.Expect(err, gs.IsNil)
+					wg.Done()
+				}()
+				close(inChan)
+				wg.Wait()
 			})
 
-			c.Specify("and with a timestamp", func() {
-				fileOutput.prefix_ts = true
-				fileOutput.handleMessage(pack, &outData)
-				// Test will fail if date flips btn handleMessage call and
-				// todayStr calculation... should be extremely rare.
-				todayStr := time.Now().Format("[2006/Jan/02:")
-				strContents := toString(&outData)
-				msgJson, err := json.Marshal(pack.Message)
+			c.Specify("but not if config says not to", func() {
+				useFraming := false
+				config.UseFraming = &useFraming
+				err := fileOutput.Init(config)
+				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
-				c.Expect(strContents, pipeline_ts.StringContains, string(msgJson)+"\n")
-				c.Expect(strContents, pipeline_ts.StringStartsWith, todayStr)
-			})
-		})
+				oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+				wg.Add(1)
+				go func() {
+					err = fileOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+					c.Expect(err, gs.IsNil)
+					wg.Done()
+				}()
+				close(inChan)
+				wg.Wait()
+				// We should fail if SetUseFraming is called since we didn't
+				// EXPECT it.
 
-		c.Specify("correctly formats protocol buffer stream output", func() {
-			config.Format = "protobufstream"
-			err := fileOutput.Init(config)
-			defer os.Remove(tmpFilePath)
-			c.Assume(err, gs.IsNil)
-			outData := make([]byte, 0, 200)
-
-			c.Specify("when specified and timestamp ignored", func() {
-				fileOutput.prefix_ts = true
-				err := fileOutput.handleMessage(pack, &outData)
-				c.Expect(err, gs.IsNil)
-				b := []byte{30, 2, 8, uint8(proto.Size(pack.Message)), 31, 10, 16} // sanity check the header and the start of the protocol buffer
-				c.Expect(bytes.Equal(b, outData[:len(b)]), gs.IsTrue)
 			})
 		})
 
 		c.Specify("processes incoming messages", func() {
 			err := fileOutput.Init(config)
-			defer os.Remove(tmpFilePath)
 			c.Assume(err, gs.IsNil)
+			fileOutput.file.Close()
 			// Save for comparison.
 			payload := fmt.Sprintf("%s\n", pack.Message.GetPayload())
 
 			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 			wg.Add(1)
 			go fileOutput.receiver(oth.MockOutputRunner, &wg)
 			inChan <- pack
@@ -170,22 +120,12 @@ func FileOutputSpec(c gs.Context) {
 			c.Expect(string(outBatch), gs.Equals, payload)
 		})
 
-		c.Specify("Init halts if basedirectory is not writable", func() {
-			tmpdir := filepath.Join(os.TempDir(), "tmpdir")
-			err := os.MkdirAll(tmpdir, 0400)
-			c.Assume(err, gs.IsNil)
-			config.Path = tmpdir
-			err = fileOutput.Init(config)
-			c.Assume(err, gs.Not(gs.IsNil))
-		})
-
 		c.Specify("commits to a file", func() {
 			outStr := "Write me out to the log file"
 			outBytes := []byte(outStr)
 
 			c.Specify("with default settings", func() {
 				err := fileOutput.Init(config)
-				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
@@ -215,7 +155,6 @@ func FileOutputSpec(c gs.Context) {
 			c.Specify("with different Perm settings", func() {
 				config.Perm = "600"
 				err := fileOutput.Init(config)
-				defer os.Remove(tmpFilePath)
 				c.Assume(err, gs.IsNil)
 
 				// Start committer loop
@@ -249,17 +188,30 @@ func FileOutputSpec(c gs.Context) {
 			})
 		})
 
-		c.Specify("honors folder_perm setting", func() {
-			config.FolderPerm = "750"
-			config.Path = filepath.Join(tmpFilePath, "subfile")
-			err := fileOutput.Init(config)
-			defer os.Remove(config.Path)
-			c.Assume(err, gs.IsNil)
+		if runtime.GOOS != "windows" {
+			c.Specify("Init halts if basedirectory is not writable", func() {
+				tmpdir := filepath.Join(os.TempDir(), "tmpdir")
+				err := os.MkdirAll(tmpdir, 0400)
+				c.Assume(err, gs.IsNil)
+				config.Path = filepath.Join(tmpdir, "out.txt")
+				err = fileOutput.Init(config)
+				c.Assume(err, gs.Not(gs.IsNil))
+				os.RemoveAll(tmpdir)
+			})
 
-			fi, err := os.Stat(tmpFilePath)
-			c.Expect(fi.IsDir(), gs.IsTrue)
-			c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
-		})
+			c.Specify("honors folder_perm setting", func() {
+				config.FolderPerm = "750"
+				subdir := filepath.Join(os.TempDir(), "subdir")
+				config.Path = filepath.Join(subdir, "out.txt")
+				err := fileOutput.Init(config)
+				defer os.RemoveAll(subdir)
+				c.Assume(err, gs.IsNil)
+
+				fi, err := os.Stat(subdir)
+				c.Expect(fi.IsDir(), gs.IsTrue)
+				c.Expect(fi.Mode().Perm(), gs.Equals, os.FileMode(0750))
+			})
+		}
 
 		c.Specify("that starts receiving w/ a flush interval", func() {
 			config.FlushInterval = 100000000 // We'll trigger the timer manually.
@@ -282,10 +234,12 @@ func FileOutputSpec(c gs.Context) {
 
 			cleanUp := func() {
 				close(inChan)
+				fileOutput.file.Close()
 				wg.Done()
 			}
 
 			c.Specify("honors flush interval", func() {
+				oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 				recvWithConfig(config)
 				defer cleanUp()
 				inChan <- pack
@@ -303,6 +257,8 @@ func FileOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("honors flush interval AND flush count", func() {
+				oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+				oth.MockOutputRunner.EXPECT().Encode(pack2).Return(encoder.Encode(pack2))
 				config.FlushCount = 2
 				recvWithConfig(config)
 				defer cleanUp()
@@ -331,6 +287,7 @@ func FileOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("honors flush interval OR flush count", func() {
+				oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(encoder.Encode(pack))
 				config.FlushCount = 2
 				config.FlushOperator = "OR"
 				recvWithConfig(config)
@@ -353,6 +310,8 @@ func FileOutputSpec(c gs.Context) {
 				})
 
 				c.Specify("when count triggers first", func() {
+					out, err := encoder.Encode(pack2)
+					oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(out, err)
 					inChan <- pack2
 					runtime.Gosched()
 					select {

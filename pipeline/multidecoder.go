@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,8 +18,12 @@ package pipeline
 import (
 	"errors"
 	"fmt"
-	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/message"
 	"log"
+	"math/rand"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // DecoderRunner wrapper that the MultiDecoder will hand to any subs that ask
@@ -56,18 +60,26 @@ func (mdr *mDRunner) LogMessage(msg string) {
 }
 
 type MultiDecoder struct {
-	Config    *MultiDecoderConfig
-	Name      string
-	Decoders  map[string]Decoder
-	ordered   []Decoder
-	dRunner   DecoderRunner
-	CascStrat int
+	processMessageCount    []int64
+	processMessageFailures []int64
+	processMessageSamples  []int64
+	processMessageDuration []int64
+	totalMessageFailures   int64
+	totalMessageSamples    int64
+	totalMessageDuration   int64
+	idx                    uint8
+	sampleDenominator      int
+	sample                 bool
+	reportLock             sync.RWMutex
+	Config                 *MultiDecoderConfig
+	Name                   string
+	Decoders               []Decoder
+	dRunner                DecoderRunner
+	CascStrat              int
 }
 
 type MultiDecoderConfig struct {
-	// subs is an ordered dictionary of other decoders
-	Subs            map[string]interface{}
-	Order           []string
+	Subs            []string
 	LogSubErrors    bool   `toml:"log_sub_errors"`
 	CascadeStrategy string `toml:"cascade_strategy"`
 }
@@ -80,9 +92,8 @@ const (
 var mdStrategies = map[string]int{"first-wins": CASC_FIRST_WINS, "all": CASC_ALL}
 
 func (md *MultiDecoder) ConfigStruct() interface{} {
-	subs := make(map[string]interface{})
-	order := make([]string, 0)
-	return &MultiDecoderConfig{subs, order, false, "first-wins"}
+	subs := make([]string, 0)
+	return &MultiDecoderConfig{subs, false, "first-wins"}
 }
 
 // Heka will call this before calling Init() to set the name of the
@@ -93,7 +104,14 @@ func (md *MultiDecoder) SetName(name string) {
 
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Config = config.(*MultiDecoderConfig)
-	md.Decoders = make(map[string]Decoder, 0)
+
+	numSubs := len(md.Config.Subs)
+	if numSubs == 0 {
+		return errors.New("At least one subdecoder must be specified.")
+	}
+
+	md.Decoders = make([]Decoder, len(md.Config.Subs))
+	pConfig := Globals().PipelineConfig
 
 	var (
 		ok      bool
@@ -104,96 +122,19 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
 
-	// run PrimitiveDecode against each subsection here and bind
-	// it into the md.Decoders map
-	for name, conf := range md.Config.Subs {
-		md.log(fmt.Sprintf("MultiDecoder[%s] Loading: %s", md.Name, name))
-		if decoder, err = md.loadSection(name, conf); err != nil {
-			return
+	for i, name := range md.Config.Subs {
+		if decoder, ok = pConfig.Decoder(name); !ok {
+			return fmt.Errorf("Non-existent subdecoder: %s", name)
 		}
-		md.Decoders[name] = decoder
+		md.Decoders[i] = decoder
 	}
 
-	md.ordered = make([]Decoder, len(md.Config.Order))
-	for i, name := range md.Config.Order {
-		if decoder, ok = md.Decoders[name]; !ok {
-			return fmt.Errorf("Non-existent subdecoder '%s' in `order` config value.",
-				name)
-		}
-		md.ordered[i] = decoder
-	}
-
+	md.processMessageCount = make([]int64, numSubs)
+	md.processMessageFailures = make([]int64, numSubs)
+	md.processMessageSamples = make([]int64, numSubs)
+	md.processMessageDuration = make([]int64, numSubs)
+	md.sampleDenominator = Globals().SampleDenominator
 	return nil
-}
-
-func (md *MultiDecoder) log(msg string) {
-	if md.dRunner != nil {
-		md.dRunner.LogMessage(msg)
-	} else {
-		log.Println(msg)
-	}
-}
-
-// loadSection must be passed a plugin name and the config for that plugin. It
-// will create a PluginWrapper (i.e. a factory).
-func (md *MultiDecoder) loadSection(sectionName string,
-	configSection toml.Primitive) (plugin Decoder, err error) {
-	var ok bool
-	var pluginGlobals PluginGlobals
-	var pluginType string
-
-	wrapper := new(PluginWrapper)
-	wrapper.Name = sectionName
-
-	// Setup default retry policy
-	pluginGlobals.Retries = RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
-	}
-
-	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		err = fmt.Errorf("%s Unable to decode config for plugin: %s, error: %s", md.Name, wrapper.Name, err.Error())
-		md.log(err.Error())
-		return
-	}
-
-	if pluginGlobals.Typ == "" {
-		pluginType = sectionName
-	} else {
-		pluginType = pluginGlobals.Typ
-	}
-
-	if wrapper.PluginCreator, ok = AvailablePlugins[pluginType]; !ok {
-		err = fmt.Errorf("%s No such plugin: %s (type: %s)", md.Name, wrapper.Name, pluginType)
-		md.log(err.Error())
-		return
-	}
-
-	// Create plugin, test config object generation.
-	plugin = wrapper.PluginCreator().(Decoder)
-	var config interface{}
-	if config, err = LoadConfigStruct(configSection, plugin); err != nil {
-		err = fmt.Errorf("%s Can't load config for %s '%s': %s", md.Name,
-			sectionName,
-			wrapper.Name, err)
-		md.log(err.Error())
-		return
-	}
-	wrapper.ConfigCreator = func() interface{} { return config }
-
-	if wantsName, ok := plugin.(WantsName); ok {
-		wantsName.SetName(wrapper.Name)
-	}
-
-	// Apply configuration to instantiated plugin.
-	if err = plugin.(Plugin).Init(config); err != nil {
-		err = fmt.Errorf("Initialization failed for '%s': %s",
-			sectionName, err)
-		md.log(err.Error())
-		return
-	}
-	return
 }
 
 // Heka will call this to give us access to the runner. We'll store it for
@@ -201,7 +142,8 @@ func (md *MultiDecoder) loadSection(sectionName string,
 // that might need it.
 func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 	md.dRunner = dr
-	for subName, decoder := range md.Decoders {
+	for i, decoder := range md.Decoders {
+		subName := md.Config.Subs[i]
 		if wanter, ok := decoder.(WantsDecoderRunner); ok {
 			// It wants a DecoderRunner, have to create one. But first we need
 			// to get our hands on a *dRunner.
@@ -249,24 +191,39 @@ func (md *MultiDecoder) Shutdown() {
 func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack) (
 	packs []*PipelinePack, anyMatch bool) {
 
+	var startTime time.Time
+
 	decoder := chain[0]
 	for _, p := range inPacks {
-		if ps, err := decoder.Decode(p); ps != nil {
+		atomic.AddInt64(&md.processMessageCount[md.idx], 1)
+		if md.sample {
+			startTime = time.Now()
+		}
+		ps, err := decoder.Decode(p)
+		if md.sample {
+			duration := time.Since(startTime).Nanoseconds()
+			md.reportLock.Lock()
+			md.processMessageDuration[md.idx] += duration
+			md.processMessageSamples[md.idx]++
+			md.reportLock.Unlock()
+		}
+		if ps != nil {
 			anyMatch = true
 			packs = append(packs, ps...)
 		} else {
+			atomic.AddInt64(&md.processMessageFailures[md.idx], 1)
 			if err != nil && md.Config.LogSubErrors {
-				idx := len(md.ordered) - len(chain)
+				idx := len(md.Decoders) - len(chain)
 				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
-					md.Config.Order[idx], err)
+					md.Config.Subs[idx], err)
 				md.dRunner.LogError(err)
 			}
-			packs = inPacks
-			break
+			packs = append(packs, p)
 		}
 	}
 
 	if len(chain) > 1 {
+		md.idx++
 		var otherMatch bool
 		packs, otherMatch = md.getDecodedPacks(chain[1:], packs)
 		anyMatch = anyMatch || otherMatch
@@ -277,40 +234,102 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 
 // Runs the message payload against each of the decoders.
 func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
-	var newType string
-	if pack.Message.GetType() == "" {
-		newType = fmt.Sprintf("heka.%s", md.Name)
-	} else {
-		newType = fmt.Sprintf("heka.%s.%s", md.Name, pack.Message.GetType())
+	md.sample = (rand.Intn(md.sampleDenominator) == 0 ||
+		atomic.LoadInt64(&md.processMessageCount[0]) == 0)
+
+	var startTime time.Time
+	if md.sample {
+		startTime = time.Now()
+		defer func() {
+			duration := time.Since(startTime).Nanoseconds()
+			md.reportLock.Lock()
+			md.totalMessageDuration += duration
+			md.totalMessageSamples++
+			md.reportLock.Unlock()
+		}()
 	}
-	pack.Message.SetType(newType)
 
 	if md.CascStrat == CASC_FIRST_WINS {
-		for i, d := range md.ordered {
-			if packs, err = d.Decode(pack); packs != nil {
+		var subStartTime time.Time
+
+		for i, d := range md.Decoders {
+			count := atomic.AddInt64(&md.processMessageCount[i], 1)
+			if md.sample || count == 1 {
+				subStartTime = time.Now()
+			}
+			packs, err = d.Decode(pack)
+			if md.sample || count == 1 {
+				duration := time.Since(subStartTime).Nanoseconds()
+				md.reportLock.Lock()
+				md.processMessageDuration[i] += duration
+				md.processMessageSamples[i]++
+				md.reportLock.Unlock()
+			}
+			if packs != nil {
 				return
 			}
+			atomic.AddInt64(&md.processMessageFailures[i], 1)
 			if err != nil && md.Config.LogSubErrors {
-				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Order[i],
+				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Subs[i],
 					err)
 				md.dRunner.LogError(err)
 			}
 		}
 		// If we got this far none of the decoders succeeded.
+		atomic.AddInt64(&md.totalMessageFailures, 1)
 		err = errors.New("All subdecoders failed.")
 		packs = nil
-		pack.Recycle()
 	} else {
 		// If we get here we know cascade_strategy == "all.
 		var anyMatch bool
-		packs, anyMatch = md.getDecodedPacks(md.ordered, []*PipelinePack{pack})
+		md.idx = 0
+		packs, anyMatch = md.getDecodedPacks(md.Decoders, []*PipelinePack{pack})
 		if !anyMatch {
+			atomic.AddInt64(&md.totalMessageFailures, 1)
 			err = errors.New("All subdecoders failed.")
 			packs = nil
-			pack.Recycle()
 		}
 	}
 	return
+}
+
+func (md *MultiDecoder) ReportMsg(msg *message.Message) error {
+	md.reportLock.RLock()
+	defer md.reportLock.RUnlock()
+
+	var tmp int64
+	for i, sub := range md.Config.Subs {
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageCount-%s", sub),
+			atomic.LoadInt64(&md.processMessageCount[i]), "count")
+
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageFailures-%s", sub),
+			atomic.LoadInt64(&md.processMessageFailures[i]), "count")
+
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageSamples-%s", sub),
+			md.processMessageSamples[i], "count")
+
+		tmp = 0
+		if md.processMessageSamples[i] > 0 {
+			tmp = md.processMessageDuration[i] / md.processMessageSamples[i]
+		}
+		message.NewInt64Field(msg,
+			fmt.Sprintf("ProcessMessageAvgDuration-%s", sub), tmp, "ns")
+	}
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&md.processMessageCount[0]), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures",
+		atomic.LoadInt64(&md.totalMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", md.totalMessageSamples, "count")
+	tmp = 0
+	if md.totalMessageSamples > 0 {
+		tmp = md.totalMessageDuration / md.totalMessageSamples
+	}
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+
+	return nil
 }
 
 func init() {

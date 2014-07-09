@@ -1,0 +1,7 @@
+[default]
+type ="StatFilter"
+message_matcher = "Type == \"mytype\""
+
+[sample]
+type = "StatFilter"
+message_matcher = "Type == \"counter\" || Type == \"gauge\""

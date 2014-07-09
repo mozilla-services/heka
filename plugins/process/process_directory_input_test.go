@@ -106,6 +106,8 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			_, err = io.Copy(outFile, inFile)
 			c.Assume(err, gs.IsNil)
+			inFile.Close()
+			outFile.Close()
 		}
 
 		err = pdiInput.Init(config)

@@ -471,6 +471,6 @@ func TcpInputSpecFailure(c gs.Context) {
 		Decoder:    "ProtobufDecoder",
 		ParserType: "message.proto"})
 	c.Assume(err, gs.Not(gs.IsNil))
-	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: listen udp 127.0.0.1:55565: unexpected address type localhost:55565\n")
+	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: unknown network udp\n")
 
 }

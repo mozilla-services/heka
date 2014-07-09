@@ -1,2 +1,6 @@
 *.data text eol=lf
 multiline.log text eol=lf
+logstreamer/testdir/filehandling/2010/07/error.log text eol=lf
+logstreamer/testdir/filehandling/2010/07/error.log.2 text eol=lf
+logstreamer/testdir/filehandling/2013/08/access.log text eol=lf
+logstreamer/testdir/filehandling/2013/08/error.log text eol=lf

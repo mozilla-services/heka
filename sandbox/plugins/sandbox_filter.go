@@ -58,6 +58,7 @@ type SandboxFilter struct {
 	preservationFile       string
 	reportLock             sync.Mutex
 	name                   string
+	sampleDenominator      int
 	manager                *SandboxManagerFilter
 }
 
@@ -81,6 +82,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	}
 	this.sbc = config.(*SandboxConfig)
 	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
+	this.sampleDenominator = pipeline.Globals().SampleDenominator
 
 	data_dir := pipeline.PrependBaseDir(DATA_DIR)
 	if !fileExists(data_dir) {
@@ -115,6 +117,9 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 func (this *SandboxFilter) ReportMsg(msg *message.Message) error {
 	this.reportLock.Lock()
 	defer this.reportLock.Unlock()
+	if this.sb == nil { // Plugin not initialized or running
+		return nil
+	}
 
 	message.NewIntField(msg, "Memory", int(this.sb.Usage(TYPE_MEMORY,
 		STAT_CURRENT)), "B")
@@ -221,11 +226,13 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			injectionCount = pipeline.Globals().MaxMsgProcessInject
 			msgLoopCount = pack.MsgLoopCount
 
-			// reading a channel length is generally fast ~1ns
-			// we need to check the entire chain back to the router
-			backpressure = len(inChan) >= capacity ||
-				fr.MatchRunner().InChanLen() >= capacity ||
-				len(h.PipelineConfig().Router().InChan()) >= capacity
+			if this.manager != nil { // only check for backpressure on dynamic plugins
+				// reading a channel length is generally fast ~1ns
+				// we need to check the entire chain back to the router
+				backpressure = len(inChan) >= capacity ||
+					fr.MatchRunner().InChanLen() >= capacity ||
+					len(h.PipelineConfig().Router().InChan()) >= capacity
+			}
 
 			// performing the timing is expensive ~40ns but if we are
 			// backpressured we need a decent sample set before triggering
@@ -266,7 +273,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				if retval < 0 {
 					atomic.AddInt64(&this.processMessageFailures, 1)
 				}
-				sample = 0 == rand.Intn(pipeline.DURATION_SAMPLE_DENOMINATOR)
+				sample = 0 == rand.Intn(this.sampleDenominator)
 			} else {
 				terminated = true
 			}
@@ -320,11 +327,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
+
+	this.reportLock.Lock()
 	if this.sbc.PreserveData {
-		this.sb.Destroy(this.preservationFile)
+		err = this.sb.Destroy(this.preservationFile)
 	} else {
-		this.sb.Destroy("")
+		err = this.sb.Destroy("")
 	}
 	this.sb = nil
+	this.reportLock.Unlock()
 	return
 }

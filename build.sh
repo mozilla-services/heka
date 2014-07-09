@@ -14,4 +14,3 @@ mkdir -p $BUILD_DIR
 cd $BUILD_DIR
 cmake -DCMAKE_BUILD_TYPE=release ..
 make
-

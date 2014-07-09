@@ -23,7 +23,6 @@ func TestAllSpecs(t *testing.T) {
 	r := gospec.NewRunner()
 	r.Parallel = false
 
-	r.AddSpec(JsonPathSpec)
 	r.AddSpec(MultiDecoderSpec)
 	r.AddSpec(PayloadDecodersSpec)
 

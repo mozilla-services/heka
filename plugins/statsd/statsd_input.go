@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -69,12 +69,12 @@ func (s *StatsdInput) Init(config interface{}) error {
 		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 	}
 	s.statAccumName = conf.StatAccumName
+	s.stopChan = make(chan bool)
 	return nil
 }
 
 // Spins up a statsd server listening on a UDP connection.
 func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	s.stopChan = make(chan bool)
 	s.ir = ir
 
 	if s.statAccum, err = h.StatAccumulator(s.statAccumName); err != nil {
@@ -105,13 +105,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			continue
 		}
 
-		if stopped {
-			// If we're stopping, use synchronous call so we don't
-			// close the Packet channel too soon.
-			s.handleMessage(message[:n])
-		} else {
-			go s.handleMessage(message[:n])
-		}
+		s.handleMessage(message[:n])
 	}
 
 	return

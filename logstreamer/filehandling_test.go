@@ -19,7 +19,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
-	"regexp"
+	"runtime"
 	"sort"
 )
 
@@ -27,18 +27,20 @@ func FilehandlingSpec(c gs.Context) {
 	here, err := os.Getwd()
 	c.Assume(err, gs.IsNil)
 	dirPath := filepath.Join(here, "testdir", "filehandling")
+	regex1, regex2 := `/subdir/.*\.log(\..*)?`, "/subdir/.*.logg(.*)?"
+	if runtime.GOOS == "windows" {
+		regex1, regex2 = `\\subdir\\.*\.log(\..*)?`, `\\subdir\\.*.logg(.*)?`
+	}
 
 	c.Specify("The directory scanner", func() {
 
 		c.Specify("scans a directory properly", func() {
-			matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log(\..*)?`)
-			results := ScanDirectoryForLogfiles(dirPath, matchRegex)
+			results := ScanDirectoryForLogfiles(dirPath, fileMatchRegexp(dirPath, regex1))
 			c.Expect(len(results), gs.Equals, 3)
 		})
 
 		c.Specify("scans a directory with a bad regexp", func() {
-			matchRegex := regexp.MustCompile(dirPath + "/subdir/.*.logg(.*)?")
-			results := ScanDirectoryForLogfiles(dirPath, matchRegex)
+			results := ScanDirectoryForLogfiles(dirPath, fileMatchRegexp(dirPath, regex2))
 			c.Expect(len(results), gs.Equals, 0)
 		})
 	})
@@ -91,7 +93,11 @@ func FilehandlingSpec(c gs.Context) {
 
 	c.Specify("Populating logfiles with match parts", func() {
 		translation := make(SubmatchTranslationMap)
-		matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log\.?(?P<FileNumber>.*)?`)
+		regex := `/subdir/.*\.log\.?(?P<FileNumber>.*)?`
+		if runtime.GOOS == "windows" {
+			regex = `\\subdir\\.*\.log\.?(?P<FileNumber>.*)?`
+		}
+		matchRegex := fileMatchRegexp(dirPath, regex)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
 
 		c.Specify("is populated", func() {
@@ -114,7 +120,11 @@ func FilehandlingSpec(c gs.Context) {
 
 	c.Specify("Sorting logfiles", func() {
 		translation := make(SubmatchTranslationMap)
-		matchRegex := regexp.MustCompile(dirPath + `/subdir/.*\.log\.?(?P<FileNumber>.*)?`)
+		regex := `/subdir/.*\.log\.?(?P<FileNumber>.*)?`
+		if runtime.GOOS == "windows" {
+			regex = `\\subdir\\.*\.log\.?(?P<FileNumber>.*)?`
+		}
+		matchRegex := fileMatchRegexp(dirPath, regex)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
 
 		c.Specify("with no 'missing' translation value", func() {
@@ -156,8 +166,11 @@ func FilehandlingSpec(c gs.Context) {
 
 	c.Specify("Sorting out a directory of access/error logs", func() {
 		translation := make(SubmatchTranslationMap)
-		matchRegex := regexp.MustCompile(dirPath +
-			`/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`)
+		regex := `/(?P<Year>\d+)/(?P<Month>\d+)/(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`
+		if runtime.GOOS == "windows" {
+			regex = `\\(?P<Year>\d+)\\(?P<Month>\d+)\\(?P<Type>\w+)\.log(\.(?P<Seq>\d+))?`
+		}
+		matchRegex := fileMatchRegexp(dirPath, regex)
 		logfiles := ScanDirectoryForLogfiles(dirPath, matchRegex)
 		err := logfiles.PopulateMatchParts(matchRegex, translation)
 		c.Assume(err, gs.IsNil)
@@ -177,16 +190,16 @@ func FilehandlingSpec(c gs.Context) {
 				byp := ByPriority{Logfiles: mfs["access"], Priority: []string{"Year", "Month", "^Seq"}}
 				sort.Sort(byp)
 				lf := mfs["access"]
-				c.Expect(lf[0].FileName, gs.Equals, dirPath+"/2010/05/access.log.3")
-				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+"/2013/08/access.log")
+				c.Expect(lf[0].FileName, gs.Equals, dirPath+filepath.FromSlash("/2010/05/access.log.3"))
+				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+filepath.FromSlash("/2013/08/access.log"))
 			})
 
 			c.Specify("can be individually sorted properly by error", func() {
 				byp := ByPriority{Logfiles: mfs["error"], Priority: []string{"Year", "Month", "^Seq"}}
 				sort.Sort(byp)
 				lf := mfs["error"]
-				c.Expect(lf[0].FileName, gs.Equals, dirPath+"/2010/07/error.log.2")
-				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+"/2013/08/error.log")
+				c.Expect(lf[0].FileName, gs.Equals, dirPath+filepath.FromSlash("/2010/07/error.log.2"))
+				c.Expect(lf[len(lf)-1].FileName, gs.Equals, dirPath+filepath.FromSlash("/2013/08/error.log"))
 			})
 		})
 

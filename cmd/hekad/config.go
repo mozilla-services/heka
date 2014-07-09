@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,7 +31,6 @@ import (
 type HekadConfig struct {
 	Maxprocs              int           `toml:"maxprocs"`
 	PoolSize              int           `toml:"poolsize"`
-	DecoderPoolSize       int           `toml:"decoder_poolsize"`
 	ChanSize              int           `toml:"plugin_chansize"`
 	CpuProfName           string        `toml:"cpuprof"`
 	MemProfName           string        `toml:"memprof"`
@@ -41,6 +41,8 @@ type HekadConfig struct {
 	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
 	BaseDir               string        `toml:"base_dir"`
 	ShareDir              string        `toml:"share_dir"`
+	SampleDenominator     int           `toml:"sample_denominator"`
+	PidFile               string        `toml:"pid_file"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -48,7 +50,6 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:              100,
-		DecoderPoolSize:       4,
 		ChanSize:              50,
 		CpuProfName:           "",
 		MemProfName:           "",
@@ -59,6 +60,8 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxPackIdle:           idle,
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
 		ShareDir:              filepath.FromSlash("/usr/share/heka"),
+		SampleDenominator:     1000,
+		PidFile:               "",
 	}
 
 	var configFile map[string]toml.Primitive
@@ -75,9 +78,8 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		files, _ := ioutil.ReadDir(configPath)
 		for _, f := range files {
 			fName := f.Name()
-			if strings.HasPrefix(fName, ".") || strings.HasSuffix(fName, ".bak") ||
-				strings.HasSuffix(fName, ".tmp") || strings.HasSuffix(fName, "~") {
-				// Skip obviously non-relevant files.
+			if !strings.HasSuffix(fName, ".toml") {
+				// Skip non *.toml files in a config dir.
 				continue
 			}
 			fPath := filepath.Join(configPath, fName)
@@ -92,7 +94,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	}
 
 	empty_ignore := map[string]interface{}{}
-	parsed_config, ok := configFile["hekad"]
+	parsed_config, ok := configFile[pipeline.HEKA_DAEMON]
 	if ok {
 		if err = toml.PrimitiveDecodeStrict(parsed_config, config, empty_ignore); err != nil {
 			err = fmt.Errorf("Can't unmarshal config: %s", err)

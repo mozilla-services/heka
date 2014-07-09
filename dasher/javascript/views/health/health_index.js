@@ -7,9 +7,11 @@ define(
     "views/health/decoders_index",
     "views/health/filters_index",
     "views/health/outputs_index",
+    "views/health/encoders_index",
     "hgn!templates/health/health_index"
   ],
-  function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecodersIndex, FiltersIndex, OutputsIndex, HealthIndexTemplate) {
+  function(BaseView, PluginsAdapter, GlobalsIndex, InputsIndex, DecodersIndex,
+    FiltersIndex, OutputsIndex, EncodersIndex, HealthIndexTemplate) {
     "use strict";
 
     /**
@@ -31,14 +33,14 @@ define(
         this.decodersIndex = new DecodersIndex({ collection: this.adapter.decoders });
         this.filtersIndex = new FiltersIndex({ collection: this.adapter.filters });
         this.outputsIndex = new OutputsIndex({ collection: this.adapter.outputs });
+        this.encodersIndex = new EncodersIndex({ collection: this.adapter.encoders });
 
         this.adapter.fill();
       },
 
       /**
-      * Renders globalsIndex, inputsIndex, decodersIndex, 
-      * filtersIndex, outputsIndex into the corresponding DOM 
-      * elements. 
+      * Renders globalsIndex, inputsIndex, decodersIndex, filtersIndex,
+      * outputsIndex, encodersIndex into the corresponding DOM elements.
       *
       * @method afterRender
       */
@@ -48,6 +50,7 @@ define(
         this.assign(this.decodersIndex, "#decoders-index");
         this.assign(this.filtersIndex, "#filters-index");
         this.assign(this.outputsIndex, "#outputs-index");
+        this.assign(this.encodersIndex, "#encoders-index");
       }
     });
 

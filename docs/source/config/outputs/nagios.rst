@@ -72,5 +72,4 @@ Example Lua code to generate a Nagios alert:
 
 .. code-block:: lua
 
-    output("OK:Alerts are working!")
-    inject_message("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT")
+    inject_payload("nagios-external-command", "PROCESS_SERVICE_CHECK_RESULT", "OK:Alerts are working!")

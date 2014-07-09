@@ -31,7 +31,6 @@ matcher or the  JSON parser with a manual transformation.
     .. code-block:: ini
 
         [SandboxDecoder]
-        script_type = "lua"
         filename = "decoder.lua"
 
 4. Configure the DasboardOutput for visibility into the decoder (performance,
@@ -94,7 +93,6 @@ production with live data.
     .. code-block:: ini
 
         [SandboxFilter]
-        script_type = "lua"
         filename = "filter.lua"
 
 2. Debugging
@@ -128,8 +126,7 @@ production with live data.
             -- table.insert(dbg, string.format("Entering function x arg1: %s", arg1))
             -- table.insert(dbg, "Exiting function x")
 
-            output(table.concat(dbg, "\n"))
-            inject_message("txt", "debug")
+            inject_payload("txt", "debug", table.concat(dbg, "\n"))
 
         4. LAST RESORT: Move the filter out of production, turn on
            preservation, run the tests, stop Heka, and review the entire

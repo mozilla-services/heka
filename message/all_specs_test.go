@@ -144,6 +144,17 @@ func MessageFieldsSpec(c gospec.Context) {
 		c.Expect(ok, gs.IsTrue)
 		c.Expect(v, gs.IsTrue)
 	})
+
+	c.Specify("Copy with nil field attributes", func() {
+		msg := &Message{}
+		field, _ := NewField("foo", "bar", "")
+		msg.AddField(field)
+		msg.Fields[0].Representation = nil
+		cmsg := CopyMessage(msg)
+		v1, _ := msg.GetFieldValue("foo")
+		v2, _ := cmsg.GetFieldValue("foo")
+		c.Expect(v1, gs.Equals, v2)
+	})
 }
 
 func MessageEqualsSpec(c gospec.Context) {

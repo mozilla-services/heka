@@ -35,4 +35,3 @@ define(
     return DecodersIndex;
   }
 );
-

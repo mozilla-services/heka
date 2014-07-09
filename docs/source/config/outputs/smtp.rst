@@ -10,10 +10,6 @@ primary purpose is for email alert notifications e.g., PagerDuty.
 
 Config:
 
-- payload_only (bool)
-    If set to true, then only the message payload string will be emailed,
-    otherwise the entire `Message` struct will be emailed in JSON format.
-    (default: true)
 - send_from (string)
     The email address of the sender. (default: "heka@localhost.localdomain")
 - send_to (array of strings)
@@ -28,3 +24,19 @@ Config:
     SMTP user name
 - password (string, optional)
     SMTP user password
+
+Example:
+
+.. code-block:: ini
+
+    [FxaAlert]
+    type = "SmtpOutput"
+    message_matcher = "((Type == 'heka.sandbox-output' && Fields[payload_type] == 'alert') || Type == 'heka.sandbox-terminated') && Logger =~ /^Fxa/"
+    send_from = "heka@example.com"
+    send_to = ["alert@example.com"]
+    auth = "Plain"
+    user = "test"
+    password = "testpw"
+    host = "localhost:25"
+    encoder = "AlertEncoder"
+

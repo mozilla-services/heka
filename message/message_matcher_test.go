@@ -182,7 +182,7 @@ func BenchmarkMatcherCreate(b *testing.B) {
 
 func BenchmarkMatcherMatch(b *testing.B) {
 	b.StopTimer()
-	s := "Type == 'Test' && Severity == 6"
+	s := "Type == 'TEST' && Severity == 6"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()
@@ -193,7 +193,7 @@ func BenchmarkMatcherMatch(b *testing.B) {
 
 func BenchmarkMatcherSimpleRegex(b *testing.B) {
 	b.StopTimer()
-	s := "Type =~ /Test/ && Severity == 6"
+	s := "Type =~ /^TEST/ && Severity == 6"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()
@@ -204,7 +204,7 @@ func BenchmarkMatcherSimpleRegex(b *testing.B) {
 
 func BenchmarkMatcherSimpleRegexCapture(b *testing.B) {
 	b.StopTimer()
-	s := "Type =~ /(Test)/ && Severity == 6"
+	s := "Type =~ /^(TEST)/ && Severity == 6"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()

@@ -9,7 +9,7 @@ objects that can be consumed by a `StatAccumulator`.
 Config:
 
 - Metric:
-    Subsection defining a single metric to be generated
+    Subsection defining a single metric to be generated:
 
     - type (string):
         Metric type, supports "Counter", "Timer", "Gauge".
@@ -28,16 +28,14 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
 .. code-block:: ini
 
+    [StatAccumInput]
+    ticker_interval = 5
+
     [StatsdInput]
     address = "127.0.0.1:29301"
-    stat_accum_name = "my_stat_accum"
-
-    [my_stat_accum]
-    flushInterval = 5
 
     [Hits]
     type = "StatFilter"
-    stat_accum_name = "my_stat_accum"
     message_matcher = 'Type == "ApacheLogfile"'
 
     [Hits.Metric.bandwidth]
@@ -52,4 +50,4 @@ Example (Assuming you had TransformFilter inserting messages as above):
 
 .. note::
 
-    StatFilter requires an available StatAccumulator to be running.
+    StatFilter requires an available StatAccumInput to be running.

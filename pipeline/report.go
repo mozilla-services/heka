@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"runtime"
 	"strings"
 	"sync/atomic"
 )
@@ -81,6 +82,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.inputRecycleChan), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.inputRecycleChan), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.input-report")
 	message.NewStringField(msg, "name", "inputRecycleChan")
 	message.NewStringField(msg, "key", "globals")
@@ -90,6 +92,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.injectRecycleChan), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.injectRecycleChan), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.inject-report")
 	message.NewStringField(msg, "name", "injectRecycleChan")
 	message.NewStringField(msg, "key", "globals")
@@ -99,7 +102,9 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 	msg = pack.Message
 	message.NewIntField(msg, "InChanCapacity", cap(pc.router.InChan()), "count")
 	message.NewIntField(msg, "InChanLength", len(pc.router.InChan()), "count")
-	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&pc.router.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&pc.router.processMessageCount), "count")
+	msg.SetLogger(HEKA_DAEMON)
 	msg.SetType("heka.router-report")
 	message.NewStringField(msg, "name", "Router")
 	message.NewStringField(msg, "key", "globals")
@@ -113,6 +118,7 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 			if e == nil {
 				msg.AddField(f)
 			}
+			msg.SetLogger(HEKA_DAEMON)
 			msg.SetType("heka.plugin-report")
 		}
 		return
@@ -134,6 +140,22 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", runner.Name())
 		message.NewStringField(pack.Message, "key", "decoders")
+		reportChan <- pack
+	}
+
+	for name, encoder := range pc.allEncoders {
+		pack = <-pc.reportRecycleChan
+		msg = pack.Message
+		msg.SetType("heka.plugin-report")
+		message.NewStringField(msg, "name", name)
+		message.NewStringField(msg, "key", "encoders")
+		if reporter, ok := encoder.(ReportingPlugin); ok {
+			if err = reporter.ReportMsg(msg); err != nil {
+				if f, e = message.NewField("Error", err.Error(), ""); e == nil {
+					msg.AddField(f)
+				}
+			}
+		}
 		reportChan <- pack
 	}
 
@@ -216,9 +238,23 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	report_type, msg_payload := pc.allReportsData()
 
 	pack := pc.PipelinePack(0)
+	pack.Message.SetLogger(HEKA_DAEMON)
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
+
+	mempack := pc.PipelinePack(0)
+	mempack.Message.SetType("heka.memstat")
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	message.NewInt64Field(mempack.Message, "HeapSys", int64(m.HeapSys), "B")
+	message.NewInt64Field(mempack.Message, "HeapAlloc", int64(m.HeapAlloc), "B")
+	message.NewInt64Field(mempack.Message, "HeapIdle", int64(m.HeapIdle), "B")
+	message.NewInt64Field(mempack.Message, "HeapInuse", int64(m.HeapInuse), "B")
+	message.NewInt64Field(mempack.Message, "HeapReleased", int64(m.HeapReleased), "B")
+	message.NewInt64Field(mempack.Message, "HeapObjects", int64(m.HeapObjects), "count")
+	pc.router.InChan() <- mempack
 }
 
 func (pc *PipelineConfig) allReportsStdout() {
@@ -241,10 +277,15 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	json.Unmarshal([]byte(payload), &m)
 
 	fullReport := make([]string, 0)
-	categories := []string{"globals", "inputs", "decoders", "filters", "outputs"}
+	categories := []string{"globals", "inputs", "decoders", "filters", "outputs", "encoders"}
 	for _, cat := range categories {
 		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
-		for _, row := range m[cat].([]interface{}) {
+		catReports, ok := m[cat]
+		if !ok {
+			fullReport = append(fullReport, fmt.Sprintln("NONE"))
+			continue
+		}
+		for _, row := range catReports.([]interface{}) {
 			pluginReport := make([]string, 0)
 			pluginReport = append(pluginReport,
 				fmt.Sprintf("%s:", (row.(map[string]interface{}))["Name"].(string)))
@@ -252,7 +293,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 				data := row.(map[string]interface{})[colname]
 				if data != nil {
 					pluginReport = append(pluginReport,
-						fmt.Sprintf("    %s: %s",
+						fmt.Sprintf("    %s: %v",
 							colname,
 							data.(map[string]interface{})["value"]))
 				}

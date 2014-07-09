@@ -17,6 +17,7 @@ package logstreamer
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -298,6 +299,9 @@ type Logstream struct {
 	logfiles Logfiles
 	position *LogstreamLocation
 	fd       *os.File
+	// If the file is gzipped, reader is a gzip reader. Otherwise,
+	// reader is the fd.
+	reader io.Reader
 	// Buffer data read in blocks so that we can control precisely how
 	// much of the data read is saved in the logstream location each time
 	// to saving into a record partially.
@@ -325,6 +329,10 @@ func (l *Logstream) DumpDebug() string {
 		l.position.Debug(),
 		finfo,
 	)
+}
+
+func (l *Logstream) ReportPosition() (string, int64) {
+	return l.position.Filename, l.position.SeekPosition
 }
 
 // Updates the logfiles safely
@@ -366,6 +374,15 @@ type LogstreamSet struct {
 	fileMatch      *regexp.Regexp
 }
 
+// append a path separator if needed and escape regexp meta characters
+func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
+	if !os.IsPathSeparator(logRoot[len(logRoot)-1]) && !os.IsPathSeparator(fileMatch[0]) {
+		logRoot += string(os.PathSeparator)
+	}
+
+	return regexp.MustCompile("^" + regexp.QuoteMeta(logRoot) + fileMatch)
+}
+
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	logRoot, journalRoot string) *LogstreamSet {
 	// Lowercase the actual matching keys.
@@ -386,7 +403,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		logRoot:        logRoot,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
-		fileMatch:      regexp.MustCompile("^" + filepath.Join(logRoot, sortPattern.FileMatch)),
+		fileMatch:      fileMatchRegexp(logRoot, sortPattern.FileMatch),
 	}
 }
 

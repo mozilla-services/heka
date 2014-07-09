@@ -28,10 +28,26 @@ Config:
 - Persistent (bool):
     Whether published messages should be marked as persistent or transient.
     Defaults to non-persistent.
-- Serialize (bool):
-    Whether published messages should be fully serialized. If set to true
-    then messages will be encoded to Protocol Buffers and have the AMQP
-    message Content-Type set to `application/hekad`. Defaults to true.
+
+.. versionadded:: 0.6
+
+- ContentType (string):
+     MIME content type of the payload used in the AMQP header. Defaults to
+     "application/hekad".
+- encoder (string, optional)
+    Specifies which of the registered encoders should be used for converting
+    Heka messages to binary data that is sent out over the AMQP connection.
+    Defaults to the always available "ProtobufEncoder".
+- use_framing (bool, optional):
+    Specifies whether or not the encoded data sent out over the TCP connection
+    should be delimited by Heka's :ref:`stream_framing`. Defaults to true.
+
+.. versionadded:: 0.6
+
+- tls (TlsConfig):
+    An optional sub-section that specifies the settings to be used for any
+    SSL/TLS encryption. This will only have any impact if `URL` uses the
+    `AMQPS` URI scheme. See :ref:`tls`.
 
 Example (that sends log lines from the logger):
 
@@ -41,4 +57,4 @@ Example (that sends log lines from the logger):
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
-    message_matcher = 'Logger == "/var/log/system.log"'
+    message_matcher = 'Logger == "TestWebserver"'

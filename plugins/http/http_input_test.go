@@ -62,7 +62,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "PayloadJsonDecoder"
+			decoderName := "TestDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
@@ -81,7 +81,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -144,7 +144,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "PayloadJsonDecoder"
+			decoderName := "TestDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9875/BasicAuthTest"
 			config.User = "user"
@@ -165,7 +165,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -202,7 +202,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "PayloadJsonDecoder"
+			decoderName := "TestDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9874/PostTest"
 			config.Method = "POST"
@@ -222,7 +222,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -259,7 +259,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "PayloadJsonDecoder"
+			decoderName := "TestDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9873/HeadersTest"
 			config.Headers = map[string]string{"Accept": "text/plain"}
@@ -280,7 +280,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -317,7 +317,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config := httpInput.ConfigStruct().(*HttpInputConfig)
-			decoderName := "PayloadJsonDecoder"
+			decoderName := "TestDecoder"
 			config.DecoderName = decoderName
 			config.Url = "http://localhost:9872/BodyTest"
 			config.Method = "POST"
@@ -339,7 +339,7 @@ func HttpInputSpec(c gs.Context) {
 			mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
 
 			ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+			ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)

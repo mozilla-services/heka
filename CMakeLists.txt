@@ -6,8 +6,8 @@ cmake_minimum_required(VERSION 2.8.7 FATAL_ERROR)
 project(heka C)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High performance data gathering, analysis, monitoring, and reporting.")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
-set(CPACK_PACKAGE_VERSION_MINOR 5)
-set(CPACK_PACKAGE_VERSION_PATCH 2)
+set(CPACK_PACKAGE_VERSION_MINOR 6)
+set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
@@ -20,7 +20,7 @@ set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package(Go 1.2 REQUIRED)
+find_package(Go 1.3 REQUIRED)
 find_package(Git REQUIRED)
 find_package(Protobuf 2.3 QUIET)
 set(CPACK_PACKAGE_FILE_NAME ${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}_${CPACK_PACKAGE_VERSION_MINOR}_${CPACK_PACKAGE_VERSION_PATCH}-${GO_PLATFORM}-${GO_ARCH})
@@ -39,6 +39,15 @@ set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
+
+find_path(INCLUDE_GEOIP GeoIP.h /usr/local/include /usr/include /opt/local/include)
+if (NOT INCLUDE_GEOIP)
+    message(STATUS "GeoIP.h was not found, GeoIP functionality will not be included in this build.")
+else()
+    message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
+    set(TAGS "${TAGS} geoip")
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/geoip")
+endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
 if (BENCHMARK)
@@ -135,7 +144,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL
-${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/hekad
+${GO_EXECUTABLE} install ${LDFLAGS} -tags=\"${TAGS}\"  github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)
@@ -162,6 +171,8 @@ if (MINGW AND INCLUDE_SANDBOX)
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
     COMMENT "Install dll's for the mock generation and unit tests")
 endif()
 
@@ -221,6 +232,7 @@ if (UNIX AND DPKG_EXECUTABLE)
     COMMENT "Custom deb target")
 endif()
 
+add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
 add_test(plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins)
@@ -228,6 +240,9 @@ add_test(plugins/amqp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.
 add_test(plugins/dasher ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/dasher)
 add_test(plugins/elasticsearch ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/elasticsearch)
 add_test(plugins/file ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/file)
+if (INCLUDE_GEOIP)
+    add_test(plugins/geoip  ${GO_EXECUTABLE} test ${LDFLAGS} -tags=${TAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/geoip)
+endif()
 add_test(plugins/graphite ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/graphite)
 add_test(plugins/http ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/http)
 add_test(plugins/logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/logstreamer)
@@ -246,7 +261,6 @@ endif()
 if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
-
 install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sbmgr/hekad.toml.sbmgr" DESTINATION bin)
 if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
@@ -254,5 +268,7 @@ endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${PROJECT_PATH}/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/decoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_decoders")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/filters/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_filters")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/encoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_encoders")

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,8 +17,10 @@
 package pipeline
 
 import (
+	"bytes"
 	"code.google.com/p/gomock/gomock"
 	"errors"
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"sync"
@@ -70,11 +72,9 @@ func InputRunnerSpec(c gs.Context) {
 		pc := new(PipelineConfig)
 		pc.inputWrappers = make(map[string]*PluginWrapper)
 
-		pw := &PluginWrapper{
-			Name:          "stopping",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StoppingInput) },
-		}
+		pw := NewPluginWrapper("stopping")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StoppingInput) }
 		pc.inputWrappers["stopping"] = pw
 
 		input := new(StoppingInput)
@@ -112,9 +112,15 @@ func (s *StoppingOutput) Stop() {
 	return
 }
 
+type _payloadEncoder struct{}
+
+func (enc *_payloadEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
+	return []byte(pack.Message.GetPayload()), nil
+}
+
 var (
 	stopresumeHolder   []string      = make([]string, 0, 10)
-	pack               *PipelinePack = new(PipelinePack)
+	_pack              *PipelinePack = new(PipelinePack)
 	stopresumerunTimes int
 )
 
@@ -129,11 +135,11 @@ func (s *StopResumeOutput) Init(config interface{}) (err error) {
 
 func (s *StopResumeOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	if stopresumerunTimes == 0 {
-		or.RetainPack(pack)
+		or.RetainPack(_pack)
 	} else if stopresumerunTimes == 1 {
 		inChan := or.InChan()
 		pk := <-inChan
-		if pk == pack {
+		if pk == _pack {
 			stopresumeHolder = append(stopresumeHolder, "success")
 		}
 	} else if stopresumerunTimes > 1 {
@@ -162,25 +168,23 @@ func OutputRunnerSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	mockHelper := NewMockPluginHelper(ctrl)
+	pc := new(PipelineConfig)
+	pluginGlobals := new(PluginGlobals)
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {
-		pc := new(PipelineConfig)
-		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
 			MaxDelay:   "1us",
 			Delay:      "1us",
 			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
-		pw := &PluginWrapper{
-			Name:          "stoppingOutput",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StoppingOutput) },
-		}
+		pw := NewPluginWrapper("stoppingOutput")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
 		output := new(StoppingOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingOutput"] = pw
-		oRunner := NewFORunner("stoppingOutput", output, &pluginGlobals)
+		oRunner := NewFORunner("stoppingOutput", output, pluginGlobals)
 		var wg sync.WaitGroup
 		cfgCall := mockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(pc)
@@ -191,23 +195,19 @@ func OutputRunnerSpec(c gs.Context) {
 	})
 
 	c.Specify("Runner restarts plugin and resumes feeding it", func() {
-		pc := new(PipelineConfig)
-		var pluginGlobals PluginGlobals
 		pluginGlobals.Retries = RetryOptions{
 			MaxDelay:   "1us",
 			Delay:      "1us",
 			MaxJitter:  "1us",
 			MaxRetries: 4,
 		}
-		pw := &PluginWrapper{
-			Name:          "stoppingresumeOutput",
-			ConfigCreator: func() interface{} { return nil },
-			PluginCreator: func() interface{} { return new(StopResumeOutput) },
-		}
+		pw := NewPluginWrapper("stoppingresumeOutput")
+		pw.ConfigCreator = func() interface{} { return nil }
+		pw.PluginCreator = func() interface{} { return new(StopResumeOutput) }
 		output := new(StopResumeOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingresumeOutput"] = pw
-		oRunner := NewFORunner("stoppingresumeOutput", output, &pluginGlobals)
+		oRunner := NewFORunner("stoppingresumeOutput", output, pluginGlobals)
 		var wg sync.WaitGroup
 		cfgCall := mockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(pc)
@@ -218,5 +218,33 @@ func OutputRunnerSpec(c gs.Context) {
 		c.Expect(len(stopresumeHolder), gs.Equals, 2)
 		c.Expect(stopresumeHolder[1], gs.Equals, "woot")
 		c.Expect(oRunner.retainPack, gs.IsNil)
+	})
+
+	c.Specify("Runner encodes a message", func() {
+		output := new(StoppingOutput)
+		or := NewFORunner("test", output, pluginGlobals)
+		or.encoder = new(_payloadEncoder)
+		_pack.Message = ts.GetTestMessage()
+		payload := "Test Payload"
+
+		c.Specify("without framing", func() {
+			result, err := or.Encode(_pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(result), gs.Equals, payload)
+		})
+
+		c.Specify("with framing", func() {
+			or.SetUseFraming(true)
+			result, err := or.Encode(_pack)
+			c.Expect(err, gs.IsNil)
+
+			i := bytes.IndexByte(result, message.UNIT_SEPARATOR)
+			c.Expect(i > 3, gs.IsTrue, -1)
+			c.Expect(string(result[i+1:]), gs.Equals, payload)
+			header := new(message.Header)
+			ok := DecodeHeader(result[2:i+1], header)
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(header.GetMessageLength(), gs.Equals, uint32(len(payload)))
+		})
 	})
 }

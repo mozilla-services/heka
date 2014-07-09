@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -23,7 +23,6 @@ import (
 	"crypto/sha1"
 	"crypto/subtle"
 	"fmt"
-	"github.com/mozilla-services/heka/client"
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"io"
@@ -33,14 +32,6 @@ import (
 )
 
 const NEWLINE byte = 10
-
-// Create a protocol buffers stream for the given message, put it in the
-// provided byte slice.
-func ProtobufEncodeMessage(pack *PipelinePack, outBytes *[]byte) (err error) {
-	enc := client.NewProtobufEncoder(nil)
-	err = enc.EncodeMessageStream(pack.Message, outBytes)
-	return
-}
 
 type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,
