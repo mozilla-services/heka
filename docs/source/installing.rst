@@ -67,7 +67,7 @@ Build Instructions
     .. code-block:: bash
 
         cd heka
-        source build.sh # Unix (this file must be sourced to properly setup the environment)
+        source build.sh # Unix (or `. build.sh`; must be sourced to properly setup the environment)
         build.bat  # Windows
 
 You will now have a `hekad` binary in the `build/heka/bin` directory.
