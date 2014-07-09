@@ -4,6 +4,8 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Go 1.3 now required for building.
+
 * Changed handling of message stream framing. Before stream framing was
   presumed to always be required when encoding with protocol buffers, and not
   required when using other encodings. Now all outputs support an optional
