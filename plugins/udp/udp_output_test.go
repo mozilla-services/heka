@@ -154,7 +154,11 @@ func UdpOutputSpec(c gs.Context) {
 				ch <- string(b[:n])
 				conn.Close()
 				err = os.Remove(config.Address)
-				c.Expect(err, gs.IsNil)
+				var errMsg string
+				if err != nil {
+					errMsg = err.Error()
+				}
+				ch <- errMsg
 			}
 
 			go collectData()
@@ -178,6 +182,8 @@ func UdpOutputSpec(c gs.Context) {
 				c.Expect(result, gs.Equals, payload)
 				close(inChan)
 				wg.Wait()
+				result = <-ch
+				c.Expect(result, gs.Equals, "")
 			})
 
 			c.Specify("uses the specified local address", func() {

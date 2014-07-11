@@ -87,6 +87,8 @@ func AMQPPluginSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
+		msgChan := make(chan *message.Message, 1)
+
 		c.Specify("with a valid setup and no decoder", func() {
 			amqpInput := new(AMQPInput)
 			defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
@@ -124,11 +126,13 @@ func AMQPPluginSpec(c gs.Context) {
 				ith.PackSupply <- ith.Pack
 				go func() {
 					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					msgChan <- ith.Pack.Message
 				}()
 				ith.PackSupply <- ith.Pack
-				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
-				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
 				close(streamChan)
+				msg := <-msgChan
+				c.Expect(msg.GetType(), gs.Equals, "amqp")
+				c.Expect(msg.GetPayload(), gs.Equals, "This is a message")
 			})
 		})
 
@@ -180,11 +184,13 @@ func AMQPPluginSpec(c gs.Context) {
 				ith.PackSupply <- ith.Pack
 				go func() {
 					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					msgChan <- ith.Pack.Message
 				}()
 				ith.PackSupply <- ith.Pack
-				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
-				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
 				close(streamChan)
+				msg := <-msgChan
+				c.Expect(msg.GetType(), gs.Equals, "amqp")
+				c.Expect(msg.GetPayload(), gs.Equals, "This is a message")
 			})
 
 			c.Specify("consumes a serialized message", func() {
