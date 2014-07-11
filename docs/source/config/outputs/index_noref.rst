@@ -49,4 +49,6 @@ initialization code.
 
 .. include:: /config/outputs/tcp.rst
 
+.. include:: /config/outputs/udp.rst
+
 .. include:: /config/outputs/whisper.rst

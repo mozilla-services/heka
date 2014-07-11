@@ -39,7 +39,8 @@ type UdpInput struct {
 
 // ConfigStruct for NetworkInput plugins.
 type UdpInputConfig struct {
-	// Network type ("udp", "udp4" or "udp6"). Needs to match the input type.
+	// Network type ("udp", "udp4", "udp6", or "unixgram"). Needs to match the
+	// input type.
 	Net string
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").

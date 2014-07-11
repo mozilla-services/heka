@@ -28,18 +28,7 @@ import (
 	"net"
 	"path/filepath"
 	"runtime"
-	"testing"
 )
-
-func TestAllSpecs(t *testing.T) {
-	r := gs.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(UdpInputSpec)
-	r.AddSpec(UdpInputSpecFailure)
-
-	gs.MainGoTest(r, t)
-}
 
 func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
 	emsg = make([]byte, 3+len(hbytes)+len(mbytes))

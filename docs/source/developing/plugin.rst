@@ -195,36 +195,76 @@ decode the plugin's TOML config into this struct. Note that this also gives
 you a way to specify default config values; you just populate your config
 struct as desired before returning it from the `ConfigStruct` method.
 
-Let's say we wanted to write a `UdpOutput` that delivered messages to a UDP
-listener somewhere, defaulting to using my.example.com:44444 as the
-destination. The initialization code might look as follows::
+Let's look at the code for Heka's `UdpOutput`, which delivers messages to a
+UDP listener somewhere. The initialization code looks as follows::
 
     // This is our plugin struct.
     type UdpOutput struct {
+        *UdpOutputConfig
         conn net.Conn
     }
 
     // This is our plugin's config struct
     type UdpOutputConfig struct {
+        // Network type ("udp", "udp4", "udp6", or "unixgram"). Needs to match the
+        // input type.
+        Net string
+        // String representation of the address of the network connection to which
+        // we will be sending out packets (e.g. "192.168.64.48:3336").
         Address string
+        // Optional address to use as the local address for the connection.
+        LocalAddress string `toml:"local_address"`
     }
 
     // Provides pipeline.HasConfigStruct interface.
     func (o *UdpOutput) ConfigStruct() interface{} {
-        return &UdpOutputConfig{"my.example.com:44444"}
+        return &UdpOutputConfig{
+            Net: "udp",
+        }
     }
 
     // Initialize UDP connection
     func (o *UdpOutput) Init(config interface{}) (err error) {
-        conf := config.(*UdpOutputConfig) // assert we have the right config type
-        var udpAddr *net.UDPAddr
-        if udpAddr, err = net.ResolveUDPAddr("udp", conf.Address); err != nil {
-            return fmt.Errorf("can't resolve %s: %s", conf.Address,
-                err.Error())
-        }
-        if o.conn, err = net.DialUDP("udp", nil, udpAddr); err != nil {
-            return fmt.Errorf("error dialing %s: %s", conf.Address,
-                err.Error())
+        o.UdpOutputConfig = config.(*UdpOutputConfig) // assert we have the right config type
+
+        if o.Net == "unixgram" {
+            if runtime.GOOS == "windows" {
+                return errors.New("Can't use Unix datagram sockets on Windows.")
+            }
+            var unixAddr, lAddr *net.UnixAddr
+            unixAddr, err = net.ResolveUnixAddr(o.Net, o.Address)
+            if err != nil {
+                return fmt.Errorf("Error resolving unixgram address '%s': %s", o.Address,
+                    err.Error())
+            }
+            if o.LocalAddress != "" {
+                lAddr, err = net.ResolveUnixAddr(o.Net, o.LocalAddress)
+                if err != nil {
+                    return fmt.Errorf("Error resolving local unixgram address '%s': %s",
+                        o.LocalAddress, err.Error())
+                }
+            }
+            if o.conn, err = net.DialUnix(o.Net, lAddr, unixAddr); err != nil {
+                return fmt.Errorf("Can't connect to '%s': %s", o.Address,
+                    err.Error())
+            }
+        } else {
+            var udpAddr, lAddr *net.UDPAddr
+            if udpAddr, err = net.ResolveUDPAddr(o.Net, o.Address); err != nil {
+                return fmt.Errorf("Error resolving UDP address '%s': %s", o.Address,
+                    err.Error())
+            }
+            if o.LocalAddress != "" {
+                lAddr, err = net.ResolveUDPAddr(o.Net, o.LocalAddress)
+                if err != nil {
+                    return fmt.Errorf("Error resolving local UDP address '%s': %s",
+                        o.Address, err.Error())
+                }
+            }
+            if o.conn, err = net.DialUDP(o.Net, lAddr, udpAddr); err != nil {
+                return fmt.Errorf("Can't connect to '%s': %s", o.Address,
+                    err.Error())
+            }
         }
         return
     }
