@@ -91,85 +91,92 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 	writeQuotedString(b, f.GetName())
 	b.WriteString(`:`)
 
-	if raw {
-		switch f.GetValueType() { 
-			case message.Field_STRING:
-				b.WriteString(f.GetValue().(string))
-			case message.Field_BYTES:
-				b.WriteString(string(f.GetValue().([]byte)))
-		}
-	} else {
-		switch f.GetValueType() {
-		case message.Field_STRING:
-			values := f.GetValueString()
-			if len(values) > 1 {
-				b.WriteString(`[`)
-				for i, value := range values {
+	switch f.GetValueType() {
+	case message.Field_STRING:
+		values := f.GetValueString()
+		if len(values) > 1 {
+			b.WriteString(`[`)
+			for i, value := range values {
+				if raw {
+					b.WriteString(value)
+				} else {
 					writeQuotedString(b, value)
-					if i < len(values) - 1 {
-						b.WriteString(`,`)
-					}
 				}
-				b.WriteString(`]`)
-			} else {
-				writeQuotedString(b, f.GetValue().(string))
+				if i < len(values) - 1 {
+					b.WriteString(`,`)
+				}
 			}
-		case message.Field_BYTES:
-			values := f.GetValueBytes()
-			if len(values) > 1 {
-				b.WriteString(`[`)
-				for i, value := range values {
+			b.WriteString(`]`)
+		} else {
+			if raw {
+				b.WriteString(values[0])
+			} else {
+				writeQuotedString(b, values[0])
+			}
+		}
+	case message.Field_BYTES:
+		values := f.GetValueBytes()
+		if len(values) > 1 {
+			b.WriteString(`[`)
+			for i, value := range values {
+				if raw {
+					b.WriteString(string(value))
+				} else {
 					writeQuotedString(b, base64.StdEncoding.EncodeToString(value))
-					if i < len(values) - 1 {
-						b.WriteString(`,`)
-					}
 				}
-				b.WriteString(`]`)
-			} else {
-				writeQuotedString(b, f.GetValue().(string))
-			}
-		case message.Field_INTEGER:
-			values := f.GetValueInteger()
-			if len(values) > 1 {
-				b.WriteString(`[`)
-				for i, value := range values {
-					b.WriteString(strconv.FormatInt(value, 10))
-					if i < len(values) - 1 {
-						b.WriteString(`,`)
-					}
+				if i < len(values) - 1 {
+					b.WriteString(`,`)
 				}
-				b.WriteString(`]`)
-			} else {
-				b.WriteString(strconv.FormatInt(f.GetValue().(int64), 10))
 			}
-		case message.Field_DOUBLE:
-			values := f.GetValueDouble()
-			if len(values) > 1 {
-				b.WriteString(`[`)
-				for i, value := range values {
-					b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
-					if i < len(values) - 1 {
-						b.WriteString(`,`)
-					}
+			b.WriteString(`]`)
+		} else {
+			if raw {
+				b.WriteString(string(values[0]))
+			} else {
+				writeQuotedString(b, string(values[0]))
+			}
+		}
+	case message.Field_INTEGER:
+		values := f.GetValueInteger()
+		if len(values) > 1 {
+			b.WriteString(`[`)
+			for i, value := range values {
+				b.WriteString(strconv.FormatInt(value, 10))
+				if i < len(values) - 1 {
+					b.WriteString(`,`)
 				}
-				b.WriteString(`]`)
-			} else {
-				b.WriteString(strconv.FormatFloat(f.GetValue().(float64), 'g', -1, 64))
 			}
-		case message.Field_BOOL:
-			values := f.GetValueBool()
-			if len(values) > 1 {
-				b.WriteString(`[`)
-				for i, value := range values {
-					b.WriteString(strconv.FormatBool(value))
-					if i < len(values) - 1 {
-						b.WriteString(`,`)
-					}
+			b.WriteString(`]`)
+		} else {
+			b.WriteString(strconv.FormatInt(values[0], 10))
+		}
+	case message.Field_DOUBLE:
+		values := f.GetValueDouble()
+		if len(values) > 1 {
+			b.WriteString(`[`)
+			for i, value := range values {
+				b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
+				if i < len(values) - 1 {
+					b.WriteString(`,`)
 				}
-				b.WriteString(`]`)
-			} else {
-				b.WriteString(strconv.FormatBool(f.GetValue().(bool)))
 			}
+			b.WriteString(`]`)
+		} else {
+			b.WriteString(strconv.FormatFloat(values[0], 'g', -1, 64))
+		}
+	case message.Field_BOOL:
+		values := f.GetValueBool()
+		if len(values) > 1 {
+			b.WriteString(`[`)
+			for i, value := range values {
+				b.WriteString(strconv.FormatBool(value))
+				if i < len(values) - 1 {
+					b.WriteString(`,`)
+				}
+			}
+			b.WriteString(`]`)
+		} else {
+			b.WriteString(strconv.FormatBool(values[0]))
 		}
 	}
 }
@@ -184,13 +191,13 @@ func writeStringField(first bool, b *bytes.Buffer, name string, value string) {
 	writeQuotedString(b, value)
 }
 
-func writeRawField(first bool, b *bytes.Buffer, name string, value string) {
+func writeIntField(first bool, b *bytes.Buffer, name string, value int32) {
 	if !first {
 		b.WriteString(`,`)
 	}
 	writeQuotedString(b, name)
 	b.WriteString(`:`)
-	b.WriteString(value)
+	b.WriteString(strconv.Itoa(int(value)))
 }
 
 // Manually encodes the Heka message into an ElasticSearch friendly way.
@@ -279,13 +286,13 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 		case "logger":
 			writeStringField(first, &buf, f, m.GetLogger())
 		case "severity":
-			writeRawField(first, &buf, f, strconv.Itoa(int(m.GetSeverity())))
+			writeIntField(first, &buf, f, m.GetSeverity())
 		case "payload":
 			writeStringField(first, &buf, f, m.GetPayload())
 		case "envversion":
-			writeRawField(first, &buf, f, strconv.Quote(m.GetEnvVersion()))
+			writeStringField(first, &buf, f, m.GetEnvVersion())
 		case "pid":
-			writeRawField(first, &buf, f, strconv.Itoa(int(m.GetPid())))
+			writeIntField(first, &buf, f, m.GetPid())
 		case "hostname":
 			writeStringField(first, &buf, f, m.GetHostname())
 		case "fields":
@@ -368,10 +375,10 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 	writeStringField(false, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
 	writeStringField(false, &buf, `@type`, m.GetType())
 	writeStringField(false, &buf, `@logger`, m.GetLogger())
-	writeRawField(false, &buf, `@severity`, strconv.Itoa(int(m.GetSeverity())))
+	writeIntField(false, &buf, `@severity`, m.GetSeverity())
 	writeStringField(false, &buf, `@message`, m.GetPayload())
-	writeRawField(false, &buf, `@envversion`, strconv.Quote(m.GetEnvVersion()))
-	writeRawField(false, &buf, `@pid`, strconv.Itoa(int(m.GetPid())))
+	writeStringField(false, &buf, `@envversion`, m.GetEnvVersion())
+	writeIntField(false, &buf, `@pid`, m.GetPid())
 	writeStringField(false, &buf, `@source_host`, m.GetHostname())
 
 	buf.WriteString(`,"@fields":{`)

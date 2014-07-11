@@ -67,6 +67,12 @@ func getTestMessageWithFunnyFields() *message.Message {
 	field9.AddValue("{\"asdf\":123}")
 	field10 := message.NewFieldInit("test_raw_field_bytes", message.Field_BYTES, "")
 	field10.AddValue([]byte("{\"asdf\":123}"))
+	field11 := message.NewFieldInit("test_raw_field_string_array", message.Field_STRING, "")
+	field11.AddValue("{\"asdf\":123}")
+	field11.AddValue("{\"jkl;\":123}")
+	field12 := message.NewFieldInit("test_raw_field_bytes_array", message.Field_BYTES, "")
+	field12.AddValue([]byte("{\"asdf\":123}"))
+	field12.AddValue([]byte("{\"jkl;\":123}"))
 
 	msg := &message.Message{}
 	msg.SetType("TEST")
@@ -92,6 +98,8 @@ func getTestMessageWithFunnyFields() *message.Message {
 	msg.AddField(field8)
 	msg.AddField(field9)
 	msg.AddField(field10)
+	msg.AddField(field11)
+	msg.AddField(field12)
 
 	return msg
 }
@@ -152,6 +160,8 @@ func ESEncodersSpec(c gs.Context) {
 		config.(*ESLogstashV0EncoderConfig).RawBytesFields = []string{
 			"test_raw_field_string",
 			"test_raw_field_bytes",
+			"test_raw_field_string_array",
+			"test_raw_field_bytes_array",
 		}
 
 		c.Specify("Should properly encode a message", func() {
@@ -222,6 +232,10 @@ func ESEncodersSpec(c gs.Context) {
 
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_string"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_string_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_string_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
+			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 		})
 	})
 
@@ -231,6 +245,8 @@ func ESEncodersSpec(c gs.Context) {
 		config.(*ESJsonEncoderConfig).RawBytesFields = []string{
 			"test_raw_field_string",
 			"test_raw_field_bytes",
+			"test_raw_field_string_array",
+			"test_raw_field_bytes_array",
 		}
 
 		c.Specify("Should properly encode a message", func() {
@@ -300,6 +316,10 @@ func ESEncodersSpec(c gs.Context) {
 
 			c.Expect(decoded["test_raw_field_string"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["test_raw_field_bytes"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["test_raw_field_string_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["test_raw_field_string_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
+			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
+			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 		})
 	})
 }
