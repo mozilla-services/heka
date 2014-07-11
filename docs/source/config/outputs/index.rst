@@ -65,5 +65,8 @@ initialization code.
 .. _config_tcp_output:
 .. include:: /config/outputs/tcp.rst
 
+.. _config_udp_output:
+.. include:: /config/outputs/udp.rst
+
 .. _config_whisper_output:
 .. include:: /config/outputs/whisper.rst

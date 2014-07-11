@@ -2,10 +2,10 @@
 TcpOutput
 =========
 
-Output plugin that serializes messages into the Heka protocol format and
-delivers them to a listening TCP connection. Can be used to deliver messages
-from a local running Heka agent to a remote Heka instance set up as an
-aggregator and/or router.
+Output plugin that delivers Heka message data to a listening TCP connection.
+Can be used to deliver messages from a local running Heka agent to a remote
+Heka instance set up as an aggregator and/or router, or to any other arbitrary
+listening TCP server that knows how to process the encoded data.
 
 Config:
 
