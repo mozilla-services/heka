@@ -83,6 +83,17 @@ Heka Message Schema
    :start-after: --[[
    :end-before: --]]
 
+.. _config_process_message_failures_filter:
+
+Heka Process Message Failures
+=============================
+
+.. versionadded:: 0.7
+
+.. include:: /../../sandbox/lua/filters/heka_process_message_failures.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_http_status_graph_filter:
 
 HTTP Status Graph
