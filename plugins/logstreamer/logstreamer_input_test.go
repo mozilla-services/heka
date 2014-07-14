@@ -111,9 +111,14 @@ func LogstreamerInputSpec(c gs.Context) {
 				decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 				decodeCall.Return(ith.DecodeChan)
 
+				runOutChan := make(chan string, 1)
 				go func() {
 					err = lsInput.Run(ith.MockInputRunner, ith.MockHelper)
-					c.Expect(err, gs.IsNil)
+					var errStr string
+					if err != nil {
+						errStr = err.Error()
+					}
+					runOutChan <- errStr
 				}()
 
 				d, _ := time.ParseDuration("5s")
@@ -132,6 +137,7 @@ func LogstreamerInputSpec(c gs.Context) {
 				}
 				lsInput.Stop()
 				c.Expect(timed, gs.Equals, false)
+				c.Expect(<-runOutChan, gs.Equals, "")
 			})
 		})
 

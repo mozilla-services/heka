@@ -227,9 +227,9 @@ func FileOutputSpec(c gs.Context) {
 				err := fileOutput.Init(config)
 				c.Assume(err, gs.IsNil)
 				wg.Add(1)
-				go fileOutput.receiver(oth.MockOutputRunner, &wg)
-				runtime.Gosched() // Yield so we can overwrite the timerChan.
 				fileOutput.timerChan = timerChan
+				go fileOutput.receiver(oth.MockOutputRunner, &wg)
+				runtime.Gosched() // Yield so receiver will start.
 			}
 
 			cleanUp := func() {

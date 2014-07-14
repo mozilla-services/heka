@@ -154,8 +154,8 @@ func CarbonOutputSpec(c gs.Context) {
 						config.Protocol = protocol
 						err := carbonOutput.Init(config)
 						c.Assume(err, gs.IsNil)
+						wg.Add(1)
 						go func() {
-							wg.Add(1)
 							carbonOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 							wg.Done()
 						}()

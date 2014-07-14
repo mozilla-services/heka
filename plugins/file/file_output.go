@@ -177,7 +177,9 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 	timerDuration = time.Duration(o.FlushInterval) * time.Millisecond
 	if o.FlushInterval > 0 {
 		timer = time.NewTimer(timerDuration)
-		o.timerChan = timer.C
+		if o.timerChan == nil { // Tests might have set this already.
+			o.timerChan = timer.C
+		}
 	}
 
 	for ok {
