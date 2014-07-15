@@ -599,11 +599,13 @@ func (foRunner *foRunner) RetainPack(pack *PipelinePack) {
 func (foRunner *foRunner) InChan() (inChan chan *PipelinePack) {
 	if foRunner.retainPack != nil {
 		retainChan := make(chan *PipelinePack)
-		go func() {
-			retainChan <- foRunner.retainPack
-			foRunner.retainPack = nil
+
+		go func(pack *PipelinePack) {
+			retainChan <- pack
 			close(retainChan)
-		}()
+		}(foRunner.retainPack)
+
+		foRunner.retainPack = nil
 		return retainChan
 	}
 	return foRunner.inChan
