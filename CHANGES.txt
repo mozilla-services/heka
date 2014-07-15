@@ -12,6 +12,10 @@ Bug Handling
 Features
 --------
 
+* Added the ability to test for field existence in message matcher (issue #958)
+
+* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode field arrays.
+
 * Added a filter to monitor all process message failures (issue #948).
 
 * Added UdpOutput.
@@ -178,8 +182,6 @@ Features
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
-
-* Added support to ESJSonEncoder and ESLogstashV0Encoder to encode string fields that have multiple values.
 
 0.5.3 (2014-MM-DD)
 ==================

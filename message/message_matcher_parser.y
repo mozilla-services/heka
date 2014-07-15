@@ -22,7 +22,8 @@ var variables = map[string]int{
 	"Pid":        VAR_PID,
 	"Fields":     VAR_FIELDS,
 	"TRUE":       TRUE,
-	"FALSE":      FALSE}
+	"FALSE":      FALSE,
+	"NIL":        NIL_VALUE}
 
 var parseLock sync.Mutex
 
@@ -78,7 +79,7 @@ var nodes []*tree
 %token VAR_UUID VAR_TYPE VAR_LOGGER VAR_PAYLOAD VAR_ENVVERSION VAR_HOSTNAME
 %token VAR_TIMESTAMP VAR_SEVERITY VAR_PID
 %token VAR_FIELDS
-%token STRING_VALUE NUMERIC_VALUE REGEXP_VALUE
+%token STRING_VALUE NUMERIC_VALUE REGEXP_VALUE NIL_VALUE
 %token TRUE FALSE
 
 %start spec
@@ -96,6 +97,9 @@ relational : OP_EQ
    | OP_GTE
    | OP_LT
    | OP_LTE
+;
+eqneq : OP_EQ
+   | OP_NE
 ;
 regexp : OP_RE
    | OP_NRE
@@ -146,6 +150,11 @@ field_test : VAR_FIELDS relational NUMERIC_VALUE
    | VAR_FIELDS regexp REGEXP_VALUE
       {
       //fmt.Println("field_test regexp", $1, $2, $3)
+      nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
+      }
+   | VAR_FIELDS eqneq NIL_VALUE
+      {
+      //fmt.Println("field_test existence", $1, $2, $3)
       nodes = append(nodes, &tree{stmt:&Statement{$1, $2, $3}})
       }
 ;
