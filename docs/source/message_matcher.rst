@@ -45,7 +45,6 @@ Boolean
 - **TRUE**
 - **FALSE**
 
-
 Constants
 =========
 
@@ -86,18 +85,5 @@ Regular Expression String
 - enclosed by forward slashes
 - must be placed on the right side of the relational comparison e.g., Type =~ /test/
 - capture groups will be ignored
-
-.. _matcher_regex_helpers:
-
-Regular Expression Helpers
---------------------------
-
-Commonly used complex regular expressions are provide as template
-variables in the form of %TEMPLATE%.
-
-e.g.,, Fields[created] =~ /%TIMESTAMP%/
-
-Available templates
-- TIMESTAMP - matches most common date/time string formats
 
 .. seealso:: `Regular Expression re2 syntax <http://code.google.com/p/re2/wiki/Syntax>`_

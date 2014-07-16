@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the regular expression template support from the message matcher
+  (issue #960).
+
 Bug Handling
 ------------
 
@@ -12,9 +15,10 @@ Bug Handling
 Features
 --------
 
-* Added the ability to test for field existence in message matcher (issue #958)
+* Added the ability to test for field existence in message matcher (issue #958).
 
-* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode field arrays.
+* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode
+  field arrays.
 
 * Added a filter to monitor all process message failures (issue #948).
 
