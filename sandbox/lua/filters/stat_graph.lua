@@ -30,6 +30,13 @@ Config:
     Must be in the same order as the specified stats. Any label longer than 15
     characters will be truncated.
 
+- preservation_version (uint, optional, default 0):
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time any edits are made to your
+    `num_rows`, `secs_per_row`, `stats`, or `stat_labels` values, or else Heka
+    will fail to start because the preserved data will no longer match the
+    filter's data structure.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -46,9 +53,12 @@ Config:
       secs_per_row = 10
       stats = "stats.counters.hits.count stats.counters.misses.count"
       stat_labels = "hits misses"
+      preservation_version = 2
 --]]
 require("circular_buffer")
 require("string")
+
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 local idx_num
 local stat_value
