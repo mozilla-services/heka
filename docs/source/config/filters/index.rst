@@ -127,6 +127,16 @@ MySQL Slow Query
 
 .. _config_unique_items_filter:
 
+Stats Graph
+===========
+
+.. versionadded:: 0.7
+
+.. include:: ../../../sandbox/lua/filters/stat_graph.lua
+   :start-after: --[[
+   :end-before: --]]
+
+
 Unique Items
 ============
 

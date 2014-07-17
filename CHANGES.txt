@@ -12,9 +12,14 @@ Bug Handling
 Features
 --------
 
-* Added the ability to test for field existence in message matcher (issue #958)
+* Added stats graph sandbox filter to make it easier to generate graphs of
+  statsd / graphite metrics (issue #966).
 
-* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode field arrays.
+* Added the ability to test for field existence in message matcher (issue
+  #958)
+
+* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode
+  field arrays.
 
 * Added a filter to monitor all process message failures (issue #948).
 
