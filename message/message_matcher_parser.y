@@ -448,14 +448,6 @@ regexpstring:
 		}
 		m.sym += string(c)
 	}
-	m.sym = m.reToken.ReplaceAllStringFunc(m.sym,
-		func(match string) string {            
-            replace, ok := HelperRegexSubs[match[1:len(match)-1]]
-            if !ok {
-                return match
-            } 
-            return replace
-		})
 	yylval.regexp, err = regexp.Compile(m.sym)
 	if err != nil {
 		log.Printf("invalid regexp %v\n", m.sym)

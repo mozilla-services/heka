@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Removed the regular expression template support from the message matcher
+  (issue #960).
+
 Bug Handling
 ------------
 
@@ -15,8 +18,10 @@ Features
 * Added stats graph sandbox filter to make it easier to generate graphs of
   statsd / graphite metrics (issue #966).
 
-* Added the ability to test for field existence in message matcher (issue
-  #958)
+* Added support for the majority of repository URI formats when cloning external
+  Go packages (issue #937).
+
+* Added the ability to test for field existence in message matcher (issue #958).
 
 * Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode
   field arrays.
@@ -30,7 +35,6 @@ Features
 
 Bug Handling
 ------------
-
 
 0.6.0 (2014-07-09)
 ==================
@@ -120,6 +124,9 @@ Bug Handling
 
 * Fix file_match config of plugin logstreamer_input (issue #893).
 
+* StatFilter now correctly handles values from integer or float fields (issue
+  #612).
+
 Features
 --------
 
@@ -187,15 +194,6 @@ Features
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
-
-0.5.3 (2014-MM-DD)
-==================
-
-Bug Handling
-------------
-
-* StatFilter now correctly handles values from integer or float fields (issue
-  #612).
 
 0.5.2 (2014-05-16)
 ==================
