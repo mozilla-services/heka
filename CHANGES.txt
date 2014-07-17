@@ -15,6 +15,9 @@ Bug Handling
 Features
 --------
 
+* Added support for the majority of repository URI formats when cloning external
+  Go packages (issue #937).
+
 * Added the ability to test for field existence in message matcher (issue #958).
 
 * Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode

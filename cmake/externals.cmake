@@ -35,7 +35,12 @@ function(parse_url url)
     string(REGEX REPLACE ".*/" "" _name ${url})
     set(name ${_name} PARENT_SCOPE)
 
-    string(REGEX REPLACE "^https?://([A-Za-z0-9$-._~!:;=]+@)?" "" _path ${url})
+    # For details of the URI parsing see: http://tools.ietf.org/html/rfc3986#appendix-A
+    string(REGEX REPLACE "^[a-zA-Z][-+.a-zA-Z0-9]+://" "" _path ${url}) # strip the scheme
+    string(REGEX REPLACE "^[A-Za-z0-9$-._~!:;=]+@" "" _path ${_path}) # strip the userinfo
+    string(REGEX REPLACE "^([^:/]+):[0-9]+/" "\\1/" _path ${_path}) # strip the port
+    string(REGEX REPLACE "^([^:/]+):/?" "\\1/" _path ${_path}) # strip the colon separator and make sure we have a slash
+    string(REGEX REPLACE "#.*$" "" _path ${_path}) # strip the revision
 
     set(path ${_path} PARENT_SCOPE)
 endfunction(parse_url)
