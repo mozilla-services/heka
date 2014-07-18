@@ -43,7 +43,7 @@ Config:
 require "math"
 require "string"
 
-local message_variable  = read_config("message_variable")
+local message_variable  = read_config("message_variable") or error("message_variable configuration must be specified")
 local max_items         = read_config("max_items") or 1000
 local min_output_weight = read_config("min_output_weight") or 100
 local reset_days        = read_config("reset_days") or 1

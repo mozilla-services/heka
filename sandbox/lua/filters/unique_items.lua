@@ -39,7 +39,7 @@ require "circular_buffer"
 require "math"
 require "string"
 
-local message_variable  = read_config("message_variable") or error("message_variable is required")
+local message_variable  = read_config("message_variable") or error("message_variable configuration must be specified")
 local title             = read_config("title") or "Estimated Unique Daily " .. message_variable
 local enable_delta      = read_config("enable_delta") or false
 
@@ -61,6 +61,8 @@ function process_message ()
     end
 
     local item = read_message(message_variable)
+    if not(type(item) == "string" or type(item) == "number") then return -1 end
+
     if hll:add(item) then
         active:set(ts, USERS, hll:count())
     end
