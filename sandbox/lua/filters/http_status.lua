@@ -56,6 +56,7 @@ local HTTP_UNKNOWN  = status:set_header(5, "HTTP_UNKNOWN")
 function process_message ()
     local ts = read_message("Timestamp")
     local sc = read_message("Fields[status]")
+    if type(sc) ~= "number" then return -1 end
 
     if sc >= 200 and sc < 300 then
         status:add(ts, HTTP_200, 1)

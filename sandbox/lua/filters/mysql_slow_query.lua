@@ -57,9 +57,17 @@ function process_message ()
     if not cnt then return 0 end
 
     local qt = read_message("Fields[Query_time]")
+    if type(qt) ~= "number" then return -1 end
+
     local lt = read_message("Fields[Lock_time]")
+    if type(lt) ~= "number" then return -1 end
+
     local re = read_message("Fields[Rows_examined]")
+    if type(re) ~= "number" then return -1 end
+
     local rs = read_message("Fields[Rows_sent]")
+    if type(rs) ~= "number" then return -1 end
+
     data:set(ts, QUERY_TIME, sums:add(ts, QUERY_TIME, qt)/cnt)
     data:set(ts, LOCK_TIME, sums:add(ts, LOCK_TIME, lt)/cnt)
     data:set(ts, ROWS_EXAMINED, floor(sums:add(ts, ROWS_EXAMINED, re)/cnt))

@@ -56,11 +56,13 @@ function process_message ()
     for n,section in ipairs(sections) do
         local t = json[section] or {}
         for i,v in ipairs(t) do
-            if v.ProcessMessageFailures then -- confirm this plugin has instrumentation
+            if type(v.ProcessMessageFailures) == "table" then -- confirm this plugin has instrumentation
+                if not v.Name then return -1 end
                 local p = find_plugin(v.Name)
                 p.last_report = last_report
-                if v.ProcessMessageFailures.value > 0 then -- NaN <-> 0 transitions are considered an anomaly
-                    p.cbuf:set(last_report, 1, v.ProcessMessageFailures.value)
+                local n = v.ProcessMessageFailures.value
+                if type(n) == "number" and n > 0 then -- NaN <-> 0 transitions are considered an anomaly
+                    p.cbuf:set(last_report, 1, n)
                 end
             end
         end
