@@ -37,6 +37,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/process"
 	_ "github.com/mozilla-services/heka/plugins/smtp"
 	_ "github.com/mozilla-services/heka/plugins/statsd"
+	_ "github.com/mozilla-services/heka/plugins/sysinfo"
 	_ "github.com/mozilla-services/heka/plugins/tcp"
 	_ "github.com/mozilla-services/heka/plugins/udp"
 	"io/ioutil"
