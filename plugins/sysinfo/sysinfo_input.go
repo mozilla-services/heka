@@ -19,19 +19,23 @@ func init() {
 	})
 }
 
-var ErrCantAddField = "Cant add field: %s"
+// ErrCantAddField should be returned if a field cannot be added to a message
+var ErrCantAddField = fmt.Errorf("Cant add field")
 
+// SysinfoInput is the struct containing the plugins internal state and config
 type SysinfoInput struct {
 	SysinfoInputConfig
 	stop   chan bool
 	runner pipeline.InputRunner
 }
 
+// SysinfoInputConfig contains configuration options for the SysinfoInput plugin
 type SysinfoInputConfig struct {
 	TickerInterval uint   `toml:"ticker_interval"`
 	DecoderName    string `toml:"decoder"`
 }
 
+// ConfigStruct returns the default config for SysinfoInput
 func (input *SysinfoInput) ConfigStruct() interface{} {
 	return &SysinfoInputConfig{
 		TickerInterval: uint(5),
@@ -92,11 +96,14 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 	return nil
 }
 
-func (input *SysinfoInput) AddField(pack *pipeline.PipelinePack, name string, value interface{}, representation string) {
+// AddField is a wrapper around Message.AddField which logs an error if it
+// cannot create the message field.
+func (input *SysinfoInput) AddField(pack *pipeline.PipelinePack, name string,
+	value interface{}, representation string) {
 	if field, err := message.NewField(name, value, representation); err == nil {
 		pack.Message.AddField(field)
 	} else {
-		input.runner.LogError(fmt.Errorf(ErrCantAddField, err))
+		input.runner.LogError(fmt.Errorf("%s: %s", ErrCantAddField, err))
 	}
 }
 
@@ -133,7 +140,7 @@ func Meminfo(meminfo map[string]int) error {
 		if len(items) < 3 {
 			continue
 		}
-		label = string(items[0])
+		label = string(bytes.TrimSuffix(items[0], []byte{':'}))
 		val, err = strconv.Atoi(string(items[1]))
 		if err == nil {
 			meminfo[label] = val
