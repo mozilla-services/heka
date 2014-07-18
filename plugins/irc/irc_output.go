@@ -43,8 +43,6 @@ type IrcOutputConfig struct {
 	UseTLS   bool     `toml:"use_tls"`
 	// Subsection for TLS configuration.
 	Tls tcp.TlsConfig
-	// Should we join and part an irc channel between sending messages?
-	JoinAndPart bool `toml:"join_and_part"`
 	// This controls the size of the OutQueue and Backlog queue for messages.
 	QueueSize    int  `toml:"queue_size"`
 	RejoinOnKick bool `toml:"rejoin_on_kick"`
@@ -165,10 +163,6 @@ func (output *IrcOutput) Run(runner pipeline.OutputRunner,
 				ircMsg := IrcMsg{outgoing, ircChannel, i}
 				select {
 				case output.OutQueue <- ircMsg:
-					if output.JoinAndPart {
-						// We wont have joined on connect in this case.
-						output.Join(ircChannel)
-					}
 				default:
 					output.runner.LogError(ErrOutQueueFull)
 				}
@@ -226,10 +220,6 @@ func (output *IrcOutput) Privmsg(ircMsg *IrcMsg) bool {
 		output.Conn.Privmsg(ircMsg.IrcChannel, string(ircMsg.Output))
 	} else {
 		return false
-	}
-	if output.JoinAndPart {
-		// Leave the channel if we're configured to part after sending messages.
-		output.Conn.Part(ircMsg.IrcChannel)
 	}
 	return true
 }
@@ -371,13 +361,8 @@ func processOutQueue(output *IrcOutput) {
 func registerCallbacks(output *IrcOutput) {
 	// add a callback to check if we've gotten successfully connected
 	output.Conn.AddCallback(CONNECTED, func(event *irc.Event) {
-
-		// Only join on connect if we aren't going to join whenever we send a
-		// message
-		if !output.JoinAndPart {
-			for _, ircChan := range output.Channels {
-				output.Join(ircChan)
-			}
+		for _, ircChan := range output.Channels {
+			output.Join(ircChan)
 		}
 	})
 
@@ -427,6 +412,7 @@ func registerCallbacks(output *IrcOutput) {
 		IRC_NOSUCHCHANNEL,
 		IRC_ERR_INVITEONLYCHAN,
 	}
+
 	for i := range cannotJoinEvents {
 		output.Conn.AddCallback(cannotJoinEvents[i], func(event *irc.Event) {
 			output.handleCannotJoin(event)

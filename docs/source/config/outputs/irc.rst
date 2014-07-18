@@ -26,10 +26,6 @@ Config:
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.
-- join_and_part (bool, optional):
-    Set to enable only joining an Irc channel when sending a message, and to part
-    after sending a message. Useful if you do not want Heka idling in Irc channels.
-    Defaults to false.
 - queue_size (uint, optional):
     This is the maximum amount of messages Heka will queue per Irc channel
     before discarding messages. There is also a queue of the same size used
