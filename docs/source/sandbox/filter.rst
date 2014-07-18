@@ -49,6 +49,12 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
+Stats Graph
+-----------
+.. include:: ../../../sandbox/lua/filters/stat_graph.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Unique Items
 ------------
 .. include:: ../../../sandbox/lua/filters/unique_items.lua
