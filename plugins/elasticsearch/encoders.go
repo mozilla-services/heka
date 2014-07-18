@@ -296,8 +296,8 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 		case "hostname":
 			writeStringField(first, &buf, f, m.GetHostname())
 		case "fields":
-			raw := false
 			for _, field := range m.Fields {
+				raw := false
 				if len(e.rawBytesFields) > 0 {
 					for _, raw_field_name := range e.rawBytesFields {
 						if *field.Name == raw_field_name {
@@ -383,8 +383,8 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 
 	buf.WriteString(`,"@fields":{`)
 	first := true
-	raw := false
 	for _, field := range m.Fields {
+		raw := false
 		if len(e.rawBytesFields) > 0 {
 			for _, raw_field_name := range e.rawBytesFields {
 				if *field.Name == raw_field_name {
