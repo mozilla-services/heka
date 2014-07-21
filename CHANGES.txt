@@ -7,10 +7,16 @@ Backwards Incompatibilities
 * Removed the regular expression template support from the message matcher
   (issue #960).
 
+* Updated the AMQP input / output configuration values to use underscore
+  delimited words for long config options (issue #953).
+
 Bug Handling
 ------------
 
 * Fixed lots of race conditions in the tests.
+
+* Eliminated race condition in use of global AMQPHub in AMQP input / output
+  plugins (#953).
 
 Features
 --------
