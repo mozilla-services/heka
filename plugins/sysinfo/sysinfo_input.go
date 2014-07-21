@@ -27,7 +27,7 @@ var ErrCantAddField = errors.New("Cant add field")
 
 // SysinfoInput is the struct containing the plugins internal state and config
 type SysinfoInput struct {
-	SysinfoInputConfig
+	*SysinfoInputConfig
 	stop   chan bool
 	runner pipeline.InputRunner
 }
@@ -46,7 +46,8 @@ func (input *SysinfoInput) ConfigStruct() interface{} {
 }
 
 func (input *SysinfoInput) Init(config interface{}) error {
-	// conf := config.(SysinfoInputConfig)
+	conf := config.(*SysinfoInputConfig)
+	input.SysinfoInputConfig = conf
 	input.stop = make(chan bool)
 	return nil
 }
