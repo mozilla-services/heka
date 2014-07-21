@@ -10,6 +10,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Added support for a Logstreamer symbolically linked log_directory root 
+  (issue #741).
+
 * Fixed lots of race conditions in the tests.
 
 Features
