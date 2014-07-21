@@ -396,6 +396,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	}
 	sortPattern.Translation = newTranslation
 
+	logRoot, _ = filepath.EvalSymlinks(logRoot)
 	return &LogstreamSet{
 		logstreams:     make(map[string]*Logstream),
 		oldestDuration: oldest,
