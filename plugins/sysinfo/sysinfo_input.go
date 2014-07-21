@@ -87,7 +87,6 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 	packSupply := runner.InChan()
 	tickChan := runner.Ticker()
 	hostname := pConfig.Hostname()
-	meminfo := make(map[string]int)
 
 	for {
 		select {
@@ -108,7 +107,7 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 			dRunner.InChan() <- pack
 		}
 
-		err = Meminfo(meminfo)
+		meminfo, err := getMeminfo()
 		if err != nil {
 			return err
 		}
@@ -140,52 +139,73 @@ func (input *SysinfoInput) setSysinfoMessage(pack *pipeline.PipelinePack, info *
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("heka.sysinfo.sysinfo")
+	unit := info.Unit
+	var repr string
+	switch unit {
+	case 1:
+		repr = "B"
+	case 1 << 10:
+		repr = "KB"
+	case 1 << 20:
+		repr = "MB"
+	case 1 << 30:
+		repr = "GB"
+	default:
+		repr = "B"
+	}
 	// Cpu load avg
 	input.AddField(pack, "OneMinLoadAvg", float64(info.Loads[0])/float64(loads_shift), "")
 	input.AddField(pack, "FiveMinLoadAvg", float64(info.Loads[1])/float64(loads_shift), "")
 	input.AddField(pack, "FifteenMinLoadAvg", float64(info.Loads[2])/float64(loads_shift), "")
 	// Memory
-	input.AddField(pack, "Totalram", int(info.Totalram), "B")
-	input.AddField(pack, "Freeram", int(info.Freeram), "B")
-	input.AddField(pack, "Sharedram", int(info.Sharedram), "B")
-	input.AddField(pack, "Bufferram", int(info.Bufferram), "B")
-	input.AddField(pack, "Totalswap", int(info.Totalswap), "B")
-	input.AddField(pack, "Freeswap", int(info.Freeswap), "B")
+	input.AddField(pack, "Totalram", int(info.Totalram), repr)
+	input.AddField(pack, "Freeram", int(info.Freeram), repr)
+	input.AddField(pack, "Sharedram", int(info.Sharedram), repr)
+	input.AddField(pack, "Bufferram", int(info.Bufferram), repr)
+	input.AddField(pack, "Totalswap", int(info.Totalswap), repr)
+	input.AddField(pack, "Freeswap", int(info.Freeswap), repr)
 	input.AddField(pack, "Processes", int(info.Procs), "")
 }
 
-func Meminfo(meminfo map[string]int) error {
+type MemInfo struct {
+	Label string
+	Value int
+	Unit  string
+}
+
+func getMeminfo() ([]*MemInfo, error) {
 	if proc_meminfo_location == "" {
 		panic("proc_meminfo_location cannot be empty.")
 	}
 	f, err := os.Open(proc_meminfo_location)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	data, err := ioutil.ReadAll(f)
-	var label string
-	var val int
-
 	lines := bytes.Split(bytes.TrimSpace(data), []byte{'\n'})
+
+	meminfo := make([]*MemInfo, 0)
 	for _, line := range lines {
 		items := bytes.Fields(line)
-		if len(items) < 3 {
+		val, err := strconv.Atoi(string(items[1]))
+		if err != nil {
 			continue
 		}
-		label = string(bytes.TrimSuffix(items[0], []byte{':'}))
-		val, err = strconv.Atoi(string(items[1]))
-		if err == nil {
-			meminfo[label] = val
+		label := string(bytes.TrimSuffix(items[0], []byte{':'}))
+		var unit string
+		if len(items) > 2 {
+			unit = string(items[2])
 		}
+		meminfo = append(meminfo, &MemInfo{Label: label, Value: val, Unit: unit})
 	}
-	return nil
+	return meminfo, nil
 }
 
-func (input *SysinfoInput) setMeminfoMessage(pack *pipeline.PipelinePack, info map[string]int) {
+func (input *SysinfoInput) setMeminfoMessage(pack *pipeline.PipelinePack, info []*MemInfo) {
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("heka.sysinfo.meminfo")
-	for name, value := range info {
-		input.AddField(pack, name, value, "kB")
+	for _, item := range info {
+		input.AddField(pack, item.Label, item.Value, item.Unit)
 	}
 }
