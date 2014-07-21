@@ -16,8 +16,15 @@ import (
 
 const loads_shift = 1 << 16
 
+var (
+	getSysinfo            func(*syscall.Sysinfo_t) error
+	proc_meminfo_location string
+)
+
 func init() {
 	pipeline.RegisterPlugin("SysinfoInput", func() interface{} {
+		getSysinfo = syscall.Sysinfo
+		proc_meminfo_location = "/proc/meminfo"
 		return new(SysinfoInput)
 	})
 }
@@ -88,7 +95,7 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 			return nil
 		case <-tickChan:
 		}
-		err := syscall.Sysinfo(&info)
+		err := getSysinfo(&info)
 		if err != nil {
 			return err
 		}
@@ -148,7 +155,10 @@ func (input *SysinfoInput) setSysinfoMessage(pack *pipeline.PipelinePack, info *
 }
 
 func Meminfo(meminfo map[string]int) error {
-	f, err := os.Open("/proc/meminfo")
+	if proc_meminfo_location == "" {
+		panic("proc_meminfo_location cannot be empty.")
+	}
+	f, err := os.Open(proc_meminfo_location)
 	if err != nil {
 		return err
 	}
