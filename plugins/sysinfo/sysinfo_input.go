@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -13,6 +14,8 @@ import (
 	"time"
 )
 
+const loads_shift = 1 << 16
+
 func init() {
 	pipeline.RegisterPlugin("SysinfoInput", func() interface{} {
 		return new(SysinfoInput)
@@ -20,7 +23,7 @@ func init() {
 }
 
 // ErrCantAddField should be returned if a field cannot be added to a message
-var ErrCantAddField = fmt.Errorf("Cant add field")
+var ErrCantAddField = errors.New("Cant add field")
 
 // SysinfoInput is the struct containing the plugins internal state and config
 type SysinfoInput struct {
@@ -56,9 +59,19 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 	helper pipeline.PluginHelper) error {
 
 	var (
-		info syscall.Sysinfo_t
-		pack *pipeline.PipelinePack
+		info                syscall.Sysinfo_t
+		pack                *pipeline.PipelinePack
+		dRunner             pipeline.DecoderRunner
+		router_shortcircuit bool
+		ok                  bool
 	)
+
+	if input.DecoderName == "" {
+		router_shortcircuit = true
+	} else if dRunner, ok = helper.DecoderRunner(input.DecoderName,
+		fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName)); !ok {
+		return fmt.Errorf("Decoder not found: %s", input.DecoderName)
+	}
 
 	input.runner = runner
 
@@ -81,7 +94,11 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 		pack = <-packSupply
 		pack.Message.SetHostname(hostname)
 		input.setSysinfoMessage(pack, &info)
-		runner.Inject(pack)
+		if router_shortcircuit {
+			runner.Inject(pack)
+		} else {
+			dRunner.InChan() <- pack
+		}
 
 		err = Meminfo(meminfo)
 		if err != nil {
@@ -90,7 +107,11 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 		pack = <-packSupply
 		pack.Message.SetHostname(hostname)
 		input.setMeminfoMessage(pack, meminfo)
-		runner.Inject(pack)
+		if router_shortcircuit {
+			runner.Inject(pack)
+		} else {
+			dRunner.InChan() <- pack
+		}
 
 	}
 	return nil
@@ -112,9 +133,9 @@ func (input *SysinfoInput) setSysinfoMessage(pack *pipeline.PipelinePack, info *
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("heka.sysinfo.sysinfo")
 	// Cpu load avg
-	input.AddField(pack, "OneMinLoadAvg", float64(info.Loads[0])/float64(1<<16), "")
-	input.AddField(pack, "FiveMinLoadAvg", float64(info.Loads[1])/float64(1<<16), "")
-	input.AddField(pack, "FifteenMinLoadAvg", float64(info.Loads[2])/float64(1<<16), "")
+	input.AddField(pack, "OneMinLoadAvg", float64(info.Loads[0])/float64(loads_shift), "")
+	input.AddField(pack, "FiveMinLoadAvg", float64(info.Loads[1])/float64(loads_shift), "")
+	input.AddField(pack, "FifteenMinLoadAvg", float64(info.Loads[2])/float64(loads_shift), "")
 	// Memory
 	input.AddField(pack, "Totalram", int(info.Totalram), "B")
 	input.AddField(pack, "Freeram", int(info.Freeram), "B")
