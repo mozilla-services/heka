@@ -16,15 +16,8 @@ import (
 
 const loads_shift = 1 << 16
 
-var (
-	getSysinfo            func(*syscall.Sysinfo_t) error
-	proc_meminfo_location string
-)
-
 func init() {
 	pipeline.RegisterPlugin("SysinfoInput", func() interface{} {
-		getSysinfo = syscall.Sysinfo
-		proc_meminfo_location = "/proc/meminfo"
 		return new(SysinfoInput)
 	})
 }
@@ -35,8 +28,10 @@ var ErrCantAddField = errors.New("Cant add field")
 // SysinfoInput is the struct containing the plugins internal state and config
 type SysinfoInput struct {
 	*SysinfoInputConfig
-	stop   chan bool
-	runner pipeline.InputRunner
+	getSysinfo            func(*syscall.Sysinfo_t) error
+	proc_meminfo_location string
+	stop                  chan bool
+	runner                pipeline.InputRunner
 }
 
 // SysinfoInputConfig contains configuration options for the SysinfoInput plugin
@@ -56,6 +51,8 @@ func (input *SysinfoInput) Init(config interface{}) error {
 	conf := config.(*SysinfoInputConfig)
 	input.SysinfoInputConfig = conf
 	input.stop = make(chan bool)
+	input.getSysinfo = syscall.Sysinfo
+	input.proc_meminfo_location = "/proc/meminfo"
 	return nil
 }
 
@@ -94,7 +91,7 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 			return nil
 		case <-tickChan:
 		}
-		err := getSysinfo(&info)
+		err := input.getSysinfo(&info)
 		if err != nil {
 			return err
 		}
@@ -107,7 +104,7 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 			dRunner.InChan() <- pack
 		}
 
-		meminfo, err := getMeminfo()
+		meminfo, err := input.getMeminfo()
 		if err != nil {
 			return err
 		}
@@ -173,11 +170,11 @@ type MemInfo struct {
 	Unit  string
 }
 
-func getMeminfo() ([]*MemInfo, error) {
-	if proc_meminfo_location == "" {
+func (input *SysinfoInput) getMeminfo() ([]*MemInfo, error) {
+	if input.proc_meminfo_location == "" {
 		panic("proc_meminfo_location cannot be empty.")
 	}
-	f, err := os.Open(proc_meminfo_location)
+	f, err := os.Open(input.proc_meminfo_location)
 	if err != nil {
 		return nil, err
 	}

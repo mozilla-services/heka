@@ -40,12 +40,10 @@ func SysinfoInputSpec(c gs.Context) {
 
 	c.Specify("A SysinfoInput", func() {
 		input := new(SysinfoInput)
-		getSysinfo = FakeSysinfo
-
+		input.getSysinfo = FakeSysinfo
 		pwd, err := os.Getwd()
 		c.Assume(err, gs.IsNil)
-
-		proc_meminfo_location = filepath.Join(pwd, "testsupport", "meminfo.txt")
+		input.proc_meminfo_location = filepath.Join(pwd, "testsupport", "meminfo.txt")
 
 		ith := new(plugins_ts.InputTestHelper)
 		ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
