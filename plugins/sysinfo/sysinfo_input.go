@@ -136,32 +136,20 @@ func (input *SysinfoInput) setSysinfoMessage(pack *pipeline.PipelinePack, info *
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetType("heka.sysinfo.sysinfo")
-	unit := info.Unit
-	var repr string
-	switch unit {
-	case 1:
-		repr = "B"
-	case 1 << 10:
-		repr = "KB"
-	case 1 << 20:
-		repr = "MB"
-	case 1 << 30:
-		repr = "GB"
-	default:
-		repr = "B"
-	}
 	// Cpu load avg
 	input.AddField(pack, "OneMinLoadAvg", float64(info.Loads[0])/float64(loads_shift), "")
 	input.AddField(pack, "FiveMinLoadAvg", float64(info.Loads[1])/float64(loads_shift), "")
 	input.AddField(pack, "FifteenMinLoadAvg", float64(info.Loads[2])/float64(loads_shift), "")
+	unit := int(info.Unit)
 	// Memory
-	input.AddField(pack, "Totalram", int(info.Totalram), repr)
-	input.AddField(pack, "Freeram", int(info.Freeram), repr)
-	input.AddField(pack, "Sharedram", int(info.Sharedram), repr)
-	input.AddField(pack, "Bufferram", int(info.Bufferram), repr)
-	input.AddField(pack, "Totalswap", int(info.Totalswap), repr)
-	input.AddField(pack, "Freeswap", int(info.Freeswap), repr)
+	input.AddField(pack, "Totalram", int(info.Totalram)*unit, "B")
+	input.AddField(pack, "Freeram", int(info.Freeram)*unit, "B")
+	input.AddField(pack, "Sharedram", int(info.Sharedram)*unit, "B")
+	input.AddField(pack, "Bufferram", int(info.Bufferram)*unit, "B")
+	input.AddField(pack, "Totalswap", int(info.Totalswap)*unit, "B")
+	input.AddField(pack, "Freeswap", int(info.Freeswap)*unit, "B")
 	input.AddField(pack, "Processes", int(info.Procs), "")
+	input.AddField(pack, "Unit", int(info.Unit), "")
 }
 
 type MemInfo struct {
