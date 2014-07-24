@@ -16,6 +16,11 @@ import (
 
 const loads_shift = 1 << 16
 
+var (
+	tab = []byte{'\u0009'}
+	nl  = []byte{'\n'}
+)
+
 func init() {
 	pipeline.RegisterPlugin("SysinfoInput", func() interface{} {
 		return new(SysinfoInput)
@@ -104,12 +109,13 @@ func (input *SysinfoInput) Run(runner pipeline.InputRunner,
 			dRunner.InChan() <- pack
 		}
 
-		meminfo, err := input.getMeminfo()
+		payload, meminfo, err := input.getMeminfo()
 		if err != nil {
 			return err
 		}
 		pack = <-packSupply
 		pack.Message.SetHostname(hostname)
+		pack.Message.SetPayload(payload)
 		input.setMeminfoMessage(pack, meminfo)
 		if router_shortcircuit {
 			runner.Inject(pack)
@@ -158,32 +164,17 @@ type MemInfo struct {
 	Unit  string
 }
 
-func (input *SysinfoInput) getMeminfo() ([]*MemInfo, error) {
+func (input *SysinfoInput) getMeminfo() (string, []*MemInfo, error) {
 	if input.proc_meminfo_location == "" {
 		panic("proc_meminfo_location cannot be empty.")
 	}
 	f, err := os.Open(input.proc_meminfo_location)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	data, err := ioutil.ReadAll(f)
-	lines := bytes.Split(bytes.TrimSpace(data), []byte{'\n'})
-
-	meminfo := make([]*MemInfo, 0)
-	for _, line := range lines {
-		items := bytes.Fields(line)
-		val, err := strconv.Atoi(string(items[1]))
-		if err != nil {
-			continue
-		}
-		label := string(bytes.TrimSuffix(items[0], []byte{':'}))
-		var unit string
-		if len(items) > 2 {
-			unit = string(items[2])
-		}
-		meminfo = append(meminfo, &MemInfo{Label: label, Value: val, Unit: unit})
-	}
-	return meminfo, nil
+	payload, meminfo := process_meminfo(data)
+	return payload, meminfo, nil
 }
 
 func (input *SysinfoInput) setMeminfoMessage(pack *pipeline.PipelinePack, info []*MemInfo) {
@@ -193,4 +184,37 @@ func (input *SysinfoInput) setMeminfoMessage(pack *pipeline.PipelinePack, info [
 	for _, item := range info {
 		input.AddField(pack, item.Label, item.Value, item.Unit)
 	}
+}
+
+func process_meminfo(data []byte) (string, []*MemInfo) {
+	var buf bytes.Buffer
+	var err error
+
+	data = bytes.TrimSpace(data)
+	lines := bytes.Split(data, nl)
+
+	numLines := len(lines)
+	results := make([]*MemInfo, numLines, numLines)
+
+	for i, line := range lines {
+		info := new(MemInfo)
+		items := bytes.Fields(line)
+		buf.Write(items[0][:len(items[0])-1]) // Get rid of the colon at the end
+		info.Label = string(items[0][:len(items[0])-1])
+		buf.Write(tab)
+		buf.Write(items[1])
+		info.Value, err = strconv.Atoi(string(items[1]))
+		if err != nil {
+			continue
+		}
+		buf.Write(tab)
+		if len(items) > 2 {
+			buf.Write(items[2])
+			info.Unit = string(items[2])
+		}
+		buf.Write(nl)
+		results[i] = info
+
+	}
+	return buf.String(), results
 }
