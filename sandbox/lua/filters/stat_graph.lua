@@ -33,12 +33,8 @@ Config:
     Must be in the same order as the specified stats. Any label longer than 15
     characters will be truncated.
 
-- anomaly_configs (string, optional):
-    A semi-colon delimited list of anomaly detection configurations to be
-    applied to specific stats (see :ref:`sandbox_anomaly_module`). Note that
-    the column used in each anomaly config must correspond to the index of the
-    stat to which the anomaly config should be applied, using Lua's base index
-    of 1.
+- anomaly_config (string, optional):
+    Anomaly detection configuration, see :ref:`sandbox_anomaly_module`.
 
 - preservation_version (uint, optional, default 0):
     If `preserve_data = true` is set in the SandboxFilter configuration, then
@@ -63,7 +59,7 @@ Config:
       sec_per_row = 10
       stats = "stats.counters.hits.count stats.counters.misses.count"
       stat_labels = "hits misses"
-      anomaly_configs = 'roc("Hits", 1, 15, 0, 1.5, true, false);roc("Misses", 2, 15, 0, 1.5, true, false)'
+      anomaly_config = 'roc("Hits", 1, 15, 0, 1.5, true, false) roc("Misses", 2, 15, 0, 1.5, true, false)'
       preservation_version = 0
 --]]
 
@@ -71,7 +67,6 @@ _PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require("circular_buffer")
 require("string")
-require("cjson")
 local alert = require "alert"
 local annotation = require "annotation"
 local anomaly = require "anomaly"
@@ -81,7 +76,8 @@ local rows = read_config("rows") or 300
 local sec_per_row = read_config("sec_per_row") or 1
 local stats_config = read_config("stats") or error("stats configuration must be specified")
 local stat_labels_config = read_config("stat_labels") or error("stat_labels configuration must be specified")
-local anomaly_configs = read_config("anomaly_configs")
+local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
+annotation.set_prune(title, rows * sec_per_row * 1e9)
 
 local stats = {}
 local i = 1
@@ -100,17 +96,6 @@ end
 stat_labels_config = nil
 
 if #stats ~= #stat_labels then error("stats and stat_labels configuration must have the same number of items") end
-
-if anomaly_configs then
-    local i = 1
-    local cfgs = {}
-    for cfg in string.gmatch(anomaly_configs, "[^;]+") do
-        cfgs[i] = anomaly.parse_config(cfg)
-        i = i + 1
-    end
-    annotation.set_prune(title, rows * sec_per_row * 1e9)
-    anomaly_configs = cfgs
-end
 
 cbuf = circular_buffer.new(rows, #stats, sec_per_row)
 local field_names = {}
@@ -135,14 +120,12 @@ end
 
 
 function timer_event(ns)
-    if anomaly_configs then
+    if anomaly_config then
         if not alert.throttled(ns) then
-            for i, anomaly_config in pairs(anomaly_configs) do
-                local msg, annos = anomaly.detect(ns, title, cbuf, anomaly_config)
-                if msg then
-                    annotation.concat(title, annos)
-                    alert.send(ns, msg)
-                end
+            local msg, annos = anomaly.detect(ns, title, cbuf, anomaly_config)
+            if msg then
+                annotation.concat(title, annos)
+                alert.send(ns, msg)
             end
         end
         inject_payload("cbuf", title, annotation.prune(title, ns), cbuf)
