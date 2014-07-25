@@ -9,29 +9,29 @@ programmable, the broker topology needs to be specified.
 
 Config:
 
-- URL (string):
+- url (string):
     An AMQP connection string formatted per the `RabbitMQ URI Spec
     <http://www.rabbitmq.com/uri-spec.html>`_.
-- Exchange (string):
+- exchange (string):
     AMQP exchange name
-- ExchangeType (string):
+- exchange_type (string):
     AMQP exchange type (`fanout`, `direct`, `topic`, or `headers`).
-- ExchangeDurability (bool):
+- exchange_durability (bool):
     Whether the exchange should be configured as a durable exchange. Defaults
     to non-durable.
-- ExchangeAutoDelete (bool):
+- exchange_auto_delete (bool):
     Whether the exchange is deleted when all queues have finished and there
     is no publishing. Defaults to auto-delete.
-- RoutingKey (string):
+- routing_key (string):
     The message routing key used to bind the queue to the exchange. Defaults
     to empty string.
-- Persistent (bool):
+- persistent (bool):
     Whether published messages should be marked as persistent or transient.
     Defaults to non-persistent.
 
 .. versionadded:: 0.6
 
-- ContentType (string):
+- content_type (string):
      MIME content type of the payload used in the AMQP header. Defaults to
      "application/hekad".
 - encoder (string, optional)
@@ -56,5 +56,5 @@ Example (that sends log lines from the logger):
     [AMQPOutput]
     url = "amqp://guest:guest@rabbitmq/"
     exchange = "testout"
-    exchangeType = "fanout"
+    exchange_type = "fanout"
     message_matcher = 'Logger == "TestWebserver"'
