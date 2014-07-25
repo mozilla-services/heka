@@ -97,7 +97,7 @@ Stats Graph
 
 .. versionadded:: 0.7
 
-.. include:: ../../../sandbox/lua/filters/stat_graph.lua
+.. include:: /../../sandbox/lua/filters/stat_graph.lua
    :start-after: --[[
    :end-before: --]]
 
