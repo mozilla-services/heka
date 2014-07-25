@@ -46,6 +46,7 @@ type SandboxEncoder struct {
 	output                 []byte
 	injected               bool
 	cEncoder               *client.ProtobufEncoder
+	pConfig                *pipeline.PipelineConfig
 }
 
 // This duplicates most of the SandboxConfig just so we can add a single
@@ -63,9 +64,15 @@ type SandboxEncoderConfig struct {
 	Config           map[string]interface{}
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (s *SandboxEncoder) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	s.pConfig = pConfig
+}
+
 func (s *SandboxEncoder) ConfigStruct() interface{} {
 	return &SandboxEncoderConfig{
-		ModuleDirectory:  pipeline.PrependShareDir("lua_modules"),
+		ModuleDirectory:  s.pConfig.Globals.PrependShareDir("lua_modules"),
 		MemoryLimit:      8 * 1024 * 1024,
 		InstructionLimit: 1e6,
 		OutputLimit:      63 * 1024,
@@ -92,8 +99,9 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 		Profile:          conf.Profile,
 		Config:           conf.Config,
 	}
-	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
-	s.sampleDenominator = pipeline.Globals().SampleDenominator
+	globals := s.pConfig.Globals
+	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
+	s.sampleDenominator = globals.SampleDenominator
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
@@ -102,7 +110,7 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 		}
 	}
 
-	dataDir := pipeline.PrependBaseDir(sandbox.DATA_DIR)
+	dataDir := globals.PrependBaseDir(sandbox.DATA_DIR)
 	if !fileExists(dataDir) {
 		if err = os.MkdirAll(dataDir, 0700); err != nil {
 			return

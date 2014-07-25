@@ -38,11 +38,12 @@ func DashboardOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	NewPipelineConfig(nil) // Needed for side effect of setting up Globals :P
+	pConfig := NewPipelineConfig(nil)
 
 	if runtime.GOOS != "windows" {
 		c.Specify("A DashboardOutput", func() {
 			dashboardOutput := new(DashboardOutput)
+			dashboardOutput.pConfig = pConfig
 
 			config := dashboardOutput.ConfigStruct().(*DashboardOutputConfig)
 			c.Specify("Init halts if basedirectory is not writable", func() {

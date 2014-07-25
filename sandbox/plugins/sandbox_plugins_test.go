@@ -84,6 +84,7 @@ func FilterSpec(c gs.Context) {
 
 	c.Specify("A SandboxFilter", func() {
 		sbFilter := new(SandboxFilter)
+		sbFilter.SetPipelineConfig(pConfig)
 		config := sbFilter.ConfigStruct().(*sandbox.SandboxConfig)
 		config.MemoryLimit = 32000
 		config.InstructionLimit = 1000
@@ -158,18 +159,17 @@ func FilterSpec(c gs.Context) {
 	})
 
 	c.Specify("A SandboxManagerFilter", func() {
-		sbmFilter := new(SandboxManagerFilter)
-		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
-		config.MaxFilters = 1
-
-		origBaseDir := pipeline.Globals().BaseDir
-		pipeline.Globals().BaseDir = os.TempDir()
-		sbxMgrsDir := filepath.Join(pipeline.Globals().BaseDir, "sbxmgrs")
+		pConfig.Globals.BaseDir = os.TempDir()
+		sbxMgrsDir := filepath.Join(pConfig.Globals.BaseDir, "sbxmgrs")
 		defer func() {
-			pipeline.Globals().BaseDir = origBaseDir
 			tmpErr := os.RemoveAll(sbxMgrsDir)
 			c.Expect(tmpErr, gs.IsNil)
 		}()
+
+		sbmFilter := new(SandboxManagerFilter)
+		sbmFilter.SetPipelineConfig(pConfig)
+		config := sbmFilter.ConfigStruct().(*SandboxManagerFilterConfig)
+		config.MaxFilters = 1
 
 		msg := getTestMessage()
 		pack := pipeline.NewPipelinePack(pConfig.InputRecycleChan())
@@ -234,13 +234,12 @@ func DecoderSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// NewPipelineConfig sets up Globals which is needed for the
-	// pipeline.Prepend*Dir functions to not die during plugin Init().
-	_ = pipeline.NewPipelineConfig(nil)
+	pConfig := pipeline.NewPipelineConfig(nil)
 
 	c.Specify("A SandboxDecoder", func() {
 
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
@@ -412,6 +411,7 @@ func DecoderSpec(c gs.Context) {
 
 	c.Specify("A Multipack SandboxDecoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/testsupport/multipack_decoder.lua"
 		supply := make(chan *pipeline.PipelinePack, 3)
@@ -450,6 +450,7 @@ func DecoderSpec(c gs.Context) {
 
 	c.Specify("Nginx access log decoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/nginx_access.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
@@ -518,6 +519,7 @@ func DecoderSpec(c gs.Context) {
 
 	c.Specify("Apache access log decoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/apache_access.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
@@ -586,6 +588,7 @@ func DecoderSpec(c gs.Context) {
 
 	c.Specify("rsyslog decoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/rsyslog.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
@@ -648,6 +651,7 @@ func DecoderSpec(c gs.Context) {
 
 	c.Specify("mysql decoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/mysql_slow_query.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
@@ -688,6 +692,7 @@ WHERE id = 10;
 
 	c.Specify("mariadb decoder", func() {
 		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/mariadb_slow_query.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
@@ -733,11 +738,12 @@ func EncoderSpec(c gs.Context) {
 
 	// NewPipelineConfig sets up Globals which is needed for the
 	// pipeline.Prepend*Dir functions to not die during plugin Init().
-	_ = pipeline.NewPipelineConfig(nil)
+	pConfig := pipeline.NewPipelineConfig(nil)
 
 	c.Specify("A SandboxEncoder", func() {
 
 		encoder := new(SandboxEncoder)
+		encoder.SetPipelineConfig(pConfig)
 		conf := encoder.ConfigStruct().(*SandboxEncoderConfig)
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)

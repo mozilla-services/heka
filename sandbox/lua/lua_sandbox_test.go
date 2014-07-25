@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -366,7 +366,7 @@ func TestAPIErrors(t *testing.T) {
 func TestWriteMessageErrors(t *testing.T) {
 	pack := getTestPack()
 	// NewPipelineConfig sets up Globals for error logging
-	_ = pipeline.NewPipelineConfig(nil)
+	pipeline.NewPipelineConfig(nil)
 
 	tests := []string{
 		"too few parameters",
@@ -486,7 +486,7 @@ func TestReadMessage(t *testing.T) {
 }
 
 func TestWriteMessage(t *testing.T) {
-	pipeline.NewPipelineConfig(pipeline.DefaultGlobals()) // Set up globals :P
+	pipeline.NewPipelineConfig(nil) // Set up globals.
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/field_scribble.lua"
 	sbc.MemoryLimit = 32767

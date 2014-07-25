@@ -49,10 +49,11 @@ type SandboxDecoder struct {
 	name                   string
 	tz                     *time.Location
 	sampleDenominator      int
+	pConfig                *pipeline.PipelineConfig
 }
 
 func (s *SandboxDecoder) ConfigStruct() interface{} {
-	return NewSandboxConfig()
+	return NewSandboxConfig(s.pConfig.Globals)
 }
 
 func (s *SandboxDecoder) SetName(name string) {
@@ -60,10 +61,17 @@ func (s *SandboxDecoder) SetName(name string) {
 	s.name = re.ReplaceAllString(name, "_")
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (s *SandboxDecoder) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	s.pConfig = pConfig
+}
+
 func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
-	s.sbc.ScriptFilename = pipeline.PrependShareDir(s.sbc.ScriptFilename)
-	s.sampleDenominator = pipeline.Globals().SampleDenominator
+	globals := s.pConfig.Globals
+	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
+	s.sampleDenominator = globals.SampleDenominator
 
 	s.tz = time.UTC
 	if tz, ok := s.sbc.Config["tz"]; ok {
@@ -73,7 +81,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 		}
 	}
 
-	data_dir := pipeline.PrependBaseDir(DATA_DIR)
+	data_dir := globals.PrependBaseDir(DATA_DIR)
 	if !fileExists(data_dir) {
 		err = os.MkdirAll(data_dir, 0700)
 		if err != nil {
@@ -149,7 +157,8 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	}
 
 	if s.err == nil {
-		s.preservationFile = filepath.Join(pipeline.PrependBaseDir(DATA_DIR), dr.Name()+DATA_EXT)
+		s.preservationFile = filepath.Join(s.pConfig.Globals.PrependBaseDir(DATA_DIR),
+			dr.Name()+DATA_EXT)
 		if s.sbc.PreserveData && fileExists(s.preservationFile) {
 			s.err = s.sb.Init(s.preservationFile, "decoder")
 		} else {
@@ -162,7 +171,7 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			s.sb.Destroy("")
 			s.sb = nil
 		}
-		pipeline.Globals().ShutDown()
+		s.pConfig.Globals.ShutDown()
 		return
 	}
 
@@ -266,7 +275,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	if retval > 0 {
 		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(s.err)
-		pipeline.Globals().ShutDown()
+		s.pConfig.Globals.ShutDown()
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)

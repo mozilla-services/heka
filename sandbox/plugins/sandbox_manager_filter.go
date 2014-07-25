@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -42,6 +43,7 @@ type SandboxManagerFilter struct {
 	memoryLimit         uint
 	instructionLimit    uint
 	outputLimit         uint
+	pConfig             *pipeline.PipelineConfig
 }
 
 // Config struct for `SandboxManagerFilter`.
@@ -69,7 +71,7 @@ type SandboxManagerFilterConfig struct {
 }
 
 func (this *SandboxManagerFilter) ConfigStruct() interface{} {
-	sbDefaults := NewSandboxConfig().(*SandboxConfig)
+	sbDefaults := NewSandboxConfig(this.pConfig.Globals).(*SandboxConfig)
 	return &SandboxManagerFilterConfig{
 		WorkingDirectory: "sbxmgrs",
 		ModuleDirectory:  sbDefaults.ModuleDirectory,
@@ -88,13 +90,20 @@ func (s *SandboxManagerFilter) PluginExited() {
 	atomic.AddInt32(&s.currentFilters, -1)
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (s *SandboxManagerFilter) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	s.pConfig = pConfig
+}
+
 // Creates the working directory to store the submitted scripts,
 // configurations, and data preservation files.
 func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	conf := config.(*SandboxManagerFilterConfig)
+	globals := this.pConfig.Globals
 	this.maxFilters = conf.MaxFilters
-	this.workingDirectory = pipeline.PrependBaseDir(conf.WorkingDirectory)
-	this.moduleDirectory = pipeline.PrependShareDir(conf.ModuleDirectory)
+	this.workingDirectory = globals.PrependBaseDir(conf.WorkingDirectory)
+	this.moduleDirectory = globals.PrependShareDir(conf.ModuleDirectory)
 	this.memoryLimit = conf.MemoryLimit
 	this.instructionLimit = conf.InstructionLimit
 	this.outputLimit = conf.OutputLimit
@@ -104,13 +113,16 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 
 // Adds running filters count to the report output.
 func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
-	message.NewIntField(msg, "RunningFilters", int(atomic.LoadInt32(&this.currentFilters)), "count")
-	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&this.processMessageCount), "count")
+	message.NewIntField(msg, "RunningFilters", int(atomic.LoadInt32(&this.currentFilters)),
+		"count")
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&this.processMessageCount), "count")
 	return nil
 }
 
 // Creates a FilterRunner for the specified sandbox name and configuration
-func (this *SandboxManagerFilter) createRunner(dir, name string, configSection toml.Primitive) (pipeline.FilterRunner, error) {
+func (this *SandboxManagerFilter) createRunner(dir, name string, configSection toml.Primitive) (
+	pipeline.FilterRunner, error) {
 	var err error
 	var pluginGlobals pipeline.PluginGlobals
 
@@ -155,7 +167,8 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
 	}
 
-	runner := pipeline.NewFORunner(wrapper.Name, plugin.(pipeline.Plugin), &pluginGlobals)
+	runner := pipeline.NewFORunner(wrapper.Name, plugin.(pipeline.Plugin), &pluginGlobals,
+		this.pConfig.Globals.PluginChanSize)
 	runner.SetName(wrapper.Name)
 
 	if pluginGlobals.Ticker != 0 {
@@ -164,8 +177,8 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 
 	var matcher *pipeline.MatchRunner
 	if pluginGlobals.Matcher != "" {
-		if matcher, err = pipeline.NewMatchRunner(pluginGlobals.Matcher,
-			pluginGlobals.Signer, runner); err != nil {
+		if matcher, err = pipeline.NewMatchRunner(pluginGlobals.Matcher, pluginGlobals.Signer,
+			runner, this.pConfig.Globals.PluginChanSize); err != nil {
 			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
 				wrapper.Name, err)
 		}

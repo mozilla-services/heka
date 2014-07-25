@@ -4,6 +4,17 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Move *GlobalConfigStruct out of pipeline package's global namespace, it is
+  now stored as an attribute on PipelineConfig. Any code that used to call
+  pipeline.Globals() now must instead access *PipelineConfig.Globals. The
+  `WantsPipelineConfig` interface has been introduced to give plugins access
+  to the active *PipelineConfig if it's needed in the ConfigStruct or Init
+  methods (#951).
+
+* Removed deprecated `pipeline.GetHekaConfigDir` API call, which has been
+  replaced by `PrependBaseDir` and `PrependShareDir` for a few versions
+  now.
+
 * Removed the regular expression template support from the message matcher
   (issue #960).
 

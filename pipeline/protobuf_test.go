@@ -78,7 +78,7 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	msg := ts.GetTestMessage()
 	msg.SetPayload("This is a test")
 	encoded, _ := proto.Marshal(msg)
-	config := NewPipelineConfig(DefaultGlobals())
+	config := NewPipelineConfig(nil)
 	pack := NewPipelinePack(config.inputRecycleChan)
 	decoder := new(ProtobufDecoder)
 	decoder.Init(nil)

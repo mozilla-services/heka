@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -43,13 +43,8 @@ func ReportSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	origGlobals := Globals
-	Globals = func() *GlobalConfigStruct {
-		return DefaultGlobals()
-	}
-	defer func() {
-		Globals = origGlobals
-	}()
+	pConfig := NewPipelineConfig(nil)
+	chanSize := pConfig.Globals.PluginChanSize
 
 	checkForFields := func(c gs.Context, msg *message.Message) {
 		f0Val, ok := msg.GetFieldValue(f0.GetName())
@@ -67,7 +62,7 @@ func ReportSpec(c gs.Context) {
 		if i, ok = capVal.(int64); !ok {
 			return
 		}
-		if ok = (i == int64(Globals().PluginChanSize)); !ok {
+		if ok = (i == int64(chanSize)); !ok {
 			return
 		}
 		if i, ok = lenVal.(int64); !ok {
@@ -79,12 +74,13 @@ func ReportSpec(c gs.Context) {
 
 	fName := "counter"
 	filter := new(CounterFilter)
-	fRunner := NewFORunner(fName, filter, nil)
+	fRunner := NewFORunner(fName, filter, nil, chanSize)
 	var err error
-	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner)
+	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner, chanSize)
 	c.Assume(err, gs.IsNil)
-	fRunner.matcher.inChan = make(chan *PipelinePack, 10)
-	fRunner.SetLeakCount(10)
+	fRunner.matcher.inChan = make(chan *PipelinePack, chanSize)
+	leakCount := 10
+	fRunner.SetLeakCount(leakCount)
 
 	iName := "stat_accum"
 	input := new(StatAccumInput)
@@ -110,7 +106,7 @@ func ReportSpec(c gs.Context) {
 				c.Assume(ok, gs.IsTrue)
 				i, ok := leakVal.(int64)
 				c.Assume(ok, gs.IsTrue)
-				c.Expect(int(i), gs.Equals, 10)
+				c.Expect(int(i), gs.Equals, leakCount)
 			})
 		})
 
@@ -168,13 +164,13 @@ func ReportSpec(c gs.Context) {
 			c.Expect(recycleReport, gs.Not(gs.IsNil))
 			capVal, ok := recycleReport.Message.GetFieldValue("InChanCapacity")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
+			c.Expect(capVal.(int64), gs.Equals, int64(pConfig.Globals.PoolSize))
 
 			injectReport := reports["injectRecycleChan"]
 			c.Expect(injectReport, gs.Not(gs.IsNil))
 			capVal, ok = injectReport.Message.GetFieldValue("InChanCapacity")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(capVal.(int64), gs.Equals, int64(Globals().PoolSize))
+			c.Expect(capVal.(int64), gs.Equals, int64(pConfig.Globals.PoolSize))
 
 			routerReport := reports["Router"]
 			c.Expect(routerReport, gs.Not(gs.IsNil))

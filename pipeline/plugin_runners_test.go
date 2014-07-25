@@ -57,7 +57,7 @@ func InputRunnerSpec(c gs.Context) {
 	globals := &GlobalConfigStruct{
 		PluginChanSize: 5,
 	}
-	NewPipelineConfig(globals)
+	pc := NewPipelineConfig(globals)
 
 	mockHelper := NewMockPluginHelper(ctrl)
 
@@ -69,10 +69,8 @@ func InputRunnerSpec(c gs.Context) {
 			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
-		pc := new(PipelineConfig)
-		pc.inputWrappers = make(map[string]*PluginWrapper)
 
-		pw := NewPluginWrapper("stopping")
+		pw := NewPluginWrapper("stopping", pc)
 		pw.ConfigCreator = func() interface{} { return nil }
 		pw.PluginCreator = func() interface{} { return new(StoppingInput) }
 		pc.inputWrappers["stopping"] = pw
@@ -80,7 +78,7 @@ func InputRunnerSpec(c gs.Context) {
 		input := new(StoppingInput)
 		iRunner := NewInputRunner("stopping", input, &pluginGlobals, false)
 		var wg sync.WaitGroup
-		cfgCall := mockHelper.EXPECT().PipelineConfig().Times(7)
+		cfgCall := mockHelper.EXPECT().PipelineConfig().Times(2)
 		cfgCall.Return(pc)
 		wg.Add(1)
 		iRunner.Start(mockHelper, &wg)
@@ -168,7 +166,8 @@ func OutputRunnerSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	mockHelper := NewMockPluginHelper(ctrl)
-	pc := new(PipelineConfig)
+	//pc := new(PipelineConfig)
+	pc := NewPipelineConfig(nil)
 	pluginGlobals := new(PluginGlobals)
 
 	c.Specify("Runner restarts a plugin on the first time only", func() {
@@ -178,13 +177,13 @@ func OutputRunnerSpec(c gs.Context) {
 			MaxJitter:  "1us",
 			MaxRetries: 1,
 		}
-		pw := NewPluginWrapper("stoppingOutput")
+		pw := NewPluginWrapper("stoppingOutput", pc)
 		pw.ConfigCreator = func() interface{} { return nil }
 		pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
 		output := new(StoppingOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingOutput"] = pw
-		oRunner := NewFORunner("stoppingOutput", output, pluginGlobals)
+		oRunner := NewFORunner("stoppingOutput", output, pluginGlobals, 10)
 		var wg sync.WaitGroup
 		cfgCall := mockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(pc)
@@ -201,13 +200,13 @@ func OutputRunnerSpec(c gs.Context) {
 			MaxJitter:  "1us",
 			MaxRetries: 4,
 		}
-		pw := NewPluginWrapper("stoppingresumeOutput")
+		pw := NewPluginWrapper("stoppingresumeOutput", pc)
 		pw.ConfigCreator = func() interface{} { return nil }
 		pw.PluginCreator = func() interface{} { return new(StopResumeOutput) }
 		output := new(StopResumeOutput)
 		pc.outputWrappers = make(map[string]*PluginWrapper)
 		pc.outputWrappers["stoppingresumeOutput"] = pw
-		oRunner := NewFORunner("stoppingresumeOutput", output, pluginGlobals)
+		oRunner := NewFORunner("stoppingresumeOutput", output, pluginGlobals, 10)
 		var wg sync.WaitGroup
 		cfgCall := mockHelper.EXPECT().PipelineConfig()
 		cfgCall.Return(pc)
@@ -222,7 +221,7 @@ func OutputRunnerSpec(c gs.Context) {
 
 	c.Specify("Runner encodes a message", func() {
 		output := new(StoppingOutput)
-		or := NewFORunner("test", output, pluginGlobals)
+		or := NewFORunner("test", output, pluginGlobals, 10)
 		or.encoder = new(_payloadEncoder)
 		_pack.Message = ts.GetTestMessage()
 		payload := "Test Payload"

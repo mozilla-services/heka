@@ -176,7 +176,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}()
 
-	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or)
+	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or, h)
 	if err != nil {
 		return
 	}

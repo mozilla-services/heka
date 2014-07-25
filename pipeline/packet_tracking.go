@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -71,16 +72,23 @@ func (p *PacketTracking) Runners() (runners []PluginRunner) {
 // A diagnostic tracker that can track pipeline packs and do accounting
 // to determine possible leaks
 type DiagnosticTracker struct {
-	// Track all the packs that have been created
+	// Track all the packs that have been created.
 	packs []*PipelinePack
 
-	// Identify the name of the recycle channel it monitors packs for
+	// Identify the name of the recycle channel it monitors packs for.
 	ChannelName string
+
+	// Pipeline configuration globals.
+	globals *GlobalConfigStruct
 }
 
 // Create and return a new diagnostic tracker
-func NewDiagnosticTracker(channelName string) *DiagnosticTracker {
-	return &DiagnosticTracker{make([]*PipelinePack, 0, 50), channelName}
+func NewDiagnosticTracker(channelName string, globals *GlobalConfigStruct) *DiagnosticTracker {
+	return &DiagnosticTracker{
+		packs:       make([]*PipelinePack, 0, 50),
+		ChannelName: channelName,
+		globals:     globals,
+	}
 }
 
 // Add a pipeline pack for monitoring
@@ -97,7 +105,7 @@ func (d *DiagnosticTracker) Run() {
 		count          int
 		runner         PluginRunner
 	)
-	g := Globals()
+	g := d.globals
 	idleMax := g.MaxPackIdle
 	probablePacks := make([]*PipelinePack, 0, len(d.packs))
 	ticker := time.NewTicker(time.Duration(30) * time.Second)

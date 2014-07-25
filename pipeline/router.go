@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013
+# Portions created by the Initial Developer are Copyright (C) 2013-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -59,9 +59,9 @@ type messageRouter struct {
 }
 
 // Creates and returns a (not yet started) Heka message router.
-func NewMessageRouter() (router *messageRouter) {
+func NewMessageRouter(chanSize int) (router *messageRouter) {
 	router = new(messageRouter)
-	router.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
+	router.inChan = make(chan *PipelinePack, chanSize)
 	router.addFilterMatcher = make(chan *MatchRunner, 0)
 	router.removeFilterMatcher = make(chan *MatchRunner, 0)
 	router.removeOutputMatcher = make(chan *MatchRunner, 0)
@@ -189,7 +189,9 @@ type MatchRunner struct {
 
 // Creates and returns a new MatchRunner if possible, or a relevant error if
 // not.
-func NewMatchRunner(filter, signer string, runner PluginRunner) (matcher *MatchRunner, err error) {
+func NewMatchRunner(filter, signer string, runner PluginRunner, chanSize int) (
+	matcher *MatchRunner, err error) {
+
 	var spec *message.MatcherSpecification
 	if spec, err = message.CreateMatcherSpecification(filter); err != nil {
 		return
@@ -197,7 +199,7 @@ func NewMatchRunner(filter, signer string, runner PluginRunner) (matcher *MatchR
 	matcher = &MatchRunner{
 		spec:         spec,
 		signer:       signer,
-		inChan:       make(chan *PipelinePack, Globals().PluginChanSize),
+		inChan:       make(chan *PipelinePack, chanSize),
 		pluginRunner: runner,
 	}
 	return
@@ -227,8 +229,7 @@ func (mr *MatchRunner) GetAvgDuration() (duration int64) {
 // that is a match will be placed on the provided matchChan (usually the input
 // channel for a specific Filter or Output plugin). Any messages that are not a
 // match will be immediately recycled.
-func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
-	sampleDenominator := Globals().SampleDenominator
+func (mr *MatchRunner) Start(matchChan chan *PipelinePack, sampleDenom int) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -245,7 +246,7 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack) {
 
 		var (
 			startTime time.Time
-			random    int = rand.Intn(1000) + sampleDenominator
+			random    int = rand.Intn(1000) + sampleDenom
 			// Don't have everyone sample at the same time. We always start with
 			// a sample so there will be a ballpark figure immediately. We could
 			// use a ticker to sample at a regular interval but that seems like

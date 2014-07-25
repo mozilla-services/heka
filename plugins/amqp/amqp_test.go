@@ -300,6 +300,7 @@ func AMQPPluginSpec(c gs.Context) {
 
 		c.Specify("publishes a serialized message", func() {
 			encoder := new(ProtobufEncoder)
+			encoder.SetPipelineConfig(pConfig)
 			encoder.Init(nil)
 			protoBytes, err := encoder.Encode(pack)
 			c.Expect(err, gs.IsNil)
