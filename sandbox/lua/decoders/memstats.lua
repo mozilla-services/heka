@@ -12,7 +12,7 @@ local payload_keep = read_config("payload_keep")
 
 local msg = {
     Timestamp = nil,
-    Type = "heka.stats.meminfo",
+    Type = "heka.stats.memstats",
     Payload = nil,
     Fields = nil
 }
