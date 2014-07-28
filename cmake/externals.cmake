@@ -151,9 +151,9 @@ if (INCLUDE_GEOIP)
 endif()
 
 if (INCLUDE_MOZSVC)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 0381a5d004d5552e1ca82e7c5cd66f606e084ba8)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
     add_dependencies(heka-mozsvc-plugins raven-go)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 0381a5d004d5552e1ca82e7c5cd66f606e084ba8)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
