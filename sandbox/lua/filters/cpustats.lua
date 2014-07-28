@@ -39,18 +39,19 @@ local sec_per_row       = read_config("sec_per_row") or 60
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-cbuf = circular_buffer.new(rows, 4, sec_per_row)
-local fields = {"1MinAvg", "5MinAvg", "15MinAvg", "NumProcesses"}
-local OneMinAvg         = cbuf:set_header(1, fields[1], "Count", "max")
-local FiveMinAvg        = cbuf:set_header(2, fields[2], "Count", "max")
-local FifteenMinAvg     = cbuf:set_header(3, fields[3], "Count", "max")
-local NumProcesses      = cbuf:set_header(4, fields[4], "Count", "max")
+local field_names = {"1MinAvg", "5MinAvg", "15MinAvg", "NumProcesses"}
+
+cbuf = circular_buffer.new(rows, #field_names, sec_per_row)
+
+for i, name in pairs(field_names) do
+    cbuf:set_header(i, name, "Count", "max")
+end
 
 function process_message ()
     local ts = read_message("Timestamp")
-    for i, field in pairs(fields) do
-        fs = string.format("Fields[%s]", field)
-        cbuf:set(ts, i, read_message(fs))
+    for i, name in pairs(field_names) do
+        label = string.format("Fields[%s]", name)
+        cbuf:set(ts, i, read_message(label))
     end
     return 0
 end
