@@ -16,7 +16,6 @@ local row = column("ReadsCompleted") * column("ReadsMerged") *
 
 local grammar = l.Ct(row^1)
 
-
 local payload_keep = read_config("payload_keep")
 
 local msg = {
@@ -26,7 +25,6 @@ local msg = {
     Fields = nil
 }
 
-require "cjson"
 function process_message()
     local data = read_message("Payload")
     local fields = grammar:match(data)
