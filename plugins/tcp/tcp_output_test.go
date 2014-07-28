@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -41,15 +40,11 @@ func TcpOutputSpec(c gs.Context) {
 		tmpErr = os.RemoveAll(tmpDir)
 		c.Expect(tmpErr, gs.Equals, nil)
 	}()
-	pConfig := NewPipelineConfig(nil)
+	globals := DefaultGlobals()
+	globals.BaseDir = tmpDir
+	pConfig := NewPipelineConfig(globals)
 
 	c.Specify("TcpOutput", func() {
-		origBaseDir := Globals().BaseDir
-		Globals().BaseDir = tmpDir
-		defer func() {
-			Globals().BaseDir = origBaseDir
-		}()
-
 		tcpOutput := new(TcpOutput)
 		tcpOutput.SetName("test")
 		config := tcpOutput.ConfigStruct().(*TcpOutputConfig)
@@ -57,11 +52,11 @@ func TcpOutputSpec(c gs.Context) {
 
 		tickChan := make(chan time.Time)
 		oth := plugins_ts.NewOutputTestHelper(ctrl)
-		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
+		oth.MockOutputRunner.EXPECT().Ticker().Return(tickChan).AnyTimes()
 		encoder := new(ProtobufEncoder)
+		encoder.SetPipelineConfig(pConfig)
 		encoder.Init(nil)
 
-		var wg sync.WaitGroup
 		inChan := make(chan *PipelinePack, 1)
 
 		msg := pipeline_ts.GetTestMessage()
@@ -80,21 +75,24 @@ func TcpOutputSpec(c gs.Context) {
 		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 		inChanCall.Return(inChan)
 
+		errChan := make(chan error)
+		startOutput := func() {
+			oth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			go func() {
+				err := tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				errChan <- err
+			}()
+		}
+
 		c.Specify("doesn't use framing w/o ProtobufEncoder", func() {
 			encoder := new(plugins.PayloadEncoder)
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
-
-			wg.Add(1)
-			go func() {
-				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-				c.Expect(err, gs.IsNil)
-				wg.Done()
-			}()
-
 			close(inChan)
-			wg.Wait()
+			startOutput()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 			// We should fail if SetUseFraming is called since we didn't
 			// EXPECT it.
 		})
@@ -104,16 +102,10 @@ func TcpOutputSpec(c gs.Context) {
 			config.UseFraming = &useFraming
 			err := tcpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
-
-			wg.Add(1)
-			go func() {
-				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-				c.Expect(err, gs.IsNil)
-				wg.Done()
-			}()
-
 			close(inChan)
-			wg.Wait()
+			startOutput()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 			// We should fail if SetUseFraming is called since we didn't
 			// EXPECT it.
 		})
@@ -150,12 +142,7 @@ func TcpOutputSpec(c gs.Context) {
 			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
 
 			pack.Message.SetPayload(outStr)
-			wg.Add(1)
-			go func() {
-				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-				c.Expect(err, gs.IsNil)
-				wg.Done()
-			}()
+			startOutput()
 
 			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
 			c.Expect(msgcount, gs.Equals, int64(0))
@@ -168,7 +155,8 @@ func TcpOutputSpec(c gs.Context) {
 			c.Expect(result, gs.Equals, string(matchBytes))
 
 			close(inChan)
-			wg.Wait() // wait for output to finish shutting down
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("far end not initially listening", func() {
@@ -183,12 +171,7 @@ func TcpOutputSpec(c gs.Context) {
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 			oth.MockOutputRunner.EXPECT().UsesFraming().Return(false).AnyTimes()
 
-			wg.Add(1)
-			go func() {
-				err = tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-				c.Expect(err, gs.IsNil)
-				wg.Done()
-			}()
+			startOutput()
 			msgcount := atomic.LoadInt64(&tcpOutput.processMessageCount)
 			c.Expect(msgcount, gs.Equals, int64(0))
 
@@ -225,7 +208,8 @@ func TcpOutputSpec(c gs.Context) {
 			c.Expect(result, gs.Equals, string(matchBytes))
 
 			close(inChan)
-			wg.Wait() // wait for output to finish shutting down
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 	})
 }

@@ -95,7 +95,7 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 	pack := h.PipelinePack(msgLoopCount)
 	if pack == nil {
 		fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-			Globals().MaxMsgLoops))
+			h.PipelineConfig().Globals.MaxMsgLoops))
 		return
 	}
 	pack.Message.SetType("heka.counter-output")
@@ -116,7 +116,7 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				Globals().MaxMsgLoops))
+				h.PipelineConfig().Globals.MaxMsgLoops))
 			return
 		}
 		pack.Message.SetType("heka.counter-output")

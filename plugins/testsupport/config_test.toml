@@ -4,7 +4,6 @@ parser_type = "message.proto"
 decoder = "ProtobufDecoder"
 
 [ProtobufDecoder]
-type = "ProtobufDecoder"
 
 [PayloadEncoder]
 

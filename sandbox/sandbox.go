@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -61,14 +61,16 @@ type SandboxConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+	Globals          *pipeline.GlobalConfigStruct
 }
 
-func NewSandboxConfig() interface{} {
+func NewSandboxConfig(globals *pipeline.GlobalConfigStruct) interface{} {
 	return &SandboxConfig{
-		ModuleDirectory:  pipeline.PrependShareDir("lua_modules"),
+		ModuleDirectory:  globals.PrependShareDir("lua_modules"),
 		MemoryLimit:      8 * 1024 * 1024,
 		InstructionLimit: 1e6,
 		OutputLimit:      63 * 1024,
 		ScriptType:       "lua",
+		Globals:          globals,
 	}
 }

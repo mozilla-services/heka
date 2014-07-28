@@ -279,12 +279,21 @@ contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
 There is an optional configuration interface called WantsName.  It provides a
-a plug-in access to its configured name before the runner has started. The
-Sandbox filter plug-in uses the name to locate/load any preserved state
-before being run::
+a plugin access to its configured name before the runner has started. The
+SandboxFilter plugin uses the name to locate/load any preserved state before
+being run::
 
     type WantsName interface {
         SetName(name string)
+    }
+
+There is also a similar WantsPipelineConfig interface that can be used if a
+plugin needs access to the active PipelineConfig or GlobalConfigStruct values
+in the ConfigStruct or Init methods. (If these values are needed in the Run
+method they can be retrieved from the PluginRunner.)::
+
+    type WantsPipelineConfig interface {
+        SetPipelineConfig(pConfig *pipeline.PipelineConfig)
     }
 
 .. _inputs:

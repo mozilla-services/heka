@@ -62,6 +62,7 @@ func FileOutputSpec(c gs.Context) {
 
 		c.Specify("w/ ProtobufEncoder", func() {
 			encoder := new(ProtobufEncoder)
+			encoder.SetPipelineConfig(pConfig)
 			encoder.Init(nil)
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 

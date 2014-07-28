@@ -46,6 +46,7 @@ func StatAccumInputSpec(c gs.Context) {
 		statAccumInput := StatAccumInput{}
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
 		pConfig := NewPipelineConfig(nil)
+		statAccumInput.pConfig = pConfig
 
 		c.Specify("validates that data is emitted", func() {
 			config.EmitInPayload = false
@@ -68,13 +69,21 @@ func StatAccumInputSpec(c gs.Context) {
 
 			runErrChan := make(chan error)
 			startInput := func() {
+				inputStarted.Add(1)
+
+				// A call to Ticker() is the last step in the input's startup before
+				// it's ready to process packs. Any tests that need to pause until
+				// this happens can use `inputStarted.Wait()`.
+				ith.MockInputRunner.EXPECT().Ticker().Do(func() {
+					inputStarted.Done()
+				}).Return(tickChan)
+
 				go func() {
 					err := statAccumInput.Run(ith.MockInputRunner, ith.MockHelper)
 					runErrChan <- err
 				}()
 			}
 
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
 			injectCall := ith.MockInputRunner.EXPECT().Inject(ith.Pack)
@@ -83,14 +92,6 @@ func StatAccumInputSpec(c gs.Context) {
 			injectCall.Do(func(pack *PipelinePack) {
 				injectCalled.Done()
 			})
-
-			inputStarted.Add(1)
-			// A call to Ticker() is the last step in the input's startup before
-			// it's ready to process packs. Any tests that need to pause until
-			// this happens can use `inputStarted.Wait()`.
-			ith.MockInputRunner.EXPECT().Ticker().Do(func() {
-				inputStarted.Done()
-			}).Return(tickChan)
 
 			c.Specify("using normal namespaces", func() {
 				config.EmitInFields = true
@@ -201,7 +202,6 @@ func StatAccumInputSpec(c gs.Context) {
 					injectCalled.Wait()
 					ith.Pack.Recycle()
 					ith.PackSupply <- ith.Pack
-					ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 
 					msg, err := finalizeSendingStats()
@@ -228,7 +228,6 @@ func StatAccumInputSpec(c gs.Context) {
 					sendTimer("sample2.timer", 10, 20)
 					ith.Pack.Recycle()
 					ith.PackSupply <- ith.Pack
-					ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
@@ -370,7 +369,6 @@ func StatAccumInputSpec(c gs.Context) {
 
 					// Prep pack and EXPECTS for the close.
 					ith.PackSupply <- ith.Pack
-					ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 
 					close(statAccumInput.statChan)

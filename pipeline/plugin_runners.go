@@ -177,7 +177,8 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		wg.Done()
 	}()
 
-	globals := Globals()
+	pConfig := h.PipelineConfig()
+	globals := pConfig.Globals
 	rh, err := NewRetryHelper(ir.pluginGlobals.Retries)
 	if err != nil {
 		ir.LogError(err)
@@ -213,9 +214,9 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Re-initialize our plugin using its wrapper.
-		h.PipelineConfig().inputsLock.Lock()
-		pw := h.PipelineConfig().inputWrappers[ir.name]
-		h.PipelineConfig().inputsLock.Unlock()
+		pConfig.inputsLock.Lock()
+		pw := pConfig.inputWrappers[ir.name]
+		pConfig.inputsLock.Unlock()
 
 		// Attempt to recreate the plugin until it works without error or
 		// until we were told to stop.
@@ -282,7 +283,7 @@ type dRunner struct {
 // Creates and returns a new (but not yet started) DecoderRunner for the
 // provided Decoder plugin.
 func NewDecoderRunner(name string, decoder Decoder,
-	pluginGlobals *PluginGlobals) DecoderRunner {
+	pluginGlobals *PluginGlobals, chanSize int) DecoderRunner {
 
 	return &dRunner{
 		pRunnerBase: pRunnerBase{
@@ -290,7 +291,7 @@ func NewDecoderRunner(name string, decoder Decoder,
 			plugin:        decoder.(Plugin),
 			pluginGlobals: pluginGlobals,
 		},
-		inChan: make(chan *PipelinePack, Globals().PluginChanSize),
+		inChan: make(chan *PipelinePack, chanSize),
 	}
 }
 
@@ -446,7 +447,7 @@ type foRunner struct {
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
 // OutputRunner.
 func NewFORunner(name string, plugin Plugin,
-	pluginGlobals *PluginGlobals) (runner *foRunner) {
+	pluginGlobals *PluginGlobals, chanSize int) (runner *foRunner) {
 	runner = &foRunner{
 		pRunnerBase: pRunnerBase{
 			name:          name,
@@ -454,7 +455,7 @@ func NewFORunner(name string, plugin Plugin,
 			pluginGlobals: pluginGlobals,
 		},
 	}
-	runner.inChan = make(chan *PipelinePack, Globals().PluginChanSize)
+	runner.inChan = make(chan *PipelinePack, chanSize)
 	return
 }
 
@@ -468,14 +469,17 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 }
 
 func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+	defer func() {
+		wg.Done()
+	}()
+
 	var (
 		pluginType string
 		err        error
 	)
-	globals := Globals()
-	defer func() {
-		wg.Done()
-	}()
+
+	pc := h.PipelineConfig()
+	globals := pc.Globals
 
 	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
 	if err != nil {
@@ -485,11 +489,11 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	}
 
 	var pw *PluginWrapper
-	pc := h.PipelineConfig()
 
 	for !globals.Stopping {
 		if foRunner.matcher != nil {
-			foRunner.matcher.Start(foRunner.inChan)
+			sampleDenom := h.PipelineConfig().Globals.SampleDenominator
+			foRunner.matcher.Start(foRunner.inChan, sampleDenom)
 		}
 
 		// `Run` method only returns if there's an error or we're shutting

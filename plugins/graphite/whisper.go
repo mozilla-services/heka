@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -110,6 +110,7 @@ type WhisperOutput struct {
 	defaultArchiveInfo []whisper.ArchiveInfo
 	dbs                map[string]WhisperRunner
 	folderPerm         os.FileMode
+	pConfig            *PipelineConfig
 }
 
 // WhisperOutput config struct.
@@ -141,9 +142,16 @@ func (o *WhisperOutput) ConfigStruct() interface{} {
 	}
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (o *WhisperOutput) SetPipelineConfig(pConfig *PipelineConfig) {
+	o.pConfig = pConfig
+}
+
 func (o *WhisperOutput) Init(config interface{}) (err error) {
 	conf := config.(*WhisperOutputConfig)
-	o.basePath = PrependBaseDir(conf.BasePath)
+	globals := o.pConfig.Globals
+	o.basePath = globals.PrependBaseDir(conf.BasePath)
 	o.defaultAggMethod = conf.DefaultAggMethod
 
 	var intPerm int64

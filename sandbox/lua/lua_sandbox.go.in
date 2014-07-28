@@ -268,7 +268,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		pipeline.Globals().LogMessage("go_lua_write_message_string", "No sandbox pack.")
+		lsb.globals.LogMessage("go_lua_write_message_string", "No sandbox pack.")
 		return 1
 	}
 	if !lsb.messageCopied && lsb.pluginType == "encoder" {
@@ -297,7 +297,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		value := C.GoString(v)
 		var uuidBytes []byte
 		if uuidBytes = uuid.Parse(value); uuidBytes == nil {
-			pipeline.Globals().LogMessage("go_lua_write_message_string",
+			lsb.globals.LogMessage("go_lua_write_message_string",
 				"Bad UUID string.")
 			return 1
 		}
@@ -307,7 +307,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		vStr := C.GoString(v)
 		// First make sure we have anything at all.
 		if vStr == "" {
-			pipeline.Globals().LogMessage("go_lua_write_message_string",
+			lsb.globals.LogMessage("go_lua_write_message_string",
 				"Empty timestamp string.")
 			return 1
 		}
@@ -322,7 +322,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 			var parsedTime time.Time
 			parsedTime, err = message.ForgivingTimeParse("", vStr, loc)
 			if err != nil {
-				pipeline.Globals().LogMessage("go_lua_write_message_string",
+				lsb.globals.LogMessage("go_lua_write_message_string",
 					"Can't parse timestamp string.")
 				return 1
 			}
@@ -333,7 +333,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 	case "Severity":
 		value, err := strconv.ParseInt(C.GoString(v), 0, 32)
 		if err != nil {
-			pipeline.Globals().LogMessage("go_lua_write_message_string",
+			lsb.globals.LogMessage("go_lua_write_message_string",
 				"Can't parse severity value.")
 			return 1
 		}
@@ -342,7 +342,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 	case "Pid":
 		value, err := strconv.ParseInt(C.GoString(v), 0, 32)
 		if err != nil {
-			pipeline.Globals().LogMessage("go_lua_write_message_string",
+			lsb.globals.LogMessage("go_lua_write_message_string",
 				"Can't parse PID value.")
 			return 1
 		}
@@ -351,13 +351,13 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 	default:
 		if fn, found := extractLuaFieldName(fieldName); found {
 			if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
-				pipeline.Globals().LogMessage("go_lua_write_message_string", err.Error())
+				lsb.globals.LogMessage("go_lua_write_message_string", err.Error())
 				return 1
 			}
 			return 0
 		}
 	}
-	pipeline.Globals().LogMessage("go_lua_write_message_string", "Bad field name.")
+	lsb.globals.LogMessage("go_lua_write_message_string", "Bad field name.")
 	return 1
 }
 
@@ -368,7 +368,7 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		pipeline.Globals().LogMessage("go_lua_write_message_double", "No sandbox pack.")
+		lsb.globals.LogMessage("go_lua_write_message_double", "No sandbox pack.")
 		return 1
 	}
 	if !lsb.messageCopied && lsb.pluginType == "encoder" {
@@ -393,13 +393,13 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		if fn, found := extractLuaFieldName(fieldName); found {
 			value := float64(v)
 			if err := write_to_field(lsb.pack.Message, fn, value, rep, fi, ai); err != nil {
-				pipeline.Globals().LogMessage("go_lua_write_message_double", err.Error())
+				lsb.globals.LogMessage("go_lua_write_message_double", err.Error())
 				return 1
 			}
 			return 0
 		}
 	}
-	pipeline.Globals().LogMessage("go_lua_write_message_double", "Bad field name.")
+	lsb.globals.LogMessage("go_lua_write_message_double", "Bad field name.")
 	return 1
 }
 
@@ -410,7 +410,7 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 	fieldName := C.GoString(c)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
 	if lsb.pack == nil {
-		pipeline.Globals().LogMessage("go_lua_write_message_bool", "No sandbox pack.")
+		lsb.globals.LogMessage("go_lua_write_message_bool", "No sandbox pack.")
 		return 1
 	}
 	if !lsb.messageCopied && lsb.pluginType == "encoder" {
@@ -420,12 +420,12 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 
 	if fn, found := extractLuaFieldName(fieldName); found {
 		if err := write_to_field(lsb.pack.Message, fn, v, rep, fi, ai); err != nil {
-			pipeline.Globals().LogMessage("go_lua_write_message_bool", err.Error())
+			lsb.globals.LogMessage("go_lua_write_message_bool", err.Error())
 			return 1
 		}
 		return 0
 	}
-	pipeline.Globals().LogMessage("go_lua_write_message_bool", "Bad field name.")
+	lsb.globals.LogMessage("go_lua_write_message_bool", "Bad field name.")
 	return 1
 }
 
@@ -542,6 +542,7 @@ type LuaSandbox struct {
 	field         int
 	messageCopied bool
 	pluginType    string
+	globals       *pipeline.GlobalConfigStruct
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
@@ -564,6 +565,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 		return 0
 	}
 	lsb.config = conf.Config
+	lsb.globals = conf.Globals
 	return lsb, nil
 }
 

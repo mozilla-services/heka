@@ -67,13 +67,21 @@ type DashboardOutput struct {
 	relDataPath      string
 	dataDirectory    string
 	server           *http.Server
+	pConfig          *PipelineConfig
+}
+
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (self *DashboardOutput) SetPipelineConfig(pConfig *PipelineConfig) {
+	self.pConfig = pConfig
 }
 
 func (self *DashboardOutput) Init(config interface{}) (err error) {
 	conf := config.(*DashboardOutputConfig)
 
-	self.staticDirectory = PrependShareDir(conf.StaticDirectory)
-	self.workingDirectory = PrependBaseDir(conf.WorkingDirectory)
+	globals := self.pConfig.Globals
+	self.staticDirectory = globals.PrependShareDir(conf.StaticDirectory)
+	self.workingDirectory = globals.PrependBaseDir(conf.WorkingDirectory)
 	self.relDataPath = "data"
 	self.dataDirectory = filepath.Join(self.workingDirectory, self.relDataPath)
 

@@ -64,6 +64,7 @@ func MultiDecoderSpec(c gospec.Context) {
 	c.Specify("A MultiDecoder", func() {
 		decoder := new(MultiDecoder)
 		decoder.SetName("MyMultiDecoder")
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 
 		supply := make(chan *PipelinePack, 1)
@@ -75,7 +76,7 @@ func MultiDecoderSpec(c gospec.Context) {
 			"StartsWithM": "%TheData%",
 		}
 		rDecoder0.logErrors = true
-		wrapper0 := NewPluginWrapper("StartsWithM")
+		wrapper0 := NewPluginWrapper("StartsWithM", pConfig)
 		wrapper0.CreateWithError = func() (interface{}, error) {
 			return rDecoder0, nil
 		}
@@ -127,7 +128,7 @@ func MultiDecoderSpec(c gospec.Context) {
 
 			// Expect that we log an error for undecoded message.
 			dRunner.EXPECT().LogError(fmt.Errorf(
-				"Subdecoder 'StartsWithM' decode error: No match: %s", regex_data))
+				"Subdecoder 'StartsWithM' decode error: No match: %s", regex_data)).AnyTimes()
 
 			packs, err := decoder.Decode(pack)
 			c.Expect(len(packs), gs.Equals, 0)
@@ -143,7 +144,7 @@ func MultiDecoderSpec(c gospec.Context) {
 
 			// Now create a real *dRunner, pass it in, make sure a wrapper
 			// gets handed to the subdecoder.
-			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals))
+			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals), 10)
 			decoder.SetDecoderRunner(dr)
 			sub := decoder.Decoders[0]
 			subRunner := sub.(*PayloadRegexDecoder).dRunner
@@ -158,7 +159,7 @@ func MultiDecoderSpec(c gospec.Context) {
 			rDecoder1.MessageFields = MessageTemplate{
 				"StartsWithS": "%TheData%",
 			}
-			wrapper1 := NewPluginWrapper("StartsWithS")
+			wrapper1 := NewPluginWrapper("StartsWithS", pConfig)
 			wrapper1.CreateWithError = func() (interface{}, error) {
 				return rDecoder1, nil
 			}
@@ -169,7 +170,7 @@ func MultiDecoderSpec(c gospec.Context) {
 			rDecoder2.MessageFields = MessageTemplate{
 				"StartsWithM2": "%TheData%",
 			}
-			wrapper2 := NewPluginWrapper("StartsWithM2")
+			wrapper2 := NewPluginWrapper("StartsWithM2", pConfig)
 			wrapper2.CreateWithError = func() (interface{}, error) {
 				return rDecoder2, nil
 			}
@@ -274,6 +275,7 @@ func MultiDecoderSpec(c gospec.Context) {
 	c.Specify("A MultiDecoder w/ MultiOutput", func() {
 		decoder := new(MultiDecoder)
 		decoder.SetName("MyMultiDecoder")
+		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 		conf.CascadeStrategy = "all"
 
@@ -284,19 +286,19 @@ func MultiDecoderSpec(c gospec.Context) {
 		sub1 := &MultiOutputDecoder{supply}
 		sub2 := &MultiOutputDecoder{supply}
 
-		wrapper0 := NewPluginWrapper("sub0")
+		wrapper0 := NewPluginWrapper("sub0", pConfig)
 		wrapper0.CreateWithError = func() (interface{}, error) {
 			return sub0, nil
 		}
 		pConfig.DecoderWrappers["sub0"] = wrapper0
 
-		wrapper1 := NewPluginWrapper("sub1")
+		wrapper1 := NewPluginWrapper("sub1", pConfig)
 		wrapper1.CreateWithError = func() (interface{}, error) {
 			return sub1, nil
 		}
 		pConfig.DecoderWrappers["sub1"] = wrapper1
 
-		wrapper2 := NewPluginWrapper("sub2")
+		wrapper2 := NewPluginWrapper("sub2", pConfig)
 		wrapper2.CreateWithError = func() (interface{}, error) {
 			return sub2, nil
 		}
@@ -319,7 +321,7 @@ func MultiDecoderSpec(c gospec.Context) {
 
 func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	b.StopTimer()
-	pConfig := NewPipelineConfig(nil) // initializes Globals()
+	pConfig := NewPipelineConfig(nil) // initializes Globals
 	msg := pipeline_ts.GetTestMessage()
 	msg.SetPayload("This is a test")
 	pack := NewPipelinePack(pConfig.InputRecycleChan())
@@ -328,7 +330,7 @@ func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 	sub := new(ProtobufDecoder)
 	sub.Init(nil)
-	wrapper0 := NewPluginWrapper("sub")
+	wrapper0 := NewPluginWrapper("sub", pConfig)
 	wrapper0.CreateWithError = func() (interface{}, error) {
 		return sub, nil
 	}

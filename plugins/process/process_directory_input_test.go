@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -48,23 +48,18 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	ith.PackSupply <- ith.Pack
-	//ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
 
 	ith.DecodeChan = make(chan *PipelinePack)
-	//mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-	//mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
 
 	c.Specify("A ProcessDirectoryInput", func() {
+		pConfig := NewPipelineConfig(nil)
 		pdiInput := ProcessDirectoryInput{}
-		//ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
-		// Ignore all messages
-		//ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
+		pdiInput.SetPipelineConfig(pConfig)
 
 		config := pdiInput.ConfigStruct().(*ProcessDirectoryInputConfig)
 		workingDir, err := os.Getwd()
 		c.Assume(err, gs.IsNil)
 		config.ProcessDir = filepath.Join(workingDir, "testsupport", "processes")
-		pConfig := NewPipelineConfig(nil)
 
 		// `Ticker` is the last thing called during the setup part of the
 		// input's `Run` method, so it triggers a waitgroup that tests can

@@ -71,6 +71,7 @@ type MultiDecoder struct {
 	sampleDenominator      int
 	sample                 bool
 	reportLock             sync.RWMutex
+	pConfig                *PipelineConfig
 	Config                 *MultiDecoderConfig
 	Name                   string
 	Decoders               []Decoder
@@ -102,6 +103,12 @@ func (md *MultiDecoder) SetName(name string) {
 	md.Name = name
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (md *MultiDecoder) SetPipelineConfig(pConfig *PipelineConfig) {
+	md.pConfig = pConfig
+}
+
 func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.Config = config.(*MultiDecoderConfig)
 
@@ -111,7 +118,6 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	}
 
 	md.Decoders = make([]Decoder, len(md.Config.Subs))
-	pConfig := Globals().PipelineConfig
 
 	var (
 		ok      bool
@@ -123,7 +129,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	}
 
 	for i, name := range md.Config.Subs {
-		if decoder, ok = pConfig.Decoder(name); !ok {
+		if decoder, ok = md.pConfig.Decoder(name); !ok {
 			return fmt.Errorf("Non-existent subdecoder: %s", name)
 		}
 		md.Decoders[i] = decoder
@@ -133,7 +139,7 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	md.processMessageFailures = make([]int64, numSubs)
 	md.processMessageSamples = make([]int64, numSubs)
 	md.processMessageDuration = make([]int64, numSubs)
-	md.sampleDenominator = Globals().SampleDenominator
+	md.sampleDenominator = md.pConfig.Globals.SampleDenominator
 	return nil
 }
 

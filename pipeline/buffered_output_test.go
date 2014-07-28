@@ -43,9 +43,12 @@ func BufferedOutputSpec(c gs.Context) {
 		encoder := new(ProtobufEncoder)
 		encoder.sample = false
 		encoder.sampleDenominator = 1000
+		pConfig := NewPipelineConfig(nil)
 		or := NewMockOutputRunner(ctrl)
+		h := NewMockPluginHelper(ctrl)
+		h.EXPECT().PipelineConfig().Return(pConfig)
 
-		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or)
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h)
 		c.Expect(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 

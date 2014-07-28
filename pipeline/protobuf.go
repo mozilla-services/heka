@@ -31,14 +31,21 @@ type ProtobufDecoder struct {
 	processMessageFailures int64
 	processMessageSamples  int64
 	processMessageDuration int64
+	pConfig                *PipelineConfig
 	reportLock             sync.Mutex
 	sample                 bool
 	sampleDenominator      int
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (p *ProtobufDecoder) SetPipelineConfig(pConfig *PipelineConfig) {
+	p.pConfig = pConfig
+}
+
 func (p *ProtobufDecoder) Init(config interface{}) error {
 	p.sample = true
-	p.sampleDenominator = Globals().SampleDenominator
+	p.sampleDenominator = p.pConfig.Globals.SampleDenominator
 	return nil
 }
 
@@ -95,16 +102,23 @@ type ProtobufEncoder struct {
 	processMessageFailures int64
 	processMessageSamples  int64
 	processMessageDuration int64
+	pConfig                *PipelineConfig
 	cEncoder               *client.ProtobufEncoder
 	reportLock             sync.Mutex
 	sample                 bool
 	sampleDenominator      int
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (p *ProtobufEncoder) SetPipelineConfig(pConfig *PipelineConfig) {
+	p.pConfig = pConfig
+}
+
 func (p *ProtobufEncoder) Init(config interface{}) error {
 	p.cEncoder = client.NewProtobufEncoder(nil)
 	p.sample = true
-	p.sampleDenominator = Globals().SampleDenominator
+	p.sampleDenominator = p.pConfig.Globals.SampleDenominator
 	return nil
 }
 
