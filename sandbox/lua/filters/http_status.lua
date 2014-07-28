@@ -31,7 +31,7 @@ Config:
     [FxaAuthServerHTTPStatus.config]
     sec_per_row = 60
     rows = 1440
-    anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false)'
+    anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false) roc("HTTP Status", 3, 15, 0, 1.5, true, false) mww_nonparametric("HTTP Status", 4, 15, 10, 0.8)'
 --]]
 
 require "circular_buffer"

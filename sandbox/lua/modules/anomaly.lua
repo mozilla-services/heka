@@ -12,14 +12,26 @@ API
     *Arguments*
         - anomaly_config (string or nil)
 
-        The configuration can specify any number of algorithm function calls (space
-        delimited if desired, but they will also work back to back). If the
-        payload name contains a double quote it should be escaped as two double
-        quotes in a row.
+        The configuration can specify any number of algorithm function calls
+        (space delimited if desired, but they will also work back to back with
+        no delimiter).  This allows for analysis of multiple graphs, columns,
+        and even specification of multiple algorithms per column.
 
         **Rate of change test**
 
-        *roc("payload name", col, win, hwin, sd, loss_of_data, start_of_data)*
+        Only use this test on data with a normal
+        (Gaussian http://en.wikipedia.org/wiki/Normal_distribution) distribution.
+        It identifies rapid changes (spikes) in the data (increasing and
+        decreasing) but ignores cyclic data that has a more gradual rise and
+        fall.  It is typically used for something like HTTP 200 status code
+        analysis to detect a sudden increase/decrease in web traffic.
+
+        *roc("payload_name", col, win, hwin, sd, loss_of_data, start_of_data)*
+            - payload_name (string)
+                Quoted string containing the *payload_name* value used in the
+                inject_payload function call.  If the payload name contains a
+                double quote it should be escaped as two double quotes in a row.
+
             - col (uint)
                 The circular buffer column to perform the analysis on.
 
@@ -27,8 +39,8 @@ API
                 The number of intervals in an analysis window.
 
             - hwin (uint)
-                The number of intervals in the historical analysis window (0 uses the
-                full history). Must be greater than or equal to 'win'.
+                The number of intervals in the historical analysis window (0
+                uses the full history). Must be greater than or equal to 'win'.
 
             - sd (double)
                 The standard deviation threshold to trigger the anomaly.
@@ -41,27 +53,58 @@ API
 
             e.g. roc("Output1", 1, 15, 0, 2, true, false)
 
-        **Mann-Whitney-Wilcoxon test**
+        **Mann-Whitney-Wilcoxon test** http://en.wikipedia.org/wiki/Mann-Whitney
 
-        *mww("payload name", col, win, nwin, pvalue, trend)*
+        **Parametric**
+
+        Only use this test on data with a normal
+        (Gaussian http://en.wikipedia.org/wiki/Normal_distribution) distribution.
+        It identifies more gradual changes in the data (increasing, decreasing,
+        or any).  It is typically used with something like server memory
+        analysis where the values are more stable and gradual changes are
+        interesting (e.g., memory leak).
+
+        *mww("payload_name", col, win, nwin, pvalue, trend)*
+            - payload_name (string)
+                Quoted string containing the *payload_name* value used in the
+                inject_payload function call.  If the payload name contains a
+                double quote it should be escaped as two double quotes in a row.
+
             - col (uint)
                 The circular buffer column to perform the analysis on.
 
             - win (uint)
-                The number of intervals in an analysis window (should be at least 20).
+                The number of intervals in an analysis window (should be at
+                least 20).
 
             - nwin (uint)
                 The number of analysis windows to compare.
 
             - pvalue (double)
                 The pvalue threshold to trigger the prediction.
+                http://en.wikipedia.org/wiki/P_value
 
             - trend (string)
                 (decreasing|increasing|any)
 
             e.g. mww("Output1", 2, 60, 10, 0.0001, decreasing)
 
-        *mww_nonparametric("payload name", col, win, nwin, pstat)*
+        **Non-parametric**
+
+        This test can be used on data with a normal
+        (Gaussian http://en.wikipedia.org/wiki/Normal_distribution)
+        or non-normal
+        (nonparametric http://en.wikipedia.org/wiki/Nonparametric_statistics)
+        distribution.  It identifies overlap/similarities between two data sets.
+        It is typically used for something like detecting an increase in HTTP
+        500 status code errors.
+
+        *mww_nonparametric("payload_name", col, win, nwin, pstat)*
+            - payload_name (string)
+                Quoted string containing the *payload_name* value used in the
+                inject_payload function call.  If the payload name contains a
+                double quote it should be escaped as two double quotes in a row.
+
             - col (uint)
                 The circular buffer column to perform the analysis on.
 
@@ -74,11 +117,13 @@ API
             - pstat (double)
                 Value between 0 and 1. Anything above 0.5 is an increasing trend
                 anything below 0.5 is a decreasing trend.
+                http://en.wikipedia.org/wiki/Mann-Whitney#.CF.81_statistic
 
             e.g. mww_nonparametric("Output1", 2, 15, 10, 0.55)
 
     *Return*
-        - configuration table if parsing was successful or nil, if nil was passed in.
+        - configuration table if parsing was successful or nil, if nil was
+        passed in.
 
 
 **detect(ns, name, cbuf, anomaly_config)**
