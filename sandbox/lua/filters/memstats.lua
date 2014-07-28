@@ -58,7 +58,7 @@ cbuf:set_header(#field_names+2, "SwapUsed", "Count", "max")
 function process_message ()
     local ts = read_message("Timestamp")
     for i, name in pairs(field_names) do
-        label = string.format("Fields[%s]", name)
+        local label = string.format("Fields[%s]", name)
         cbuf:set(ts, i, read_message(label))
     end
     local swapFree = read_message("Fields[SwapFree]")
