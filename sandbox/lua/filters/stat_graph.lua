@@ -55,11 +55,12 @@ Config:
     message_matcher = "Type == 'heka.statmetric'"
 
       [stat-graph.config]
+      title = "Hits and Misses"
       rows = 1440
       sec_per_row = 10
       stats = "stats.counters.hits.count stats.counters.misses.count"
       stat_labels = "hits misses"
-      anomaly_config = 'roc("Hits", 1, 15, 0, 1.5, true, false) roc("Misses", 2, 15, 0, 1.5, true, false)'
+      anomaly_config = 'roc("Hits and Misses", 1, 15, 0, 1.5, true, false) roc("Hits and Misses", 2, 15, 0, 1.5, true, false)'
       preservation_version = 0
 --]]
 
