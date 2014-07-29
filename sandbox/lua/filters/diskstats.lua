@@ -21,7 +21,6 @@ Config:
     [DiskStatsFilter]
     type = "SandboxFilter"
     filename = "lua_filters/diskstats.lua"
-    ticker_interval = 60
     preserve_data = true
     message_matcher = "Type == 'heka.stats.diskstats'"
 
@@ -29,62 +28,132 @@ Config:
 
 require "circular_buffer"
 require "string"
+
 local alert         = require "alert"
 local annotation    = require "annotation"
 local anomaly       = require "anomaly"
 
-local title             = "Disk Stats"
+last_run                = { rows = nil, sec_per_row = nil}
 local rows              = read_config("rows") or 1440
-local sec_per_row       = read_config("sec_per_row") or 60
+local sec_per_row       = nil
+local per_unit          = nil
+
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
--- annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-local titles = {"Disk Stats", "Time doing IO"}
+stats = {
+    {
+        cbuf = nil,
+        fields = {"WritesCompleted", "ReadsCompleted", "SectorsWritten",
+                  "SectorsRead", "WritesMerged", "ReadsMerged"},
+        msg_fields = {},
+        last_value ={},
+        title = "Disk Stats",
+        unit = "",
+        aggregation = "none"
+    },
+    {
+        fields = {"TimeWriting", "TimeReading", "TimeDoingIO", "WeightedTimeDoingIO"},
+        msg_fields = {},
+        title = "Time doing IO",
+        unit = "ms",
+        aggregation = "max",
+    }
+}
 
-local count_field_names = {"WritesCompleted", "ReadsCompleted", "SectorsWritten",
-    "SectorsRead", "WritesMerged", "ReadsMerged"}
-
-local time_field_names = {"TimeWriting", "TimeReading", "TimeDoingIO", "WeightedTimeDoingIO"}
-
-
-count_cbuf = circular_buffer.new(rows, #count_field_names, sec_per_row)
-time_cbuf = circular_buffer.new(rows, #time_field_names, sec_per_row)
-local cbufs = {count_cbuf, time_cbuf}
-
-for i, name in pairs(count_field_names) do
-    count_cbuf:set_header(i, name, "Count", "max")
+for index, cbuf in ipairs(stats) do
+    for i, field in ipairs(stats[index].fields) do
+        stats[index].msg_fields[i] = string.format("Fields[%s]", field)
+    end
 end
 
-for i, name in pairs(time_field_names) do
-    time_cbuf:set_header(i, name, "ms", "max")
+local function init_cbuf(index)
+    local stat = stats[index]
+    local cbuf = circular_buffer.new(rows, #stat.fields, sec_per_row)
+    for i, label in ipairs(stat.fields) do
+        cbuf:set_header(i, label, stat.unit, stat.aggregation)
+    end
+    annotation.set_prune(stat.title, rows * sec_per_row * 1e9)
+    stat.cbuf = cbuf
+    -- Set our persisted globals
+    last_run.rows = rows
+    last_run.sec_per_row = sec_per_row
+    return cbuf
 end
+
+local function update_sec_per_row()
+    sec_per_row = read_message("Fields[TickerInterval]")
+    stats[1].unit = "per_" .. sec_per_row .. "_s"
+    return sec_per_row
+end
+
+-- This tells us if our persisted settings changed between runs.
+local function settings_changed()
+    update_sec_per_row()
+    if rows == last_run.rows and sec_per_row == last_run.sec_per_row then
+        return false
+    end
+    return true
+end
+
 
 function process_message ()
     local ts = read_message("Timestamp")
-    for i, name in pairs(count_field_names) do
-        local label = string.format("Fields[%s]", name)
-        count_cbuf:set(ts, i, read_message(label))
+    if sec_per_row == nil then
+        update_sec_per_row()
     end
-    for i, name in pairs(time_field_names) do
-        local label = string.format("Fields[%s]", name)
-        time_cbuf:set(ts, i, read_message(label))
+
+    local time_stats = stats[2]
+    if not time_stats.cbuf then
+        init_cbuf(2)
     end
+
+    for i, field in ipairs(time_stats.fields) do
+        local val = read_message(time_stats.msg_fields[i])
+        if type(val) ~= "number" then return -1 end
+        time_stats.cbuf:set(ts, i, val)
+    end
+
+    -- Set up our Cbuf if not setup yet
+    local index = 1
+    local stat = stats[index]
+    local cb = stats.cbuf
+    if not cb or settings_changed() then
+        cb = init_cbuf(index)
+    end
+
+    if not cb then return -1 end
+
+    for i, field in ipairs(stat.fields) do
+        local val = read_message(stat.msg_fields[i])
+        if type(val) ~= "number" then return -1 end
+        if stat.last_value[i] ~= nil then
+            -- Compute delta
+            local delta = val - stat.last_value[i]
+            cb:set(ts, i, delta)
+        end
+        stat.last_value[i] = val
+    end
+
     return 0
 end
 
 function timer_event(ns)
     if anomaly_config then
-        -- if not alert.throttled(ns) then
-        --     local msg, annos = anomaly.detect(ns, title, cbuf, anomaly_config)
-        --     if msg then
-        --         annotation.concat(title, annos)
-        --         alert.send(ns, msg)
-        --     end
-        -- end
-        -- inject_payload("cbuf", title, annotation.prune(title, ns), cbuf)
+        for i, stat in ipairs(stats) do
+            local title = stat.title
+            local buf = stat.cbuf
+            if not alert.throttled(ns) then
+                local msg, annos = anomaly.detect(ns, title, buf, anomaly_config)
+                if msg then
+                    annotation.concat(buf, annos)
+                    alert.send(ns, msg)
+                end
+            end
+            inject_payload("cbuf", title, annotation.prune(title, ns), buf)
+        end
     else
-        for i, cbuf in pairs(cbufs) do
-            inject_payload("cbuf", titles[i], cbuf)
+        for i, stat in ipairs(stats) do
+            inject_payload("cbuf", stat.title, stat.cbuf)
         end
     end
 end
