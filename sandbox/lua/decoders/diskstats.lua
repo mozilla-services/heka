@@ -41,6 +41,7 @@ function process_message()
     end
 
     msg.Fields = fields
+    msg.Fields.TickerInterval = read_message("Fields[TickerInterval]")
     inject_message(msg)
     return 0
 end

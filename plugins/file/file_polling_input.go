@@ -82,6 +82,11 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 		pack.Message.SetType("heka.file.polling")
 		pack.Message.SetHostname(hostname)
 		pack.Message.SetPayload(string(data))
+		if field, err := message.NewField("TickerInterval", int(input.TickerInterval), ""); err != nil {
+			runner.LogError(err)
+		} else {
+			pack.Message.AddField(field)
+		}
 		if field, err := message.NewField("FilePath", input.FilePath, ""); err != nil {
 			runner.LogError(err)
 		} else {
