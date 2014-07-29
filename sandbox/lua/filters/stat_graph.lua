@@ -3,9 +3,12 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Converts stat values extracted from statmetric messages to circular buffer
-data and periodically emits messages containing this data to be graphed by a
-DashboardOutput.
+Converts stat values extracted from statmetric messages (see
+:ref:`config_stat_accum_input`) to circular buffer data and periodically emits
+messages containing this data to be graphed by a DashboardOutput. Note that
+this filter expects the stats data to be available in the message fields, so
+the StatAccumInput *must* be configured with `emit_in_fields` set to true for
+this filter to work correctly.
 
 Config:
 
@@ -30,6 +33,9 @@ Config:
     Must be in the same order as the specified stats. Any label longer than 15
     characters will be truncated.
 
+- anomaly_config (string, optional):
+    Anomaly detection configuration, see :ref:`sandbox_anomaly_module`.
+
 - preservation_version (uint, optional, default 0):
     If `preserve_data = true` is set in the SandboxFilter configuration, then
     this value should be incremented every time any edits are made to your
@@ -49,21 +55,30 @@ Config:
     message_matcher = "Type == 'heka.statmetric'"
 
       [stat-graph.config]
+      title = "Hits and Misses"
       rows = 1440
       sec_per_row = 10
       stats = "stats.counters.hits.count stats.counters.misses.count"
       stat_labels = "hits misses"
+      anomaly_config = 'roc("Hits and Misses", 1, 15, 0, 1.5, true, false) roc("Hits and Misses", 2, 15, 0, 1.5, true, false)'
       preservation_version = 0
 --]]
+
 _PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require("circular_buffer")
 require("string")
+local alert = require "alert"
+local annotation = require "annotation"
+local anomaly = require "anomaly"
 
+local title = read_config("title") or "Stats"
 local rows = read_config("rows") or 300
 local sec_per_row = read_config("sec_per_row") or 1
 local stats_config = read_config("stats") or error("stats configuration must be specified")
 local stat_labels_config = read_config("stat_labels") or error("stat_labels configuration must be specified")
+local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
+annotation.set_prune(title, rows * sec_per_row * 1e9)
 
 local stats = {}
 local i = 1
@@ -104,6 +119,18 @@ function process_message()
     return 0
 end
 
+
 function timer_event(ns)
-    inject_payload("cbuf", "Stats", cbuf)
+    if anomaly_config then
+        if not alert.throttled(ns) then
+            local msg, annos = anomaly.detect(ns, title, cbuf, anomaly_config)
+            if msg then
+                annotation.concat(title, annos)
+                alert.send(ns, msg)
+            end
+        end
+        inject_payload("cbuf", title, annotation.prune(title, ns), cbuf)
+    else
+        inject_payload("cbuf", title, cbuf)
+    end
 end
