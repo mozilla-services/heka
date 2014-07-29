@@ -133,13 +133,11 @@ func parseConfig(name string, prim toml.Primitive) {
 	oldest, _ := time.ParseDuration(config.OldestDuration)
 	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "")
 	if err != nil {
-		fmt.Println("Error initializing LogstreamSet: ", err.Error())
-		os.Exit(0)
+		log.Fatalf("Error initializing LogstreamSet: %s\n", err.Error())
 	}
 	streams, errs := ls.ScanForLogstreams()
 	if errs.IsError() {
-		fmt.Printf("Error scanning: %s\n", errs)
-		os.Exit(0)
+		log.Fatalf("Error scanning: %s\n", errs)
 	}
 
 	fmt.Printf("Found %d Logstream(s) for section [%s].\n", len(streams), name)
