@@ -490,12 +490,12 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 	var pw *PluginWrapper
 
-	for !globals.Stopping {
-		if foRunner.matcher != nil {
-			sampleDenom := h.PipelineConfig().Globals.SampleDenominator
-			foRunner.matcher.Start(foRunner.inChan, sampleDenom)
-		}
+	if foRunner.matcher != nil {
+		sampleDenom := globals.SampleDenominator
+		foRunner.matcher.Start(foRunner.inChan, sampleDenom)
+	}
 
+	for !globals.Stopping {
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
 		if filter, ok := foRunner.plugin.(Filter); ok {
@@ -515,7 +515,7 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			foRunner.LogMessage("stopped")
 		}
 
-		// Are we supposed to stop? Save ourselves some time by exiting now
+		// Are we supposed to stop? Save ourselves some time by exiting now.
 		if globals.Stopping {
 			return
 		}
@@ -527,10 +527,10 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		if pw == nil {
-			return // no wrapper means it is Stoppable
+			return // no wrapper means it is Stoppable.
 		}
 
-		// We stop and let this quit if its not a restarting plugin
+		// We stop and let this quit if its not a restarting plugin.
 		if recon, ok := foRunner.plugin.(Restarting); ok {
 			recon.CleanupForRestart()
 		} else {
@@ -539,9 +539,8 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
-		// Re-initialize our plugin using its wrapper
-		// Attempt to recreate the plugin until it works without error
-		// or until we were told to stop
+		// Re-initialize our plugin using its wrapper. Attempt to recreate the
+		// plugin until it works without error or until we're told to stop.
 	createLoop:
 		for !globals.Stopping {
 			err = rh.Wait()

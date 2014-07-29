@@ -24,6 +24,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Prevent panics during shutdown when a restarting plugin has been restarted
+  (issue #957).
+
 * Added support for a Logstreamer symbolically linked log_directory root 
   (issue #741).
 
