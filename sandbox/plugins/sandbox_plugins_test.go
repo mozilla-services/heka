@@ -17,7 +17,6 @@ package plugins
 
 import (
 	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
 	"encoding/json"
 	"fmt"
@@ -26,6 +25,7 @@ import (
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	pm "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/mozilla-services/heka/sandbox"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"

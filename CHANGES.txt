@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Switched to using fork of gomock, import location changed from
+  `code.google.com/p/gomock` to `github.com/rafrombrc/gomock`.
+
 * Move *GlobalConfigStruct out of pipeline package's global namespace, it is
   now stored as an attribute on PipelineConfig. Any code that used to call
   pipeline.Globals() now must instead access *PipelineConfig.Globals. The

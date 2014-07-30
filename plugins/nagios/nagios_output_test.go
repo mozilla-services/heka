@@ -16,11 +16,11 @@ package nagios
 
 import (
 	"bufio"
-	"code.google.com/p/gomock/gomock"
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"net/http"

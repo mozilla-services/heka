@@ -16,12 +16,12 @@
 package tcp
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"code.google.com/p/goprotobuf/proto"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net"

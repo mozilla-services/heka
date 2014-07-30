@@ -15,12 +15,12 @@
 package http
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"encoding/base64"
 	"github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
 	ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net/http"
 	"net/http/httptest"

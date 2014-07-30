@@ -18,10 +18,10 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/gomock/gomock"
 	"errors"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"sync"
 )

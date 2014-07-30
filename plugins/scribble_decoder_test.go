@@ -15,9 +15,9 @@
 package plugins
 
 import (
-	"code.google.com/p/gomock/gomock"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
