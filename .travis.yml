@@ -6,7 +6,7 @@ notifications:
         channels:
             - "irc.mozilla.org#heka"
 before_install:
-    - sudo apt-get install protobuf-compiler cmake
+    - sudo apt-get install protobuf-compiler cmake libgeoip-dev
 
 install:
     - . build.sh
