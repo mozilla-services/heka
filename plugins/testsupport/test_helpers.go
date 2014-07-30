@@ -15,10 +15,10 @@
 package testsupport
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/pipelinemock"
+	"github.com/rafrombrc/gomock/gomock"
 )
 
 type InputTestHelper struct {

@@ -17,11 +17,11 @@
 package statsd
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
+	"github.com/rafrombrc/gomock/gomock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"strconv"
