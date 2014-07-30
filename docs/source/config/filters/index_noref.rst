@@ -41,6 +41,22 @@ CBuf Delta Aggregator By Hostname
 
 .. include:: /config/filters/counter.rst
 
+Cpu Stats Filter
+================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/cpustats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Disk Stats Filter
+=================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Frequent Items
 ==============
 
@@ -74,6 +90,14 @@ HTTP Status Graph
 .. versionadded:: 0.5
 
 .. include:: /../../sandbox/lua/filters/http_status.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Memory Stats Filter
+===================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/memstats.lua
    :start-after: --[[
    :end-before: --]]
 

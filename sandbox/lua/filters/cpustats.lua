@@ -14,6 +14,8 @@ Config:
     Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
     per row is a 24 sliding hour window with 1 minute resolution.
 
+- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -23,7 +25,7 @@ Config:
     filename = "lua_filters/cpustats.lua"
     ticker_interval = 60
     preserve_data = true
-    message_matcher = "Type == 'heka.stats.cpustats'"
+    message_matcher = "Type == 'stats.cpustats'"
 
 --]]
 

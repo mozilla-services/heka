@@ -21,6 +21,26 @@ Apache Access Log Decoder
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
 
+.. _config_cpu_stats_decoder:
+
+Cpu Stats Decoder
+=================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/cpustats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_disk_stats_decoder:
+
+Disk Stats Decoder
+==================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_nginx_access_log_decoder:
 
 Nginx Access Log Decoder
@@ -28,6 +48,16 @@ Nginx Access Log Decoder
 
 .. versionadded:: 0.5
 .. include:: /../../sandbox/lua/decoders/nginx_access.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_mem_stats_decoder:
+
+Memory Stats Decoder
+=====================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/memstats.lua
    :start-after: --[[
    :end-before: --]]
 

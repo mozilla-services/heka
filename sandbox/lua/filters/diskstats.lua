@@ -3,16 +3,17 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Graphs the disk IO stats on the system running heka.
+Graphs the disk IO stats on the system running heka. It automatically converts
+the running totals of Writes and Reads into rates of the values. The time based
+fields are left as running totals of the amount of time doing IO.
 
 Config:
-
-- sec_per_row (uint, optional, default 60)
-    Sets the size of each bucket (resolution in seconds) in the sliding window.
 
 - rows (uint, optional, default 1440)
     Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
     per row is a 24 sliding hour window with 1 minute resolution.
+
+- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
 
 *Example Heka Configuration*
 
@@ -22,7 +23,7 @@ Config:
     type = "SandboxFilter"
     filename = "lua_filters/diskstats.lua"
     preserve_data = true
-    message_matcher = "Type == 'heka.stats.diskstats'"
+    message_matcher = "Type == 'stats.diskstats'"
 
 --]]
 

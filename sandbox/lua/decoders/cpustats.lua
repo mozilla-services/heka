@@ -1,3 +1,49 @@
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+--[[
+
+Parses a payload containing the contents of a `/proc/loadavg` file into a Heka
+message.
+
+Config:
+
+- payload_keep (bool, optional, default false)
+    Always preserve the original log line in the message payload.
+
+*Example Heka Configuration*
+
+.. code-block:: ini
+
+    [CpuStats]
+    type = "FilePollingInput"
+    ticker_interval = 1
+    file_path = "/proc/loadavg"
+    decoder = "CpuStatsDecoder"
+
+    [CpuStatsDecoder]
+    type = "SandboxDecoder"
+    filename = "lua_decoders/cpustats.lua"
+
+*Example Heka Message*
+
+:Timestamp: 2014-01-10 07:04:56 -0800 PST
+:Type: stats.cpustats
+:Hostname: test.example.com
+:Pid: 0
+:UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
+:Payload:
+:EnvVersion:
+:Severity: 7
+:Fields:
+    | name:"1MinAvg" value_type:DOUBLE value_double:"3.05"
+    | name:"5MinAvg" value_type:DOUBLE value_double:"1.21"
+    | name:"15MinAvg" value_type:DOUBLE value_double:"0.44"
+    | name:"NumProcesses" value_type:DOUBLE value_double:"11"
+
+--]]
+
 local l = require 'lpeg'
 l.locale(l)
 
@@ -14,7 +60,7 @@ local payload_keep = read_config("payload_keep")
 
 local msg = {
     Timestamp = nil,
-    Type = "heka.stats.cpustats",
+    Type = "stats.cpustats",
     Payload = nil,
     Fields = nil
 }
