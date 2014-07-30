@@ -44,7 +44,7 @@ type GeoIpDecoder struct {
 // Heka will call this before calling any other methods to give us access to
 // the pipeline configuration.
 func (ld *GeoIpDecoder) SetPipelineConfig(pConfig *PipelineConfig) {
-	self.pConfig = pConfig
+	ld.pConfig = pConfig
 }
 
 func (ld *GeoIpDecoder) ConfigStruct() interface{} {
