@@ -384,7 +384,7 @@ func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
 }
 
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
-	logRoot, journalRoot string) *LogstreamSet {
+	logRoot, journalRoot string) (*LogstreamSet, error) {
 	// Lowercase the actual matching keys.
 	newTranslation := make(SubmatchTranslationMap)
 	for key, val := range sortPattern.Translation {
@@ -396,16 +396,20 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 	}
 	sortPattern.Translation = newTranslation
 
-	logRoot, _ = filepath.EvalSymlinks(logRoot)
-	return &LogstreamSet{
+	realLogRoot, err := filepath.EvalSymlinks(logRoot)
+	if err != nil {
+		return nil, err
+	}
+	ls := &LogstreamSet{
 		logstreams:     make(map[string]*Logstream),
 		oldestDuration: oldest,
 		sortPattern:    sortPattern,
-		logRoot:        logRoot,
+		logRoot:        realLogRoot,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
-		fileMatch:      fileMatchRegexp(logRoot, sortPattern.FileMatch),
+		fileMatch:      fileMatchRegexp(realLogRoot, sortPattern.FileMatch),
 	}
+	return ls, nil
 }
 
 // Access a logstream by name if it exists

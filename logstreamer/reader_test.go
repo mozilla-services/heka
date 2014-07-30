@@ -47,7 +47,8 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"errorlog"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
 		c.Expect(len(names), gs.Equals, 1)
@@ -107,7 +108,8 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"Type", "-log"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
 		errs, _ := err.(*MultipleError)

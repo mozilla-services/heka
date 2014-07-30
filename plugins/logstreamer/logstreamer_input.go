@@ -154,7 +154,11 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	// Create the main logstream set
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
-	li.logstreamSet = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory, conf.JournalDirectory)
+	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
+		conf.JournalDirectory)
+	if err != nil {
+		return
+	}
 
 	// Initial scan for logstreams
 	plugins, errs = li.logstreamSet.ScanForLogstreams()
