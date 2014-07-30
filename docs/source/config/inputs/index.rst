@@ -7,6 +7,9 @@ Inputs
 .. _config_amqp_input:
 .. include:: /config/inputs/amqp.rst
 
+.. _config_file_polling_input:
+.. include:: /config/inputs/file_polling.rst
+
 .. _config_http_input:
 .. include:: /config/inputs/http.rst
 
