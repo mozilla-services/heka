@@ -39,11 +39,11 @@ func GeoIpDecoderSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	pConfig := NewPipelineConfig(nil)
-
 	pConfig.Globals.ShareDir = "/foo/bar/baz"
 
 	c.Specify("A GeoIpDecoder", func() {
 		decoder := new(GeoIpDecoder)
+		decoder.SetPipelineConfig(pConfig)
 		rec := new(geoip.GeoIPRecord)
 		conf := decoder.ConfigStruct().(*GeoIpDecoderConfig)
 
