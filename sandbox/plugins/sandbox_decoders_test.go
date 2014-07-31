@@ -351,6 +351,104 @@ HugePages_Free:        0
 		})
 	})
 
+	c.Specify("Disk Stats decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/diskstats.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decodes a message", func() {
+			payload := "   13903    11393   969224    49444    10780    10161  1511920     4104        0     5064    53468\n"
+			pack.Message.SetPayload(payload)
+			f, err := message.NewField("FilePath", "/sys/block/sda/stat", "")
+			c.Assume(err, gs.IsNil)
+			pack.Message.AddField(f)
+
+			f, err = message.NewField("TickerInterval", "2", "")
+			c.Assume(err, gs.IsNil)
+			pack.Message.AddField(f)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			// These are in the same order the payload should be
+			value, ok = pack.Message.GetFieldValue("ReadsCompleted")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(13903))
+
+			value, ok = pack.Message.GetFieldValue("ReadsMerged")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(11393))
+
+			value, ok = pack.Message.GetFieldValue("SectorsRead")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(969224))
+
+			value, ok = pack.Message.GetFieldValue("TimeReading")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(49444))
+
+			value, ok = pack.Message.GetFieldValue("WritesCompleted")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(10780))
+
+			value, ok = pack.Message.GetFieldValue("WritesMerged")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(10161))
+
+			value, ok = pack.Message.GetFieldValue("SectorsWritten")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(1511920))
+
+			value, ok = pack.Message.GetFieldValue("TimeWriting")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(4104))
+
+			value, ok = pack.Message.GetFieldValue("NumIOInProgress")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(0))
+
+			value, ok = pack.Message.GetFieldValue("TimeDoingIO")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(5064))
+
+			value, ok = pack.Message.GetFieldValue("WeightedTimeDoingIO")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(53468))
+
+			value, ok = pack.Message.GetFieldValue("TickerInterval")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(2))
+
+			value, ok = pack.Message.GetFieldValue("FilePath")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "/sys/block/sda/stat")
+		})
+
+		c.Specify("decodes an invalid message", func() {
+			data := "bogus message"
+			pack.Message.SetPayload(data)
+			packs, err := decoder.Decode(pack)
+			c.Expect(len(packs), gs.Equals, 0)
+			c.Expect(err.Error(), gs.Equals, "Failed parsing: "+data)
+			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
+			decoder.Shutdown()
+		})
+	})
+
 	c.Specify("Nginx access log decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)

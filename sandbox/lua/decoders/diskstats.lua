@@ -5,7 +5,7 @@
 --[[
 
 Parses a payload containing the contents of a `/sys/block/$DISK/stat` file,
-where `$DISK` is a disk such as sda1  into a Heka message struct. This also
+where `$DISK` is a disk such as sda  into a Heka message struct. This also
 tries to obtain the TickerInterval of the input it recieved the data from, by
 extracting it from a message field named `TickerInterval`.
 
@@ -51,7 +51,7 @@ Config:
     | name:"WeightedTimeDoingIO" value_type:DOUBLE value_double:"48356"
     | name:"NumIOInProgress" value_type:DOUBLE value_double:"3"
     | name:"TickerInterval" value_type:DOUBLE value_double:"2"
-    | name:"FilePath" value_string:"/proc/sys/block/sda1/stat"
+    | name:"FilePath" value_string:"/sys/block/sda/stat"
 
 --]]
 
@@ -94,7 +94,7 @@ function process_message()
     end
 
     msg.Fields.FilePath = read_message("Fields[FilePath]")
-    msg.Fields.TickerInterval = read_message("Fields[TickerInterval]")
+    msg.Fields.TickerInterval = tonumber(read_message("Fields[TickerInterval]"))
     inject_message(msg)
     return 0
 end
