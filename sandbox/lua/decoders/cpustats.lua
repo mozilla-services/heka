@@ -48,11 +48,11 @@ Config:
 local l = require 'lpeg'
 l.locale(l)
 
-local num = l.digit^1 * "." * l.digit^1
+local num = (l.digit^1 * "." * l.digit^1) / tonumber
 local loadavg = l.Cg(num, "1MinAvg") *
     l.space * l.Cg(num, "5MinAvg") *
     l.space * l.Cg(num, "15MinAvg")
-local procs = l.Cg(l.digit^1, "NumProcesses") * l.P"/" * l.digit^1
+local procs = l.Cg((l.digit^1) / tonumber, "NumProcesses") * l.P"/" * l.digit^1
 local latestPid = l.digit^1
 
 local grammar = lpeg.Ct(loadavg * l.space * procs * l.space * latestPid)
