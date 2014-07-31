@@ -117,7 +117,7 @@ function process_message ()
     -- Set up our Cbuf if not setup yet
     local index = 1
     local stat = stats[index]
-    local cb = stats.cbuf
+    local cb = stat.cbuf
     if not cb or settings_changed() then
         cb = init_cbuf(index)
     end
