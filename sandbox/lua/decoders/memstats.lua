@@ -67,10 +67,10 @@ l.locale(l)
 
 local name = l.C((1 - l.P":")^1) * ":"
 local value = l.Cg( l.digit^1 / tonumber, "value")
-local unit = l.C(l.P"kB")
-local repr = l.Cg(l.P"\n" * l.Cc"" + l.space * unit * l.P"\n", "representation")
-local line = l.Cg(name * l.space^1 *l.Ct(value * repr))
-local grammar = l.Cf(l.Ct("") * line^1, rawset)
+local unit = l.C"kB"
+local repr = l.Cg("\n" * l.Cc"" + l.space * unit * "\n", "representation")
+local line = l.Cg(name * l.space^1 * l.Ct(value * repr))
+local grammar = l.Cf(l.Ct"" * line^1, rawset)
 
 local payload_keep = read_config("payload_keep")
 

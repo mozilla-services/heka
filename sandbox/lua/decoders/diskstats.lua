@@ -69,7 +69,7 @@ local row = column("ReadsCompleted") * column("ReadsMerged") *
     column("SectorsRead") * column("TimeReading") * column("WritesCompleted") *
     column("WritesMerged") * column("SectorsWritten") * column("TimeWriting") *
     column("NumIOInProgress") * column("TimeDoingIO") *
-    column("WeightedTimeDoingIO") * l.P("\n")
+    column("WeightedTimeDoingIO") * "\n"
 
 local grammar = l.Ct(row)
 
