@@ -42,37 +42,38 @@ local per_unit          = nil
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 
 stats = {
-    {
+    disk_stats = {
         cbuf = nil,
-        fields = {"WritesCompleted", "ReadsCompleted", "SectorsWritten",
-                  "SectorsRead", "WritesMerged", "ReadsMerged"},
-        msg_fields = {},
-        last_value ={},
+        fields = {
+            { name = "WritesCompleted", key = "Fields[WritesCompleted]", last_value = nil },
+            { name = "ReadsCompleted", key = "Fields[ReadsCompleted]", last_value = nil },
+            { name = "SectorsWritten", key = "Fields[SectorsWritten]", last_value = nil },
+            { name = "SectorsRead", key = "Fields[SectorsRead]", last_value = nil },
+            { name = "WritesMerged", key = "Fields[WritesMerged]", last_value = nil },
+            { name = "ReadsMerged", key = "Fields[ReadsMerged]", last_value = nil },
+        },
         title = "Disk Stats",
         unit = "",
         aggregation = "none"
     },
-    {
+    time_stats = {
         cbuf = nil,
-        fields = {"TimeWriting", "TimeReading", "TimeDoingIO", "WeightedTimeDoingIO"},
-        msg_fields = {},
+        fields = {
+            { name = "TimeWriting", key = "Fields[TimeWriting]" },
+            { name = "TimeReading", key = "Fields[TimeReading]" },
+            { name = "TimeDoingIO", key = "Fields[TimeDoingIO]" },
+            { name = "WeightedTimeDoingIO", key = "Fields[WeightedTimeDoingIO]" },
+        },
         title = "Time doing IO",
         unit = "ms",
         aggregation = "max"
     }
 }
 
-for index, stat in ipairs(stats) do
-    for i, field in ipairs(stat.fields) do
-        stat.msg_fields[i] = string.format("Fields[%s]", field)
-    end
-end
-
-local function init_cbuf(index)
-    local stat = stats[index]
+local function init_cbuf(stat)
     local cbuf = circular_buffer.new(rows, #stat.fields, sec_per_row)
-    for i, label in ipairs(stat.fields) do
-        cbuf:set_header(i, label, stat.unit, stat.aggregation)
+    for i, field in ipairs(stat.fields) do
+        cbuf:set_header(i, field.name, stat.unit, stat.aggregation)
     end
     annotation.set_prune(stat.title, rows * sec_per_row * 1e9)
     stat.cbuf = cbuf
@@ -84,7 +85,9 @@ end
 
 local function update_sec_per_row()
     sec_per_row = read_message("Fields[TickerInterval]")
-    stats[1].unit = "per_" .. sec_per_row .. "_s"
+    if stats.disk_stats.unit == "" then
+        stats.disk_stats.unit = "per_" .. sec_per_row .. "_s"
+    end
     return sec_per_row
 end
 
@@ -104,36 +107,34 @@ function process_message ()
         update_sec_per_row()
     end
 
-    local time_stats = stats[2]
+    local time_stats = stats.time_stats
     if not time_stats.cbuf then
-        init_cbuf(2)
+        init_cbuf(time_stats)
     end
 
-    for i = 1, #time_stats.fields do
-        local val = read_message(time_stats.msg_fields[i])
+    for i, v in ipairs(time_stats.fields) do
+        local val = read_message(v.key)
         if type(val) ~= "number" then return -1 end
         time_stats.cbuf:set(ts, i, val)
     end
 
     -- Set up our Cbuf if not setup yet
-    local index = 1
-    local stat = stats[index]
-    local cb = stat.cbuf
+    local disk_stats = stats.disk_stats
+    local cb = stats.disk_stats.cbuf
     if not cb or settings_changed() then
-        cb = init_cbuf(index)
+        init_cbuf(disk_stats)
     end
 
-    if not cb then return -1 end
-
-    for i = 1, #stat.fields do
-        local val = read_message(stat.msg_fields[i])
+    for i, v in ipairs(disk_stats.fields) do
+        local val = read_message(v.key)
         if type(val) ~= "number" then return -1 end
-        if stat.last_value[i] ~= nil then
+        if v.last_value ~= nil then
+            -- FIXME: Causes a spike when there is a delayed restart w/ preservation = true
             -- Compute delta
-            local delta = val - stat.last_value[i]
-            cb:set(ts, i, delta)
+            local delta = val - v.last_value
+            disk_stats.cbuf:set(ts, i, delta)
         end
-        stat.last_value[i] = val
+        v.last_value = val
     end
 
     return 0
@@ -154,7 +155,7 @@ function timer_event(ns)
             inject_payload("cbuf", title, annotation.prune(title, ns), buf)
         end
     else
-        for i, stat in ipairs(stats) do
+        for k, stat in pairs(stats) do
             inject_payload("cbuf", stat.title, stat.cbuf)
         end
     end

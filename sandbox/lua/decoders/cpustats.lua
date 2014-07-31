@@ -41,13 +41,14 @@ Config:
     | name:"5MinAvg" value_type:DOUBLE value_double:"1.21"
     | name:"15MinAvg" value_type:DOUBLE value_double:"0.44"
     | name:"NumProcesses" value_type:DOUBLE value_double:"11"
+    | name:"FilePath" value_string:"/proc/loadavg"
 
 --]]
 
 local l = require 'lpeg'
 l.locale(l)
 
-local num = l.digit^1 * l.P"." * l.digit^1
+local num = l.digit^1 * "." * l.digit^1
 local loadavg = l.Cg(num, "1MinAvg") *
     l.space * l.Cg(num, "5MinAvg") *
     l.space * l.Cg(num, "15MinAvg")
@@ -66,7 +67,6 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local filePath = read_message("Fields[FilePath]")
     msg.Fields = grammar:match(data)
 
     if not msg.Fields then
@@ -77,7 +77,7 @@ function process_message()
         msg.Payload = data
     end
 
-    msg.Fields.FilePath = filePath
+    msg.Fields.FilePath = read_message("Fields[FilePath]")
     inject_message(msg)
     return 0
 end

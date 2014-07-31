@@ -26,7 +26,7 @@ Config:
 
     [DiskStatsDecoder]
     type = "SandboxDecoder"
-    filename = "lua_decoders/cpustats.lua"
+    filename = "lua_decoders/diskstats.lua"
 
 *Example Heka Message*
 
@@ -51,6 +51,7 @@ Config:
     | name:"WeightedTimeDoingIO" value_type:DOUBLE value_double:"48356"
     | name:"NumIOInProgress" value_type:DOUBLE value_double:"3"
     | name:"TickerInterval" value_type:DOUBLE value_double:"2"
+    | name:"FilePath" value_string:"/proc/sys/block/sda1/stat"
 
 --]]
 
@@ -82,7 +83,6 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local filePath = read_message("Fields[FilePath]")
     msg.Fields = grammar:match(data)
 
     if not msg.Fields then
@@ -93,9 +93,8 @@ function process_message()
         msg.Payload = data
     end
 
-    msg.Fields.FilePath = filePath
+    msg.Fields.FilePath = read_message("Fields[FilePath]")
     msg.Fields.TickerInterval = read_message("Fields[TickerInterval]")
     inject_message(msg)
     return 0
 end
-

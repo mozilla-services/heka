@@ -41,6 +41,7 @@ Config:
     | name:"MemFree" value_type:DOUBLE representation:"kB" value_double:"3432216"
     | name:"Buffers" value_type:DOUBLE representation:"kB" value_double:"82028"
     | name:"Cached" value_type:DOUBLE representation:"kB" value_double:"368636"
+    | name:"FilePath" value_string:"/proc/meminfo"
 
 
 The total available fields can be found in `man procfs`. All fields are of type
@@ -82,7 +83,6 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local filePath = read_message("Fields[FilePath]")
     msg.Fields = grammar:match(data)
 
     if not msg.Fields then
@@ -93,9 +93,7 @@ function process_message()
         msg.Payload = data
     end
 
-    msg.Fields.FilePath = filePath
+    msg.Fields.FilePath = read_message("Fields[FilePath]")
     inject_message(msg)
     return 0
 end
-
-

@@ -31,7 +31,6 @@ Config:
 
 require "circular_buffer"
 require "string"
-require "table"
 local alert         = require "alert"
 local annotation    = require "annotation"
 local anomaly       = require "anomaly"
@@ -49,13 +48,13 @@ cbuf = circular_buffer.new(rows, #field_names, sec_per_row)
 local labels = {}
 
 for i, name in ipairs(field_names) do
-    table.insert(labels, string.format("Fields[%s]", name))
+    labels[#labels+1] = string.format("Fields[%s]", name)
     cbuf:set_header(i, name, "Count", "max")
 end
 
 function process_message ()
     local ts = read_message("Timestamp")
-    for i, name in pairs(field_names) do
+    for i, name in ipairs(field_names) do
         cbuf:set(ts, i, read_message(labels[i]))
     end
     return 0

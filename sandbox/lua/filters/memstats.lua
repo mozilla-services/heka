@@ -49,26 +49,30 @@ local field_names = {"MemFree", "Cached", "Active", "Inactive", "VmallocUsed", "
 
 cbuf = circular_buffer.new(rows, #field_names+2, sec_per_row)
 
+local labels = {}
+local SwapFreeCol = #field_names+1
+local SwapUsedCol = #field_names+2
+
 for i, name in pairs(field_names) do
+    labels[i] = string.format("Fields[%s]", name)
     cbuf:set_header(i, name, "Count", "max")
 end
 
-cbuf:set_header(#field_names+1, "SwapFree", "Count", "max")
-cbuf:set_header(#field_names+2, "SwapUsed", "Count", "max")
+cbuf:set_header(SwapFreeCol, "SwapFree", "Count", "max")
+cbuf:set_header(SwapUsedCol, "SwapUsed", "Count", "max")
 
 
 function process_message ()
     local ts = read_message("Timestamp")
     for i, name in pairs(field_names) do
-        local label = string.format("Fields[%s]", name)
-        cbuf:set(ts, i, read_message(label))
+        cbuf:set(ts, i, read_message(labels[i]))
     end
     local swapFree = read_message("Fields[SwapFree]")
     local swapTotal = read_message("Fields[SwapTotal]")
     local swapUsed = swapTotal - swapFree
 
-    cbuf:set(ts, #field_names+1, swapFree)
-    cbuf:set(ts, #field_names+2, swapUsed)
+    cbuf:set(ts, SwapFreeCol, swapFree)
+    cbuf:set(ts, SwapUsedCol, swapUsed)
 
     return 0
 end
