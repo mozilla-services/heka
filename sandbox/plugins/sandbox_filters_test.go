@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	pm "github.com/mozilla-services/heka/pipelinemock"
