@@ -226,6 +226,55 @@ func FilterSpec(c gs.Context) {
 			c.Expect(sbmFilter.instructionLimit, gs.Equals, config.InstructionLimit)
 			c.Expect(sbmFilter.outputLimit, gs.Equals, config.OutputLimit)
 		})
+
+		c.Specify("Creates a SandboxFilter runner", func() {
+			sbxName := "SandboxFilter"
+			sbxMgrName := "SandboxManagerFilter"
+			code := `
+			require("cjson")
+
+			function process_message()
+			    inject_payload(cjson.encode({a = "b"}))
+			    return 0
+			end
+			`
+			cfg := `
+			[%s]
+			type = "SandboxFilter"
+			message_matcher = "TRUE"
+			script_type = "lua"
+			`
+			cfg = fmt.Sprintf(cfg, sbxName)
+			msg.SetPayload(code)
+			f, err := message.NewField("config", cfg, "toml")
+			c.Assume(err, gs.IsNil)
+			msg.AddField(f)
+
+			fMatchChan := pConfig.Router().AddFilterMatcher()
+			errChan := make(chan error)
+
+			fth.MockFilterRunner.EXPECT().Name().Return(sbxMgrName)
+			fullSbxName := fmt.Sprintf("%s-%s", sbxMgrName, sbxName)
+			fth.MockHelper.EXPECT().Filter(fullSbxName).Return(nil, false)
+			fth.MockFilterRunner.EXPECT().LogMessage(fmt.Sprintf("Loading: %s", fullSbxName))
+
+			sbmFilter.Init(config)
+			go func() {
+				err := sbmFilter.loadSandbox(fth.MockFilterRunner, fth.MockHelper, sbxMgrsDir,
+					msg)
+				errChan <- err
+			}()
+
+			fMatch := <-fMatchChan
+			c.Expect(fMatch.MatcherSpecification().String(), gs.Equals, "TRUE")
+			c.Expect(<-errChan, gs.IsNil)
+
+			go func() {
+				<-pConfig.Router().RemoveFilterMatcher()
+			}()
+			ok := pConfig.RemoveFilterRunner(fullSbxName)
+			c.Expect(ok, gs.IsTrue)
+		})
 	})
 }
 

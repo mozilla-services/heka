@@ -147,6 +147,8 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	// Create plugin, test config object generation.
 	wrapper.PluginCreator, _ = pipeline.AvailablePlugins[pluginGlobals.Typ]
 	plugin := wrapper.PluginCreator()
+	sbxFilter := plugin.(*SandboxFilter)
+	sbxFilter.SetPipelineConfig(this.pConfig)
 	var config interface{}
 	if config, err = pipeline.LoadConfigStruct(configSection, plugin); err != nil {
 		return nil, fmt.Errorf("Can't load config for '%s': %s", wrapper.Name, err)
@@ -159,8 +161,8 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	conf.MemoryLimit = this.memoryLimit
 	conf.InstructionLimit = this.instructionLimit
 	conf.OutputLimit = this.outputLimit
-	plugin.(*SandboxFilter).name = wrapper.Name // preserve the reserved manager hyphenated name
-	plugin.(*SandboxFilter).manager = this
+	sbxFilter.name = wrapper.Name // preserve the reserved manager hyphenated name
+	sbxFilter.manager = this
 
 	// Apply configuration to instantiated plugin.
 	if err = plugin.(pipeline.Plugin).Init(config); err != nil {
@@ -252,7 +254,7 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					removeAll(dir, fmt.Sprintf("%s.*", name))
 					return
 				}
-				err = h.PipelineConfig().AddFilterRunner(runner)
+				err = this.pConfig.AddFilterRunner(runner)
 				if err == nil {
 					atomic.AddInt32(&this.currentFilters, 1)
 				}
@@ -266,7 +268,9 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 // On Heka restarts this function reloads all previously running SandboxFilters
 // using the script, configuration, and preservation files in the working
 // directory.
-func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h pipeline.PluginHelper, dir string) {
+func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner,
+	h pipeline.PluginHelper, dir string) {
+
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
 	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
@@ -285,7 +289,7 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h p
 						removeAll(dir, fmt.Sprintf("%s.*", name))
 						break
 					}
-					err = h.PipelineConfig().AddFilterRunner(runner)
+					err = this.pConfig.AddFilterRunner(runner)
 					if err != nil {
 						fr.LogError(err)
 					} else {
@@ -298,7 +302,9 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner, h p
 	}
 }
 
-func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper) (err error) {
+func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
+	h pipeline.PluginHelper) (err error) {
+
 	inChan := fr.InChan()
 
 	var ok = true
@@ -315,7 +321,8 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.Plugi
 			atomic.AddInt64(&this.processMessageCount, 1)
 			delta = time.Now().UnixNano() - pack.Message.GetTimestamp()
 			if math.Abs(float64(delta)) >= 5e9 {
-				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew", delta/1e9))
+				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew",
+					delta/1e9))
 				pack.Recycle()
 				break
 			}
@@ -336,7 +343,7 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner, h pipeline.Plugi
 				fv, _ := pack.Message.GetFieldValue("name")
 				if name, ok := fv.(string); ok {
 					name = getSandboxName(fr.Name(), name)
-					if h.PipelineConfig().RemoveFilterRunner(name) {
+					if this.pConfig.RemoveFilterRunner(name) {
 						removeAll(this.workingDirectory, fmt.Sprintf("%s.*", name))
 					}
 				}

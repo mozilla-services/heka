@@ -95,12 +95,12 @@ type WantsName interface {
 	SetName(name string)
 }
 
-// Indicates a plugin wants access to the PipelineConfig before any methods on
-// the plugin are called. This (and the other `Wants*` interfaces) is a bit
-// kludgey, but it will have to do until we overhaul the config loading code
-// to make all of the right components automatically available to each plugin
-// earlier in the life cycle, which will involve small breaking changes to the
-// core plugin APIs.
+// WantsPipelineConfig indicates that a plugin wants access to the
+// PipelineConfig before any methods on the plugin are called. This (and the
+// other `Wants*` interfaces) is a bit kludgey, but it will have to do until
+// we overhaul the config loading code to make all of the right components
+// automatically available to each plugin earlier in the life cycle, which
+// will involve small breaking changes to the core plugin APIs.
 type WantsPipelineConfig interface {
 	SetPipelineConfig(pConfig *PipelineConfig)
 }
