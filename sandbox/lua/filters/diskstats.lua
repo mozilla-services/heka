@@ -88,7 +88,6 @@ local function update_sec_per_row()
     if stats.disk_stats.unit == "" then
         stats.disk_stats.unit = "per_" .. sec_per_row .. "_s"
     end
-    return sec_per_row
 end
 
 -- This tells us if our persisted settings changed between runs.
