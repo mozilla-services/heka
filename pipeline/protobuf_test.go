@@ -81,6 +81,7 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	config := NewPipelineConfig(nil)
 	pack := NewPipelinePack(config.inputRecycleChan)
 	decoder := new(ProtobufDecoder)
+	decoder.SetPipelineConfig(config)
 	decoder.Init(nil)
 	pack.MsgBytes = encoded
 	b.StartTimer()

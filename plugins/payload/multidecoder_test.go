@@ -327,8 +327,10 @@ func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	pack := NewPipelinePack(pConfig.InputRecycleChan())
 	pack.MsgBytes, _ = proto.Marshal(msg)
 	decoder := new(MultiDecoder)
+	decoder.SetPipelineConfig(pConfig)
 	conf := decoder.ConfigStruct().(*MultiDecoderConfig)
 	sub := new(ProtobufDecoder)
+	sub.SetPipelineConfig(pConfig)
 	sub.Init(nil)
 	wrapper0 := NewPluginWrapper("sub", pConfig)
 	wrapper0.CreateWithError = func() (interface{}, error) {
