@@ -47,7 +47,7 @@ Config:
 local l = require 'lpeg'
 l.locale(l)
 
-local num = (l.digit + l.P".")^1
+local num = l.digit^1 * l.P"." * l.digit^1
 local loadavg = l.Cg(num, "1MinAvg") *
     l.space * l.Cg(num, "5MinAvg") *
     l.space * l.Cg(num, "15MinAvg")
@@ -59,7 +59,6 @@ local grammar = lpeg.Ct(loadavg * l.space * procs * l.space * latestPid)
 local payload_keep = read_config("payload_keep")
 
 local msg = {
-    Timestamp = nil,
     Type = "stats.cpustats",
     Payload = nil,
     Fields = nil
@@ -67,20 +66,18 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local fields = grammar:match(data)
+    local filePath = read_message("Fields[FilePath]")
+    msg.Fields = grammar:match(data)
 
-    if not fields then
+    if not msg.Fields then
         return -1
     end
-
-    msg.Timestamp = fields.time
-    fields.time = nil
 
     if payload_keep then
         msg.Payload = data
     end
 
-    msg.Fields = fields
+    msg.Fields.FilePath = filePath
     inject_message(msg)
     return 0
 end

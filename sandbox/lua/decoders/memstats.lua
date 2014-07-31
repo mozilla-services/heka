@@ -82,18 +82,18 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local fields = grammar:match(data)
+    local filePath = read_message("Fields[FilePath]")
+    msg.Fields = grammar:match(data)
 
-    if not fields then return -1 end
-
-    msg.Timestamp = fields.time
-    fields.time = nil
+    if not msg.Fields then
+        return -1
+    end
 
     if payload_keep then
         msg.Payload = data
     end
 
-    msg.Fields = fields
+    msg.Fields.FilePath = filePath
     inject_message(msg)
     return 0
 end

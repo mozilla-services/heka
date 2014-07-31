@@ -18,13 +18,13 @@ Config:
 
 .. code-block:: ini
 
-    [CpuStats]
+    [DiskStats]
     type = "FilePollingInput"
     ticker_interval = 1
     file_path = "/proc/loadavg"
-    decoder = "CpuStatsDecoder"
+    decoder = "DiskStatsDecoder"
 
-    [CpuStatsDecoder]
+    [DiskStatsDecoder]
     type = "SandboxDecoder"
     filename = "lua_decoders/cpustats.lua"
 
@@ -70,12 +70,11 @@ local row = column("ReadsCompleted") * column("ReadsMerged") *
     column("NumIOInProgress") * column("TimeDoingIO") *
     column("WeightedTimeDoingIO") * l.P("\n")
 
-local grammar = l.Ct(row^1)
+local grammar = l.Ct(row)
 
 local payload_keep = read_config("payload_keep")
 
 local msg = {
-    Timestamp = nil,
     Type = "stats.diskstats",
     Payload = nil,
     Fields = nil
@@ -83,20 +82,18 @@ local msg = {
 
 function process_message()
     local data = read_message("Payload")
-    local fields = grammar:match(data)
+    local filePath = read_message("Fields[FilePath]")
+    msg.Fields = grammar:match(data)
 
-    if not fields then
+    if not msg.Fields then
         return -1
     end
-
-    msg.Timestamp = fields.time
-    fields.time = nil
 
     if payload_keep then
         msg.Payload = data
     end
 
-    msg.Fields = fields
+    msg.Fields.FilePath = filePath
     msg.Fields.TickerInterval = read_message("Fields[TickerInterval]")
     inject_message(msg)
     return 0

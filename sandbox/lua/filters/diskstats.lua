@@ -53,17 +53,18 @@ stats = {
         aggregation = "none"
     },
     {
+        cbuf = nil,
         fields = {"TimeWriting", "TimeReading", "TimeDoingIO", "WeightedTimeDoingIO"},
         msg_fields = {},
         title = "Time doing IO",
         unit = "ms",
-        aggregation = "max",
+        aggregation = "max"
     }
 }
 
-for index, cbuf in ipairs(stats) do
-    for i, field in ipairs(stats[index].fields) do
-        stats[index].msg_fields[i] = string.format("Fields[%s]", field)
+for index, stat in ipairs(stats) do
+    for i, field in ipairs(stat.fields) do
+        stat.msg_fields[i] = string.format("Fields[%s]", field)
     end
 end
 
@@ -90,7 +91,7 @@ end
 -- This tells us if our persisted settings changed between runs.
 local function settings_changed()
     update_sec_per_row()
-    if rows == last_run.rows and sec_per_row == last_run.sec_per_row then
+    if (rows == last_run.rows) and (sec_per_row == last_run.sec_per_row) then
         return false
     end
     return true
@@ -108,7 +109,7 @@ function process_message ()
         init_cbuf(2)
     end
 
-    for i, field in ipairs(time_stats.fields) do
+    for i = 1, #time_stats.fields do
         local val = read_message(time_stats.msg_fields[i])
         if type(val) ~= "number" then return -1 end
         time_stats.cbuf:set(ts, i, val)
@@ -124,7 +125,7 @@ function process_message ()
 
     if not cb then return -1 end
 
-    for i, field in ipairs(stat.fields) do
+    for i = 1, #stat.fields do
         local val = read_message(stat.msg_fields[i])
         if type(val) ~= "number" then return -1 end
         if stat.last_value[i] ~= nil then
@@ -147,7 +148,7 @@ function timer_event(ns)
                 local msg, annos = anomaly.detect(ns, title, buf, anomaly_config)
                 if msg then
                     annotation.concat(buf, annos)
-                    alert.send(ns, msg)
+                    alert.queue(ns, msg)
                 end
             end
             inject_payload("cbuf", title, annotation.prune(title, ns), buf)
@@ -157,4 +158,5 @@ function timer_event(ns)
             inject_payload("cbuf", stat.title, stat.cbuf)
         end
     end
+    alert.send_queue(ns)
 end
