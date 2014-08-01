@@ -94,7 +94,7 @@ function process_message()
     end
 
     msg.Fields.FilePath = read_message("Fields[FilePath]")
-    msg.Fields.TickerInterval = tonumber(read_message("Fields[TickerInterval]"))
+    msg.Fields.TickerInterval = read_message("Fields[TickerInterval]")
     inject_message(msg)
     return 0
 end

@@ -374,7 +374,7 @@ HugePages_Free:        0
 			c.Assume(err, gs.IsNil)
 			pack.Message.AddField(f)
 
-			f, err = message.NewField("TickerInterval", "2", "")
+			f, err = message.NewField("TickerInterval", int64(2), "")
 			c.Assume(err, gs.IsNil)
 			pack.Message.AddField(f)
 
