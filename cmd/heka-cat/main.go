@@ -20,7 +20,7 @@ protobuf logs.
 package main
 
 import (
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	"encoding/json"
 	"flag"
 	"fmt"

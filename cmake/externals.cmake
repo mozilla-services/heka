@@ -166,9 +166,9 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 hg_clone(https://code.google.com/p/go-uuid default)
-hg_clone(https://code.google.com/p/goprotobuf default)
-add_custom_command(TARGET goprotobuf POST_BUILD
-COMMAND ${GO_EXECUTABLE} install code.google.com/p/goprotobuf/protoc-gen-go)
+git_clone(https://code.google.com/p/gogoprotobuf d228c1a206c3)
+add_custom_command(TARGET gogoprotobuf POST_BUILD
+COMMAND ${GO_EXECUTABLE} install code.google.com/p/gogoprotobuf/protoc-gen-gogo)
 
 include(plugin_loader OPTIONAL)
 
