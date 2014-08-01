@@ -41,6 +41,9 @@ Bug Handling
 Features
 --------
 
+* Switched from using goprotobuf to gogoprotobuf with marshal_all and
+  unmarshal_all extensions for significant performance increase.
+
 * Added stats graph sandbox filter to make it easier to generate graphs of
   statsd / graphite metrics (issue #966).
 

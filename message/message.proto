@@ -1,5 +1,11 @@
 package message;
 
+import "gogo.proto";
+
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
 message Header {
   enum HmacHashFunction {
     MD5  = 0;

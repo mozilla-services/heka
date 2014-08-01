@@ -21,7 +21,7 @@
 package payload
 
 import (
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
