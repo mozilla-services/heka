@@ -244,6 +244,7 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	pc.router.InChan() <- pack
 
 	mempack := pc.PipelinePack(0)
+	mempack.Message.SetLogger(HEKA_DAEMON)
 	mempack.Message.SetType("heka.memstat")
 
 	var m runtime.MemStats
