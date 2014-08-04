@@ -229,4 +229,80 @@ func FilterSpec(c gs.Context) {
 			c.Expect(ok, gs.IsTrue)
 		})
 	})
+
+	c.Specify("A Cpu Stats filter", func() {
+		filter := new(SandboxFilter)
+		filter.SetPipelineConfig(pConfig)
+		filter.name = "cpustats"
+		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/filters/cpustats.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 1000000
+
+		conf.Config = make(map[string]interface{})
+		conf.Config["rows"] = int64(3)
+		conf.Config["sec_per_row"] = int64(1)
+
+		timer := make(chan time.Time, 1)
+		errChan := make(chan error, 1)
+		retPackChan := make(chan *pipeline.PipelinePack, 5)
+		recycleChan := make(chan *pipeline.PipelinePack, 1)
+
+		defer func() {
+			close(errChan)
+			close(retPackChan)
+		}()
+
+		msg := getTestMessage()
+		fields := make([]*message.Field, 4)
+		fields[0], _ = message.NewField("1MinAvg", 0.08, "")
+		fields[1], _ = message.NewField("5MinAvg", 0.04, "")
+		fields[2], _ = message.NewField("15MinAvg", 0.02, "")
+		fields[3], _ = message.NewField("NumProcesses", 5, "")
+		msg.Fields = fields
+
+		pack := pipeline.NewPipelinePack(recycleChan)
+
+		fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack)
+		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+		fth.MockFilterRunner.EXPECT().Name().Return("cpustats")
+		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
+			retPackChan <- pack
+		}).Return(true)
+
+		err := filter.Init(conf)
+		c.Assume(err, gs.IsNil)
+
+		c.Specify("should fill a cbuf with cpuload data", func() {
+			go func() {
+				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
+			}()
+
+			for i := 1; i <= 3; i++ {
+				// Fill in the data
+				t := int64(i * 1000000000)
+				pack.Message = msg
+				pack.Message.SetTimestamp(t)
+
+				// Feed in a pack
+				inChan <- pack
+				pack = <-recycleChan
+			}
+
+			timer <- time.Now()
+			p := <-retPackChan
+			// Check the result of the filter's inject
+			pl := `{"time":1,"rows":3,"columns":4,"seconds_per_row":1,"column_info":[{"name":"1MinAvg","unit":"Count","aggregation":"max"},{"name":"5MinAvg","unit":"Count","aggregation":"max"},{"name":"15MinAvg","unit":"Count","aggregation":"max"},{"name":"NumProcesses","unit":"Count","aggregation":"max"}]}
+0.08	0.04	0.02	5
+0.08	0.04	0.02	5
+0.08	0.04	0.02	5
+`
+
+			c.Expect(p.Message.GetPayload(), gs.Equals, pl)
+		})
+
+		close(inChan)
+		c.Expect(<-errChan, gs.IsNil)
+	})
 }
