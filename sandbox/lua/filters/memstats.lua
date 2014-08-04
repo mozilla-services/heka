@@ -65,10 +65,14 @@ cbuf:set_header(SwapUsedCol, "SwapUsed", "Count", "max")
 function process_message ()
     local ts = read_message("Timestamp")
     for i, name in pairs(field_names) do
-        cbuf:set(ts, i, read_message(labels[i]))
+        local val = read_message(labels[i])
+        if type(val) ~= "number" then return -1 end
+        cbuf:set(ts, i, val)
     end
     local swapFree = read_message("Fields[SwapFree]")
+    if type(swapFree) ~= "number" then return -1 end
     local swapTotal = read_message("Fields[SwapTotal]")
+    if type(swapFree) ~= "number" then return -1 end
     local swapUsed = swapTotal - swapFree
 
     cbuf:set(ts, SwapFreeCol, swapFree)
