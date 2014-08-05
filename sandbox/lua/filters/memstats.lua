@@ -72,7 +72,7 @@ function process_message ()
     local swapFree = read_message("Fields[SwapFree]")
     if type(swapFree) ~= "number" then return -1 end
     local swapTotal = read_message("Fields[SwapTotal]")
-    if type(swapFree) ~= "number" then return -1 end
+    if type(swapTotal) ~= "number" then return -1 end
     local swapUsed = swapTotal - swapFree
 
     cbuf:set(ts, SwapFreeCol, swapFree)

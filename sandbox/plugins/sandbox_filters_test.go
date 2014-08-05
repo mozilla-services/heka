@@ -237,7 +237,6 @@ func FilterSpec(c gs.Context) {
 		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/filters/cpustats.lua"
 		conf.ModuleDirectory = "../lua/modules"
-		conf.MemoryLimit = 1000000
 
 		conf.Config = make(map[string]interface{})
 		conf.Config["rows"] = int64(3)
@@ -245,7 +244,7 @@ func FilterSpec(c gs.Context) {
 
 		timer := make(chan time.Time, 1)
 		errChan := make(chan error, 1)
-		retPackChan := make(chan *pipeline.PipelinePack, 5)
+		retPackChan := make(chan *pipeline.PipelinePack, 1)
 		recycleChan := make(chan *pipeline.PipelinePack, 1)
 
 		defer func() {
@@ -313,7 +312,6 @@ func FilterSpec(c gs.Context) {
 		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/filters/memstats.lua"
 		conf.ModuleDirectory = "../lua/modules"
-		conf.MemoryLimit = 1000000
 
 		conf.Config = make(map[string]interface{})
 		conf.Config["rows"] = int64(3)
@@ -321,7 +319,7 @@ func FilterSpec(c gs.Context) {
 
 		timer := make(chan time.Time, 1)
 		errChan := make(chan error, 1)
-		retPackChan := make(chan *pipeline.PipelinePack, 5)
+		retPackChan := make(chan *pipeline.PipelinePack, 1)
 		recycleChan := make(chan *pipeline.PipelinePack, 1)
 
 		defer func() {
@@ -389,14 +387,13 @@ func FilterSpec(c gs.Context) {
 		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/filters/diskstats.lua"
 		conf.ModuleDirectory = "../lua/modules"
-		conf.MemoryLimit = 1000000
 
 		conf.Config = make(map[string]interface{})
 		conf.Config["rows"] = int64(3)
 
 		timer := make(chan time.Time, 1)
 		errChan := make(chan error, 1)
-		retMsgChan := make(chan *message.Message, 5)
+		retMsgChan := make(chan *message.Message, 3)
 		recycleChan := make(chan *pipeline.PipelinePack, 1)
 
 		defer func() {
