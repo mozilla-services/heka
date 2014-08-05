@@ -259,6 +259,8 @@ func IrcOutputSpec(c gs.Context) {
 					// trigger a kick event for the irc channel
 					kick(mockIrcConn, ircChan)
 					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, JOINED)
+					// quit
+					close(inChan)
 				})
 
 				c.Specify("doesnt rejoin when it isnt configured to", func() {
@@ -271,15 +273,17 @@ func IrcOutputSpec(c gs.Context) {
 
 					startOutput()
 
+					// Since this is the only channel we're in, we should get an
+					// error that there are no channels to join left after being
+					// kicked
+					outTestHelper.MockOutputRunner.EXPECT().LogError(ErrNoJoinableChannels)
 					// trigger a kick for the irc channel
 					kick(mockIrcConn, ircChan)
 					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, CANNOTJOIN)
-
-					outTestHelper.MockOutputRunner.EXPECT().LogError(ErrNoJoinableChannels)
-					ircOutput.Join(ircChan)
+					// We shouldnt need to close the inChan, since we have no
+					// joinable channels, we should be cleaning up already.
 				})
 
-				close(inChan)
 				wg.Wait()
 			})
 
