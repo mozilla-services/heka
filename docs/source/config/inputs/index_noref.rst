@@ -5,6 +5,8 @@ Inputs
 
 .. include:: /config/inputs/amqp.rst
 
+.. include:: /config/inputs/file_polling.rst
+
 .. include:: /config/inputs/http.rst
 
 .. include:: /config/inputs/httplisten.rst

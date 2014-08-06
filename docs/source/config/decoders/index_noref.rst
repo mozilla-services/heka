@@ -16,6 +16,22 @@ Apache Access Log Decoder
 
 .. include:: /config/decoders/multi.rst
 
+Cpu Stats Decoder
+=================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/cpustats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Disk Stats Decoder
+==================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Nginx Access Log Decoder
 ========================
 
@@ -31,6 +47,14 @@ MySQL Slow Query Log Decoder
 
 .. versionadded:: 0.6
 .. include:: /../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Memory Stats Decoder
+====================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/memstats.lua
    :start-after: --[[
    :end-before: --]]
 
