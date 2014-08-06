@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG 345b71db4284d3a4fa3186c3aa244d4d035baa29
+        GIT_TAG 3da8912fe29e3fdd865b7f476d79cbe300d6af74
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -174,7 +174,7 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 hg_clone(https://code.google.com/p/go-uuid default)
-git_clone(https://code.google.com/p/gogoprotobuf d228c1a206c3)
+git_clone(https://code.google.com/p/gogoprotobuf 7008a93e68bf)
 add_custom_command(TARGET gogoprotobuf POST_BUILD
 COMMAND ${GO_EXECUTABLE} install code.google.com/p/gogoprotobuf/protoc-gen-gogo)
 

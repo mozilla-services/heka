@@ -591,26 +591,39 @@ func (m *Field) Unmarshal(data []byte) error {
 			copy(m.ValueBytes[len(m.ValueBytes)-1], data[index:postIndex])
 			index = postIndex
 		case 6:
-			if wireType != 2 {
-				return code_google_com_p_gogoprotobuf_proto.ErrWrongType
-			}
-			var packedLen int
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
+			if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if index >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := data[index]
+					index++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				postIndex := index + packedLen
+				if postIndex > l {
 					return io.ErrUnexpectedEOF
 				}
-				b := data[index]
-				index++
-				packedLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
+				for index < postIndex {
+					var v int64
+					for shift := uint(0); ; shift += 7 {
+						if index >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := data[index]
+						index++
+						v |= (int64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ValueInteger = append(m.ValueInteger, v)
 				}
-			}
-			postIndex := index + packedLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			for index < postIndex {
+			} else if wireType == 0 {
 				var v int64
 				for shift := uint(0); ; shift += 7 {
 					if index >= l {
@@ -624,28 +637,46 @@ func (m *Field) Unmarshal(data []byte) error {
 					}
 				}
 				m.ValueInteger = append(m.ValueInteger, v)
-			}
-		case 7:
-			if wireType != 2 {
+			} else {
 				return code_google_com_p_gogoprotobuf_proto.ErrWrongType
 			}
-			var packedLen int
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
+		case 7:
+			if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if index >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := data[index]
+					index++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				postIndex := index + packedLen
+				if postIndex > l {
 					return io.ErrUnexpectedEOF
 				}
-				b := data[index]
-				index++
-				packedLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
+				for index < postIndex {
+					var v uint64
+					i := index + 8
+					if i > l {
+						return io.ErrUnexpectedEOF
+					}
+					index = i
+					v = uint64(data[i-8])
+					v |= uint64(data[i-7]) << 8
+					v |= uint64(data[i-6]) << 16
+					v |= uint64(data[i-5]) << 24
+					v |= uint64(data[i-4]) << 32
+					v |= uint64(data[i-3]) << 40
+					v |= uint64(data[i-2]) << 48
+					v |= uint64(data[i-1]) << 56
+					v2 := math1.Float64frombits(v)
+					m.ValueDouble = append(m.ValueDouble, v2)
 				}
-			}
-			postIndex := index + packedLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			for index < postIndex {
+			} else if wireType == 1 {
 				var v uint64
 				i := index + 8
 				if i > l {
@@ -662,28 +693,43 @@ func (m *Field) Unmarshal(data []byte) error {
 				v |= uint64(data[i-1]) << 56
 				v2 := math1.Float64frombits(v)
 				m.ValueDouble = append(m.ValueDouble, v2)
-			}
-		case 8:
-			if wireType != 2 {
+			} else {
 				return code_google_com_p_gogoprotobuf_proto.ErrWrongType
 			}
-			var packedLen int
-			for shift := uint(0); ; shift += 7 {
-				if index >= l {
+		case 8:
+			if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if index >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := data[index]
+					index++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				postIndex := index + packedLen
+				if postIndex > l {
 					return io.ErrUnexpectedEOF
 				}
-				b := data[index]
-				index++
-				packedLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
+				for index < postIndex {
+					var v int
+					for shift := uint(0); ; shift += 7 {
+						if index >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := data[index]
+						index++
+						v |= (int(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ValueBool = append(m.ValueBool, bool(v != 0))
 				}
-			}
-			postIndex := index + packedLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			for index < postIndex {
+			} else if wireType == 0 {
 				var v int
 				for shift := uint(0); ; shift += 7 {
 					if index >= l {
@@ -697,6 +743,8 @@ func (m *Field) Unmarshal(data []byte) error {
 					}
 				}
 				m.ValueBool = append(m.ValueBool, bool(v != 0))
+			} else {
+				return code_google_com_p_gogoprotobuf_proto.ErrWrongType
 			}
 		default:
 			var sizeOfWire int
