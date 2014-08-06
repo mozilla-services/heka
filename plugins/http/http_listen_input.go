@@ -45,16 +45,18 @@ type HttpListenInputConfig struct {
 	// Name of configured decoder instance used to decode the messages.
 	// Defaults to request body as payload.
 	Decoder string
+
+	Headers http.Header
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
 	return &HttpListenInputConfig{
 		Address: "127.0.0.1:8325",
+		Headers: make(http.Header),
 	}
 }
 
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
-
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error())
@@ -138,7 +140,9 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	}
 
 	hliEndpointMux.HandleFunc("/", hli.RequestHandler)
-	err = http.Serve(hli.listener, hliEndpointMux)
+
+	handler := CustomHeadersHandler(hliEndpointMux, hli.conf.Headers)
+	err = http.Serve(hli.listener, handler)
 	if err != nil {
 		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
 	}

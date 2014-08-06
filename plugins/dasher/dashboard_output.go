@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	httpPlugin "github.com/mozilla-services/heka/plugins/http"
 	"io"
 	"net/http"
 	"os"
@@ -49,6 +50,8 @@ type DashboardOutputConfig struct {
 	TickerInterval uint `toml:"ticker_interval"`
 	// Default message matcher.
 	MessageMatcher string
+	// Custom http headers
+	Headers http.Header
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
@@ -58,6 +61,7 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
+		Headers:          make(http.Header),
 	}
 }
 
@@ -143,6 +147,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	}
 
 	h := http.FileServer(http.Dir(self.workingDirectory))
+	h = httpPlugin.CustomHeadersHandler(h, conf.Headers)
 	self.server = &http.Server{
 		Addr:         conf.Address,
 		Handler:      h,

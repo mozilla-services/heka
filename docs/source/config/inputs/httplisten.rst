@@ -29,6 +29,14 @@ Config:
     The name of the decoder used to further transform the request body text
     into a structured hekad message. No default decoder is specified.
 
+.. versionadded:: 0.7
+
+- headers (subsection, optional):
+    It is possible to inject arbitrary HTTP headers into each outgoing request
+    by adding a TOML subsection entitled "headers" to you HttpOutput config
+    section. All entries in the subsection must be a list of string values.
+
+
 Example:
 
 .. code-block:: ini
