@@ -59,6 +59,9 @@ Config:
 	Absolute paths will be honored, relative paths will be computed relative
 	to Heka's globally specified share_dir. Defaults to "processes" (i.e.
 	"$share_dir/processes").
+- retries (RetryOptions, optional):
+    - A sub-section that specifies the settings to be used for restart behavior.
+    See :ref:`configuring_restarting`
 
 Example:
 
