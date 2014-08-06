@@ -54,8 +54,8 @@ end
 
 function process_message ()
     local ts = read_message("Timestamp")
-    for i, name in ipairs(field_names) do
-        local val = read_message(labels[i])
+    for i, label in ipairs(labels) do
+        local val = read_message(label)
         if type(val) ~= "number" then return -1 end
         cbuf:set(ts, i, val)
     end
