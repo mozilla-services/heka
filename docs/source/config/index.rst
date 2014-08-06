@@ -180,7 +180,7 @@ Example hekad.toml file
     password = "smtp-pass"
     host = "mail.example.com:25"
     encoder = "AlertEncoder"
-    
+
     # User friendly formatting of alert messages
     [AlertEncoder]
     type = "SandboxEncoder"
@@ -251,19 +251,19 @@ Config:
     Maximum amount of times to attempt restarting the plugin before giving up
     and shutting down hekad. Use 0 for no retry attempt, and -1 to continue
     trying forever (note that this will cause hekad to halt possibly forever
-    if the plugin cannot be restarted).
+    if the plugin cannot be restarted). Defaults to -1.
 
-Example (UdpInput does not actually support nor need restarting, illustrative
-purposes only):
+Example:
 
 .. code-block:: ini
 
-    [UdpInput]
-    address = "127.0.0.1:4880"
-    parser_type = "message.proto"
-    decoder = "ProtobufDecoder"
+    [AMQPOutput]
+    url = "amqp://guest:guest@rabbitmq/"
+    exchange = "testout"
+    exchange_type = "fanout"
+    message_matcher = 'Logger == "TestWebserver"'
 
-    [UdpInput.retries]
+    [AMQPOutput.retries]
     max_delay = 30s
     delay = 250ms
     max_retries = 5
