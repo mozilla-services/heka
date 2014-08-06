@@ -393,7 +393,7 @@ func FilterSpec(c gs.Context) {
 
 		timer := make(chan time.Time, 1)
 		errChan := make(chan error, 1)
-		retMsgChan := make(chan *message.Message, 3)
+		retMsgChan := make(chan *message.Message, 1)
 		recycleChan := make(chan *pipeline.PipelinePack, 1)
 
 		defer func() {
