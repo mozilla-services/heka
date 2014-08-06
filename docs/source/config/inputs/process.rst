@@ -49,6 +49,9 @@ Config:
     terminated.
 - trim (bool) :
     Trim a single trailing newline character if one exists. Default is true.
+- retries (RetryOptions, optional):
+    - A sub-section that specifies the settings to be used for restart behavior.
+    See :ref:`configuring_restarting`
 
 .. _config_cmd_config:
 
