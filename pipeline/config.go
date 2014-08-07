@@ -118,7 +118,18 @@ type Restarting interface {
 type Stoppable interface {
 	// This function isn't called, the existence of the interface signals
 	// the plug-in can safely go away
-	IsStoppable()
+	IsStoppable() bool
+	Unregister(pConfig *PipelineConfig) error
+}
+
+type notStoppable struct{}
+
+func (s *notStoppable) IsStoppable() bool {
+	return false
+}
+
+func (s *notStoppable) Unregister(pConfig *PipelineConfig) error {
+	return nil
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.
@@ -174,6 +185,8 @@ type PipelineConfig struct {
 	inputsLock sync.Mutex
 	// Is freed when all Input runners have stopped.
 	inputsWg sync.WaitGroup
+	// Lock protecting access to running outputs so they can be removed safely
+	outputsLock sync.Mutex
 	// Internal reporting channel
 	reportRecycleChan chan *PipelinePack
 }
@@ -408,6 +421,17 @@ func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
 	iRunner.Input().Stop()
 }
 
+func (self *PipelineConfig) RemoveOutputRunner(oRunner OutputRunner) {
+	self.outputsLock.Lock()
+	defer self.outputsLock.Unlock()
+	name := oRunner.Name()
+	if _, ok := self.outputWrappers[name]; ok {
+		self.router.RemoveOutputMatcher() <- oRunner.MatchRunner()
+		delete(self.outputWrappers, name)
+	}
+	delete(self.OutputRunners, name)
+}
+
 type ConfigFile PluginConfig
 
 // This struct provides a structure for the available retry options for
@@ -436,6 +460,7 @@ type PluginGlobals struct {
 	Retries    RetryOptions
 	Encoder    string // Output only.
 	UseFraming *bool  `toml:"use_framing"` // Output only.
+	CanExit    bool   `toml:"can_exit"`
 }
 
 // A helper object to support delayed plugin creation.
@@ -706,6 +731,13 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
+
+		if !section.globals.CanExit {
+			canExit := getAttr(config, "CanExit", false)
+			section.globals.CanExit = canExit.(bool)
+		}
+		runner.canExit = section.globals.CanExit
+
 		self.OutputRunners[runner.name] = runner
 		self.outputWrappers[runner.name] = wrapper
 	}

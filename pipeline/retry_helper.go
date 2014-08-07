@@ -21,6 +21,8 @@ import (
 	"time"
 )
 
+var ErrMaxRetriesExceeded = errors.New("Max retries exceeded")
+
 // Retry helper, created with a RetryOptions struct
 //
 // Everytime Wait is called, the times this has been used is incremented.
@@ -75,7 +77,7 @@ func NewRetryHelper(opts RetryOptions) (helper *RetryHelper, err error) {
 // If the max retries has been exceeded, an error will be returned
 func (r *RetryHelper) Wait() error {
 	if r.retries != -1 && r.times >= r.retries {
-		return errors.New("Max retries exceeded")
+		return ErrMaxRetriesExceeded
 	}
 	jitter, _ := rand.Int(rand.Reader, big.NewInt(r.maxJitter.Nanoseconds()))
 	jitterWait := time.Duration(jitter.Int64()) * time.Nanosecond

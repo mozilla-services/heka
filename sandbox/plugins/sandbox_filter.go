@@ -78,8 +78,12 @@ func (this *SandboxFilter) SetName(name string) {
 	this.name = re.ReplaceAllString(name, "_")
 }
 
-func (s *SandboxFilter) IsStoppable() {
-	return
+func (s *SandboxFilter) IsStoppable() bool {
+	return true
+}
+
+func (s *SandboxFilter) Unregister(pConfig *pipeline.PipelineConfig) error {
+	return nil
 }
 
 // Determines the script type and creates interpreter

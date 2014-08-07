@@ -25,8 +25,13 @@ import (
 	"time"
 )
 
+var ErrUnknownPluginType = errors.New("Unable to assert this is an Output or Filter")
+
 // Base interface for the Heka plugin runners.
 type PluginRunner interface {
+	// All plugins either can or cannot stop
+	Stoppable
+
 	// Plugin name.
 	Name() string
 
@@ -58,6 +63,7 @@ type PluginRunner interface {
 
 // Base struct for the specialized PluginRunners
 type pRunnerBase struct {
+	notStoppable
 	name          string
 	plugin        Plugin
 	pluginGlobals *PluginGlobals
@@ -429,6 +435,14 @@ type OutputRunner interface {
 	SetUseFraming(useFraming bool)
 }
 
+type foRunnerKind int
+
+const (
+	foUnknown foRunnerKind = iota
+	foFilter
+	foOutput
+)
+
 // This one struct provides the implementation of both FilterRunner and
 // OutputRunner interfaces.
 type foRunner struct {
@@ -442,6 +456,9 @@ type foRunner struct {
 	leakCount  int
 	encoder    Encoder // output only
 	useFraming bool    // output only
+	canExit    bool
+	kind       foRunnerKind
+	pConfig    *PipelineConfig
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -468,23 +485,83 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	return
 }
 
-func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
+func (foRunner *foRunner) IsStoppable() bool {
+	return foRunner.canExit
+}
+
+func (foRunner *foRunner) Unregister(pConfig *PipelineConfig) error {
+	switch foRunner.kind {
+	case foFilter:
+		pConfig.RemoveFilterRunner(foRunner.Name())
+	case foOutput:
+		pConfig.RemoveOutputRunner(foRunner)
+	default:
+		return ErrUnknownPluginType
+	}
+	return nil
+}
+
+func (foRunner *foRunner) getWrapperAndRun(helper *PluginHelper, pConfig *PipelineConfig) (pw *PluginWrapper, err error) {
+	if filter, ok := foRunner.plugin.(Filter); ok {
+		foRunner.kind = foFilter
+		pw = pConfig.filterWrappers[foRunner.name]
+		err = filter.Run(foRunner, *helper)
+	} else if output, ok := foRunner.plugin.(Output); ok {
+		foRunner.kind = foOutput
+		pw = pConfig.outputWrappers[foRunner.name]
+		err = output.Run(foRunner, *helper)
+	} else {
+		err = ErrUnknownPluginType
+	}
+	return
+}
+
+func (foRunner *foRunner) restart(helper *RetryHelper, wrapper *PluginWrapper) error {
+	err := helper.Wait()
+	if err != nil {
+		return err
+	}
+	p, err := wrapper.CreateWithError()
+	if err != nil {
+		return err
+	}
+	foRunner.plugin = p.(Plugin)
+	helper.Reset()
+	return nil
+}
+
+func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
+	foRunner.LogMessage("handle exitz")
+
+	// If we're stoppable unregister ourself
+	if foRunner.IsStoppable() {
+		foRunner.LogMessage("has stopped, stopping without shutting down.")
+		err := foRunner.Unregister(pConfig)
+		if err != nil {
+			foRunner.LogError(
+				fmt.Errorf("err: %s. could not unregister plugin. ",
+					"Shutting down.", err))
+			pConfig.Globals.ShutDown()
+		}
+	} else {
+		foRunner.LogMessage("has stopped, shutting down.")
+		pConfig.Globals.ShutDown()
+	}
+}
+
+func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	defer func() {
 		wg.Done()
 	}()
 
-	var (
-		pluginType string
-		err        error
-	)
+	var err error
 
-	pc := h.PipelineConfig()
-	globals := pc.Globals
+	pConfig := helper.PipelineConfig()
+	globals := pConfig.Globals
 
 	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
 	if err != nil {
 		foRunner.LogError(err)
-		globals.ShutDown()
 		return
 	}
 
@@ -498,67 +575,53 @@ func (foRunner *foRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	for !globals.Stopping {
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
-		if filter, ok := foRunner.plugin.(Filter); ok {
-			pluginType = "filter"
-			err = filter.Run(foRunner, h)
-		} else if output, ok := foRunner.plugin.(Output); ok {
-			pluginType = "output"
-			err = output.Run(foRunner, h)
-		} else {
-			foRunner.LogError(errors.New(
-				"Unable to assert this is an Output or Filter"))
-			return
-		}
+		pw, err = foRunner.getWrapperAndRun(&helper, pConfig)
 		if err != nil {
 			foRunner.LogError(err)
-		} else {
-			foRunner.LogMessage("stopped")
+			if err == ErrUnknownPluginType {
+				return
+			}
 		}
+
+		foRunner.LogMessage("stopped")
 
 		// Are we supposed to stop? Save ourselves some time by exiting now.
 		if globals.Stopping {
 			return
 		}
 
-		if pluginType == "filter" {
-			pw = pc.filterWrappers[foRunner.name]
-		} else {
-			pw = pc.outputWrappers[foRunner.name]
-		}
+		// Handle the cleanup
+		defer foRunner.exit(pConfig)
 
+		// No wrapper means its a dynamically created sandbox filter
+		// and is stoppable
 		if pw == nil {
-			return // no wrapper means it is Stoppable.
+			return
 		}
 
 		// We stop and let this quit if its not a restarting plugin.
 		if recon, ok := foRunner.plugin.(Restarting); ok {
 			recon.CleanupForRestart()
 		} else {
-			foRunner.LogMessage("has stopped, shutting down.")
-			globals.ShutDown()
 			return
 		}
 
 		// Re-initialize our plugin using its wrapper. Attempt to recreate the
 		// plugin until it works without error or until we're told to stop.
-	createLoop:
 		for !globals.Stopping {
-			err = rh.Wait()
-			if err != nil {
-				foRunner.LogError(err)
-				globals.ShutDown()
+			err = foRunner.restart(rh, pw)
+			// No error, so break out of the loop, we restarted without error.
+			if err == nil {
+				break
+			}
+			// An error means we've used up our attempts or we need to retry
+			foRunner.LogError(err)
+			if err == ErrMaxRetriesExceeded {
 				return
 			}
-			p, err := pw.CreateWithError()
-			if err != nil {
-				foRunner.LogError(err)
-				continue
-			}
-			foRunner.plugin = p.(Plugin)
-			rh.Reset()
-			break createLoop
 		}
 		foRunner.LogMessage("exited, now restarting.")
+
 	}
 }
 
