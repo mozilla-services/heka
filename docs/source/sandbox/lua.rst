@@ -193,14 +193,14 @@ Sample Lua Message Structure
     Logger      = "nginx",              -- ignored in the SandboxFilter
     Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
 
-    Timestamp   = 1e9,                   
+    Timestamp   = 1e9,
     Type        = "TEST",               -- will become "heka.sandbox.TEST" in the SandboxFilter
-    Papload     = "Test Payload",
+    Payload     = "Test Payload",
     EnvVersion  = "0.8",
-    Pid         = 1234, 
-    Severity    = 6, 
+    Pid         = 1234,
+    Severity    = 6,
     Fields      = {
-                http_status     = 200, 
+                http_status     = 200,
                 request_size    = {value=1413, representation="B"}
                 }
     }
