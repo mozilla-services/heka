@@ -25,4 +25,6 @@ ESPayloadEncoder
 
 .. include:: /config/encoders/protobuf.rst
 
+.. include:: /config/encoders/rst.rst
+
 .. include:: /config/encoders/sandbox.rst
