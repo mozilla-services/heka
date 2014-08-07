@@ -16,7 +16,6 @@ package plugins
 
 import (
 	"code.google.com/p/go-uuid/uuid"
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -39,7 +38,8 @@ func RstEncoderSpec(c gs.Context) {
 		pack.Message.SetType("test.type")
 		pack.Message.SetHostname("somehost.example.com")
 		pack.Message.SetPid(12345)
-		pack.Message.SetUuid(uuid.NewRandom())
+		pack.Message.SetUuid(uuid.Parse("72de6a05-1b99-4a88-84c2-90797624c68f"))
+
 		pack.Message.SetLogger("loggyloglog")
 		pack.Message.SetEnvVersion("0.8")
 
@@ -81,22 +81,20 @@ func RstEncoderSpec(c gs.Context) {
 :Type: test.type
 :Hostname: somehost.example.com
 :Pid: 12345
-:Uuid: %s
+:Uuid: 72de6a05-1b99-4a88-84c2-90797624c68f
 :Logger: loggyloglog
 :Payload: This is the payload!
 :EnvVersion: 0.8
 :Severity: 7
 :Fields:
-    | name:"intfield" value_integer:[23,24,25] repr:"count"
-    | name:"stringfield" value_string:["hold","your","head","up"] repr:"foreigner"
-    | name:"bool" value_bool:[true,false]
-    | name:"bool" value_bool:false repr:"false"
-    | name:"float" value_double:[345.6789,1.3984798798798788e+14] repr:"kelvin"
-    | name:"bytes" value_bytes:[ZW5jb2RlIG1l,YW5kIG1l,YW5kIG1lIHRvbw==] repr:"binary"
+    | name:"intfield" type:integer value:[23,24,25] representation:"count"
+    | name:"stringfield" type:string value:["hold","your","head","up"] representation:"foreigner"
+    | name:"bool" type:bool value:[true,false]
+    | name:"bool" type:bool value:false representation:"false"
+    | name:"float" type:double value:[345.6789,1.3984798798798788e+14] representation:"kelvin"
+    | name:"bytes" type:bytes value:[ZW5jb2RlIG1l,YW5kIG1l,YW5kIG1lIHRvbw==] representation:"binary"
 
 `
-		expected = fmt.Sprintf(expected, pack.Message.GetUuidString())
-
 		c.Specify("serializes a message correctly", func() {
 			err = encoder.Init(nil)
 			c.Assume(err, gs.IsNil)

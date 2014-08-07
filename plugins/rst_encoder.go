@@ -47,7 +47,7 @@ func (re *RstEncoder) writeField(buf *bytes.Buffer, name, typeName, repr string,
 	values []string) {
 
 	isString := typeName == "string"
-	buf.WriteString(fmt.Sprintf("    | name:\"%s\" value_%s:", name, typeName))
+	buf.WriteString(fmt.Sprintf("    | name:\"%s\" type:%s value:", name, typeName))
 	var value string
 	if len(values) == 1 {
 		value = values[0]
@@ -70,7 +70,7 @@ func (re *RstEncoder) writeField(buf *bytes.Buffer, name, typeName, repr string,
 		buf.WriteString("]")
 	}
 	if repr != "" {
-		buf.WriteString(fmt.Sprintf(" repr:\"%s\"", repr))
+		buf.WriteString(fmt.Sprintf(" representation:\"%s\"", repr))
 	}
 	buf.WriteString("\n")
 }
