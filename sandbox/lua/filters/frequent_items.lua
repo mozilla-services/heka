@@ -75,7 +75,7 @@ function process_message ()
         return 0
     end
 
-    if items_size == max_items then
+    if items_size >= max_items then
         for k,v in pairs(items) do
             if v == 1 then
                 items[k] = nil

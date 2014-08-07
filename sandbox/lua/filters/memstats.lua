@@ -16,6 +16,12 @@ Config:
 
 - anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
 
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `sec_per_row` or `rows'
+    configuration is changed to prevent the plugin from failing to start during
+    data restoration.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -28,6 +34,7 @@ Config:
     message_matcher = "Type == 'stats.memstats'"
 
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "circular_buffer"
 require "string"
