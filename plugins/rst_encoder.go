@@ -16,6 +16,7 @@ package plugins
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -78,7 +79,7 @@ func (re *RstEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err er
 	// Writing out the message attributes is easy.
 	buf := new(bytes.Buffer)
 	buf.WriteString("\n")
-	timestamp := time.Unix(0, pack.Message.GetTimestamp())
+	timestamp := time.Unix(0, pack.Message.GetTimestamp()).UTC()
 	re.writeAttr(buf, "Timestamp", timestamp.String())
 	re.writeAttr(buf, "Type", pack.Message.GetType())
 	re.writeAttr(buf, "Hostname", pack.Message.GetHostname())
@@ -104,7 +105,7 @@ func (re *RstEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err er
 				vBytes := field.GetValueBytes()
 				values = make([]string, len(vBytes))
 				for i, v := range vBytes {
-					values[i] = string(v)
+					values[i] = base64.StdEncoding.EncodeToString(v)
 				}
 			case message.Field_DOUBLE:
 				vDoubles := field.GetValueDouble()
