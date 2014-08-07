@@ -63,7 +63,6 @@ local HTTP_400      = status:set_header(4, "HTTP_400")
 local HTTP_500      = status:set_header(5, "HTTP_500")
 local HTTP_UNKNOWN  = status:set_header(6, "HTTP_UNKNOWN")
 
-local floor = math.floor
 function process_message ()
     local ts = read_message("Timestamp")
     local sc = read_message("Fields[status]")
