@@ -166,84 +166,114 @@ func OutputRunnerSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	mockHelper := NewMockPluginHelper(ctrl)
-	//pc := new(PipelineConfig)
-	pc := NewPipelineConfig(nil)
-	pluginGlobals := new(PluginGlobals)
 
-	c.Specify("Runner restarts a plugin on the first time only", func() {
-		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "1us",
-			Delay:      "1us",
-			MaxJitter:  "1us",
-			MaxRetries: 1,
-		}
-		pw := NewPluginWrapper("stoppingOutput", pc)
-		pw.ConfigCreator = func() interface{} { return nil }
-		pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
-		output := new(StoppingOutput)
-		pc.outputWrappers = make(map[string]*PluginWrapper)
-		pc.outputWrappers["stoppingOutput"] = pw
-		oRunner := NewFORunner("stoppingOutput", output, pluginGlobals, 10)
-		var wg sync.WaitGroup
-		cfgCall := mockHelper.EXPECT().PipelineConfig()
-		cfgCall.Return(pc)
-		wg.Add(1)
-		oRunner.Start(mockHelper, &wg) // no panic => success
-		wg.Wait()
-		c.Expect(stopoutputTimes, gs.Equals, 2)
-	})
+	c.Specify("A runner", func() {
+		stopoutputTimes = 0
+		pc := NewPipelineConfig(nil)
+		pluginGlobals := new(PluginGlobals)
 
-	c.Specify("Runner restarts plugin and resumes feeding it", func() {
-		pluginGlobals.Retries = RetryOptions{
-			MaxDelay:   "1us",
-			Delay:      "1us",
-			MaxJitter:  "1us",
-			MaxRetries: 4,
-		}
-		pw := NewPluginWrapper("stoppingresumeOutput", pc)
-		pw.ConfigCreator = func() interface{} { return nil }
-		pw.PluginCreator = func() interface{} { return new(StopResumeOutput) }
-		output := new(StopResumeOutput)
-		pc.outputWrappers = make(map[string]*PluginWrapper)
-		pc.outputWrappers["stoppingresumeOutput"] = pw
-		oRunner := NewFORunner("stoppingresumeOutput", output, pluginGlobals, 10)
-		var wg sync.WaitGroup
-		cfgCall := mockHelper.EXPECT().PipelineConfig()
-		cfgCall.Return(pc)
-		wg.Add(1)
-		oRunner.Start(mockHelper, &wg) // no panic => success
-		wg.Wait()
-		c.Expect(stopresumerunTimes, gs.Equals, 3)
-		c.Expect(len(stopresumeHolder), gs.Equals, 2)
-		c.Expect(stopresumeHolder[1], gs.Equals, "woot")
-		c.Expect(oRunner.retainPack, gs.IsNil)
-	})
-
-	c.Specify("Runner encodes a message", func() {
-		output := new(StoppingOutput)
-		or := NewFORunner("test", output, pluginGlobals, 10)
-		or.encoder = new(_payloadEncoder)
-		_pack.Message = ts.GetTestMessage()
-		payload := "Test Payload"
-
-		c.Specify("without framing", func() {
-			result, err := or.Encode(_pack)
-			c.Expect(err, gs.IsNil)
-			c.Expect(string(result), gs.Equals, payload)
+		c.Specify("restarts a plugin on the first time only", func() {
+			pluginGlobals.Retries = RetryOptions{
+				MaxDelay:   "1us",
+				Delay:      "1us",
+				MaxJitter:  "1us",
+				MaxRetries: 1,
+			}
+			pw := NewPluginWrapper("stoppingOutput", pc)
+			pw.ConfigCreator = func() interface{} { return nil }
+			pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
+			output := new(StoppingOutput)
+			pc.outputWrappers = make(map[string]*PluginWrapper)
+			pc.outputWrappers["stoppingOutput"] = pw
+			oRunner := NewFORunner("stoppingOutput", output, pluginGlobals, 10)
+			var wg sync.WaitGroup
+			cfgCall := mockHelper.EXPECT().PipelineConfig()
+			cfgCall.Return(pc)
+			wg.Add(1)
+			oRunner.Start(mockHelper, &wg) // no panic => success
+			wg.Wait()
+			c.Expect(stopoutputTimes, gs.Equals, 2)
 		})
 
-		c.Specify("with framing", func() {
-			or.SetUseFraming(true)
-			result, err := or.Encode(_pack)
-			c.Expect(err, gs.IsNil)
+		c.Specify("restarts plugin and resumes feeding it", func() {
+			pluginGlobals.Retries = RetryOptions{
+				MaxDelay:   "1us",
+				Delay:      "1us",
+				MaxJitter:  "1us",
+				MaxRetries: 4,
+			}
+			pw := NewPluginWrapper("stoppingresumeOutput", pc)
+			pw.ConfigCreator = func() interface{} { return nil }
+			pw.PluginCreator = func() interface{} { return new(StopResumeOutput) }
+			output := new(StopResumeOutput)
+			pc.outputWrappers = make(map[string]*PluginWrapper)
+			pc.outputWrappers["stoppingresumeOutput"] = pw
+			oRunner := NewFORunner("stoppingresumeOutput", output, pluginGlobals, 10)
+			var wg sync.WaitGroup
+			cfgCall := mockHelper.EXPECT().PipelineConfig()
+			cfgCall.Return(pc)
+			wg.Add(1)
+			oRunner.Start(mockHelper, &wg) // no panic => success
+			wg.Wait()
+			c.Expect(stopresumerunTimes, gs.Equals, 3)
+			c.Expect(len(stopresumeHolder), gs.Equals, 2)
+			c.Expect(stopresumeHolder[1], gs.Equals, "woot")
+			c.Expect(oRunner.retainPack, gs.IsNil)
+		})
 
-			i := bytes.IndexByte(result, message.UNIT_SEPARATOR)
-			c.Expect(i > 3, gs.IsTrue, -1)
-			c.Expect(string(result[i+1:]), gs.Equals, payload)
-			header := new(message.Header)
-			ok := DecodeHeader(result[2:i+1], header)
-			c.Expect(ok, gs.IsTrue)
-			c.Expect(header.GetMessageLength(), gs.Equals, uint32(len(payload)))
+		c.Specify("can exit without causing shutdown", func() {
+			pluginGlobals.Retries = RetryOptions{MaxRetries: 0}
+			pw := NewPluginWrapper("stoppingOutput", pc)
+			pw.ConfigCreator = func() interface{} { return nil }
+			pw.PluginCreator = func() interface{} { return new(StoppingOutput) }
+			output := new(StoppingOutput)
+			pc.outputWrappers = make(map[string]*PluginWrapper)
+			pc.outputWrappers["stoppingOutput"] = pw
+			oRunner := NewFORunner("stoppingOutput", output, pluginGlobals, 10)
+			oRunner.canExit = true
+			pack := NewPipelinePack(pc.InputRecycleChan())
+			pc.injectRecycleChan <- pack
+			go func() {
+				<-pc.Router().RemoveOutputMatcher()
+				close(oRunner.inChan)
+			}()
+			var wg sync.WaitGroup
+			cfgCall := mockHelper.EXPECT().PipelineConfig()
+			cfgCall.Return(pc)
+			wg.Add(1)
+			oRunner.Start(mockHelper, &wg)
+			wg.Wait()
+			c.Expect(stopoutputTimes, gs.Equals, 1)
+			p := <-pc.router.inChan
+			c.Expect(p.Message.GetType(), gs.Equals, "heka.terminated")
+		})
+
+		c.Specify("encodes a message", func() {
+			output := new(StoppingOutput)
+			or := NewFORunner("test", output, pluginGlobals, 10)
+			or.encoder = new(_payloadEncoder)
+			_pack.Message = ts.GetTestMessage()
+			payload := "Test Payload"
+
+			c.Specify("without framing", func() {
+				result, err := or.Encode(_pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(string(result), gs.Equals, payload)
+			})
+
+			c.Specify("with framing", func() {
+				or.SetUseFraming(true)
+				result, err := or.Encode(_pack)
+				c.Expect(err, gs.IsNil)
+
+				i := bytes.IndexByte(result, message.UNIT_SEPARATOR)
+				c.Expect(i > 3, gs.IsTrue, -1)
+				c.Expect(string(result[i+1:]), gs.Equals, payload)
+				header := new(message.Header)
+				ok := DecodeHeader(result[2:i+1], header)
+				c.Expect(ok, gs.IsTrue)
+				c.Expect(header.GetMessageLength(), gs.Equals, uint32(len(payload)))
+			})
 		})
 	})
 }

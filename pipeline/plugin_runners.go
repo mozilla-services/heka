@@ -579,9 +579,7 @@ func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
 }
 
 func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
-	defer func() {
-		wg.Done()
-	}()
+	defer wg.Done()
 
 	var err error
 
