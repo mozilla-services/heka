@@ -133,8 +133,10 @@ Contents:
 
 
 
+
 Indices and tables
 ==================
 
 * :ref:`search`
 * :ref:`glossary`
+* :ref:`changelog`
