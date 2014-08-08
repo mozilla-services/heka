@@ -443,6 +443,16 @@ const (
 	foOutput
 )
 
+func (kind foRunnerKind) String() string {
+	switch kind {
+	case foFilter:
+		return "filter"
+	case foOutput:
+		return "output"
+	}
+	return "unknown"
+}
+
 // This one struct provides the implementation of both FilterRunner and
 // OutputRunner interfaces.
 type foRunner struct {
@@ -459,6 +469,7 @@ type foRunner struct {
 	canExit    bool
 	kind       foRunnerKind
 	pConfig    *PipelineConfig
+	lastErr    error
 }
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -531,18 +542,36 @@ func (foRunner *foRunner) restart(helper *RetryHelper, wrapper *PluginWrapper) e
 }
 
 func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
-	foRunner.LogMessage("handle exitz")
-
 	// If we're stoppable unregister ourself
 	if foRunner.IsStoppable() {
-		foRunner.LogMessage("has stopped, stopping without shutting down.")
+		foRunner.LogMessage("has stopped, exiting plugin without shutting down.")
 		err := foRunner.Unregister(pConfig)
 		if err != nil {
 			foRunner.LogError(
 				fmt.Errorf("err: %s. could not unregister plugin. ",
 					"Shutting down.", err))
 			pConfig.Globals.ShutDown()
+			return
 		}
+		// Once the inchan is closed we know the router has closed the matcher
+		// and we wont leak any packs.
+		<-foRunner.inChan
+
+		pack := pConfig.PipelinePack(0)
+		pack.Message.SetType("heka.terminated")
+		pack.Message.SetLogger(foRunner.Name())
+		if foRunner.lastErr != nil {
+			err = foRunner.lastErr
+		} else {
+			// This is simply when run returns no errors, but the plugin has
+			// exited anyway
+			err = errors.New("Run exited.")
+		}
+		payload := fmt.Sprintf("%s (type %s) terminated. Error: %s\n",
+			foRunner.Name(), foRunner.pluginGlobals.Typ, err.Error())
+		pack.Message.SetPayload(payload)
+		// Do not call inject, we need to avoid matching a message to ourself
+		pConfig.router.inChan <- pack
 	} else {
 		foRunner.LogMessage("has stopped, shutting down.")
 		pConfig.Globals.ShutDown()
@@ -577,6 +606,8 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 		// down.
 		pw, err = foRunner.getWrapperAndRun(&helper, pConfig)
 		if err != nil {
+			// Keep track of all the errors for later
+			foRunner.lastErr = err
 			foRunner.LogError(err)
 			if err == ErrUnknownPluginType {
 				return
@@ -615,6 +646,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 				break
 			}
 			// An error means we've used up our attempts or we need to retry
+			foRunner.lastErr = err
 			foRunner.LogError(err)
 			if err == ErrMaxRetriesExceeded {
 				return

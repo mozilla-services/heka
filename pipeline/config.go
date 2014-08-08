@@ -394,7 +394,8 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	return false
 }
 
-// Starts the provided InputRunner and adds it to the set of running Inputs.
+// AddInputRunner Starts the provided InputRunner and adds it to the set of
+// running Inputs.
 func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginWrapper) error {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
@@ -410,6 +411,7 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginW
 	return nil
 }
 
+// RemoveInputRunner unregisters the provided InputRunner, and stops it.
 func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
@@ -421,6 +423,8 @@ func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
 	iRunner.Input().Stop()
 }
 
+// RemoveOutputRunner unregisters the provided OutputRunner from heka, and
+// removes it's message matcher from the heka router.
 func (self *PipelineConfig) RemoveOutputRunner(oRunner OutputRunner) {
 	self.outputsLock.Lock()
 	defer self.outputsLock.Unlock()
@@ -683,6 +687,12 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	}
 	runner.matcher = matcher
 
+	if !section.globals.CanExit {
+		canExit := getAttr(config, "CanExit", false)
+		section.globals.CanExit = canExit.(bool)
+	}
+	runner.canExit = section.globals.CanExit
+
 	switch section.category {
 	case "Filter":
 		if matcher != nil {
@@ -731,12 +741,6 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
-
-		if !section.globals.CanExit {
-			canExit := getAttr(config, "CanExit", false)
-			section.globals.CanExit = canExit.(bool)
-		}
-		runner.canExit = section.globals.CanExit
 
 		self.OutputRunners[runner.name] = runner
 		self.outputWrappers[runner.name] = wrapper
