@@ -7,6 +7,11 @@ Bug Handling
 * StatsdInput now trims all whitespace around incoming stat names instead of
   just trailing newlines (issue #1011).
 
+* Fixed silent failures in ElasticSearchOutput bulk indexing operations.
+
+* Fixed permanent loss of HTTP connection in certain cases when ElasticSearch
+  has been restarted (issue #1008).
+
 0.6.0 (2014-07-09)
 ==================
 
