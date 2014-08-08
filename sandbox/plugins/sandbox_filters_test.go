@@ -492,4 +492,70 @@ func FilterSpec(c gs.Context) {
 		c.Expect(<-errChan, gs.IsNil)
 	})
 
+	c.Specify("http_status filter", func() {
+		filter := new(SandboxFilter)
+		filter.SetPipelineConfig(pConfig)
+		filter.name = "http_status"
+		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/filters/http_status.lua"
+		conf.ModuleDirectory = "../lua/modules"
+
+		conf.Config = make(map[string]interface{})
+		conf.Config["rows"] = int64(2)
+		conf.Config["sec_per_row"] = int64(1)
+
+		timer := make(chan time.Time, 1)
+		errChan := make(chan error, 1)
+		retPackChan := make(chan *pipeline.PipelinePack, 1)
+		recycleChan := make(chan *pipeline.PipelinePack, 1)
+
+		defer func() {
+			close(errChan)
+			close(retPackChan)
+		}()
+
+		field, _ := message.NewField("status", 0, "")
+		msg := &message.Message{}
+		msg.SetTimestamp(0)
+		msg.AddField(field)
+
+		pack := pipeline.NewPipelinePack(recycleChan)
+
+		fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack)
+		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+		fth.MockFilterRunner.EXPECT().Name().Return("http_status")
+		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
+			retPackChan <- pack
+		}).Return(true)
+
+		err := filter.Init(conf)
+		c.Assume(err, gs.IsNil)
+
+		c.Specify("should fill a cbuf with http status data", func() {
+			go func() {
+				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
+			}()
+
+			for i := 0; i <= 6; i++ {
+				msg.Fields[0].ValueInteger[0] = int64(i * 100) // iterate through the status codes with a bogus status on each end
+				pack.Message = msg
+				inChan <- pack
+				pack = <-recycleChan
+			}
+
+			timer <- time.Now()
+			p := <-retPackChan
+			// Check the result of the filter's inject
+			pl := `{"time":0,"rows":2,"columns":6,"seconds_per_row":1,"column_info":[{"name":"HTTP_100","unit":"count","aggregation":"sum"},{"name":"HTTP_200","unit":"count","aggregation":"sum"},{"name":"HTTP_300","unit":"count","aggregation":"sum"},{"name":"HTTP_400","unit":"count","aggregation":"sum"},{"name":"HTTP_500","unit":"count","aggregation":"sum"},{"name":"HTTP_UNKNOWN","unit":"count","aggregation":"sum"}]}
+1	1	1	1	1	2
+nan	nan	nan	nan	nan	nan
+`
+			c.Expect(p.Message.GetPayload(), gs.Equals, pl)
+
+		})
+
+		close(inChan)
+		c.Expect(<-errChan, gs.IsNil)
+	})
 }

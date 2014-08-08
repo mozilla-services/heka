@@ -18,6 +18,12 @@ Config:
     should be enabled when sharding is used;
     see: :ref:`config_circular_buffer_delta_agg_filter`.
 
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `enable_delta'
+    configuration is changed to prevent the plugin from failing to start during
+    data restoration.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -32,7 +38,9 @@ Config:
         [FxaActiveDailyUsers.config]
         message_variable = "Fields[uid]"
         title = "Estimated Active Daily Users"
+        preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "hyperloglog"
 require "circular_buffer"
