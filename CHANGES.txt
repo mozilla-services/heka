@@ -4,6 +4,10 @@
 Bug Handling
 ------------
 
+* Fixed silent failures in ElasticSearchOutput bulk indexing operations.
+
+* Fixed permanent loss of HTTP connection in certain cases when ElasticSearch
+  has been restarted (issue #1008).
 
 0.6.0 (2014-07-09)
 ==================
