@@ -169,7 +169,6 @@ func (o *ElasticSearchOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 	var outBatch []byte
 
 	for outBatch = range o.batchChan {
-		fmt.Println("outBatch received: ", len(outBatch))
 		if err := o.bulkIndexer.Index(outBatch); err != nil {
 			or.LogError(err)
 		}
