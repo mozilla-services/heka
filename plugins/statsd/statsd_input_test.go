@@ -99,6 +99,13 @@ func TestParseMessage(t *testing.T) {
 			float32(1),
 		}},
 
+		" \tsample.gauge:123|g\n": []Stat{{
+			"sample.gauge",
+			"123",
+			"g",
+			float32(1),
+		}},
+
 		"sample.count:303|c": []Stat{{
 			"sample.count",
 			"303",

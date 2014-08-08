@@ -132,7 +132,7 @@ func (s *StatsdInput) handleMessage(message []byte) {
 }
 
 func parseMessage(message []byte) ([]Stat, error) {
-	message = bytes.TrimRight(message, "\n")
+	message = bytes.Trim(message, " \t\n")
 
 	stats := make([]Stat, 0, int(math.Max(1, float64(bytes.Count(message, []byte("\n"))))))
 

@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* StatsdInput now trims all whitespace around incoming stat names instead of
+  just trailing newlines (issue #1011).
 
 0.6.0 (2014-07-09)
 ==================
