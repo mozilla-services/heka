@@ -503,11 +503,14 @@ func (foRunner *foRunner) IsStoppable() bool {
 func (foRunner *foRunner) Unregister(pConfig *PipelineConfig) error {
 	switch foRunner.kind {
 	case foFilter:
-		pConfig.RemoveFilterRunner(foRunner.Name())
+		go pConfig.RemoveFilterRunner(foRunner.Name())
 	case foOutput:
-		pConfig.RemoveOutputRunner(foRunner)
+		go pConfig.RemoveOutputRunner(foRunner)
 	default:
 		return ErrUnknownPluginType
+	}
+	for pack := range foRunner.inChan {
+		pack.Recycle()
 	}
 	return nil
 }

@@ -231,21 +231,37 @@ func OutputRunnerSpec(c gs.Context) {
 			pc.outputWrappers["stoppingOutput"] = pw
 			oRunner := NewFORunner("stoppingOutput", output, pluginGlobals, 10)
 			oRunner.canExit = true
-			pack := NewPipelinePack(pc.InputRecycleChan())
+
+			// This pack is for the sending of the terminated message
+			pack := NewPipelinePack(pc.injectRecycleChan)
 			pc.injectRecycleChan <- pack
+
+			// Feed in a pack to the input so we can verify its been recycled
+			// after stopping (no leaks)
+			pack = NewPipelinePack(pc.inputRecycleChan)
+			oRunner.inChan <- pack
+
+			// This is code to emulate the router removing the Output, and
+			// closing up the outputs inChan channel
 			go func() {
 				<-pc.Router().RemoveOutputMatcher()
+				// We don't close the matcher inChan because its not
+				// instantiated in the tests
 				close(oRunner.inChan)
 			}()
 			var wg sync.WaitGroup
 			cfgCall := mockHelper.EXPECT().PipelineConfig()
 			cfgCall.Return(pc)
+
 			wg.Add(1)
 			oRunner.Start(mockHelper, &wg)
 			wg.Wait()
 			c.Expect(stopoutputTimes, gs.Equals, 1)
 			p := <-pc.router.inChan
 			c.Expect(p.Message.GetType(), gs.Equals, "heka.terminated")
+			// This should be 1 because the inChan should be flushed
+			// and packs should not be leaked
+			c.Expect(len(pc.inputRecycleChan), gs.Equals, 1)
 		})
 
 		c.Specify("encodes a message", func() {
