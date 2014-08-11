@@ -12,6 +12,8 @@ Bug Handling
 * Fixed permanent loss of HTTP connection in certain cases when ElasticSearch
   has been restarted (issue #1008).
 
+* Fixed default sandbox script type when loading dynamic plugins.
+
 0.6.0 (2014-07-09)
 ==================
 
@@ -248,10 +250,10 @@ Backwards Incompatibilities
 * Removed Stdout_chan and Stderr_chan from ManagedCmd and CommandChain, client
   code now has direct access to Stdout_r and Stderr_r io.Reader providers.
 
-* The PluginHelper interface DecoderRunner prototype has changed (issue #717) 
+* The PluginHelper interface DecoderRunner prototype has changed (issue #717)
   to allow for the base name e.g. "ProtobufDecoder" and a full instance name
   e.g. "MyInput-ProtobufDecoder" of the decoder to be specified.  This allows
-  multiple decoders of the same type to show up on the DashboardOutput and 
+  multiple decoders of the same type to show up on the DashboardOutput and
   sandbox decoder state preservation to work properly. Also the DecoderRunner
   UUID interface method was removed.
 
