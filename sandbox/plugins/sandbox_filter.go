@@ -78,14 +78,6 @@ func (this *SandboxFilter) SetName(name string) {
 	this.name = re.ReplaceAllString(name, "_")
 }
 
-func (s *SandboxFilter) IsStoppable() bool {
-	return true
-}
-
-func (s *SandboxFilter) Unregister(pConfig *pipeline.PipelineConfig) error {
-	return nil
-}
-
 // Determines the script type and creates interpreter
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
@@ -191,14 +183,16 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
-			fr.LogError(fmt.Errorf("exceeded InjectMessage count"))
+			err = fmt.Errorf("exceeded InjectMessage count")
+			// fr.LogError(err)
 			return 1
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
-			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				this.pConfig.Globals.MaxMsgLoops))
+			err = fmt.Errorf("exceeded MaxMsgLoops = %d",
+				this.pConfig.Globals.MaxMsgLoops)
+			// fr.LogError(err)
 			return 1
 		}
 		if len(payload_type) == 0 { // heka protobuf message
@@ -328,24 +322,21 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
-	if terminated {
-		go h.PipelineConfig().RemoveFilterRunner(fr.Name())
-		// recycle any messages until the matcher is torn down
-		for pack = range inChan {
-			pack.Recycle()
-		}
-	}
-
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
 
 	this.reportLock.Lock()
+	var destroyErr error
 	if this.sbc.PreserveData {
-		err = this.sb.Destroy(this.preservationFile)
+		destroyErr = this.sb.Destroy(this.preservationFile)
 	} else {
-		err = this.sb.Destroy("")
+		destroyErr = this.sb.Destroy("")
 	}
+	if destroyErr != nil {
+		err = destroyErr
+	}
+
 	this.sb = nil
 	this.reportLock.Unlock()
 	return

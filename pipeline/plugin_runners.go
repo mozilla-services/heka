@@ -527,6 +527,11 @@ func (foRunner *foRunner) getWrapperAndRun(helper *PluginHelper, pConfig *Pipeli
 	} else {
 		err = ErrUnknownPluginType
 	}
+	// No wrapper means a dynamic sandbox filter. They should never crash heka
+	// so we set this to true.
+	if pw == nil {
+		foRunner.canExit = true
+	}
 	return
 }
 
@@ -545,6 +550,11 @@ func (foRunner *foRunner) restart(helper *RetryHelper, wrapper *PluginWrapper) e
 }
 
 func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
+	// Just exit if we're stopping.
+	if pConfig.Globals.Stopping {
+		return
+	}
+
 	// If we're stoppable unregister ourself
 	if foRunner.IsStoppable() {
 		foRunner.LogMessage("has stopped, exiting plugin without shutting down.")
@@ -560,18 +570,34 @@ func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
 		// and we wont leak any packs.
 		<-foRunner.inChan
 
+		var errMsg string
+		if foRunner.pluginGlobals.Typ == "SandboxFilter" {
+			// If there is an error its been terminated, and it's already sent a
+			// terminated message
+			if foRunner.lastErr != nil {
+				return
+			} else {
+				// No error means it was simply unloaded
+				errMsg = "Filter unloaded."
+			}
+		}
+
 		pack := pConfig.PipelinePack(0)
 		pack.Message.SetType("heka.terminated")
 		pack.Message.SetLogger(foRunner.Name())
-		if foRunner.lastErr != nil {
-			err = foRunner.lastErr
-		} else {
-			// This is simply when run returns no errors, but the plugin has
-			// exited anyway
-			err = errors.New("Run exited.")
+		if errMsg == "" {
+			if foRunner.lastErr != nil {
+				err = foRunner.lastErr
+			} else {
+				// This is simply when run returns no errors, but the plugin has
+				// exited anyway
+				err = errors.New("Run exited.")
+			}
+			errMsg = "Error: " + err.Error()
 		}
-		payload := fmt.Sprintf("%s (type %s) terminated. Error: %s\n",
-			foRunner.Name(), foRunner.pluginGlobals.Typ, err.Error())
+
+		payload := fmt.Sprintf("%s (type %s) terminated. "+errMsg,
+			foRunner.Name(), foRunner.pluginGlobals.Typ)
 		pack.Message.SetPayload(payload)
 		// Do not call inject, we need to avoid matching a message to ourself
 		pConfig.router.inChan <- pack
@@ -602,6 +628,9 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 		foRunner.matcher.Start(foRunner.inChan, sampleDenom)
 	}
 
+	// Handle the cleanup
+	defer foRunner.exit(pConfig)
+
 	for !globals.Stopping {
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
@@ -622,11 +651,8 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 			return
 		}
 
-		// Handle the cleanup
-		defer foRunner.exit(pConfig)
-
 		// No wrapper means its a dynamically created sandbox filter
-		// and is stoppable
+		// and it can exit without shutting down Heka.
 		if pw == nil {
 			return
 		}

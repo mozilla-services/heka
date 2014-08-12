@@ -82,14 +82,6 @@ func (this *SandboxManagerFilter) ConfigStruct() interface{} {
 	}
 }
 
-func (s *SandboxManagerFilter) IsStoppable() bool {
-	return true
-}
-
-func (s *SandboxManagerFilter) Unregister(pConfig *pipeline.PipelineConfig) error {
-	return nil
-}
-
 func (s *SandboxManagerFilter) PluginExited() {
 	atomic.AddInt32(&s.currentFilters, -1)
 }

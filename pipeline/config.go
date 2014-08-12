@@ -687,7 +687,10 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	}
 	runner.matcher = matcher
 
-	if !section.globals.CanExit {
+	// Currently Sandbox filters are always exitable.
+	if section.globals.Typ == "SandboxFilter" {
+		section.globals.CanExit = true
+	} else if !section.globals.CanExit {
 		canExit := getAttr(config, "CanExit", false)
 		section.globals.CanExit = canExit.(bool)
 	}
@@ -699,9 +702,7 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
-		if _, ok := runner.plugin.(Stoppable); !ok {
-			self.filterWrappers[runner.name] = wrapper
-		}
+		self.filterWrappers[runner.name] = wrapper
 
 	case "Output":
 		// Check to see if default value for UseFraming is set if none was in
