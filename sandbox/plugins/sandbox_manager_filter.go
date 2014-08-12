@@ -239,6 +239,8 @@ func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 					return
 				}
 				var sbc SandboxConfig
+				// Default, will get overwritten if necessary
+				sbc.ScriptType = "lua"
 				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
 					return fmt.Errorf("loadSandbox failed: %s\n", err)
 				}
