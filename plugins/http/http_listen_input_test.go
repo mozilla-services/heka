@@ -20,6 +20,7 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 )
 
 func HttpListenInputSpec(c gs.Context) {
@@ -83,6 +84,32 @@ func HttpListenInputSpec(c gs.Context) {
 			fieldValue, ok := pack.Message.GetFieldValue("test")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue, gs.Equals, "Hello World")
+		})
+
+		c.Specify("Add custom headers", func() {
+			config.Headers = http.Header{
+				"One":  []string{"two", "three"},
+				"Four": []string{"five", "six", "seven"},
+			}
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
+			ith.PackSupply <- ith.Pack
+			<-startedChan
+			resp, err := http.Get(ts.URL)
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+			<-dRunnerInChan
+
+			// Verify headers are there
+			eq := reflect.DeepEqual(resp.Header["One"], config.Headers["One"])
+			c.Expect(eq, gs.IsTrue)
+			eq = reflect.DeepEqual(resp.Header["Four"], config.Headers["Four"])
+			c.Expect(eq, gs.IsTrue)
+
 		})
 
 		ts.Close()
