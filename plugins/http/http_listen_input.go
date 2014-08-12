@@ -27,6 +27,8 @@ import (
 	"time"
 )
 
+var starterFunc func(hli *HttpListenInput) error
+
 type HttpListenInput struct {
 	conf        *HttpListenInputConfig
 	listener    net.Listener
@@ -35,6 +37,7 @@ type HttpListenInput struct {
 	dRunner     DecoderRunner
 	pConfig     *PipelineConfig
 	decoderName string
+	server      *http.Server
 }
 
 // HTTP Listen Input config struct
@@ -54,6 +57,24 @@ func (hli *HttpListenInput) ConfigStruct() interface{} {
 		Address: "127.0.0.1:8325",
 		Headers: make(http.Header),
 	}
+}
+
+func defaultStarter(hli *HttpListenInput) (err error) {
+	hli.listener, err = net.Listen("tcp", hli.conf.Address)
+	if err != nil {
+		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
+			hli.conf.Address, err.Error())
+	} else {
+		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
+			hli.conf.Address))
+	}
+
+	err = hli.server.Serve(hli.listener)
+	if err != nil {
+		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+	}
+
+	return nil
 }
 
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -114,6 +135,11 @@ func (hli *HttpListenInput) Init(config interface{}) (err error) {
 	hli.conf = config.(*HttpListenInputConfig)
 	hli.decoderName = hli.conf.Decoder
 
+	handler := http.HandlerFunc(hli.RequestHandler)
+	hli.server = &http.Server{
+		Handler: CustomHeadersHandler(handler, hli.conf.Headers),
+	}
+
 	return nil
 }
 
@@ -129,22 +155,9 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 	}
 
-	hliEndpointMux := http.NewServeMux()
-	hli.listener, err = net.Listen("tcp", hli.conf.Address)
+	err = starterFunc(hli)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
-			hli.conf.Address, err.Error())
-	} else {
-		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
-			hli.conf.Address))
-	}
-
-	hliEndpointMux.HandleFunc("/", hli.RequestHandler)
-
-	handler := CustomHeadersHandler(hliEndpointMux, hli.conf.Headers)
-	err = http.Serve(hli.listener, handler)
-	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+		return err
 	}
 
 	<-hli.stopChan
@@ -153,12 +166,15 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (hli *HttpListenInput) Stop() {
-	hli.listener.Close()
+	if hli.listener != nil {
+		hli.listener.Close()
+	}
 	close(hli.stopChan)
 }
 
 func init() {
 	RegisterPlugin("HttpListenInput", func() interface{} {
+		starterFunc = defaultStarter
 		return new(HttpListenInput)
 	})
 }
