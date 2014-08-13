@@ -249,7 +249,7 @@ Config:
     larger than the `max_delay`. Defaults to 250ms.
 - max_retries (int):
     Maximum amount of times to attempt restarting the plugin before giving up
-    and shutting down hekad. Use 0 for no retry attempt, and -1 to continue
+    and exiting the plugin. Use 0 for no retry attempt, and -1 to continue
     trying forever (note that this will cause hekad to halt possibly forever
     if the plugin cannot be restarted). Defaults to -1.
 

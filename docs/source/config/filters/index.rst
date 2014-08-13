@@ -23,6 +23,10 @@ initialization code.
 - ticker_interval (uint, optional):
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
+- can_exit (bool, optional)
+    .. versionadded:: 0.7
+    Whether or not this plugin can exit without causing Heka to shutdown.
+    Defaults to false for non-sandbox filters, and true for sandbox filters.
 
 .. _config_circular_buffer_delta_agg_filter:
 

@@ -34,6 +34,10 @@ initialization code.
     .. versionadded:: 0.6
     Specifies whether or not Heka's :ref:`stream_framing` should be applied to
     the binary data returned from the OutputRunner's `Encode()` method.
+- can_exit (bool, optional)
+    .. versionadded:: 0.7
+    Whether or not this plugin can exit without causing Heka to shutdown.
+    Defaults to false.
 
 .. _config_amqp_output:
 .. include:: /config/outputs/amqp.rst
