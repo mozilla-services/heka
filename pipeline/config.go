@@ -115,9 +115,9 @@ type Restarting interface {
 }
 
 // Indicates a plug-in can stop without causing a heka shut-down
+// Callers should first check IsStoppable, and if it returns true, Unregister
+// should be called to remove it from Heka while running.
 type Stoppable interface {
-	// This function isn't called, the existence of the interface signals
-	// the plug-in can safely go away
 	IsStoppable() bool
 	Unregister(pConfig *PipelineConfig) error
 }
@@ -464,7 +464,7 @@ type PluginGlobals struct {
 	Retries    RetryOptions
 	Encoder    string // Output only.
 	UseFraming *bool  `toml:"use_framing"` // Output only.
-	CanExit    bool   `toml:"can_exit"`
+	CanExit    *bool  `toml:"can_exit"`
 }
 
 // A helper object to support delayed plugin creation.
@@ -687,14 +687,20 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	}
 	runner.matcher = matcher
 
-	// Currently Sandbox filters are always exitable.
-	if section.globals.Typ == "SandboxFilter" {
-		section.globals.CanExit = true
-	} else if !section.globals.CanExit {
+	if section.globals.CanExit == nil {
 		canExit := getAttr(config, "CanExit", false)
-		section.globals.CanExit = canExit.(bool)
+		switch canExit := canExit.(type) {
+		case bool:
+			section.globals.CanExit = &canExit
+		case *bool:
+			if canExit == nil {
+				b := false
+				canExit = &b
+			}
+			section.globals.CanExit = canExit
+		}
 	}
-	runner.canExit = section.globals.CanExit
+	runner.canExit = *section.globals.CanExit
 
 	switch section.category {
 	case "Filter":

@@ -29,7 +29,7 @@ var ErrUnknownPluginType = errors.New("Unable to assert this is an Output or Fil
 
 // Base interface for the Heka plugin runners.
 type PluginRunner interface {
-	// All plugins either can or cannot stop
+	// All plugins either can or cannot stop without causing Heka to shutdown.
 	Stoppable
 
 	// Plugin name.

@@ -59,6 +59,7 @@ type SandboxConfig struct {
 	MemoryLimit      uint   `toml:"memory_limit"`
 	InstructionLimit uint   `toml:"instruction_limit"`
 	OutputLimit      uint   `toml:"output_limit"`
+	CanExit          bool   `toml:"can_exit"`
 	Profile          bool
 	Config           map[string]interface{}
 	Globals          *pipeline.GlobalConfigStruct
@@ -72,5 +73,6 @@ func NewSandboxConfig(globals *pipeline.GlobalConfigStruct) interface{} {
 		OutputLimit:      63 * 1024,
 		ScriptType:       "lua",
 		Globals:          globals,
+		CanExit:          true,
 	}
 }
