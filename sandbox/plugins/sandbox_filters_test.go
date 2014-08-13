@@ -67,8 +67,8 @@ func FilterSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			c.Expect(err.Error(), gs.Equals, "exceeded InjectMessage count")
-
+			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
 		c.Specify("Over inject messages from TimerEvent", func() {
@@ -88,7 +88,8 @@ func FilterSpec(c gs.Context) {
 				close(inChan)
 			}()
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			c.Expect(err.Error(), gs.Equals, "exceeded InjectMessage count")
+			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
 		c.Specify("Preserves data", func() {

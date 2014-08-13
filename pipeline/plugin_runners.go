@@ -570,31 +570,27 @@ func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
 		// and we wont leak any packs.
 		<-foRunner.inChan
 
-		var errMsg string
-		if foRunner.pluginGlobals.Typ == "SandboxFilter" {
-			// If there is an error its been terminated, and it's already sent a
-			// terminated message
-			if foRunner.lastErr != nil {
-				return
-			} else {
-				// No error means it was simply unloaded
-				errMsg = "Filter unloaded."
-			}
+		// A TerminatedError means the plugin was terminated, and has generated
+		// its own termination message, so we can return now.
+		if _, ok := foRunner.lastErr.(TerminatedError); ok {
+			return
 		}
 
 		pack := pConfig.PipelinePack(0)
 		pack.Message.SetType("heka.terminated")
 		pack.Message.SetLogger(foRunner.Name())
-		if errMsg == "" {
-			if foRunner.lastErr != nil {
-				err = foRunner.lastErr
-			} else {
-				// This is simply when run returns no errors, but the plugin has
-				// exited anyway
-				err = errors.New("Run exited.")
-			}
-			errMsg = "Error: " + err.Error()
+
+		var errMsg string
+		if foRunner.lastErr != nil {
+			errMsg = foRunner.lastErr.Error()
+		} else if foRunner.pluginGlobals.Typ == "SandboxFilter" {
+			errMsg = "Filter unloaded."
+		} else {
+			// This is simply when run returns no errors, but the plugin has
+			// exited anyway
+			errMsg = "Run exited."
 		}
+		errMsg = "Error: " + errMsg
 
 		payload := fmt.Sprintf("%s (type %s) terminated. "+errMsg,
 			foRunner.Name(), foRunner.pluginGlobals.Typ)
@@ -618,6 +614,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
 	if err != nil {
 		foRunner.LogError(err)
+		globals.ShutDown()
 		return
 	}
 

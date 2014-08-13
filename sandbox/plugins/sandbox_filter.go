@@ -181,18 +181,18 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		capacity       = cap(inChan) - 1
 	)
 
+	// We assign to the return value of Run() for errors in the closure so that
+	// the plugin runner can determine what caused the SandboxFilter to return.
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
-			err = fmt.Errorf("exceeded InjectMessage count")
-			// fr.LogError(err)
+			err = pipeline.TerminatedError("exceeded InjectMessage count")
 			return 1
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
-			err = fmt.Errorf("exceeded MaxMsgLoops = %d",
-				this.pConfig.Globals.MaxMsgLoops)
-			// fr.LogError(err)
+			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
+				this.pConfig.Globals.MaxMsgLoops))
 			return 1
 		}
 		if len(payload_type) == 0 { // heka protobuf message
