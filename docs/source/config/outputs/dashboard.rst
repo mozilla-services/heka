@@ -32,7 +32,7 @@ Config:
 .. versionadded:: 0.7
 
 - headers (subsection, optional):
-    It is possible to inject arbitrary HTTP headers into each outgoing request
+    It is possible to inject arbitrary HTTP headers into each outgoing response
     by adding a TOML subsection entitled "headers" to you HttpOutput config
     section. All entries in the subsection must be a list of string values.
 
