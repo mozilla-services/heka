@@ -31,6 +31,8 @@ import (
 	"time"
 )
 
+var starterFunc func(output *DashboardOutput) error
+
 type DashboardOutputConfig struct {
 	// IP address of the Dashboard HTTP interface (defaults to all interfaces on
 	// port 4352 (HEKA))
@@ -71,6 +73,7 @@ type DashboardOutput struct {
 	relDataPath      string
 	dataDirectory    string
 	server           *http.Server
+	handler          http.Handler
 	pConfig          *PipelineConfig
 }
 
@@ -142,19 +145,18 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 		return
 	}
 
-	if err = filepath.Walk(self.staticDirectory, copier); err != nil {
-		return fmt.Errorf("Error copying static dashboard files: %s", err)
+	if self.handler == nil {
+		if err = filepath.Walk(self.staticDirectory, copier); err != nil {
+			return fmt.Errorf("Error copying static dashboard files: %s", err)
+		}
+		self.handler = http.FileServer(http.Dir(self.workingDirectory))
 	}
-
-	h := http.FileServer(http.Dir(self.workingDirectory))
-	h = httpPlugin.CustomHeadersHandler(h, conf.Headers)
 	self.server = &http.Server{
 		Addr:         conf.Address,
-		Handler:      h,
+		Handler:      httpPlugin.CustomHeadersHandler(self.handler, conf.Headers),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	go self.server.ListenAndServe()
 
 	return
 }
@@ -162,6 +164,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 	ticker := or.Ticker()
+	go starterFunc(self)
 
 	var (
 		ok   = true
@@ -283,6 +286,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
+func defaultStarter(output *DashboardOutput) error {
+	return output.server.ListenAndServe()
+}
+
 func overwriteFile(filename, s string) (err error) {
 	var file *os.File
 	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
@@ -323,6 +330,7 @@ func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (e
 
 func init() {
 	RegisterPlugin("DashboardOutput", func() interface{} {
+		starterFunc = defaultStarter
 		return new(DashboardOutput)
 	})
 }
