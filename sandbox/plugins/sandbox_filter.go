@@ -78,10 +78,6 @@ func (this *SandboxFilter) SetName(name string) {
 	this.name = re.ReplaceAllString(name, "_")
 }
 
-func (s *SandboxFilter) IsStoppable() {
-	return
-}
-
 // Determines the script type and creates interpreter
 func (this *SandboxFilter) Init(config interface{}) (err error) {
 	if this.sb != nil {
@@ -185,15 +181,17 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		capacity       = cap(inChan) - 1
 	)
 
+	// We assign to the return value of Run() for errors in the closure so that
+	// the plugin runner can determine what caused the SandboxFilter to return.
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
-			fr.LogError(fmt.Errorf("exceeded InjectMessage count"))
+			err = pipeline.TerminatedError("exceeded InjectMessage count")
 			return 1
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
-			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
+			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
 				this.pConfig.Globals.MaxMsgLoops))
 			return 1
 		}
@@ -324,24 +322,21 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
-	if terminated {
-		go h.PipelineConfig().RemoveFilterRunner(fr.Name())
-		// recycle any messages until the matcher is torn down
-		for pack = range inChan {
-			pack.Recycle()
-		}
-	}
-
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
 
 	this.reportLock.Lock()
+	var destroyErr error
 	if this.sbc.PreserveData {
-		err = this.sb.Destroy(this.preservationFile)
+		destroyErr = this.sb.Destroy(this.preservationFile)
 	} else {
-		err = this.sb.Destroy("")
+		destroyErr = this.sb.Destroy("")
 	}
+	if destroyErr != nil {
+		err = destroyErr
+	}
+
 	this.sb = nil
 	this.reportLock.Unlock()
 	return

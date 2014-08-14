@@ -149,10 +149,12 @@ Restarting Plugins
 ==================
 
 In the event that your plugin fails to initialize properly at startup, hekad
-will exit. However, once hekad is running, if a plugin should fail (perhaps
+will exit. However, once hekad is running, if the plugin should fail (perhaps
 because a network connection dropped, a file became unavailable, etc), then
-hekad will shutdown. This shutdown can be avoided if your plugin supports
-being restarted.
+the plugin will exit.
+If your plugin supports being restarted then when it exits it will be recreated,
+and restarted until it exhausts its max retry attempts. At which point it will
+exit, and heka will shutdown if not configured with `can_exit`.
 
 To add restart support to your plugin, the `Restarting` interface defined in
 the `config.go <https://github.com/mozilla-
@@ -403,7 +405,7 @@ access to its DecoderRunner object when it is started::
         SetDecoderRunner(dr DecoderRunner)
     }
 
-The second provides a notification to the Decoder when the DecoderRunner is 
+The second provides a notification to the Decoder when the DecoderRunner is
 exiting::
 
     type WantsDecoderRunnerShutdown interface {

@@ -115,10 +115,21 @@ type Restarting interface {
 }
 
 // Indicates a plug-in can stop without causing a heka shut-down
+// Callers should first check IsStoppable, and if it returns true, Unregister
+// should be called to remove it from Heka while running.
 type Stoppable interface {
-	// This function isn't called, the existence of the interface signals
-	// the plug-in can safely go away
-	IsStoppable()
+	IsStoppable() bool
+	Unregister(pConfig *PipelineConfig) error
+}
+
+type notStoppable struct{}
+
+func (s *notStoppable) IsStoppable() bool {
+	return false
+}
+
+func (s *notStoppable) Unregister(pConfig *PipelineConfig) error {
+	return nil
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.
@@ -174,6 +185,8 @@ type PipelineConfig struct {
 	inputsLock sync.Mutex
 	// Is freed when all Input runners have stopped.
 	inputsWg sync.WaitGroup
+	// Lock protecting access to running outputs so they can be removed safely
+	outputsLock sync.Mutex
 	// Internal reporting channel
 	reportRecycleChan chan *PipelinePack
 }
@@ -381,7 +394,8 @@ func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
 	return false
 }
 
-// Starts the provided InputRunner and adds it to the set of running Inputs.
+// AddInputRunner Starts the provided InputRunner and adds it to the set of
+// running Inputs.
 func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginWrapper) error {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
@@ -397,6 +411,7 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner, wrapper *PluginW
 	return nil
 }
 
+// RemoveInputRunner unregisters the provided InputRunner, and stops it.
 func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
 	self.inputsLock.Lock()
 	defer self.inputsLock.Unlock()
@@ -406,6 +421,19 @@ func (self *PipelineConfig) RemoveInputRunner(iRunner InputRunner) {
 	}
 	delete(self.InputRunners, name)
 	iRunner.Input().Stop()
+}
+
+// RemoveOutputRunner unregisters the provided OutputRunner from heka, and
+// removes it's message matcher from the heka router.
+func (self *PipelineConfig) RemoveOutputRunner(oRunner OutputRunner) {
+	self.outputsLock.Lock()
+	defer self.outputsLock.Unlock()
+	name := oRunner.Name()
+	if _, ok := self.outputWrappers[name]; ok {
+		self.router.RemoveOutputMatcher() <- oRunner.MatchRunner()
+		delete(self.outputWrappers, name)
+	}
+	delete(self.OutputRunners, name)
 }
 
 type ConfigFile PluginConfig
@@ -436,6 +464,7 @@ type PluginGlobals struct {
 	Retries    RetryOptions
 	Encoder    string // Output only.
 	UseFraming *bool  `toml:"use_framing"` // Output only.
+	CanExit    *bool  `toml:"can_exit"`
 }
 
 // A helper object to support delayed plugin creation.
@@ -658,15 +687,28 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	}
 	runner.matcher = matcher
 
+	if section.globals.CanExit == nil {
+		canExit := getAttr(config, "CanExit", false)
+		switch canExit := canExit.(type) {
+		case bool:
+			section.globals.CanExit = &canExit
+		case *bool:
+			if canExit == nil {
+				b := false
+				canExit = &b
+			}
+			section.globals.CanExit = canExit
+		}
+	}
+	runner.canExit = *section.globals.CanExit
+
 	switch section.category {
 	case "Filter":
 		if matcher != nil {
 			self.router.fMatchers = append(self.router.fMatchers, matcher)
 		}
 		self.FilterRunners[runner.name] = runner
-		if _, ok := runner.plugin.(Stoppable); !ok {
-			self.filterWrappers[runner.name] = wrapper
-		}
+		self.filterWrappers[runner.name] = wrapper
 
 	case "Output":
 		// Check to see if default value for UseFraming is set if none was in
@@ -706,6 +748,7 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 		if matcher != nil {
 			self.router.oMatchers = append(self.router.oMatchers, matcher)
 		}
+
 		self.OutputRunners[runner.name] = runner
 		self.outputWrappers[runner.name] = wrapper
 	}

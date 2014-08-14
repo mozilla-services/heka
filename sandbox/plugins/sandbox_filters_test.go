@@ -57,18 +57,18 @@ func FilterSpec(c gs.Context) {
 			var timer <-chan time.Time
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(3)
+			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(2)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(2)
-			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(2)
-			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("exceeded InjectMessage count"))
 
 			config.ScriptFilename = "../lua/testsupport/processinject.lua"
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
 			inChan <- pack
 			close(inChan)
-			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
 		c.Specify("Over inject messages from TimerEvent", func() {
@@ -76,11 +76,9 @@ func FilterSpec(c gs.Context) {
 			timer = time.Tick(time.Duration(1) * time.Millisecond)
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(12)
+			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(11)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(11)
-			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(11)
-			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("exceeded InjectMessage count"))
 
 			config.ScriptFilename = "../lua/testsupport/timerinject.lua"
 			err := sbFilter.Init(config)
@@ -89,7 +87,9 @@ func FilterSpec(c gs.Context) {
 				time.Sleep(time.Duration(250) * time.Millisecond)
 				close(inChan)
 			}()
-			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
 		c.Specify("Preserves data", func() {
@@ -103,7 +103,8 @@ func FilterSpec(c gs.Context) {
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
 			close(inChan)
-			sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
 			_, err = os.Stat("sandbox_preservation/serialize.data")
 			c.Expect(err, gs.IsNil)
 			err = os.Remove("sandbox_preservation/serialize.data")
@@ -137,7 +138,8 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: 5 seconds skew"))
 			inChan <- pack
 			close(inChan)
-			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err := sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("Control message in the future", func() {
@@ -148,7 +150,8 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("Discarded control message: -5 seconds skew"))
 			inChan <- pack
 			close(inChan)
-			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err := sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("Generates the right default working directory", func() {
@@ -157,9 +160,10 @@ func FilterSpec(c gs.Context) {
 			name := "SandboxManagerFilter"
 			fth.MockFilterRunner.EXPECT().Name().Return(name)
 			close(inChan)
-			sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			err := sbmFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
 			c.Expect(sbmFilter.workingDirectory, gs.Equals, sbxMgrsDir)
-			_, err := os.Stat(sbxMgrsDir)
+			_, err = os.Stat(sbxMgrsDir)
 			c.Expect(err, gs.IsNil)
 		})
 
