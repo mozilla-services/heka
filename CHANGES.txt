@@ -27,6 +27,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed packet tracking idle packs error output formatting.
+
 * Prevent panics during shutdown when a restarting plugin has been restarted
   (issue #957).
 

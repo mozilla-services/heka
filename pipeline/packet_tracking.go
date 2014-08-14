@@ -115,7 +115,7 @@ func (d *DiagnosticTracker) Run() {
 		pluginCounts = make(map[PluginRunner]int)
 
 		// Locate all the packs that have not been touched in idleMax duration
-		// that are not recycled
+		// that are not recycled.
 		earliestAccess = time.Now().Add(-idleMax)
 		for _, pack = range d.packs {
 			if len(pack.diagnostics.lastPlugins) == 0 {
@@ -129,12 +129,14 @@ func (d *DiagnosticTracker) Run() {
 			}
 		}
 
-		// Drop a warning about how many packs have been idle
+		// Drop a warning about how many packs have been idle.
 		if len(probablePacks) > 0 {
-			g.LogMessage("Diagnostics", fmt.Sprintf("%d packs have been idle more than %d seconds.",
-				d.ChannelName, len(probablePacks), idleMax))
-			g.LogMessage("Diagnostics", fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
-				d.ChannelName))
+			g.LogMessage("Diagnostics",
+				fmt.Sprintf("%d packs have been idle more than %d seconds.",
+					len(probablePacks), idleMax))
+			g.LogMessage("Diagnostics",
+				fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
+					d.ChannelName))
 			for runner, count = range pluginCounts {
 				runner.SetLeakCount(count)
 				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", runner.Name(), count))
