@@ -515,14 +515,14 @@ func (foRunner *foRunner) Unregister(pConfig *PipelineConfig) error {
 	return nil
 }
 
-func (foRunner *foRunner) getWrapperAndRun(helper *PluginHelper, pConfig *PipelineConfig) (pw *PluginWrapper, err error) {
+func (foRunner *foRunner) getWrapperAndRun(helper *PluginHelper) (pw *PluginWrapper, err error) {
 	if filter, ok := foRunner.plugin.(Filter); ok {
 		foRunner.kind = foFilter
-		pw = pConfig.filterWrappers[foRunner.name]
+		pw = foRunner.pConfig.filterWrappers[foRunner.name]
 		err = filter.Run(foRunner, *helper)
 	} else if output, ok := foRunner.plugin.(Output); ok {
 		foRunner.kind = foOutput
-		pw = pConfig.outputWrappers[foRunner.name]
+		pw = foRunner.pConfig.outputWrappers[foRunner.name]
 		err = output.Run(foRunner, *helper)
 	} else {
 		err = ErrUnknownPluginType
@@ -549,21 +549,21 @@ func (foRunner *foRunner) restart(helper *RetryHelper, wrapper *PluginWrapper) e
 	return nil
 }
 
-func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
+func (foRunner *foRunner) exit() {
 	// Just exit if we're stopping.
-	if pConfig.Globals.Stopping {
+	if foRunner.pConfig.Globals.Stopping {
 		return
 	}
 
 	// If we're stoppable unregister ourself
 	if foRunner.IsStoppable() {
 		foRunner.LogMessage("has stopped, exiting plugin without shutting down.")
-		err := foRunner.Unregister(pConfig)
+		err := foRunner.Unregister(foRunner.pConfig)
 		if err != nil {
 			foRunner.LogError(
 				fmt.Errorf("err: %s. could not unregister plugin. ",
 					"Shutting down.", err))
-			pConfig.Globals.ShutDown()
+			foRunner.pConfig.Globals.ShutDown()
 			return
 		}
 		// Once the inchan is closed we know the router has closed the matcher
@@ -576,7 +576,7 @@ func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
 			return
 		}
 
-		pack := pConfig.PipelinePack(0)
+		pack := foRunner.pConfig.PipelinePack(0)
 		pack.Message.SetType("heka.terminated")
 		pack.Message.SetLogger(foRunner.Name())
 
@@ -596,10 +596,10 @@ func (foRunner *foRunner) exit(pConfig *PipelineConfig) {
 			foRunner.Name(), foRunner.pluginGlobals.Typ)
 		pack.Message.SetPayload(payload)
 		// Do not call inject, we need to avoid matching a message to ourself
-		pConfig.router.inChan <- pack
+		foRunner.pConfig.router.inChan <- pack
 	} else {
 		foRunner.LogMessage("has stopped, shutting down.")
-		pConfig.Globals.ShutDown()
+		foRunner.pConfig.Globals.ShutDown()
 	}
 }
 
@@ -608,8 +608,8 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 
 	var err error
 
-	pConfig := helper.PipelineConfig()
-	globals := pConfig.Globals
+	foRunner.pConfig = helper.PipelineConfig()
+	globals := foRunner.pConfig.Globals
 
 	rh, err := NewRetryHelper(foRunner.pluginGlobals.Retries)
 	if err != nil {
@@ -626,12 +626,12 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	}
 
 	// Handle the cleanup
-	defer foRunner.exit(pConfig)
+	defer foRunner.exit()
 
 	for !globals.Stopping {
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
-		pw, err = foRunner.getWrapperAndRun(&helper, pConfig)
+		pw, err = foRunner.getWrapperAndRun(&helper)
 		if err != nil {
 			// Keep track of all the errors for later
 			foRunner.lastErr = err
@@ -645,12 +645,6 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 
 		// Are we supposed to stop? Save ourselves some time by exiting now.
 		if globals.Stopping {
-			return
-		}
-
-		// No wrapper means its a dynamically created sandbox filter
-		// and it can exit without shutting down Heka.
-		if pw == nil {
 			return
 		}
 
