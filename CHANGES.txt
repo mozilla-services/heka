@@ -30,7 +30,7 @@ Bug Handling
 * Prevent panics during shutdown when a restarting plugin has been restarted
   (issue #957).
 
-* Added support for a Logstreamer symbolically linked log_directory root 
+* Added support for a Logstreamer symbolically linked log_directory root
   (issue #741).
 
 * Fixed lots of race conditions in the tests.
@@ -66,6 +66,9 @@ Features
 * Added UdpOutput.
 
 * Added IrcOutput.
+
+* Added support for filter and output plugins to optionally exit without
+  causing Heka to shutdown via config option.
 
 0.6.1 (2014-MM-DD)
 ==================
