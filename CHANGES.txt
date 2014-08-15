@@ -27,6 +27,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fixed the MySQL slow query grammar to handle logs with no newline.
+
 * Fixed packet tracking idle packs error output formatting.
 
 * Prevent panics during shutdown when a restarting plugin has been restarted

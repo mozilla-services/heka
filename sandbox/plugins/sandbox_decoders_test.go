@@ -675,8 +675,7 @@ SET last_insert_id=999,insert_id=1000,timestamp=1399500744;
 # administrator command: do something
 /* [queryName=FIND_ITEMS] */ SELECT *
 FROM widget
-WHERE id = 10;
-`
+WHERE id = 10;`
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
@@ -715,8 +714,7 @@ WHERE id = 10;
 SET timestamp=1399500744;
 /* [queryName=FIND_ITEMS] */ SELECT *
 FROM widget
-WHERE id = 10;
-`
+WHERE id = 10;`
 			pack.Message.SetPayload(data)
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
