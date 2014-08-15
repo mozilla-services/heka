@@ -27,8 +27,6 @@ import (
 	"time"
 )
 
-var starterFunc func(hli *HttpListenInput) error
-
 type HttpListenInput struct {
 	conf        *HttpListenInputConfig
 	listener    net.Listener
@@ -38,6 +36,7 @@ type HttpListenInput struct {
 	pConfig     *PipelineConfig
 	decoderName string
 	server      *http.Server
+	starterFunc func(hli *HttpListenInput) error
 }
 
 // HTTP Listen Input config struct
@@ -155,7 +154,7 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 	}
 
-	err = starterFunc(hli)
+	err = hli.starterFunc(hli)
 	if err != nil {
 		return err
 	}
@@ -174,7 +173,8 @@ func (hli *HttpListenInput) Stop() {
 
 func init() {
 	RegisterPlugin("HttpListenInput", func() interface{} {
-		starterFunc = defaultStarter
-		return new(HttpListenInput)
+		input := new(HttpListenInput)
+		input.starterFunc = defaultStarter
+		return input
 	})
 }

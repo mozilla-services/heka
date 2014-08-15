@@ -61,7 +61,7 @@ func HttpListenInputSpec(c gs.Context) {
 		defer close(startedChan)
 		ts := httptest.NewUnstartedServer(nil)
 
-		starterFunc = func(hli *HttpListenInput) error {
+		httpListenInput.starterFunc = func(hli *HttpListenInput) error {
 			ts.Start()
 			startedChan <- true
 			return nil

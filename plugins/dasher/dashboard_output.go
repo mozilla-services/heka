@@ -31,8 +31,6 @@ import (
 	"time"
 )
 
-var starterFunc func(output *DashboardOutput) error
-
 type DashboardOutputConfig struct {
 	// IP address of the Dashboard HTTP interface (defaults to all interfaces on
 	// port 4352 (HEKA))
@@ -75,6 +73,7 @@ type DashboardOutput struct {
 	server           *http.Server
 	handler          http.Handler
 	pConfig          *PipelineConfig
+	starterFunc      func(output *DashboardOutput) error
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -164,7 +163,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 	ticker := or.Ticker()
-	go starterFunc(self)
+	go self.starterFunc(self)
 
 	var (
 		ok   = true
@@ -330,7 +329,8 @@ func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (e
 
 func init() {
 	RegisterPlugin("DashboardOutput", func() interface{} {
-		starterFunc = defaultStarter
-		return new(DashboardOutput)
+		output := new(DashboardOutput)
+		output.starterFunc = defaultStarter
+		return output
 	})
 }

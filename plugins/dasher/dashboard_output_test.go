@@ -82,7 +82,7 @@ func DashboardOutputSpec(c gs.Context) {
 				defer close(startedChan)
 				ts := httptest.NewUnstartedServer(nil)
 
-				starterFunc = func(hli *DashboardOutput) error {
+				dashboardOutput.starterFunc = func(hli *DashboardOutput) error {
 					ts.Start()
 					startedChan <- true
 					return nil
