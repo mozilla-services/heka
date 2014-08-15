@@ -18,8 +18,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/ecnahc515/go-ircevent"
 	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/thoj/go-ircevent"
 	"time"
 )
 
