@@ -16,8 +16,7 @@ package irc
 
 import (
 	"errors"
-
-	"github.com/ecnahc515/go-ircevent"
+	"github.com/thoj/go-ircevent"
 )
 
 type MockIrcConnection struct {

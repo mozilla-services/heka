@@ -17,9 +17,9 @@ package irc
 import (
 	"errors"
 	"fmt"
-	"github.com/ecnahc515/go-ircevent"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/thoj/go-ircevent"
 	"sync"
 	"sync/atomic"
 	"time"
