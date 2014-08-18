@@ -19,6 +19,8 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net/http"
+	"net/http/httptest"
+	"reflect"
 )
 
 func HttpListenInputSpec(c gs.Context) {
@@ -42,29 +44,38 @@ func HttpListenInputSpec(c gs.Context) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	config := httpListenInput.ConfigStruct().(*HttpListenInputConfig)
-	config.Address = "127.0.0.1:8325"
 	config.Decoder = "PayloadJsonDecoder"
-
-	ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 	mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
 
 	dRunnerInChan := make(chan *PipelinePack, 1)
-	mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan).AnyTimes()
-
-	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
-	ith.MockInputRunner.EXPECT().Name().Return("HttpListenInput").AnyTimes()
-	ith.MockHelper.EXPECT().DecoderRunner("PayloadJsonDecoder", "HttpListenInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
-
-	err := httpListenInput.Init(config)
-	c.Assume(err, gs.IsNil)
-	ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
-	startInput()
 
 	c.Specify("A HttpListenInput", func() {
+		mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
+		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().Name().Return("HttpListenInput").Times(2)
+		ith.MockHelper.EXPECT().DecoderRunner("PayloadJsonDecoder", "HttpListenInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		startedChan := make(chan bool, 1)
+		defer close(startedChan)
+		ts := httptest.NewUnstartedServer(nil)
+
+		httpListenInput.starterFunc = func(hli *HttpListenInput) error {
+			ts.Start()
+			startedChan <- true
+			return nil
+		}
+
 		c.Specify("Adds query parameters to the message pack as fields", func() {
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
 			ith.PackSupply <- ith.Pack
-			resp, err := http.Get("http://127.0.0.1:8325/?test=Hello%20World")
+			<-startedChan
+			resp, err := http.Get(ts.URL + "/?test=Hello%20World")
 			c.Assume(err, gs.IsNil)
 			resp.Body.Close()
 			c.Assume(resp.StatusCode, gs.Equals, 200)
@@ -74,6 +85,34 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue, gs.Equals, "Hello World")
 		})
+
+		c.Specify("Add custom headers", func() {
+			config.Headers = http.Header{
+				"One":  []string{"two", "three"},
+				"Four": []string{"five", "six", "seven"},
+			}
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
+			ith.PackSupply <- ith.Pack
+			<-startedChan
+			resp, err := http.Get(ts.URL)
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+			<-dRunnerInChan
+
+			// Verify headers are there
+			eq := reflect.DeepEqual(resp.Header["One"], config.Headers["One"])
+			c.Expect(eq, gs.IsTrue)
+			eq = reflect.DeepEqual(resp.Header["Four"], config.Headers["Four"])
+			c.Expect(eq, gs.IsTrue)
+
+		})
+
+		ts.Close()
 		httpListenInput.Stop()
 	})
 }

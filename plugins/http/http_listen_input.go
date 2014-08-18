@@ -35,6 +35,8 @@ type HttpListenInput struct {
 	dRunner     DecoderRunner
 	pConfig     *PipelineConfig
 	decoderName string
+	server      *http.Server
+	starterFunc func(hli *HttpListenInput) error
 }
 
 // HTTP Listen Input config struct
@@ -45,16 +47,36 @@ type HttpListenInputConfig struct {
 	// Name of configured decoder instance used to decode the messages.
 	// Defaults to request body as payload.
 	Decoder string
+
+	Headers http.Header
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
 	return &HttpListenInputConfig{
 		Address: "127.0.0.1:8325",
+		Headers: make(http.Header),
 	}
 }
 
-func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
+func defaultStarter(hli *HttpListenInput) (err error) {
+	hli.listener, err = net.Listen("tcp", hli.conf.Address)
+	if err != nil {
+		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
+			hli.conf.Address, err.Error())
+	} else {
+		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
+			hli.conf.Address))
+	}
 
+	err = hli.server.Serve(hli.listener)
+	if err != nil {
+		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+	}
+
+	return nil
+}
+
+func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error())
@@ -107,10 +129,19 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 }
 
 func (hli *HttpListenInput) Init(config interface{}) (err error) {
+	if hli.starterFunc == nil {
+		hli.starterFunc = defaultStarter
+	}
+
 	hli.stopChan = make(chan bool, 1)
 
 	hli.conf = config.(*HttpListenInputConfig)
 	hli.decoderName = hli.conf.Decoder
+
+	handler := http.HandlerFunc(hli.RequestHandler)
+	hli.server = &http.Server{
+		Handler: CustomHeadersHandler(handler, hli.conf.Headers),
+	}
 
 	return nil
 }
@@ -127,20 +158,9 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 	}
 
-	hliEndpointMux := http.NewServeMux()
-	hli.listener, err = net.Listen("tcp", hli.conf.Address)
+	err = hli.starterFunc(hli)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
-			hli.conf.Address, err.Error())
-	} else {
-		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
-			hli.conf.Address))
-	}
-
-	hliEndpointMux.HandleFunc("/", hli.RequestHandler)
-	err = http.Serve(hli.listener, hliEndpointMux)
-	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+		return err
 	}
 
 	<-hli.stopChan
@@ -149,7 +169,9 @@ func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 }
 
 func (hli *HttpListenInput) Stop() {
-	hli.listener.Close()
+	if hli.listener != nil {
+		hli.listener.Close()
+	}
 	close(hli.stopChan)
 }
 

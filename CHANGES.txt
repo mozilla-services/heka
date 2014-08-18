@@ -74,6 +74,8 @@ Features
 * Added support for filter and output plugins to optionally exit without
   causing Heka to shutdown via config option.
 
+* Added support for custom HTTP Headers in HttpListenInput and DashboardOutput.
+
 0.6.1 (2014-MM-DD)
 ==================
 

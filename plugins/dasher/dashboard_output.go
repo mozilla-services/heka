@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	httpPlugin "github.com/mozilla-services/heka/plugins/http"
 	"io"
 	"net/http"
 	"os"
@@ -49,6 +50,8 @@ type DashboardOutputConfig struct {
 	TickerInterval uint `toml:"ticker_interval"`
 	// Default message matcher.
 	MessageMatcher string
+	// Custom http headers
+	Headers http.Header
 }
 
 func (self *DashboardOutput) ConfigStruct() interface{} {
@@ -58,6 +61,7 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
+		Headers:          make(http.Header),
 	}
 }
 
@@ -67,7 +71,9 @@ type DashboardOutput struct {
 	relDataPath      string
 	dataDirectory    string
 	server           *http.Server
+	handler          http.Handler
 	pConfig          *PipelineConfig
+	starterFunc      func(output *DashboardOutput) error
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -84,6 +90,10 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	self.workingDirectory = globals.PrependBaseDir(conf.WorkingDirectory)
 	self.relDataPath = "data"
 	self.dataDirectory = filepath.Join(self.workingDirectory, self.relDataPath)
+
+	if self.starterFunc == nil {
+		self.starterFunc = defaultStarter
+	}
 
 	if err = os.MkdirAll(self.dataDirectory, 0700); err != nil {
 		return fmt.Errorf("DashboardOutput: Can't create working directory: %s", err)
@@ -138,18 +148,18 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 		return
 	}
 
-	if err = filepath.Walk(self.staticDirectory, copier); err != nil {
-		return fmt.Errorf("Error copying static dashboard files: %s", err)
+	if self.handler == nil {
+		if err = filepath.Walk(self.staticDirectory, copier); err != nil {
+			return fmt.Errorf("Error copying static dashboard files: %s", err)
+		}
+		self.handler = http.FileServer(http.Dir(self.workingDirectory))
 	}
-
-	h := http.FileServer(http.Dir(self.workingDirectory))
 	self.server = &http.Server{
 		Addr:         conf.Address,
-		Handler:      h,
+		Handler:      httpPlugin.CustomHeadersHandler(self.handler, conf.Headers),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	go self.server.ListenAndServe()
 
 	return
 }
@@ -157,6 +167,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 	ticker := or.Ticker()
+	go self.starterFunc(self)
 
 	var (
 		ok   = true
@@ -276,6 +287,10 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}
 	return
+}
+
+func defaultStarter(output *DashboardOutput) error {
+	return output.server.ListenAndServe()
 }
 
 func overwriteFile(filename, s string) (err error) {
