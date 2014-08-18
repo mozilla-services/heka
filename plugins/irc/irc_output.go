@@ -223,7 +223,11 @@ func (output *IrcOutput) canJoin(ircChan string) bool {
 
 func (output *IrcOutput) Join(ircChan string) {
 	if output.canJoin(ircChan) {
-		output.Conn.Join(ircChan)
+		for i, ircChannel := range output.Channels {
+			if ircChannel == ircChan {
+				output.Conn.Join(output.IrcOutputConfig.Channels[i])
+			}
+		}
 	}
 }
 
