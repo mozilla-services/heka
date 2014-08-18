@@ -103,7 +103,7 @@ func (output *IrcOutput) Init(config interface{}) error {
 	}
 	output.Conn = conn
 
-	numChannels := len(output.IrcOutputConfig.Channels)
+	numChannels := len(conf.Channels)
 	output.Channels = make([]string, numChannels)
 	for i, ircChannel := range conf.Channels {
 		parts := strings.SplitN(ircChannel, " ", 2)
