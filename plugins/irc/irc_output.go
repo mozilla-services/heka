@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/thoj/go-ircevent"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,8 @@ type IrcMsgQueue chan IrcMsg
 
 type IrcOutput struct {
 	*IrcOutputConfig
+	// We explicitly have a list of channels which is different from the config.
+	Channels       []string
 	InitIrcCon     func(config *IrcOutputConfig) (IrcConnection, error)
 	Conn           IrcConnection
 	OutQueue       IrcMsgQueue
@@ -100,9 +103,18 @@ func (output *IrcOutput) Init(config interface{}) error {
 	}
 	output.Conn = conn
 
+	numChannels := len(output.IrcOutputConfig.Channels)
+	output.Channels = make([]string, numChannels)
+	for i, ircChannel := range conf.Channels {
+		parts := strings.SplitN(ircChannel, " ", 2)
+		if parts != nil {
+			ircChannel = parts[0]
+		}
+		output.Channels[i] = ircChannel
+	}
+
 	// Create our chans for passing messages from the main runner InChan to
 	// the irc channels
-	numChannels := len(output.Channels)
 	output.JoinedChannels = make([]int32, numChannels)
 	output.OutQueue = make(IrcMsgQueue, output.QueueSize)
 	output.BacklogQueues = make([]IrcMsgQueue, numChannels)
@@ -112,6 +124,7 @@ func (output *IrcOutput) Init(config interface{}) error {
 	output.die = make(chan bool)
 	output.killProcessing = make(chan bool)
 	output.numRetries = make(map[string]uint)
+
 	return nil
 }
 
@@ -232,10 +245,9 @@ func (output *IrcOutput) Privmsg(ircMsg *IrcMsg) bool {
 	idx := ircMsg.Idx
 	if atomic.LoadInt32(&output.JoinedChannels[idx]) == JOINED {
 		output.Conn.Privmsg(ircMsg.IrcChannel, string(ircMsg.Output))
-	} else {
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 // updateJoinList atomically updates our global slice of joined channels for a
@@ -375,8 +387,10 @@ func processOutQueue(output *IrcOutput) {
 func registerCallbacks(output *IrcOutput) {
 	// add a callback to check if we've gotten successfully connected
 	output.Conn.AddCallback(CONNECTED, func(event *irc.Event) {
-		for _, ircChan := range output.Channels {
-			output.Join(ircChan)
+		// We use the config channels for joining,
+		// since they contain the channel keys
+		for _, ircChan := range output.IrcOutputConfig.Channels {
+			output.Conn.Join(ircChan)
 		}
 	})
 
