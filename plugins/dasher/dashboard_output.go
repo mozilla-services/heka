@@ -91,6 +91,10 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	self.relDataPath = "data"
 	self.dataDirectory = filepath.Join(self.workingDirectory, self.relDataPath)
 
+	if self.starterFunc == nil {
+		self.starterFunc = defaultStarter
+	}
+
 	if err = os.MkdirAll(self.dataDirectory, 0700); err != nil {
 		return fmt.Errorf("DashboardOutput: Can't create working directory: %s", err)
 	}
@@ -329,8 +333,6 @@ func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (e
 
 func init() {
 	RegisterPlugin("DashboardOutput", func() interface{} {
-		output := new(DashboardOutput)
-		output.starterFunc = defaultStarter
-		return output
+		return new(DashboardOutput)
 	})
 }

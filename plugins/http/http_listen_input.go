@@ -129,6 +129,10 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 }
 
 func (hli *HttpListenInput) Init(config interface{}) (err error) {
+	if hli.starterFunc == nil {
+		hli.starterFunc = defaultStarter
+	}
+
 	hli.stopChan = make(chan bool, 1)
 
 	hli.conf = config.(*HttpListenInputConfig)
@@ -173,8 +177,6 @@ func (hli *HttpListenInput) Stop() {
 
 func init() {
 	RegisterPlugin("HttpListenInput", func() interface{} {
-		input := new(HttpListenInput)
-		input.starterFunc = defaultStarter
-		return input
+		return new(HttpListenInput)
 	})
 }
