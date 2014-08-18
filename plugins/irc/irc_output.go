@@ -178,6 +178,16 @@ func (output *IrcOutput) CleanupForRestart() {
 	// Intentially left empty. Cleanup happens in Run()
 }
 
+// Checks if there are no joinable channels left.
+func (output *IrcOutput) noneJoinable() bool {
+	for i := range output.Channels {
+		if atomic.LoadInt32(&output.JoinedChannels[i]) != CANNOTJOIN {
+			return false
+		}
+	}
+	return true
+}
+
 func (output *IrcOutput) canJoin(ircChan string) bool {
 	joinable := false
 	numChannels := len(output.Channels)
@@ -209,6 +219,10 @@ func (output *IrcOutput) handleCannotJoin(event *irc.Event) {
 	reason := event.Arguments[2]
 	output.runner.LogError(IrcCannotJoinError{ircChan, reason})
 	output.updateJoinList(ircChan, CANNOTJOIN)
+	if output.noneJoinable() {
+		output.runner.LogError(ErrNoJoinableChannels)
+		output.die <- true
+	}
 }
 
 // Privmsg wraps the irc.Privmsg by accepting an ircMsg struct, and checking if
@@ -403,7 +417,10 @@ func registerCallbacks(output *IrcOutput) {
 			// Since we'll never try to join a kicked channel again,
 			// we call canJoin to make sure we check if we need to exit when
 			// there are no channels left.
-			output.canJoin(ircChan)
+			if output.noneJoinable() {
+				output.runner.LogError(ErrNoJoinableChannels)
+				output.die <- true
+			}
 		}
 	})
 
