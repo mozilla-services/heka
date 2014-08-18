@@ -428,9 +428,8 @@ func registerCallbacks(output *IrcOutput) {
 			output.Join(ircChan)
 		} else {
 			output.updateJoinList(ircChan, CANNOTJOIN)
-			// Since we'll never try to join a kicked channel again,
-			// we call canJoin to make sure we check if we need to exit when
-			// there are no channels left.
+			// Since we'll never try to join a kicked channel again, we check if
+			// we need to exit (there are no channels left)
 			if output.noneJoinable() {
 				output.runner.LogError(ErrNoJoinableChannels)
 				output.die <- true

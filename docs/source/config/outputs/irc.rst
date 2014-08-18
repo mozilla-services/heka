@@ -18,7 +18,9 @@ Config:
 - password (string, optional):
     The password used to connect to the Irc server.
 - channels (list of strings):
-    A list of Irc channels which every matching Heka message is sent to.
+    A list of Irc channels which every matching Heka message is sent to. If
+    there is a space in the channel string, then the part after the space is
+    expected to be a password for a protected irc channel.
 - timeout (uint, optional):
     The maximum amount of time (in seconds) to wait before timing out when
     connect, reading, or writing to the Irc server. Defaults to 10.
@@ -70,7 +72,7 @@ Example:
     server = "irc.mozilla.org:6667"
     nick = "heka_bot"
     ident "heka_ident"
-    channels = [ "#heka_bot_irc" ]
+    channels = [ "#heka_bot_irc testkeypassword" ]
     rejoin_on_kick = true
     queue_size = 200
     ticker_interval = 1
