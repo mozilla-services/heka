@@ -38,14 +38,14 @@ require "cjson"
 
 function process_message()
     local output = {}
-    local ts = read_message("Fields[timestamp]")
+    local ts = tonumber(read_message("Fields[timestamp]"))
     if not ts then return -1 end
     ts = ts * 1000
     while true do
         typ, name, value, representation, count = read_next_field()
         if not typ then break end
 
-        if name and name ~= "timestamp" then
+        if name ~= "timestamp" and typ ~= 1 then -- exclude bytes
             local stat = {
                 name = name,
                 columns = {"time", "value"},
