@@ -20,6 +20,7 @@ import (
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/thoj/go-ircevent"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,8 @@ type IrcMsgQueue chan IrcMsg
 
 type IrcOutput struct {
 	*IrcOutputConfig
+	// We explicitly have a list of channels which is different from the config.
+	Channels       []string
 	InitIrcCon     func(config *IrcOutputConfig) (IrcConnection, error)
 	Conn           IrcConnection
 	OutQueue       IrcMsgQueue
@@ -100,9 +103,18 @@ func (output *IrcOutput) Init(config interface{}) error {
 	}
 	output.Conn = conn
 
+	numChannels := len(conf.Channels)
+	output.Channels = make([]string, numChannels)
+	for i, ircChannel := range conf.Channels {
+		parts := strings.SplitN(ircChannel, " ", 2)
+		if parts != nil {
+			ircChannel = parts[0]
+		}
+		output.Channels[i] = ircChannel
+	}
+
 	// Create our chans for passing messages from the main runner InChan to
 	// the irc channels
-	numChannels := len(output.Channels)
 	output.JoinedChannels = make([]int32, numChannels)
 	output.OutQueue = make(IrcMsgQueue, output.QueueSize)
 	output.BacklogQueues = make([]IrcMsgQueue, numChannels)
@@ -112,6 +124,7 @@ func (output *IrcOutput) Init(config interface{}) error {
 	output.die = make(chan bool)
 	output.killProcessing = make(chan bool)
 	output.numRetries = make(map[string]uint)
+
 	return nil
 }
 
@@ -178,6 +191,16 @@ func (output *IrcOutput) CleanupForRestart() {
 	// Intentially left empty. Cleanup happens in Run()
 }
 
+// Checks if there are no joinable channels left.
+func (output *IrcOutput) noneJoinable() bool {
+	for i := range output.Channels {
+		if atomic.LoadInt32(&output.JoinedChannels[i]) != CANNOTJOIN {
+			return false
+		}
+	}
+	return true
+}
+
 func (output *IrcOutput) canJoin(ircChan string) bool {
 	joinable := false
 	numChannels := len(output.Channels)
@@ -200,7 +223,11 @@ func (output *IrcOutput) canJoin(ircChan string) bool {
 
 func (output *IrcOutput) Join(ircChan string) {
 	if output.canJoin(ircChan) {
-		output.Conn.Join(ircChan)
+		for i, ircChannel := range output.Channels {
+			if ircChannel == ircChan {
+				output.Conn.Join(output.IrcOutputConfig.Channels[i])
+			}
+		}
 	}
 }
 
@@ -209,6 +236,10 @@ func (output *IrcOutput) handleCannotJoin(event *irc.Event) {
 	reason := event.Arguments[2]
 	output.runner.LogError(IrcCannotJoinError{ircChan, reason})
 	output.updateJoinList(ircChan, CANNOTJOIN)
+	if output.noneJoinable() {
+		output.runner.LogError(ErrNoJoinableChannels)
+		output.die <- true
+	}
 }
 
 // Privmsg wraps the irc.Privmsg by accepting an ircMsg struct, and checking if
@@ -218,10 +249,9 @@ func (output *IrcOutput) Privmsg(ircMsg *IrcMsg) bool {
 	idx := ircMsg.Idx
 	if atomic.LoadInt32(&output.JoinedChannels[idx]) == JOINED {
 		output.Conn.Privmsg(ircMsg.IrcChannel, string(ircMsg.Output))
-	} else {
-		return false
+		return true
 	}
-	return true
+	return false
 }
 
 // updateJoinList atomically updates our global slice of joined channels for a
@@ -361,8 +391,10 @@ func processOutQueue(output *IrcOutput) {
 func registerCallbacks(output *IrcOutput) {
 	// add a callback to check if we've gotten successfully connected
 	output.Conn.AddCallback(CONNECTED, func(event *irc.Event) {
-		for _, ircChan := range output.Channels {
-			output.Join(ircChan)
+		// We use the config channels for joining,
+		// since they contain the channel keys
+		for _, ircChan := range output.IrcOutputConfig.Channels {
+			output.Conn.Join(ircChan)
 		}
 	})
 
@@ -400,10 +432,12 @@ func registerCallbacks(output *IrcOutput) {
 			output.Join(ircChan)
 		} else {
 			output.updateJoinList(ircChan, CANNOTJOIN)
-			// Since we'll never try to join a kicked channel again,
-			// we call canJoin to make sure we check if we need to exit when
-			// there are no channels left.
-			output.canJoin(ircChan)
+			// Since we'll never try to join a kicked channel again, we check if
+			// we need to exit (there are no channels left)
+			if output.noneJoinable() {
+				output.runner.LogError(ErrNoJoinableChannels)
+				output.die <- true
+			}
 		}
 	})
 

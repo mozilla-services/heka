@@ -288,20 +288,21 @@ func IrcOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("when trying to join an unjoinable channel", func() {
-				err := ircOutput.Init(config)
-				c.Assume(err, gs.IsNil)
-
-				c.Assume(len(ircOutput.Channels), gs.Equals, 1)
-				ircChan := ircOutput.Channels[0]
-
-				startOutput()
-
-				c.Expect(ircOutput.JoinedChannels[0], gs.Equals, JOINED)
-
 				c.Specify("it logs an error", func() {
+					config.Channels = []string{"foo", "baz"}
+					err := ircOutput.Init(config)
+					c.Assume(err, gs.IsNil)
+
+					c.Assume(len(ircOutput.Channels), gs.Equals, 2)
+					ircChan := ircOutput.Channels[0]
+
+					startOutput()
+
+					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, JOINED)
+
 					reason := "foo"
 
-					err := IrcCannotJoinError{ircChan, reason}
+					err = IrcCannotJoinError{ircChan, reason}
 					outTestHelper.MockOutputRunner.EXPECT().LogError(err)
 
 					args := []string{"", ircChan, reason}
@@ -324,17 +325,41 @@ func IrcOutputSpec(c gs.Context) {
 					})
 
 					ircOutput.Conn.RunCallbacks(&event)
+
 					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, CANNOTJOIN)
 
+					// should still be unable to join
+					ircOutput.Join(ircChan)
+					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, CANNOTJOIN)
+
+					close(inChan)
 				})
 
-				outTestHelper.MockOutputRunner.EXPECT().LogError(ErrNoJoinableChannels)
-				// If we try joining, *after* the previous join error
-				ircOutput.Join(ircChan)
-				// we should still be unable to join
-				c.Expect(ircOutput.JoinedChannels[0], gs.Equals, CANNOTJOIN)
+				c.Specify("it exits if there are no joinable channels", func() {
+					err := ircOutput.Init(config)
+					c.Assume(err, gs.IsNil)
 
-				close(inChan)
+					c.Assume(len(ircOutput.Channels), gs.Equals, 1)
+					ircChan := ircOutput.Channels[0]
+
+					startOutput()
+
+					c.Expect(ircOutput.JoinedChannels[0], gs.Equals, JOINED)
+
+					reason := "foo"
+
+					err = IrcCannotJoinError{ircChan, reason}
+					outTestHelper.MockOutputRunner.EXPECT().LogError(err)
+					outTestHelper.MockOutputRunner.EXPECT().LogError(ErrNoJoinableChannels)
+
+					args := []string{"", ircChan, reason}
+					event := irc.Event{Arguments: args, Code: IRC_ERR_BADCHANNELKEY}
+
+					ircOutput.Conn.RunCallbacks(&event)
+
+					// No close since we should exit without.
+				})
+
 				wg.Wait()
 			})
 
