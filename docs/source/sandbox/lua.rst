@@ -126,7 +126,16 @@ Heka specific functions that are exposed to the Lua sandbox
         none
 
 **read_next_field()**
-    Iterates through the message fields returning the field contents or nil when the end is reached.
+
+    Iterates through the message fields returning the field contents or nil
+    when the end is reached. The `value_type` return value is a numeric value
+    representing the field's specified data type:
+
+    :0: String
+    :1: Bytes
+    :2:  Integer
+    :3: Double
+    :4: Boolean
 
     *Arguments*
         none
