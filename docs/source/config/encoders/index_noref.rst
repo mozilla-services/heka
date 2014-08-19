@@ -28,3 +28,10 @@ ESPayloadEncoder
 .. include:: /config/encoders/rst.rst
 
 .. include:: /config/encoders/sandbox.rst
+
+StatMetric Influx Encoder
+=========================
+
+.. include:: /../../sandbox/lua/encoders/es_payload.lua
+	:start-after: --[=[
+	:end-before: --]=]

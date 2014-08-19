@@ -52,8 +52,11 @@ Field interpolation:
 
 *Example Output*
 
-{"index":{"_index":"mylogger-2014.06.05","_type":"mytype-host.domain.com"}}
-{"json":"data","extracted":"from","message":"payload"}
+.. code-block:: json
+
+    {"index":{"_index":"mylogger-2014.06.05","_type":"mytype-host.domain.com"}}
+    {"json":"data","extracted":"from","message":"payload"}
+
 --]]
 
 require "string"
