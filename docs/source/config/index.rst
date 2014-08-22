@@ -128,7 +128,7 @@ Config:
     Base working directory Heka will use for persistent storage through
     process and server restarts. The hekad process must have read and write
     access to this directory. Defaults to `/var/cache/hekad` (or
-    `c:\var\cache\hekad` on Windows).
+    `c:\\var\\cache\\hekad` on Windows).
 
 - share_dir (string):
     Root path of Heka's "share directory", where Heka will expect to find
