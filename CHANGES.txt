@@ -45,6 +45,8 @@ Bug Handling
 Features
 --------
 
+* Added StatMetric Influx Encoder.
+
 * Added RstEncoder.
 
 * Added support for '__ignore_root' tag in add_external_plugin to allow
