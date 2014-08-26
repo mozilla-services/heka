@@ -218,9 +218,9 @@ Example hekad.toml file
 
 .. end-hekad-toml
 
-.. _configuring_restarting:
-
 .. start-restarting
+
+.. _configuring_restarting:
 
 Configuring Restarting Behavior
 ===============================
