@@ -25,7 +25,6 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -41,15 +40,12 @@ func NewCarbonTestHelper(ctrl *gomock.Controller) (oth *CarbonTestHelper) {
 	return
 }
 
-type collectFunc func(chPort chan<- int, chData chan<- string, chError chan<- error)
-
 func CarbonOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	oth := NewCarbonTestHelper(ctrl)
-	var wg sync.WaitGroup
 	pConfig := NewPipelineConfig(nil)
 
 	// make test data
@@ -74,111 +70,197 @@ func CarbonOutputSpec(c gs.Context) {
 		return pack
 	}
 
-	// collectDataTCP and collectDataUDP functions; when ready reports its port on
-	// chPort, or error on chErr; when data is received it is reported on chData
-	collectDataTCP := func(chPort chan<- int, chData chan<- string, chError chan<- error) {
-		tcpaddr, err := net.ResolveTCPAddr("tcp", ":0")
-		if err != nil {
-			chError <- err
-			return
+	c.Specify("A CarbonOutput ", func() {
+		inChan := make(chan *PipelinePack, 1)
+		output := new(CarbonOutput)
+		config := output.ConfigStruct().(*CarbonOutputConfig)
+		pack := newpack()
+
+		errChan := make(chan error, 1)
+		connChan := make(chan net.Conn, 1)
+		dataChan := make(chan string, count)
+
+		startOutput := func(output *CarbonOutput, oth *CarbonTestHelper) {
+			errChan <- output.Run(oth.MockOutputRunner, oth.MockHelper)
 		}
 
-		listener, err := net.ListenTCP("tcp", tcpaddr)
-		if err != nil {
-			chError <- err
-			return
-		}
-		chPort <- listener.Addr().(*net.TCPAddr).Port
-
-		conn, err := listener.Accept()
-		if err != nil {
-			chError <- err
-			return
-		}
-
-		b := make([]byte, 10000)
-		n, err := conn.Read(b)
-		if err != nil {
-			chError <- err
-			return
+		// collectData waits for data to come in on the provided connection.
+		// It "returns" data using channels, either with an error on the
+		// errChan or data on the dataChan.
+		collectData := func(conn net.Conn) {
+			b := make([]byte, 10000)
+			n, err := conn.Read(b)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			dataChan <- string(b[0:n])
 		}
 
-		chData <- string(b[0:n])
-	}
+		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
+		inChanCall.Return(inChan)
 
-	collectDataUDP := func(chPort chan<- int, chData chan<- string, chError chan<- error) {
-		udpaddr, err := net.ResolveUDPAddr("udp", ":0")
-		if err != nil {
-			chError <- err
-			return
-		}
+		var (
+			conn net.Conn
+			err  error
+		)
 
-		conn, err := net.ListenUDP("udp", udpaddr)
-		if err != nil {
-			chError <- err
-			return
-		}
-		chPort <- conn.LocalAddr().(*net.UDPAddr).Port
+		c.Specify("using TCP", func() {
+			var listener net.Listener
 
-		b := make([]byte, 10000)
-		n, _, err := conn.ReadFromUDP(b)
-		if err != nil {
-			chError <- err
-			return
-		}
-		chData <- string(b[0:n])
-	}
+			config.Protocol = "tcp"
+			listenerChan := make(chan net.Listener, 1)
 
-	doit := func(protocol string, collectData collectFunc) {
-		c.Specify("A CarbonOutput ", func() {
-			inChan := make(chan *PipelinePack, 1)
-			carbonOutput := new(CarbonOutput)
-			config := carbonOutput.ConfigStruct().(*CarbonOutputConfig)
-			pack := newpack()
-
-			c.Specify("writes "+protocol+" to the network", func() {
-				inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
-				inChanCall.Return(inChan)
-
-				chError := make(chan error, count)
-				chPort := make(chan int, count)
-				chData := make(chan string, count)
-				go collectData(chPort, chData, chError)
-
-			WAIT_FOR_DATA:
-				for {
-					select {
-					case port := <-chPort:
-						// data collection server is ready, start CarbonOutput
-						config.Address = fmt.Sprintf("127.0.0.1:%d", port)
-						config.Protocol = protocol
-						err := carbonOutput.Init(config)
-						c.Assume(err, gs.IsNil)
-						wg.Add(1)
-						go func() {
-							carbonOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-							wg.Done()
-						}()
-
-						// Send the pack.
-						inChan <- pack
-
-					case data := <-chData:
-						close(inChan)
-						wg.Wait() // wait for close to finish, prevents intermittent test failures
-						c.Expect(data, gs.Equals, expected_data)
-						break WAIT_FOR_DATA
-
-					case err := <-chError:
-						// fail
-						c.Assume(err, gs.IsNil)
-						return
-					}
+			// startListener starts a TCP server waiting for data. It
+			// "returns" data over channels. First it will *either* return an
+			// error on the errChan *or* the listener on the listenerChan. If
+			// listening succeeds it will wait for a connection attempt,
+			// either returning an error on the errChan or the connection on
+			// the connChan.
+			startListener := func() {
+				tcpaddr, err := net.ResolveTCPAddr("tcp", ":0")
+				if err != nil {
+					errChan <- err
+					return
 				}
+
+				listener, err := net.ListenTCP("tcp", tcpaddr)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				listenerChan <- listener
+
+				conn, err := listener.Accept()
+				if err != nil {
+					errChan <- err
+					return
+				}
+				connChan <- conn
+			}
+
+			go startListener()
+			select {
+			case err = <-errChan:
+				// If we get an error herer it won't be nil, but we use
+				// c.Assume to trigger the test failure.
+				c.Assume(err, gs.IsNil)
+			case listener = <-listenerChan:
+				defer listener.Close()
+			}
+
+			c.Specify("writes to the network", func() {
+
+				config.Address = fmt.Sprintf("127.0.0.1:%d", listener.Addr().(*net.TCPAddr).Port)
+				err = output.Init(config)
+				c.Assume(err, gs.IsNil)
+				inChan <- pack
+				go startOutput(output, oth)
+
+				select {
+				case err = <-errChan:
+					// If we get an error herer it won't be nil, but we use
+					// c.Assume to trigger the test failure.
+					c.Assume(err, gs.IsNil)
+				case conn = <-connChan:
+					defer conn.Close()
+				}
+
+				go collectData(conn)
+
+				select {
+				case err = <-errChan:
+					// If we get an error herer it won't be nil, but we use
+					// c.Assume to trigger the test failure.
+					c.Assume(err, gs.IsNil)
+				case data := <-dataChan:
+					c.Expect(data, gs.Equals, expected_data)
+				}
+
+				close(inChan)
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
 			})
 		})
-	}
 
-	doit("tcp", collectDataTCP)
-	doit("udp", collectDataUDP)
+		c.Specify("using UDP", func() {
+			config.Protocol = "udp"
+
+			// startListener starts a UDP server waiting for data. It
+			// "returns" data over channels. It will either return a net.Conn
+			// on the connChan or an error on the errChan.
+			startListener := func() {
+				udpAddr, err := net.ResolveUDPAddr("udp", ":0")
+				if err != nil {
+					errChan <- err
+					return
+				}
+				conn, err := net.ListenUDP("udp", udpAddr)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				connChan <- conn
+			}
+
+			go startListener()
+			select {
+			case err = <-errChan:
+				c.Assume(err, gs.IsNil)
+			case conn = <-connChan:
+				defer conn.Close()
+			}
+
+			c.Specify("writes to the network", func() {
+				config.Address = fmt.Sprintf("127.0.0.1:%d", conn.LocalAddr().(*net.UDPAddr).Port)
+				err = output.Init(config)
+				c.Assume(err, gs.IsNil)
+				inChan <- pack
+
+				go startOutput(output, oth)
+				go collectData(conn)
+
+				select {
+				case err = <-errChan:
+					// If we get an error herer it won't be nil, but we use
+					// c.Assume to trigger the test failure.
+					c.Assume(err, gs.IsNil)
+				case data := <-dataChan:
+					c.Expect(data, gs.Equals, expected_data)
+				}
+
+				close(inChan)
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
+			})
+
+			c.Specify("splits packets that are too long", func() {
+				config.Address = fmt.Sprintf("127.0.0.1:%d", conn.LocalAddr().(*net.UDPAddr).Port)
+				err = output.Init(config)
+				c.Assume(err, gs.IsNil)
+				output.bufSplitSize = 1 // Forces a separate packet for each stat.
+
+				inChan <- pack
+
+				go startOutput(output, oth)
+
+				for i := 0; i < count; i++ {
+					go collectData(conn)
+
+					select {
+					case err = <-errChan:
+						// If we get an error herer it won't be nil, but we use
+						// c.Assume to trigger the test failure.
+						c.Assume(err, gs.IsNil)
+					case data := <-dataChan:
+						c.Expect(data, gs.Equals, lines[i]+"\n")
+					}
+				}
+
+				close(inChan)
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
+			})
+		})
+	})
 }
