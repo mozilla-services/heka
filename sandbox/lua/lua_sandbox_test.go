@@ -828,7 +828,7 @@ func TestInjectMessageError(t *testing.T) {
 	}
 	errors := []string{
 		"process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)",
-		"process_message() ./testsupport/inject_message.lua:44: STRBUF_MAX_SIZE exceeded",
+		"process_message() ./testsupport/inject_message.lua:44: strbuf max_size exceeded",
 		"process_message() ./testsupport/inject_message.lua:50: inject_message() could not encode protobuf - array has mixed types",
 		"process_message() ./testsupport/inject_message.lua:53: inject_message() could not encode protobuf - unsupported type: nil",
 		"process_message() ./testsupport/inject_message.lua:55: bad argument #1 to 'inject_payload' (string expected, got nil)",
