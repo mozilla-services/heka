@@ -26,7 +26,7 @@ tasks:
 
 * Loading and parsing a rotating stream of nginx access log files.
 
-* Generating JSON structures representing each request loaded from the nginx
+* Generating JSON structures representing each request loaded from the Nginx
   log files and sending them on to an ElasticSearch database cluster.
 
 * Generating a real time graph of the HTTP response status codes of the
@@ -144,7 +144,7 @@ TOML section instead of in its header::
 
 	[statsd_input]
 	type = "StatsdInput"
-	stat_accum_name = "stat-accumulator"
+	stat_accum_name = "stat_accumulator"
 
 	[stat_accumulator]
 	type = "StatAccumInput"
@@ -161,11 +161,11 @@ default on port 8125::
 
 	[statsd_input_8125]
 	type = "StatsdInput"
-	stat_accum_name = "stat-accumulator"
+	stat_accum_name = "stat_accumulator"
 
 	[statsd_input_8126]
 	type = "StatsdInput"
-	stat_accum_name = "stat-accumulator"
+	stat_accum_name = "stat_accumulator"
 	address = "127.0.0.1:8126"
 
 	[stat_accumulator]
@@ -291,12 +291,13 @@ the messages that are received.
 
 In the InfluxDB example above, you can see that we've defined a
 `statmetric_influx_encoder`, of type SandboxEncoder. A "Sandbox" plugin is one
-where the core logic of the plugin is implemented in Lua and run in a
-protected sandbox. Heka has support for SandboxDecoder, SandboxFilter, and
-SandboxEncoder plugins. In this instance, we're using a SandboxEncoder
-implementation provided by Heka that knows how to extract data from the fields
-of a heka.statmetric message and use that data to generate JSON in a format
-that will be understood by InfluxDB (see :ref:`config_statmetric_influx`).
+where the core logic of the plugin is implemented in Lua and is run in a
+protected sandbox. Heka has support for :ref:`config_sandboxdecoder`,
+:ref:`config_sandbox_filter`, and :ref:`config_sandboxencoder` plugins. In
+this instance, we're using a SandboxEncoder implementation provided by Heka
+that knows how to extract data from the fields of a heka.statmetric message
+and use that data to generate JSON in a format that will be understood by
+InfluxDB (see :ref:`config_statmetric_influx`).
 
 This separation of concerns between encoder and output plugins allows for a
 great deal of flexibility. It's easy to write your own SandboxEncoder plugins
@@ -340,11 +341,12 @@ SandboxFilter plugin, a filter plugin with the processing code implemented in
 Lua. The `filename` option points to a filter implementation that ships with
 Heka. This :ref:`filter implementation <config_stats_graph_filter>` knows how
 to extract data from statmetric messages and store that data in a circular
-buffer data structure. The `preserve_data` option tells Heka that the circular
-buffer data that is managed by this filter should be flushed out to disk if
-Heka is shut down, so it can be reloaded again when Heka is restarted. And the
-`ticker_interval` option is specifying that our filter will be emitting an
-output message back into the router once every second.
+buffer data structure. The `preserve_data` option tells Heka that the all
+global data in this filter (the circular buffer data, in this case) should be
+flushed out to disk if Heka is shut down, so it can be reloaded again when
+Heka is restarted. And the `ticker_interval` option is specifying that our
+filter will be emitting an output message back into the router once every
+second.
 
 After that we have a `stat_graph.config` section. This isn't specifying a new
 plugin, this is nested configuration, a subsection of the outer `stat_graph`
@@ -439,7 +441,7 @@ correctly handles the above case::
 	priority = ["^Index"]
 
 The `parser_type` option above tells Heka that each record will be delimited
-by a one character token, in this case the default token `/n`. If our files
+by a one character token, in this case the default token `\n`. If our files
 were delimited by a different character we could use a `delimiter` option to
 specify an alternate. (For log files where a single record spans multiple
 lines, we can use `parser_type = "regexp"` and then provide a regular
@@ -470,7 +472,6 @@ The `nginx_access_decoder` configuration is as follows::
 
 	[nginx_access_decoder]
 	type = "SandboxDecoder"
-	script_type = "lua"
 	filename = "lua_decoders/nginx_access.lua"
 
 		[nginx_access_decoder.config]
@@ -573,7 +574,7 @@ plugins specifically for this purpose::
 
 		[http_status.config]
 		sec_per_row = 1
-		rows = 1440
+		rows = 1800
 		perservation_version = 0
 
 As mentioned earlier, graphing in Heka is accomplished through the cooperation
@@ -643,7 +644,7 @@ codes::
 
 		[http_status.config]
 		sec_per_row = 1
-		rows = 1440
+		rows = 1800
 		perservation_version = 0
 		anomaly_config = 'roc("HTTP Status", 2, 15, 0, 1.5, true, false) mww_nonparametric("HTTP Status", 5, 15, 10, 0.8)'
 
@@ -672,17 +673,18 @@ We're specifying column 2 here, which a quick peek at the `http_status.lua`
 services/heka/blob/dev/sandbox/lua/filters/http_status.lua#L60>`_ will show
 you is the column where we're tracking 200 status codes. The next value
 specifies how many intervals (i.e. circular buffer rows) should we use in our
-analysis window. We've said 15, which means that we'll be checking for
-anomalies in rows 2 through 16 out of the full 1440 in our data set (we always
-throw out the current row because it might not yet be complete).
+analysis window. We've said 15, which means that we'll be examining the rate
+of change between the values in two 15 second intervals. Specifically, we'll
+be comparing the data in rows 2 through 16 to the data in rows 17 through 31
+(we always throw out the current row because it might not yet be complete).
 
 After that we specify the number of intervals to use in our historical
 analysis window. Our setting of 0 means we're using the entire history, rows
-17 through 1440. This is followed by the standard deviation threshold
+32 through 1800. This is followed by the standard deviation threshold
 parameter, which we've set to 1.5. So, put together, we're saying if the rate
-of change of the number of 200 status responses over the last 15 seconds is
-more than 1.5 standard deviations off from the rate of change over the 23
-minutes before that, then an anomaly alert should be triggered.
+of change of the number of 200 status responses over the last two 15 second
+intervals is more than 1.5 standard deviations off from the rate of change
+over the 29 minutes before that, then an anomaly alert should be triggered.
 
 The last two parameters here are boolean values. The first of these is whether
 or not an alert should be fired in the event that we stop receiving input data
