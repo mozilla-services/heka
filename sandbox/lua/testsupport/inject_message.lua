@@ -33,9 +33,9 @@ function process_message ()
         a.ir = a.x
         inject_payload("json", "", cjson.encode(a))
     elseif msg == "error circular reference" then
-        local a = {x = 1, y = 2}
-        a.self = a
-        inject_payload("json", "", cjson.encode(a))
+        local a = {}
+        a[1] = a
+        cjson.encode(a)
     elseif msg == "error escape overflow" then
         local escape = "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
         for i=1, 10 do
