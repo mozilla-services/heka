@@ -83,30 +83,6 @@ func TestCreation(t *testing.T) {
 	sb.Destroy("")
 }
 
-func TestCreationTooMuchMemory(t *testing.T) {
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/hello_world.lua"
-	sbc.MemoryLimit = 9000000
-	sbc.InstructionLimit = 1000
-	sb, err := lua.CreateLuaSandbox(&sbc)
-	if err == nil {
-		t.Errorf("Sandbox creation should have failed on MemoryLimit")
-		sb.Destroy("")
-	}
-}
-
-func TestCreationTooManyInstructions(t *testing.T) {
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/hello_world.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000001
-	sb, err := lua.CreateLuaSandbox(&sbc)
-	if err == nil {
-		t.Errorf("Sandbox creation should have failed on InstructionLimit")
-		sb.Destroy("")
-	}
-}
-
 func TestInit(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/hello_world.lua"
