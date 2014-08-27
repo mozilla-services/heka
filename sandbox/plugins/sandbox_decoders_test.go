@@ -230,11 +230,11 @@ func DecoderSpec(c gs.Context) {
 		})
 	})
 
-	c.Specify("Cpu Stats decoder", func() {
+	c.Specify("Linux Cpu Stats decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/decoders/cpustats.lua"
+		conf.ScriptFilename = "../lua/decoders/linux_cpustats.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
@@ -291,11 +291,11 @@ func DecoderSpec(c gs.Context) {
 		})
 	})
 
-	c.Specify("Mem Stats decoder", func() {
+	c.Specify("Linux Mem Stats decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/decoders/memstats.lua"
+		conf.ScriptFilename = "../lua/decoders/linux_memstats.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
@@ -351,11 +351,11 @@ HugePages_Free:        0
 		})
 	})
 
-	c.Specify("Disk Stats decoder", func() {
+	c.Specify("Linux Disk Stats decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/decoders/diskstats.lua"
+		conf.ScriptFilename = "../lua/decoders/linux_diskstats.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
