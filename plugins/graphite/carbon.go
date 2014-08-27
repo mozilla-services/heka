@@ -27,6 +27,7 @@ import (
 
 // Output plugin that sends statmetric messages via TCP
 type CarbonOutput struct {
+	bufSplitSize int
 	*CarbonOutputConfig
 	*net.UDPAddr
 	*net.TCPAddr
@@ -59,6 +60,7 @@ func (t *CarbonOutput) Init(config interface{}) (err error) {
 	case "udp":
 		t.send = t.sendUDP
 		t.UDPAddr, err = net.ResolveUDPAddr("udp", t.Address)
+		t.bufSplitSize = 63488 // 62KiB
 	default:
 		err = fmt.Errorf(`CarbonOutput: "%s" is not a supported protocol, must be "tcp" or "udp"`, t.Protocol)
 	}
@@ -69,8 +71,9 @@ func (t *CarbonOutput) Init(config interface{}) (err error) {
 func (t *CarbonOutput) ProcessPack(pack *PipelinePack, or OutputRunner) {
 	var e error
 
-	lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
+	payload := strings.Trim(pack.Message.GetPayload(), " \t\n")
 	pack.Recycle() // Once we've copied the payload we're done w/ the pack.
+	lines := strings.Split(payload, "\n")
 
 	clean_statmetrics := make([]string, len(lines))
 	index := 0
@@ -99,6 +102,11 @@ func (t *CarbonOutput) ProcessPack(pack *PipelinePack, or OutputRunner) {
 	buffer := &bytes.Buffer{}
 	for i := 0; i < len(clean_statmetrics); i++ {
 		buffer.WriteString(clean_statmetrics[i] + "\n")
+		// UDP packets must be < 64KiB, we cap buffer len at ~62KiB
+		if t.bufSplitSize > 0 && buffer.Len() > t.bufSplitSize {
+			t.send(or, buffer.Bytes())
+			buffer.Reset()
+		}
 	}
 
 	t.send(or, buffer.Bytes())
