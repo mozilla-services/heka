@@ -21,7 +21,7 @@ Config:
     [DiskStats]
     type = "FilePollingInput"
     ticker_interval = 1
-    file_path = "/proc/loadavg"
+    file_path = "/sys/block/sda1/stat"
     decoder = "DiskStatsDecoder"
 
     [DiskStatsDecoder]
