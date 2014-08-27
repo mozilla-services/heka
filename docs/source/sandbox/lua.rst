@@ -97,6 +97,7 @@ Heka specific functions that are exposed to the Lua sandbox
 
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
     .. versionadded:: 0.5
+
     Decoders only. Mutates specified field value on the message that is being
     deocded.
 
@@ -150,8 +151,8 @@ Heka specific functions that are exposed to the Lua sandbox
     *Arguments*
         - payload_type (**optional, default "txt"** string) Describes the content type of the injected payload data.
         - payload_name (**optional, default ""** string) Names the content to aid in downstream filtering.
-        - arg3 (**optional) Same type restrictions as add_to_payload.
-        ...
+        - arg3 (**optional**) Same type restrictions as add_to_payload.
+        - ...
         - argN
 
     *Return*

@@ -58,7 +58,7 @@ HugePages_Rsvd, HugePages_Surp, Hugepagesize, DirectMap4k, DirectMap2M,
 DirectMap1G.
 
 Note that your available fields may have a slight variance depending on the
-systems kernel version.
+system's kernel version.
 
 --]]
 

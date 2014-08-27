@@ -30,6 +30,7 @@ SandboxManagerFilter Settings
     The maximum number of filters this manager can run.
 
 .. versionadded:: 0.5
+
 - memory_limit (uint):
     The number of bytes managed sandboxes are allowed to consume before being
     terminated (max 8MiB, default max).

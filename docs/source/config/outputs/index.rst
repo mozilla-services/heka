@@ -26,16 +26,19 @@ initialization code.
     Defaults to not sending timer events.
 - encoder (string, optional):
     .. versionadded:: 0.6
+
     Encoder to be used by the output. This should refer to the name of an
     encoder plugin section that is specified elsewhere in the TOML
     configuration. Messages can be encoded using the specified encoder by
     calling the OutputRunner's `Encode()` method.
 - use_framing (bool, optional):
     .. versionadded:: 0.6
+
     Specifies whether or not Heka's :ref:`stream_framing` should be applied to
     the binary data returned from the OutputRunner's `Encode()` method.
 - can_exit (bool, optional)
     .. versionadded:: 0.7
+    
     Whether or not this plugin can exit without causing Heka to shutdown.
     Defaults to false.
 

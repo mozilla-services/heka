@@ -16,20 +16,20 @@ Config:
     active hosts exceed this value, the plugin will terminate.
 
 - rows (uint)
-    The number of rows to keep from the original circular buffer.  Storing
-    all the data from all the hosts is not practical since you will most likely
+    The number of rows to keep from the original circular buffer.  Storing all
+    the data from all the hosts is not practical since you will most likely
     run into memory and output size restrictions (adjust the view down as
     necessary).
 
 - host_expiration (uint, optional, default 120 seconds)
-    The amount of time a host has to be inactive before it can be replaced by a
-    new host.
+    The amount of time a host has to be inactive before it can be replaced by
+    a new host.
 
 - preservation_version (uint, optional, default 0)
     If `preserve_data = true` is set in the SandboxFilter configuration, then
-    this value should be incremented every time the `max_hosts` or `rows'
-    configuration is changed to prevent the plugin from failing to start during
-    data restoration.
+    this value should be incremented every time the `max_hosts` or `rows`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
 
 
 *Example Heka Configuration*

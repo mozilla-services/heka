@@ -25,6 +25,7 @@ initialization code.
     Defaults to not sending timer events.
 - can_exit (bool, optional)
     .. versionadded:: 0.7
+    
     Whether or not this plugin can exit without causing Heka to shutdown.
     Defaults to false for non-sandbox filters, and true for sandbox filters.
 

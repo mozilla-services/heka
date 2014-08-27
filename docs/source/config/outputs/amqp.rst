@@ -29,7 +29,7 @@ Config:
     Whether published messages should be marked as persistent or transient.
     Defaults to non-persistent.
 - retries (RetryOptions, optional):
-    - A sub-section that specifies the settings to be used for restart behavior.
+    A sub-section that specifies the settings to be used for restart behavior.
     See :ref:`configuring_restarting`
 
 .. versionadded:: 0.6
