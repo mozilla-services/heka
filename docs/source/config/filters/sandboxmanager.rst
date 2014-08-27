@@ -35,7 +35,7 @@ SandboxManagerFilter Settings
     terminated (default 8MiB).
 
 - instruction_limit (uint):
-    The number of instructions managed sandboxes are allowed the execute during 
+    The number of instructions managed sandboxes are allowed to execute during
     the process_message/timer_event functions before being terminated (default
     1M).
 

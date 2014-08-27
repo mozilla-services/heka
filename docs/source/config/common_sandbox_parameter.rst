@@ -28,7 +28,7 @@ Sandbox plugins. The are consumed by Heka when it initializes the plugin.
     terminated (default 8MiB).
 
 - instruction_limit (uint):
-    The number of instructions the sandbox is allowed the execute during the
+    The number of instructions the sandbox is allowed to execute during the
     process_message/timer_event functions before being terminated (default 1M).
 
 - output_limit (uint):
