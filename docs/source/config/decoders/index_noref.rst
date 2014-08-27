@@ -20,7 +20,7 @@ Cpu Stats Decoder
 =================
 
 .. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/cpustats.lua
+.. include:: /../../sandbox/lua/decoders/linux_cpustats.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -28,7 +28,7 @@ Disk Stats Decoder
 ==================
 
 .. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/diskstats.lua
+.. include:: /../../sandbox/lua/decoders/linux_diskstats.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -54,7 +54,7 @@ Memory Stats Decoder
 ====================
 
 .. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/memstats.lua
+.. include:: /../../sandbox/lua/decoders/linux_memstats.lua
    :start-after: --[[
    :end-before: --]]
 

@@ -50,7 +50,7 @@ Config:
     AMQPOutput in another Heka process then this should be a
     :ref:`config_protobuf_decoder` instance.
 - retries (RetryOptions, optional):
-    - A sub-section that specifies the settings to be used for restart behavior.
+    A sub-section that specifies the settings to be used for restart behavior.
     See :ref:`configuring_restarting`
 
 .. versionadded:: 0.6

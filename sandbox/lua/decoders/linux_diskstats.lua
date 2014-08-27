@@ -4,10 +4,10 @@
 
 --[[
 
-Parses a payload containing the contents of a `/sys/block/$DISK/stat` file,
-where `$DISK` is a disk such as sda  into a Heka message struct. This also
-tries to obtain the TickerInterval of the input it recieved the data from, by
-extracting it from a message field named `TickerInterval`.
+Parses a payload containing the contents of a `/sys/block/$DISK/stat` file
+(where `$DISK` is a disk identifier such as `sda`) into a Heka message struct.
+This also tries to obtain the TickerInterval of the input it recieved the data
+from, by extracting it from a message field named `TickerInterval`.
 
 Config:
 

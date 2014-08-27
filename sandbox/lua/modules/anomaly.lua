@@ -122,7 +122,7 @@ API
             e.g. mww_nonparametric("Output1", 2, 15, 10, 0.55)
 
     *Return*
-        - configuration table if parsing was successful or nil, if nil was
+        Configuration table if parsing was successful or nil, if nil was
         passed in.
 
 

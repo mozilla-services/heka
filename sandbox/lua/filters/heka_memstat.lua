@@ -9,19 +9,21 @@ pipeline/report.go.
 Config:
 
 - rows (uint, optional, default 1440)
-    Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
-    per row is a 24 sliding hour window with 1 minute resolution.
+    Sets the size of the sliding window i.e., 1440 rows representing 60
+    seconds per row is a 24 sliding hour window with 1 minute resolution.
 
 - sec_per_row (uint, optional, default 60)
-    Sets the size of each bucket (resolution in seconds) in the sliding window.
+    Sets the size of each bucket (resolution in seconds) in the sliding
+    window.
 
-- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
+- anomaly_config (string, optional)
+    See :ref:`sandbox_anomaly_module`.
 
 - preservation_version (uint, optional, default 0)
     If `preserve_data = true` is set in the SandboxFilter configuration, then
-    this value should be incremented every time the `rows` or `sec_per_row'
-    configuration is changed to prevent the plugin from failing to start during
-    data restoration.
+    this value should be incremented every time the `rows` or `sec_per_row`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
 
 *Example Heka Configuration*
 

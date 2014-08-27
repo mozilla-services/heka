@@ -1,4 +1,4 @@
-0.7.0 (2014-MM-DD)
+0.7.0 (2014-08-27)
 ==================
 
 Backwards Incompatibilities
@@ -26,10 +26,6 @@ Backwards Incompatibilities
 
 Bug Handling
 ------------
-
-* CarbonOutput using UDP transport now uses multiple packets to send stats
-  data to Carbon server when output would be longer than the 64KiB max size
-  for UDP packets (issue #1035).
 
 * Fixed the MySQL slow query grammar to handle logs with no newline.
 
@@ -82,11 +78,15 @@ Features
 
 * Added support for custom HTTP Headers in HttpListenInput and DashboardOutput.
 
-0.6.1 (2014-MM-DD)
+0.6.1 (2014-08-27)
 ==================
 
 Bug Handling
 ------------
+
+* CarbonOutput using UDP transport now uses multiple packets to send stats
+  data to Carbon server when output would be longer than the 64KiB max size
+  for UDP packets (issue #1035).
 
 * StatsdInput now trims all whitespace around incoming stat names instead of
   just trailing newlines (issue #1011).

@@ -58,7 +58,7 @@ Config:
     Specifies which of the registered encoders should be used for converting
     Heka messages into what is sent to the irc channels.
 - retries (RetryOptions, optional):
-    - A sub-section that specifies the settings to be used for restart behavior.
+    A sub-section that specifies the settings to be used for restart behavior.
     See :ref:`configuring_restarting`
 
 
