@@ -282,9 +282,10 @@ func FilterSpec(c gs.Context) {
 				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
 			}()
 
-			for i := 1; i <= 3; i++ {
+			var i int64
+			for i = 1; i <= 3; i++ {
 				// Fill in the data
-				t := int64(i * 1000000000)
+				t := i * 1000000000
 				pack.Message = msg
 				pack.Message.SetTimestamp(t)
 
@@ -357,9 +358,10 @@ func FilterSpec(c gs.Context) {
 				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
 			}()
 
-			for i := 1; i <= 3; i++ {
+			var i int64
+			for i = 1; i <= 3; i++ {
 				// Fill in the data
-				t := int64(i * 1000000000)
+				t := i * 1000000000
 				pack.Message = msg
 				pack.Message.SetTimestamp(t)
 
@@ -425,7 +427,7 @@ func FilterSpec(c gs.Context) {
 		msg.Fields = fields
 		timeInterval, _ := message.NewField("TickerInterval", 1, "")
 		fields[num_fields-1] = timeInterval
-		fieldVal := 100
+		var fieldVal int64 = 100
 
 		pack := pipeline.NewPipelinePack(recycleChan)
 
@@ -450,7 +452,8 @@ func FilterSpec(c gs.Context) {
 
 			// Iterate 4 times since the first one doesn't actually set the cbuf
 			// in order to set the delta in the cbuf
-			for i := 1; i <= 4; i++ {
+			var i int64
+			for i = 1; i <= 4; i++ {
 				// Fill in the fields
 				for i, name := range field_names {
 					fields[i], _ = message.NewField(name, fieldVal, "")
@@ -459,7 +462,7 @@ func FilterSpec(c gs.Context) {
 				// by 100 each iteration
 				fieldVal += i * 100
 
-				t := int64(i * 1000000000)
+				t := i * 1000000000
 				pack.Message = msg
 				pack.Message.SetTimestamp(t)
 
