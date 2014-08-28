@@ -17,7 +17,6 @@ package amqp
 
 import (
 	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gomock/gomock"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -25,6 +24,7 @@ import (
 	. "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
 	"sync"
@@ -58,12 +58,8 @@ func AMQPPluginSpec(c gs.Context) {
 	// Setup the mock amqpHub with the mock chan return
 	aqh := NewMockAMQPConnectionHub(ctrl)
 	aqh.EXPECT().GetChannel("", AMQPDialer{}).Return(mch, ug, cg, nil)
-	var oldHub AMQPConnectionHub
-	oldHub = amqpHub
-	amqpHub = aqh
-	defer func() {
-		amqpHub = oldHub
-	}()
+
+	errChan := make(chan error, 1)
 
 	c.Specify("An amqp input", func() {
 		// Setup all the mock calls for Init
@@ -87,15 +83,17 @@ func AMQPPluginSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
+		amqpInput := new(AMQPInput)
+		amqpInput.amqpHub = aqh
+		config := amqpInput.ConfigStruct().(*AMQPInputConfig)
+		config.URL = ""
+		config.Exchange = ""
+		config.ExchangeType = ""
+		config.RoutingKey = "test"
+		config.QueueTTL = 300000
+
 		c.Specify("with a valid setup and no decoder", func() {
-			amqpInput := new(AMQPInput)
-			defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
-			defaultConfig.URL = ""
-			defaultConfig.Exchange = ""
-			defaultConfig.ExchangeType = ""
-			defaultConfig.RoutingKey = "test"
-			defaultConfig.QueueTTL = 300000
-			err := amqpInput.Init(defaultConfig)
+			err := amqpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
 
@@ -123,26 +121,22 @@ func AMQPPluginSpec(c gs.Context) {
 
 				ith.PackSupply <- ith.Pack
 				go func() {
-					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					errChan <- err
 				}()
 				ith.PackSupply <- ith.Pack
+				close(streamChan)
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
 				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
-				close(streamChan)
 			})
 		})
 
 		c.Specify("with a valid setup using a decoder", func() {
 			decoderName := "defaultDecoder"
-			amqpInput := new(AMQPInput)
-			defaultConfig := amqpInput.ConfigStruct().(*AMQPInputConfig)
-			defaultConfig.URL = ""
-			defaultConfig.Exchange = ""
-			defaultConfig.ExchangeType = ""
-			defaultConfig.RoutingKey = "test"
-			defaultConfig.Decoder = decoderName
-			defaultConfig.QueueTTL = 300000
-			err := amqpInput.Init(defaultConfig)
+			config.Decoder = decoderName
+			err := amqpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpInput.ch, gs.Equals, mch)
 
@@ -179,12 +173,14 @@ func AMQPPluginSpec(c gs.Context) {
 
 				ith.PackSupply <- ith.Pack
 				go func() {
-					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					errChan <- err
 				}()
 				ith.PackSupply <- ith.Pack
+				close(streamChan)
+				err = <-errChan
 				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
-				close(streamChan)
 			})
 
 			c.Specify("consumes a serialized message", func() {
@@ -225,7 +221,8 @@ func AMQPPluginSpec(c gs.Context) {
 
 				ith.PackSupply <- ith.Pack
 				go func() {
-					amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+					errChan <- err
 				}()
 				packRef := <-ith.DecodeChan
 				c.Expect(ith.Pack, gs.Equals, packRef)
@@ -233,6 +230,8 @@ func AMQPPluginSpec(c gs.Context) {
 				c.Expect(string(packRef.MsgBytes), gs.Equals, string(msgBody[5:]))
 				ith.PackSupply <- ith.Pack
 				close(streamChan)
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
 			})
 		})
 	})
@@ -242,11 +241,12 @@ func AMQPPluginSpec(c gs.Context) {
 		pConfig := NewPipelineConfig(nil)
 
 		amqpOutput := new(AMQPOutput)
-		defaultConfig := amqpOutput.ConfigStruct().(*AMQPOutputConfig)
-		defaultConfig.URL = ""
-		defaultConfig.Exchange = ""
-		defaultConfig.ExchangeType = ""
-		defaultConfig.RoutingKey = "test"
+		amqpOutput.amqpHub = aqh
+		config := amqpOutput.ConfigStruct().(*AMQPOutputConfig)
+		config.URL = ""
+		config.Exchange = ""
+		config.ExchangeType = ""
+		config.RoutingKey = "test"
 
 		closeChan := make(chan *amqp.Error)
 
@@ -275,12 +275,12 @@ func AMQPPluginSpec(c gs.Context) {
 			encoder.Init(econfig)
 			payloadBytes, err := encoder.Encode(pack)
 
-			defaultConfig.Encoder = "PayloadEncoder"
-			defaultConfig.ContentType = "text/plain"
+			config.Encoder = "PayloadEncoder"
+			config.ContentType = "text/plain"
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(payloadBytes, nil)
 
-			err = amqpOutput.Init(defaultConfig)
+			err = amqpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 
@@ -289,22 +289,25 @@ func AMQPPluginSpec(c gs.Context) {
 			close(inChan)
 
 			go func() {
-				amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				err := amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				errChan <- err
 			}()
 
 			ug.Wait()
-
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("publishes a serialized message", func() {
 			encoder := new(ProtobufEncoder)
+			encoder.SetPipelineConfig(pConfig)
 			encoder.Init(nil)
 			protoBytes, err := encoder.Encode(pack)
 			c.Expect(err, gs.IsNil)
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(protoBytes, nil)
 
-			err = amqpOutput.Init(defaultConfig)
+			err = amqpOutput.Init(config)
 			c.Assume(err, gs.IsNil)
 			c.Expect(amqpOutput.ch, gs.Equals, mch)
 
@@ -313,9 +316,12 @@ func AMQPPluginSpec(c gs.Context) {
 			close(inChan)
 
 			go func() {
-				amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				err := amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+				errChan <- err
 			}()
 			ug.Wait()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 	})
 }

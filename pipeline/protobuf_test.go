@@ -17,9 +17,9 @@
 package pipeline
 
 import (
-	"code.google.com/p/gomock/gomock"
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"testing"
@@ -78,9 +78,10 @@ func BenchmarkDecodeProtobuf(b *testing.B) {
 	msg := ts.GetTestMessage()
 	msg.SetPayload("This is a test")
 	encoded, _ := proto.Marshal(msg)
-	config := NewPipelineConfig(DefaultGlobals())
+	config := NewPipelineConfig(nil)
 	pack := NewPipelinePack(config.inputRecycleChan)
 	decoder := new(ProtobufDecoder)
+	decoder.SetPipelineConfig(config)
 	decoder.Init(nil)
 	pack.MsgBytes = encoded
 	b.StartTimer()

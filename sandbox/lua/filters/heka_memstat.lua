@@ -8,14 +8,22 @@ pipeline/report.go.
 
 Config:
 
-- sec_per_row (uint, optional, default 60)
-    Sets the size of each bucket (resolution in seconds) in the sliding window.
-
 - rows (uint, optional, default 1440)
-    Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
-    per row is a 24 sliding hour window with 1 minute resolution.
+    Sets the size of the sliding window i.e., 1440 rows representing 60
+    seconds per row is a 24 sliding hour window with 1 minute resolution.
 
-- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
+- sec_per_row (uint, optional, default 60)
+    Sets the size of each bucket (resolution in seconds) in the sliding
+    window.
+
+- anomaly_config (string, optional)
+    See :ref:`sandbox_anomaly_module`.
+
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `rows` or `sec_per_row`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
 
 *Example Heka Configuration*
 
@@ -29,11 +37,13 @@ Config:
     message_matcher = "Type == 'heka.memstat'"
 
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 local alert      = require "alert"
 local annotation = require "annotation"
 local anomaly    = require "anomaly"
 require "circular_buffer"
+require "string"
 
 local title          = "Stats"
 local rows           = read_config("rows") or 1440
@@ -41,23 +51,28 @@ local sec_per_row    = read_config("sec_per_row") or 60
 local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-stats = circular_buffer.new(rows, 6, sec_per_row)
-local HEAP_SYS      = stats:set_header(1, "HeapSys"     , "B"    , "max")
-local HEAP_ALLOC    = stats:set_header(2, "HeapAlloc"   , "B"    , "max")
-local HEAP_IDLE     = stats:set_header(3, "HeapIdle"    , "B"    , "max")
-local HEAP_INUSE    = stats:set_header(4, "HeapInuse"   , "B"    , "max")
-local HEAP_RELEASED = stats:set_header(5, "HeapReleased", "B"    , "max")
-local HEAP_OBJECTS  = stats:set_header(6, "HeapObjects" , "count", "max")
+local fields = {"HeapSys", "HeapAlloc","HeapIdle","HeapInuse","HeapReleased","HeapObjects"}
+stats = circular_buffer.new(rows, #fields, sec_per_row)
+
+local field_keys = {}
+for i,v in ipairs(fields) do
+    if v == "HeapObjects" then
+        stats:set_header(i, v, "count", "max")
+    else
+        stats:set_header(i, v, "B", "max")
+    end
+    field_keys[i] = string.format("Fields[%s]", v)
+end
+fields = nil
 
 function process_message ()
     local ts = read_message("Timestamp")
-
-    stats:set(ts, HEAP_SYS       , read_message("Fields[HeapSys]"))
-    stats:set(ts, HEAP_ALLOC     , read_message("Fields[HeapAlloc]"))
-    stats:set(ts, HEAP_IDLE      , read_message("Fields[HeapIdle]"))
-    stats:set(ts, HEAP_INUSE     , read_message("Fields[HeapInuse]"))
-    stats:set(ts, HEAP_RELEASED  , read_message("Fields[HeapReleased]"))
-    stats:set(ts, HEAP_OBJECTS   , read_message("Fields[HeapObjects]"))
+    for i,v in ipairs(field_keys) do
+        local n = read_message(v)
+        if type(n) == "number" then
+            stats:set(ts, i, n)
+        end
+    end
     return 0
 end
 

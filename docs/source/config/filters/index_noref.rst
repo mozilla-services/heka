@@ -41,6 +41,22 @@ CBuf Delta Aggregator By Hostname
 
 .. include:: /config/filters/counter.rst
 
+Cpu Stats Filter
+================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/cpustats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Disk Stats Filter
+=================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Frequent Items
 ==============
 
@@ -77,6 +93,14 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
+Memory Stats Filter
+===================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/memstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 MySQL Slow Query
 ================
 
@@ -91,6 +115,16 @@ MySQL Slow Query
 .. include:: /config/filters/sandbox.rst
 
 .. include:: /config/filters/sandboxmanager.rst
+
+Stats Graph
+===========
+
+.. versionadded:: 0.7
+
+.. include:: /../../sandbox/lua/filters/stat_graph.lua
+   :start-after: --[[
+   :end-before: --]]
+
 
 Unique Items
 ============

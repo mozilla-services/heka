@@ -18,6 +18,12 @@ Config:
     A list of anomaly detection specifications.  If not specified no anomaly
     detection/alerting will be performed.
 
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `enable_delta`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -32,7 +38,9 @@ Config:
     [TelemetryServerMetricsAggregator.config]
     enable_delta = false
     anomaly_config = 'roc("Request Statistics", 1, 15, 0, 1.5, true, false)'
+    preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 local alert     = require "alert"
 local annotation= require "annotation"

@@ -41,6 +41,8 @@ initialization code.
 
 .. include:: /config/outputs/http.rst
 
+.. include:: /config/outputs/irc.rst
+
 .. include:: /config/outputs/log.rst
 
 .. include:: /config/outputs/nagios.rst
@@ -48,5 +50,7 @@ initialization code.
 .. include:: /config/outputs/smtp.rst
 
 .. include:: /config/outputs/tcp.rst
+
+.. include:: /config/outputs/udp.rst
 
 .. include:: /config/outputs/whisper.rst

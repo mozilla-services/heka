@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,7 +16,7 @@
 package plugins
 
 import (
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -60,19 +60,22 @@ type SandboxFilter struct {
 	name                   string
 	sampleDenominator      int
 	manager                *SandboxManagerFilter
+	pConfig                *pipeline.PipelineConfig
+}
+
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (this *SandboxFilter) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	this.pConfig = pConfig
 }
 
 func (this *SandboxFilter) ConfigStruct() interface{} {
-	return NewSandboxConfig()
+	return NewSandboxConfig(this.pConfig.Globals)
 }
 
 func (this *SandboxFilter) SetName(name string) {
 	re := regexp.MustCompile("\\W")
 	this.name = re.ReplaceAllString(name, "_")
-}
-
-func (s *SandboxFilter) IsStoppable() {
-	return
 }
 
 // Determines the script type and creates interpreter
@@ -81,10 +84,11 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 		return nil // no-op already initialized
 	}
 	this.sbc = config.(*SandboxConfig)
-	this.sbc.ScriptFilename = pipeline.PrependShareDir(this.sbc.ScriptFilename)
-	this.sampleDenominator = pipeline.Globals().SampleDenominator
+	globals := this.pConfig.Globals
+	this.sbc.ScriptFilename = globals.PrependShareDir(this.sbc.ScriptFilename)
+	this.sampleDenominator = globals.SampleDenominator
 
-	data_dir := pipeline.PrependBaseDir(DATA_DIR)
+	data_dir := globals.PrependBaseDir(DATA_DIR)
 	if !fileExists(data_dir) {
 		err = os.MkdirAll(data_dir, 0700)
 		if err != nil {
@@ -172,21 +176,23 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		msgLoopCount   uint
 		injectionCount uint
 		startTime      time.Time
-		slowDuration   int64 = int64(pipeline.Globals().MaxMsgProcessDuration)
+		slowDuration   int64 = int64(this.pConfig.Globals.MaxMsgProcessDuration)
 		duration       int64
 		capacity       = cap(inChan) - 1
 	)
 
+	// We assign to the return value of Run() for errors in the closure so that
+	// the plugin runner can determine what caused the SandboxFilter to return.
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
-			fr.LogError(fmt.Errorf("exceeded InjectMessage count"))
+			err = pipeline.TerminatedError("exceeded InjectMessage count")
 			return 1
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
-			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				pipeline.Globals().MaxMsgLoops))
+			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
+				this.pConfig.Globals.MaxMsgLoops))
 			return 1
 		}
 		if len(payload_type) == 0 { // heka protobuf message
@@ -223,7 +229,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				break
 			}
 			atomic.AddInt64(&this.processMessageCount, 1)
-			injectionCount = pipeline.Globals().MaxMsgProcessInject
+			injectionCount = this.pConfig.Globals.MaxMsgProcessInject
 			msgLoopCount = pack.MsgLoopCount
 
 			if this.manager != nil { // only check for backpressure on dynamic plugins
@@ -280,7 +286,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			pack.Recycle()
 
 		case t := <-ticker:
-			injectionCount = pipeline.Globals().MaxMsgTimerInject
+			injectionCount = this.pConfig.Globals.MaxMsgTimerInject
 			startTime = time.Now()
 			if retval = this.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				terminated = true
@@ -316,24 +322,21 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
-	if terminated {
-		go h.PipelineConfig().RemoveFilterRunner(fr.Name())
-		// recycle any messages until the matcher is torn down
-		for pack = range inChan {
-			pack.Recycle()
-		}
-	}
-
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
 
 	this.reportLock.Lock()
+	var destroyErr error
 	if this.sbc.PreserveData {
-		err = this.sb.Destroy(this.preservationFile)
+		destroyErr = this.sb.Destroy(this.preservationFile)
 	} else {
-		err = this.sb.Destroy("")
+		destroyErr = this.sb.Destroy("")
 	}
+	if destroyErr != nil {
+		err = destroyErr
+	}
+
 	this.sb = nil
 	this.reportLock.Unlock()
 	return

@@ -16,12 +16,12 @@
 package logstreamer
 
 import (
-	"code.google.com/p/gomock/gomock"
 	ls "github.com/mozilla-services/heka/logstreamer"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
@@ -48,7 +48,16 @@ func LogstreamerInputSpec(c gs.Context) {
 	here, _ := os.Getwd()
 	dirPath := filepath.Join(here, "../../logstreamer", "testdir", "filehandling/subdir")
 
-	config := NewPipelineConfig(nil)
+	tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests")
+	c.Expect(tmpErr, gs.Equals, nil)
+	defer func() {
+		tmpErr = os.RemoveAll(tmpDir)
+		c.Expect(tmpErr, gs.IsNil)
+	}()
+
+	globals := DefaultGlobals()
+	globals.BaseDir = tmpDir
+	config := NewPipelineConfig(globals)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(config.InputRecycleChan())
@@ -65,16 +74,7 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A LogstreamerInput", func() {
-		tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests")
-		c.Expect(tmpErr, gs.Equals, nil)
-		origBaseDir := Globals().BaseDir
-		Globals().BaseDir = tmpDir
-		defer func() {
-			Globals().BaseDir = origBaseDir
-			tmpErr = os.RemoveAll(tmpDir)
-			c.Expect(tmpErr, gs.IsNil)
-		}()
-		lsInput := new(LogstreamerInput)
+		lsInput := &LogstreamerInput{pConfig: config}
 		lsiConfig := lsInput.ConfigStruct().(*LogstreamerInputConfig)
 		lsiConfig.LogDirectory = dirPath
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
@@ -82,7 +82,7 @@ func LogstreamerInputSpec(c gs.Context) {
 		lsiConfig.Priority = []string{"^Seq"}
 		lsiConfig.Decoder = "decoder-name"
 
-		c.Specify("w/ no tranlation map", func() {
+		c.Specify("w/ no translation map", func() {
 			err := lsInput.Init(lsiConfig)
 			c.Expect(err, gs.IsNil)
 			c.Expect(len(lsInput.plugins), gs.Equals, 1)
@@ -108,12 +108,14 @@ func LogstreamerInputSpec(c gs.Context) {
 				pbcall := ith.MockHelper.EXPECT().DecoderRunner(lsiConfig.Decoder,
 					"-"+lsiConfig.Decoder)
 				pbcall.Return(mockDecoderRunner, true)
+
 				decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
 				decodeCall.Return(ith.DecodeChan)
 
+				runOutChan := make(chan error, 1)
 				go func() {
 					err = lsInput.Run(ith.MockInputRunner, ith.MockHelper)
-					c.Expect(err, gs.IsNil)
+					runOutChan <- err
 				}()
 
 				d, _ := time.ParseDuration("5s")
@@ -132,6 +134,7 @@ func LogstreamerInputSpec(c gs.Context) {
 				}
 				lsInput.Stop()
 				c.Expect(timed, gs.Equals, false)
+				c.Expect(<-runOutChan, gs.Equals, nil)
 			})
 		})
 

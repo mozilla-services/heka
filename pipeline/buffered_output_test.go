@@ -16,11 +16,11 @@
 package pipeline
 
 import (
-	"code.google.com/p/gomock/gomock"
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
@@ -43,9 +43,12 @@ func BufferedOutputSpec(c gs.Context) {
 		encoder := new(ProtobufEncoder)
 		encoder.sample = false
 		encoder.sampleDenominator = 1000
+		pConfig := NewPipelineConfig(nil)
 		or := NewMockOutputRunner(ctrl)
+		h := NewMockPluginHelper(ctrl)
+		h.EXPECT().PipelineConfig().Return(pConfig)
 
-		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or)
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h)
 		c.Expect(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 

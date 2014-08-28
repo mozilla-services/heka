@@ -22,6 +22,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -47,7 +49,6 @@ type GlobalConfigStruct struct {
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
-	PipelineConfig        *PipelineConfig
 	sigChan               chan os.Signal
 }
 
@@ -83,11 +84,29 @@ func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 	log.Printf("%s: %s", src, msg)
 }
 
-// Returns global pipeline config values. This function is overwritten by the
-// `pipeline.NewPipelineConfig` function. Globals are generally A Bad Idea, so
-// we're at least using a function instead of a struct for global state to
-// make it easier to change the underlying implementation.
-var Globals func() *GlobalConfigStruct
+func isAbs(path string) bool {
+	return strings.HasPrefix(path, string(os.PathSeparator)) || len(filepath.VolumeName(path)) > 0
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, prepends globally configured
+// BaseDir.
+func (g *GlobalConfigStruct) PrependBaseDir(path string) string {
+	if isAbs(path) {
+		return path
+	}
+	return filepath.Join(g.BaseDir, path)
+}
+
+// Expects either an absolute or relative file path. If absolute, simply
+// returns the path unchanged. If relative, prepends globally configured
+// ShareDir.
+func (g *GlobalConfigStruct) PrependShareDir(path string) string {
+	if isAbs(path) {
+		return path
+	}
+	return filepath.Join(g.ShareDir, path)
+}
 
 // Main Heka pipeline data structure containing raw message data, a Message
 // object, and other Heka related message metadata.
@@ -166,7 +185,7 @@ func Run(config *PipelineConfig) {
 	var outputsWg sync.WaitGroup
 	var err error
 
-	globals := Globals()
+	globals := config.Globals
 
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
@@ -189,14 +208,14 @@ func Run(config *PipelineConfig) {
 	}
 
 	// Setup the diagnostic trackers
-	inputTracker := NewDiagnosticTracker("input")
-	injectTracker := NewDiagnosticTracker("inject")
+	inputTracker := NewDiagnosticTracker("input", globals)
+	injectTracker := NewDiagnosticTracker("inject", globals)
 
 	// Create the report pipeline pack
 	config.reportRecycleChan <- NewPipelinePack(config.reportRecycleChan)
 
 	// Initialize all of the PipelinePacks that we'll need
-	for i := 0; i < Globals().PoolSize; i++ {
+	for i := 0; i < globals.PoolSize; i++ {
 		inputPack := NewPipelinePack(config.inputRecycleChan)
 		inputTracker.AddPack(inputPack)
 		config.inputRecycleChan <- inputPack

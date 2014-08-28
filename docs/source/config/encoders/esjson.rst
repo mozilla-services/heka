@@ -1,6 +1,6 @@
 
 ESJsonEncoder
-==================
+=============
 
 This encoder serializes a Heka message into a clean JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch

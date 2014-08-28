@@ -67,9 +67,9 @@ add_external_mock(pipeline/testsupport mock_net_error.go         net            
 #
 add_internal_mock(plugins/graphite mock_whisperrunner_test.go   WhisperRunner       whisper.go)
 
-add_internal_mock(plugins/amqp mock_amqpconnection_test.go      AMQPConnection      amqp.go)
-add_internal_mock(plugins/amqp mock_amqpchannel_test.go         AMQPChannel         amqp.go)
-add_internal_mock(plugins/amqp mock_amqpconnectionhub_test.go   AMQPConnectionHub   amqp.go)
+add_internal_mock(plugins/amqp mock_amqpconnection_test.go      AMQPConnection      types.go)
+add_internal_mock(plugins/amqp mock_amqpchannel_test.go         AMQPChannel         types.go)
+add_internal_mock(plugins/amqp mock_amqpconnectionhub_test.go   AMQPConnectionHub   types.go)
 
 add_external_mock(plugins/testsupport mock_amqp_acknowledger.go github.com/streadway/amqp   Acknowledger)
 

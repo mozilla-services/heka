@@ -16,39 +16,38 @@
 package geoip
 
 import (
-        . "github.com/mozilla-services/heka/pipeline"
+	"github.com/abh/geoip"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
-        gs "github.com/rafrombrc/gospec/src/gospec"
-        "code.google.com/p/gomock/gomock"
-        "github.com/mozilla-services/heka/message"
-        "github.com/abh/geoip"
-        "testing"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
+	"testing"
 )
 
-
 func TestAllSpecs(t *testing.T) {
-        r := gs.NewRunner()
-        r.Parallel = false
+	r := gs.NewRunner()
+	r.Parallel = false
 
-        r.AddSpec(GeoIpDecoderSpec)
+	r.AddSpec(GeoIpDecoderSpec)
 
-        gs.MainGoTest(r, t)
+	gs.MainGoTest(r, t)
 }
 
 func GeoIpDecoderSpec(c gs.Context) {
 	t := &ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-        NewPipelineConfig(nil)
-
-	Globals().ShareDir = "/foo/bar/baz"
+	pConfig := NewPipelineConfig(nil)
+	pConfig.Globals.ShareDir = "/foo/bar/baz"
 
 	c.Specify("A GeoIpDecoder", func() {
 		decoder := new(GeoIpDecoder)
-		rec := new(geoip.GeoIPRecord)	
+		decoder.SetPipelineConfig(pConfig)
+		rec := new(geoip.GeoIPRecord)
 		conf := decoder.ConfigStruct().(*GeoIpDecoderConfig)
 
-                c.Expect(conf.DatabaseFile, gs.Equals, "/foo/bar/baz/GeoLiteCity.dat")
+		c.Expect(conf.DatabaseFile, gs.Equals, "/foo/bar/baz/GeoLiteCity.dat")
 
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
@@ -58,7 +57,7 @@ func GeoIpDecoderSpec(c gs.Context) {
 
 		decoder.SourceIpField = "remote_host"
 		conf.SourceIpField = "remote_host"
-                decoder.Init(conf)
+		decoder.Init(conf)
 
 		rec.CountryCode = "US"
 		rec.CountryCode3 = "USA"
@@ -72,12 +71,10 @@ func GeoIpDecoderSpec(c gs.Context) {
 		rec.CharSet = 1
 		rec.ContinentCode = "NA"
 
-
 		c.Specify("Test GeoIpDecoder Output", func() {
 			buf := decoder.GeoBuff(rec)
 			nf, _ = message.NewField("geoip", buf.Bytes(), "")
-	                pack.Message.AddField(nf)
-
+			pack.Message.AddField(nf)
 
 			b, ok := pack.Message.GetFieldValue("geoip")
 			c.Expect(ok, gs.IsTrue)
@@ -87,4 +84,3 @@ func GeoIpDecoderSpec(c gs.Context) {
 
 	})
 }
-

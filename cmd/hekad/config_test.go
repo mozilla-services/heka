@@ -29,14 +29,12 @@ func TestDecode(t *testing.T) {
 }
 
 func TestLoadDir(t *testing.T) {
-	origGlobals := pipeline.Globals
 	origAvailablePlugins := make(map[string]func() interface{})
 	for k, v := range pipeline.AvailablePlugins {
 		origAvailablePlugins[k] = v
 	}
 
 	defer func() {
-		pipeline.Globals = origGlobals
 		pipeline.AvailablePlugins = origAvailablePlugins
 	}()
 

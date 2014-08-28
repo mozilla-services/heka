@@ -36,5 +36,17 @@ ESPayloadEncoder
 .. _config_protobufencoder:
 .. include:: /config/encoders/protobuf.rst
 
+.. _config_rstencoder:
+.. include:: /config/encoders/rst.rst
+
 .. _config_sandboxencoder:
 .. include:: /config/encoders/sandbox.rst
+
+.. _config_statmetric_influx:
+
+StatMetric Influx Encoder
+=========================
+
+.. include:: /../../sandbox/lua/encoders/statmetric_influx.lua
+	:start-after: --[=[
+	:end-before: --]=]

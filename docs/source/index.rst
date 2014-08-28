@@ -117,6 +117,7 @@ Contents:
    :maxdepth: 2
 
    installing
+   getting_started
    config/index
    config/inputs/index
    config/decoders/index
@@ -126,10 +127,11 @@ Contents:
    monitoring/index
    developing/plugin
    message/index
-   message_matcher.rst
+   message_matcher
    sandbox/index
    developing/testing
    tls
+
 
 
 
@@ -138,3 +140,4 @@ Indices and tables
 
 * :ref:`search`
 * :ref:`glossary`
+* :ref:`changelog`

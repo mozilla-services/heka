@@ -14,7 +14,14 @@ Config:
     Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
     per row is a 24 sliding hour window with 1 minute resolution.
 
-- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
+- anomaly_config (string, optional)
+    See :ref:`sandbox_anomaly_module`.
+
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `sec_per_row` or `rows`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
 
 *Example Heka Configuration*
 
@@ -28,7 +35,9 @@ Config:
 
         [Sync-1_5-SlowQueries.config]
         anomaly_config = 'mww_nonparametric("Statistics", 5, 15, 10, 0.8)'
+        preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "circular_buffer"
 require "math"
@@ -57,9 +66,17 @@ function process_message ()
     if not cnt then return 0 end
 
     local qt = read_message("Fields[Query_time]")
+    if type(qt) ~= "number" then return -1 end
+
     local lt = read_message("Fields[Lock_time]")
+    if type(lt) ~= "number" then return -1 end
+
     local re = read_message("Fields[Rows_examined]")
+    if type(re) ~= "number" then return -1 end
+
     local rs = read_message("Fields[Rows_sent]")
+    if type(rs) ~= "number" then return -1 end
+
     data:set(ts, QUERY_TIME, sums:add(ts, QUERY_TIME, qt)/cnt)
     data:set(ts, LOCK_TIME, sums:add(ts, LOCK_TIME, lt)/cnt)
     data:set(ts, ROWS_EXAMINED, floor(sums:add(ts, ROWS_EXAMINED, re)/cnt))

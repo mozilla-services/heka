@@ -49,13 +49,14 @@ type BufferedOutputSender interface {
 	SendRecord(record []byte) (err error)
 }
 
-func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner) (
+func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHelper) (
 	*BufferedOutput, error) {
 
 	b := new(BufferedOutput)
 	b.or = or
 	b.parser = NewMessageProtoParser()
-	b.queue = PrependBaseDir(filepath.Join(queue_dir, queue_name))
+	globals := h.PipelineConfig().Globals
+	b.queue = globals.PrependBaseDir(filepath.Join(queue_dir, queue_name))
 	b.checkpointFilename = filepath.Join(b.queue, "checkpoint.txt")
 	b.outBytes = make([]byte, 0, 1000) // encoding will reallocate the buffer as necessary
 

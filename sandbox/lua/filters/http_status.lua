@@ -9,13 +9,21 @@ from web server access logs.
 Config:
 
 - sec_per_row (uint, optional, default 60)
-    Sets the size of each bucket (resolution in seconds) in the sliding window.
+    Sets the size of each bucket (resolution in seconds) in the sliding
+    window.
 
 - rows (uint, optional, default 1440)
-    Sets the size of the sliding window i.e., 1440 rows representing 60 seconds
-    per row is a 24 sliding hour window with 1 minute resolution.
+    Sets the size of the sliding window i.e., 1440 rows representing 60
+    seconds per row is a 24 sliding hour window with 1 minute resolution.
 
-- anomaly_config(string) - (see :ref:`sandbox_anomaly_module`)
+- anomaly_config (string, optional)
+    See :ref:`sandbox_anomaly_module`.
+
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `sec_per_row` or `rows`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
 
 *Example Heka Configuration*
 
@@ -31,8 +39,11 @@ Config:
     [FxaAuthServerHTTPStatus.config]
     sec_per_row = 60
     rows = 1440
-    anomaly_config = 'roc("HTTP Status", 1, 15, 0, 1.5, true, false)'
+    anomaly_config = 'roc("HTTP Status", 2, 15, 0, 1.5, true, false) roc("HTTP Status", 4, 15, 0, 1.5, true, false) mww_nonparametric("HTTP Status", 5, 15, 10, 0.8)'
+    preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
+_PRESERVATION_VERSION = _PRESERVATION_VERSION + 1 -- force a revision update due to internal changes
 
 require "circular_buffer"
 require "string"
@@ -46,25 +57,22 @@ local sec_per_row       = read_config("sec_per_row") or 60
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
-status = circular_buffer.new(rows, 5, sec_per_row)
-local HTTP_200      = status:set_header(1, "HTTP_200")
-local HTTP_300      = status:set_header(2, "HTTP_300")
-local HTTP_400      = status:set_header(3, "HTTP_400")
-local HTTP_500      = status:set_header(4, "HTTP_500")
-local HTTP_UNKNOWN  = status:set_header(5, "HTTP_UNKNOWN")
+status = circular_buffer.new(rows, 6, sec_per_row)
+status:set_header(1, "HTTP_100")
+status:set_header(2, "HTTP_200")
+status:set_header(3, "HTTP_300")
+status:set_header(4, "HTTP_400")
+status:set_header(5, "HTTP_500")
+local HTTP_UNKNOWN = status:set_header(6, "HTTP_UNKNOWN")
 
 function process_message ()
     local ts = read_message("Timestamp")
     local sc = read_message("Fields[status]")
+    if type(sc) ~= "number" then return -1 end
 
-    if sc >= 200 and sc < 300 then
-        status:add(ts, HTTP_200, 1)
-    elseif sc >= 300  and sc < 400 then
-        status:add(ts, HTTP_300, 1)
-    elseif sc >= 400 and sc < 500 then
-        status:add(ts, HTTP_400, 1)
-    elseif sc >= 500  and sc < 600 then
-        status:add(ts, HTTP_500, 1)
+    local col = sc/100
+    if col >= 1 and col < 6 then
+        status:add(ts, col, 1) -- col will be truncated to an int
     else
         status:add(ts, HTTP_UNKNOWN, 1)
     end

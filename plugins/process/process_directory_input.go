@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -51,13 +51,21 @@ type ProcessDirectoryInput struct {
 	procDir   string
 	ir        InputRunner
 	h         PluginHelper
+	pConfig   *PipelineConfig
+}
+
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (pdi *ProcessDirectoryInput) SetPipelineConfig(pConfig *PipelineConfig) {
+	pdi.pConfig = pConfig
 }
 
 func (pdi *ProcessDirectoryInput) Init(config interface{}) (err error) {
 	conf := config.(*ProcessDirectoryInputConfig)
 	pdi.inputs = make(map[string]*ProcessEntry)
 	pdi.stopChan = make(chan bool)
-	pdi.procDir = filepath.Clean(PrependShareDir(conf.ProcessDir))
+	globals := pdi.pConfig.Globals
+	pdi.procDir = filepath.Clean(globals.PrependShareDir(conf.ProcessDir))
 	return
 }
 

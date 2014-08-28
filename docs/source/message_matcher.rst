@@ -18,6 +18,7 @@ Examples
 - Fields[MyBool] == TRUE
 - TRUE
 - Fields[created] =~ /%TIMESTAMP%/
+- Fields[widget] != NIL
 
 Relational Operators
 ====================
@@ -44,6 +45,12 @@ Boolean
 - **TRUE**
 - **FALSE**
 
+Constants
+=========
+
+- **NIL** used to test the existence (!=) or non-existence (==) of a field variable
+    - must be placed on the right side of the comparison  e.g., Fields[widget] == NIL
+
 Message Variables
 =================
 
@@ -64,33 +71,19 @@ Message Variables
     - **Fields[_field_name_]** (shorthand for Field[_field_name_][0][0])
     - **Fields[_field_name_][_field_index_]** (shorthand for Field[_field_name_][_field_index_][0])
     - **Fields[_field_name_][_field_index_][_array_index_]**
-    - If a field type is mis-match for the relational comparison, false will be returned i.e. Fields[foo] == 6 where 'foo' is a string
+    - If a field type is mis-match for the relational comparison, false will be returned e.g., Fields[foo] == 6 where 'foo' is a string
 
 Quoted String
 =============
 
 - single or double quoted strings are allowed
-- must be placed on the right side of a relational comparison i.e. Type == 'test'
+- must be placed on the right side of a relational comparison e.g., Type == 'test'
 
 Regular Expression String
 =========================
 
 - enclosed by forward slashes
-- must be placed on the right side of the relational comparison i.e. Type =~ /test/
+- must be placed on the right side of the relational comparison e.g., Type =~ /test/
 - capture groups will be ignored
 
-.. _matcher_regex_helpers:
-
-Regular Expression Helpers
---------------------------
-
-Commonly used complex regular expressions are provide as template
-variables in the form of %TEMPLATE%.
-
-i.e., Fields[created] =~ /%TIMESTAMP%/
-
-Available templates
-- TIMESTAMP - matches most common date/time string formats
-
 .. seealso:: `Regular Expression re2 syntax <http://code.google.com/p/re2/wiki/Syntax>`_
-

@@ -16,30 +16,19 @@
 package udp
 
 import (
-	"code.google.com/p/gomock/gomock"
-	"code.google.com/p/goprotobuf/proto"
+	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net"
 	"path/filepath"
 	"runtime"
-	"testing"
 )
-
-func TestAllSpecs(t *testing.T) {
-	r := gs.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(UdpInputSpec)
-	r.AddSpec(UdpInputSpecFailure)
-
-	gs.MainGoTest(r, t)
-}
 
 func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
 	emsg = make([]byte, 3+len(hbytes)+len(mbytes))

@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG ccc0625d30f8cf6453abd79e92c7a9bac845f6be
+        GIT_TAG 5a127b2ad82144faa8463083fed86e67a68046c3
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -35,7 +35,12 @@ function(parse_url url)
     string(REGEX REPLACE ".*/" "" _name ${url})
     set(name ${_name} PARENT_SCOPE)
 
-    string(REGEX REPLACE "^https?://([A-Za-z0-9$-._~!:;=]+@)?" "" _path ${url})
+    # For details of the URI parsing see: http://tools.ietf.org/html/rfc3986#appendix-A
+    string(REGEX REPLACE "^[a-zA-Z][-+.a-zA-Z0-9]+://" "" _path ${url}) # strip the scheme
+    string(REGEX REPLACE "^[A-Za-z0-9$-._~!:;=]+@" "" _path ${_path}) # strip the userinfo
+    string(REGEX REPLACE "^([^:/]+):[0-9]+/" "\\1/" _path ${_path}) # strip the port
+    string(REGEX REPLACE "^([^:/]+):/?" "\\1/" _path ${_path}) # strip the colon separator and make sure we have a slash
+    string(REGEX REPLACE "#.*$" "" _path ${_path}) # strip the revision
 
     set(path ${_path} PARENT_SCOPE)
 endfunction(parse_url)
@@ -115,16 +120,24 @@ function(add_external_plugin vcs url tag)
         endif()
     endif()
 
-    set(_packages ${path})
+    set(ignore_root FALSE)
     foreach(_subpath ${ARGN})
-        set(_packages ${_packages} "${path}/${_subpath}")
+        if ("${_subpath}" STREQUAL "__ignore_root")
+            set(ignore_root TRUE)
+        else()
+            set(_packages ${_packages} "${path}/${_subpath}")
+        endif()
     endforeach()
+
+    if (NOT ${ignore_root})
+        set(_packages ${path})
+    endif()
     set(PLUGIN_LOADER ${PLUGIN_LOADER} ${_packages} PARENT_SCOPE)
 endfunction(add_external_plugin)
 
-git_clone(https://code.google.com/p/gomock ae48011f41cd)
+git_clone(https://github.com/rafrombrc/gomock c922279faf77f29ce5781e96eb0711837fcb477c)
 add_custom_command(TARGET gomock POST_BUILD
-COMMAND ${GO_EXECUTABLE} install code.google.com/p/gomock/mockgen)
+COMMAND ${GO_EXECUTABLE} install github.com/rafrombrc/gomock/mockgen)
 git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf136efdab8)
 git_clone(https://github.com/rafrombrc/whisper-go 89e9ba3b5c6a10d8ac43bd1a25371f3e6118c37f)
 git_clone(https://github.com/rafrombrc/go-notify e3ddb616eea90d4e87dff8513c251ff514678406)
@@ -139,13 +152,16 @@ git_clone(https://github.com/crowdmob/goamz e9a919b6da95151fc77b1b7bb3e78a8a6837
 git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b)
 git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
+git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
 
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
 endif()
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 9e454bebb5085e25fc50f32556502141503b69e4)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 91278658b5d52bd45b0b74d54e478a230c0ef0c4)
+    git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
+    add_dependencies(heka-mozsvc-plugins raven-go)
 endif()
 
 if (INCLUDE_DOCUMENTATION)
@@ -158,9 +174,9 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 hg_clone(https://code.google.com/p/go-uuid default)
-hg_clone(https://code.google.com/p/goprotobuf default)
-add_custom_command(TARGET goprotobuf POST_BUILD
-COMMAND ${GO_EXECUTABLE} install code.google.com/p/goprotobuf/protoc-gen-go)
+git_clone(https://code.google.com/p/gogoprotobuf 7008a93e68bf)
+add_custom_command(TARGET gogoprotobuf POST_BUILD
+COMMAND ${GO_EXECUTABLE} install code.google.com/p/gogoprotobuf/protoc-gen-gogo)
 
 include(plugin_loader OPTIONAL)
 

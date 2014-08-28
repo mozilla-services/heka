@@ -18,6 +18,12 @@ Config:
     should be enabled when sharding is used;
     see: :ref:`config_circular_buffer_delta_agg_filter`.
 
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `enable_delta`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -32,14 +38,16 @@ Config:
         [FxaActiveDailyUsers.config]
         message_variable = "Fields[uid]"
         title = "Estimated Active Daily Users"
+        preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 require "hyperloglog"
 require "circular_buffer"
 require "math"
 require "string"
 
-local message_variable  = read_config("message_variable") or error("message_variable is required")
+local message_variable  = read_config("message_variable") or error("message_variable configuration must be specified")
 local title             = read_config("title") or "Estimated Unique Daily " .. message_variable
 local enable_delta      = read_config("enable_delta") or false
 
@@ -61,6 +69,8 @@ function process_message ()
     end
 
     local item = read_message(message_variable)
+    if not(type(item) == "string" or type(item) == "number") then return -1 end
+
     if hll:add(item) then
         active:set(ts, USERS, hll:count())
     end

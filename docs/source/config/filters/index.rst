@@ -23,6 +23,11 @@ initialization code.
 - ticker_interval (uint, optional):
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
+- can_exit (bool, optional)
+    .. versionadded:: 0.7
+    
+    Whether or not this plugin can exit without causing Heka to shutdown.
+    Defaults to false for non-sandbox filters, and true for sandbox filters.
 
 .. _config_circular_buffer_delta_agg_filter:
 
@@ -49,6 +54,26 @@ CBuf Delta Aggregator By Hostname
 .. _config_counter_filter:
 
 .. include:: /config/filters/counter.rst
+
+.. _config_cpu_stats_filter:
+
+Cpu Stats Filter
+================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/cpustats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_disk_stats_filter:
+
+Disk Stats Filter
+=================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
 
 .. _config_frequent_items_filter:
 
@@ -83,6 +108,17 @@ Heka Message Schema
    :start-after: --[[
    :end-before: --]]
 
+.. _config_process_message_failures_filter:
+
+Heka Process Message Failures
+=============================
+
+.. versionadded:: 0.7
+
+.. include:: /../../sandbox/lua/filters/heka_process_message_failures.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_http_status_graph_filter:
 
 HTTP Status Graph
@@ -91,6 +127,16 @@ HTTP Status Graph
 .. versionadded:: 0.5
 
 .. include:: /../../sandbox/lua/filters/http_status.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_mem_stats_filter:
+
+Memory Stats Filter
+===================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/memstats.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -113,6 +159,17 @@ MySQL Slow Query
 
 .. _config_sandbox_manager_filter:
 .. include:: /config/filters/sandboxmanager.rst
+
+.. _config_stats_graph_filter:
+
+Stats Graph
+===========
+
+.. versionadded:: 0.7
+
+.. include:: /../../sandbox/lua/filters/stat_graph.lua
+   :start-after: --[[
+   :end-before: --]]
 
 .. _config_unique_items_filter:
 

@@ -16,15 +16,16 @@
 package file
 
 import (
-	"code.google.com/p/gomock/gomock"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -62,6 +63,7 @@ func FileOutputSpec(c gs.Context) {
 
 		c.Specify("w/ ProtobufEncoder", func() {
 			encoder := new(ProtobufEncoder)
+			encoder.SetPipelineConfig(pConfig)
 			encoder.Init(nil)
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 
@@ -189,15 +191,17 @@ func FileOutputSpec(c gs.Context) {
 		})
 
 		if runtime.GOOS != "windows" {
-			c.Specify("Init halts if basedirectory is not writable", func() {
-				tmpdir := filepath.Join(os.TempDir(), "tmpdir")
-				err := os.MkdirAll(tmpdir, 0400)
-				c.Assume(err, gs.IsNil)
-				config.Path = filepath.Join(tmpdir, "out.txt")
-				err = fileOutput.Init(config)
-				c.Assume(err, gs.Not(gs.IsNil))
-				os.RemoveAll(tmpdir)
-			})
+			if u, err := user.Current(); err != nil && u.Uid != "0" {
+				c.Specify("Init halts if basedirectory is not writable", func() {
+					tmpdir := filepath.Join(os.TempDir(), "tmpdir")
+					err := os.MkdirAll(tmpdir, 0400)
+					c.Assume(err, gs.IsNil)
+					config.Path = filepath.Join(tmpdir, "out.txt")
+					err = fileOutput.Init(config)
+					c.Assume(err, gs.Not(gs.IsNil))
+					os.RemoveAll(tmpdir)
+				})
+			}
 
 			c.Specify("honors folder_perm setting", func() {
 				config.FolderPerm = "750"
@@ -227,9 +231,9 @@ func FileOutputSpec(c gs.Context) {
 				err := fileOutput.Init(config)
 				c.Assume(err, gs.IsNil)
 				wg.Add(1)
-				go fileOutput.receiver(oth.MockOutputRunner, &wg)
-				runtime.Gosched() // Yield so we can overwrite the timerChan.
 				fileOutput.timerChan = timerChan
+				go fileOutput.receiver(oth.MockOutputRunner, &wg)
+				runtime.Gosched() // Yield so receiver will start.
 			}
 
 			cleanUp := func() {

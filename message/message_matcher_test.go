@@ -41,6 +41,8 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	field5, _ := NewField("foo", "alternate", "")
 	field6, _ := NewField("Payload", "name=test;type=web;", "")
 	field7, _ := NewField("Timestamp", date, "date-time")
+	field8, _ := NewField("zero", int64(0), "")
+	field9, _ := NewField("string", "43", "")
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
@@ -48,6 +50,8 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	msg.AddField(field5)
 	msg.AddField(field6)
 	msg.AddField(field7)
+	msg.AddField(field8)
+	msg.AddField(field9)
 
 	c.Specify("A MatcherSpecification", func() {
 		malformed := []string{
@@ -72,6 +76,9 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type =~ /\\ytest/",                                           // invalid escape character
 			"Type != 'test\"",                                             // mis matched quote types
 			"Pid =~ 6",                                                    // number instead of regexp
+			"NIL",                                                         // invalid use of constant
+			"Type == NIL",                                                 // existence check only works on fields
+			"Fields[test] > NIL",                                          // existence check only works with equals and not equals
 		}
 
 		negative := []string{
@@ -99,6 +106,11 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type == \"te'st\"",
 			"Type == 'te\"st'",
 			"Fields[int] =~ /999/",
+			"Fields[zero] == \"0\"",
+			"Fields[string] == 43",
+			"Fields[int] == NIL",
+			"Fields[int][0][1] == NIL",
+			"Fields[missing] != NIL",
 		}
 
 		positive := []string{
@@ -144,6 +156,10 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Fields[foo][1] =~ /alt/",
 			"Fields[Payload] =~ /name=\\w+/",
 			"Type =~ /(ST)/",
+			"Fields[int] != NIL",
+			"Fields[int][0][1] != NIL",
+			"Fields[int][0][2] == NIL",
+			"Fields[missing] == NIL",
 		}
 
 		c.Specify("malformed matcher tests", func() {
@@ -227,6 +243,28 @@ func BenchmarkMatcherFieldString(b *testing.B) {
 func BenchmarkMatcherFieldNumeric(b *testing.B) {
 	b.StopTimer()
 	s := "Fields[number] == 64 && Severity == 6"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.Match(msg)
+	}
+}
+
+func BenchmarkMatcherFieldNonExistence(b *testing.B) {
+	b.StopTimer()
+	s := "Fields[missing] == NIL"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.Match(msg)
+	}
+}
+
+func BenchmarkMatcherFieldExistence(b *testing.B) {
+	b.StopTimer()
+	s := "Fields[int] != NIL"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()

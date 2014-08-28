@@ -43,7 +43,7 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"programname" value_string:"kernel"]
+    | name:"programname" value_string:"kernel"
 --]]
 
 local syslog = require "syslog"

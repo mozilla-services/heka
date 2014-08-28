@@ -22,4 +22,4 @@ Example:
 
     [StatsdInput]
     address = ":8125"
-    stat_accum_input = "custom_stat_accumulator"
+    stat_accum_name = "custom_stat_accumulator"

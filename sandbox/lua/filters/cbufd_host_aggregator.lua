@@ -16,14 +16,21 @@ Config:
     active hosts exceed this value, the plugin will terminate.
 
 - rows (uint)
-    The number of rows to keep from the original circular buffer.  Storing
-    all the data from all the hosts is not practical since you will most likely
+    The number of rows to keep from the original circular buffer.  Storing all
+    the data from all the hosts is not practical since you will most likely
     run into memory and output size restrictions (adjust the view down as
     necessary).
 
 - host_expiration (uint, optional, default 120 seconds)
-    The amount of time a host has to be inactive before it can be replaced by a
-    new host.
+    The amount of time a host has to be inactive before it can be replaced by
+    a new host.
+
+- preservation_version (uint, optional, default 0)
+    If `preserve_data = true` is set in the SandboxFilter configuration, then
+    this value should be incremented every time the `max_hosts` or `rows`
+    configuration is changed to prevent the plugin from failing to start
+    during data restoration.
+
 
 *Example Heka Configuration*
 
@@ -40,7 +47,9 @@ Config:
     max_hosts = 5
     rows = 60
     host_expiration = 120
+    preservation_version = 0
 --]]
+_PRESERVATION_VERSION = read_config("preservation_version") or 0
 
 local cbufd = require "cbufd"
 require "circular_buffer"
@@ -49,8 +58,8 @@ require "string"
 require "table"
 
 local host_expiration = (read_config("host_expiration") or 120) * 1e9
-local rows = read_config("rows")
-local cols = read_config("max_hosts") -- hosts to preallocate space for
+local rows = read_config("rows") or error("rows configuration must be specified")
+local cols = read_config("max_hosts") or error("max_host configuration must be specified") -- hosts to preallocate space for
 
 hosts = {}
 hosts_size = 0

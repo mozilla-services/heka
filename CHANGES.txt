@@ -1,3 +1,83 @@
+0.7.0 (2014-08-27)
+==================
+
+Backwards Incompatibilities
+---------------------------
+
+* Switched to using fork of gomock, import location changed from
+  `code.google.com/p/gomock` to `github.com/rafrombrc/gomock`.
+
+* Move *GlobalConfigStruct out of pipeline package's global namespace, it is
+  now stored as an attribute on PipelineConfig. Any code that used to call
+  pipeline.Globals() now must instead access *PipelineConfig.Globals. The
+  `WantsPipelineConfig` interface has been introduced to give plugins access
+  to the active *PipelineConfig if it's needed in the ConfigStruct or Init
+  methods (#951).
+
+* Removed deprecated `pipeline.GetHekaConfigDir` API call, which has been
+  replaced by `PrependBaseDir` and `PrependShareDir` for a few versions
+  now.
+
+* Removed the regular expression template support from the message matcher
+  (issue #960).
+
+* Updated the AMQP input / output configuration values to use underscore
+  delimited words for long config options (issue #953).
+
+Bug Handling
+------------
+
+* Fixed the MySQL slow query grammar to handle logs with no newline.
+
+* Fixed packet tracking idle packs error output formatting.
+
+* Prevent panics during shutdown when a restarting plugin has been restarted
+  (issue #957).
+
+* Added support for a Logstreamer symbolically linked log_directory root
+  (issue #741).
+
+* Fixed lots of race conditions in the tests.
+
+* Eliminated race condition in use of global AMQPHub in AMQP input / output
+  plugins (#953).
+
+Features
+--------
+
+* Added StatMetric Influx Encoder.
+
+* Added RstEncoder.
+
+* Added support for '__ignore_root' tag in add_external_plugin to allow
+  external packages to be added which do not have any .go files
+  in their root directory (issue #955).
+
+* Switched from using goprotobuf to gogoprotobuf with marshal_all and
+  unmarshal_all extensions for significant performance increase.
+
+* Added stats graph sandbox filter to make it easier to generate graphs of
+  statsd / graphite metrics (issue #966).
+
+* Added support for the majority of repository URI formats when cloning external
+  Go packages (issue #937).
+
+* Added the ability to test for field existence in message matcher (issue #958).
+
+* Added support to ESJSonEncoder and ESLogstashV0Encoder to properly encode
+  field arrays.
+
+* Added a filter to monitor all process message failures (issue #948).
+
+* Added UdpOutput.
+
+* Added IrcOutput.
+
+* Added support for filter and output plugins to optionally exit without
+  causing Heka to shutdown via config option.
+
+* Added support for custom HTTP Headers in HttpListenInput and DashboardOutput.
+
 0.6.1 (2014-08-27)
 ==================
 
@@ -106,6 +186,9 @@ Bug Handling
 
 * Fix file_match config of plugin logstreamer_input (issue #893).
 
+* StatFilter now correctly handles values from integer or float fields (issue
+  #612).
+
 Features
 --------
 
@@ -173,15 +256,6 @@ Features
 * Add detection and handling of gzipped files to LogstreamerInput (issue #648).
 
 * Added optional TCP Keep-Alive parameters to TcpInput/TcpOutput plugins.
-
-0.5.3 (2014-MM-DD)
-==================
-
-Bug Handling
-------------
-
-* StatFilter now correctly handles values from integer or float fields (issue
-  #612).
 
 0.5.2 (2014-05-16)
 ==================

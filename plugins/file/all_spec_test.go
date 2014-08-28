@@ -24,6 +24,7 @@ func TestAllSpecs(t *testing.T) {
 	r.Parallel = false
 
 	r.AddSpec(FileOutputSpec)
+	r.AddSpec(FilePollingInputSpec)
 
 	gospec.MainGoTest(r, t)
 }

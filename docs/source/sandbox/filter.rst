@@ -37,9 +37,21 @@ Heka Message Schema (Message Documentation)
    :start-after: --[[
    :end-before: --]]
 
+Heka Process Message Failures (self monitoring)
+-----------------------------------------------
+.. include:: ../../../sandbox/lua/filters/heka_process_message_failures.lua
+   :start-after: --[[
+   :end-before: --]]
+
 HTTP Status Graph
 -----------------
 .. include:: ../../../sandbox/lua/filters/http_status.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Stats Graph
+-----------
+.. include:: ../../../sandbox/lua/filters/stat_graph.lua
    :start-after: --[[
    :end-before: --]]
 

@@ -25,16 +25,17 @@ Sandbox plugins. The are consumed by Heka when it initializes the plugin.
 
 - memory_limit (uint):
     The number of bytes the sandbox is allowed to consume before being
-    terminated (max 8MiB, default max).
+    terminated (default 8MiB).
 
 - instruction_limit (uint):
-    The number of instructions the sandbox is allowed the execute during the
-    process_message function before being terminated (max 1M, default max).
+    The number of instructions the sandbox is allowed to execute during the
+    process_message/timer_event functions before being terminated (default 1M).
 
 - output_limit (uint):
-    The number of bytes the sandbox output buffer can hold before before being
-    terminated (max 63KiB, default max).  Anything less than 64B is set to
-    64B.
+    The number of bytes the sandbox output buffer can hold before being
+    terminated (default 63KiB). Warning: messages exceeding 64KiB will generate
+    an error and be discarded by the standard output plugins (File, TCP, UDP)
+    since they exceed the maximum message size.
 
 - module_directory (string):
     The directory where 'require' will attempt to load the external Lua

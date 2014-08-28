@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -52,6 +52,7 @@ type StatAccumInput struct {
 	config   *StatAccumInputConfig
 	ir       InputRunner
 	tickChan <-chan time.Time
+	inChan   chan *PipelinePack
 	stopChan chan bool
 }
 
@@ -91,7 +92,7 @@ type StatAccumInputConfig struct {
 
 	// Don't emit values for inactive stats instead of sending 0 or in the case
 	// of gauges, sending the previous value. Defaults to false
-	DeleteIdleStats	bool	`toml:"delete_idle_stats"`
+	DeleteIdleStats bool `toml:"delete_idle_stats"`
 }
 
 func (sm *StatAccumInput) ConfigStruct() interface{} {
@@ -110,11 +111,17 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 	}
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (sm *StatAccumInput) SetPipelineConfig(pConfig *PipelineConfig) {
+	sm.pConfig = pConfig
+}
+
 func (sm *StatAccumInput) Init(config interface{}) error {
 	sm.counters = make(map[string]int)
 	sm.timers = make(map[string][]float64)
 	sm.gauges = make(map[string]int)
-	sm.statChan = make(chan Stat, Globals().PoolSize)
+	sm.statChan = make(chan Stat, sm.pConfig.Globals.PoolSize)
 	sm.stopChan = make(chan bool, 1)
 
 	sm.config = config.(*StatAccumInputConfig)
@@ -134,9 +141,9 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		intValue   int
 	)
 
-	sm.pConfig = h.PipelineConfig()
 	sm.ir = ir
-	sm.tickChan = sm.ir.Ticker()
+	sm.inChan = ir.InChan()
+	sm.tickChan = ir.Ticker()
 	ok := true
 	for ok {
 		select {
@@ -195,7 +202,7 @@ func (sm *StatAccumInput) Flush() {
 	now := time.Now().UTC()
 	nowUnix := now.Unix()
 	buffer := bytes.NewBufferString("")
-	pack := <-sm.ir.InChan()
+	pack := <-sm.inChan
 
 	rootNs := NewRootNamespace()
 

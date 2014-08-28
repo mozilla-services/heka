@@ -59,6 +59,7 @@ type LogstreamerInputConfig struct {
 }
 
 type LogstreamerInput struct {
+	pConfig            *p.PipelineConfig
 	logstreamSet       *ls.LogstreamSet
 	logstreamSetLock   sync.RWMutex
 	rescanInterval     time.Duration
@@ -73,13 +74,20 @@ type LogstreamerInput struct {
 	pluginName         string
 }
 
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (li *LogstreamerInput) SetPipelineConfig(pConfig *p.PipelineConfig) {
+	li.pConfig = pConfig
+}
+
 func (li *LogstreamerInput) ConfigStruct() interface{} {
+	baseDir := li.pConfig.Globals.BaseDir
 	return &LogstreamerInputConfig{
 		RescanInterval:   "1m",
 		ParserType:       "token",
 		OldestDuration:   "720h",
 		LogDirectory:     "/var/log",
-		JournalDirectory: filepath.Join(p.Globals().BaseDir, "logstreamer"),
+		JournalDirectory: filepath.Join(baseDir, "logstreamer"),
 	}
 }
 
@@ -146,7 +154,11 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	// Create the main logstream set
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
-	li.logstreamSet = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory, conf.JournalDirectory)
+	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
+		conf.JournalDirectory)
+	if err != nil {
+		return
+	}
 
 	// Initial scan for logstreams
 	plugins, errs = li.logstreamSet.ScanForLogstreams()
@@ -200,7 +212,9 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Setup the decoder runner that will be used
 	if li.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s", li.pluginName, li.decoderName)); !ok {
+		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s",
+			li.pluginName, li.decoderName)); !ok {
+
 			return fmt.Errorf("Decoder not found: %s", li.decoderName)
 		}
 	}
