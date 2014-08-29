@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Justin Judd (justin@justinjudd.org)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -904,6 +905,24 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 		}
 	}
 
+	multiDecoders := make([]multiDecoderNode, len(sectionsByCategory["MultiDecoder"]))
+	multiConfigs := make(map[string]*ConfigSection)
+
+	for i, section := range sectionsByCategory["MultiDecoder"] {
+
+		multiConfigs[section.name] = section
+
+		multiDecoders[i] = newMultiDecoderNode(section.name, subsFromSection(section.tomlSection))
+
+	}
+	multiDecoders, err = orderDependencies(multiDecoders)
+	if err != nil {
+		return err
+	}
+	for i, d := range multiDecoders {
+		sectionsByCategory["MultiDecoder"][i] = multiConfigs[d.name]
+	}
+
 	// Append MultiDecoders to the end of the Decoders list.
 	sectionsByCategory["Decoder"] = append(sectionsByCategory["Decoder"],
 		sectionsByCategory["MultiDecoder"]...)
@@ -927,4 +946,17 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	}
 
 	return
+}
+
+func subsFromSection(section toml.Primitive) []string {
+	secMap := section.(map[string]interface{})
+	var subs []string
+	if _, ok := secMap["subs"]; ok {
+		subsUntyped, _ := secMap["subs"].([]interface{})
+		subs = make([]string, len(subsUntyped))
+		for i, subUntyped := range subsUntyped {
+			subs[i], _ = subUntyped.(string)
+		}
+	}
+	return subs
 }
