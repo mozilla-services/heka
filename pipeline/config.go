@@ -10,22 +10,22 @@
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Justin Judd (justin@justinjudd.org)
 #
 # ***** END LICENSE BLOCK *****/
 
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"fmt"
+	"github.com/bbangert/toml"
 	"log"
 	"os"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
-
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/bbangert/toml"
 )
 
 const HEKA_DAEMON = "hekad"
@@ -912,16 +912,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 
 		multiConfigs[section.name] = section
 
-		//uses loading config part of loadSection
-		wrapper := NewPluginWrapper(section.name, self)
-		wrapper.PluginCreator = AvailablePlugins[section.globals.Typ]
-		plugin := wrapper.PluginCreator()
-		var config interface{}
-		if config, err = LoadConfigStruct(section.tomlSection, plugin); err != nil {
-			return fmt.Errorf("Can't load config for %s: %s", section.name, err)
-		}
-
-		multiDecoders[i] = newMultiDecoderNode(section.name, config.(*MultiDecoderConfig).Subs)
+		multiDecoders[i] = newMultiDecoderNode(section.name, subsFromSection(section.tomlSection))
 
 	}
 	multiDecoders, err = orderDependencies(multiDecoders)
@@ -955,4 +946,17 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	}
 
 	return
+}
+
+func subsFromSection(section toml.Primitive) []string {
+        secMap := section.(map[string]interface{})
+        var subs []string
+        if _, ok := secMap["subs"]; ok {
+                subsUntyped, _ := secMap["subs"].([]interface{})
+                subs = make([]string, len(subsUntyped))
+                for i, subUntyped := range(subsUntyped) {
+                        subs[i], _ = subUntyped.(string)
+                }
+        }
+        return subs
 }

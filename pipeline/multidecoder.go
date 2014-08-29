@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Justin Judd (justin@justinjudd.org)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -18,14 +19,13 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"math/rand"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/mozilla-services/heka/message"
+	"sort"
 )
 
 // multiDecoderNode is used for making sure MultiDecoder dependencies are addressed
@@ -39,7 +39,7 @@ func newMultiDecoderNode(name string, subs []string) multiDecoderNode {
 	return multiDecoderNode{name, subs, -1}
 }
 
-// multiDecoderNodeList fulfills sort..Interface
+// multiDecoderNodeList fulfills sort.Interface
 type multiDecoderNodeList []multiDecoderNode
 
 func (m multiDecoderNodeList) Len() int {

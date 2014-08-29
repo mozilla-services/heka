@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
+#   Justin Judd (justin@justinjudd.org)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -129,6 +130,35 @@ func LoadFromConfigSpec(c gs.Context) {
 				}
 			}
 			c.Assume(hasSyncDecoder, gs.IsTrue)
+		})
+
+		c.Specify("works w/ Nested MultiDecoders", func() {
+			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_multidecoder_nested.toml")
+			c.Assume(err, gs.IsNil)
+			hasSyncDecoder := false
+
+			// ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 5)
+
+			// Check that the MultiDecoder actually loaded
+			for k, _ := range pipeConfig.DecoderWrappers {
+				if k == "syncdecoder" {
+					hasSyncDecoder = true
+					break
+				}
+			}
+			c.Assume(hasSyncDecoder, gs.IsTrue)
+		})
+
+		c.Specify("handles Cyclic Nested MultiDecoders correctly", func() {
+			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_multidecoder_nested_cyclic.toml")
+			//circular dependency detected
+			c.Assume(err, gs.Not(gs.IsNil))
+			c.Expect(err.Error(), ts.StringContains, "circular dependency detected")
+
+			// ProtobufDecoder will always be loaded
+			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 0)
+
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
