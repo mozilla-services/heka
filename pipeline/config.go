@@ -16,15 +16,16 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
-	"github.com/bbangert/toml"
 	"log"
 	"os"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/bbangert/toml"
 )
 
 const HEKA_DAEMON = "hekad"
@@ -902,6 +903,33 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 			sectionsByCategory["Encoder"] = append(sectionsByCategory["Encoder"],
 				section)
 		}
+	}
+
+	multiDecoders := make([]multiDecoderNode, len(sectionsByCategory["MultiDecoder"]))
+	multiConfigs := make(map[string]*ConfigSection)
+
+	for i, section := range sectionsByCategory["MultiDecoder"] {
+
+		multiConfigs[section.name] = section
+
+		//uses loading config part of loadSection
+		wrapper := NewPluginWrapper(section.name, self)
+		wrapper.PluginCreator = AvailablePlugins[section.globals.Typ]
+		plugin := wrapper.PluginCreator()
+		var config interface{}
+		if config, err = LoadConfigStruct(section.tomlSection, plugin); err != nil {
+			return fmt.Errorf("Can't load config for %s: %s", section.name, err)
+		}
+
+		multiDecoders[i] = newMultiDecoderNode(section.name, config.(*MultiDecoderConfig).Subs)
+
+	}
+	multiDecoders, err = orderDependencies(multiDecoders)
+	if err != nil {
+		return err
+	}
+	for i, d := range multiDecoders {
+		sectionsByCategory["MultiDecoder"][i] = multiConfigs[d.name]
 	}
 
 	// Append MultiDecoders to the end of the Decoders list.
