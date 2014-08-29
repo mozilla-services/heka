@@ -3,6 +3,8 @@
 
 Bug Handling
 ------------
+* Fixed load ordering of nested MultiDecoders (#1045)
+
 
 0.7.0 (2014-08-27)
 ==================
