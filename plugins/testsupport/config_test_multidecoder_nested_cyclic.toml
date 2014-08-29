@@ -1,0 +1,32 @@
+[syncdecoder]
+type = "MultiDecoder"
+subs = ['syncformat', 'nesteddecoder']
+
+[nesteddecoder]
+type = "MultiDecoder"
+subs = ['syncdecoder', 'syncraw']
+
+[syncformat]
+type = "PayloadRegexDecoder"
+match_regex = '^(?P<RemoteIP>\S+) \S+ (?P<User>\S+) \[(?P<Timestamp>[^\]]+)\] "(?P<Method>[A-Z]+) (?P<Url>[^\s]+)[^"]*" (?P<StatusCode>\d+) (?P<RequestSize>\d+) "(?P<Referer>[^"]*)" "(?P<Browser>[^"]*)" ".*" ".*" node_s:\d+\.\d+ req_s:(?P<ResponseTime>\d+\.\d+) retries:\d+ req_b:(?P<ResponseSize>\d+)'
+timestamp_layout = "02/Jan/2006:15:04:05 -0700"
+
+    [syncformat.message_fields]
+    RemoteIP|ipv4 = "%RemoteIP%"
+    User = "%User%"
+    Method = "%Method%"
+    Url|uri = "%Url%"
+    StatusCode = "%StatusCode%"
+    RequestSize|B= "%RequestSize%"
+    Referer = "%Referer%"
+    Browser = "%Browser%"
+    ResponseTime|s = "%ResponseTime%"
+    ResponseSize|B = "%ResponseSize%"
+    Payload = ""
+
+[syncraw]
+type = "PayloadRegexDecoder"
+match_regex = '^(?P<TheData>.*)'
+
+    [syncraw.message_fields]
+    Somedata = "%TheData%"
