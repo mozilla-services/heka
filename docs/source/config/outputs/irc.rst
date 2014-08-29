@@ -71,7 +71,7 @@ Example:
     encoder = "PayloadEncoder"
     server = "irc.mozilla.org:6667"
     nick = "heka_bot"
-    ident "heka_ident"
+    ident = "heka_ident"
     channels = [ "#heka_bot_irc testkeypassword" ]
     rejoin_on_kick = true
     queue_size = 200
