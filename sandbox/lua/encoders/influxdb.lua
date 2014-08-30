@@ -86,7 +86,6 @@ function process_message()
             values[#values+1] = value
 
         end
-        count = count + 1
     end
     local output = {
         {
