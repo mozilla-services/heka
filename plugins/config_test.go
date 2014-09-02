@@ -109,6 +109,7 @@ func LoadFromConfigSpec(c gs.Context) {
 
 		c.Specify("works with env variables in config file", func() {
 			err := os.Setenv("LOG_ENCODER", "PayloadEncoder")
+			defer os.Setenv("LOG_ENCODER", "")
 			c.Assume(err, gs.IsNil)
 			err = pipeConfig.LoadFromConfigFile("./testsupport/config_env_test.toml")
 			c.Assume(err, gs.IsNil)
@@ -119,7 +120,6 @@ func LoadFromConfigSpec(c gs.Context) {
 			encoder = log.Encoder()
 			_, ok = encoder.(*PayloadEncoder)
 			c.Expect(ok, gs.IsTrue)
-
 		})
 
 		c.Specify("works w/ decoder defaults", func() {
