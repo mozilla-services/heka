@@ -26,6 +26,14 @@ processing, useful for a wide variety of different tasks, such as:
 
 * Delivering processed data to one or more persistent data stores.
 
+The following resources are available to those who would like to ask
+questions, report problems, or learn more:
+
+* Mailing List: https://mail.mozilla.org/listinfo/heka
+* Issue Tracker: https://github.com/mozilla-services/heka/issues
+* Github Project: https://github.com/mozilla-services/heka/
+* IRC: #heka channel on irc.mozilla.org
+
 Heka is a heavily plugin based system. There are five different types of Heka
 plugins:
 
@@ -86,7 +94,9 @@ plugins can be found in the :ref:`sandbox` section.
 
 .. end-description
 
-.. start-hekad:
+
+
+.. start-hekad
 
 hekad
 =====
@@ -110,6 +120,8 @@ hekad Command Line Options
     that directory must be valid TOML files. (See hekad.config(5).)
 
 .. end-options
+
+.. end-hekad
 
 Contents:
 

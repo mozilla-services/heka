@@ -949,14 +949,14 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 }
 
 func subsFromSection(section toml.Primitive) []string {
-        secMap := section.(map[string]interface{})
-        var subs []string
-        if _, ok := secMap["subs"]; ok {
-                subsUntyped, _ := secMap["subs"].([]interface{})
-                subs = make([]string, len(subsUntyped))
-                for i, subUntyped := range(subsUntyped) {
-                        subs[i], _ = subUntyped.(string)
-                }
-        }
-        return subs
+	secMap := section.(map[string]interface{})
+	var subs []string
+	if _, ok := secMap["subs"]; ok {
+		subsUntyped, _ := secMap["subs"].([]interface{})
+		subs = make([]string, len(subsUntyped))
+		for i, subUntyped := range subsUntyped {
+			subs[i], _ = subUntyped.(string)
+		}
+	}
+	return subs
 }
