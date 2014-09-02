@@ -31,6 +31,7 @@ import (
 // Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
 	processMessageCount int64
+	keepAliveDuration   time.Duration
 	conf                *TcpOutputConfig
 	address             string
 	localAddress        net.Addr
@@ -90,6 +91,9 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 		t.localAddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
 	}
 
+	if t.conf.KeepAlivePeriod != 0 {
+		t.keepAliveDuration = time.Duration(t.conf.KeepAlivePeriod) * time.Second
+	}
 	return
 }
 
@@ -114,7 +118,9 @@ func (t *TcpOutput) connect() (err error) {
 			t.or.LogError(fmt.Errorf("KeepAlive only supported for TCP Connections."))
 		} else {
 			tcpConn.SetKeepAlive(t.conf.KeepAlive)
-			tcpConn.SetKeepAlivePeriod(time.Duration(t.conf.KeepAlivePeriod) * time.Second)
+			if t.keepAliveDuration != 0 {
+				tcpConn.SetKeepAlivePeriod(t.keepAliveDuration)
+			}
 		}
 	}
 	return
