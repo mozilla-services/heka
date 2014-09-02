@@ -38,6 +38,13 @@ Config:
     Specifies whether or not the encoded data sent out over the TCP connection
     should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
     ProtobufEncoder is used, false otherwise.
+- keep_alive (bool):
+    Specifies whether or not `TCP keepalive
+    <http://en.wikipedia.org/wiki/Keepalive#TCP_keepalive>`_ should be used
+    for established TCP connections. Defaults to false.
+- keep_alive_period (int):
+    Time duration in seconds that a TCP connection will be maintained before
+    keepalive probes start being sent. Defaults to 7200 (i.e. 2 hours).
 
 Example:
 

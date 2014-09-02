@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Victor Ng (vng@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Justin Judd (justin@justinjudd.org)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -21,10 +22,100 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"log"
 	"math/rand"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+// multiDecoderNode is used for making sure MultiDecoder dependencies are addressed
+type multiDecoderNode struct {
+	name            string
+	subs            []string
+	dependencyCount int
+}
+
+func newMultiDecoderNode(name string, subs []string) multiDecoderNode {
+	return multiDecoderNode{name, subs, -1}
+}
+
+// multiDecoderNodeList fulfills sort.Interface
+type multiDecoderNodeList []multiDecoderNode
+
+func (m multiDecoderNodeList) Len() int {
+	return len(m)
+}
+
+func (m multiDecoderNodeList) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
+func (m multiDecoderNodeList) Less(i, j int) bool {
+	a := m[i]
+	b := m[j]
+
+	return a.dependencyCount < b.dependencyCount
+}
+
+// utility function to make a copy of a map
+func copyMap(m map[string]bool) map[string]bool {
+	d := map[string]bool{}
+	for k, v := range m {
+		d[k] = v
+	}
+	return d
+}
+
+// orderDependencies determines MultiDecoder hierarchy and orders them accordingly
+func orderDependencies(decoders []multiDecoderNode) ([]multiDecoderNode, error) {
+
+	nodeMap := make(map[string]multiDecoderNode, 0)
+	for _, node := range decoders {
+		nodeMap[node.name] = node
+	}
+
+	// rankFunc is a recursive function to traverse graphs from nodes to the root
+	var rankFunc func(name string, seen map[string]bool) (int, error)
+	rankFunc = func(name string, seen map[string]bool) (int, error) {
+		if seen[name] { // If this node has been seen in this path, it means that there is a circular dependency
+			return -1, errors.New("circular dependency detected")
+		}
+		node := nodeMap[name]
+		if node.dependencyCount >= 0 { // If dependency count is not -1, than we have already calculated it
+			return node.dependencyCount, nil
+		}
+		dependencyCount := len(node.subs)
+		seen[name] = true
+		for _, sub := range node.subs {
+			c, err := rankFunc(sub, copyMap(seen))
+			if err != nil {
+				return -1, err
+			}
+			dependencyCount += c
+		}
+		node.dependencyCount = dependencyCount
+		nodeMap[name] = node
+		return dependencyCount, nil
+	}
+
+	// Make sure that rankFunc is called for each multiDecoderNode
+	for _, node := range decoders {
+		_, err := rankFunc(node.name, map[string]bool{})
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Compile all nodes with dependency count into slice
+	finishedNodes := make(multiDecoderNodeList, 0)
+	for _, node := range nodeMap {
+		finishedNodes = append(finishedNodes, node)
+	}
+
+	// sort nodes so that those with no dependencies are earlier in the list
+	sort.Sort(finishedNodes)
+
+	return finishedNodes, nil
+}
 
 // DecoderRunner wrapper that the MultiDecoder will hand to any subs that ask
 // for one. Shadows some data and methods, but doesn't spin up any goroutines.
