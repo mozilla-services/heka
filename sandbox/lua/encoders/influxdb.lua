@@ -40,41 +40,43 @@ Config:
 
 require "cjson"
 
-function process_message()
-    local series  = read_config("series") or "series"
+local series  = read_config("series") or "series"
 
-    local ts = tonumber(read_message("Timestamp"))
+function process_message()
+
+
+    local ts = read_message("Timestamp")
     if not ts then return -1 end
     ts = ts / (1000*1000) --Convert to milliseconds
 
     local columns = {}
     local values = {}
 
-    columns[#columns+1] = "time" -- InfluxDB's default
-    values[#values+1] = ts
+    columns[1] = "time" -- InfluxDB's default
+    values[1] = ts
 
-    columns[#columns+1] = "Type"
-    values[#values+1] = read_message("Type")
+    columns[2] = "Type"
+    values[2] = read_message("Type")
 
-    columns[#columns+1] = "Payload"
-    values[#values+1] = read_message("Payload")
+    columns[3] = "Payload"
+    values[3] = read_message("Payload")
 
-    columns[#columns+1] = "Hostname"
-    values[#values+1] = read_message("Hostname")
+    columns[4] = "Hostname"
+    values[4] = read_message("Hostname")
 
-    columns[#columns+1] = "Pid"
-    values[#values+1] = read_message("Pid")
+    columns[5] = "Pid"
+    values[5] = read_message("Pid")
 
-    columns[#columns+1] = "Logger"
-    values[#values+1] = read_message("Logger")
+    columns[6] = "Logger"
+    values[6] = read_message("Logger")
 
-    columns[#columns+1] = "Severity"
-    values[#values+1] = read_message("Severity")
+    columns[7] = "Severity"
+    values[7] = read_message("Severity")
 
-    columns[#columns+1] = "EnvVersion"
-    values[#values+1] = read_message("EnvVersion")
+    columns[8] = "EnvVersion"
+    values[8] = read_message("EnvVersion")
 
-
+    local place = 9
 
     while true do
         typ, name, value, representation, count = read_next_field()
@@ -82,8 +84,10 @@ function process_message()
 
         if name ~= "Timestamp" and typ ~= 1 then -- exclude bytes
 
-            columns[#columns+1] = name
-            values[#values+1] = value
+            columns[place] = name
+            values[place] = value
+
+            place = place+1
 
         end
     end
