@@ -46,7 +46,7 @@ type GlobalConfigStruct struct {
 	MaxMsgTimerInject     uint
 	MaxPackIdle           time.Duration
 	stopping              bool
-	mutex                 sync.RWMutex
+	stoppingMutex         sync.RWMutex
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
@@ -82,16 +82,16 @@ func (g *GlobalConfigStruct) ShutDown() {
 
 func (g *GlobalConfigStruct) IsShuttingDown() (stopping bool) {
 	// So simple, no need for overhead of defer
-	g.mutex.RLock()
+	g.stoppingMutex.RLock()
 	stopping = g.stopping
-	g.mutex.RUnlock()
+	g.stoppingMutex.RUnlock()
 	return
 }
 
-func (g *GlobalConfigStruct) shutdown() {
-	g.mutex.Lock()
+func (g *GlobalConfigStruct) stop() {
+	g.stoppingMutex.Lock()
 	g.stopping = true
-	g.mutex.Unlock()
+	g.stoppingMutex.Unlock()
 }
 
 // Log a message out
@@ -268,7 +268,7 @@ func Run(config *PipelineConfig) {
 				}
 			case syscall.SIGINT, syscall.SIGTERM:
 				log.Println("Shutdown initiated.")
-				globals.shutdown()
+				globals.stop()
 			case SIGUSR1:
 				log.Println("Queue report initiated.")
 				go config.allReportsStdout()
