@@ -382,7 +382,7 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 // MessageRouter which signals the filter to shutdown by closing the input
 // channel. Returns true if the filter was removed.
 func (self *PipelineConfig) RemoveFilterRunner(name string) bool {
-	if self.Globals.Stopping {
+	if self.Globals.IsShuttingDown() {
 		return false
 	}
 
