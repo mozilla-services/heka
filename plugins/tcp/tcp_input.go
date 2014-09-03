@@ -28,13 +28,14 @@ import (
 // Input plugin implementation that listens for Heka protocol messages on a
 // specified TCP socket. Creates a separate goroutine for each TCP connection.
 type TcpInput struct {
-	listener net.Listener
-	name     string
-	wg       sync.WaitGroup
-	stopChan chan bool
-	ir       InputRunner
-	h        PluginHelper
-	config   *TcpInputConfig
+	keepAliveDuration time.Duration
+	listener          net.Listener
+	name              string
+	wg                sync.WaitGroup
+	stopChan          chan bool
+	ir                InputRunner
+	h                 PluginHelper
+	config            *TcpInputConfig
 }
 
 type TcpInputConfig struct {
@@ -114,6 +115,9 @@ func (t *TcpInput) Init(config interface{}) error {
 		}
 	} else {
 		return fmt.Errorf("unknown parser type: %s", t.config.ParserType)
+	}
+	if t.config.KeepAlivePeriod != 0 {
+		t.keepAliveDuration = time.Duration(t.config.KeepAlivePeriod) * time.Second
 	}
 	closeIt = false
 	return nil
@@ -222,16 +226,17 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 				break
 			}
 		}
-		t.wg.Add(1)
 		if t.config.KeepAlive {
 			tcpConn, ok := conn.(*net.TCPConn)
 			if !ok {
 				return errors.New("KeepAlive only supported for TCP Connections.")
 			}
 			tcpConn.SetKeepAlive(t.config.KeepAlive)
-			tcpConn.SetKeepAlivePeriod(time.Duration(t.config.KeepAlivePeriod) * time.Second)
+			if t.keepAliveDuration != 0 {
+				tcpConn.SetKeepAlivePeriod(t.keepAliveDuration)
+			}
 		}
-
+		t.wg.Add(1)
 		go t.handleConnection(conn)
 	}
 	t.wg.Wait()

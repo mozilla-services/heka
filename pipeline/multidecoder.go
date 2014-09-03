@@ -22,10 +22,10 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"log"
 	"math/rand"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-	"sort"
 )
 
 // multiDecoderNode is used for making sure MultiDecoder dependencies are addressed

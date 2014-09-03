@@ -10,13 +10,26 @@ Bug Handling
 Features
 --------
 
-0.7.1 (2014-MM-DD)
+* Support environment variables in config files (#1023).
+
+0.7.2 (2014-MM-DD)
 ==================
 
 Bug Handling
 ------------
-* Fixed load ordering of nested MultiDecoders (#1045)
 
+0.7.1 (2014-09-02)
+==================
+
+Bug Handling
+------------
+
+* Fixed handling of TcpInput and TcpOutput keep_alive_period default value
+  handling, and added docs (#1054).
+
+* Fixed OSX lua_sandbox build error.
+
+* Fixed load ordering of nested MultiDecoders (#1045).
 
 0.7.0 (2014-08-27)
 ==================
