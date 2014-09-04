@@ -66,6 +66,7 @@ local ts_from_message = read_config("es_index_from_timestamp")
 local index = read_config("index") or "heka-%{%Y.%m.%d}"
 local type_name = read_config("type_name") or "message"
 local id = read_config("id")
+local byte = string.byte
 
 function process_message()
     local ns
@@ -73,7 +74,11 @@ function process_message()
         ns = read_message("Timestamp")
     end
     local idx_json = elasticsearch.bulkapi_index_json(index, type_name, id, ns)
-    add_to_payload(idx_json, "\n", read_message("Payload"))
+    local payload = read_message("Payload")
+    add_to_payload(idx_json, "\n", payload)
+    if 10 ~= byte(payload, #payload) then
+        add_to_payload("\n")
+    end
     inject_payload()
     return 0
 end
