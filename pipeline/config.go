@@ -185,6 +185,8 @@ type PipelineConfig struct {
 	filtersWg sync.WaitGroup
 	// Is freed when all DecoderRunners have stopped.
 	decodersWg sync.WaitGroup
+	// Is freed when all OutputRunners have stopped.
+	outputsWg sync.WaitGroup
 	// Slice providing access to all running DecoderRunners.
 	allDecoders []DecoderRunner
 	// Mutex protecting allDecoders.

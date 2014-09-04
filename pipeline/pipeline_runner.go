@@ -220,7 +220,7 @@ func WatchSignals(config *PipelineConfig, signalChan chan os.Signal) {
 	}
 }
 
-func Start(configPath string) {
+func setupGlobals(configPath string) *GlobalConfigStruct {
 	config := &HekadConfig{}
 	var err error
 	var cpuProfName string
@@ -298,35 +298,53 @@ func Start(configPath string) {
 			profFile.Close()
 		}()
 	}
-	// Set up and load the pipeline configuration and start the daemon.
+
+	return globals
+}
+
+// Start configures Heka and listens for signals. It then starts the pipeline.
+func Start(configPath string) {
+	// Setup global config
+	globals := setupGlobals(configPath)
+
+	// Setup signals, and a channel to wait on so we can block until shutdown
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
+	signalChan := make(chan os.Signal)
+	defer close(signalChan)
+
+	// Set up and load the pipeline configuration
 	pConfig := NewPipelineConfig(globals)
-	if err = LoadFullConfig(pConfig, configPath); err != nil {
+	if err := LoadFullConfig(pConfig, configPath); err != nil {
 		log.Fatal("Error reading config: ", err)
 	}
+
+	// Watch for the signals
+	go WatchSignals(pConfig, signalChan)
+
+	log.Println("Starting hekad...")
+
+	// Start the pipeline
 	Run(pConfig)
+	// Wait for signals
+	<-signalChan
+	// Cleanup the pipeline
+	Cleanup(pConfig)
+
+	log.Println("Shutdown complete.")
 }
 
 // Main function driving Heka execution. Loads config, initializes
-// PipelinePack pools, and starts all the runners. Then it listens for signals
-// and drives the shutdown process when that is triggered.
+// PipelinePack pools, and starts all the runners.
 func Run(config *PipelineConfig) {
-	log.Println("Starting hekad...")
-
-	var outputsWg sync.WaitGroup
 	var err error
 
 	globals := config.Globals
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
-
-	signalChan := make(chan os.Signal)
-	defer close(signalChan)
-	go WatchSignals(config, signalChan)
 
 	for name, output := range config.OutputRunners {
-		outputsWg.Add(1)
-		if err = output.Start(config, &outputsWg); err != nil {
+		config.outputsWg.Add(1)
+		if err = output.Start(config, &config.outputsWg); err != nil {
 			log.Printf("Output '%s' failed to start: %s", name, err)
-			outputsWg.Done()
+			config.outputsWg.Done()
 			continue
 		}
 		log.Println("Output started: ", name)
@@ -373,10 +391,9 @@ func Run(config *PipelineConfig) {
 		}
 		log.Printf("Input started: %s\n", name)
 	}
+}
 
-	// wait for a signal
-	<-signalChan
-
+func Cleanup(config *PipelineConfig) {
 	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {
 		input.Input().Stop()
@@ -410,7 +427,7 @@ func Run(config *PipelineConfig) {
 		config.router.RemoveOutputMatcher() <- output.MatchRunner()
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
-	outputsWg.Wait()
+	config.outputsWg.Wait()
 
 	for name, encoder := range config.allEncoders {
 		if stopper, ok := encoder.(NeedsStopping); ok {
@@ -418,6 +435,4 @@ func Run(config *PipelineConfig) {
 			stopper.Stop()
 		}
 	}
-
-	log.Println("Shutdown complete.")
 }
