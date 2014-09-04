@@ -73,7 +73,7 @@ function process_message()
         ns = read_message("Timestamp")
     end
     local idx_json = elasticsearch.bulkapi_index_json(index, type_name, id, ns)
-    add_to_payload(idx_json, "\n", read_message("Payload"))
+    add_to_payload(idx_json, "\n", read_message("Payload"), "\n")
     inject_payload()
     return 0
 end
