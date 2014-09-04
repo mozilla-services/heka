@@ -40,6 +40,8 @@ const (
 	STOP   = "stop"
 )
 
+var watchedSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1}
+
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
 	MaxMsgProcessDuration uint64
@@ -54,7 +56,6 @@ type GlobalConfigStruct struct {
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
-	sigChan               chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -69,7 +70,6 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
 		SampleDenominator:     1000,
-		sigChan:               make(chan os.Signal, 1),
 	}
 }
 
@@ -79,9 +79,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 // work so that the caller won't end up blocking part of the shutdown
 // sequence
 func (g *GlobalConfigStruct) ShutDown() {
-	go func() {
-		g.sigChan <- syscall.SIGINT
-	}()
+	g.stop()
 }
 
 func (g *GlobalConfigStruct) IsShuttingDown() (stopping bool) {
@@ -195,27 +193,28 @@ func (p *PipelinePack) Recycle() {
 	}
 }
 
-func WatchSignals(config *PipelineConfig, signalChan chan os.Signal) {
-	globals := config.Globals
-	for !globals.IsShuttingDown() {
-		select {
-		case sig := <-globals.sigChan:
-			switch sig {
-			case syscall.SIGHUP:
-				log.Println("Reload initiated.")
-				if err := notify.Post(RELOAD, nil); err != nil {
-					log.Println("Error sending reload event: ", err)
-				}
-				signalChan <- sig
-			case syscall.SIGINT, syscall.SIGTERM:
-				log.Println("Shutdown initiated.")
-				globals.stop()
-				signalChan <- sig
-			case SIGUSR1:
-				log.Println("Queue report initiated.")
-				go config.allReportsStdout()
+// handleSignals takes a channel to recieve signals from and receives from it
+// until we get a signal which we need to respond to.
+// SIGUSR1 generates a report
+// SIGINT, SIGTERM, and SIGHUP cause this function to return with the signal
+// as the return value.
+func handleSignals(pConfig *PipelineConfig, signalChan chan os.Signal) (signal os.Signal) {
+	for {
+		signal = <-signalChan
+		switch signal {
+		case syscall.SIGUSR1:
+			log.Println("Queue report initiated.")
+			go pConfig.allReportsStdout()
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Println("Shutdown initiated.")
+			pConfig.Globals.ShutDown()
+			return
+		case syscall.SIGHUP:
+			log.Println("Reload initiated.")
+			if err := notify.Post(RELOAD, nil); err != nil {
+				log.Println("Error sending reload event: ", err)
 			}
-
+			return
 		}
 	}
 }
@@ -304,33 +303,40 @@ func setupGlobals(configPath string) *GlobalConfigStruct {
 
 // Start configures Heka and listens for signals. It then starts the pipeline.
 func Start(configPath string) {
-	// Setup global config
-	globals := setupGlobals(configPath)
 
-	// Setup signals, and a channel to wait on so we can block until shutdown
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
+	var sig os.Signal
 	signalChan := make(chan os.Signal)
 	defer close(signalChan)
 
-	// Set up and load the pipeline configuration
-	pConfig := NewPipelineConfig(globals)
-	if err := LoadFullConfig(pConfig, configPath); err != nil {
-		log.Fatal("Error reading config: ", err)
+	signal.Notify(signalChan, watchedSignals...)
+
+	shutdown := false
+	for !shutdown {
+		log.Println("Starting hekad...")
+
+		// Setup global config
+		globals := setupGlobals(configPath)
+		// Set up and load the pipeline configuration
+		pConfig := NewPipelineConfig(globals)
+		if err := LoadFullConfig(pConfig, configPath); err != nil {
+			log.Fatal("Error reading config: ", err)
+		}
+
+		// Start the pipeline
+		Run(pConfig)
+		// This function blocks reading from respondChan until we recieve a
+		// signal which triggers a reload, or shutdown
+		sig = handleSignals(pConfig, signalChan)
+		// Cleanup the pipeline
+		Cleanup(pConfig)
+
+		log.Println("Shutdown complete.")
+
+		if sig != syscall.SIGHUP {
+			shutdown = true
+		}
 	}
-
-	// Watch for the signals
-	go WatchSignals(pConfig, signalChan)
-
-	log.Println("Starting hekad...")
-
-	// Start the pipeline
-	Run(pConfig)
-	// Wait for signals
-	<-signalChan
-	// Cleanup the pipeline
-	Cleanup(pConfig)
-
-	log.Println("Shutdown complete.")
+	log.Println("Exiting Heka.")
 }
 
 // Main function driving Heka execution. Loads config, initializes
