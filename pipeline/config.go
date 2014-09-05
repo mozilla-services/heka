@@ -20,7 +20,6 @@ import (
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/bbangert/toml"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -815,12 +814,7 @@ const protobufEncoderToml = `
 func (self *PipelineConfig) LoadFromConfigFile(filename string) (err error) {
 	var configFile ConfigFile
 
-	contents, err := ReplaceEnvsFile(filename)
-	if err != nil {
-		return err
-	}
-
-	if _, err = toml.Decode(contents, &configFile); err != nil {
+	if _, err = toml.DecodeFile(filename, &configFile); err != nil {
 		return fmt.Errorf("Error decoding config file: %s", err)
 	}
 
@@ -965,12 +959,4 @@ func subsFromSection(section toml.Primitive) []string {
 		}
 	}
 	return subs
-}
-
-func ReplaceEnvsFile(path string) (string, error) {
-	contents, err := ioutil.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return os.ExpandEnv(string(contents)), nil
 }
