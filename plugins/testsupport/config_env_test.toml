@@ -1,7 +1,0 @@
-[$LOG_ENCODER]
-
-[LogOutput]
-type = "LogOutput"
-message_matcher = "TRUE"
-encoder = "$LOG_ENCODER"
-

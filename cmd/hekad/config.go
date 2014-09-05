@@ -83,20 +83,12 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 				continue
 			}
 			fPath := filepath.Join(configPath, fName)
-			contents, err := pipeline.ReplaceEnvsFile(fPath)
-			if err != nil {
-				return nil, err
-			}
-			if _, err = toml.Decode(contents, &configFile); err != nil {
+			if _, err = toml.DecodeFile(fPath, &configFile); err != nil {
 				return nil, fmt.Errorf("Error decoding config file: %s", err)
 			}
 		}
 	} else {
-		contents, err := pipeline.ReplaceEnvsFile(configPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = toml.Decode(contents, &configFile); err != nil {
+		if _, err = toml.DecodeFile(configPath, &configFile); err != nil {
 			return nil, fmt.Errorf("Error decoding config file: %s", err)
 		}
 	}
