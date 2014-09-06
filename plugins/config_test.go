@@ -122,6 +122,15 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.IsTrue)
 		})
 
+		c.Specify("returns an error with invalid env variables in config", func() {
+			err := pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_1_test.toml")
+			c.Expect(err, gs.Equals, ErrMissingCloseDelim)
+
+			err = pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_2_test.toml")
+			c.Expect(err, gs.Equals, ErrInvalidChars)
+
+		})
+
 		c.Specify("works w/ decoder defaults", func() {
 			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_defaults.toml")
 			c.Assume(err, gs.Not(gs.IsNil))

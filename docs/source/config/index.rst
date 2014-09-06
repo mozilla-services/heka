@@ -222,15 +222,15 @@ Using Environment Variables
 ===========================
 
 If you wish to use environmental variables in your config files as a way to
-configure values, you can simply use ``$VARIABLE_NAME`` or ``${VARIABLE_NAME}``
-and the text will be replaced with the value of the environmental variable.
+configure values, you can simply use ``%ENV[VARIABLE_NAME]`` and the text will
+be replaced with the value of the environmental variable ``VARIABLE_NAME``.
 
 Example:
 
 .. code-block:: ini
 
     [AMQPInput]
-    url = "amqp://$USER:$PASSWORD@rabbitmq/"
+    url = "amqp://%ENV[USER]:%ENV[PASSWORD]@rabbitmq/"
     exchange = "testout"
     exchangeType = "fanout"
 

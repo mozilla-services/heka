@@ -17,9 +17,13 @@
 package pipeline
 
 import (
+	"bufio"
+	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
 	"github.com/bbangert/toml"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,9 +33,17 @@ import (
 	"time"
 )
 
-const HEKA_DAEMON = "hekad"
+const (
+	HEKA_DAEMON     = "hekad"
+	invalidEnvChars = "\n\r\t "
+)
 
-var AvailablePlugins = make(map[string]func() interface{})
+var (
+	invalidEnvPrefix     = []byte("%ENV[")
+	AvailablePlugins     = make(map[string]func() interface{})
+	ErrMissingCloseDelim = errors.New("Missing closing delimiter")
+	ErrInvalidChars      = errors.New("Invalid characters in environmental variable")
+)
 
 // Adds a plugin to the set of usable Heka plugins that can be referenced from
 // a Heka config file.
@@ -968,9 +980,81 @@ func subsFromSection(section toml.Primitive) []string {
 }
 
 func ReplaceEnvsFile(path string) (string, error) {
-	contents, err := ioutil.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
-	return os.ExpandEnv(string(contents)), nil
+	r, err := EnvSub(file)
+	if err != nil {
+		return "", err
+	}
+	contents, err := ioutil.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	return string(contents), nil
+}
+
+func EnvSub(r io.Reader) (io.Reader, error) {
+	bufIn := bufio.NewReader(r)
+	bufOut := new(bytes.Buffer)
+	for {
+		chunk, err := bufIn.ReadBytes(byte('%'))
+		if err != nil {
+			if err == io.EOF {
+				// We're done.
+				bufOut.Write(chunk)
+				break
+			}
+			return nil, err
+		}
+		bufOut.Write(chunk[:len(chunk)-1])
+
+		tmp := make([]byte, 4)
+		tmp, err = bufIn.Peek(4)
+		if err != nil {
+			if err == io.EOF {
+				// End of file, write the last few bytes out and exit.
+				bufOut.WriteRune('%')
+				bufOut.Write(tmp)
+				break
+			}
+			return nil, err
+		}
+
+		if string(tmp) == "ENV[" {
+			// Found opening delimiter, advance the read cursor and look for
+			// closing delimiter.
+			tmp, err = bufIn.ReadBytes(byte('['))
+			if err != nil {
+				// This shouldn't happen, since the Peek succeeded.
+				return nil, err
+			}
+			chunk, err = bufIn.ReadBytes(byte(']'))
+			if err != nil {
+				if err == io.EOF {
+					// No closing delimiter, write everything we've collected
+					// and be done.
+					return nil, ErrMissingCloseDelim
+					// bufOut.WriteRune('%')
+					// bufOut.Write(tmp)
+					// bufOut.Write(chunk)
+					break
+				}
+				return nil, err
+			}
+			// `chunk` is now holding var name + closing delimiter.
+			if bytes.IndexAny(chunk, invalidEnvChars) != -1 || bytes.Index(chunk, invalidEnvPrefix) != -1 {
+				return nil, ErrInvalidChars
+			}
+			varName := string(chunk[:len(chunk)-1])
+			varVal := os.Getenv(varName)
+			bufOut.WriteString(varVal)
+		} else {
+			// Just a random '%', not an opening delimiter, write it out and
+			// keep going.
+			bufOut.WriteRune('%')
+		}
+	}
+	return bufOut, nil
 }
