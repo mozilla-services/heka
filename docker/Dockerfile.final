@@ -1,0 +1,10 @@
+# heka image
+# installs heka from a deb package
+FROM ubuntu:14.04
+MAINTAINER Chance Zibolski <chance.zibolski@gmail.com> (@chance)
+
+ADD heka.deb /tmp/heka.deb
+RUN dpkg -i /tmp/heka.deb && rm /tmp/heka.deb
+
+EXPOSE 4352
+ENTRYPOINT ["hekad"]
