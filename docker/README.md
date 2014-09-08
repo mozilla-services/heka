@@ -27,13 +27,13 @@ Dockerfiles
 Heka comes with a few Dockerfiles in the repository, and each one of them is used
 to build Heka into a set of Docker images.
 
-## $PROJECT_ROOT/Dockerfile
+## `$PROJECT_ROOT/Dockerfile`
 
 The Dockerfile in the root of the project is used to create base image for
 building Heka from source. This is great for if you want to use Docker for
 development or as a way to generate Heka binaries or packages.
 
-## $PROJECT_ROOT/docker/Dockerfile
+## `$PROJECT_ROOT/docker/Dockerfile`
 
 The Dockerfile in this directory, (without the `.final`), uses the base Heka
 Docker image to build Heka, then generates a `deb` package of Heka, and creates
