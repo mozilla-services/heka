@@ -1033,18 +1033,15 @@ func EnvSub(r io.Reader) (io.Reader, error) {
 			chunk, err = bufIn.ReadBytes(byte(']'))
 			if err != nil {
 				if err == io.EOF {
-					// No closing delimiter, write everything we've collected
-					// and be done.
+					// No closing delimiter, return an error
 					return nil, ErrMissingCloseDelim
-					// bufOut.WriteRune('%')
-					// bufOut.Write(tmp)
-					// bufOut.Write(chunk)
-					break
 				}
 				return nil, err
 			}
 			// `chunk` is now holding var name + closing delimiter.
-			if bytes.IndexAny(chunk, invalidEnvChars) != -1 || bytes.Index(chunk, invalidEnvPrefix) != -1 {
+			// var name contains invalid characters, return an error
+			if bytes.IndexAny(chunk, invalidEnvChars) != -1 ||
+				bytes.Index(chunk, invalidEnvPrefix) != -1 {
 				return nil, ErrInvalidChars
 			}
 			varName := string(chunk[:len(chunk)-1])
