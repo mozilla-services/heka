@@ -1135,7 +1135,7 @@ func BenchmarkSandboxCreateInitDestroyRestore(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("./testsupport/serialize.lua", "")
+		sb.Init("./testsupport/serialize.lua.data", "")
 		sb.Destroy("")
 	}
 }
