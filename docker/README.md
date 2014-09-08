@@ -39,3 +39,10 @@ The Dockerfile in this directory, (without the `.final`), uses the base Heka
 Docker image to build Heka, then generates a `deb` package of Heka, and creates
 a new Docker image using `Dockerfile.final` with only Heka installed using the
 `deb`.
+
+
+Example
+-------
+
+Take a look in the `example/` directory.
+
