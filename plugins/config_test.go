@@ -26,6 +26,7 @@ import (
 	ts "github.com/mozilla-services/heka/plugins/testsupport"
 	_ "github.com/mozilla-services/heka/plugins/udp"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"os"
 	"path/filepath"
 	"runtime"
 )
@@ -104,6 +105,30 @@ func LoadFromConfigSpec(c gs.Context) {
 
 			// Shut down UdpInput to free up the port for future tests.
 			udp.Input().Stop()
+		})
+
+		c.Specify("works with env variables in config file", func() {
+			err := os.Setenv("LOG_ENCODER", "PayloadEncoder")
+			defer os.Setenv("LOG_ENCODER", "")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadFromConfigFile("./testsupport/config_env_test.toml")
+			c.Assume(err, gs.IsNil)
+
+			log, ok := pipeConfig.OutputRunners["LogOutput"]
+			c.Expect(ok, gs.IsTrue)
+			var encoder Encoder
+			encoder = log.Encoder()
+			_, ok = encoder.(*PayloadEncoder)
+			c.Expect(ok, gs.IsTrue)
+		})
+
+		c.Specify("returns an error with invalid env variables in config", func() {
+			err := pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_1_test.toml")
+			c.Expect(err, gs.Equals, ErrMissingCloseDelim)
+
+			err = pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_2_test.toml")
+			c.Expect(err, gs.Equals, ErrInvalidChars)
+
 		})
 
 		c.Specify("works w/ decoder defaults", func() {
