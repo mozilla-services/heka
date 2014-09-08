@@ -6,6 +6,21 @@ The first image contains the Heka source and the Heka build artifacts, and the s
 contains a deb packaged Heka installation. Both `ENTRYPOINTS` are set to `hekad`,
 all args passed to `docker run` will be passed to `hekad` as `CMD` args.
 
+Usage
+-----
+
+Once you've run `build_docker.sh` you can simply use the image like so:
+
+````
+docker run --name heka -it -p 4352:4352 -v /host/path/to/config.toml:/etc/heka/config.toml mozilla/heka -config /etc/heka/config.toml
+````
+
+This will create a container with the name `heka` with the Dashboard port exposed
+on the Docker host machine. The `-v` flag is used here to share your config file
+with the container. Replace `/host/path/to/config.toml` with the path to your
+config file. As you can see, the `-config` flag at the end is passed directly to
+`hekad` inside the container.
+
 Dockerfiles
 ===========
 
