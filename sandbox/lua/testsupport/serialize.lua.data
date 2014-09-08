@@ -1,0 +1,69 @@
+if _PRESERVATION_VERSION and _PRESERVATION_VERSION ~= 0 then return end
+if _G["dataRef"] == nil then _G["dataRef"] = circular_buffer.new(3, 3, 1) end
+_G["dataRef"]:set_header(1, "Column_1", "count", "sum")
+_G["dataRef"]:set_header(2, "Column_2", "count", "sum")
+_G["dataRef"]:set_header(3, "Column_3", "count", "sum")
+_G["dataRef"]:fromstring("2 2 nan nan nan nan nan nan nan nan nan")
+_G["data"] = _G["dataRef"]
+_G["kvp"] = {}
+_G["kvp"]["a"] = "foo"
+_G["kvp"]["r"] = {}
+_G["kvp"]["r"][1] = 99.1
+_G["kvp"]["r"][2] = 98
+_G["kvp"]["r"][3] = 97
+_G["kvp"]["r"][4] = 92.002
+_G["kvp"]["r"][5] = 91.10001
+_G["kvp"]["r"]["key"] = "val"
+_G["kvp"]["b"] = "bar"
+_G["cyclea"] = {}
+_G["cyclea"]["b"] = {}
+_G["cyclea"]["b"]["a"] = _G["cyclea"]
+_G["cyclea"]["b"]["type"] = "cycle b"
+_G["cyclea"]["type"] = "cycle a"
+_G["uuids"] = {}
+_G["uuids"][1] = {}
+_G["uuids"][1]["type"] = "test"
+_G["uuids"][1]["uuid"] = "BD48B609-8922-4E59-A358-C242075CE088"
+_G["uuids"][2] = {}
+_G["uuids"][2]["type"] = "test1"
+_G["uuids"][2]["uuid"] = "BD48B609-8922-4E59-A358-C242075CE089"
+_G["cycleb"] = _G["cyclea"]["b"]
+_G["large_key"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["BD48B609-8922-4E59-A358-C242075CE083"] = 3
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["BD48B609-8922-4E59-A358-C242075CE084"] = 4
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["BD48B609-8922-4E59-A358-C242075CE085"] = 5
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"]["BD48B609-8922-4E59-A358-C242075CE087"] = 7
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"]["hhhhhhhhhhhhhhhhhhh"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"]["hhhhhhhhhhhhhhhhhhh"]["BD48B609-8922-4E59-A358-C242075CE088"] = 8
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"]["hhhhhhhhhhhhhhhhhhh"]["iiiiiiiiiiiiiiiiiii"] = {}
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["ggggggggggggggggggg"]["hhhhhhhhhhhhhhhhhhh"]["iiiiiiiiiiiiiiiiiii"]["BD48B609-8922-4E59-A358-C242075CE089"] = 9
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["ccccccccccccccccccc"]["ddddddddddddddddddd"]["eeeeeeeeeeeeeeeeeee"]["fffffffffffffffffff"]["BD48B609-8922-4E59-A358-C242075CE086"] = 6
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["bbbbbbbbbbbbbbbbbbb"]["BD48B609-8922-4E59-A358-C242075CE082"] = 2
+_G["large_key"]["aaaaaaaaaaaaaaaaaaa"]["BD48B609-8922-4E59-A358-C242075CE081"] = 1
+_G["key with spaces"] = "kws"
+_G["boolean"] = true
+_G["nested"] = {}
+_G["nested"]["arg2"] = 2
+_G["nested"]["nested"] = {}
+_G["nested"]["nested"]["n2"] = "two"
+_G["nested"]["nested"]["n1"] = "one"
+_G["nested"]["arg1"] = 1
+if _G["nested"]["cb"] == nil then _G["nested"]["cb"] = circular_buffer.new(2, 6, 1) end
+_G["nested"]["cb"]:set_header(1, "Column_1", "count", "sum")
+_G["nested"]["cb"]:set_header(2, "Column_2", "count", "sum")
+_G["nested"]["cb"]:set_header(3, "Column_3", "count", "sum")
+_G["nested"]["cb"]:set_header(4, "Column_4", "count", "sum")
+_G["nested"]["cb"]:set_header(5, "Column_5", "count", "sum")
+_G["nested"]["cb"]:set_header(6, "Column_6", "count", "sum")
+_G["nested"]["cb"]:fromstring("1 1 nan nan nan nan nan nan nan nan nan nan nan nan")
+_G["rates"] = _G["kvp"]["r"]
+_G["rate"] = 0.12345678
+_G["count"] = 0
+_G["_VERSION"] = "Lua 5.1"

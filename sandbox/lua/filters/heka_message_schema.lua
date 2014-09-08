@@ -82,7 +82,7 @@ function process_message ()
     local v = get_table(t, read_message("EnvVersion"))
 
     while true do
-        typ, name, value, representation, count = read_next_field()
+        local typ, name, value, representation, count = read_next_field()
         if not typ then break end
 
         if v[name] then
