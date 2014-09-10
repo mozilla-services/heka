@@ -79,13 +79,16 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.http_timeout = conf.HTTPTimeout
-	if serverUrl, err := url.Parse(conf.Server); err == nil {
+	var serverUrl *url.URL
+	if serverUrl, err = url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
 			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
 				o.flushCount, o.http_timeout)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
+		default:
+			err = errors.New("Server URL must specify one of `udp`, `http`, or `https`.")
 		}
 	} else {
 		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", conf.Server, err)
