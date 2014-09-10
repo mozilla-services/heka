@@ -13,6 +13,7 @@ Features
 --------
 
 * Support environment variables in config files (#1023).
+* Add Dockerfiles and example Docker usage to repo
 
 0.7.2 (2014-MM-DD)
 ==================
