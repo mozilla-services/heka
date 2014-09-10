@@ -2,21 +2,21 @@ Heka Docker Example
 ===================
 
 This will guide you through a simple example combining Heka with Nginx, Kibana
-and Elasticsearch, all running in each of their own containers, communicating with eachother.
+and Elasticsearch, all running in each of their own containers, communicating with each other.
 
 #### Notes
 
-This assumes your running Docker locally. If your using Docker on a different
+This assumes you're running Docker locally. If you're using Docker on a different
 host, or in a VM, you should replace instances of `localhost` with the hostname
 of the machine running Docker.
 
-It also assumes your in the `docker/example` directory where this `README` is
+It also assumes you're in the `docker/example` directory where this `README` is
 located.
 
 Prerequisites
 -------------
 
-Make sure your running a recent version of Docker. Docker `>= 1.0` should be fine,
+Make sure you're running a recent version of Docker. Docker `>= 1.0` should be fine,
 but note I used docker version `1.1.0` with it.
 
 ### Download the required Docker images
@@ -97,7 +97,7 @@ by Heka to elasticsearch, which Kibana will then display for you.
 Final Words
 -----------
 
-There are some places in this where we could have used more of Dockers features.
+There are some places in this where we could have used more of Docker's features.
 For example, we exposed Elasticsearch to the world, by publishing it's ports. A
 better method would have been to use linking between Kibana and Elasticsearch,
 but since Kibana does an elasticsearch lookup from the web browser client, this
