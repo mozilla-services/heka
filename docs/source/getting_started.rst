@@ -35,14 +35,84 @@ tasks:
 * Performing basic algorithmic anomaly detection on HTTP status code data,
   sending notification messages via email when such events occur.
 
-Global Configuration
+But before we dig in to that, let's make sure everything is working by trying
+out a very simple setup.
+
+Simplest Heka Config
 ====================
+
+One of the simplest Heka configurations possible is one that loads a single
+file from the local file system and then outputs the contents of that file to
+stdout. The following is an example of such a configuration::
+
+	[LogstreamerInput]
+	log_directory = "/var/log"
+	file_match = 'auth\.log'
+ 
+	[PayloadEncoder]
+	append_newlines = false
+ 
+	[LogOutput]
+	message_matcher = "TRUE"
+	encoder = "PayloadEncoder"
 
 Heka is configured via one or more `TOML <https://github.com/toml-lang/toml>`_
 format configuration files, each of which is comprised of one or more
-sections. Most sections contain information relevant to the operation of one
-of Heka's plugins, but there is one section entitled `hekad` which allows you
-to tweak a number of Heka's :ref:`global configuration options
+sections. The configuration above consists of three sections, the first of
+which specifies a LogstreamerInput, Heka's primary mechanism for loading files
+from the local file system. This one is loading `/var/log/auth.log`, but you
+can change this to load any other file by editing the `log_directory` setting
+to point to the folder where the file lives and the `file_match` setting to a
+regular expression that uniquely matches the filename. Note the single quotes
+(`'auth\\.log'`) around the regular expression; this is TOML's way of
+specifying a raw string, which means we don't need to escape the regular
+expression's backslashes like we would with a regular string enclosed by
+double quotes (`"auth\\\\.log"`).
+
+In most real world cases a LogstreamerInput would include a `decoder` setting,
+which would parse the contents of the file to extract data from the text
+format and map them onto a Heka message schema. In this case, however, we
+stick with the default behavior, where Heka creates a new message for each
+line in the log file, storing the text of the log line as the payload of the
+Heka message.
+
+The next two sections tell Heka what to do with the messages that the
+LogstreamerInput is generating. The LogOutput simply writes data out to the
+Heka process's stdout. We set `message_matcher = "TRUE"` to specify that this
+output should capture every single message that flows through the Heka
+pipeline. The `encoder` setting tells Heka to use the PayloadEncoder that
+we've configured, which extracts the payload from each captured message and
+uses that as the raw data that the output will send.
+
+To see whether or not you have a functional Heka system, you can create a file
+called `sanity_check.toml` and paste in the above configuration, adjusting the
+LogstreamerInput's settings to point to another file if necessary. Then you
+can run Heka using `hekad -config=/path/to/sanity_check.toml`, and you should
+see the contents of the log file printed out to the console. If any new lines
+are written to the log file that you're loading, Heka will notice and will
+write them out to stdout in real time.
+
+Note that the LogstreamerInput keeps track of how far it has gotten in a
+particular file, so if you stop Heka using `ctrl-c` and then restart it you
+will not see the same data. Heka stores the current location in a
+"seekjournal" file, at `/var/cache/hekad/logstreamer/LogstreamerInput` by
+default. If you delete this file and then restart Heka you should see it load
+the entire file from the beginning again.
+
+Congratulations! You've now successfully run Heka with a full, working
+configuration. But clearly there are much simpler tools to use if all you want
+to do is write the contents of a log file out to stdout. Now that we've got an
+initial success under our belt, let's take a deeper dive into a much more
+complex Heka configuration that actually handles multiple real world use
+cases.
+
+Global Configuration
+====================
+
+As mentioned above, Heka is configured using TOML configuration files. Most
+sections of the TOML configuration contain information relevant to one of
+Heka's plugins, but there is one section entitled `hekad` which allows you to
+tweak a number of Heka's :ref:`global configuration options
 <hekad_global_config_options>`. In many cases the defaults for most of these
 options will suffice, and your configuration won't need a `hekad` section at
 all. A few of the options are worth looking at here, however:
