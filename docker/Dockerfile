@@ -8,6 +8,9 @@ RUN cd /heka/build && make deb
 RUN find /heka/build -name "*.deb" -exec cp {} /heka_docker/heka.deb \;
 COPY Dockerfile.final /heka_docker/Dockerfile
 
-RUN wget -nv https://get.docker.io/builds/Linux/x86_64/docker-latest -O /docker && chmod +x /docker
+RUN curl -sSL https://get.docker.io/builds/Linux/x86_64/docker-1.2.0 -o /tmp/docker && \
+    echo "540459bc5d9f1cac17fe8654891814314db15e77 /tmp/docker" | sha1sum -c - && \
+    mv /tmp/docker /usr/local/bin/docker && \
+    chmod +x /usr/local/bin/docker
 
-CMD /docker build -t mozilla/heka /heka_docker
+CMD docker build -t mozilla/heka /heka_docker

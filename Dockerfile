@@ -20,8 +20,10 @@ RUN     apt-get update && \
         python-sphinx \
         wget
 
-# Install Go 1.3
-RUN curl -s https://storage.googleapis.com/golang/go1.3.1.linux-amd64.tar.gz | tar -v -C /usr/local -xz
+# Install Go 1.3.1
+RUN curl -s https://storage.googleapis.com/golang/go1.3.1.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
+        echo "3af011cc19b21c7180f2604fd85fbc4ddde97143 /tmp/go.tar.gz" | sha1sum -c && \
+        tar -v -C /usr/local -xzf /tmp/go.tar.gz
 
 WORKDIR /heka
 
