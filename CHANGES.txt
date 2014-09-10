@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fail more gracefully if user doesn't specify a scheme in the server URL for
+  the ElasticSearchOutput (#1069).
+
 0.7.1 (2014-09-02)
 ==================
 
