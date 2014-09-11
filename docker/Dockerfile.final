@@ -1,6 +1,6 @@
 # heka image
 # installs heka from a deb package
-FROM ubuntu:14.04
+FROM debian:jessie
 MAINTAINER Chance Zibolski <chance.zibolski@gmail.com> (@chance)
 
 ADD heka.deb /tmp/heka.deb
