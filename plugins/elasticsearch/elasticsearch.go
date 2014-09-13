@@ -135,7 +135,7 @@ func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 			pack.Recycle()
 			if e != nil {
 				or.LogError(e)
-			} else {
+			} else if outBytes != nil {
 				outBatch = append(outBatch, outBytes...)
 				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
 					if len(outBatch) > 0 {

@@ -71,7 +71,7 @@ func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHe
 
 func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 	var msgBytes []byte
-	if msgBytes, err = b.or.Encode(pack); err != nil {
+	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
 		return
 	}
 
