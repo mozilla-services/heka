@@ -318,8 +318,7 @@ for that matter) plugin with identical message_matcher settings. The router
 doesn't care, it will happily give the same message to both of them, and any
 others that happen to match.
 
-This will work, but it'd be nice to not have to install the graphite
-compatibility extension for InfluxDB, and instead just use their native HTTP
+This will work, but it'd be nice to just use the InfluxDB native HTTP
 API. For this, we can instead use our handy HttpOutput::
 
 	[CarbonOutput]
