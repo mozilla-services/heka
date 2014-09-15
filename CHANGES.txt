@@ -14,6 +14,12 @@ Features
 
 * Support environment variables in config files (#1023).
 
+* Encoders can now return (nil, nil) to express that they've swallowed the
+  input message without generating any output.
+
+* SandboxEncoder now supports return value of -2 from the process_message call
+  to specify that no output is being generated.
+
 0.7.2 (2014-MM-DD)
 ==================
 

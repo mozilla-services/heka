@@ -159,6 +159,9 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				or.LogError(fmt.Errorf("Error encoding message: %s", err))
 				pack.Recycle()
 				continue
+			} else if outBytes == nil {
+				pack.Recycle()
+				continue
 			}
 			amqpMsg = amqp.Publishing{
 				DeliveryMode: persist,

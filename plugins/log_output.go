@@ -45,7 +45,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	for pack = range inChan {
 		if outBytes, e = or.Encode(pack); e != nil {
 			or.LogError(fmt.Errorf("Error encoding message: %s", e))
-		} else {
+		} else if outBytes != nil {
 			log.Print(string(outBytes))
 		}
 		pack.Recycle()
