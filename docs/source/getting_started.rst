@@ -244,7 +244,7 @@ default on port 8125::
 	emit_in_fields = true
 
 We don't need two StatsdInputs for our example, however, so for simplicity
-we'll go with the most concise spelling.
+we'll go with the most concise configuration.
 
 Forwarding Aggregated Stats Data
 ================================
