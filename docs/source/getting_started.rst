@@ -143,7 +143,7 @@ all. A few of the options are worth looking at here, however:
 	`share_dir`. This is a place where Heka expects to find certain static
 	resources that it needs, such as the HTML/javascript source code used by
 	the dashboard output, or the source code to various Lua based plugins. The
-	user owning the `hekad` process should have read access to this folder,
+	user owning the `hekad` process requires read access to this folder,
 	but not write access.
 
 It's worth noting that while Heka defaults to expecting to find certain
