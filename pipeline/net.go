@@ -13,52 +13,50 @@ type Deadliner interface {
 	SetDeadline(t time.Time) error
 }
 
+type pluginListener struct {
+	net.Listener
+	Plugin
+}
+
 type ListenerManager struct {
-	m map[string]net.Listener
+	m map[string]*pluginListener
 	sync.RWMutex
 }
 
 func NewListenerManager() *ListenerManager {
-	return &ListenerManager{m: make(map[string]net.Listener)}
+	return &ListenerManager{m: make(map[string]*pluginListener)}
 }
 
-func (m *ListenerManager) Get(lnet, laddr string) (l net.Listener) {
+func (m *ListenerManager) Get(lnet, laddr string) (l *pluginListener) {
 	m.RLock()
 	l = m.m[lnet+laddr]
 	m.RUnlock()
 	return
 }
 
-func (m *ListenerManager) Set(lnet, laddr string, l net.Listener) {
+func (m *ListenerManager) Set(lnet, laddr string, l *pluginListener) {
 	m.Lock()
 	m.m[lnet+laddr] = l
 	m.Unlock()
 	return
 }
 
-func (m *ListenerManager) Listeners() []net.Listener {
-	listeners := make([]net.Listener, 0, len(m.m))
-	for _, l := range m.m {
-		listeners = append(listeners, l)
+func (m *ListenerManager) Listen(lnet, laddr string, p Plugin) (net.Listener, error) {
+	pl := m.Get(lnet, laddr)
+	if pl != nil {
+		pl.Plugin = p
+		return pl.Listener, nil
 	}
-	return listeners
+	return NewListener(lnet, laddr, p, m)
 }
 
-func (m *ListenerManager) Listen(lnet, laddr string) (net.Listener, error) {
-	l := m.Get(lnet, laddr)
-	if l != nil {
-		return l, nil
-	}
-	return NewListener(lnet, laddr, m)
-}
-
-func NewListener(lnet, laddr string, m *ListenerManager) (l net.Listener, err error) {
-	l, err = net.Listen(lnet, laddr)
+func NewListener(lnet, laddr string, p Plugin, m *ListenerManager) (net.Listener, error) {
+	l, err := net.Listen(lnet, laddr)
 	if err != nil {
-		return
+		return nil, err
 	}
-	m.Set(lnet, laddr, l)
-	return
+	m.Set(lnet, laddr, &pluginListener{Listener: l, Plugin: p})
+	return l, nil
 }
 
 func NetManager() *netManager {
@@ -80,8 +78,8 @@ type netManager struct {
 	restarting bool
 }
 
-func (m *netManager) Listen(lnet, laddr string) (net.Listener, error) {
-	l, err := m.manager.Listen(lnet, laddr)
+func (m *netManager) Listen(lnet, laddr string, p Plugin) (net.Listener, error) {
+	l, err := m.manager.Listen(lnet, laddr, p)
 	if err != nil {
 		return nil, err
 	}
