@@ -127,8 +127,8 @@ function process_message()
     -- Extract more message data, including message key, and look up last time
     -- for the key.
     local hostname = read_message("Hostname") or "localhost"
-    local logger = read_message("Logger")
-    local payload_name = read_message("Fields[payload_name]")
+    local logger = read_message("Logger") or ""
+    local payload_name = read_message("Fields[payload_name]") or ""
     local msg_key = string.format("%s:%s", logger, payload_name)
     local last_time = last_times[msg_key]
     local start_idx
