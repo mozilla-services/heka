@@ -50,7 +50,6 @@ Config:
 
 require "cjson"
 require "string"
-require "table"
 
 last_times = {}
 
@@ -69,18 +68,18 @@ function generate_gauges_list(source, headers, rows, idx)
     for i = idx, headers.rows - 1 do -- This omits the last, maybe incomplete, row.
         local values = {}
         for value in string.gmatch(rows[i], "[^\t]+") do
-            table.insert(values, value)
+            values[#values+1] = value
         end
         local label, value, record
         for i, column in ipairs(col_info) do
             value = values[i]
             if value ~= "nan" then
                 value = tonumber(value)
-                if value == nil then
+                if not value then
                     return nil
                 end
                 record = {name=column.name, source=source, value=value, measure_time=time}
-                table.insert(gauges, record)
+                gauges[#gauges+1] = record
             end
         end
         time = time + headers.seconds_per_row
@@ -88,51 +87,67 @@ function generate_gauges_list(source, headers, rows, idx)
     return gauges
 end
 
-function process_message()
-    -- Split payload into lines.
+function check_headers(headers)
+    if (not headers.time) or (not headers.rows) or (not headers.seconds_per_row)
+        or (not headers.columns) or (not headers.column_info) then
+
+        return
+    end
+    if headers.columns ~= #headers.column_info then
+        return
+    end
+    return true
+end
+
+function parse_cbuf(cbuf_text)
     local rows = {}
-    local cbuf_data = read_message("Payload")
-    local headersText
+    local headersText, headers, ok
     local first = true
-    for row in string.gmatch(cbuf_data, "[^\n]+") do
+    for row in string.gmatch(cbuf_text, "[^\n]+") do
         if first == true then
             headersText = row
-            first = false
+            ok, headers = pcall(cjson.decode, headersText)
+            if not ok then
+                return
+            end
+            -- Skip annotations line, if it exists.
+            if not headers.annotations then
+                if not check_headers(headers) then
+                    return
+                end
+                first = false
+            end
         else
-            table.insert(rows, row)
+            rows[#rows+1] = row
         end
     end
-    if #rows < 3 then
+    local num_rows = #rows
+    if num_rows < 3 or num_rows ~= headers.rows then
+        return
+    end
+    return headers, rows
+end
+
+function process_message()
+    -- Split payload into lines.
+    local headers, rows = parse_cbuf(read_message("Payload"))
+    if not headers then
         return -1
     end
 
-    -- Parse headers json, sanity check the data.
-    local ok, headers = pcall(cjson.decode, headersText)
-    if not ok then
-        return -1
-    end
     local time = headers.time
-    if time == nil then
-        return -1
-    end
     local num_rows = headers.rows
-    if num_rows == nil then
-        return -1
-    end
     local sec_per_row = headers.seconds_per_row
-    if sec_per_row == nil then
-        return -1
-    end
 
     -- Extract more message data, including message key, and look up last time
     -- for the key.
     local hostname = read_message("Hostname") or "localhost"
-    local logger = read_message("Logger") or ""
+    local logger = read_message("Logger")
     local payload_name = read_message("Fields[payload_name]") or ""
     local msg_key = string.format("%s:%s", logger, payload_name)
     local last_time = last_times[msg_key]
     local start_idx
-    if last_time == nil then
+    if not last_time then
         -- First time from this source, start from the first data row.
         start_idx = 1
     else
@@ -166,7 +181,7 @@ function process_message()
     -- We've got our starting index, we can generate our gauges and emit the
     -- output.
     local gauges = generate_gauges_list(hostname, headers, rows, start_idx)
-    if gauges == nil then
+    if not gauges then
         return -1
     end
     if #gauges == 0 then
