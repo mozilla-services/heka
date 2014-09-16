@@ -98,6 +98,7 @@ if(error_code)
 endif()
 
 configure_file("${CMAKE_SOURCE_DIR}/sandbox/lua/lua_sandbox.go.in" "${HEKA_PATH}/sandbox/lua/lua_sandbox.go" @ONLY)
+configure_file("${CMAKE_SOURCE_DIR}/cmd/hekad/main.go.in" "${HEKA_PATH}/cmd/hekad/main.go" @ONLY)
 
 if (EXISTS "${CMAKE_BINARY_DIR}/plugin_loader.go")
     configure_file("${CMAKE_BINARY_DIR}/plugin_loader.go" "${HEKA_PATH}/cmd/hekad/plugin_loader.go" COPYONLY)

@@ -20,6 +20,12 @@ Main entry point for the `hekad` daemon. Loads the specified config and calls
 */
 package main
 
+/*
+#cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
+#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -llua -llpeg -lcjson -lm
+*/
+import "C"
+
 import (
 	"flag"
 	"fmt"
