@@ -310,8 +310,14 @@ func Start(configPath string) {
 
 	signal.Notify(signalChan, watchedSignals...)
 
+	gNetManager, err := newGlobalNetManager()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	shutdown := false
 	for !shutdown {
+		gNetManager.restarting = false
 		log.Println("Starting hekad...")
 
 		// Setup global config
@@ -322,18 +328,46 @@ func Start(configPath string) {
 			log.Fatal("Error reading config: ", err)
 		}
 
+		// Init has happened, so all new listeners in use should have a plugin
+		// associated with them.
+
+		// Check which listeners still have no plugin associated
+		for key, pListener := range gNetManager.manager.m {
+			if pListener.Plugin == nil {
+				log.Println("unused listener", key)
+				err = pListener.Close()
+				if err != nil {
+					log.Println("error closing unused listener", err)
+				}
+				delete(gNetManager.manager.m, key)
+			}
+		}
+
 		// Start the pipeline
 		Run(pConfig)
 		// This function blocks reading from respondChan until we recieve a
 		// signal which triggers a reload, or shutdown
 		sig = handleSignals(pConfig, signalChan)
-		// Cleanup the pipeline
-		Cleanup(pConfig)
-
-		log.Println("Shutdown complete.")
 
 		if sig != syscall.SIGHUP {
 			shutdown = true
+		} else {
+			log.Println("restarting")
+			gNetManager.restarting = true
+			globals.ShutDown()
+		}
+
+		// Cleanup the pipeline
+		Cleanup(pConfig)
+		log.Println("Shutdown complete.")
+
+		// Nil out plugins so we can track which ones get reused
+		if gNetManager.restarting {
+			for k, pListener := range gNetManager.manager.m {
+				log.Println("niling", k)
+				// We want to reset the plugin each time so we can check again later
+				pListener.Plugin = nil
+			}
 		}
 	}
 	log.Println("Exiting Heka.")
