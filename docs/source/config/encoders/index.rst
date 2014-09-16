@@ -15,6 +15,17 @@ Alert Encoder
    :start-after: --[[
    :end-before: --]]
 
+.. versionadded:: 0.8
+
+.. _config_cbuf_librato_encoder:
+
+CBUF Librato Encoder
+====================
+
+.. include:: /../../sandbox/lua/encoders/cbuf_librato.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. _config_esjsonencoder:
 .. include:: /config/encoders/esjson.rst
 
@@ -41,6 +52,8 @@ ESPayloadEncoder
 
 .. _config_sandboxencoder:
 .. include:: /config/encoders/sandbox.rst
+
+.. versionadded:: 0.7
 
 .. _config_statmetric_influx:
 
