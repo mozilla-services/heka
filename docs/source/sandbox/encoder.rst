@@ -18,3 +18,9 @@ ESPayloadEncoder
 .. include:: /../../sandbox/lua/encoders/es_payload.lua
    :start-after: --[[
    :end-before: --]]
+
+Schema InfluxDB Encoder
+-----------------------
+.. include:: /../../sandbox/lua/encoders/schema_influx.lua
+   :start-after: --[=[
+   :end-before: --]=]

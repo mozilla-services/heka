@@ -42,10 +42,19 @@ ESPayloadEncoder
 .. _config_sandboxencoder:
 .. include:: /config/encoders/sandbox.rst
 
+.. _config_schema_influx_encoder:
+
+Schema InfluxDB Encoder
+=======================
+
+.. include:: /../../sandbox/lua/encoders/schema_influx.lua
+	:start-after: --[=[
+	:end-before: --]=]
+
 .. _config_statmetric_influx:
 
-StatMetric Influx Encoder
-=========================
+StatMetric InfluxDB Encoder
+===========================
 
 .. include:: /../../sandbox/lua/encoders/statmetric_influx.lua
 	:start-after: --[=[

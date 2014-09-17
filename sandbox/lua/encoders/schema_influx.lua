@@ -2,15 +2,15 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
---[[
-Converts message payload to JSON for InfluxDB HTTP API.
+--[=[
+Converts full Heka message contents to JSON for InfluxDB HTTP API. Includes
+all standard message fields and iterates through all of the dynamically
+specified fields, skipping any bytes fields.
 
 Config:
 
 - series (string, optional, default "series")
     String to use as the `series` key's value in the generated JSON.
-
-
 
 *Example Heka Configuration*
 
@@ -34,20 +34,17 @@ Config:
 
 .. code-block:: json
 
-    [{"points":[ [1.409378221e+21,"log","test","systemName",0,"TcpInput",5,"",1,"test"] ],"name":"series","columns":["Time","Type","Payload","Hostname","Pid","Logger","Severity","EnvVersion","syslogfacility","programname"] } ]
+    [{"points":[[1.409378221e+21,"log","test","systemName",0,"TcpInput",5,"",1,"test"]],"name":"seriesName","columns":["Time","Type","Payload","Hostname","Pid","Logger","Severity","EnvVersion","syslogfacility","programname"]}]
 
---]]
+--]=]
 
 require "cjson"
 
 local series  = read_config("series") or "series"
 
 function process_message()
-
-
     local ts = read_message("Timestamp")
-    if not ts then return -1 end
-    ts = ts / (1000*1000) --Convert to milliseconds
+    ts = ts / (1e6) --Convert to milliseconds
 
     local columns = {}
     local values = {}
@@ -79,16 +76,13 @@ function process_message()
     local place = 9
 
     while true do
-        typ, name, value, representation, count = read_next_field()
+        local typ, name, value, representation, count = read_next_field()
         if not typ then break end
 
         if name ~= "Timestamp" and typ ~= 1 then -- exclude bytes
-
             columns[place] = name
             values[place] = value
-
-            place = place+1
-
+            place = place + 1
         end
     end
     local output = {
