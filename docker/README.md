@@ -1,6 +1,11 @@
 Build Instructions
 ==================
 
+Note: The follwing instructions require root access, because docker requires running as
+root. You will need to use `sudo`, or add the user running the script to a
+Unix group called `docker`. Instructions to do so can be found on the docker website
+here: https://docs.docker.com/installation/ubuntulinux/#giving-non-root-access
+
 Simply run `build_docker.sh`. This generates 2 Docker images, `heka_base` and `heka`.
 The first image contains the Heka source and the Heka build artifacts, and the second
 contains a deb packaged Heka installation. Both `ENTRYPOINTS` are set to `hekad`,
