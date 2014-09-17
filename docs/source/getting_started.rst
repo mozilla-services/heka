@@ -244,7 +244,7 @@ default on port 8125::
 	emit_in_fields = true
 
 We don't need two StatsdInputs for our example, however, so for simplicity
-we'll go with the most concise spelling.
+we'll go with the most concise configuration.
 
 Forwarding Aggregated Stats Data
 ================================
@@ -318,8 +318,7 @@ for that matter) plugin with identical message_matcher settings. The router
 doesn't care, it will happily give the same message to both of them, and any
 others that happen to match.
 
-This will work, but it'd be nice to not have to install the graphite
-compatibility extension for InfluxDB, and instead just use their native HTTP
+This will work, but it'd be nice to just use the InfluxDB native HTTP
 API. For this, we can instead use our handy HttpOutput::
 
 	[CarbonOutput]
@@ -415,8 +414,9 @@ buffer data structure. The `preserve_data` option tells Heka that the all
 global data in this filter (the circular buffer data, in this case) should be
 flushed out to disk if Heka is shut down, so it can be reloaded again when
 Heka is restarted. And the `ticker_interval` option is specifying that our
-filter will be emitting an output message back into the router once every
-second.
+filter will be emitting an output message containing the data
+back into the router once every second, which allows us to consume the data
+for dashboarding for example, see the next section.
 
 After that we have a `stat_graph.config` section. This isn't specifying a new
 plugin, this is nested configuration, a subsection of the outer `stat_graph`
