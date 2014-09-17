@@ -8,9 +8,16 @@ import (
 	"time"
 )
 
+// TODO: move most logic from inside the methods to a separate go routine.
+// Currently there is a lot of shared, mutable state, and many mutexes.
+
 var globalNetManager *netManager
 
 type netManager struct {
+	// listeners key is the type of connection + the addr, and the value is
+	// the listener we're maintaining, as well as the plugin associated.
+	// if the plugin is nil after we've began listening, then it means the
+	// listener is no longer valid and needs to be cleaned up
 	listeners     map[string]*pluginListener
 	listenerMutex sync.RWMutex
 	restarting    bool
@@ -85,6 +92,9 @@ func (m *netManager) Restart() {
 	m.mutex.Lock()
 	m.restarting = true
 	m.listenerMutex.RLock()
+	// When we start the restart process, we need to set the currentConn
+	// for each listener, so they begin returning connections they had
+	// before we restarted
 	for _, l := range m.listeners {
 		l.currentConn = l.conns.Front()
 	}
@@ -102,6 +112,7 @@ type gracefulListener struct {
 func (l *gracefulListener) Close() error {
 	l.manager.mutex.Lock()
 	defer l.manager.mutex.Unlock()
+	// the listener only actually closed if we're not restarting
 	if !l.manager.restarting {
 		return l.Listener.Close()
 	}
@@ -149,8 +160,9 @@ type gracefulConn struct {
 func (c *gracefulConn) Close() error {
 	c.listener.manager.mutex.Lock()
 	defer c.listener.manager.mutex.Unlock()
+	// We only close connections if we're not restarting
 	if !c.listener.manager.restarting {
-		// Remove ourself from the list
+		// Remove ourself from the list of connections
 		for e := c.listener.conns.Front(); e != nil; e = e.Next() {
 			if e.Value == c {
 				c.listener.conns.Remove(e)
