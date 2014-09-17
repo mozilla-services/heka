@@ -78,12 +78,6 @@ func (t *TcpInput) ConfigStruct() interface{} {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*TcpInputConfig)
-	// address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
-	// if err != nil {
-	// 	return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
-	// }
-
-	// t.listener, err = net.ListenTCP(t.config.Net, address)
 	t.listener, err = NetManager().Listen(t.config.Net, t.config.Address, t)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
