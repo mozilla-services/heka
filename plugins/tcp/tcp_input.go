@@ -64,6 +64,9 @@ type TcpInputConfig struct {
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
 	KeepAlivePeriod int `toml:"keep_alive_period"`
+	// Integer indicating the listener's deadline from the time it starts
+	// accepting
+	Deadline int `toml:"deadline"`
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
@@ -217,13 +220,18 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.stopChan = make(chan bool)
 	t.name = ir.Name()
 
-	if dl, ok := t.listener.(Deadliner); ok {
-		dl.SetDeadline(time.Now().Add(time.Second))
+	dl, ok := t.listener.(Deadliner)
+	var deadline time.Duration
+	if ok {
+		deadline = time.Second * time.Duration(t.config.Deadline)
 	}
 
 	var conn net.Conn
 	var err error
 	for {
+		if ok {
+			dl.SetDeadline(time.Now().Add(deadline))
+		}
 		if conn, err = t.listener.Accept(); err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
 				// Dont log timeout errors
