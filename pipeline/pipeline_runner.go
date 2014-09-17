@@ -21,6 +21,7 @@ import (
 	"github.com/rafrombrc/go-notify"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -334,11 +335,20 @@ func Start(configPath string) {
 		// Check which listeners still have no plugin associated
 		for key, pListener := range gNetManager.listeners {
 			if pListener.plugin == nil {
-				log.Println("unused listener", key)
+				// Close all connections for this listener
+				for e := pListener.conns.Front(); e != nil; e = e.Next() {
+					conn := e.Value.(net.Conn)
+					err = conn.Close()
+					if err != nil {
+						log.Println("Couldnt close connection", conn)
+					}
+				}
+				// Close the listener
 				err = pListener.Close()
 				if err != nil {
-					log.Println("error closing unused listener", err)
+					log.Println("Error closing unused listener", err)
 				}
+				// Stop holding onto the listener
 				delete(gNetManager.listeners, key)
 			}
 		}
@@ -352,7 +362,7 @@ func Start(configPath string) {
 		if sig != syscall.SIGHUP {
 			shutdown = true
 		} else {
-			log.Println("restarting")
+			log.Println("Restarting")
 			gNetManager.Restart()
 			globals.ShutDown()
 		}

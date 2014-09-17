@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"container/list"
 	"errors"
 	"net"
 	"sync"
@@ -13,7 +14,7 @@ type netManager struct {
 	listeners     map[string]*pluginListener
 	listenerMutex sync.RWMutex
 	restarting    bool
-	restartMutex  sync.RWMutex
+	mutex         sync.Mutex
 }
 
 type Deadliner interface {
@@ -69,31 +70,38 @@ func NewListener(lnet, laddr string, p Plugin, m *netManager) (net.Listener, err
 	if err != nil {
 		return nil, err
 	}
-	gl := &gracefulListener{Listener: l, manager: m}
+	gl := &gracefulListener{Listener: l, manager: m, conns: list.New()}
 	m.Set(lnet, laddr, &pluginListener{gracefulListener: gl, plugin: p})
 	return gl, nil
 }
 
 func (m *netManager) Reset() {
-	m.restartMutex.Lock()
+	m.mutex.Lock()
 	m.restarting = false
-	m.restartMutex.Unlock()
+	m.mutex.Unlock()
 }
 
 func (m *netManager) Restart() {
-	m.restartMutex.Lock()
+	m.mutex.Lock()
 	m.restarting = true
-	m.restartMutex.Unlock()
+	m.listenerMutex.RLock()
+	for _, l := range m.listeners {
+		l.currentConn = l.conns.Front()
+	}
+	m.listenerMutex.RUnlock()
+	m.mutex.Unlock()
 }
 
 type gracefulListener struct {
 	net.Listener
-	manager *netManager
+	manager     *netManager
+	conns       *list.List
+	currentConn *list.Element
 }
 
 func (l *gracefulListener) Close() error {
-	l.manager.restartMutex.Lock()
-	defer l.manager.restartMutex.Unlock()
+	l.manager.mutex.Lock()
+	defer l.manager.mutex.Unlock()
 	if !l.manager.restarting {
 		return l.Listener.Close()
 	}
@@ -101,16 +109,28 @@ func (l *gracefulListener) Close() error {
 }
 
 func (l *gracefulListener) Accept() (net.Conn, error) {
-	l.manager.restartMutex.RLock()
-	defer l.manager.restartMutex.RUnlock()
+	l.manager.mutex.Lock()
+	defer l.manager.mutex.Unlock()
 	if !l.manager.restarting {
+		// This block causes Accept() to return the connections from the
+		// previous run. These are cached after a restart so connections
+		// aren't dropped. Once they've all been returned, we begin calling
+		// the wrapped Listener's Accept() instead.
+		if l.currentConn != nil {
+			c := l.currentConn.Value.(net.Conn)
+			l.currentConn = l.currentConn.Next()
+			return c, nil
+		}
 		c, err := l.Listener.Accept()
 		if err != nil {
 			return nil, err
 		}
 		c = &gracefulConn{Conn: c, listener: l}
+		l.conns.PushBack(c)
 		return c, nil
 	}
+	// During a restart we want to return an error so things calling Accept()
+	// behave normally, and stop calling Accept()
 	return nil, errors.New("restarting")
 }
 
@@ -127,9 +147,16 @@ type gracefulConn struct {
 }
 
 func (c *gracefulConn) Close() error {
-	c.listener.manager.restartMutex.RLock()
-	defer c.listener.manager.restartMutex.RUnlock()
+	c.listener.manager.mutex.Lock()
+	defer c.listener.manager.mutex.Unlock()
 	if !c.listener.manager.restarting {
+		// Remove ourself from the list
+		for e := c.listener.conns.Front(); e != nil; e = e.Next() {
+			if e.Value == c {
+				c.listener.conns.Remove(e)
+				break
+			}
+		}
 		return c.Conn.Close()
 	}
 	return nil
