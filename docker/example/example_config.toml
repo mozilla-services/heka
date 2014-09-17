@@ -1,0 +1,62 @@
+[hekad]
+maxprocs = 4
+
+# Heka dashboard for internal metrics and time series graphs
+[Dashboard]
+type = "DashboardOutput"
+address = ":4352"
+ticker_interval = 1
+
+[CounterFilter]
+ticker_interval = 1
+message_matcher = 'Type != "heka.counter-output"'
+
+[StatAccumInput]
+ticker_interval = 1
+
+[PayloadEncoder]
+
+[LogOutput]
+message_matcher = 'Type == "heka.counter-output"'
+encoder = "PayloadEncoder"
+
+[nginx_access_logs]
+type = "LogstreamerInput"
+parser_type = "token"
+decoder = "nginx_access_decoder"
+log_directory = "/var/log/nginx"
+# log_directory = "/tmp/var/log/nginx"
+file_match = 'access\.log\.?(?P<Index>\d+)?(.gz)?'
+priority = ["^Index"]
+
+[nginx_access_decoder]
+type = "SandboxDecoder"
+script_type = "lua"
+filename = "lua_decoders/nginx_access.lua"
+
+        [nginx_access_decoder.config]
+        log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
+        type = "nginx.access"
+
+[ESJsonEncoder]
+es_index_from_timestamp = true
+type_name = "%{Type}"
+
+[ElasticSearchOutput]
+server = "http://%ENV[ELASTICSEARCH_PORT_9200_TCP_ADDR]:%ENV[ELASTICSEARCH_PORT_9200_TCP_PORT]"
+message_matcher = "Type == 'nginx.access' || Type == 'stats.memstats'"
+encoder = "ESJsonEncoder"
+flush_interval = 50
+
+[http_status]
+type = "SandboxFilter"
+filename = "lua_filters/http_status.lua"
+ticker_interval = 1
+preserve_data = true
+message_matcher = "Type == 'nginx.access'"
+
+        [http_status.config]
+        sec_per_row = 1
+        rows = 1440
+        perservation_version = 0
+        anomaly_config = 'roc("HTTP Status", 2, 15, 0, 1.5, true, false) mww_nonparametric("HTTP Status", 5, 15, 10, 0.8)'

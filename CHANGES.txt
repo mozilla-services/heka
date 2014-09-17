@@ -13,6 +13,7 @@ Features
 --------
 
 * Support environment variables in config files (#1023).
+* Add Dockerfiles and example Docker usage to repo
 
 * Encoders can now return (nil, nil) to express that they've swallowed the
   input message without generating any output.
