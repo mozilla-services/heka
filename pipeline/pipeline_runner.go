@@ -311,14 +311,14 @@ func Start(configPath string) {
 
 	signal.Notify(signalChan, watchedSignals...)
 
-	gNetManager, err := newGlobalNetManager()
+	manager, err := NetManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	shutdown := false
 	for !shutdown {
-		gNetManager.Reset()
+		manager.Reset()
 		log.Println("Starting hekad...")
 
 		// Setup global config
@@ -333,7 +333,7 @@ func Start(configPath string) {
 		// associated with them.
 
 		// Check which listeners still have no plugin associated
-		for key, pListener := range gNetManager.listeners {
+		for _, pListener := range manager.listeners {
 			if pListener.plugin == nil {
 				// Close all connections for this listener
 				for e := pListener.conns.Front(); e != nil; e = e.Next() {
@@ -348,8 +348,6 @@ func Start(configPath string) {
 				if err != nil {
 					log.Println("Error closing unused listener", err)
 				}
-				// Stop holding onto the listener
-				delete(gNetManager.listeners, key)
 			}
 		}
 
@@ -363,7 +361,7 @@ func Start(configPath string) {
 			shutdown = true
 		} else {
 			log.Println("Restarting")
-			gNetManager.Restart()
+			manager.Restart()
 			globals.ShutDown()
 		}
 
@@ -372,8 +370,8 @@ func Start(configPath string) {
 		log.Println("Shutdown complete.")
 
 		// Nil out plugins so we can track which ones get reused
-		if gNetManager.restarting {
-			for k, pListener := range gNetManager.listeners {
+		if manager.restarting {
+			for k, pListener := range manager.listeners {
 				log.Println("niling", k)
 				// We want to reset the plugin each time so we can check again later
 				pListener.plugin = nil

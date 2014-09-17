@@ -21,7 +21,7 @@ type netManager struct {
 	listeners     map[string]*pluginListener
 	listenerMutex sync.RWMutex
 	restarting    bool
-	mutex         sync.Mutex
+	mutex         sync.RWMutex
 }
 
 type Deadliner interface {
@@ -33,8 +33,11 @@ type pluginListener struct {
 	plugin Plugin
 }
 
-func NetManager() *netManager {
-	return globalNetManager
+func NetManager() (*netManager, error) {
+	if globalNetManager == nil {
+		return newGlobalNetManager()
+	}
+	return globalNetManager, nil
 }
 
 func newGlobalNetManager() (*netManager, error) {
@@ -77,7 +80,7 @@ func NewListener(lnet, laddr string, p Plugin, m *netManager) (net.Listener, err
 	if err != nil {
 		return nil, err
 	}
-	gl := &gracefulListener{Listener: l, manager: m, conns: list.New()}
+	gl := &gracefulListener{Listener: l, manager: m, conns: list.New(), net: lnet, addr: laddr}
 	m.Set(lnet, laddr, &pluginListener{gracefulListener: gl, plugin: p})
 	return gl, nil
 }
@@ -91,15 +94,22 @@ func (m *netManager) Reset() {
 func (m *netManager) Restart() {
 	m.mutex.Lock()
 	m.restarting = true
-	m.listenerMutex.RLock()
+	m.mutex.Unlock()
 	// When we start the restart process, we need to set the currentConn
 	// for each listener, so they begin returning connections they had
 	// before we restarted
+	m.listenerMutex.RLock()
 	for _, l := range m.listeners {
 		l.currentConn = l.conns.Front()
 	}
 	m.listenerMutex.RUnlock()
-	m.mutex.Unlock()
+}
+
+func (m *netManager) Restarting() (restarting bool) {
+	m.mutex.RLock()
+	restarting = m.restarting
+	m.mutex.RUnlock()
+	return
 }
 
 type gracefulListener struct {
@@ -107,22 +117,23 @@ type gracefulListener struct {
 	manager     *netManager
 	conns       *list.List
 	currentConn *list.Element
+	net, addr   string
 }
 
 func (l *gracefulListener) Close() error {
-	l.manager.mutex.Lock()
-	defer l.manager.mutex.Unlock()
 	// the listener only actually closed if we're not restarting
-	if !l.manager.restarting {
+	if !l.manager.Restarting() {
+		// we should remove ourself from the map of listeners.
+		l.manager.listenerMutex.Lock()
+		delete(l.manager.listeners, l.Key())
+		l.manager.listenerMutex.Unlock()
 		return l.Listener.Close()
 	}
 	return nil
 }
 
 func (l *gracefulListener) Accept() (net.Conn, error) {
-	l.manager.mutex.Lock()
-	defer l.manager.mutex.Unlock()
-	if !l.manager.restarting {
+	if !l.manager.Restarting() {
 		// This block causes Accept() to return the connections from the
 		// previous run. These are cached after a restart so connections
 		// aren't dropped. Once they've all been returned, we begin calling
@@ -152,16 +163,18 @@ func (l *gracefulListener) SetDeadline(t time.Time) error {
 	return nil
 }
 
+func (l *gracefulListener) Key() string {
+	return l.net + l.addr
+}
+
 type gracefulConn struct {
 	net.Conn
 	listener *gracefulListener
 }
 
 func (c *gracefulConn) Close() error {
-	c.listener.manager.mutex.Lock()
-	defer c.listener.manager.mutex.Unlock()
 	// We only close connections if we're not restarting
-	if !c.listener.manager.restarting {
+	if !c.listener.manager.Restarting() {
 		// Remove ourself from the list of connections
 		for e := c.listener.conns.Front(); e != nil; e = e.Next() {
 			if e.Value == c {
