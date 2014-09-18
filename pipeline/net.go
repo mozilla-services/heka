@@ -89,6 +89,12 @@ func (m *netManager) Reset() {
 	m.mutex.Lock()
 	m.restarting = false
 	m.mutex.Unlock()
+
+	m.listenerMutex.Lock()
+	for _, listener := range m.listeners {
+		listener.plugin = nil
+	}
+	m.listenerMutex.Unlock()
 }
 
 func (m *netManager) Restart() {
@@ -112,6 +118,19 @@ func (m *netManager) Restarting() (restarting bool) {
 	return
 }
 
+func (m *netManager) CloseUnusedListeners() error {
+	for _, listener := range m.listeners {
+		if listener.plugin == nil {
+			// Close the listener
+			err := listener.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 type gracefulListener struct {
 	net.Listener
 	manager     *netManager
@@ -127,7 +146,27 @@ func (l *gracefulListener) Close() error {
 		l.manager.listenerMutex.Lock()
 		delete(l.manager.listeners, l.Key())
 		l.manager.listenerMutex.Unlock()
+
+		// Close our connections
+		err := l.CloseConns()
+		if err != nil {
+			return err
+		}
+
+		// Actually close the listener
 		return l.Listener.Close()
+	}
+	return nil
+}
+
+func (l *gracefulListener) CloseConns() error {
+	// Close all connections for this listener
+	for e := l.conns.Front(); e != nil; e = e.Next() {
+		conn := e.Value.(net.Conn)
+		err := conn.Close()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

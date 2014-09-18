@@ -21,7 +21,6 @@ import (
 	"github.com/rafrombrc/go-notify"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -333,22 +332,9 @@ func Start(configPath string) {
 		// associated with them.
 
 		// Check which listeners still have no plugin associated
-		for _, pListener := range manager.listeners {
-			if pListener.plugin == nil {
-				// Close all connections for this listener
-				for e := pListener.conns.Front(); e != nil; e = e.Next() {
-					conn := e.Value.(net.Conn)
-					err = conn.Close()
-					if err != nil {
-						log.Println("Couldnt close connection", conn)
-					}
-				}
-				// Close the listener
-				err = pListener.Close()
-				if err != nil {
-					log.Println("Error closing unused listener", err)
-				}
-			}
+		err = manager.CloseUnusedListeners()
+		if err != nil {
+			log.Fatal(err)
 		}
 
 		// Start the pipeline
@@ -368,15 +354,6 @@ func Start(configPath string) {
 		// Cleanup the pipeline
 		Cleanup(pConfig)
 		log.Println("Shutdown complete.")
-
-		// Nil out plugins so we can track which ones get reused
-		if manager.restarting {
-			for k, pListener := range manager.listeners {
-				log.Println("niling", k)
-				// We want to reset the plugin each time so we can check again later
-				pListener.plugin = nil
-			}
-		}
 	}
 	log.Println("Exiting Heka.")
 }
