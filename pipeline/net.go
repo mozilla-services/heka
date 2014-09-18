@@ -119,16 +119,17 @@ func (m *netManager) Restarting() (restarting bool) {
 }
 
 func (m *netManager) CloseUnusedListeners() error {
+	errs := make([]error, 0)
 	for _, listener := range m.listeners {
 		if listener.plugin == nil {
 			// Close the listener
 			err := listener.Close()
 			if err != nil {
-				return err
+				errs = append(errs, err)
 			}
 		}
 	}
-	return nil
+	return MultiError(errs)
 }
 
 type gracefulListener struct {
@@ -160,15 +161,19 @@ func (l *gracefulListener) Close() error {
 }
 
 func (l *gracefulListener) CloseConns() error {
+	errs := make([]error, 0)
 	// Close all connections for this listener
 	for e := l.conns.Front(); e != nil; e = e.Next() {
 		conn := e.Value.(net.Conn)
 		err := conn.Close()
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	if len(errs) == 0 {
+		return nil
+	}
+	return MultiError(errs)
 }
 
 func (l *gracefulListener) Accept() (net.Conn, error) {

@@ -334,7 +334,7 @@ func Start(configPath string) {
 		// Check which listeners still have no plugin associated
 		err = manager.CloseUnusedListeners()
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error closing unused listeners", err)
 		}
 
 		// Start the pipeline
