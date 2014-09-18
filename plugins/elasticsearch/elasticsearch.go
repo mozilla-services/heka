@@ -206,7 +206,7 @@ func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
 	httpTimeout uint32) *HttpBulkIndexer {
 
 	client := &http.Client{
-		Timeout: time.Duration(httpTimeout),
+		Timeout: time.Duration(httpTimeout) * time.Millisecond,
 	}
 	return &HttpBulkIndexer{
 		Protocol: protocol,
