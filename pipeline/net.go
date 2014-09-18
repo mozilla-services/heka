@@ -52,14 +52,14 @@ func NewNetManager() *netManager {
 	return &netManager{listeners: make(map[string]*pluginListener)}
 }
 
-func (m *netManager) Get(lnet, laddr string) (l *pluginListener) {
+func (m *netManager) get(lnet, laddr string) (l *pluginListener) {
 	m.listenerMutex.RLock()
 	l = m.listeners[lnet+laddr]
 	m.listenerMutex.RUnlock()
 	return
 }
 
-func (m *netManager) Set(lnet, laddr string, l *pluginListener) {
+func (m *netManager) set(lnet, laddr string, l *pluginListener) {
 	m.listenerMutex.Lock()
 	m.listeners[lnet+laddr] = l
 	m.listenerMutex.Unlock()
@@ -67,7 +67,7 @@ func (m *netManager) Set(lnet, laddr string, l *pluginListener) {
 }
 
 func (m *netManager) Listen(lnet, laddr string, p Plugin) (net.Listener, error) {
-	pl := m.Get(lnet, laddr)
+	pl := m.get(lnet, laddr)
 	if pl != nil {
 		pl.plugin = p
 		return pl.gracefulListener, nil
@@ -81,7 +81,7 @@ func NewListener(lnet, laddr string, p Plugin, m *netManager) (net.Listener, err
 		return nil, err
 	}
 	gl := &gracefulListener{Listener: l, manager: m, conns: list.New(), net: lnet, addr: laddr}
-	m.Set(lnet, laddr, &pluginListener{gracefulListener: gl, plugin: p})
+	m.set(lnet, laddr, &pluginListener{gracefulListener: gl, plugin: p})
 	return gl, nil
 }
 
