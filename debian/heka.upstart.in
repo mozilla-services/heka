@@ -1,0 +1,13 @@
+# hekad - http://hekad.readthedocs.org/en/latest/ -- The hekad daemon is the core component of the heka project
+#
+# Configure hekad in /etc/hekad.toml
+
+start on runlevel [2345]
+
+respawn
+
+pre-start script
+  [ -d /var/run/hekad/seekjournals/ ] || mkdir -p /var/run/hekad/seekjournals/
+end script
+
+exec /usr/bin/hekad -config=/etc/hekad.toml >> /var/log/hekad.log 2>&1
