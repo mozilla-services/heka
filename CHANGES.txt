@@ -8,6 +8,11 @@ Backwards Incompatibilities
 
 * Using stftime literals for filenames during rotation in FileOutput plugin (#1469).
 
+* The package created by 'make deb' creates an "heka" user and ships an init script
+  and a systemd unit.
+
+* The 'make deb' target requires fakeroot and debhelper to be installed.
+
 Features
 --------
 

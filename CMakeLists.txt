@@ -11,6 +11,7 @@ set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
+set(CPACK_PACKAGE_NAME ${CMAKE_PROJECT_NAME})
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -96,7 +97,6 @@ elseif(UNIX)
 endif()
 
 include(CTest)
-include(CPack)
 include(externals)
 include(mocks)
 
@@ -226,21 +226,27 @@ add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
+## DEBIAN SPECIFIC THINGS HERE
+set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/CPackConfig.cmake")
 if (UNIX AND DPKG_EXECUTABLE)
-    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
-    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
     get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
     set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
 
+    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
+        OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE OUTPUT_STRIP_TRAILING_WHITESPACE)
+
     add_custom_target(deb
-    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
-    DEPENDS hekad
-    COMMENT "Custom deb target")
+        COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch="$(COLOR)" --cyan "Run CPack packaging tool..."
+        COMMAND ${CPACK_COMMAND} -G DEB
+        DEPENDS hekad
+        COMMENT "Custom deb target")
+
+    add_subdirectory(debian)
 endif()
+
+# MOVING INCLUSION OF CPACK DOWN HERE SO IT ACTUALLY GETS THE VARIABLES WE SET
+include(CPack)
+
 add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
@@ -281,6 +287,7 @@ endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/conf/" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/decoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_decoders")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/filters/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_filters")
