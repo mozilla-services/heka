@@ -24,6 +24,7 @@ Functions that must be exposed from the Lua sandbox
 
     *Return*
         - < 0 for non-fatal failure (increments ProcessMessageFailures)
+        - -2 for no output, but no error (encoders only)
         - 0 for success
         - > 0 for fatal error (terminates the sandbox)
 

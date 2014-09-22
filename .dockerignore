@@ -1,0 +1,10 @@
+.vagrant
+docs/build
+build
+cmake/plugin_loader.cmake
+etc/
+pipeline/mock_*.go
+var/
+*.sw?
+externals
+dockerfile/*
