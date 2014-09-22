@@ -143,8 +143,8 @@ all. A few of the options are worth looking at here, however:
 	`share_dir`. This is a place where Heka expects to find certain static
 	resources that it needs, such as the HTML/javascript source code used by
 	the dashboard output, or the source code to various Lua based plugins. The
-	user owning the `hekad` process should have read access to this folder,
-	but not write access.
+	user owning the `hekad` process requires read access to this folder, but
+	should not have write access.
 
 It's worth noting that while Heka defaults to expecting to find certain
 resources in the `base_dir` and/or the `share_dir` folders, it is nearly
@@ -244,7 +244,7 @@ default on port 8125::
 	emit_in_fields = true
 
 We don't need two StatsdInputs for our example, however, so for simplicity
-we'll go with the most concise spelling.
+we'll go with the most concise configuration.
 
 Forwarding Aggregated Stats Data
 ================================
@@ -318,8 +318,7 @@ for that matter) plugin with identical message_matcher settings. The router
 doesn't care, it will happily give the same message to both of them, and any
 others that happen to match.
 
-This will work, but it'd be nice to not have to install the graphite
-compatibility extension for InfluxDB, and instead just use their native HTTP
+This will work, but it'd be nice to just use the InfluxDB native HTTP
 API. For this, we can instead use our handy HttpOutput::
 
 	[CarbonOutput]
@@ -415,8 +414,10 @@ buffer data structure. The `preserve_data` option tells Heka that the all
 global data in this filter (the circular buffer data, in this case) should be
 flushed out to disk if Heka is shut down, so it can be reloaded again when
 Heka is restarted. And the `ticker_interval` option is specifying that our
-filter will be emitting an output message back into the router once every
-second.
+filter will be emitting an output message containing the cbuf data back into
+the router once every second. This message can then be consumed by other
+filters and/or outputs, such as our DashboardOutput which will use it to
+generate graphs (see next section).
 
 After that we have a `stat_graph.config` section. This isn't specifying a new
 plugin, this is nested configuration, a subsection of the outer `stat_graph`
@@ -500,10 +501,9 @@ SandboxFilter configuration:
 Other stats can be added to this graph by adjusting the `stats` and
 `stat_labels` values for our existing `stat_graph` filter config, although if
 we do so we'll have to bump the `preservation_version` to tell Heka that the
-previous data structures are no longer valid. If you'd like to generate
-additional graphs using other statistics, this can be done by including
-additional SandboxFilter sections using the same `stat_graph.lua` source code
-(i.e. `filename = "lua_filters/stat_graph.lua"`).
+previous data structures are no longer valid. You can create multiple graphs
+by including additional SandboxFilter sections using the same `stat_graph.lua`
+source code.
 
 It also should be mentioned that, while the `stat_graph.lua` filter we've been
 using only emits a single output graph, it is certainly possible for a single

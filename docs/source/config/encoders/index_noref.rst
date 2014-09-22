@@ -10,6 +10,13 @@ Alert Encoder
    :start-after: --[[
    :end-before: --]]
 
+CBUF Librato Encoder
+--------------------
+
+..include:: /../../sandbox/lua/encoders/cbuf_librato.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. include:: /config/encoders/esjson.rst
 
 .. include:: /config/encoders/eslogstashv0.rst
