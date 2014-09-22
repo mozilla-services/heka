@@ -192,7 +192,7 @@ func (r *randomDataMaker) Read(p []byte) (n int, err error) {
 func makePayload(size uint64, rdm *randomDataMaker) (payload string) {
 	hostname, _ := os.Hostname()
 	payload = fmt.Sprintf("hekabench: %s", hostname)
-	buf := make([]byte, size)
+	buf := make([]byte, 0, size)
 	payloadSuffix := bytes.NewBuffer(buf)
 	if _, err := io.CopyN(payloadSuffix, rdm, int64(size)); err == nil {
 		payload = fmt.Sprintf("%s - %s", payload, payloadSuffix.String())
