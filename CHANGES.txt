@@ -12,6 +12,9 @@ Bug Handling
 
 * Fixed issue w/ inaccurate payload sizes in heka-flood.
 
+* Allow severity to be modified by the MessageTemplate logic for use in
+  ScribbleDecoder (#1084).
+
 0.7.1 (2014-09-02)
 ==================
 
