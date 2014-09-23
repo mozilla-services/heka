@@ -12,7 +12,7 @@ Message Variables
 * logger (optional, string) - Data source i.e. "Apache", "TCPInput", "/var/log/test.log".
 * severity (optional, int32) - `Syslog severity level. <http://en.wikipedia.org/wiki/Syslog#Severity_levels>`_
 * payload (optional, string) - Textual data i.e. log line, filename.
-* env_version (optional, string) - Unused, legacy envelope version.
+* env_version (optional, string) - Envelope version.  Semantic version of the message content (http://semver.org/ (although in most cases it is just the major version)).
 * pid (optional, int32) - Process ID that generated the message.
 * hostname (optional, string) - Hostname that generated the message.
 * fields (optional, Field) - Array of Field structures.
