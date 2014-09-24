@@ -43,7 +43,9 @@ func TextTemplateEncoderSpec(c gs.Context) {
 		uuidStr := "123e4567-e89b-12d3-a456-426655440000"
 		pack.Message.SetUuid(uuid.Parse(uuidStr))
 		tsString := "2014-09-24T11:40:40-07:00"
-		ts, err := time.Parse(config.TimestampFormat, tsString)
+		loc, err := time.LoadLocation("America/Los_Angeles")
+		c.Assume(err, gs.IsNil)
+		ts, err := time.ParseInLocation(config.TimestampFormat, tsString, loc)
 		c.Assume(err, gs.IsNil)
 		pack.Message.SetTimestamp(ts.UnixNano())
 		pack.Message.SetType("MyType")

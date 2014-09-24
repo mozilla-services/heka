@@ -78,12 +78,12 @@ func (e *TextTemplateEncoder) Init(config interface{}) error {
 		e.TemplateFiles[i] = e.pConfig.Globals.PrependShareDir(path)
 	}
 	e.lastFileTime = make([]time.Time, len(e.TemplateFiles))
-	e.nextCheck = time.Now()
+	e.nextCheck = time.Now().UTC()
 	return e.UpdateTemplate()
 }
 
 func (e *TextTemplateEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err error) {
-	now := time.Now()
+	now := time.Now().UTC()
 	if e.ReloadTemplates && now.After(e.nextCheck) {
 		if err = e.UpdateTemplate(); err != nil {
 			return
