@@ -143,7 +143,7 @@ like::
 generally route messages to specific outputs using the
 :ref:`message_matcher`.)
 
-.. _restarting_plugin:
+.. _restarting_plugins:
 
 Restarting Plugins
 ==================

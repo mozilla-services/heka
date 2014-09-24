@@ -17,9 +17,8 @@ package plugins
 import (
 	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
-	"time"
-	//pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"time"
 )
 
 func PayloadEncoderSpec(c gs.Context) {
