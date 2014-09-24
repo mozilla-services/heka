@@ -253,6 +253,7 @@ add_test(plugins/process ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} gith
 add_test(plugins/smtp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/smtp)
 add_test(plugins/statsd ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/statsd)
 add_test(plugins/tcp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/tcp)
+add_test(plugins/template ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/template)
 add_test(plugins/udp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/udp)
 add_test(logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/logstreamer)
 if(INCLUDE_SANDBOX)

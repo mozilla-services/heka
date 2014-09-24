@@ -63,3 +63,6 @@ StatMetric Influx Encoder
 .. include:: /../../sandbox/lua/encoders/statmetric_influx.lua
 	:start-after: --[=[
 	:end-before: --]=]
+
+.. _config_text_template_encoder:
+.. include:: /config/encoders/text_template.rst

@@ -42,3 +42,5 @@ StatMetric Influx Encoder
 .. include:: /../../sandbox/lua/encoders/es_payload.lua
 	:start-after: --[=[
 	:end-before: --]=]
+
+.. include:: /config/encoders/text_template.rst

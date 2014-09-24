@@ -1,0 +1,12 @@
+=Test message template=
+UUID: {{.Uuid}}
+Timestamp: {{.Timestamp}}
+Type: {{.Type}}
+Logger: {{.Logger}}
+Severity: {{.Severity}}
+Payload: {{.Payload}}
+EnvVersion: {{.EnvVersion}}
+Pid: {{.Pid}}
+Hostname: {{.Hostname}}
+foo: {{.Fields.foo}}
+{{with .Fields}}snarf: {{.snarf}}{{end}}
