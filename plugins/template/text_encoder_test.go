@@ -16,6 +16,7 @@ package template
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -43,9 +44,7 @@ func TextTemplateEncoderSpec(c gs.Context) {
 		uuidStr := "123e4567-e89b-12d3-a456-426655440000"
 		pack.Message.SetUuid(uuid.Parse(uuidStr))
 		tsString := "2014-09-24T11:40:40-07:00"
-		loc, err := time.LoadLocation("America/Los_Angeles")
-		c.Assume(err, gs.IsNil)
-		ts, err := time.ParseInLocation(config.TimestampFormat, tsString, loc)
+		ts, err := time.Parse(config.TimestampFormat, tsString)
 		c.Assume(err, gs.IsNil)
 		pack.Message.SetTimestamp(ts.UnixNano())
 		pack.Message.SetType("MyType")
@@ -71,7 +70,7 @@ func TextTemplateEncoderSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 			expected := `=Test message template=
 UUID: 123e4567-e89b-12d3-a456-426655440000
-Timestamp: 2014-09-24T11:40:40-07:00
+Timestamp: %s
 Type: MyType
 Logger: MyLogger
 Severity: 4
@@ -82,6 +81,9 @@ Hostname: test.example.com
 foo: bar
 snarf: 12.34
 `
+			unixTime := time.Unix(0, pack.Message.GetTimestamp())
+			renderedTime := unixTime.Format(encoder.TimestampFormat)
+			expected = fmt.Sprintf(expected, renderedTime)
 			c.Expect(string(output), gs.Equals, expected)
 		})
 	})
