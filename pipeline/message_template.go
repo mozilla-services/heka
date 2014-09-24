@@ -61,8 +61,7 @@ func (mt MessageTemplate) PopulateMessage(msg *message.Message, subs map[string]
 			}
 			msg.SetPid(int32(pid))
 		case "Severity":
-			intPart := strings.Split(val, ".")[0]
-			severity, err := strconv.ParseInt(intPart, 10, 32)
+			severity, err := strconv.ParseInt(val, 10, 32)
 			if err != nil {
 				return err
 			}
