@@ -15,6 +15,13 @@ Bug Handling
 * Allow severity to be modified by the MessageTemplate logic for use in
   ScribbleDecoder (#1084).
 
+* Render pack diagnostic idle time in seconds (as specified) instead of
+  nanoseconds.
+
+* Prevent orphaned matchers from remaining in the router's matcher lists in
+  cases where a filter or output registered in one TOML file overrides a
+  filter or output of the same name in an earlier TOML file.
+
 0.7.1 (2014-09-02)
 ==================
 
