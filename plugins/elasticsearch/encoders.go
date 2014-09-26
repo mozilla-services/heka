@@ -306,7 +306,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					}
 				}
 				writeField(first, &buf, field, raw)
-        		first = false
+		 		first = false
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
