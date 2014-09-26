@@ -706,7 +706,7 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 	switch section.category {
 	case "Filter":
 		if matcher != nil {
-			self.router.fMatchers = append(self.router.fMatchers, matcher)
+			self.router.fMatcherMap[runner.name] = matcher
 		}
 		self.FilterRunners[runner.name] = runner
 		self.filterWrappers[runner.name] = wrapper
@@ -747,7 +747,7 @@ func (self *PipelineConfig) loadSection(section *ConfigSection) (err error) {
 			runner.encoder = encoder
 		}
 		if matcher != nil {
-			self.router.oMatchers = append(self.router.oMatchers, matcher)
+			self.router.oMatcherMap[runner.name] = matcher
 		}
 
 		self.OutputRunners[runner.name] = runner

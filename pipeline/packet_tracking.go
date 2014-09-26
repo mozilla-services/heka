@@ -107,6 +107,7 @@ func (d *DiagnosticTracker) Run() {
 	)
 	g := d.globals
 	idleMax := g.MaxPackIdle
+	idleMaxSecs := idleMax / 1e9
 	probablePacks := make([]*PipelinePack, 0, len(d.packs))
 	ticker := time.NewTicker(time.Duration(30) * time.Second)
 	for {
@@ -133,7 +134,7 @@ func (d *DiagnosticTracker) Run() {
 		if len(probablePacks) > 0 {
 			g.LogMessage("Diagnostics",
 				fmt.Sprintf("%d packs have been idle more than %d seconds.",
-					len(probablePacks), idleMax))
+					len(probablePacks), idleMaxSecs))
 			g.LogMessage("Diagnostics",
 				fmt.Sprintf("(%s) Plugin names and quantities found on idle packs:",
 					d.ChannelName))

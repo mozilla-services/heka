@@ -56,6 +56,12 @@ type messageRouter struct {
 	removeOutputMatcher chan *MatchRunner
 	fMatchers           []*MatchRunner
 	oMatchers           []*MatchRunner
+	// These are used during initialization time only to prevent false
+	// duplicate matchers, they will *not* be kept up to date as matchers are
+	// added to / removed from the router. The slices defined above contain
+	// the definitive list of active matchers.
+	fMatcherMap map[string]*MatchRunner
+	oMatcherMap map[string]*MatchRunner
 }
 
 // Creates and returns a (not yet started) Heka message router.
@@ -65,8 +71,8 @@ func NewMessageRouter(chanSize int) (router *messageRouter) {
 	router.addFilterMatcher = make(chan *MatchRunner, 0)
 	router.removeFilterMatcher = make(chan *MatchRunner, 0)
 	router.removeOutputMatcher = make(chan *MatchRunner, 0)
-	router.fMatchers = make([]*MatchRunner, 0, 10)
-	router.oMatchers = make([]*MatchRunner, 0, 10)
+	router.fMatcherMap = make(map[string]*MatchRunner)
+	router.oMatcherMap = make(map[string]*MatchRunner)
 	return router
 }
 
@@ -84,6 +90,21 @@ func (self *messageRouter) RemoveFilterMatcher() chan *MatchRunner {
 
 func (self *messageRouter) RemoveOutputMatcher() chan *MatchRunner {
 	return self.removeOutputMatcher
+}
+
+// initMatchSlices creates the `fMatchers` and `oMatchers` MatchRunner slices
+// and populates them with the matchers that are in the respective matcher
+// maps. Should be called exactly once after all of the config has been loaded
+// but before the router is started.
+func (self *messageRouter) initMatchSlices() {
+	self.fMatchers = make([]*MatchRunner, 0, len(self.fMatcherMap))
+	self.oMatchers = make([]*MatchRunner, 0, len(self.oMatcherMap))
+	for _, matcher := range self.fMatcherMap {
+		self.fMatchers = append(self.fMatchers, matcher)
+	}
+	for _, matcher := range self.oMatcherMap {
+		self.oMatchers = append(self.oMatchers, matcher)
+	}
 }
 
 // Spawns a goroutine within which the router listens for messages on the
