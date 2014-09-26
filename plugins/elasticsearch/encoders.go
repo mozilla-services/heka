@@ -306,6 +306,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					}
 				}
 				writeField(first, &buf, field, raw)
+		 		first = false
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
@@ -323,6 +324,8 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 type ESLogstashV0Encoder struct {
 	rawBytesFields []string
 	coord          *ElasticSearchCoordinates
+	// Field names to include in ElasticSearch document for "clean" format.
+	fields          []string
 }
 
 type ESLogstashV0EncoderConfig struct {
@@ -343,17 +346,33 @@ type ESLogstashV0EncoderConfig struct {
 }
 
 func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
-	return &ESLogstashV0EncoderConfig{
+	config := &ESLogstashV0EncoderConfig{
 		Index:                "logstash-%{2006.01.02}",
 		TypeName:             "message",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
 	}
+
+	config.Fields = []string{
+		"Uuid",
+		"Timestamp",
+		"Type",
+		"Logger",
+		"Severity",
+		"Payload",
+		"EnvVersion",
+		"Pid",
+		"Hostname",
+		"Fields",
+	}
+
+	return config
 }
 
 func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 	conf := config.(*ESLogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
+	e.fields = conf.Fields
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
@@ -370,32 +389,53 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 
-	writeStringField(true, &buf, `@uuid`, m.GetUuidString())
-	t := time.Unix(0, m.GetTimestamp()).UTC()
-	writeStringField(false, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
-	writeStringField(false, &buf, `@type`, m.GetType())
-	writeStringField(false, &buf, `@logger`, m.GetLogger())
-	writeIntField(false, &buf, `@severity`, m.GetSeverity())
-	writeStringField(false, &buf, `@message`, m.GetPayload())
-	writeStringField(false, &buf, `@envversion`, m.GetEnvVersion())
-	writeIntField(false, &buf, `@pid`, m.GetPid())
-	writeStringField(false, &buf, `@source_host`, m.GetHostname())
-
-	buf.WriteString(`,"@fields":{`)
 	first := true
-	for _, field := range m.Fields {
-		raw := false
-		if len(e.rawBytesFields) > 0 {
-			for _, raw_field_name := range e.rawBytesFields {
-				if *field.Name == raw_field_name {
-					raw = true
-				}
+	for _, f := range e.fields {
+		switch strings.ToLower(f) {
+		case "uuid":
+			writeStringField(first, &buf, `@uuid`, m.GetUuidString())
+		case "timestamp":
+			t := time.Unix(0, m.GetTimestamp()).UTC()
+			writeStringField(first, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
+		case "type":
+			writeStringField(first, &buf, `@type`, m.GetType())
+		case "logger":
+			writeStringField(first, &buf, `@logger`, m.GetLogger())
+		case "severity":
+			writeIntField(first, &buf, `@severity`, m.GetSeverity())
+		case "payload":
+			writeStringField(first, &buf, `@message`, m.GetPayload())
+		case "envversion":
+			writeStringField(first, &buf, `@envversion`, m.GetEnvVersion())
+		case "pid":
+			writeIntField(first, &buf, `@pid`, m.GetPid())
+		case "hostname":
+			writeStringField(first, &buf, `@source_host`, m.GetHostname())
+		case "fields":
+			if !first {
+				buf.WriteString(`,`)
 			}
+			buf.WriteString(`"@fields":{`)
+			firstfield := true
+			for _, field := range m.Fields {
+				raw := false
+				if len(e.rawBytesFields) > 0 {
+					for _, raw_field_name := range e.rawBytesFields {
+						if *field.Name == raw_field_name {
+							raw = true
+						}
+					}
+				}
+				writeField(firstfield, &buf, field, raw)
+				firstfield = false
+			}
+			buf.WriteString(`}`) // end of fields
+		default:
+			err = fmt.Errorf("Unable to find field: %s", f)
+			return
 		}
-		writeField(first, &buf, field, raw)
 		first = false
 	}
-	buf.WriteString(`}`) // end of fields
 	buf.WriteString(`}`)
 	buf.WriteByte(NEWLINE)
 	return buf.Bytes(), err

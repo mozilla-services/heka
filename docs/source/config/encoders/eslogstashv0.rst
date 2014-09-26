@@ -39,7 +39,8 @@ Config:
     "Timestamp", "Type", "Logger", "Severity", "Payload", "EnvVersion", "Pid",
     "Hostname", and "Fields" (where "Fields" causes the inclusion of any and
     all dynamically specified message fields. Defaults to including all of the
-    supported message fields.
+    supported message fields. The "Payload" field is sent to ElasticSearch as
+    "@message".
 - es_index_from_timestamp (bool):
     When generating the index name use the timestamp from the message instead
     of the current time. Defaults to false.
