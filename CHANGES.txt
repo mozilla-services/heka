@@ -9,6 +9,9 @@ Bug Handling
 
 * Protect globals.Stopping with a RWMutex.
 
+* Added support for `fields` config setting to ESLogstashV0Encoder; it was
+  already documented, but hadn't been implemented (#1096).
+
 Features
 --------
 
