@@ -23,6 +23,8 @@ Features
 
 * Added CBUF Librato Encoder.
 
+* Added option to disable re-using TCP connections to the ElasticSearch output
+
 0.7.2 (2014-MM-DD)
 ==================
 
