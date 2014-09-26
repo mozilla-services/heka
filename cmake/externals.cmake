@@ -164,6 +164,12 @@ if (INCLUDE_MOZSVC)
     add_dependencies(heka-mozsvc-plugins raven-go)
 endif()
 
+if (INCLUDE_DOCKER_INPUT)
+    add_external_plugin(git https://github.com/carlanton/heka-docker 6f09ff193c2b326e6368c80911cb5c05afac12ba)
+    git_clone(https://github.com/fsouza/go-dockerclient 0236a64c6c4bd563ec277ba00e370cc753e1677c)
+    add_dependencies(heka-docker go-dockerclient)
+endif()
+
 if (INCLUDE_DOCUMENTATION)
     git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
 

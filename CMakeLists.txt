@@ -39,6 +39,7 @@ set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
+option(INCLUDE_DOCKER_INPUT "Inlcude Docker input plugin" on)
 
 find_path(INCLUDE_GEOIP GeoIP.h /usr/local/include /usr/include /opt/local/include)
 if (NOT INCLUDE_GEOIP)
