@@ -107,7 +107,7 @@ func (d *DiagnosticTracker) Run() {
 	)
 	g := d.globals
 	idleMax := g.MaxPackIdle
-	idleMaxSecs := idleMax / 1e9
+	idleMaxSecs := int(idleMax.Seconds())
 	probablePacks := make([]*PipelinePack, 0, len(d.packs))
 	ticker := time.NewTicker(time.Duration(30) * time.Second)
 	for {
