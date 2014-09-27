@@ -7,6 +7,9 @@ Inputs
 .. _config_amqp_input:
 .. include:: /config/inputs/amqp.rst
 
+.. _config_docker_log_input:
+.. include:: /config/inputs/docker_log.rst
+
 .. _config_file_polling_input:
 .. include:: /config/inputs/file_polling.rst
 
