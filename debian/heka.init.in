@@ -14,10 +14,10 @@ DESC=hekad
 NAME=hekad
 DAEMON=/usr/bin/$NAME
 DAEMON_USER=heka
-DAEMON_ARGS="-config=/etc/hekad.toml"
+DAEMON_ARGS="-config=/etc/heka/conf.d/"
 PIDFILE=/var/run/$NAME.pid
 LOGFILE=/var/log/$NAME.log
-SCRIPTNAME=/etc/init.d/$NAME
+SCRIPTNAME=/etc/init.d/heka
 
 # Exit if the package is not installed
 [ -x "$DAEMON" ] || exit 0
@@ -47,8 +47,8 @@ do_start()
 		log_daemon_msg "$desc is already running (PID `cat ${PIDFILE}`)"
 		return 1
 	fi
-	start-stop-daemon --start --quiet --chuid $DAEMON_USER --make-pidfile --background --pidfile $PIDFILE --exec $DAEMON -- \
-		$DAEMON_ARGS \
+	start-stop-daemon --start --quiet --chuid $DAEMON_USER --make-pidfile --background  --pidfile $PIDFILE \
+        --no-close --exec $DAEMON -- $DAEMON_ARGS >> $LOGFILE 2>&1 \
 		|| return 2
 	# Add code here, if necessary, that waits for the process to be ready
 	# to handle requests from services started subsequently which depend
@@ -142,7 +142,6 @@ case "$1" in
 	esac
 	;;
   *)
-	#echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
 	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
 	exit 3
 	;;

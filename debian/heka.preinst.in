@@ -34,3 +34,5 @@ fi
 set -e
 
 install -d -m0755 -o$USER -g$GROUP /var/cache/hekad
+
+#DEBHELPER#
