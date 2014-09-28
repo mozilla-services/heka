@@ -10,13 +10,14 @@ set(CPACK_PACKAGE_VERSION_MINOR 8)
 set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
-set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
+set(CPACK_PACKAGE_CONTACT "Heka <heka@mozilla.org>")
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
     /usr
     /usr/bin
     /usr/share
     /usr/share/man
 )
+set(CPACK_PACKAGE_NAME ${CMAKE_PROJECT_NAME})
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -76,6 +77,7 @@ elseif(UNIX)
     set(LDFLAGS "-ldflags=\"-s\"")
 
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
+    find_program(DEBHELPER dh_prep)
 
     find_program(RPMBUILD_EXECUTABLE rpmbuild PATH_SUFFIXES bin)
     if (RPMBUILD_EXECUTABLE)
@@ -85,7 +87,6 @@ elseif(UNIX)
 endif()
 
 include(CTest)
-include(CPack)
 include(externals)
 include(mocks)
 
@@ -167,13 +168,13 @@ if (MINGW AND INCLUDE_SANDBOX)
     set(LUASANDBOX_DLL_PATH "${PROJECT_PATH}/lib/libluasandbox.dll")
     install(FILES ${LUA_DLL_PATH} ${LPEG_DLL_PATH} ${CJSON_DLL_PATH} ${LUASANDBOX_DLL_PATH} DESTINATION bin)
     add_custom_command(TARGET heka_source POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
-    COMMENT "Install dll's for the mock generation and unit tests")
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
+        COMMENT "Install dll's for the mock generation and unit tests")
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
@@ -216,21 +217,35 @@ add_custom_target(sbmgrload ALL
 ${GO_EXECUTABLE} install ${LDFLAGS} github.com/mozilla-services/heka/cmd/heka-sbmgrload
 DEPENDS hekad)
 
-if (UNIX AND DPKG_EXECUTABLE)
-    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
-    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.14)")
+## DEBIAN SPECIFIC THINGS HERE
+set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_SOURCE_DIR}/CPackConfig.cmake")
+if (UNIX AND DPKG_EXECUTABLE AND DEBHELPER)
     get_filename_component(CMAKE_BIN_DIR ${CMAKE_COMMAND} PATH)
     set(CPACK_COMMAND ${CMAKE_BIN_DIR}/cpack)
 
+    execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
+        OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(CPACK_DEBIAN_BUILD_DEPENDS debhelper cmake mercurial git golang sphinx-common libgeoip-dev)
+    set(CPACK_DEBIAN_PACKAGE_SOURCE_COPY git clone)
+    set(CPACK_DEBIAN_PACKAGE_REMOVE_SOURCE_FILES .git build.bat)
+    set(CPACK_DEBIAN_DISTRIBUTION_NAME debian)
+    set(CPACK_DEBIAN_DISTRIBUTION_RELEASES devel)
+
     add_custom_target(deb
-    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-    COMMAND ${CPACK_COMMAND} -G DEB -D CPACK_PACKAGE_FILE_NAME="${CMAKE_PROJECT_NAME}_${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}" --config ./CPackConfig.cmake
-    DEPENDS hekad
-    COMMENT "Custom deb target")
+        COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch="$(COLOR)" --cyan "Run CPack packaging tool..."
+        COMMAND ${CPACK_COMMAND} -G DEB
+        DEPENDS hekad
+        COMMENT "Custom deb target")
+
+    add_subdirectory(debian)
 endif()
+
+# MOVING INCLUSION OF CPACK DOWN HERE SO IT ACTUALLY GETS THE VARIABLES WE SET
+include(CPack)
+if (UNIX AND DPKG_EXECUTABLE AND DEBHELPER)
+    include(DebSource)
+endif()
+
 
 add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
@@ -268,6 +283,7 @@ install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" 
 endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/conf/" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
 install(DIRECTORY "${PROJECT_PATH}/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/decoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_decoders")
