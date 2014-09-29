@@ -33,6 +33,9 @@ Config:
     'Severity', field name, or a timestamp format) with the use of '%{}'
     chars, so '%{Hostname}-stat' would create an ES record with a type of
     'some.example.com-stat'. Defaults to 'message'.
+- type_name_match_at_type (bool):
+    Should the @type field value match the type_name config setting. Defaults
+    to false. True is the standard Logstash v0 behaviour.
 - fields ([]string):
     The 'fields' parameter specifies that only specific message data should be
     indexed into ElasticSearch. Available fields to choose are "Uuid",
