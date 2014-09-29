@@ -13,6 +13,12 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+Graylog Extended Log Format Decoder
+-----------------------------------
+.. include:: ../../../sandbox/lua/decoders/graylog_extended.lua
+   :start-after: --[[
+   :end-before: --]]
+
 MySQL Slow Query Log Decoder
 ----------------------------
 .. include:: ../../../sandbox/lua/decoders/mysql_slow_query.lua
