@@ -151,7 +151,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL
-${GO_EXECUTABLE} install ${LDFLAGS} -tags=\"${TAGS}\"  github.com/mozilla-services/heka/cmd/hekad
+${GO_EXECUTABLE} install ${LDFLAGS} -tags=${TAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)
