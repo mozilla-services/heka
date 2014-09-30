@@ -13,6 +13,9 @@ Bug Handling
 
 * Protect globals.Stopping with a RWMutex.
 
+* Added support for `fields` config setting to ESLogstashV0Encoder; it was
+  already documented, but hadn't been implemented (#1096).
+
 Features
 --------
 
@@ -26,6 +29,8 @@ Features
   to specify that no output is being generated.
 
 * Added CBUF Librato Encoder.
+
+* Added option to disable re-using TCP connections to the ElasticSearch output
 
 0.7.2 (2014-MM-DD)
 ==================

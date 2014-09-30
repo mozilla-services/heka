@@ -42,6 +42,7 @@ type ElasticSearchOutput struct {
 	// Specify a timeout value in milliseconds for bulk request to complete.
 	// Default is 0 (infinite)
 	http_timeout uint32
+	http_disable_keepalives bool
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -61,6 +62,7 @@ type ElasticSearchOutputConfig struct {
 	Server string
 	// Timeout
 	HTTPTimeout uint32 `toml:"http_timeout"`
+	HTTPDisableKeepalives bool `toml:"http_disable_keepalives"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -69,6 +71,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		FlushCount:    10,
 		Server:        "http://localhost:9200",
 		HTTPTimeout:   0,
+		HTTPDisableKeepalives: false,
 	}
 }
 
@@ -79,12 +82,13 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	o.http_timeout = conf.HTTPTimeout
+	o.http_disable_keepalives = conf.HTTPDisableKeepalives
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
 			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
-				o.flushCount, o.http_timeout)
+				o.flushCount, o.http_timeout, o.http_disable_keepalives)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		default:
@@ -203,9 +207,14 @@ type HttpBulkIndexer struct {
 }
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
-	httpTimeout uint32) *HttpBulkIndexer {
+	httpTimeout uint32, httpDisableKeepalives bool) *HttpBulkIndexer {
+
+	tr := &http.Transport {
+		DisableKeepAlives: httpDisableKeepalives,
+	}
 
 	client := &http.Client{
+		Transport: tr,
 		Timeout: time.Duration(httpTimeout) * time.Millisecond,
 	}
 	return &HttpBulkIndexer{

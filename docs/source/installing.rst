@@ -37,6 +37,7 @@ Prerequisites (all systems):
 - Mercurial http://mercurial.selenic.com/downloads/
 - Protobuf 2.3 or greater (optional - only needed if message.proto is modified) http://code.google.com/p/protobuf/downloads/list
 - Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
+- An internet connection to fetch sub modules
 
 Prerequisites (Unix):
 
