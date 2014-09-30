@@ -191,7 +191,7 @@ func ESEncodersSpec(c gs.Context) {
 				"\xEF\xBF\xBD")
 			c.Expect(decoded["@uuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
 			c.Expect(decoded["@timestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
-			c.Expect(decoded["@type"], gs.Equals, "TEST")
+			c.Expect(decoded["@type"], gs.Equals, "message")
 			c.Expect(decoded["@logger"], gs.Equals, "GoSpec")
 			c.Expect(decoded["@severity"], gs.Equals, 6.0)
 			c.Expect(decoded["@message"], gs.Equals, "Test Payload")
