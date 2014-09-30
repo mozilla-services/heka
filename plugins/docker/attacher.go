@@ -1,4 +1,4 @@
-package dockerlog
+package docker
 
 // Based on Logspout (https://github.com/progrium/logspout)
 //

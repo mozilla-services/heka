@@ -1,6 +1,6 @@
-// +build dockerlog
+// +build docker-plugins
 
-package dockerlog
+package docker
 
 import (
 	"code.google.com/p/go-uuid/uuid"
