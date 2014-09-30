@@ -25,6 +25,11 @@ Config:
 - http_timeout (int):
     Time in milliseconds to wait for a response for each http post to ES. This
     may drop data as there is currently no retry. Default is 0 (no timeout).
+- http_disable_keepalives (bool):
+    Specifies whether or not re-using of established TCP connections to
+    ElasticSearch should be disabled. Defaults to false, that means using
+    both HTTP keep-alive mode and TCP keep-alives. Set it to true to close
+    each TCP connection after 'flushing' messages to ElasticSearch.
 
 Example:
 

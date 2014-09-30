@@ -14,6 +14,16 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+.. _config_graylog_extended_log_format_decoder:
+
+Graylog Extended Log Format Decoder
+===================================
+
+.. versionadded:: 0.8
+.. include:: /../../sandbox/lua/decoders/graylog_extended.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. versionadded:: 0.6
 .. _config_geoip_decoder:
 .. include:: /config/decoders/geoip_decoder.rst

@@ -9,6 +9,9 @@ Bug Handling
 
 * Protect globals.Stopping with a RWMutex.
 
+* Added support for `fields` config setting to ESLogstashV0Encoder; it was
+  already documented, but hadn't been implemented (#1096).
+
 Features
 --------
 
@@ -26,11 +29,21 @@ Features
 
 * Added CBUF Librato Encoder.
 
+* Added option to disable re-using TCP connections to the ElasticSearch output
+
 0.7.2 (2014-MM-DD)
 ==================
 
 Bug Handling
 ------------
+
+* Fail more gracefully if user doesn't specify a scheme in the server URL for
+  the ElasticSearchOutput (#1069).
+
+* Correctly compute http timeout interval for ElasticSearchOutput when using
+  HTTP indexing.
+
+* Fixed issue w/ inaccurate payload sizes in heka-flood.
 
 0.7.1 (2014-09-02)
 ==================
