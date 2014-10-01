@@ -90,7 +90,7 @@ local base_fields_list = {
 }
 
 -- Used for interpolating message fields into series name.
-local sub_func = function(key)
+local function sub_func(key)
     if base_fields_map[key] then
         return read_message(key)
     else
@@ -122,7 +122,7 @@ else
     used_base_fields = base_fields_list
 end
 
-local get_array_value = function(field, field_idx, count)
+local function get_array_value(field, field_idx, count)
     local value = {}
     for i = 1,count do
         value[i] = read_message("Fields["..field.."]",field_idx,i-1)
