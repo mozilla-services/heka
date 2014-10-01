@@ -74,5 +74,8 @@ func (pdh *PayloadDecoderHelper) DecodeSeverity(pack *PipelinePack) {
 				pack.Message.SetSeverity(int32(sevInt))
 			}
 		}
+		// Delete from the captures map so we don't try to set severity again
+		// in PopulateMessage.
+		delete(pdh.Captures, "Severity")
 	}
 }
