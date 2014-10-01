@@ -20,6 +20,7 @@ Features
 --------
 
 * Support environment variables in config files (#1023).
+
 * Add Dockerfiles and example Docker usage to repo
 
 * Encoders can now return (nil, nil) to express that they've swallowed the
@@ -27,6 +28,8 @@ Features
 
 * SandboxEncoder now supports return value of -2 from the process_message call
   to specify that no output is being generated.
+
+* Added schema_influx.lua encoder.
 
 * Added CBUF Librato Encoder.
 
