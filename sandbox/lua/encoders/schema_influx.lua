@@ -90,7 +90,7 @@ local base_fields_list = {
 }
 
 -- Used for interpolating message fields into series name.
-function sub_func(key)
+local sub_func = function(key)
     if base_fields_map[key] then
         return read_message(key)
     else
@@ -122,7 +122,7 @@ else
     used_base_fields = base_fields_list
 end
 
-function get_array_value(field, field_idx, count)
+local get_array_value = function(field, field_idx, count)
     local value = {}
     for i = 1,count do
         value[i] = read_message("Fields["..field.."]",field_idx,i-1)
@@ -131,14 +131,11 @@ function get_array_value(field, field_idx, count)
 end
 
 function process_message()
-    local ts = read_message("Timestamp")
-    ts = ts / (1e6) --Convert to milliseconds
-
     local columns = {}
     local values = {}
 
     columns[1] = "time" -- InfluxDB's default
-    values[1] = ts
+    values[1] = read_message("Timestamp") / 1e6
 
     local place = 2
     for _, field in ipairs(used_base_fields) do
