@@ -1,5 +1,20 @@
 // +build dockerplugins
 
+/***** BEGIN LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2014
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Anton Lindström (carlantonlindstrom@gmail.com)
+#   Rob Miller (rmiller@mozilla.com)
+#
+# ***** END LICENSE BLOCK *****/
+
 package docker
 
 import (
@@ -7,7 +22,7 @@ import (
 	"fmt"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/pipeline"
 	"os"
 	"time"
 )
@@ -16,40 +31,58 @@ type DockerLogInputConfig struct {
 	// A Docker endpoint
 	Endpoint string `toml:"endpoint"`
 	// Name of configured decoder to receive the input
-	Decoder string
+	Decoder string `toml:"decoder"`
 }
 
 type DockerLogInput struct {
-	client   *docker.Client
-	conf     *DockerLogInputConfig
-	stopChan chan bool
+	conf         *DockerLogInputConfig
+	stopChan     chan bool
+	closer       chan bool
+	logstream    chan *Log
+	attachErrors chan *AttachError
 }
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
-	return &DockerLogInputConfig{"unix:///var/run/docker.sock", ""}
+	return &DockerLogInputConfig{
+		Endpoint: "unix:///var/run/docker.sock",
+	}
 }
 
 func (di *DockerLogInput) Init(config interface{}) error {
 	di.conf = config.(*DockerLogInputConfig)
+	di.stopChan = make(chan bool)
+	di.closer = make(chan bool)
+	di.logstream = make(chan *Log)
+	di.attachErrors = make(chan *AttachError)
 
-	var err error
-	di.client, err = docker.NewClient(di.conf.Endpoint)
+	var e error
 
-	if err != nil {
-		return fmt.Errorf("connecting to - %s", err.Error())
+	di.client, e = docker.NewClient(di.conf.Endpoint)
+	if e != nil {
+		return fmt.Errorf("DockerLogInput: connecting to - %s", err.Error())
 	}
+
+	m, err := NewAttachManager(client, di.attachErrors)
+	if err != nil {
+		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
+	}
+	go m.Listen(di.logstream, di.closer)
 
 	return nil
 }
 
-func (di *DockerLogInput) Run(ir InputRunner, h PluginHelper) error {
+func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
 	var (
-		pack    *PipelinePack
-		dRunner DecoderRunner
-		decoder Decoder
+		pack    *pipeline.PipelinePack
+		dRunner pipeline.DecoderRunner
 		ok      bool
-		e       error
 	)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
 
@@ -58,29 +91,11 @@ func (di *DockerLogInput) Run(ir InputRunner, h PluginHelper) error {
 			fmt.Sprintf("%s-%s", ir.Name(), di.conf.Decoder)); !ok {
 			return fmt.Errorf("Decoder not found: %s", di.conf.Decoder)
 		}
-		decoder = dRunner.Decoder()
 	}
 
-	di.stopChan = make(chan bool)
-	logstream := make(chan *Log)
-	defer close(logstream)
-
-	closer := make(chan bool)
-	go NewAttachManager(di.client).Listen(nil, logstream, closer)
-
-	stopped := false
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = ""
-	}
-
-	for !stopped {
-		e = nil
+	for {
 		select {
-		case <-di.stopChan:
-			stopped = true
-		case logline := <-logstream:
+		case logline := <-di.logstream:
 			pack = <-packSupply
 
 			pack.Message.SetType("DockerLog")
@@ -92,27 +107,21 @@ func (di *DockerLogInput) Run(ir InputRunner, h PluginHelper) error {
 			message.NewStringField(pack.Message, "ContainerID", logline.ID)
 			message.NewStringField(pack.Message, "ContainerName", logline.Name)
 
-			var packs []*PipelinePack
-			if decoder == nil {
-				packs = []*PipelinePack{pack}
+			if dRunner == nil {
+				ir.Inject(pack)
 			} else {
-				packs, e = decoder.Decode(pack)
+				dRunner.InChan() <- pack
 			}
-			if packs != nil {
-				for _, p := range packs {
-					ir.Inject(p)
-				}
-			} else {
-				if e != nil {
-					ir.LogError(fmt.Errorf("Couldn't parse DockerLog message: %s", logline.Data))
-				}
-				pack.Recycle()
-			}
+
+		case attachError := <-di.attachErrors:
+			ir.LogError(fmt.Errorf("Attacher error: %s", attachError.Error))
+
+		case <-di.stopChan:
+			di.closer <- true
+			close(di.logstream)
+			return nil
 		}
 	}
-
-	closer <- true
-	return nil
 }
 
 func (di *DockerLogInput) Stop() {
@@ -120,7 +129,7 @@ func (di *DockerLogInput) Stop() {
 }
 
 func init() {
-	RegisterPlugin("DockerLogInput", func() interface{} {
+	pipeline.RegisterPlugin("DockerLogInput", func() interface{} {
 		return new(DockerLogInput)
 	})
 }

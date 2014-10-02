@@ -25,7 +25,6 @@ package docker
 import (
 	"bufio"
 	"io"
-	"log"
 	"strings"
 	"sync"
 
@@ -38,18 +37,22 @@ type AttachEvent struct {
 	Name string
 }
 
+type AttachError struct {
+	Error string
+}
+
 type Log struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Data string `json:"data"`
+	ID   string
+	Name string
+	Type string
+	Data string
 }
 
 type Source struct {
-	ID     string   `json:"id,omitempty"`
-	Name   string   `json:"name,omitempty"`
-	Filter string   `json:"filter,omitempty"`
-	Types  []string `json:"types,omitempty"`
+	ID     string
+	Name   string
+	Filter string
+	Types  []string
 }
 
 func (s *Source) All() bool {
@@ -61,35 +64,46 @@ type AttachManager struct {
 	attached map[string]*LogPump
 	channels map[chan *AttachEvent]struct{}
 	client   *docker.Client
+	errors   chan<- *AttachError
 }
 
-func NewAttachManager(client *docker.Client) *AttachManager {
+func NewAttachManager(client *docker.Client, attachErrors chan<- *AttachError) (*AttachManager, error) {
 	m := &AttachManager{
 		attached: make(map[string]*LogPump),
 		channels: make(map[chan *AttachEvent]struct{}),
 		client:   client,
+		errors:   attachErrors,
 	}
-	containers, err := client.ListContainers(docker.ListContainersOptions{})
-	assert(err, "attacher")
-	for _, listing := range containers {
-		m.attach(listing.ID[:12])
+
+	if containers, err := client.ListContainers(docker.ListContainersOptions{}); err == nil {
+		for _, listing := range containers {
+			m.attach(listing.ID[:12])
+		}
+	} else {
+		return nil, err
 	}
+
 	go func() {
 		events := make(chan *docker.APIEvents)
-		assert(client.AddEventListener(events), "attacher")
+		if err := client.AddEventListener(events); err != nil {
+			m.errors <- &AttachError{err.Error()}
+		}
 		for msg := range events {
 			if msg.Status == "start" {
 				go m.attach(msg.ID[:12])
 			}
 		}
-		log.Fatal("ruh roh") // todo: loop?
+		m.errors <- &AttachError{"Docker event channel is closed"}
 	}()
-	return m
+
+	return m, nil
 }
 
 func (m *AttachManager) attach(id string) {
 	container, err := m.client.InspectContainer(id)
-	assert(err, "attacher")
+	if err != nil {
+		m.errors <- &AttachError{err.Error()}
+	}
 	name := container.Name[1:]
 	success := make(chan struct{})
 	failure := make(chan error)
@@ -160,10 +174,8 @@ func (m *AttachManager) Get(id string) *LogPump {
 	return m.attached[id]
 }
 
-func (m *AttachManager) Listen(source *Source, logstream chan *Log, closer <-chan bool) {
-	if source == nil {
-		source = new(Source)
-	}
+func (m *AttachManager) Listen(logstream chan *Log, closer <-chan bool) {
+	source := new(Source) // todo: Make the source parameters configurable
 	events := make(chan *AttachEvent)
 	m.addListener(events)
 	defer m.removeListener(events)
@@ -174,6 +186,7 @@ func (m *AttachManager) Listen(source *Source, logstream chan *Log, closer <-cha
 				(source.ID != "" && strings.HasPrefix(event.ID, source.ID)) ||
 				(source.Name != "" && event.Name == source.Name) ||
 				(source.Filter != "" && strings.Contains(event.Name, source.Filter))) {
+
 				pump := m.Get(event.ID)
 				pump.AddListener(logstream)
 				defer func() {
@@ -243,10 +256,4 @@ func (o *LogPump) RemoveListener(ch chan *Log) {
 	o.Lock()
 	defer o.Unlock()
 	delete(o.channels, ch)
-}
-
-func assert(err error, context string) {
-	if err != nil {
-		log.Fatal(context+": ", err)
-	}
 }
