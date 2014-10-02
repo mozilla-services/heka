@@ -1,4 +1,4 @@
-// +build docker-plugins
+// +build dockerplugins
 
 package docker
 
