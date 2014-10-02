@@ -2,6 +2,8 @@
 DockerLogInput
 ==============
 
+.. versionadded:: 0.8
+
 The DockerLogInput plugin attaches to all containers running on a host and
 sends their logs messages into the Heka pipeline. The plugin is based on
 `Logspout <https://github.com/progrium/logspout>`_ by Jeff Lindsay.
