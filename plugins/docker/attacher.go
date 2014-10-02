@@ -60,7 +60,7 @@ func (s *Source) All() bool {
 }
 
 type AttachManager struct {
-	sync.Mutex
+	sync.RWMutex
 	attached map[string]*LogPump
 	channels map[chan *AttachEvent]struct{}
 	client   *docker.Client
@@ -143,8 +143,8 @@ func (m *AttachManager) attach(id string) {
 }
 
 func (m *AttachManager) send(event *AttachEvent) {
-	m.Lock()
-	defer m.Unlock()
+	m.RLock()
+	defer m.RUnlock()
 	for ch, _ := range m.channels {
 		// TODO: log err after timeout and continue
 		ch <- event
@@ -205,7 +205,7 @@ func (m *AttachManager) Listen(logstream chan *Log, closer <-chan bool) {
 }
 
 type LogPump struct {
-	sync.Mutex
+	sync.RWMutex
 	ID       string
 	Name     string
 	channels map[chan *Log]struct{}
@@ -238,8 +238,8 @@ func NewLogPump(stdout, stderr io.Reader, id, name string) *LogPump {
 }
 
 func (o *LogPump) send(log *Log) {
-	o.Lock()
-	defer o.Unlock()
+	o.RLock()
+	defer o.RUnlock()
 	for ch, _ := range o.channels {
 		// TODO: log err after timeout and continue
 		ch <- log
