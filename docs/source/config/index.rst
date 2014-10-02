@@ -60,7 +60,7 @@ likely stop accepting messages until the plugin resumes operation (this
 applies only to filters/output plugins).
 
 Plugins specify that they support restarting by implementing the Restarting
-interface (see :ref:`restarting_plugins`). Plugins supporting Restarting can
+interface (see :ref:`restarting_plugin`). Plugins supporting Restarting can
 have :ref:`their restarting behavior configured <configuring_restarting>`.
 
 An internal diagnostic runner runs every 30 seconds to sweep the packs used
@@ -137,6 +137,7 @@ Config:
     `c:\\usr\\share\\heka` on Windows).
 
 .. versionadded:: 0.6
+
 - sample_denominator (int):
     Specifies the denominator of the sample rate Heka will use when computing
     the time required to perform certain operations, such as for the
@@ -145,6 +146,7 @@ Config:
     calculated for one message out of 1000.
 
 .. versionadded:: 0.6
+
 - pid_file (string):
     Optionally specify the location of a pidfile where the process id of
     the running hekad process will be written. The hekad process must have

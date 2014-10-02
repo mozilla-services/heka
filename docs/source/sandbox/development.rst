@@ -13,7 +13,7 @@ matcher or the  JSON parser with a manual transformation.
 
 1. Procure some sample data to be used as test input.
 
-    .. code-block:: txt
+    .. code-block:: bash
 
         timestamp=time_t key1=data1 key2=data2
 

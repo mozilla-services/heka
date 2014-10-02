@@ -40,13 +40,13 @@ Schema InfluxDB Encoder
 =======================
 
 .. include:: /../../sandbox/lua/encoders/schema_influx.lua
-	:start-after: --[=[
-	:end-before: --]=]
+    :start-after: --[=[
+    :end-before: --]=]
 
 
 StatMetric InfluxDB Encoder
 ===========================
 
 .. include:: /../../sandbox/lua/encoders/es_payload.lua
-	:start-after: --[=[
-	:end-before: --]=]
+    :start-after: --[[
+    :end-before: --]]

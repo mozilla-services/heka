@@ -11,7 +11,7 @@ of Go's stdlib JSON marshalling. This is so serialization can succeed even if
 the message contains invalid UTF-8 characters, which will be encoded as
 U+FFFD.
 
-.. _esjsonencoder_settings
+.. _esjsonencoder_settings:
 
 Config:
 
@@ -57,12 +57,12 @@ Example
 
 .. code-block:: ini
 
-	[ESJsonEncoder]
-	index = "%{Type}-%{2006.01.02}"
-	es_index_from_timestamp = true
-	type_name = "%{Type}"
+    [ESJsonEncoder]
+    index = "%{Type}-%{2006.01.02}"
+    es_index_from_timestamp = true
+    type_name = "%{Type}"
 
-	[ElasticSearchOutput]
-	message_matcher = "Type == 'nginx.access'"
-	encoder = "ESJsonEncoder"
-	flush_interval = 50
+    [ElasticSearchOutput]
+    message_matcher = "Type == 'nginx.access'"
+    encoder = "ESJsonEncoder"
+    flush_interval = 50

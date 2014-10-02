@@ -36,7 +36,9 @@ Configuration Variables
     - hmac_key (string): The key the message will be signed with.
     - version (int): The version number of the hmac_key.
 - ascii_only (bool): True, if generated message payloads should only contain ASCII characters. False, if message payloads should contain arbitrary binary data. Defaults to false.
+
 .. versionadded:: 0.5
+
 - use_tls (bool): Specifies whether or not SSL/TLS encryption should be used for the TCP connections. Defaults to false.
 - tls (TlsConfig): A sub-section that specifies the settings to be used for any SSL/TLS encryption. This will only have any impact if `use_tls` is set to true. See :ref:`tls`.
 
