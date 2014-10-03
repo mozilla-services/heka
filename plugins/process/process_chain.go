@@ -28,18 +28,7 @@ import (
 // has been exceeded. A timeout duration value of 0 indicates that no timeout
 // is enforced.
 type ManagedCmd struct {
-	exec.Cmd
-
-	Path string
-	Args []string
-	// Env specifies the environment of the process. If Env is nil, Run uses
-	// the current process's environment.
-	Env []string
-
-	// Dir specifies the working directory of the command. If Dir is the empty
-	// string, the calling process's current directory will be used as the
-	// working directory.
-	Dir string
+	*exec.Cmd
 
 	done     chan error
 	Stopchan chan bool
@@ -55,12 +44,10 @@ type ManagedCmd struct {
 }
 
 func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *ManagedCmd) {
-	mc = &ManagedCmd{Path: path, Args: args, timeout_duration: timeout}
+	mc = &ManagedCmd{timeout_duration: timeout}
 	mc.done = make(chan error)
 	mc.Stopchan = make(chan bool, 1)
-	mc.Cmd = *exec.Command(mc.Path, mc.Args...)
-	mc.Cmd.Env = mc.Env
-	mc.Cmd.Dir = mc.Dir
+	mc.Cmd = exec.Command(path, args...)
 	return mc
 }
 
@@ -72,8 +59,8 @@ func (mc *ManagedCmd) Start(pipeOutput bool) (err error) {
 		mc.Stdout_r, stdout_w = io.Pipe()
 		mc.Stderr_r, stderr_w = io.Pipe()
 
-		mc.Cmd.Stdout = stdout_w
-		mc.Cmd.Stderr = stderr_w
+		mc.Stdout = stdout_w
+		mc.Stderr = stderr_w
 	}
 
 	return mc.Cmd.Start()
@@ -133,10 +120,14 @@ func (mc *ManagedCmd) kill() (err error) {
 	return fmt.Errorf("subprocess was killed: [%s %s]", mc.Path, strings.Join(mc.Args, " "))
 }
 
-// This resets a command so that we can run the command again.
-// Usually so that a chain can be restarted.
+// This resets a command so that we can run the command again. Usually so that
+// a chain can be restarted.
 func (mc *ManagedCmd) clone() (clone *ManagedCmd) {
-	clone = NewManagedCmd(mc.Path, mc.Args, mc.timeout_duration)
+	// mc.Args[0] should always be == mc.Path, so mc.Args[1:] should be safe
+	// to use here.
+	clone = NewManagedCmd(mc.Path, mc.Args[1:], mc.timeout_duration)
+	clone.Env = mc.Env
+	clone.Dir = mc.Dir
 	return clone
 }
 
@@ -257,8 +248,12 @@ func (cc *CommandChain) Wait() (err error) {
 // Usually so that a chain can be restarted.
 func (cc *CommandChain) clone() (clone *CommandChain) {
 	clone = NewCommandChain(cc.timeout_duration)
-	for _, cmd := range cc.Cmds {
-		clone.AddStep(cmd.Path, cmd.Args...)
+	for _, orig := range cc.Cmds {
+		// mc.Args[0] should always be == mc.Path, so mc.Args[1:] should be
+		// safe to use here.
+		cmd := clone.AddStep(orig.Path, orig.Args[1:]...)
+		cmd.Env = orig.Env
+		cmd.Dir = orig.Dir
 	}
 	return clone
 }
