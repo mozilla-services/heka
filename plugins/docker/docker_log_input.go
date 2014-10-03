@@ -55,10 +55,8 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan *AttachError)
 
-	var e error
-
-	di.client, e = docker.NewClient(di.conf.Endpoint)
-	if e != nil {
+	client, err := docker.NewClient(di.conf.Endpoint)
+	if err != nil {
 		return fmt.Errorf("DockerLogInput: connecting to - %s", err.Error())
 	}
 
