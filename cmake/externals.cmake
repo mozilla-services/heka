@@ -158,6 +158,10 @@ if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
 endif()
 
+if (INCLUDE_DOCKER_PLUGINS)
+    git_clone(https://github.com/fsouza/go-dockerclient 0236a64c6c4bd563ec277ba00e370cc753e1677c)
+endif()
+
 if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 91278658b5d52bd45b0b74d54e478a230c0ef0c4)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
