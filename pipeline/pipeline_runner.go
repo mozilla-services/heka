@@ -202,6 +202,8 @@ func Run(config *PipelineConfig) {
 
 	globals := config.Globals
 
+	config.router.initMatchSlices()
+
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
 		if err = output.Start(config, &outputsWg); err != nil {

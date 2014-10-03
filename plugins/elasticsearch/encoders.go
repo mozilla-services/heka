@@ -325,7 +325,8 @@ type ESLogstashV0Encoder struct {
 	rawBytesFields []string
 	coord          *ElasticSearchCoordinates
 	// Field names to include in ElasticSearch document for "clean" format.
-	fields          []string
+	fields         []string
+	useMessageType bool
 }
 
 type ESLogstashV0EncoderConfig struct {
@@ -334,6 +335,8 @@ type ESLogstashV0EncoderConfig struct {
 	Index string
 	// Name of the document type of the messages. Defaults to "message".
 	TypeName string `toml:"type_name"`
+	// Should the @type field match the index _type. Defaults to false.
+	UseMessageType bool `toml:"use_message_type"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
 	// When formating the Index use the Timestamp from the Message instead of
@@ -349,6 +352,7 @@ func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 	config := &ESLogstashV0EncoderConfig{
 		Index:                "logstash-%{2006.01.02}",
 		TypeName:             "message",
+		UseMessageType:       false,
 		ESIndexFromTimestamp: false,
 		Id:                   "",
 	}
@@ -373,6 +377,7 @@ func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 	conf := config.(*ESLogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
 	e.fields = conf.Fields
+	e.useMessageType = conf.UseMessageType
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
@@ -398,7 +403,18 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			t := time.Unix(0, m.GetTimestamp()).UTC()
 			writeStringField(first, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
 		case "type":
-			writeStringField(first, &buf, `@type`, m.GetType())
+			if e.useMessageType || len(e.coord.Type) < 1 {
+				writeStringField(first, &buf, `@type`, m.GetType())
+			} else {
+				var interpType string
+				interpType, err = interpolateFlag(e.coord, m, e.coord.Type)
+				if len(interpType) > 0 && err == nil {
+					writeStringField(first, &buf, `@type`, interpType)
+				} else {
+					// fall back on writing the uninterpolated string
+					writeStringField(first, &buf, `@type`, e.coord.Type)
+				}
+			}
 		case "logger":
 			writeStringField(first, &buf, `@logger`, m.GetLogger())
 		case "severity":

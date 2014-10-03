@@ -33,6 +33,10 @@ Config:
     'Severity', field name, or a timestamp format) with the use of '%{}'
     chars, so '%{Hostname}-stat' would create an ES record with a type of
     'some.example.com-stat'. Defaults to 'message'.
+- use_message_type (bool):
+    If false, the generated JSON's @type value will match the ES record type
+    specified in the type_name setting. If true, the message's Type value will
+    be used as the @type value instead. Defaults to false.
 - fields ([]string):
     The 'fields' parameter specifies that only specific message data should be
     indexed into ElasticSearch. Available fields to choose are "Uuid",

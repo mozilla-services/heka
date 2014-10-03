@@ -25,6 +25,12 @@ ESPayloadEncoder
    :start-after: --[[
    :end-before: --]]
 
+Schema InfluxDB Encoder
+-----------------------
+.. include:: /../../sandbox/lua/encoders/schema_influx.lua
+   :start-after: --[=[
+   :end-before: --]=]
+
 Statmetric Influx Encoder
 -------------------------
 .. include:: /../../sandbox/lua/encoders/statmetric_influx.lua

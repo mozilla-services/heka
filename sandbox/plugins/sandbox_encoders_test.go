@@ -157,4 +157,76 @@ func EncoderSpec(c gs.Context) {
 			})
 		})
 	})
+
+	c.Specify("schema influx encoder", func() {
+		encoder := new(SandboxEncoder)
+		encoder.SetPipelineConfig(pConfig)
+		conf := encoder.ConfigStruct().(*SandboxEncoderConfig)
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		pack.Message.SetType("my_type")
+		pack.Message.SetPid(12345)
+		pack.Message.SetSeverity(4)
+		pack.Message.SetHostname("hostname")
+		pack.Message.SetTimestamp(54321 * 1e9)
+		pack.Message.SetLogger("Logger")
+		pack.Message.SetPayload("Payload value lorem ipsum")
+
+		f, err := message.NewField("intField", 123, "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue(456)
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "0_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("0_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "1_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("1_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("byteField", []byte("first"), "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue([]byte("second"))
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		conf.ScriptFilename = "../lua/encoders/schema_influx.lua"
+		conf.ModuleDirectory = "../../../../../../modules"
+		conf.Config = make(map[string]interface{})
+
+		c.Specify("encodes a basic message", func() {
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `[{"points":[[54321000,"my_type","Payload value lorem ipsum","hostname",12345,"Logger",4,"",[123,456],["0_first","0_second"],["1_first","1_second"]]],"name":"series","columns":["time","Type","Payload","Hostname","Pid","Logger","Severity","EnvVersion","intField","strField","strField2"]}]`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+
+		c.Specify("interpolates series name correctly", func() {
+			conf.Config["series"] = "series.%{Pid}.%{Type}.%{strField}.%{intField}"
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `[{"points":[[54321000,"my_type","Payload value lorem ipsum","hostname",12345,"Logger",4,"",[123,456],["0_first","0_second"],["1_first","1_second"]]],"name":"series.12345.my_type.0_first.123","columns":["time","Type","Payload","Hostname","Pid","Logger","Severity","EnvVersion","intField","strField","strField2"]}]`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+
+		c.Specify("skips specified correctly", func() {
+			conf.Config["skip_fields"] = "Payload strField Type"
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `[{"points":[[54321000,"hostname",12345,"Logger",4,"",[123,456]]],"name":"series","columns":["time","Hostname","Pid","Logger","Severity","EnvVersion","intField"]}]`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+	})
 }

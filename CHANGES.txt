@@ -4,6 +4,10 @@
 Backwards Incompatibilities
 ---------------------------
 
+* ESLogstashv0 encoder will now set the @type field to match the ES record
+  type specified in the `type_name` setting. This is Logstash behaviour in
+  V0. You can revert back to the old method with `use_message_type = true`
+
 Bug Handling
 ------------
 
@@ -16,6 +20,7 @@ Features
 --------
 
 * Support environment variables in config files (#1023).
+
 * Add Dockerfiles and example Docker usage to repo
 
 * Encoders can now return (nil, nil) to express that they've swallowed the
@@ -24,13 +29,15 @@ Features
 * SandboxEncoder now supports return value of -2 from the process_message call
   to specify that no output is being generated.
 
+* Added schema_influx.lua encoder.
+
 * Added CBUF Librato Encoder.
 
 * Added option to disable re-using TCP connections to the ElasticSearch output
 
 * Added DockerLogInput. (issue #1092)
 
-0.7.2 (2014-MM-DD)
+0.7.2 (2014-10-01)
 ==================
 
 Bug Handling
@@ -43,6 +50,16 @@ Bug Handling
   HTTP indexing.
 
 * Fixed issue w/ inaccurate payload sizes in heka-flood.
+
+* Allow severity to be modified by the MessageTemplate logic for use in
+  ScribbleDecoder (#1084).
+
+* Render pack diagnostic idle time in seconds (as specified) instead of
+  nanoseconds.
+
+* Prevent orphaned matchers from remaining in the router's matcher lists in
+  cases where a filter or output registered in one TOML file overrides a
+  filter or output of the same name in an earlier TOML file.
 
 0.7.1 (2014-09-02)
 ==================
