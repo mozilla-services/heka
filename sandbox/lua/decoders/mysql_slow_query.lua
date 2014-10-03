@@ -41,7 +41,7 @@ Config:
 :Pid: 0
 :UUID: 5324dd93-47df-485b-a88e-429f0fcd57d6
 :Logger: Sync-1_5-SlowQuery
-:Payload: /* [queryName=FIND_ITEMS] */ SELECT bso.userid, bso.collection, ...
+:Payload: /\* [queryName=FIND_ITEMS] \*/ SELECT bso.userid, bso.collection, ...
 :EnvVersion:
 :Severity: 7
 :Fields:

@@ -1,6 +1,6 @@
 
 ESLogstashV0Encoder
-=================
+===================
 
 This encoder serializes a Heka message into a JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch
@@ -16,7 +16,7 @@ The JSON serialization is done by hand, without using Go's stdlib JSON
 marshalling. This is so serialization can succeed even if the message contains
 invalid UTF-8 characters, which will be encoded as U+FFFD.
 
-.. _eslogstashv0encoder_settings
+.. _eslogstashv0encoder_settings:
 
 Config:
 
@@ -64,11 +64,11 @@ Example
 
 .. code-block:: ini
 
-	[ESLogstashV0Encoder]
-	es_index_from_timestamp = true
-	type_name = "%{Type}"
+    [ESLogstashV0Encoder]
+    es_index_from_timestamp = true
+    type_name = "%{Type}"
 
-	[ElasticSearchOutput]
-	message_matcher = "Type == 'nginx.access'"
-	encoder = "ESLogstashV0Encoder"
-	flush_interval = 50
+    [ElasticSearchOutput]
+    message_matcher = "Type == 'nginx.access'"
+    encoder = "ESLogstashV0Encoder"
+    flush_interval = 50
