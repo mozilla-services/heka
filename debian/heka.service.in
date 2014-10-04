@@ -5,10 +5,13 @@ ConditionPathExists=!/etc/heka/hekad_not_to_be_run
 
 [Service]
 EnvironmentFile=-/etc/default/heka
-ExecStart=/usr/bin/hekad -config=/etc/hekad.toml
+User=heka
+Group=heka
+ExecStart=/usr/bin/hekad -config=/etc/heka/conf.d/
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 Restart=on-failure
+StandardError=inherit
 
 [Install]
 Alias=heka.service

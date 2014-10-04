@@ -1,6 +1,6 @@
 # hekad - http://hekad.readthedocs.org/en/latest/ -- The hekad daemon is the core component of the heka project
 #
-# Configure hekad in /etc/hekad.toml
+# Configure hekad in /etc/heka/conf.d/ see examples in /usr/share/heka/examples
 
 start on runlevel [2345]
 
@@ -10,4 +10,7 @@ pre-start script
   [ -d /var/run/hekad/seekjournals/ ] || mkdir -p /var/run/hekad/seekjournals/
 end script
 
-exec /usr/bin/hekad -config=/etc/hekad.toml >> /var/log/hekad.log 2>&1
+setuid heka
+setgid heka
+
+exec /usr/bin/hekad -config=/etc/heka/conf.d/ >> /var/log/hekad.log 2>&1
