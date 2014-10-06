@@ -31,7 +31,7 @@ import (
 type UdpInput struct {
 	listener      net.Conn
 	name          string
-	stopped       bool
+	stopChan      chan struct{}
 	config        *UdpInputConfig
 	parser        StreamParser
 	parseFunction NetworkParseFunction
@@ -140,38 +140,45 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("unknown parser type: %s", u.config.ParserType)
 	}
 	u.parser.SetMinimumBufferSize(1024 * 64)
+	u.stopChan = make(chan struct{})
 	return
 }
 
 func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
-	var (
-		dr DecoderRunner
-		ok bool
-	)
-	if u.config.Decoder != "" {
-		if dr, ok = h.DecoderRunner(u.config.Decoder, fmt.Sprintf("%s-%s",
-			ir.Name(), u.config.Decoder)); !ok {
+	var dr DecoderRunner
+	ok := true
 
+	if u.config.Decoder != "" {
+		decoderFullName := fmt.Sprintf("%s-%s", ir.Name(), u.config.Decoder)
+		if dr, ok = h.DecoderRunner(u.config.Decoder, decoderFullName); !ok {
 			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
 		}
 	}
 
 	var err error
-	for !u.stopped {
-		if err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers,
-			dr); err != nil {
-
-			if !strings.Contains(err.Error(), "use of closed") {
+	for ok {
+		select {
+		case _, ok = <-u.stopChan:
+			break
+		default:
+			err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, dr)
+			// "use of closed" -> we're stopping.
+			if err != nil && !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: ", err))
 			}
+			u.parser.GetRemainingData() // reset the receiving buffer
 		}
-		u.parser.GetRemainingData() // reset the receiving buffer
+	}
+	if u.config.Net == "unixgram" {
+		if err = os.Remove(u.config.Address); err != nil {
+			ir.LogError(errors.New("Error cleaning up unix datagram socket"))
+		}
 	}
 	return nil
 }
 
 func (u *UdpInput) Stop() {
-	u.stopped = true
+	close(u.stopChan)
 	u.listener.Close()
 }
 

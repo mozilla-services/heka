@@ -4,9 +4,12 @@
 Bug Handling
 ------------
 
-* Fixed issue where ProcessInput wasn't propagatin environment variables and
+* Fixed issue where ProcessInput wasn't propagating environment variables and
   working directory to repeatedly run (vs. one time, long running) processes
   (#1108).
+
+* UdpInput now removes a Unix datagram socket file at shutdown time if one is
+  created at startup.
 
 0.7.2 (2014-10-01)
 ==================
