@@ -4,7 +4,7 @@
 Bug Handling
 ------------
 
-* Fixed issue where ProcessInput wasn't propagatin environment variables and
+* Fixed issue where ProcessInput wasn't propagating environment variables and
   working directory to repeatedly run (vs. one time, long running) processes
   (#1108).
 
