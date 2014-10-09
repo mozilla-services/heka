@@ -16,6 +16,7 @@ package logstreamer
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
 	ls "github.com/mozilla-services/heka/logstreamer"
 	"github.com/mozilla-services/heka/message"
@@ -106,6 +107,10 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	// Setup the journal dir
 	if err = os.MkdirAll(conf.JournalDirectory, 0744); err != nil {
 		return err
+	}
+
+	if conf.FileMatch == "" {
+		return errors.New("`file_match` setting is required.")
 	}
 
 	if len(conf.FileMatch) > 0 && conf.FileMatch[len(conf.FileMatch)-1:] != "$" {
