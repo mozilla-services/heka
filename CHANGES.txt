@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* Fail gracefully on LogstreamerInput missing `file_match` setting (#1105).
+
 * Fixed issue where ProcessInput wasn't propagating environment variables and
   working directory to repeatedly run (vs. one time, long running) processes
   (#1108).
