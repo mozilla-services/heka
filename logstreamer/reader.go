@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -100,16 +101,22 @@ func (l *LogstreamLocation) Debug() string {
 
 // If the buffer is large enough, generate a hash value in the position
 func (l *LogstreamLocation) GenerateHash() {
-	if l.lastLine.Size() == LINEBUFFERLEN {
-		lastLine := make([]byte, LINEBUFFERLEN)
+	lastLine := make([]byte, LINEBUFFERLEN)
+	var logline string
+	rBufSize := l.lastLine.Size()
+	if rBufSize == LINEBUFFERLEN {
 		n := l.lastLine.Read(lastLine)
-		logline := string(lastLine[:n])
+		logline = string(lastLine[:n])
+	} else {
+		idx := LINEBUFFERLEN - rBufSize
+		n := l.lastLine.Read(lastLine[idx:])
+		logline = string(lastLine[:idx+n])
+	}
 
-		if logline != "" {
-			h := sha1.New()
-			io.WriteString(h, logline)
-			l.Hash = fmt.Sprintf("%x", h.Sum(nil))
-		}
+	if logline != "" {
+		h := sha1.New()
+		io.WriteString(h, logline)
+		l.Hash = fmt.Sprintf("%x", h.Sum(nil))
 	}
 }
 
@@ -123,12 +130,6 @@ func (l *LogstreamLocation) Reset() {
 func (l *LogstreamLocation) Save() error {
 	// If we don't have a JournalPath, ignore
 	if l.JournalPath == "" {
-		return nil
-	}
-
-	// Don't save if we had a prior has and haven't read more than
-	// LINEBUFFERLEN bytes into the file
-	if l.lastLine.Size() < LINEBUFFERLEN {
 		return nil
 	}
 
@@ -264,23 +265,37 @@ func (l *Logstream) FileHashMismatch() bool {
 		if err != nil {
 			return false
 		}
-		garbage := make([]byte, seekPos)
-		n, err := reader.Read(garbage)
-		if err != nil || int64(n) != seekPos {
-			return false
+		if seekPos > 0 {
+			garbage := make([]byte, seekPos)
+			n, err := reader.Read(garbage)
+			if err != nil || int64(n) != seekPos {
+				return false
+			}
 		}
 	} else {
 		reader = fd
-		_, err = fd.Seek(l.position.SeekPosition-int64(LINEBUFFERLEN), 0)
-		if err != nil {
-			return false
+		if seekPos > 0 {
+			_, err = fd.Seek(seekPos, 0)
+			if err != nil {
+				return false
+			}
 		}
 	}
 
 	// Check if the last line corresponds to the current hash.
 	buf := make([]byte, LINEBUFFERLEN)
-	n, err := reader.Read(buf)
-	if err == nil && n == LINEBUFFERLEN {
+	var (
+		n         int
+		expectedN int64
+	)
+	if seekPos >= 0 {
+		n, err = reader.Read(buf)
+		expectedN = int64(LINEBUFFERLEN)
+	} else {
+		n, err = reader.Read(buf[-seekPos:])
+		expectedN = l.position.SeekPosition
+	}
+	if err == nil && int64(n) == expectedN {
 		h := sha1.New()
 		h.Write(buf)
 		tmp := fmt.Sprintf("%x", h.Sum(nil))
@@ -366,16 +381,19 @@ func isGzipFile(path string) bool {
 }
 
 // Seek into a file, return an error if a match wasn't found
-func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, reader io.Reader, err error) {
-	if fd, err = os.Open(path); err != nil {
-		return
+func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, error) {
+	fd, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	var reader io.Reader
 
 	// Try to get to our seek position, if our seek is 0, then start at the
 	// beginning
 	if position.SeekPosition == 0 {
 		reader, err = createFileReader(path, fd)
-		return
+		return fd, reader, err
 	}
 
 	seekPos := position.SeekPosition - int64(LINEBUFFERLEN)
@@ -385,30 +403,43 @@ func SeekInFile(path string, position *LogstreamLocation) (fd *os.File, reader i
 		if err != nil {
 			return nil, nil, err
 		}
-		garbage := make([]byte, seekPos)
-		n, err := reader.Read(garbage)
-		if err != nil {
-			return nil, nil, err
-		}
-		if int64(n) != seekPos {
-			return nil, nil, errors.New("Couldn't read gzip to seek position")
+		if seekPos > 0 {
+			garbage := make([]byte, seekPos)
+			n, err := reader.Read(garbage)
+			if err != nil {
+				return nil, nil, err
+			}
+			if int64(n) != seekPos {
+				return nil, nil, errors.New("Couldn't read gzip to seek position")
+			}
 		}
 
 	} else {
 		reader = fd
-		_, err = fd.Seek(seekPos, 0)
-		if err != nil {
-			return nil, nil, err
+		if seekPos > 0 {
+			_, err = fd.Seek(seekPos, 0)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
 	// We should be at the beginning of the last line read the last
 	// time Heka ran.
 	buf := make([]byte, LINEBUFFERLEN)
-	var n int
-	n, err = reader.Read(buf)
+	var (
+		n         int
+		expectedN int64
+	)
+	if seekPos >= 0 {
+		n, err = reader.Read(buf)
+		expectedN = int64(LINEBUFFERLEN)
+	} else {
+		n, err = reader.Read(buf[-seekPos:])
+		expectedN = position.SeekPosition
+	}
 
-	if err == nil && n == LINEBUFFERLEN {
+	if err == nil && int64(n) == expectedN {
 		h := sha1.New()
 		h.Write(buf)
 		tmp := fmt.Sprintf("%x", h.Sum(nil))
