@@ -32,10 +32,10 @@ func ProcessInputSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	config := NewPipelineConfig(nil)
+	pConfig := NewPipelineConfig(nil)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
@@ -63,11 +63,12 @@ func ProcessInputSpec(c gs.Context) {
 		config := pInput.ConfigStruct().(*ProcessInputConfig)
 		config.Command = make(map[string]cmdConfig)
 
-		pConfig := NewPipelineConfig(nil)
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 		tickChan := make(chan time.Time)
 		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+		errChan := make(chan error)
 
 		c.Specify("reads a message from ProcessInput", func() {
 
@@ -77,12 +78,15 @@ func ProcessInputSpec(c gs.Context) {
 			config.Delimiter = "|"
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmdConfig{Bin: PROCESSINPUT_TEST1_CMD, Args: PROCESSINPUT_TEST1_CMD_ARGS}
+			config.Command["0"] = cmdConfig{
+				Bin:  PROCESSINPUT_TEST1_CMD,
+				Args: PROCESSINPUT_TEST1_CMD_ARGS,
+			}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
 			go func() {
-				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			tickChan <- time.Now()
 
@@ -105,6 +109,8 @@ func ProcessInputSpec(c gs.Context) {
 			}
 
 			pInput.Stop()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("handles bad arguments", func() {
@@ -126,7 +132,7 @@ func ProcessInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().LogError(expected_err)
 
 			go func() {
-				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			tickChan <- time.Now()
 
@@ -135,6 +141,8 @@ func ProcessInputSpec(c gs.Context) {
 			runtime.Gosched()
 
 			pInput.Stop()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 
 		c.Specify("can pipe multiple commands together", func() {
@@ -146,13 +154,19 @@ func ProcessInputSpec(c gs.Context) {
 			config.Delimiter = " "
 
 			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmdConfig{Bin: PROCESSINPUT_PIPE_CMD1, Args: PROCESSINPUT_PIPE_CMD1_ARGS}
-			config.Command["1"] = cmdConfig{Bin: PROCESSINPUT_PIPE_CMD2, Args: PROCESSINPUT_PIPE_CMD2_ARGS}
+			config.Command["0"] = cmdConfig{
+				Bin:  PROCESSINPUT_PIPE_CMD1,
+				Args: PROCESSINPUT_PIPE_CMD1_ARGS,
+			}
+			config.Command["1"] = cmdConfig{
+				Bin:  PROCESSINPUT_PIPE_CMD2,
+				Args: PROCESSINPUT_PIPE_CMD2_ARGS,
+			}
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
 			go func() {
-				pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			tickChan <- time.Now()
 
@@ -183,6 +197,8 @@ func ProcessInputSpec(c gs.Context) {
 			}
 
 			pInput.Stop()
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 
 	})

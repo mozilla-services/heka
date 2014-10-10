@@ -272,23 +272,23 @@ func (pi *ProcessInput) SetName(name string) {
 }
 
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
-	var (
-		pack                *PipelinePack
-		dRunner             DecoderRunner
-		ok                  bool
-		router_shortcircuit bool
-	)
-
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
 	pConfig := h.PipelineConfig()
 
-	// Try to get the configured decoder.
+	var (
+		pack    *PipelinePack
+		dRunner DecoderRunner
+	)
+	ok := true
 
-	if pi.decoderName == "" {
-		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(pi.decoderName, fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)); !ok {
-		return fmt.Errorf("Decoder not found: %s", pi.decoderName)
+	// Try to get the configured decoder.
+	hasDecoder := pi.decoderName != ""
+	if hasDecoder {
+		decoderFullName := fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)
+		if dRunner, ok = h.DecoderRunner(pi.decoderName, decoderFullName); !ok {
+			return fmt.Errorf("Decoder not found: %s", pi.decoderName)
+		}
 	}
 
 	// Start the output parser and start running commands.
@@ -296,30 +296,28 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	packSupply := ir.InChan()
 	// Wait for and route populated PipelinePacks.
-	for {
+	for ok {
 		select {
 		case data := <-pi.stdoutChan:
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stdout")
 
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
+			if hasDecoder {
 				dRunner.InChan() <- pack
+			} else {
+				pConfig.Router().InChan() <- pack
 			}
-
 		case data := <-pi.stderrChan:
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stderr")
 
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
+			if hasDecoder {
 				dRunner.InChan() <- pack
+			} else {
+				pConfig.Router().InChan() <- pack
 			}
-
 		case <-pi.stopChan:
-			return nil
+			ok = false
 		}
 	}
 
