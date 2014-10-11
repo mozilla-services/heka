@@ -100,7 +100,7 @@ Heka specific functions that are exposed to the Lua sandbox
     .. versionadded:: 0.5
 
     Decoders only. Mutates specified field value on the message that is being
-    deocded.
+    decoded.
 
     *Arguments*
         - variableName (string)
