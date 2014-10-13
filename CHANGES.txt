@@ -16,6 +16,8 @@ Bug Handling
 * Added support for `fields` config setting to ESLogstashV0Encoder; it was
   already documented, but hadn't been implemented (#1096).
 
+* Fixed deadlock race condition in AMQPOutput shutdown sequence (#824).
+
 Features
 --------
 
