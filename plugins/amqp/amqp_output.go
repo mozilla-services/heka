@@ -147,9 +147,17 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		persist = uint8(0)
 	}
 
+	// Spin up separate goroutine so we can wait for close notifications from
+	// the AMQP lib w/o deadlocking on our `AMQPChannel.Publish` call.
+	stopChan := make(chan struct{})
+	go func() {
+		<-ao.closeChan
+		close(stopChan)
+	}()
+
 	for ok {
 		select {
-		case <-ao.closeChan:
+		case <-stopChan:
 			ok = false
 		case pack, ok = <-inChan:
 			if !ok {
@@ -181,6 +189,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	ao.usageWg.Done()
 	ao.amqpHub.Close(conf.URL, ao.connWg)
 	ao.connWg.Wait()
+	<-stopChan
 	return
 }
 
