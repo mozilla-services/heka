@@ -99,7 +99,10 @@ func (l *LogstreamLocation) Debug() string {
 	)
 }
 
-// If the buffer is large enough, generate a hash value in the position
+// GenerateHash generates a hash value from the contents of the ringbuffer.
+// Uses the entire buffer if it is full. If we haven't advanced far enough in
+// the file to fill the ring buffer, we prepend 0 bytes to pad out to the
+// intended buffer length (500 bytes) before hashing.
 func (l *LogstreamLocation) GenerateHash() {
 	lastLine := make([]byte, LINEBUFFERLEN)
 	var logline string
