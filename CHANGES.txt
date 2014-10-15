@@ -21,6 +21,10 @@ Bug Handling
 Features
 --------
 
+* LogstreamerInput now supports seekjournal file hashing for files that are
+  less than 500 bytes in length; hash is generated against file contents with
+  0 bytes prepended to make 500 bytes of hash content (#972).
+
 * Support environment variables in config files (#1023).
 
 * Add Dockerfiles and example Docker usage to repo

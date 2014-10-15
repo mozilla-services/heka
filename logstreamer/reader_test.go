@@ -4,17 +4,19 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package logstreamer
 
 import (
+	"github.com/mozilla-services/heka/ringbuf"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
@@ -173,6 +175,21 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(l.SeekPosition, gs.Equals, int64(1174))
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "le.bundle'")
+	})
 
+	c.Specify("Short files are hashed correctly", func() {
+		l := new(LogstreamLocation)
+		l.lastLine = ringbuf.New(LINEBUFFERLEN)
+		l.Filename = filepath.Join(here, "testdir", "shortlog", "short.log")
+		f, err := os.Open(l.Filename)
+		c.Assume(err, gs.IsNil)
+		b := make([]byte, LINEBUFFERLEN)
+		n, err := f.Read(b)
+		c.Assume(err, gs.IsNil)
+		l.lastLine.Write(b[:n])
+		l.GenerateHash()
+		// This is the hash for the contents of the `short.log` file,
+		// prepended by 0 bytes to fill out a length of 500.
+		c.Expect(l.Hash, gs.Equals, "4a9ab34da77c10e87cb6566bbf061d9715985551")
 	})
 }
