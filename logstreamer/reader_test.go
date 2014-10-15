@@ -175,7 +175,6 @@ func ReaderSpec(c gs.Context) {
 		c.Expect(l.SeekPosition, gs.Equals, int64(1174))
 		b = b[:n]
 		c.Expect((string(b[len(b)-10:])), gs.Equals, "le.bundle'")
-
 	})
 
 	c.Specify("Short files are hashed correctly", func() {

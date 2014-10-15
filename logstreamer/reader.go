@@ -237,76 +237,26 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 	return
 }
 
-// Determine if the file hash is a mismatch to whats in the file at the moment.
-// Only returns true if there is a mismatch.
-// Rationale:
-// This function is intended to return true in all cases except the case where
-// we are 100% certain that the filename at this location is *not* the one we
-// think it is. Thus the 'return true' on attempting to open the file if it fails
-// which could merely indicate some permissions got mangled but is not enough
-// to declare with certainty that the filename at this location is no longer what
-// we think it is. Note that when starting a logstream, the hash is verified
-// separately rather than calling this function (due to issues of fd movement).
+// FileHashMismatch uses the file path, seek location, and hash stored in the
+// Logstream's `position` attribute. It checks to see if the hash matches the
+// contents of the stored file path at the specified position. It returns true
+// if and only if it can be *concretely* shown that the stored hash in fact
+// does *not* match the contents of the file. If there is a match, or if for
+// any reason we can't determine if there is a match, then FileHashMismatch
+// will return false.
 func (l *Logstream) FileHashMismatch() bool {
 	// We always match our hash if we have no hash
 	if l.position.Hash == "" {
 		return false
 	}
 
-	fd, err := os.Open(l.position.Filename)
-	if err != nil {
-		return false
+	fd, _, err := SeekInFile(l.position.Filename, l.position)
+	if err == ErrorCantSeekPosition {
+		return true
+	} else if err == nil {
+		fd.Close()
 	}
-	defer fd.Close()
-
-	// Try to seek (or read, if the file is gzipped) to the last line but one.
-	var reader io.Reader
-	seekPos := l.position.SeekPosition - int64(LINEBUFFERLEN)
-
-	if isGzipFile(l.position.Filename) {
-		reader, err = gzip.NewReader(fd)
-		if err != nil {
-			return false
-		}
-		if seekPos > 0 {
-			garbage := make([]byte, seekPos)
-			n, err := reader.Read(garbage)
-			if err != nil || int64(n) != seekPos {
-				return false
-			}
-		}
-	} else {
-		reader = fd
-		if seekPos > 0 {
-			_, err = fd.Seek(seekPos, 0)
-			if err != nil {
-				return false
-			}
-		}
-	}
-
-	// Check if the last line corresponds to the current hash.
-	buf := make([]byte, LINEBUFFERLEN)
-	var (
-		n         int
-		expectedN int64
-	)
-	if seekPos >= 0 {
-		n, err = reader.Read(buf)
-		expectedN = int64(LINEBUFFERLEN)
-	} else {
-		n, err = reader.Read(buf[-seekPos:])
-		expectedN = l.position.SeekPosition
-	}
-	if err == nil && int64(n) == expectedN {
-		h := sha1.New()
-		h.Write(buf)
-		tmp := fmt.Sprintf("%x", h.Sum(nil))
-		if tmp == l.position.Hash {
-			return false
-		}
-	}
-	return true
+	return false
 }
 
 // Locate and return a file handle seeked to the appropriate location. An error will be
@@ -383,7 +333,19 @@ func isGzipFile(path string) bool {
 	return strings.HasSuffix(path, ".gz")
 }
 
-// Seek into a file, return an error if a match wasn't found
+var ErrorCantSeekPosition = errors.New("Unable to locate position")
+var ErrorCantGzipToPosition = errors.New("Couldn't read gzip to seek position")
+
+// SeekInFile opens the file at the given path, seeks to the location
+// specified in the given position, hashes the contents of the file at that
+// position, and compares that to the hash value stored in the position
+// argument. If the hashes match, or if the seek position is the beginning of
+// the file so there's no hash to compare, then it will return the open file
+// descriptor and related io.Reader. If they do not, or anything goes wrong
+// along the way, then an error will be returned. Note that the fd and the
+// io.Reader will be the same except in cases where the file was gzipped, in
+// which case the io.Reader will be the gzip reader and not the raw file
+// descriptor.
 func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, error) {
 	fd, err := os.Open(path)
 	if err != nil {
@@ -393,7 +355,7 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 	var reader io.Reader
 
 	// Try to get to our seek position, if our seek is 0, then start at the
-	// beginning
+	// beginning.
 	if position.SeekPosition == 0 {
 		reader, err = createFileReader(path, fd)
 		return fd, reader, err
@@ -413,10 +375,9 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 				return nil, nil, err
 			}
 			if int64(n) != seekPos {
-				return nil, nil, errors.New("Couldn't read gzip to seek position")
+				return nil, nil, ErrorCantGzipToPosition
 			}
 		}
-
 	} else {
 		reader = fd
 		if seekPos > 0 {
@@ -427,8 +388,11 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 		}
 	}
 
-	// We should be at the beginning of the last line read the last
-	// time Heka ran.
+	// At this point we have seeked into the file to the beginning of the
+	// content used to generate the hash last time Heka ran. Now we copy that
+	// data into a byte slice (prepending zero bytes if necessary) and
+	// recalculate the hash to see if we're in fact looking at the same
+	// content.
 	buf := make([]byte, LINEBUFFERLEN)
 	var (
 		n         int
@@ -441,7 +405,6 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 		n, err = reader.Read(buf[-seekPos:])
 		expectedN = position.SeekPosition
 	}
-
 	if err == nil && int64(n) == expectedN {
 		h := sha1.New()
 		h.Write(buf)
@@ -451,8 +414,7 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 			return fd, reader, nil
 		}
 	}
-
-	return nil, nil, errors.New("Unable to locate position")
+	return nil, nil, ErrorCantSeekPosition
 }
 
 // TODO:: Refactor into a different heka package for use by all plugins
