@@ -4,7 +4,7 @@ ProcessInput
 Executes one or more external programs on an interval, creating messages from
 the output.  Supports a chain of commands, where stdout from each process will
 be piped into the stdin for the next process in the chain. In the event the
-program returns a non-zero exit code, ProcessInput will logging that an error
+program returns a non-zero exit code, ProcessInput will log that an error
 occurred.
 
 Config:
