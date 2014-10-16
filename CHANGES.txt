@@ -15,6 +15,8 @@ Bug Handling
 
 * Fixed issue with keeping previous EOF state in LogStreamer (#1119).
 
+* ProcessInput now honors documented restart behavior (#1117).
+
 0.7.2 (2014-10-01)
 ==================
 

@@ -4,8 +4,8 @@ ProcessInput
 Executes one or more external programs on an interval, creating messages from
 the output.  Supports a chain of commands, where stdout from each process will
 be piped into the stdin for the next process in the chain. In the event the
-program returns a non-zero exit code, ProcessInput will stop, logging the exit
-error.
+program returns a non-zero exit code, ProcessInput will log that an error
+occurred.
 
 Config:
 
@@ -18,7 +18,10 @@ Config:
 - ticker_interval (uint):
     The number of seconds to wait between each run of `command`.  Defaults to
     15. A ticker_interval of 0 indicates that the command is run only once,
-    useful for long running processes.
+    and should only be used for long running processes that do not exit. If
+    ticker_interval is set to 0 and the process exits, then the ProcessInput
+    will exit, invoking the restart behavior (see
+    :ref:`configuring_restarting`).
 - stdout (bool):
     If true, for each run of the process chain a message will be generated
     with the last command in the chain's stdout as the payload. Defaults to
