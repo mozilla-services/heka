@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -175,6 +176,8 @@ type ProcessInput struct {
 	tickInterval uint
 
 	trim bool
+
+	once sync.Once
 }
 
 // ConfigStruct implements the HasConfigStruct interface and sets
@@ -279,6 +282,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	var (
 		pack    *PipelinePack
 		dRunner DecoderRunner
+		data    string
 	)
 	ok := true
 
@@ -298,7 +302,10 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// Wait for and route populated PipelinePacks.
 	for ok {
 		select {
-		case data := <-pi.stdoutChan:
+		case data, ok = <-pi.stdoutChan:
+			if !ok {
+				break
+			}
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stdout")
 
@@ -307,7 +314,7 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 			} else {
 				pConfig.Router().InChan() <- pack
 			}
-		case data := <-pi.stderrChan:
+		case data = <-pi.stderrChan:
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stderr")
 
@@ -343,7 +350,9 @@ func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name
 
 func (pi *ProcessInput) Stop() {
 	// This will shutdown the ProcessInput::RunCmd goroutine
-	close(pi.stopChan)
+	pi.once.Do(func() {
+		close(pi.stopChan)
+	})
 }
 
 // RunCmd pipes multiple commands together, runs them per the configured
@@ -352,6 +361,7 @@ func (pi *ProcessInput) RunCmd() {
 	var err error
 	if pi.tickInterval == 0 {
 		pi.runOnce()
+		close(pi.stdoutChan)
 	} else {
 		tickChan := pi.ir.Ticker()
 		for {
