@@ -264,8 +264,8 @@ Example:
     message_matcher = 'Logger == "TestWebserver"'
 
     [AMQPOutput.retries]
-    max_delay = 30s
-    delay = 250ms
+    max_delay = "30s"
+    delay = "250ms"
     max_retries = 5
 
 .. end-restarting
