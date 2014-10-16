@@ -61,7 +61,7 @@ cmd_config structure:
     The full path to the binary that will be executed.
 - args ([]string):
     Command line arguments to pass into the executable.
-- environment ([]string):
+- env ([]string):
     Used to set environment variables before `command` is run. Default is nil,
     which uses the heka process's environment.
 - directory (string):
