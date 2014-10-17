@@ -78,6 +78,9 @@ Backwards Incompatibilities
 * Updated the AMQP input / output configuration values to use underscore
   delimited words for long config options (issue #953).
 
+* LogstreamerInput now errors on nonexistent `log_directory` instead of
+  creating the folder (issue #1066).
+
 Bug Handling
 ------------
 
