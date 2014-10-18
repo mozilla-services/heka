@@ -27,6 +27,11 @@ import (
 	"time"
 )
 
+const (
+	// How often to ping the Docker API
+	PING_SLEEP = 1000 // ms
+)
+
 type DockerLogInputConfig struct {
 	// A Docker endpoint
 	Endpoint string `toml:"endpoint"`
@@ -36,10 +41,11 @@ type DockerLogInputConfig struct {
 
 type DockerLogInput struct {
 	conf         *DockerLogInputConfig
-	stopChan     chan bool
+	stopChan     chan error
 	closer       chan bool
 	logstream    chan *Log
 	attachErrors chan error
+	pingTicker   *time.Ticker
 }
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
@@ -50,7 +56,7 @@ func (di *DockerLogInput) ConfigStruct() interface{} {
 
 func (di *DockerLogInput) Init(config interface{}) error {
 	di.conf = config.(*DockerLogInputConfig)
-	di.stopChan = make(chan bool)
+	di.stopChan = make(chan error)
 	di.closer = make(chan bool)
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan error)
@@ -65,6 +71,9 @@ func (di *DockerLogInput) Init(config interface{}) error {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
 	go m.Listen(di.logstream, di.closer)
+
+	di.pingTicker = time.NewTicker(PING_SLEEP * time.Millisecond)
+	go m.ClientPinger(di.stopChan, di.pingTicker)
 
 	return nil
 }
@@ -114,12 +123,17 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 		case attachError := <-di.attachErrors:
 			ir.LogError(fmt.Errorf("Attacher error: %s", attachError))
 
-		case <-di.stopChan:
+		case err := <-di.stopChan:
+			di.pingTicker.Stop()
 			di.closer <- true
 			close(di.logstream)
-			return nil
+			return err
 		}
 	}
+}
+
+func (di *DockerLogInput) CleanupForRestart() {
+	// Intentially left empty. Cleanup happens in Run()
 }
 
 func (di *DockerLogInput) Stop() {

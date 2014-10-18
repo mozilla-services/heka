@@ -28,6 +28,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsouza/go-dockerclient"
 )
@@ -72,6 +73,7 @@ func NewAttachManager(client *docker.Client, attachErrors chan<- error) (*Attach
 		errors:   attachErrors,
 	}
 
+	// Attach to all currently running containers
 	if containers, err := client.ListContainers(docker.ListContainersOptions{}); err == nil {
 		for _, listing := range containers {
 			m.attach(listing.ID[:12])
@@ -171,11 +173,24 @@ func (m *AttachManager) Get(id string) *LogPump {
 	return m.attached[id]
 }
 
+func (m *AttachManager) ClientPinger(stopChan chan<- error, t *time.Ticker) {
+	for _ = range t.C {
+		if len(m.attached) > 0 {
+			continue
+		}
+
+		if err := m.client.Ping(); err != nil {
+			stopChan <- err
+		}
+	}
+}
+
 func (m *AttachManager) Listen(logstream chan *Log, closer <-chan bool) {
-	source := new(Source) // todo: Make the source parameters configurable
+	source := new(Source) // TODO: Make the source parameters configurable
 	events := make(chan *AttachEvent)
 	m.addListener(events)
 	defer m.removeListener(events)
+
 	for {
 		select {
 		case event := <-events:
