@@ -39,7 +39,7 @@ type DockerLogInput struct {
 	stopChan     chan bool
 	closer       chan bool
 	logstream    chan *Log
-	attachErrors chan *AttachError
+	attachErrors chan error
 }
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
@@ -53,7 +53,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.stopChan = make(chan bool)
 	di.closer = make(chan bool)
 	di.logstream = make(chan *Log)
-	di.attachErrors = make(chan *AttachError)
+	di.attachErrors = make(chan error)
 
 	client, err := docker.NewClient(di.conf.Endpoint)
 	if err != nil {
@@ -112,7 +112,7 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 			}
 
 		case attachError := <-di.attachErrors:
-			ir.LogError(fmt.Errorf("Attacher error: %s", attachError.Error))
+			ir.LogError(fmt.Errorf("Attacher error: %s", attachError))
 
 		case <-di.stopChan:
 			di.closer <- true

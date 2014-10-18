@@ -24,6 +24,7 @@ package docker
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -35,10 +36,6 @@ type AttachEvent struct {
 	Type string
 	ID   string
 	Name string
-}
-
-type AttachError struct {
-	Error string
 }
 
 type Log struct {
@@ -64,10 +61,10 @@ type AttachManager struct {
 	attached map[string]*LogPump
 	channels map[chan *AttachEvent]struct{}
 	client   *docker.Client
-	errors   chan<- *AttachError
+	errors   chan<- error
 }
 
-func NewAttachManager(client *docker.Client, attachErrors chan<- *AttachError) (*AttachManager, error) {
+func NewAttachManager(client *docker.Client, attachErrors chan<- error) (*AttachManager, error) {
 	m := &AttachManager{
 		attached: make(map[string]*LogPump),
 		channels: make(map[chan *AttachEvent]struct{}),
@@ -86,14 +83,14 @@ func NewAttachManager(client *docker.Client, attachErrors chan<- *AttachError) (
 	go func() {
 		events := make(chan *docker.APIEvents)
 		if err := client.AddEventListener(events); err != nil {
-			m.errors <- &AttachError{err.Error()}
+			m.errors <- err
 		}
 		for msg := range events {
 			if msg.Status == "start" {
 				go m.attach(msg.ID[:12])
 			}
 		}
-		m.errors <- &AttachError{"Docker event channel is closed"}
+		m.errors <- fmt.Errorf("Docker event channel is closed")
 	}()
 
 	return m, nil
@@ -102,7 +99,7 @@ func NewAttachManager(client *docker.Client, attachErrors chan<- *AttachError) (
 func (m *AttachManager) attach(id string) {
 	container, err := m.client.InspectContainer(id)
 	if err != nil {
-		m.errors <- &AttachError{err.Error()}
+		m.errors <- err
 	}
 	name := container.Name[1:]
 	success := make(chan struct{})
