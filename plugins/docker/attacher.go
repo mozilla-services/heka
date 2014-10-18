@@ -61,11 +61,11 @@ type AttachManager struct {
 	sync.RWMutex
 	attached map[string]*LogPump
 	channels map[chan *AttachEvent]struct{}
-	client   *docker.Client
+	client   DockerClient
 	errors   chan<- error
 }
 
-func NewAttachManager(client *docker.Client, attachErrors chan<- error) (*AttachManager, error) {
+func NewAttachManager(client DockerClient, attachErrors chan<- error) (*AttachManager, error) {
 	m := &AttachManager{
 		attached: make(map[string]*LogPump),
 		channels: make(map[chan *AttachEvent]struct{}),
