@@ -41,6 +41,9 @@ Features
 
 * Added option to disable re-using TCP connections to the ElasticSearch output
 
+* Added separate env loading file and support for NUM_JOBS env var to Windows
+  build (#971).
+
 0.7.3 (2014-MM-DD)
 ==================
 
