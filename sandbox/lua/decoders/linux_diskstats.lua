@@ -26,7 +26,7 @@ Config:
 
     [DiskStatsDecoder]
     type = "SandboxDecoder"
-    filename = "lua_decoders/diskstats.lua"
+    filename = "lua_decoders/linux_diskstats.lua"
 
 *Example Heka Message*
 
