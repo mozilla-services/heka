@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<script src="/javascript/vendor/dygraph-combined.js" type="text/javascript">
+</script>
+<script type="text/javascript">
+
+var g_file = "/data/" + getQueryVariable("file", "");
+var g_sd = getQueryVariable("sd", "1");
+var g_col = getQueryVariable("col", "1");
+var g_win = getQueryVariable("win", "15");
+var g_hwin = getQueryVariable("hwin", "0");
+g_sd = parseFloat(g_sd)
+g_col = parseInt(g_col)
+g_win = parseInt(g_win)
+
+function heka_parse_cbuf(data) {
+    var start = 1;
+    var cbuf = {};
+    var lines = data.split('\n');
+    var obj = JSON.parse(lines[0]);
+    if (obj.annotations) {
+        cbuf.annotations = obj.annotations;
+        cbuf.header = JSON.parse(lines[1]);
+        start = 2;
+    } else {
+        cbuf.header = obj;
+    }
+    cbuf.data = [];
+    for (var i = start; i < lines.length; i++) {
+        var line = lines[i];
+        var inFields = line.split('\t');
+
+        var fields = [];
+        fields[0] = new Date((cbuf.header.time + (cbuf.header.seconds_per_row*(i-start)))*1000);
+        for (var j = 0; j < inFields.length; j++) {
+            fields[j+1] = parseFloat(inFields[j]);
+        }
+        cbuf.data.push(fields);
+    }
+    return cbuf;
+}
+
+function heka_load_cbuf(url, callback) {
+    var req = new XMLHttpRequest();
+    var caller = this;
+    req.onreadystatechange = function () {
+        if (req.readyState == 4) {
+            if (req.status == 200 ||
+                req.status == 0) {
+                callback(heka_parse_cbuf(req.responseText));
+            }
+        }
+    };
+    req.open("GET", url, true);
+    req.send(null);
+}
+
+function getQueryVariable(variable, dflt) {
+    var query = window.location.search.substring(1);
+    var vars = query.split('&');
+    for (var i = 0; i < vars.length; i++) {
+        var pair = vars[i].split('=');
+        if (decodeURIComponent(pair[0]) == variable) {
+            return decodeURIComponent(pair[1]);
+        }
+    }
+    return dflt;
+}
+
+function range_avg(a, col, start, end) {
+    var cnt = 0;
+    for (var sum = 0, idx = start; idx <= end; idx++ ) {
+        var num = a[idx][col]
+        if (!isNaN(num)) {
+            sum += num;
+            cnt++;
+        }
+    }
+    if (cnt > 0) {
+        return sum/cnt;
+    }
+    return Number.NaN;
+}
+
+function range_sd(a, col, start, end) {
+    var cnt = 0;
+    var avg = range_avg(a, col, start, end);
+
+    for (var ss = 0, idx = start; idx <= end; idx++ ) {
+        var num = a[idx][col]
+        if (!isNaN(num)) {
+            ss += Math.pow(num - avg, 2);
+            cnt++;
+        }
+    }
+    if (cnt > 0) {
+        return Math.sqrt(ss/cnt);
+    }
+    return Number.NaN;
+}
+
+function compute_anomaly(cbuf) {
+    var sddata = [];
+    var min = g_win * 3 + 1;
+    
+    for (var i = 0; i < min; i++) {
+        var fields = [];
+        fields[0] = cbuf.data[i][0];
+        fields[1] = Number.NaN;
+        fields[2] = Number.NaN;
+        fields[3] = Number.NaN;
+        sddata.push(fields);
+    }
+
+    for (var i = min; i < cbuf.data.length; i++) {
+        var previous_window = i - g_win * 2;
+        var current_window = i - g_win;
+        var historical_window = 0;
+        if (g_hwin > 0) {
+            historical_window = previous_window - g_hwin;
+            if (historical_window < 0) {
+                historical_window = 0
+            }
+        }
+
+        var historical_sd = range_sd(cbuf.data, g_col, historical_window, previous_window -1);
+        var previous_avg = range_avg(cbuf.data, g_col, previous_window, current_window -1);
+        var current_avg = range_avg(cbuf.data, g_col, current_window, i - 1);
+
+        var fields = [];
+        fields[0] = cbuf.data[i][0];
+        fields[1] = historical_sd * g_sd;
+        fields[2] = historical_sd * -g_sd;
+        fields[3] = current_avg - previous_avg;
+        sddata.push(fields);
+    }
+    return sddata;
+}
+
+function load_complete(cbuf) {
+    var name = "graph";
+    var plural = "";
+    if ((cbuf.header.seconds_per_row * cbuf.header.rows) / 3600 > 1) {
+        plural = "s";
+    }
+    document.getElementById('title').innerHTML = g_file + " col:" + g_col.toString() + "<br/>"
+    + cbuf.header.seconds_per_row + " second aggregation for the last "
+    + String((cbuf.header.seconds_per_row * cbuf.header.rows) / 3600) + " hour" + plural;
+    var labels = ['Date'];
+    for (var i = 0; i < cbuf.header.columns; i++) {
+        labels.push(cbuf.header.column_info[i].name + " (" + cbuf.header.column_info[i].unit + ")");
+    }
+
+    var checkboxes = document.createElement('div');
+    checkboxes.id = name + "_checkboxes";
+    var div = document.createElement('div');
+    div.id = name;
+    div.setAttribute("style","width: 100%");
+    document.body.appendChild(div);
+    document.body.appendChild(document.createElement('br'));
+    var ldv = cbuf.header.column_info.length * 200 + 150;
+    if (ldv > 1024) ldv = 1024;
+    var options = {labels: labels, labelsDivWidth: ldv, labelsDivStyles:{ 'textAlign': 'right'}};
+    document.body.appendChild(checkboxes);
+    graph = new Dygraph(div, cbuf.data, options);
+    var colors = graph.getColors();
+    for (var i = 1; i < graph.attr_("labels").length; i++) {
+        var color = colors[i-1];
+        var checked = ""
+        if (i == g_col) {
+            checked = "checked";
+        } else {
+            graph.setVisibility(i-1, false);
+        }
+        checkboxes.innerHTML += '<input type="checkbox" id="' + (i-1).toString()
+        + '" onClick="' + name
+        + '.setVisibility(this.id, this.checked)" ' + checked + '><label style="font-size: smaller; color: '
+        + color + '">'+ graph.attr_("labels")[i] + '</label>&nbsp;';
+    }
+    checkboxes.innerHTML += '<br/><input type="checkbox" id="logscale" onClick="graph.updateOptions({ logscale: this.checked })">'
+    + '<label style="font-size: smaller;">Log scale</label>';
+    if (cbuf.annotations && cbuf.annotations.length > 0) {
+        for (var i = 0; i < cbuf.annotations.length; i++) {
+            cbuf.annotations[i].series = labels[cbuf.annotations[i].col];
+        }
+        graph.setAnnotations(cbuf.annotations);
+    }
+
+
+    var sddata = compute_anomaly(cbuf)
+    var sdlabels = ['Date'];
+    sdlabels.push("SD+" + g_sd.toString());
+    sdlabels.push("SD-" + g_sd.toString());
+    sdlabels.push(graph.attr_("labels")[g_col] + " DELTA");
+    var sdcheckboxes = document.createElement('div');
+    sdcheckboxes.id = "sdcheckboxes";
+    var sddiv = document.createElement('div');
+    sddiv.id = "sd";
+    sddiv.setAttribute("style","width: 100%");
+    document.body.appendChild(sddiv);
+    document.body.appendChild(document.createElement('br'));
+    var sdoptions = {labels: sdlabels, labelsDivWidth: 300, labelsDivStyles:{ 'textAlign': 'right'}};
+    document.body.appendChild(sdcheckboxes);
+    sdgraph = new Dygraph(sddiv, sddata, sdoptions);
+    var sdcolors = sdgraph.getColors();
+    for (var i = 1; i < sdgraph.attr_("labels").length; i++) {
+        var color = sdcolors[i-1];
+        sdcheckboxes.innerHTML += '<input type="checkbox" id="' + (i-1).toString()
+        + '" onClick="sdgraph.setVisibility(this.id, this.checked)" checked><label style="font-size: smaller; color: '
+        + color + '">'+ sdgraph.attr_("labels")[i] + '</label>&nbsp;';
+    }
+}
+</script>
+</head>
+<body onload="heka_load_cbuf(g_file, load_complete);">
+<p id="title" style="text-align: center">
+</p>
+</body>
+</html>

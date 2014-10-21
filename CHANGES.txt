@@ -20,6 +20,8 @@ Bug Handling
 
 Features
 --------
+* Make the rate of change threshold visualization page available through the
+  dashboard (issue #1093).
 
 * LogstreamerInput now supports seekjournal file hashing for files that are
   less than 500 bytes in length; hash is generated against file contents with
