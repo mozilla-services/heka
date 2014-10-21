@@ -4,6 +4,9 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Sandbox decoder linux_cpustats has been renamed to linux_loadavg and the
+  corresponding filter cpustats was renamed to loadavg (#1094).
+
 * ESLogstashv0 encoder will now set the @type field to match the ES record
   type specified in the `type_name` setting. This is Logstash behaviour in
   V0. You can revert back to the old method with `use_message_type = true`
