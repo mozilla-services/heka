@@ -234,12 +234,12 @@ func FilterSpec(c gs.Context) {
 		})
 	})
 
-	c.Specify("A Cpu Stats filter", func() {
+	c.Specify("A Load Average Stats filter", func() {
 		filter := new(SandboxFilter)
 		filter.SetPipelineConfig(pConfig)
-		filter.name = "cpustats"
+		filter.name = "loadavg"
 		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/filters/cpustats.lua"
+		conf.ScriptFilename = "../lua/filters/loadavg.lua"
 		conf.ModuleDirectory = "../lua/modules"
 
 		conf.Config = make(map[string]interface{})
@@ -269,7 +269,7 @@ func FilterSpec(c gs.Context) {
 		fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack)
 		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-		fth.MockFilterRunner.EXPECT().Name().Return("cpustats")
+		fth.MockFilterRunner.EXPECT().Name().Return("loadavg")
 		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
 			retPackChan <- pack
 		}).Return(true)
@@ -277,7 +277,7 @@ func FilterSpec(c gs.Context) {
 		err := filter.Init(conf)
 		c.Assume(err, gs.IsNil)
 
-		c.Specify("should fill a cbuf with cpuload data", func() {
+		c.Specify("should fill a cbuf with loadavg data", func() {
 			go func() {
 				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
 			}()

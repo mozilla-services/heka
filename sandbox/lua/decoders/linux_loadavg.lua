@@ -16,20 +16,20 @@ Config:
 
 .. code-block:: ini
 
-    [CpuStats]
+    [LoadAvg]
     type = "FilePollingInput"
     ticker_interval = 1
     file_path = "/proc/loadavg"
-    decoder = "CpuStatsDecoder"
+    decoder = "LoadAvgDecoder"
 
-    [CpuStatsDecoder]
+    [LoadAvgDecoder]
     type = "SandboxDecoder"
-    filename = "lua_decoders/cpustats.lua"
+    filename = "lua_decoders/linux_loadavg.lua"
 
 *Example Heka Message*
 
 :Timestamp: 2014-01-10 07:04:56 -0800 PST
-:Type: stats.cpustats
+:Type: stats.loadavg
 :Hostname: test.example.com
 :Pid: 0
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
@@ -60,7 +60,7 @@ local grammar = lpeg.Ct(loadavg * l.space * procs * l.space * latestPid)
 local payload_keep = read_config("payload_keep")
 
 local msg = {
-    Type = "stats.cpustats",
+    Type = "stats.loadavg",
     Payload = nil,
     Fields = nil
 }

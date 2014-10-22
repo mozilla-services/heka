@@ -234,7 +234,7 @@ func DecoderSpec(c gs.Context) {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/decoders/linux_cpustats.lua"
+		conf.ScriptFilename = "../lua/decoders/linux_loadavg.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
