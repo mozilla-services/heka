@@ -57,22 +57,25 @@ type LogstreamerInputConfig struct {
 	// String indicating if the delimiter is at the start or end of the line,
 	// only used for regexp delimiters
 	DelimiterLocation string `toml:"delimiter_location"`
+	// Whether truncate message exceeding buffer size instead of dropping it
+	KeepTruncatedMessages bool `toml:"keep_truncated_messages"`
 }
 
 type LogstreamerInput struct {
-	pConfig            *p.PipelineConfig
-	logstreamSet       *ls.LogstreamSet
-	logstreamSetLock   sync.RWMutex
-	rescanInterval     time.Duration
-	plugins            map[string]*LogstreamInput
-	stopLogstreamChans []chan chan bool
-	stopChan           chan bool
-	decoderName        string
-	parser             string
-	delimiter          string
-	delimiterLocation  string
-	hostName           string
-	pluginName         string
+	pConfig               *p.PipelineConfig
+	logstreamSet          *ls.LogstreamSet
+	logstreamSetLock      sync.RWMutex
+	rescanInterval        time.Duration
+	plugins               map[string]*LogstreamInput
+	stopLogstreamChans    []chan chan bool
+	stopChan              chan bool
+	decoderName           string
+	parser                string
+	delimiter             string
+	delimiterLocation     string
+	hostName              string
+	pluginName            string
+	keepTruncatedMessages bool
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -187,6 +190,8 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		li.hostName = conf.Hostname
 	}
 
+	li.keepTruncatedMessages = conf.KeepTruncatedMessages
+
 	// Create all our initial logstream plugins for the logstreams found
 	for _, name := range plugins {
 		stream, ok := li.logstreamSet.GetLogstream(name)
@@ -196,7 +201,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		stParser, parserFunc, _ := CreateParser(li.parser, li.delimiter,
 			li.delimiterLocation, li.decoderName)
 		li.plugins[name] = NewLogstreamInput(stream, stParser, parserFunc,
-			name, li.hostName)
+			name, li.hostName, li.keepTruncatedMessages)
 	}
 	li.stopLogstreamChans = make([]chan chan bool, 0, len(plugins))
 	li.stopChan = make(chan bool)
@@ -271,7 +276,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 					li.delimiterLocation, li.decoderName)
 
 				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
-					li.hostName)
+					li.hostName, li.keepTruncatedMessages)
 				li.plugins[name] = lsi
 				stop := make(chan chan bool, 1)
 				go lsi.Run(ir, h, stop, dRunner)
@@ -292,23 +297,27 @@ func (li *LogstreamerInput) Stop() {
 type Deliver func(pack *p.PipelinePack)
 
 type LogstreamInput struct {
-	stream        *ls.Logstream
-	parser        p.StreamParser
-	parseFunction string
-	loggerIdent   string
-	hostName      string
-	recordCount   int
-	stopped       chan bool
+	stream                *ls.Logstream
+	parser                p.StreamParser
+	parseFunction         string
+	loggerIdent           string
+	hostName              string
+	recordCount           int
+	stopped               chan bool
+	keepTruncatedMessages bool
+	prevMsgWasTruncated   bool
 }
 
 func NewLogstreamInput(stream *ls.Logstream, parser p.StreamParser, parserFunction,
-	loggerIdent, hostName string) *LogstreamInput {
+	loggerIdent, hostName string, keepTruncatedMessages bool) *LogstreamInput {
 	return &LogstreamInput{
-		stream:        stream,
-		parser:        parser,
-		parseFunction: parserFunction,
-		loggerIdent:   loggerIdent,
-		hostName:      hostName,
+		stream:                stream,
+		parser:                parser,
+		parseFunction:         parserFunction,
+		loggerIdent:           loggerIdent,
+		hostName:              hostName,
+		prevMsgWasTruncated:   false,
+		keepTruncatedMessages: keepTruncatedMessages,
 	}
 }
 
@@ -385,26 +394,39 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop
 			return
 		default:
 		}
+		is_message_truncated := false
 		n, record, err = lsi.parser.Parse(lsi.stream)
 		if err == io.ErrShortBuffer {
-			ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d", message.MAX_RECORD_SIZE))
 			err = nil // non-fatal, keep going
+			if lsi.keepTruncatedMessages == true {
+				ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated", message.MAX_RECORD_SIZE))
+			} else {
+				ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped", message.MAX_RECORD_SIZE))
+			}
+			is_message_truncated = true
 		}
 		if n > 0 {
 			lsi.stream.FlushBuffer(n)
 		}
 		if len(record) > 0 {
-			payload := string(record)
-			pack = <-ir.InChan()
-			pack.Message.SetUuid(uuid.NewRandom())
-			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("logfile")
-			pack.Message.SetHostname(lsi.hostName)
-			pack.Message.SetLogger(lsi.loggerIdent)
-			pack.Message.SetPayload(payload)
-			deliver(pack)
-			lsi.countRecord()
+			if lsi.prevMsgWasTruncated == false {
+				// pack message only if previous record had normal size
+				if is_message_truncated == false || lsi.keepTruncatedMessages == true {
+					// pack message if it's not truncated or it is truncated and force keeping is set
+					payload := string(record)
+					pack = <-ir.InChan()
+					pack.Message.SetUuid(uuid.NewRandom())
+					pack.Message.SetTimestamp(time.Now().UnixNano())
+					pack.Message.SetType("logfile")
+					pack.Message.SetHostname(lsi.hostName)
+					pack.Message.SetLogger(lsi.loggerIdent)
+					pack.Message.SetPayload(payload)
+					deliver(pack)
+					lsi.countRecord()
+				}
+			} // any part of big message (fist, possible next big one or tail) are ignored
 		}
+		lsi.prevMsgWasTruncated = is_message_truncated
 	}
 	return
 }

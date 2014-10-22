@@ -72,4 +72,6 @@ Config:
 - delimiter_location (string): Only used for regexp parsers.
     - start - the regexp delimiter occurs at the start of a log line.
     - end - the regexp delimiter occurs at the end of the log line (default).
+- keep_truncated_messages (bool): Only used for token or regexp parsers.
+    Whether to keep first part of big message exceeding buffer size or just drop it (default).
 
