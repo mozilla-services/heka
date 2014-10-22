@@ -26,6 +26,7 @@ import (
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"io/ioutil"
 	"log"
@@ -73,7 +74,7 @@ func main() {
 
 	hostname, _ := os.Hostname()
 	msg := &message.Message{}
-	msg.SetLogger("heka-sbmgr")
+	msg.SetLogger(pipeline.HEKA_DAEMON) // identify the message as 'internal' for filtering purposes
 	msg.SetType("heka.control.sandbox")
 	msg.SetTimestamp(time.Now().UnixNano())
 	msg.SetUuid(uuid.NewRandom())

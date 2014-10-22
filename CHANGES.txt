@@ -4,6 +4,10 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Audited the use of Logger and Type headers on internal message (#1024). These
+  changes may break some existing message matchers with regards to
+  plugin/sandbox termination messages.
+
 * ESLogstashv0 encoder will now set the @type field to match the ES record
   type specified in the `type_name` setting. This is Logstash behaviour in
   V0. You can revert back to the old method with `use_message_type = true`
