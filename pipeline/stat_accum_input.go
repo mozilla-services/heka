@@ -325,6 +325,7 @@ func (sm *StatAccumInput) Flush() {
 		globalNs.Namespace(sm.config.StatsdPrefix).Emit("numStats", numStats)
 	}
 
+	pack.Message.SetLogger(sm.ir.Name())
 	pack.Message.SetType(sm.config.MessageType)
 	pack.Message.SetTimestamp(now.UnixNano())
 	pack.Message.SetUuid(uuid.NewRandom())

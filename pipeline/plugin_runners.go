@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"sync"
 	"time"
@@ -578,7 +579,8 @@ func (foRunner *foRunner) exit() {
 
 		pack := foRunner.pConfig.PipelinePack(0)
 		pack.Message.SetType("heka.terminated")
-		pack.Message.SetLogger(foRunner.Name())
+		pack.Message.SetLogger(HEKA_DAEMON)
+		message.NewStringField(pack.Message, "plugin", foRunner.Name())
 
 		var errMsg string
 		if foRunner.lastErr != nil {
