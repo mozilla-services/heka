@@ -111,6 +111,10 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Fields[int] == NIL",
 			"Fields[int][0][1] == NIL",
 			"Fields[missing] != NIL",
+			"Type =~ /^te/",
+			"Type =~ /st$/",
+			"Type !~ /^TE/",
+			"Type !~ /ST$/",
 		}
 
 		positive := []string{
@@ -160,6 +164,10 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Fields[int][0][1] != NIL",
 			"Fields[int][0][2] == NIL",
 			"Fields[missing] == NIL",
+			"Type =~ /^TE/",
+			"Type =~ /ST$/",
+			"Type !~ /^te/",
+			"Type !~ /st$/",
 		}
 
 		c.Specify("malformed matcher tests", func() {
@@ -265,6 +273,28 @@ func BenchmarkMatcherFieldNonExistence(b *testing.B) {
 func BenchmarkMatcherFieldExistence(b *testing.B) {
 	b.StopTimer()
 	s := "Fields[int] != NIL"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.Match(msg)
+	}
+}
+
+func BenchmarkMatcherStartsWith(b *testing.B) {
+	b.StopTimer()
+	s := "Payload =~ /^Test/"
+	ms, _ := CreateMatcherSpecification(s)
+	msg := getTestMessage()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		ms.Match(msg)
+	}
+}
+
+func BenchmarkMatcherEndsWith(b *testing.B) {
+	b.StopTimer()
+	s := "Payload =~ /load$/"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()

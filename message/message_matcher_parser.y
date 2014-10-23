@@ -10,6 +10,11 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	STARTS_WITH = 1
+	ENDS_WITH   = 2
+)
+
 var variables = map[string]int{
 	"Uuid":       VAR_UUID,
 	"Type":       VAR_TYPE,
@@ -447,6 +452,27 @@ regexpstring:
 			break
 		}
 		m.sym += string(c)
+	}
+	rlen := len(m.sym)
+	if rlen > 0 && m.sym[0] == '^' {
+		if re, err := regexp.Compile(m.sym[1:]); err == nil {
+			if s, b := re.LiteralPrefix(); b {
+				yylval.token = s
+				yylval.fieldIndex = STARTS_WITH
+				yylval.tokenId = REGEXP_VALUE
+				return yylval.tokenId
+			}
+		}
+	}
+	if rlen > 0 && m.sym[rlen-1] == '$' {
+		if re, err := regexp.Compile(m.sym[:rlen-1]); err == nil {
+			if s, b := re.LiteralPrefix(); b {
+				yylval.token = s
+				yylval.fieldIndex = ENDS_WITH
+				yylval.tokenId = REGEXP_VALUE
+				return yylval.tokenId
+			}
+		}
 	}
 	yylval.regexp, err = regexp.Compile(m.sym)
 	if err != nil {
