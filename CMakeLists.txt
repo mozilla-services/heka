@@ -39,6 +39,7 @@ set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
+option(INCLUDE_DOCKER_PLUGINS "Include Docker plugins" on)
 
 find_path(INCLUDE_GEOIP GeoIP.h /usr/local/include /usr/include /opt/local/include)
 if (NOT INCLUDE_GEOIP)
@@ -47,6 +48,11 @@ else()
     message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
     set(TAGS "${TAGS} geoip")
     set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/geoip")
+endif()
+
+if (INCLUDE_DOCKER_PLUGINS)
+    message(STATUS "Docker plugins enabled.")
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/docker")
 endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
@@ -145,7 +151,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL
-${GO_EXECUTABLE} install ${LDFLAGS} -tags=\"${TAGS}\"  github.com/mozilla-services/heka/cmd/hekad
+${GO_EXECUTABLE} install ${LDFLAGS} -tags=${TAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)

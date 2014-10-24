@@ -55,6 +55,8 @@ Features
 * Added separate env loading file and support for NUM_JOBS env var to Windows
   build (#971).
 
+* Added DockerLogInput (issue #1092).
+
 0.7.3 (2014-MM-DD)
 ==================
 
