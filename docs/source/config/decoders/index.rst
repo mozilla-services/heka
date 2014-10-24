@@ -24,22 +24,11 @@ Graylog Extended Log Format Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. versionadded:: 0.6
 .. _config_geoip_decoder:
 .. include:: /config/decoders/geoip_decoder.rst
 
 .. _config_multidecoder:
 .. include:: /config/decoders/multi.rst
-
-.. _config_linux_cpu_stats_decoder:
-
-Linux Cpu Stats Decoder
-=======================
-
-.. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/linux_cpustats.lua
-   :start-after: --[[
-   :end-before: --]]
 
 .. _config_linux_disk_stats_decoder:
 
@@ -51,13 +40,13 @@ Linux Disk Stats Decoder
    :start-after: --[[
    :end-before: --]]
 
-.. _config_nginx_access_log_decoder:
+.. _config_linux_load_avg_decoder:
 
-Nginx Access Log Decoder
-========================
+Linux Load Average Decoder
+==========================
 
-.. versionadded:: 0.5
-.. include:: /../../sandbox/lua/decoders/nginx_access.lua
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/linux_loadavg.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -78,6 +67,16 @@ MySQL Slow Query Log Decoder
 
 .. versionadded:: 0.6
 .. include:: /../../sandbox/lua/decoders/mysql_slow_query.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_nginx_access_log_decoder:
+
+Nginx Access Log Decoder
+========================
+
+.. versionadded:: 0.5
+.. include:: /../../sandbox/lua/decoders/nginx_access.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -106,7 +105,6 @@ Rsyslog Decoder
 ===============
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/decoders/rsyslog.lua
    :start-after: --[[
    :end-before: --]]

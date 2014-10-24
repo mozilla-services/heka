@@ -1,5 +1,7 @@
 GeoIpDecoder
-===================
+============
+
+.. versionadded:: 0.6
 
 Decoder plugin that generates GeoIP data based on the IP address of a specified field. It uses the Go project: https://github.com/abh/geoip as a wrapper around MaxMind's geoip-api-c library.
 This decoder assumes you have downloaded and installed the `geoip-api-c <https://github.com/maxmind/geoip-api-c/releases/>`_ library from MaxMind's website.
