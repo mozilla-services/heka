@@ -1,5 +1,3 @@
-// +build dockerplugins
-
 /***** BEGIN LICENSE BLOCK *****
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -19,33 +17,28 @@ package docker
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"errors"
 	"fmt"
-	"github.com/fsouza/go-dockerclient"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"os"
 	"time"
 )
 
-const (
-	// How often to ping the Docker API
-	PING_SLEEP = 1000 // ms
-)
-
 type DockerLogInputConfig struct {
-	// A Docker endpoint
+	// A Docker endpoint.
 	Endpoint string `toml:"endpoint"`
-	// Name of configured decoder to receive the input
+	// Name of configured decoder to receive the input.
 	Decoder string `toml:"decoder"`
 }
 
 type DockerLogInput struct {
 	conf         *DockerLogInputConfig
 	stopChan     chan error
-	closer       chan bool
+	closer       chan struct{}
 	logstream    chan *Log
 	attachErrors chan error
-	pingTicker   *time.Ticker
+	attachMgr    *AttachManager
 }
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
@@ -57,24 +50,16 @@ func (di *DockerLogInput) ConfigStruct() interface{} {
 func (di *DockerLogInput) Init(config interface{}) error {
 	di.conf = config.(*DockerLogInputConfig)
 	di.stopChan = make(chan error)
-	di.closer = make(chan bool)
+	di.closer = make(chan struct{})
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan error)
 
-	client, err := docker.NewClient(di.conf.Endpoint)
-	if err != nil {
-		return fmt.Errorf("DockerLogInput: connecting to - %s", err.Error())
-	}
-
-	m, err := NewAttachManager(client, di.attachErrors)
+	m, err := NewAttachManager(di.conf.Endpoint, di.attachErrors)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
-	go m.Listen(di.logstream, di.closer)
 
-	di.pingTicker = time.NewTicker(PING_SLEEP * time.Millisecond)
-	go m.ClientPinger(di.stopChan, di.pingTicker)
-
+	di.attachMgr = m
 	return nil
 }
 
@@ -88,7 +73,10 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
+		err = nil
 	}
+
+	go di.attachMgr.Listen(di.logstream, di.closer)
 
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
@@ -100,7 +88,8 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 		}
 	}
 
-	for {
+	ok = true
+	for ok {
 		select {
 		case logline := <-di.logstream:
 			pack = <-packSupply
@@ -120,16 +109,21 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 				dRunner.InChan() <- pack
 			}
 
-		case attachError := <-di.attachErrors:
-			ir.LogError(fmt.Errorf("Attacher error: %s", attachError))
+		case err, ok = <-di.attachErrors:
+			if !ok {
+				err = errors.New("Docker event channel closed")
+				break
+			}
+			ir.LogError(fmt.Errorf("Attacher error: %s", err))
 
-		case err := <-di.stopChan:
-			di.pingTicker.Stop()
-			di.closer <- true
-			close(di.logstream)
-			return err
+		case err = <-di.stopChan:
+			ok = false
 		}
 	}
+
+	di.closer <- struct{}{}
+	close(di.logstream)
+	return err
 }
 
 func (di *DockerLogInput) CleanupForRestart() {

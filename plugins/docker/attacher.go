@@ -24,13 +24,11 @@ package docker
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/fsouza/go-dockerclient"
+	"github.com/rafrombrc/go-dockerclient"
 )
 
 type AttachEvent struct {
@@ -59,18 +57,27 @@ func (s *Source) All() bool {
 
 type AttachManager struct {
 	sync.RWMutex
-	attached map[string]*LogPump
-	channels map[chan *AttachEvent]struct{}
-	client   DockerClient
-	errors   chan<- error
+	attached   map[string]*LogPump
+	channels   map[chan *AttachEvent]struct{}
+	client     DockerClient
+	errors     chan<- error
+	events     chan *docker.APIEvents
+	eventReset chan struct{}
+	sentinel   struct{}
 }
 
-func NewAttachManager(client DockerClient, attachErrors chan<- error) (*AttachManager, error) {
+func NewAttachManager(endpoint string, attachErrors chan<- error) (*AttachManager, error) {
+	client, err := docker.NewClient(endpoint)
+	if err != nil {
+		return nil, err
+	}
+
 	m := &AttachManager{
 		attached: make(map[string]*LogPump),
 		channels: make(map[chan *AttachEvent]struct{}),
 		client:   client,
 		errors:   attachErrors,
+		events:   make(chan *docker.APIEvents),
 	}
 
 	// Attach to all currently running containers
@@ -82,20 +89,21 @@ func NewAttachManager(client DockerClient, attachErrors chan<- error) (*AttachMa
 		return nil, err
 	}
 
-	go func() {
-		events := make(chan *docker.APIEvents)
-		if err := client.AddEventListener(events); err != nil {
-			m.errors <- err
-		}
-		for msg := range events {
-			if msg.Status == "start" {
-				go m.attach(msg.ID[:12])
-			}
-		}
-		m.errors <- fmt.Errorf("Docker event channel is closed")
-	}()
+	if err := client.AddEventListener(m.events); err != nil {
+		return nil, err
+	}
 
+	go m.recvDockerEvents()
 	return m, nil
+}
+
+func (m *AttachManager) recvDockerEvents() {
+	for msg := range m.events {
+		if msg.Status == "start" {
+			go m.attach(msg.ID[:12])
+		}
+	}
+	close(m.errors)
 }
 
 func (m *AttachManager) attach(id string) {
@@ -173,19 +181,7 @@ func (m *AttachManager) Get(id string) *LogPump {
 	return m.attached[id]
 }
 
-func (m *AttachManager) ClientPinger(stopChan chan<- error, t *time.Ticker) {
-	for _ = range t.C {
-		if len(m.attached) > 0 {
-			continue
-		}
-
-		if err := m.client.Ping(); err != nil {
-			stopChan <- err
-		}
-	}
-}
-
-func (m *AttachManager) Listen(logstream chan *Log, closer <-chan bool) {
+func (m *AttachManager) Listen(logstream chan *Log, closer <-chan struct{}) {
 	source := new(Source) // TODO: Make the source parameters configurable
 	events := make(chan *AttachEvent)
 	m.addListener(events)

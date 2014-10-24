@@ -53,7 +53,6 @@ endif()
 if (INCLUDE_DOCKER_PLUGINS)
     message(STATUS "Docker plugins enabled.")
     set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/docker")
-    set(TAGS "${TAGS} dockerplugins")
 endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
