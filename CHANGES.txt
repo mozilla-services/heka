@@ -30,6 +30,8 @@ Bug Handling
 Features
 --------
 
+* Optimized prefix/suffix testing in the message matcher (#1040).
+
 * LogstreamerInput now supports seekjournal file hashing for files that are
   less than 500 bytes in length; hash is generated against file contents with
   0 bytes prepended to make 500 bytes of hash content (#972).
