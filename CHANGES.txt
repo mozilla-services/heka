@@ -18,6 +18,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* linux_diskstats.lua will now parse a line with no leading space (#1141).
+
 * Protect globals.Stopping with a RWMutex.
 
 * Added support for `fields` config setting to ESLogstashV0Encoder; it was
