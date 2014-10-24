@@ -247,13 +247,19 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					sbxsLock.Unlock()
 				}
 			case "heka.sandbox-terminated":
+				var filterName string
+				tmp, _ := msg.GetFieldValue("plugin")
+				if s, ok := tmp.(string); ok {
+					filterName = s
+				} else {
+					break
+				}
 				fn := filepath.Join(self.dataDirectory, "heka_sandbox_termination.tsv")
-				filterName := msg.GetLogger()
 				if file, err := os.OpenFile(fn, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644); err == nil {
 					var line string
 					if _, ok := msg.GetFieldValue("ProcessMessageCount"); !ok {
 						line = fmt.Sprintf("%d\t%s\t%v\n", msg.GetTimestamp()/1e9,
-							msg.GetLogger(), msg.GetPayload())
+							filterName, msg.GetPayload())
 					} else {
 						pmc, _ := msg.GetFieldValue("ProcessMessageCount")
 						pms, _ := msg.GetFieldValue("ProcessMessageSamples")

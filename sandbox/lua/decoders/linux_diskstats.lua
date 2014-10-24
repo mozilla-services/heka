@@ -58,7 +58,7 @@ Config:
 local l = require 'lpeg'
 l.locale(l)
 
-local space = l.space^1
+local space = l.space^0
 local num = l.digit^1
 
 function column(tag)

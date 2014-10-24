@@ -15,7 +15,7 @@ Config:
 
     [FxaAlert]
     type = "SmtpOutput"
-    message_matcher = "((Type == 'heka.sandbox-output' && Fields[payload_type] == 'alert') || Type == 'heka.sandbox-terminated') && Logger =~ /^Fxa/"
+    message_matcher = "Type == 'heka.sandbox-output' && Fields[payload_type] == 'alert' && Logger =~ /^Fxa/" || Type == 'heka.sandbox-terminated' && Fields[plugin] =~ /^Fxa/"
     send_from = "heka@example.com"
     send_to = ["alert@example.com"]
     auth = "Plain"

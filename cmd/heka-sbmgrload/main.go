@@ -27,6 +27,7 @@ import (
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"log"
 	"os"
@@ -73,7 +74,7 @@ function timer_event(ns)
     lastTime = ns
     rate = msgsSent / (elapsedTime / 1e9)
     rates[#rates+1] = rate
-    inject_payload("txt", "", string.format("Got %d messages. %0.2f msg/sec", count, rate))
+    inject_payload("txt", "rate", string.format("Got %d messages. %0.2f msg/sec", count, rate))
 
     local samples = #rates
     if samples == 10 then -- generate a summary every 10 samples
@@ -84,7 +85,7 @@ function timer_event(ns)
         for i, val in ipairs(rates) do
             sum = sum + val
 	     end
-        inject_payload("txt", "", string.format("AGG Sum. Min: %0.2f Max: %0.2f Mean: %0.2f", min, max, sum/samples))
+        inject_payload("txt", "summary", string.format("AGG Sum. Min: %0.2f Max: %0.2f Mean: %0.2f", min, max, sum/samples))
         rates = {}
     end
 end
@@ -127,7 +128,7 @@ preserve_data = true
 		for i := 0; i < *numItems; i++ {
 			conf := fmt.Sprintf(confFmt, i)
 			msg := &message.Message{}
-			msg.SetLogger("heka-sbmgrload")
+			msg.SetLogger(pipeline.HEKA_DAEMON)
 			msg.SetType("heka.control.sandbox")
 			msg.SetTimestamp(time.Now().UnixNano())
 			msg.SetUuid(uuid.NewRandom())
@@ -145,6 +146,7 @@ preserve_data = true
 	case "unload":
 		for i := 0; i < *numItems; i++ {
 			msg := &message.Message{}
+			msg.SetLogger(pipeline.HEKA_DAEMON)
 			msg.SetType("heka.control.sandbox")
 			msg.SetTimestamp(time.Now().UnixNano())
 			msg.SetUuid(uuid.NewRandom())

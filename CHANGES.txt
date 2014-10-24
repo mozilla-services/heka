@@ -4,6 +4,10 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Audited the use of Logger and Type headers on internal message (#1024). These
+  changes may break some existing message matchers with regards to
+  plugin/sandbox termination messages.
+
 * Sandbox decoder linux_cpustats has been renamed to linux_loadavg and the
   corresponding filter cpustats was renamed to loadavg (#1094).
 
@@ -13,6 +17,8 @@ Backwards Incompatibilities
 
 Bug Handling
 ------------
+
+* linux_diskstats.lua will now parse a line with no leading space (#1141).
 
 * Protect globals.Stopping with a RWMutex.
 

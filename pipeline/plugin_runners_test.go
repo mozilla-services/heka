@@ -259,6 +259,9 @@ func OutputRunnerSpec(c gs.Context) {
 			c.Expect(stopoutputTimes, gs.Equals, 1)
 			p := <-pc.router.inChan
 			c.Expect(p.Message.GetType(), gs.Equals, "heka.terminated")
+			c.Expect(p.Message.GetLogger(), gs.Equals, "hekad")
+			plugin, _ := p.Message.GetFieldValue("plugin")
+			c.Expect(plugin, gs.Equals, "stoppingOutput")
 			// This should be 1 because the inChan should be flushed
 			// and packs should not be leaked
 			c.Expect(len(pc.inputRecycleChan), gs.Equals, 1)
