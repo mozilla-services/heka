@@ -45,7 +45,7 @@ Cpu Stats Filter
 ================
 
 .. versionadded:: 0.7
-.. include:: /../../sandbox/lua/filters/cpustats.lua
+.. include:: /../../sandbox/lua/filters/loadavg.lua
    :start-after: --[[
    :end-before: --]]
 

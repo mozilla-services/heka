@@ -90,6 +90,7 @@ exclude_patterns = [
 'config/filters/sandboxmanager.rst',
 'config/filters/stat.rst',
 'config/inputs/amqp.rst',
+'config/inputs/docker_log.rst',
 'config/inputs/file_polling.rst',
 'config/inputs/http.rst',
 'config/inputs/httplisten.rst',
