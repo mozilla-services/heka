@@ -538,6 +538,10 @@ func (l *Logstream) readBytes(p []byte) (n int, err error) {
 
 	// Return now if we didn't get an error
 	if err == nil {
+		// Had an EOF before, clear it
+		if l.priorEOF {
+			l.priorEOF = false
+		}
 		return
 	}
 

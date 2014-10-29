@@ -26,6 +26,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -175,6 +176,8 @@ type ProcessInput struct {
 	tickInterval uint
 
 	trim bool
+
+	once sync.Once
 }
 
 // ConfigStruct implements the HasConfigStruct interface and sets
@@ -272,23 +275,24 @@ func (pi *ProcessInput) SetName(name string) {
 }
 
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
-	var (
-		pack                *PipelinePack
-		dRunner             DecoderRunner
-		ok                  bool
-		router_shortcircuit bool
-	)
-
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
 	pConfig := h.PipelineConfig()
 
-	// Try to get the configured decoder.
+	var (
+		pack    *PipelinePack
+		dRunner DecoderRunner
+		data    string
+	)
+	ok := true
 
-	if pi.decoderName == "" {
-		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(pi.decoderName, fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)); !ok {
-		return fmt.Errorf("Decoder not found: %s", pi.decoderName)
+	// Try to get the configured decoder.
+	hasDecoder := pi.decoderName != ""
+	if hasDecoder {
+		decoderFullName := fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)
+		if dRunner, ok = h.DecoderRunner(pi.decoderName, decoderFullName); !ok {
+			return fmt.Errorf("Decoder not found: %s", pi.decoderName)
+		}
 	}
 
 	// Start the output parser and start running commands.
@@ -296,30 +300,31 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	packSupply := ir.InChan()
 	// Wait for and route populated PipelinePacks.
-	for {
+	for ok {
 		select {
-		case data := <-pi.stdoutChan:
+		case data, ok = <-pi.stdoutChan:
+			if !ok {
+				break
+			}
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stdout")
 
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
+			if hasDecoder {
 				dRunner.InChan() <- pack
+			} else {
+				pConfig.Router().InChan() <- pack
 			}
-
-		case data := <-pi.stderrChan:
+		case data = <-pi.stderrChan:
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stderr")
 
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
+			if hasDecoder {
 				dRunner.InChan() <- pack
+			} else {
+				pConfig.Router().InChan() <- pack
 			}
-
 		case <-pi.stopChan:
-			return nil
+			ok = false
 		}
 	}
 
@@ -345,7 +350,9 @@ func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name
 
 func (pi *ProcessInput) Stop() {
 	// This will shutdown the ProcessInput::RunCmd goroutine
-	close(pi.stopChan)
+	pi.once.Do(func() {
+		close(pi.stopChan)
+	})
 }
 
 // RunCmd pipes multiple commands together, runs them per the configured
@@ -354,6 +361,7 @@ func (pi *ProcessInput) RunCmd() {
 	var err error
 	if pi.tickInterval == 0 {
 		pi.runOnce()
+		close(pi.stdoutChan)
 	} else {
 		tickChan := pi.ir.Ticker()
 		for {

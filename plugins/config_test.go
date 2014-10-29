@@ -367,10 +367,6 @@ NONE
 			// Try to stop dr2 again. Shouldn't fail, but ok should be false.
 			ok = pipeConfig.StopDecoderRunner(dr2)
 			c.Expect(ok, gs.IsFalse)
-
-			// Clean up our UdpInput.
-			udp, _ := pipeConfig.InputRunners["UdpInput"]
-			udp.Input().Stop()
 		})
 	})
 }
