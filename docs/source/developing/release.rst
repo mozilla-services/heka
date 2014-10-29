@@ -31,3 +31,6 @@ of the Heka server.
 
 #. Create new github release (https://github.com/mozilla-
    services/heka/releases) and upload generated binaries.
+
+#. Visit readthedocs.org admin site, build all relevant docs, set appropriate
+   defaults.
