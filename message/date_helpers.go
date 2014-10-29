@@ -55,8 +55,8 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 
 	if strings.HasPrefix(timeLayout, "Epoch") {
 		var (
-			parsedInt             uint64
-			decDigits, multiplier int
+			parsedInt  uint64
+			multiplier int
 		)
 
 		switch timeLayout {
@@ -66,11 +66,11 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 			multiplier = 1e6
 		case "EpochMicro":
 			multiplier = 1e3
+		case "EpochNano":
+			multiplier = 1
 		default:
-			if timeLayout != "EpochNano" {
-				err := fmt.Errorf("Unrecognized `Epoch` time format: %s", timeLayout)
-				return parsedTime, err
-			}
+			err := fmt.Errorf("Unrecognized `Epoch` time format: %s", timeLayout)
+			return parsedTime, err
 		}
 
 		i := strings.Index(inputTime, ".")
@@ -78,14 +78,19 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 			// Integer values are easy.
 			parsedInt, err = strconv.ParseUint(inputTime, 10, 64)
 		} else {
-			// No partial nanoseconds.
-			if timeLayout == "EpochNano" {
-				err := errors.New("`EpochNano` time format must be an integer value")
+			// Noninteger need more care, we can't use floats or we'll lose
+			// timestamp precision. First calculate the number of decimal
+			// digits.
+			decDigits := len(inputTime) - i - 1
+			// Then make sure it doesn't extend past nanosecond resolution.
+			divisor := int(math.Pow10(decDigits))
+			if divisor > multiplier {
+				err := errors.New("Can't go beyond nanosecond resolution (too many decimal places)")
 				return parsedTime, err
 			}
-			// Convert to int before we parse to avoid float conversion
-			// errors.
-			decDigits = len(inputTime) - i - 1
+			// Reduce the multiplier to account for moving the decimal point.
+			multiplier = multiplier / divisor
+			// Finally remove the decimal and parse the value as an integer.
 			intStr := fmt.Sprintf("%s%s", inputTime[:i], inputTime[i+1:])
 			parsedInt, err = strconv.ParseUint(intStr, 10, 64)
 		}
@@ -93,14 +98,7 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 			err = fmt.Errorf("Error parsing %s time: %s", timeLayout, err.Error())
 			return parsedTime, err
 		}
-
-		if multiplier != 0 {
-			if decDigits != 0 {
-				multiplier = multiplier / int(math.Pow10(decDigits))
-			}
-			parsedInt = parsedInt * uint64(multiplier)
-		}
-
+		parsedInt = parsedInt * uint64(multiplier)
 		return time.Unix(0, int64(parsedInt)), nil
 	}
 
