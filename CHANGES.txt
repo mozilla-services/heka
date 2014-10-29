@@ -57,6 +57,10 @@ Features
 
 * Added DockerLogInput (issue #1092).
 
+* Added support for "Epoch", "EpochMilli", "EpochMicro", and "EpochNano"
+  timestamp formats to the time parsing code used by the Payload*Decoder
+  plugins (#963).
+
 0.7.3 (2014-MM-DD)
 ==================
 
