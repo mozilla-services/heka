@@ -82,6 +82,9 @@ type ProcessInputConfig struct {
 	// Number of seconds to wait between runnning command(s).
 	TickerInterval uint `toml:"ticker_interval"`
 
+	// Skips wait
+	ImmediateStart bool `toml:"immediate_start"`
+
 	// Name of configured decoder instance.
 	Decoder string
 
@@ -171,9 +174,10 @@ type ProcessInput struct {
 	stopChan chan bool
 	parser   StreamParser
 
-	hostname     string
-	heka_pid     int32
-	tickInterval uint
+	hostname       string
+	heka_pid       int32
+	tickInterval   uint
+	immediateStart bool
 
 	trim bool
 
@@ -185,6 +189,7 @@ type ProcessInput struct {
 func (pi *ProcessInput) ConfigStruct() interface{} {
 	return &ProcessInputConfig{
 		TickerInterval: uint(15),
+		ImmediateStart: false,
 		ParserType:     "token",
 		ParseStdout:    true,
 		ParseStderr:    false,
@@ -203,6 +208,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	pi.trim = conf.Trim
 
 	pi.tickInterval = conf.TickerInterval
+	pi.immediateStart = conf.ImmediateStart
 	pi.parseStdout = conf.ParseStdout
 	pi.parseStderr = conf.ParseStderr
 
@@ -363,6 +369,11 @@ func (pi *ProcessInput) RunCmd() {
 		pi.runOnce()
 		close(pi.stdoutChan)
 	} else {
+
+		if pi.immediateStart {
+			pi.runOnce()
+		}
+
 		tickChan := pi.ir.Ticker()
 		for {
 			select {
