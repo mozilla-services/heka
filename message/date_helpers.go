@@ -16,9 +16,7 @@
 package message
 
 import (
-	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -61,13 +59,13 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 
 		switch timeLayout {
 		case "Epoch":
-			multiplier = 1e9
+			multiplier = 9
 		case "EpochMilli":
-			multiplier = 1e6
+			multiplier = 6
 		case "EpochMicro":
-			multiplier = 1e3
+			multiplier = 3
 		case "EpochNano":
-			multiplier = 1
+			multiplier = 0
 		default:
 			err := fmt.Errorf("Unrecognized `Epoch` time format: %s", timeLayout)
 			return parsedTime, err
@@ -75,21 +73,24 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 
 		i := strings.Index(inputTime, ".")
 		if i == -1 {
-			// Integer values are easy.
+			// Integer values are easy, we append the right number of 0s and
+			// we're done.
+			zeroes := strings.Repeat("0", multiplier)
+			inputTime = inputTime + zeroes
 			parsedInt, err = strconv.ParseUint(inputTime, 10, 64)
 		} else {
 			// Noninteger need more care, we can't use floats or we'll lose
 			// timestamp precision. First calculate the number of decimal
 			// digits.
 			decDigits := len(inputTime) - i - 1
-			// Then make sure it doesn't extend past nanosecond resolution.
-			divisor := int(math.Pow10(decDigits))
-			if divisor > multiplier {
-				err := errors.New("Can't go beyond nanosecond resolution (too many decimal places)")
-				return parsedTime, err
+			if decDigits < multiplier {
+				// Pad out zeroes to nanosecond resolution.
+				zeroes := strings.Repeat("0", multiplier-decDigits)
+				inputTime = inputTime + zeroes
+			} else if decDigits > multiplier {
+				// Truncate to nanosecond resolution.
+				inputTime = inputTime[:len(inputTime)-(decDigits-multiplier)]
 			}
-			// Reduce the multiplier to account for moving the decimal point.
-			multiplier = multiplier / divisor
 			// Finally remove the decimal and parse the value as an integer.
 			intStr := fmt.Sprintf("%s%s", inputTime[:i], inputTime[i+1:])
 			parsedInt, err = strconv.ParseUint(intStr, 10, 64)
@@ -98,7 +99,6 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 			err = fmt.Errorf("Error parsing %s time: %s", timeLayout, err.Error())
 			return parsedTime, err
 		}
-		parsedInt = parsedInt * uint64(multiplier)
 		return time.Unix(0, int64(parsedInt)), nil
 	}
 

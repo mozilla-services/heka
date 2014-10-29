@@ -59,9 +59,12 @@ func TestEpochMilliFloat(t *testing.T) {
 }
 
 func TestEpochMilliFloatTooPrecise(t *testing.T) {
-	_, err := ForgivingTimeParse("EpochMilli", "1414448234638.5043911", nil)
-	if err == nil {
-		t.Error("EpochMilli allowed finer than nanosecond precision")
+	ts, err := ForgivingTimeParse("EpochMilli", "1414448234638.5043911232", nil)
+	if err != nil {
+		t.Error("Error parsing EpochMilli time w/ too much precision")
+	}
+	if ts.UnixNano() != 1414448234638504391 {
+		t.Errorf("Wrong EpochMilli time w/ too much precision: %d", ts.UnixNano())
 	}
 }
 
@@ -96,8 +99,11 @@ func TestEpochNanoInt(t *testing.T) {
 }
 
 func TestEpochNanoFloat(t *testing.T) {
-	_, err := ForgivingTimeParse("EpochNano", "1414448234638504391.1", nil)
-	if err == nil {
-		t.Error("EpochNano allowed float value")
+	ts, err := ForgivingTimeParse("EpochNano", "1414448234638504391.99999", nil)
+	if err != nil {
+		t.Error("Error parsing EpochNano float value")
+	}
+	if ts.UnixNano() != 1414448234638504391 {
+		t.Errorf("Wrong EpochNano time w/ float: %d", ts.UnixNano())
 	}
 }
