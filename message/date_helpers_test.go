@@ -58,6 +58,13 @@ func TestEpochMilliFloat(t *testing.T) {
 	}
 }
 
+func TestEpochMilliFloatTooPrecise(t *testing.T) {
+	_, err := ForgivingTimeParse("EpochMilli", "1414448234638.5043911", nil)
+	if err == nil {
+		t.Error("EpochMilli allowed finer than nanosecond precision")
+	}
+}
+
 func TestEpochMicroInt(t *testing.T) {
 	ts, err := ForgivingTimeParse("EpochMicro", "1414448234638504", nil)
 	if err != nil {
