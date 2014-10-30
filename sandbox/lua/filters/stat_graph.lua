@@ -92,7 +92,7 @@ local sec_per_row = read_config("sec_per_row") or 1
 local stats_config = read_config("stats") or error("stats configuration must be specified")
 local stat_labels_config = read_config("stat_labels") or error("stat_labels configuration must be specified")
 local stat_aggregation   = read_config("stat_aggregation") or "sum"
-local stat_unit          = read_config("stat_unit_label") or "count"
+local stat_unit          = read_config("stat_unit") or "count"
 local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
