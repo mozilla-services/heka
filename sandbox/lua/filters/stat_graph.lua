@@ -43,6 +43,18 @@ Config:
     will fail to start because the preserved data will no longer match the
     filter's data structure.
 
+- stat_aggregation (string, optional, default "sum"):
+    Controls how the column data is aggregated when combining multiple circular buffers.
+        "sum"  - The total is computed for the time/column (default).
+        "min"  - The smallest value is retained for the time/column.
+        "max"  - The largest value is retained for the time/column.
+        "none" - No aggregation will be performed the column.
+
+- stat_unit (string, optional, default "count"):
+    The unit of measure (maximum 7 characters). Alpha numeric, '/', and '*' 
+    characters are allowed everything else will be converted to underscores. 
+    i.e. KiB, Hz, m/s (default: count).
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -57,6 +69,8 @@ Config:
       [stat-graph.config]
       title = "Hits and Misses"
       rows = 1440
+      stat_aggregation = "none"
+      stat_unit = "count"
       sec_per_row = 10
       stats = "stats.counters.hits.count stats.counters.misses.count"
       stat_labels = "hits misses"
@@ -77,6 +91,8 @@ local rows = read_config("rows") or 300
 local sec_per_row = read_config("sec_per_row") or 1
 local stats_config = read_config("stats") or error("stats configuration must be specified")
 local stat_labels_config = read_config("stat_labels") or error("stat_labels configuration must be specified")
+local stat_aggregation   = read_config("stat_aggregation") or "sum"
+local stat_unit          = read_config("stat_unit_label") or "count"
 local anomaly_config = anomaly.parse_config(read_config("anomaly_config"))
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
@@ -101,7 +117,7 @@ if #stats ~= #stat_labels then error("stats and stat_labels configuration must h
 cbuf = circular_buffer.new(rows, #stats, sec_per_row)
 local field_names = {}
 for i, stat_name in pairs(stats) do
-    cbuf:set_header(i, stat_labels[i])
+    cbuf:set_header(i, stat_labels[i], stat_unit, stat_aggregation)
     field_names[i] = string.format("Fields[%s]", stat_name)
 end
 
