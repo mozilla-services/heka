@@ -14,6 +14,8 @@
 
 package message
 
+import "strings"
+
 // MatcherSpecification used by the message router to distribute messages
 type MatcherSpecification struct {
 	vm   *tree
@@ -120,9 +122,21 @@ func stringTest(s string, stmt *Statement) bool {
 	case OP_GTE:
 		return (s >= stmt.value.token)
 	case OP_RE:
-		return stmt.value.regexp.MatchString(s)
+		if stmt.value.regexp != nil {
+			return stmt.value.regexp.MatchString(s)
+		} else if stmt.value.fieldIndex == STARTS_WITH {
+			return strings.HasPrefix(s, stmt.value.token)
+		} else if stmt.value.fieldIndex == ENDS_WITH {
+			return strings.HasSuffix(s, stmt.value.token)
+		}
 	case OP_NRE:
-		return !stmt.value.regexp.MatchString(s)
+		if stmt.value.regexp != nil {
+			return !stmt.value.regexp.MatchString(s)
+		} else if stmt.value.fieldIndex == STARTS_WITH {
+			return !strings.HasPrefix(s, stmt.value.token)
+		} else if stmt.value.fieldIndex == ENDS_WITH {
+			return !strings.HasSuffix(s, stmt.value.token)
+		}
 	}
 	return false
 }

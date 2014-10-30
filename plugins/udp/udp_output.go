@@ -105,7 +105,7 @@ func (o *UdpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err 
 	for pack := range or.InChan() {
 		if outBytes, e = or.Encode(pack); e != nil {
 			or.LogError(fmt.Errorf("Error encoding message: %s", e.Error()))
-		} else {
+		} else if outBytes != nil {
 			o.conn.Write(outBytes)
 		}
 		pack.Recycle()

@@ -144,7 +144,18 @@ Contents:
    developing/testing
    tls
 
+.. toctree::
+   :hidden:
 
+   changelog
+   glossary
+   sandbox/graph_annotation
+   sandbox/json_payload_transform
+   config/common_sandbox_parameter
+   pluginconfig/logstreamer
+   man/config
+   man/plugin
+   man/usage
 
 
 Indices and tables

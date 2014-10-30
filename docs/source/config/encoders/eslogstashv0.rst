@@ -1,6 +1,6 @@
 
 ESLogstashV0Encoder
-=================
+===================
 
 This encoder serializes a Heka message into a JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch
@@ -16,7 +16,7 @@ The JSON serialization is done by hand, without using Go's stdlib JSON
 marshalling. This is so serialization can succeed even if the message contains
 invalid UTF-8 characters, which will be encoded as U+FFFD.
 
-.. _eslogstashv0encoder_settings
+.. _eslogstashv0encoder_settings:
 
 Config:
 
@@ -33,13 +33,18 @@ Config:
     'Severity', field name, or a timestamp format) with the use of '%{}'
     chars, so '%{Hostname}-stat' would create an ES record with a type of
     'some.example.com-stat'. Defaults to 'message'.
+- use_message_type (bool):
+    If false, the generated JSON's @type value will match the ES record type
+    specified in the type_name setting. If true, the message's Type value will
+    be used as the @type value instead. Defaults to false.
 - fields ([]string):
     The 'fields' parameter specifies that only specific message data should be
     indexed into ElasticSearch. Available fields to choose are "Uuid",
     "Timestamp", "Type", "Logger", "Severity", "Payload", "EnvVersion", "Pid",
     "Hostname", and "Fields" (where "Fields" causes the inclusion of any and
     all dynamically specified message fields. Defaults to including all of the
-    supported message fields.
+    supported message fields. The "Payload" field is sent to ElasticSearch as
+    "@message".
 - es_index_from_timestamp (bool):
     When generating the index name use the timestamp from the message instead
     of the current time. Defaults to false.
@@ -59,11 +64,11 @@ Example
 
 .. code-block:: ini
 
-	[ESLogstashV0Encoder]
-	es_index_from_timestamp = true
-	type_name = "%{Type}"
+    [ESLogstashV0Encoder]
+    es_index_from_timestamp = true
+    type_name = "%{Type}"
 
-	[ElasticSearchOutput]
-	message_matcher = "Type == 'nginx.access'"
-	encoder = "ESLogstashV0Encoder"
-	flush_interval = 50
+    [ElasticSearchOutput]
+    message_matcher = "Type == 'nginx.access'"
+    encoder = "ESLogstashV0Encoder"
+    flush_interval = 50

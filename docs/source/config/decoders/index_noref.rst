@@ -11,36 +11,42 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+Graylog Extended Log Format Decoder
+===================================
+
+.. versionadded:: 0.8
+.. include:: /../../sandbox/lua/decoders/graylog_extended.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. versionadded:: 0.6
 .. include:: /config/decoders/geoip_decoder.rst
 
 .. include:: /config/decoders/multi.rst
 
-Cpu Stats Decoder
-=================
-
-.. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/linux_cpustats.lua
-   :start-after: --[[
-   :end-before: --]]
-
-Disk Stats Decoder
-==================
+Linux Disk Stats Decoder
+========================
 
 .. versionadded:: 0.7
 .. include:: /../../sandbox/lua/decoders/linux_diskstats.lua
    :start-after: --[[
    :end-before: --]]
 
-Nginx Access Log Decoder
-========================
+Linux Load Average Decoder
+==========================
 
-.. versionadded:: 0.5
-
-.. include:: /../../sandbox/lua/decoders/nginx_access.lua
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/linux_loadavg.lua
    :start-after: --[[
    :end-before: --]]
 
+Linux Memory Stats Decoder
+==========================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/decoders/linux_memstats.lua
+   :start-after: --[[
+   :end-before: --]]
 
 MySQL Slow Query Log Decoder
 ============================
@@ -50,11 +56,12 @@ MySQL Slow Query Log Decoder
    :start-after: --[[
    :end-before: --]]
 
-Memory Stats Decoder
-====================
+Nginx Access Log Decoder
+========================
 
-.. versionadded:: 0.7
-.. include:: /../../sandbox/lua/decoders/linux_memstats.lua
+.. versionadded:: 0.5
+
+.. include:: /../../sandbox/lua/decoders/nginx_access.lua
    :start-after: --[[
    :end-before: --]]
 

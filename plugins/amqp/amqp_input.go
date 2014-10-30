@@ -199,15 +199,16 @@ readLoop:
 			if dRunner == nil {
 				pack.Recycle()
 				ir.LogError(errors.New("`application/hekad` messages require a decoder."))
-			}
-			_, msgOk := findMessage(msg.Body, header, &(pack.MsgBytes))
-			if msgOk {
-				dRunner.InChan() <- pack
 			} else {
-				pack.Recycle()
-				ir.LogError(errors.New("Can't find Heka message."))
+				_, msgOk := findMessage(msg.Body, header, &(pack.MsgBytes))
+				if msgOk {
+					dRunner.InChan() <- pack
+				} else {
+					pack.Recycle()
+					ir.LogError(errors.New("Can't find Heka message."))
+				}
+				header.Reset()
 			}
-			header.Reset()
 		} else {
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))

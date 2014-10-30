@@ -190,6 +190,34 @@ func PayloadDecodersSpec(c gospec.Context) {
 			pack.Zero()
 		})
 
+		c.Specify("supports Epoch timestamp", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			conf.TimestampLayout = "Epoch"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[1414448234]")
+			_, err = decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1414448234000000000))
+			pack.Zero()
+		})
+
+		c.Specify("supports Epoch timestamp w/ float", func() {
+			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
+			conf.TimestampLayout = "Epoch"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload("[1414448234.638504391]")
+			_, err = decoder.Decode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1414448234638504391))
+			pack.Zero()
+		})
+
 		c.Specify("adjusts timestamps as specified", func() {
 			conf.MatchRegex = `\[(?P<Timestamp>[^\]]+)\]`
 			conf.TimestampLayout = "02/Jan/2006:15:04:05"

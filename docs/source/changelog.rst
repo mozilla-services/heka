@@ -4,4 +4,4 @@
 Changelog
 =========
 
-.. include:: ../../CHANGES.txt
+.. literalinclude:: ../CHANGES.txt

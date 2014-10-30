@@ -119,6 +119,7 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 				h.PipelineConfig().Globals.MaxMsgLoops))
 			return
 		}
+		pack.Message.SetLogger(fr.Name())
 		pack.Message.SetType("heka.counter-output")
 		pack.Message.SetPayload(
 			fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",

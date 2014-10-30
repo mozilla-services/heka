@@ -301,7 +301,8 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		if terminated {
 			pack := h.PipelinePack(0)
 			pack.Message.SetType("heka.sandbox-terminated")
-			pack.Message.SetLogger(fr.Name())
+			pack.Message.SetLogger(pipeline.HEKA_DAEMON)
+			message.NewStringField(pack.Message, "plugin", fr.Name())
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				// no lock on the ProcessMessage variables here because there are no active writers

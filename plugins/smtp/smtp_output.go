@@ -122,7 +122,7 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	for pack = range inChan {
 		message = headerText
 
-		if contents, err = s.encoder.Encode(pack); err == nil {
+		if contents, err = s.encoder.Encode(pack); contents != nil && err == nil {
 			message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
 			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
 		}

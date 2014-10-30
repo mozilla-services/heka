@@ -478,7 +478,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		// Add an error if there's multiple logfiles but no priority for sorting
 		// Continue the loop, to avoid adding this logstream as its not usable
 		if len(ls.sortPattern.Priority) == 0 && len(newLogfiles) > 1 {
-			errors.AddMessage(fmt.Sprintf("Found multiple logfiles without Priority to sort"+
+			errors.AddMessage(fmt.Sprintf("Found multiple logfiles without Priority to sort "+
 				"on for name: %s, filematch: %s, files: %s",
 				name, ls.sortPattern.FileMatch, newLogfiles))
 			continue

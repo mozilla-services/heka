@@ -287,6 +287,7 @@ func AMQPPluginSpec(c gs.Context) {
 			mch.EXPECT().Publish("", "test", false, false, gomock.Any()).Return(nil)
 			inChan <- pack
 			close(inChan)
+			close(closeChan)
 
 			go func() {
 				err := amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -314,6 +315,7 @@ func AMQPPluginSpec(c gs.Context) {
 			mch.EXPECT().Publish("", "test", false, false, gomock.Any()).Return(nil)
 			inChan <- pack
 			close(inChan)
+			close(closeChan)
 
 			go func() {
 				err := amqpOutput.Run(oth.MockOutputRunner, oth.MockHelper)

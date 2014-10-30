@@ -16,6 +16,7 @@
 package plugins
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
@@ -104,11 +105,6 @@ func copyMessageHeaders(dst *message.Message, src *message.Message) {
 		return
 	}
 
-	if cap(src.Uuid) > 0 {
-		dst.SetUuid(src.Uuid)
-	} else {
-		dst.Uuid = nil
-	}
 	if src.Timestamp != nil {
 		dst.SetTimestamp(*src.Timestamp)
 	} else {
@@ -210,7 +206,7 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			// if future injections fail to set the standard headers, use the values
 			// from the original message.
 			if s.pack.Message.Uuid == nil {
-				s.pack.Message.SetUuid(original.GetUuid())
+				s.pack.Message.SetUuid(uuid.NewRandom()) // UUID should always be unique
 			}
 			if s.pack.Message.Timestamp == nil {
 				s.pack.Message.SetTimestamp(original.GetTimestamp())

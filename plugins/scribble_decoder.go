@@ -21,9 +21,8 @@ import (
 type ScribbleDecoderConfig struct {
 	// Map of message field names to message string values. Note that all
 	// values *must* be strings. Any specified Pid and Severity field values
-	// must be parseable as int32. Any specified Timestamp field value will be
-	// parsed against the specified TimestampLayout. All specified user fields
-	// will be created as strings.
+	// must be parseable as int32. All specified user fields will be created
+	// as strings.
 	MessageFields MessageTemplate `toml:"message_fields"`
 }
 

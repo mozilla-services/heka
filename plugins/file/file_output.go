@@ -195,7 +195,7 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 			}
 			if outBytes, e = or.Encode(pack); e != nil {
 				or.LogError(e)
-			} else {
+			} else if outBytes != nil {
 				outBatch = append(outBatch, outBytes...)
 				msgCounter++
 			}

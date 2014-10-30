@@ -24,7 +24,7 @@ Config:
 
     [MemStatsDecoder]
     type = "SandboxDecoder"
-    filename = "lua_decoders/memstats.lua"
+    filename = "lua_decoders/linux_memstats.lua"
 
 *Example Heka Message*
 
