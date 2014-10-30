@@ -43,6 +43,8 @@ initialization code.
 
 .. include:: /config/outputs/irc.rst
 
+.. include:: /config/outputs/kafka.rst
+
 .. include:: /config/outputs/log.rst
 
 .. include:: /config/outputs/nagios.rst

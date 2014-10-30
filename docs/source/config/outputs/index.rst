@@ -63,6 +63,9 @@ initialization code.
 .. _config_irc_output:
 .. include:: /config/outputs/irc.rst
 
+.. _config_kafka_output:
+.. include:: /config/outputs/kafka.rst
+
 .. _config_log_output:
 .. include:: /config/outputs/log.rst
 

@@ -110,6 +110,7 @@ exclude_patterns = [
 'config/outputs/http.rst',
 'config/outputs/index_noref.rst',
 'config/outputs/irc.rst',
+'config/outputs/kafka.rst',
 'config/outputs/log.rst',
 'config/outputs/nagios.rst',
 'config/outputs/smtp.rst',
