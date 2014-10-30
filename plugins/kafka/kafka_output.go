@@ -335,6 +335,10 @@ func (k *KafkaOutput) ReportMsg(msg *message.Message) error {
 	return nil
 }
 
+func (k *KafkaOutput) CleanupForRestart() {
+	return
+}
+
 func init() {
 	pipeline.RegisterPlugin("KafkaOutput", func() interface{} {
 		return new(KafkaOutput)
