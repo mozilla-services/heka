@@ -41,7 +41,7 @@ type ElasticSearchOutput struct {
 
 	// Specify a timeout value in milliseconds for bulk request to complete.
 	// Default is 0 (infinite)
-	http_timeout uint32
+	http_timeout            uint32
 	http_disable_keepalives bool
 }
 
@@ -60,17 +60,25 @@ type ElasticSearchOutputConfig struct {
 	// on the local network and the indexing will be done with the UDP Bulk
 	// API. (default to "http://localhost:9200")
 	Server string
+	// Optional ElasticSearch username for HTTP authentication. This is useful
+	// if you have put your ElasticSearch cluster behind a proxy like nginx.
+	// and turned on authentication.
+	Username string `toml:"username"`
+	// Optional password for HTTP authentication.
+	Password string `toml:"password"`
 	// Timeout
-	HTTPTimeout uint32 `toml:"http_timeout"`
-	HTTPDisableKeepalives bool `toml:"http_disable_keepalives"`
+	HTTPTimeout           uint32 `toml:"http_timeout"`
+	HTTPDisableKeepalives bool   `toml:"http_disable_keepalives"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 	return &ElasticSearchOutputConfig{
-		FlushInterval: 1000,
-		FlushCount:    10,
-		Server:        "http://localhost:9200",
-		HTTPTimeout:   0,
+		FlushInterval:         1000,
+		FlushCount:            10,
+		Server:                "http://localhost:9200",
+		Username:              "",
+		Password:              "",
+		HTTPTimeout:           0,
 		HTTPDisableKeepalives: false,
 	}
 }
@@ -88,7 +96,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
 			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
-				o.flushCount, o.http_timeout, o.http_disable_keepalives)
+				o.flushCount, o.http_timeout, o.http_disable_keepalives, conf.Username, conf.Password)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		default:
@@ -204,24 +212,30 @@ type HttpBulkIndexer struct {
 	MaxCount int
 	// Internal HTTP Client.
 	client *http.Client
+	// Optional username for HTTP authentication
+	username string
+	// Optional password for HTTP authentication
+	password string
 }
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
-	httpTimeout uint32, httpDisableKeepalives bool) *HttpBulkIndexer {
+	httpTimeout uint32, httpDisableKeepalives bool, username string, password string) *HttpBulkIndexer {
 
-	tr := &http.Transport {
+	tr := &http.Transport{
 		DisableKeepAlives: httpDisableKeepalives,
 	}
 
 	client := &http.Client{
 		Transport: tr,
-		Timeout: time.Duration(httpTimeout) * time.Millisecond,
+		Timeout:   time.Duration(httpTimeout) * time.Millisecond,
 	}
 	return &HttpBulkIndexer{
 		Protocol: protocol,
 		Domain:   domain,
 		MaxCount: maxCount,
 		client:   client,
+		username: username,
+		password: password,
 	}
 }
 
@@ -241,6 +255,11 @@ func (h *HttpBulkIndexer) Index(body []byte) error {
 		return fmt.Errorf("can't create bulk request: %s", err.Error())
 	}
 	request.Header.Add("Accept", "application/json")
+
+	if h.username != "" && h.password != "" {
+		request.SetBasicAuth(h.username, h.password)
+	}
+
 	response, err := h.client.Do(request)
 	if err != nil {
 		return fmt.Errorf("HTTP request failed: %s", err.Error())
