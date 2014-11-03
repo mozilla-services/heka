@@ -276,7 +276,7 @@ func TestSendMessage(t *testing.T) {
 	config.Topic = topic
 	err := ko.Init(config)
 	if err != nil {
-		t.Errorf("%s", err)
+		t.Fatal(err)
 	}
 	oth := plugins_ts.NewOutputTestHelper(ctrl)
 	encoder := new(plugins.PayloadEncoder)

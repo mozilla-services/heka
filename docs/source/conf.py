@@ -95,6 +95,7 @@ exclude_patterns = [
 'config/inputs/http.rst',
 'config/inputs/httplisten.rst',
 'config/inputs/index_noref.rst',
+'config/inputs/kafka.rst',
 'config/inputs/logstreamer.rst',
 'config/inputs/process.rst',
 'config/inputs/processdir.rst',

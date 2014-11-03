@@ -75,7 +75,7 @@ Config:
     MaxRequestSize (100 MiB). Default is 50 * 1024 * 1024 (50 MiB), cannot be
     more than (MaxRequestSize - 10 KiB).
 
-Example (send various Fxa messsages to a static Fxa topic):
+Example (send various Fxa messages to a static Fxa topic):
 
 .. code-block:: ini
 

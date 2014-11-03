@@ -13,6 +13,8 @@ Inputs
 
 .. include:: /config/inputs/httplisten.rst
 
+.. include:: /config/inputs/kafka.rst
+
 .. include:: /config/inputs/logstreamer.rst
 
 .. include:: /config/inputs/process.rst
