@@ -130,7 +130,7 @@ func TestReceiveMessage(t *testing.T) {
 
 	// There is a hang on the consumer close with the mock broker
 	// closing the brokers before the consumer works around the issue
-    // and is good enough for this test.
+	// and is good enough for this test.
 	b1.Close()
 	b2.Close()
 

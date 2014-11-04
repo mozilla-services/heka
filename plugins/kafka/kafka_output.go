@@ -318,10 +318,9 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 				or.LogError(err)
 			}
 			pack.Recycle()
-			break
 
 		case err = <-errChan:
-			break
+			or.LogError(err)
 		}
 	}
 	return
