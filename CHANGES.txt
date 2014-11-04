@@ -11,6 +11,7 @@ Features
 --------
 
 * Select unit type and aggregation methods for stats graph
+* Added option (immediate_start) to start process immediately in ProcessInput.
  
 0.8.1 (2014-MM-DD)
 ==================
