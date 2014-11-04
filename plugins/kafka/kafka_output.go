@@ -69,6 +69,7 @@ type messageVariable struct {
 type KafkaOutput struct {
 	processMessageCount    int64
 	processMessageFailures int64
+	processMessageDiscards int64
 
 	hashVariable  *messageVariable
 	topicVariable *messageVariable
@@ -307,11 +308,15 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 				key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
 			}
 
-			if msgBytes, err := or.Encode(pack); msgBytes != nil && err == nil {
-				err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
-				if err != nil {
-					atomic.AddInt64(&k.processMessageFailures, 1)
-					or.LogError(err)
+			if msgBytes, err := or.Encode(pack); err == nil {
+				if msgBytes != nil {
+					err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
+					if err != nil {
+						atomic.AddInt64(&k.processMessageFailures, 1)
+						or.LogError(err)
+					}
+				} else {
+					atomic.AddInt64(&k.processMessageDiscards, 1)
 				}
 			} else {
 				atomic.AddInt64(&k.processMessageFailures, 1)
