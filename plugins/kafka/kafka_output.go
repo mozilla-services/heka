@@ -293,42 +293,40 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 		key   sarama.Encoder
 	)
 
-	for ok {
+	for pack = range inChan {
 		select {
 		case err = <-errChan:
 			if err != nil {
 				or.LogError(err)
 			}
+		default:
+			break
+		}
 
-		case pack, ok = <-inChan:
-			if !ok {
-				break
-			}
-			atomic.AddInt64(&k.processMessageCount, 1)
+		atomic.AddInt64(&k.processMessageCount, 1)
 
-			if k.topicVariable != nil {
-				topic = getMessageVariable(pack.Message, k.topicVariable)
-			}
-			if k.hashVariable != nil {
-				key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
-			}
+		if k.topicVariable != nil {
+			topic = getMessageVariable(pack.Message, k.topicVariable)
+		}
+		if k.hashVariable != nil {
+			key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
+		}
 
-			if msgBytes, err := or.Encode(pack); err == nil {
-				if msgBytes != nil {
-					err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
-					if err != nil {
-						atomic.AddInt64(&k.processMessageFailures, 1)
-						or.LogError(err)
-					}
-				} else {
-					atomic.AddInt64(&k.processMessageDiscards, 1)
+		if msgBytes, err := or.Encode(pack); err == nil {
+			if msgBytes != nil {
+				err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
+				if err != nil {
+					atomic.AddInt64(&k.processMessageFailures, 1)
+					or.LogError(err)
 				}
 			} else {
-				atomic.AddInt64(&k.processMessageFailures, 1)
-				or.LogError(err)
+				atomic.AddInt64(&k.processMessageDiscards, 1)
 			}
-			pack.Recycle()
+		} else {
+			atomic.AddInt64(&k.processMessageFailures, 1)
+			or.LogError(err)
 		}
+		pack.Recycle()
 	}
 	return
 }
