@@ -140,6 +140,9 @@ func (o *HttpOutput) request(or pipeline.OutputRunner, outBytes []byte) (err err
 	if resp, err = o.client.Do(req); err != nil {
 		return fmt.Errorf("Error making HTTP request: %s", err.Error())
 	}
+
+	defer resp.Body.Close()
+
 	if resp.StatusCode >= 400 {
 		var body []byte
 		if resp.ContentLength > 0 {
