@@ -284,7 +284,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	}
 
 	inChan := or.InChan()
-	errChan := k.producer.Errors()
 
 	var (
 		pack  *pipeline.PipelinePack
