@@ -23,6 +23,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -57,6 +58,7 @@ type KafkaOutputConfig struct {
 	BackPressureThresholdBytes uint32 `toml:"back_pressure_threshold_bytes"`
 }
 
+var Shutdown = errors.New("Shutdown Kafka error processing")
 var fieldRegex = regexp.MustCompile("^Fields\\[([^\\]]*)\\](?:\\[(\\d+)\\])?(?:\\[(\\d+)\\])?$")
 
 type messageVariable struct {
@@ -275,6 +277,25 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 	return
 }
 
+func (k *KafkaOutput) processKafkaErrors(or pipeline.OutputRunner, errChan chan error, wg *sync.WaitGroup) {
+shutdown:
+	for err := range errChan {
+		switch err {
+		case nil:
+		case Shutdown:
+			break shutdown
+		case sarama.EncodingError:
+			atomic.AddInt64(&k.kafkaEncodingErrors, 1)
+		default:
+			if e, ok := err.(sarama.DroppedMessagesError); ok {
+				atomic.AddInt64(&k.kafkaDroppedMessages, int64(e.DroppedMessages))
+			}
+			or.LogError(err)
+		}
+	}
+	wg.Done()
+}
+
 func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err error) {
 	defer func() {
 		k.producer.Close()
@@ -287,6 +308,9 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 
 	inChan := or.InChan()
 	errChan := k.producer.Errors()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go k.processKafkaErrors(or, errChan, &wg)
 
 	var (
 		pack  *pipeline.PipelinePack
@@ -295,25 +319,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	)
 
 	for pack = range inChan {
-		// Aggressively consume the errors to prevent QueueMessage deadlocks.
-		// Errors are only generated during a flush so we don't have
-		// worry about them accumulating when no messages are being processed.
-		// However, they can be written to the channel asynchronously so it is
-		// technically possible to get more than one message in the channel.
-		for l := len(errChan); l != 0; l-- {
-			err = <-errChan
-			switch err {
-			case nil:
-			case sarama.EncodingError:
-				atomic.AddInt64(&k.kafkaEncodingErrors, 1)
-			default:
-				if e, ok := err.(sarama.DroppedMessagesError); ok {
-					atomic.AddInt64(&k.kafkaDroppedMessages, int64(e.DroppedMessages))
-				}
-				or.LogError(err)
-			}
-		}
-
 		atomic.AddInt64(&k.processMessageCount, 1)
 
 		if k.topicVariable != nil {
@@ -339,6 +344,8 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 		}
 		pack.Recycle()
 	}
+	errChan <- Shutdown
+	wg.Wait()
 	return
 }
 
