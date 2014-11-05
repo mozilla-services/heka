@@ -293,14 +293,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	)
 
 	for pack = range inChan {
-		select {
-		case err = <-errChan:
-			if err != nil {
-				or.LogError(err)
-			}
-		default:
-			break
-		}
 
 		atomic.AddInt64(&k.processMessageCount, 1)
 
@@ -313,7 +305,7 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 
 		if msgBytes, err := or.Encode(pack); err == nil {
 			if msgBytes != nil {
-				err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
+				err = k.producer.SendMessage(topic, key, sarama.ByteEncoder(msgBytes))
 				if err != nil {
 					atomic.AddInt64(&k.processMessageFailures, 1)
 					or.LogError(err)
