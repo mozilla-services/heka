@@ -70,6 +70,8 @@ type KafkaOutput struct {
 	processMessageCount    int64
 	processMessageFailures int64
 	processMessageDiscards int64
+	kafkaDroppedMessages   int64
+	kafkaEncodingErrors    int64
 
 	hashVariable  *messageVariable
 	topicVariable *messageVariable
@@ -287,48 +289,55 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	errChan := k.producer.Errors()
 
 	var (
-		ok    = true
 		pack  *pipeline.PipelinePack
 		topic = k.config.Topic
 		key   sarama.Encoder
 	)
 
-	for ok {
-		select {
-		case err = <-errChan:
-			if err != nil {
+	for pack = range inChan {
+		// Aggressively consume the errors to prevent QueueMessage deadlocks.
+		// Errors are only generated during a flush so we don't have
+		// worry about them accumulating when no messages are being processed.
+		// However, they can be written to the channel asynchronously so it is
+		// technically possible to get more than one message in the channel.
+		for l := len(errChan); l != 0; l-- {
+			err = <-errChan
+			switch err {
+			case nil:
+			case sarama.EncodingError:
+				atomic.AddInt64(&k.kafkaEncodingErrors, 1)
+			default:
+				if e, ok := err.(sarama.DroppedMessagesError); ok {
+					atomic.AddInt64(&k.kafkaDroppedMessages, int64(e.DroppedMessages))
+				}
 				or.LogError(err)
 			}
+		}
 
-		case pack, ok = <-inChan:
-			if !ok {
-				break
-			}
-			atomic.AddInt64(&k.processMessageCount, 1)
+		atomic.AddInt64(&k.processMessageCount, 1)
 
-			if k.topicVariable != nil {
-				topic = getMessageVariable(pack.Message, k.topicVariable)
-			}
-			if k.hashVariable != nil {
-				key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
-			}
+		if k.topicVariable != nil {
+			topic = getMessageVariable(pack.Message, k.topicVariable)
+		}
+		if k.hashVariable != nil {
+			key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
+		}
 
-			if msgBytes, err := or.Encode(pack); err == nil {
-				if msgBytes != nil {
-					err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
-					if err != nil {
-						atomic.AddInt64(&k.processMessageFailures, 1)
-						or.LogError(err)
-					}
-				} else {
-					atomic.AddInt64(&k.processMessageDiscards, 1)
+		if msgBytes, err := or.Encode(pack); err == nil {
+			if msgBytes != nil {
+				err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
+				if err != nil {
+					atomic.AddInt64(&k.processMessageFailures, 1)
+					or.LogError(err)
 				}
 			} else {
-				atomic.AddInt64(&k.processMessageFailures, 1)
-				or.LogError(err)
+				atomic.AddInt64(&k.processMessageDiscards, 1)
 			}
-			pack.Recycle()
+		} else {
+			atomic.AddInt64(&k.processMessageFailures, 1)
+			or.LogError(err)
 		}
+		pack.Recycle()
 	}
 	return
 }
@@ -338,6 +347,12 @@ func (k *KafkaOutput) ReportMsg(msg *message.Message) error {
 		atomic.LoadInt64(&k.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures",
 		atomic.LoadInt64(&k.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageDiscards",
+		atomic.LoadInt64(&k.processMessageDiscards), "count")
+	message.NewInt64Field(msg, "KafkaDroppedMessages",
+		atomic.LoadInt64(&k.kafkaDroppedMessages), "count")
+	message.NewInt64Field(msg, "KafkaEncodingErrors",
+		atomic.LoadInt64(&k.kafkaEncodingErrors), "count")
 	return nil
 }
 
