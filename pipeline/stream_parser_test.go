@@ -238,7 +238,7 @@ func StreamParserSpec(c gs.Context) {
 			n, record, err = p.Parse(reader)
 		}
 		c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
-		c.Expect(len(record), gs.Equals, 0)
+		c.Expect(len(record), gs.Equals, message.MAX_RECORD_SIZE)
 		c.Expect(err, gs.Equals, io.ErrShortBuffer)
 	})
 }

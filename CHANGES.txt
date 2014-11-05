@@ -82,6 +82,8 @@ Features
   timestamp formats to the time parsing code used by the Payload*Decoder
   plugins (#963).
 
+* Added ability to drop big message entirely or to keep first part of it (#1134)
+
 0.7.3 (2014-10-28)
 ==================
 

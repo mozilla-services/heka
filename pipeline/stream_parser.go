@@ -122,6 +122,10 @@ func NewTokenParser() (t *TokenParser) {
 func (t *TokenParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
 	if t.needData {
 		if bytesRead, err = t.read(reader); err != nil {
+			if err == io.ErrShortBuffer {
+				record = t.buf
+				// return truncated message and allow input plugin to decide what to do with it
+			}
 			return
 		}
 	}
@@ -203,6 +207,10 @@ func (r *RegexpParser) SetDelimiterLocation(location string) (err error) {
 func (r *RegexpParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
 	if r.needData {
 		if bytesRead, err = r.read(reader); err != nil {
+			if err == io.ErrShortBuffer {
+				record = r.buf
+				// return truncated message and allow input plugin to decide what to do with it
+			}
 			return
 		}
 	}
