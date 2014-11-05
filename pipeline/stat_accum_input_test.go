@@ -85,6 +85,7 @@ func StatAccumInputSpec(c gs.Context) {
 			}
 
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput").AnyTimes()
 
 			injectCall := ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 			var injectCalled sync.WaitGroup

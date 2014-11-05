@@ -10,6 +10,10 @@ InfluxDB's `HTTP API
 StatAccumInput must be configured with `emit_in_fields = true` for this
 encoder to work correctly.
 
+Config:
+
+<none>
+
 *Example Heka Configuration*
 
 .. code-block:: ini

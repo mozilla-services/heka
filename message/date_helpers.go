@@ -9,12 +9,16 @@
 #
 # Contributor(s):
 #   Ben Bangert (bbangert@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package message
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,18 +44,72 @@ var (
 
 // Parse a time with the supplied timeLayout, falling back to all the
 // basicTimeLayouts.
-func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (
-	parsedTime time.Time, err error) {
+func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.Time, error) {
 
-	parsedTime, err = time.ParseInLocation(timeLayout, inputTime, loc)
-	if err == nil {
-		return
+	var (
+		parsedTime time.Time
+		err        error
+	)
+
+	if strings.HasPrefix(timeLayout, "Epoch") {
+		var (
+			parsedInt  uint64
+			multiplier int
+		)
+
+		switch timeLayout {
+		case "Epoch":
+			multiplier = 9
+		case "EpochMilli":
+			multiplier = 6
+		case "EpochMicro":
+			multiplier = 3
+		case "EpochNano":
+			multiplier = 0
+		default:
+			err := fmt.Errorf("Unrecognized `Epoch` time format: %s", timeLayout)
+			return parsedTime, err
+		}
+
+		i := strings.Index(inputTime, ".")
+		if i == -1 {
+			// Integer values are easy, we append the right number of 0s and
+			// we're done.
+			zeroes := strings.Repeat("0", multiplier)
+			inputTime = inputTime + zeroes
+			parsedInt, err = strconv.ParseUint(inputTime, 10, 64)
+		} else {
+			// Noninteger need more care, we can't use floats or we'll lose
+			// timestamp precision. First calculate the number of decimal
+			// digits.
+			decDigits := len(inputTime) - i - 1
+			if decDigits < multiplier {
+				// Pad out zeroes to nanosecond resolution.
+				zeroes := strings.Repeat("0", multiplier-decDigits)
+				inputTime = inputTime + zeroes
+			} else if decDigits > multiplier {
+				// Truncate to nanosecond resolution.
+				inputTime = inputTime[:len(inputTime)-(decDigits-multiplier)]
+			}
+			// Finally remove the decimal and parse the value as an integer.
+			intStr := fmt.Sprintf("%s%s", inputTime[:i], inputTime[i+1:])
+			parsedInt, err = strconv.ParseUint(intStr, 10, 64)
+		}
+		if err != nil {
+			err = fmt.Errorf("Error parsing %s time: %s", timeLayout, err.Error())
+			return parsedTime, err
+		}
+		return time.Unix(0, int64(parsedInt)), nil
 	}
+
+	if parsedTime, err = time.ParseInLocation(timeLayout, inputTime, loc); err == nil {
+		return parsedTime, nil
+	}
+
 	for _, layout := range basicTimeLayouts {
-		parsedTime, err = time.ParseInLocation(layout, inputTime, loc)
-		if err == nil {
-			return
+		if parsedTime, err = time.ParseInLocation(layout, inputTime, loc); err == nil {
+			return parsedTime, nil
 		}
 	}
-	return
+	return parsedTime, err
 }

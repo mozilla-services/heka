@@ -169,7 +169,7 @@ func (output *IrcOutput) Run(runner pipeline.OutputRunner,
 		outgoing, err = runner.Encode(pack)
 		if err != nil {
 			output.runner.LogError(err)
-		} else {
+		} else if outgoing != nil {
 			// Send the message to each irc channel. If the out queue is full,
 			// then we need to drop the message and log an error.
 			for i, ircChannel := range output.Channels {

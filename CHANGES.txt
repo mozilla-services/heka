@@ -1,3 +1,87 @@
+0.9.0 (2014-MM-DD)
+==================
+
+Backwards Incompatibilities
+---------------------------
+
+Bug Handling
+------------
+
+Features
+--------
+
+* Select unit type and aggregation methods for stats graph
+* Added option (immediate_start) to start process immediately in ProcessInput.
+ 
+0.8.1 (2014-MM-DD)
+==================
+
+Bug Handling
+------------
+
+0.8.0 (2014-10-29)
+==================
+
+Backwards Incompatibilities
+---------------------------
+
+* Audited the use of Logger and Type headers on internal message (#1024). These
+  changes may break some existing message matchers with regards to
+  plugin/sandbox termination messages.
+
+* Sandbox decoder linux_cpustats has been renamed to linux_loadavg and the
+  corresponding filter cpustats was renamed to loadavg (#1094).
+
+* ESLogstashv0 encoder will now set the @type field to match the ES record
+  type specified in the `type_name` setting. This is Logstash behaviour in
+  V0. You can revert back to the old method with `use_message_type = true`
+
+Bug Handling
+------------
+
+* linux_diskstats.lua will now parse a line with no leading space (#1141).
+
+* Protect globals.Stopping with a RWMutex.
+
+* Added support for `fields` config setting to ESLogstashV0Encoder; it was
+  already documented, but hadn't been implemented (#1096).
+
+* Fixed deadlock race condition in AMQPOutput shutdown sequence (#824).
+
+Features
+--------
+
+* Optimized prefix/suffix testing in the message matcher (#1040).
+
+* LogstreamerInput now supports seekjournal file hashing for files that are
+  less than 500 bytes in length; hash is generated against file contents with
+  0 bytes prepended to make 500 bytes of hash content (#972).
+
+* Support environment variables in config files (#1023).
+
+* Add Dockerfiles and example Docker usage to repo
+
+* Encoders can now return (nil, nil) to express that they've swallowed the
+  input message without generating any output.
+
+* SandboxEncoder now supports return value of -2 from the process_message call
+  to specify that no output is being generated.
+
+* Added schema_influx.lua encoder.
+
+* Added CBUF Librato Encoder.
+
+* Added option to disable re-using TCP connections to the ElasticSearch output
+
+* Added separate env loading file and support for NUM_JOBS env var to Windows
+  build (#971).
+
+* Added DockerLogInput (issue #1092).
+
+* Added support for "Epoch", "EpochMilli", "EpochMicro", and "EpochNano"
+  timestamp formats to the time parsing code used by the Payload*Decoder
+  plugins (#963).
+
 0.7.3 (2014-10-28)
 ==================
 

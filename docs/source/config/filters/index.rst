@@ -35,7 +35,6 @@ Circular Buffer Delta Aggregator
 ================================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/filters/cbufd_aggregator.lua
    :start-after: --[[
    :end-before: --]]
@@ -46,7 +45,6 @@ CBuf Delta Aggregator By Hostname
 =================================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/filters/cbufd_host_aggregator.lua
    :start-after: --[[
    :end-before: --]]
@@ -54,16 +52,6 @@ CBuf Delta Aggregator By Hostname
 .. _config_counter_filter:
 
 .. include:: /config/filters/counter.rst
-
-.. _config_cpu_stats_filter:
-
-Cpu Stats Filter
-================
-
-.. versionadded:: 0.7
-.. include:: /../../sandbox/lua/filters/cpustats.lua
-   :start-after: --[[
-   :end-before: --]]
 
 .. _config_disk_stats_filter:
 
@@ -81,7 +69,6 @@ Frequent Items
 ==============
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/filters/frequent_items.lua
    :start-after: --[[
    :end-before: --]]
@@ -92,7 +79,6 @@ Heka Memory Statistics
 ======================
 
 .. versionadded:: 0.6
-
 .. include:: /../../sandbox/lua/filters/heka_memstat.lua
    :start-after: --[[
    :end-before: --]]
@@ -103,7 +89,6 @@ Heka Message Schema
 ===================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/filters/heka_message_schema.lua
    :start-after: --[[
    :end-before: --]]
@@ -114,7 +99,6 @@ Heka Process Message Failures
 =============================
 
 .. versionadded:: 0.7
-
 .. include:: /../../sandbox/lua/filters/heka_process_message_failures.lua
    :start-after: --[[
    :end-before: --]]
@@ -125,8 +109,17 @@ HTTP Status Graph
 =================
 
 .. versionadded:: 0.5
-
 .. include:: /../../sandbox/lua/filters/http_status.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _config_load_avg_filter:
+
+Load Average Filter
+===================
+
+.. versionadded:: 0.7
+.. include:: /../../sandbox/lua/filters/loadavg.lua
    :start-after: --[[
    :end-before: --]]
 
@@ -146,7 +139,6 @@ MySQL Slow Query
 ================
 
 .. versionadded:: 0.6
-
 .. include:: /../../sandbox/lua/filters/mysql_slow_query.lua
    :start-after: --[[
    :end-before: --]]
@@ -166,7 +158,6 @@ Stats Graph
 ===========
 
 .. versionadded:: 0.7
-
 .. include:: /../../sandbox/lua/filters/stat_graph.lua
    :start-after: --[[
    :end-before: --]]
@@ -177,7 +168,6 @@ Unique Items
 ============
 
 .. versionadded:: 0.6
-
 .. include:: /../../sandbox/lua/filters/unique_items.lua
    :start-after: --[[
    :end-before: --]]

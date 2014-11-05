@@ -533,14 +533,18 @@ The `Encoder` interface consists of one method::
 
 This method accepts a PiplelinePack containing a populated message object and
 returns a byte slice containing the data that should be sent out, or an error
-if serialization fails for some reason.
+if serialization fails for some reason. If the encoder wishes to swallow an
+input message without generating any output (such as for batching, or because
+the message contains no new data) then nil should be returned for both the
+output and the error.
 
 Unlike the other plugin types, encoders don't have a PluginRunner, nor do they
 run in their own goroutines. Outputs invoke encoders directly, by calling the
 Encode method exposed on the OutputRunner. This has the same signature as the
-Encoder interface's Encode method, to which it will will delegate. If `use_framing` is
-set to true in the output's configuration, however, the OutputRunner will
-prepend Heka's :ref:`stream_framing` to the generated binary data.
+Encoder interface's Encode method, to which it will will delegate. If
+`use_framing` is set to true in the output's configuration, however, the
+OutputRunner will prepend Heka's :ref:`stream_framing` to the generated binary
+data.
 
 Outputs can also directly access their encoder instance by calling
 OutputRunner.Encoder(). Encoders themselves don't handle the stream framing,

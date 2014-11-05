@@ -3,7 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 function process_message ()
-    i = read_message("Pid")
+    local i = read_message("Pid")
     return 0
 end
 

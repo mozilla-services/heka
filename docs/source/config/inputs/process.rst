@@ -22,6 +22,9 @@ Config:
     ticker_interval is set to 0 and the process exits, then the ProcessInput
     will exit, invoking the restart behavior (see
     :ref:`configuring_restarting`).
+- immediate_start (bool):
+    If true, heka starts process immediately instead of waiting for first interval defined by ticker_interval to pass.
+    Defaults to false.
 - stdout (bool):
     If true, for each run of the process chain a message will be generated
     with the last command in the chain's stdout as the payload. Defaults to

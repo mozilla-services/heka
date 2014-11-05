@@ -234,7 +234,7 @@ func DecoderSpec(c gs.Context) {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
-		conf.ScriptFilename = "../lua/decoders/linux_cpustats.lua"
+		conf.ScriptFilename = "../lua/decoders/linux_loadavg.lua"
 		conf.ModuleDirectory = "../../../../../../modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
@@ -436,6 +436,18 @@ HugePages_Free:        0
 			value, ok = pack.Message.GetFieldValue("FilePath")
 			c.Expect(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, "/sys/block/sda/stat")
+		})
+
+		c.Specify("decodes a message with no leading space", func() {
+			payload := "19092852        0 510563170 15817012 46452019        0 1546950712 262535124        0 23823976 278362684\n"
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			value, ok := pack.Message.GetFieldValue("ReadsCompleted")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(19092852))
 		})
 
 		c.Specify("decodes an invalid message", func() {

@@ -104,6 +104,9 @@ func (o *HttpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err
 			or.LogError(e)
 			continue
 		}
+		if outBytes == nil {
+			continue
+		}
 		if e = o.request(or, outBytes); e != nil {
 			or.LogError(e)
 		}

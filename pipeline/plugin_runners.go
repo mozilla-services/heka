@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
 	"log"
 	"sync"
 	"time"
@@ -192,7 +193,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		return
 	}
 
-	for !globals.Stopping {
+	for !globals.IsShuttingDown() {
 		// ir.Input().Run() shouldn't return unless error or shutdown
 		if err := ir.Input().Run(ir, h); err != nil {
 			ir.LogError(err)
@@ -201,7 +202,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		}
 
 		// Are we supposed to stop? Save ourselves some time by exiting now.
-		if globals.Stopping {
+		if globals.IsShuttingDown() {
 			return
 		}
 
@@ -227,7 +228,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 		// Attempt to recreate the plugin until it works without error or
 		// until we were told to stop.
 	createLoop:
-		for !globals.Stopping {
+		for !globals.IsShuttingDown() {
 			err := rh.Wait()
 			if err != nil {
 				ir.LogError(err)
@@ -551,7 +552,7 @@ func (foRunner *foRunner) restart(helper *RetryHelper, wrapper *PluginWrapper) e
 
 func (foRunner *foRunner) exit() {
 	// Just exit if we're stopping.
-	if foRunner.pConfig.Globals.Stopping {
+	if foRunner.pConfig.Globals.IsShuttingDown() {
 		return
 	}
 
@@ -578,7 +579,8 @@ func (foRunner *foRunner) exit() {
 
 		pack := foRunner.pConfig.PipelinePack(0)
 		pack.Message.SetType("heka.terminated")
-		pack.Message.SetLogger(foRunner.Name())
+		pack.Message.SetLogger(HEKA_DAEMON)
+		message.NewStringField(pack.Message, "plugin", foRunner.Name())
 
 		var errMsg string
 		if foRunner.lastErr != nil {
@@ -628,7 +630,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	// Handle the cleanup
 	defer foRunner.exit()
 
-	for !globals.Stopping {
+	for !globals.IsShuttingDown() {
 		// `Run` method only returns if there's an error or we're shutting
 		// down.
 		pw, err = foRunner.getWrapperAndRun(&helper)
@@ -644,7 +646,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 		foRunner.LogMessage("stopped")
 
 		// Are we supposed to stop? Save ourselves some time by exiting now.
-		if globals.Stopping {
+		if globals.IsShuttingDown() {
 			return
 		}
 
@@ -657,7 +659,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 
 		// Re-initialize our plugin using its wrapper. Attempt to recreate the
 		// plugin until it works without error or until we're told to stop.
-		for !globals.Stopping {
+		for !globals.IsShuttingDown() {
 			err = foRunner.restart(rh, pw)
 			// No error, so break out of the loop, we restarted without error.
 			if err == nil {

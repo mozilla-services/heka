@@ -1,0 +1,5 @@
+[LogOutput]
+type = "LogOutput"
+message_matcher = "TRUE"
+encoder = "%ENV[this_has_no_ending"
+

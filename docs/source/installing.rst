@@ -33,10 +33,11 @@ Prerequisites (all systems):
 
 - CMake 2.8.7 or greater http://www.cmake.org/cmake/resources/software.html
 - Git http://git-scm.com/download
-- Go 1.3 or greater http://code.google.com/p/go/downloads/list
-- Mercurial http://mercurial.selenic.com/downloads/
+- Go 1.3 or greater http://golang.org/dl/
+- Mercurial http://mercurial.selenic.com/wiki/Download
 - Protobuf 2.3 or greater (optional - only needed if message.proto is modified) http://code.google.com/p/protobuf/downloads/list
 - Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
+- An internet connection to fetch sub modules
 
 Prerequisites (Unix):
 
@@ -122,7 +123,7 @@ provided `add_external_plugin` taking the repository type (git, svn, or hg),
 repository URL, the repository tag to fetch, and an optional list of 
 sub-packages to be initialized.
 
-    .. code-block:: txt
+    .. code-block:: cmake
 
         add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 6fe574dbd32a21f5d5583608a9d2339925edd2a7)
         add_external_plugin(git https://github.com/example/path <tag> util filepath)

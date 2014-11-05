@@ -10,6 +10,13 @@ Alert Encoder
    :start-after: --[[
    :end-before: --]]
 
+CBUF Librato Encoder
+--------------------
+
+..include:: /../../sandbox/lua/encoders/cbuf_librato.lua
+   :start-after: --[[
+   :end-before: --]]
+
 .. include:: /config/encoders/esjson.rst
 
 .. include:: /config/encoders/eslogstashv0.rst
@@ -29,9 +36,17 @@ ESPayloadEncoder
 
 .. include:: /config/encoders/sandbox.rst
 
-StatMetric Influx Encoder
-=========================
+Schema InfluxDB Encoder
+=======================
+
+.. include:: /../../sandbox/lua/encoders/schema_influx.lua
+    :start-after: --[=[
+    :end-before: --]=]
+
+
+StatMetric InfluxDB Encoder
+===========================
 
 .. include:: /../../sandbox/lua/encoders/es_payload.lua
-	:start-after: --[=[
-	:end-before: --]=]
+    :start-after: --[[
+    :end-before: --]]

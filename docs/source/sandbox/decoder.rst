@@ -13,6 +13,30 @@ Apache Access Log Decoder
    :start-after: --[[
    :end-before: --]]
 
+Graylog Extended Log Format Decoder
+-----------------------------------
+.. include:: ../../../sandbox/lua/decoders/graylog_extended.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Linux Disk Stats Decoder
+------------------------
+.. include:: /../../sandbox/lua/decoders/linux_diskstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Linux Load Average Decoder
+--------------------------
+.. include:: /../../sandbox/lua/decoders/linux_loadavg.lua
+   :start-after: --[[
+   :end-before: --]]
+
+Linux Memory Stats Decoder
+--------------------------
+.. include:: /../../sandbox/lua/decoders/linux_memstats.lua
+   :start-after: --[[
+   :end-before: --]]
+
 MySQL Slow Query Log Decoder
 ----------------------------
 .. include:: ../../../sandbox/lua/decoders/mysql_slow_query.lua

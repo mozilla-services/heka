@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG ae2a13889dbeb97024584dbff7e03a638eb6c58a
+        GIT_TAG 6eb7a907d8f4777418463dc5b56d237f1c845a67
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -142,7 +142,7 @@ git_clone(https://github.com/bitly/go-simplejson ec501b3f691bcc79d97caf8fdf28bcf
 git_clone(https://github.com/rafrombrc/whisper-go 89e9ba3b5c6a10d8ac43bd1a25371f3e6118c37f)
 git_clone(https://github.com/rafrombrc/go-notify e3ddb616eea90d4e87dff8513c251ff514678406)
 git_clone(https://github.com/bbangert/toml a2063ce2e5cf10e54ab24075840593d60f59b611)
-git_clone(https://github.com/streadway/amqp 171c24a86dfdd0ab079c4077500fd6bf59b6b00b)
+git_clone(https://github.com/streadway/amqp 7d6d1802c7710be39564a287f860360c6328f956)
 git_clone(https://github.com/feyeleanor/raw 724aedf6e1a5d8971aafec384b6bde3d5608fba4)
 git_clone(https://github.com/feyeleanor/slices bb44bb2e4817fe71ba7082d351fd582e7d40e3ea)
 add_dependencies(slices raw)
@@ -156,6 +156,10 @@ git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52ef
 
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
+endif()
+
+if (INCLUDE_DOCKER_PLUGINS)
+    git_clone(https://github.com/rafrombrc/go-dockerclient 253de7054ca5defe718269e17732e24cdadc3d21)
 endif()
 
 if (INCLUDE_MOZSVC)

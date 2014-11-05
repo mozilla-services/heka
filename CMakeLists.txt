@@ -6,8 +6,8 @@ cmake_minimum_required(VERSION 2.8.7 FATAL_ERROR)
 project(heka C)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High performance data gathering, analysis, monitoring, and reporting.")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
-set(CPACK_PACKAGE_VERSION_MINOR 7)
-set(CPACK_PACKAGE_VERSION_PATCH 3)
+set(CPACK_PACKAGE_VERSION_MINOR 9)
+set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
@@ -39,6 +39,7 @@ set(HEKA_CAT_EXE "${PROJECT_PATH}/bin/heka-cat${CMAKE_EXECUTABLE_SUFFIX}")
 
 option(INCLUDE_SANDBOX "Include Lua sandbox" on)
 option(INCLUDE_MOZSVC "Include the Mozilla services plugins" on)
+option(INCLUDE_DOCKER_PLUGINS "Include Docker plugins" on)
 
 find_path(INCLUDE_GEOIP GeoIP.h /usr/local/include /usr/include /opt/local/include)
 if (NOT INCLUDE_GEOIP)
@@ -47,6 +48,11 @@ else()
     message(STATUS "GeoIP.h found. Enabling GeoIP plugin.")
     set(TAGS "${TAGS} geoip")
     set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/geoip")
+endif()
+
+if (INCLUDE_DOCKER_PLUGINS)
+    message(STATUS "Docker plugins enabled.")
+    set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/plugins/docker")
 endif()
 
 option(BENCHMARK "Enable the benchmark tests" off)
@@ -126,6 +132,7 @@ add_custom_target(heka_source ALL
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/client" "${HEKA_PATH}/client"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/cmd" "${HEKA_PATH}/cmd"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/docs" "${HEKA_PATH}/docs"
+COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/CHANGES.txt" "${HEKA_PATH}/docs"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/examples" "${HEKA_PATH}/examples"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/message" "${HEKA_PATH}/message"
 COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/pipeline" "${HEKA_PATH}/pipeline"
@@ -144,7 +151,7 @@ WORKING_DIRECTORY "${HEKA_PATH}/message"
 add_dependencies(mocks message_matcher_parser)
 
 add_custom_target(hekad ALL
-${GO_EXECUTABLE} install ${LDFLAGS} -tags=\"${TAGS}\"  github.com/mozilla-services/heka/cmd/hekad
+${GO_EXECUTABLE} install ${LDFLAGS} -tags=${TAGS} github.com/mozilla-services/heka/cmd/hekad
 DEPENDS mocks)
 
 if (INCLUDE_DOCUMENTATION)
