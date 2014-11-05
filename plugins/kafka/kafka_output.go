@@ -295,6 +295,11 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 
 	for ok {
 		select {
+		case err = <-errChan:
+			if err != nil {
+				or.LogError(err)
+			}
+
 		case pack, ok = <-inChan:
 			if !ok {
 				break
@@ -323,9 +328,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 				or.LogError(err)
 			}
 			pack.Recycle()
-
-		case err = <-errChan:
-			or.LogError(err)
 		}
 	}
 	return
