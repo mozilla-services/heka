@@ -38,6 +38,7 @@ type StatsdInput struct {
 	statChan      chan<- Stat
 	statAccumName string
 	statAccum     StatAccumulator
+	maxMsgSize    uint
 	ir            InputRunner
 }
 
@@ -49,12 +50,17 @@ type StatsdInputConfig struct {
 	// Configured name of StatAccumInput plugin to which this filter should be
 	// delivering its stats. Defaults to "StatsAccumInput".
 	StatAccumName string `toml:"stat_accum_name"`
+	// Size of a message read from statsd. In some cases, when statsd
+	// sends a lots in single message of stats it's required to boost this value.
+	// Defaults to 512.
+	MaxMsgSize uint `toml:"max_msg_size"`
 }
 
 func (s *StatsdInput) ConfigStruct() interface{} {
 	return &StatsdInputConfig{
 		Address:       "127.0.0.1:8125",
 		StatAccumName: "StatAccumInput",
+		MaxMsgSize: 512,
 	}
 }
 
@@ -69,6 +75,7 @@ func (s *StatsdInput) Init(config interface{}) error {
 		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 	}
 	s.statAccumName = conf.StatAccumName
+	s.maxMsgSize = conf.MaxMsgSize
 	s.stopChan = make(chan bool)
 	return nil
 }
@@ -91,7 +98,7 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	timeout := time.Duration(time.Millisecond * 100)
 
 	for !stopped {
-		message := make([]byte, 512)
+		message := make([]byte, s.maxMsgSize)
 		s.listener.SetReadDeadline(time.Now().Add(timeout))
 		n, e = s.listener.Read(message)
 

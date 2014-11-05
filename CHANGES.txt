@@ -9,6 +9,8 @@ Bug Handling
 * Only stamp PipelinePack diagnostics in cases when a pack actually matches a
   message matcher, instead of for every matcher every time.
 
+* StatsdInput allows to specify (via max_msg_size option) size of message read from UDP.
+
 0.8.0 (2014-10-29)
 ==================
 
