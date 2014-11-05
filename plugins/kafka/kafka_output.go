@@ -287,7 +287,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	errChan := k.producer.Errors()
 
 	var (
-		ok    = true
 		pack  *pipeline.PipelinePack
 		topic = k.config.Topic
 		key   sarama.Encoder
