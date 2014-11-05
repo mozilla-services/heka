@@ -12,7 +12,8 @@ Features
 
 * Select unit type and aggregation methods for stats graph
 * Added option (immediate_start) to start process immediately in ProcessInput.
- 
+* StatsdInput allows to specify (via stat_msg_size option) size of message read from UDP.
+
 0.8.1 (2014-MM-DD)
 ==================
 
