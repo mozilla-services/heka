@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* Fix leaky file descriptor bug on http_output.go.
+
 0.8.0 (2014-10-29)
 ==================
 
