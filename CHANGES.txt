@@ -6,6 +6,9 @@ Bug Handling
 
 * Fix leaky file descriptor bug on http_output.go.
 
+* Only stamp PipelinePack diagnostics in cases when a pack actually matches a
+  message matcher, instead of for every matcher every time.
+
 0.8.0 (2014-10-29)
 ==================
 
