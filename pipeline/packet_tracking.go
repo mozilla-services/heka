@@ -18,55 +18,78 @@ package pipeline
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
-// Diagnostic object for packet tracking
+// Diagnostic object for packet tracking.
 type PacketTracking struct {
-	// Records last accessed time
+	// Last accessed time.
 	LastAccess time.Time
 
-	// Records the plugins the packet has been handed to
+	// Plugins the packet has been handed to.
 	lastPlugins []PluginRunner
+
+	// RWMutex to gate attribute access.
+	rwmutex sync.RWMutex
 }
 
-// Create a new blank PacketTracking
+// NewPacketTracking creates a new blank PacketTracking.
 func NewPacketTracking() *PacketTracking {
-	return &PacketTracking{time.Now(), make([]PluginRunner, 0, 8)}
+	return &PacketTracking{
+		LastAccess:  time.Now(),
+		lastPlugins: make([]PluginRunner, 0, 8),
+	}
 }
 
-// Stamps a packet with the tracking data for the plugin its handed to,
-// clearing any existing stamps
+// Stamp stamps a packet with the tracking data for the plugin its handed to,
+// clearing any existing stamps.
 func (p *PacketTracking) Stamp(pluginRunner PluginRunner) {
+	p.rwmutex.Lock()
 	p.lastPlugins = p.lastPlugins[:0]
 	p.lastPlugins = append(p.lastPlugins, pluginRunner)
 	p.LastAccess = time.Now()
+	p.rwmutex.Unlock()
 }
 
-// Adds a stamp to the packet
+// AddStamp adds a stamp to the packet as having been handed to the specified
+// plugin.
 func (p *PacketTracking) AddStamp(pluginRunner PluginRunner) {
+	p.rwmutex.Lock()
 	p.lastPlugins = append(p.lastPlugins, pluginRunner)
 	p.LastAccess = time.Now()
+	p.rwmutex.Unlock()
 }
 
-// Resets the packet stamping
+// Reset resets the packet stamping metadata.
 func (p *PacketTracking) Reset() {
+	p.rwmutex.Lock()
 	p.lastPlugins = p.lastPlugins[:0]
 	p.LastAccess = time.Now()
+	p.rwmutex.Unlock()
 }
 
-// Returns the names of the plugins that have last accessed the packet
+// PluginNames returns the names of the plugins that have last accessed the
+// packet.
 func (p *PacketTracking) PluginNames() (names []string) {
 	names = make([]string, 0, 4)
+	p.rwmutex.RLock()
 	for _, pr := range p.lastPlugins {
 		names = append(names, pr.Name())
 	}
+	p.rwmutex.RUnlock()
 	return
 }
 
-// Returns the names of the plugin runners that last access the packet
+// Runners returns the names of the plugin runners that last accessed the
+// packet. The returned slice object is owned by the caller, but the
+// underlying array and the contained PluginRunners are not thread safe and
+// should NOT be mutated.
 func (p *PacketTracking) Runners() (runners []PluginRunner) {
-	return p.lastPlugins
+	p.rwmutex.RLock()
+	runners = p.lastPlugins
+	p.rwmutex.RUnlock()
+	return runners
 }
 
 // A diagnostic tracker that can track pipeline packs and do accounting
