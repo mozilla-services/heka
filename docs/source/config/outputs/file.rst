@@ -41,7 +41,6 @@ Example:
     type = "FileOutput"
     message_matcher = "Type == 'heka.counter-output'"
     path = "/var/log/heka/counter-output.log"
-    prefix_ts = true
     perm = "666"
     flush_count = 100
     flush_operator = "OR"
