@@ -110,7 +110,9 @@ func TestGetMessageVariable(t *testing.T) {
 }
 
 func TestEmptyAddress(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	err := ko.Init(config)
 
@@ -121,7 +123,9 @@ func TestEmptyAddress(t *testing.T) {
 }
 
 func TestInvalidPartitioner(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Partitioner = "widget"
@@ -134,7 +138,9 @@ func TestInvalidPartitioner(t *testing.T) {
 }
 
 func TestRandomPartitionerWithHash(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -149,7 +155,9 @@ func TestRandomPartitionerWithHash(t *testing.T) {
 }
 
 func TestHashPartitionerWithInvalidHashVariable(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -164,7 +172,9 @@ func TestHashPartitionerWithInvalidHashVariable(t *testing.T) {
 }
 
 func TestRoundRobinPartitionerWithHash(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -179,7 +189,9 @@ func TestRoundRobinPartitionerWithHash(t *testing.T) {
 }
 
 func TestNoTopic(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	err := ko.Init(config)
@@ -191,7 +203,9 @@ func TestNoTopic(t *testing.T) {
 }
 
 func TestInvalidTopicVariable(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.TopicVariable = "bogus"
@@ -204,7 +218,9 @@ func TestInvalidTopicVariable(t *testing.T) {
 }
 
 func TestConflictingTopic(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -218,7 +234,9 @@ func TestConflictingTopic(t *testing.T) {
 }
 
 func TestInvalidRequiredAcks(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -232,7 +250,9 @@ func TestInvalidRequiredAcks(t *testing.T) {
 }
 
 func TestInvalidCompressionCodec(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, "localhost:5432")
 	config.Topic = "test"
@@ -270,6 +290,7 @@ func TestSendMessage(t *testing.T) {
 	b2.Returns(pr)
 
 	ko := new(KafkaOutput)
+	ko.SetPipelineConfig(pConfig)
 	config := ko.ConfigStruct().(*KafkaOutputConfig)
 	config.Addrs = append(config.Addrs, b1.Addr())
 	config.Topic = topic

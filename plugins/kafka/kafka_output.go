@@ -20,7 +20,6 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
-	"os"
 	"regexp"
 	"strconv"
 	"sync"
@@ -75,17 +74,18 @@ type KafkaOutput struct {
 	kafkaDroppedMessages   int64
 	kafkaEncodingErrors    int64
 
-	hashVariable  *messageVariable
-	topicVariable *messageVariable
-	config        *KafkaOutputConfig
-	cconfig       *sarama.ClientConfig
-	pconfig       *sarama.ProducerConfig
-	client        *sarama.Client
-	producer      *sarama.Producer
+	hashVariable   *messageVariable
+	topicVariable  *messageVariable
+	config         *KafkaOutputConfig
+	cconfig        *sarama.ClientConfig
+	pconfig        *sarama.ProducerConfig
+	client         *sarama.Client
+	producer       *sarama.Producer
+	pipelineConfig *pipeline.PipelineConfig
 }
 
 func (k *KafkaOutput) ConfigStruct() interface{} {
-	hn, _ := os.Hostname()
+	hn := k.pipelineConfig.Hostname()
 	return &KafkaOutputConfig{
 		Id:                         hn,
 		MetadataRetries:            3,
@@ -192,6 +192,10 @@ func getMessageVariable(msg *message.Message, mvar *messageVariable) string {
 	} else {
 		return getFieldAsString(msg, mvar)
 	}
+}
+
+func (k *KafkaOutput) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	k.pipelineConfig = pConfig
 }
 
 func (k *KafkaOutput) Init(config interface{}) (err error) {

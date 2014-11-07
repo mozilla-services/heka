@@ -28,7 +28,9 @@ import (
 )
 
 func TestEmptyInputAddress(t *testing.T) {
+	pConfig := NewPipelineConfig(nil)
 	ki := new(KafkaInput)
+	ki.SetPipelineConfig(pConfig)
 	config := ki.ConfigStruct().(*KafkaInputConfig)
 	err := ki.Init(config)
 
