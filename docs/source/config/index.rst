@@ -155,6 +155,13 @@ Config:
     already exists the contained pid will be checked for a running process.
     If one is found, the current process will exit with an error.
 
+.. versionadded:: 0.9
+
+- hostname (string):
+    Specifies the hostname to use whenever Heka is asked to provide the local
+    host's hostname. Defaults to whatever is provided by Go's `os.Hostname()`
+    call.
+
 Example hekad.toml file
 =======================
 
