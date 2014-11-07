@@ -169,14 +169,12 @@ func (self *messageRouter) Start() {
 				for _, matcher = range self.fMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
-						pack.diagnostics.AddStamp(matcher.pluginRunner)
 						matcher.inChan <- pack
 					}
 				}
 				for _, matcher = range self.oMatchers {
 					if matcher != nil {
 						atomic.AddInt32(&pack.RefCount, 1)
-						pack.diagnostics.AddStamp(matcher.pluginRunner)
 						matcher.inChan <- pack
 					}
 				}
@@ -308,6 +306,7 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack, sampleDenom int) {
 			}
 
 			if match {
+				pack.diagnostics.AddStamp(mr.pluginRunner)
 				matchChan <- pack
 			} else {
 				pack.Recycle()
