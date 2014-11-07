@@ -28,6 +28,30 @@ func TestDecode(t *testing.T) {
 	}
 }
 
+func TestCustomHostname(t *testing.T) {
+	expected := "my.example.com"
+	configPath := "../../pipeline/testsupport/sample-hostname.toml"
+	config, err := LoadHekadConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Hostname != expected {
+		t.Fatalf("HekadConfig.Hostname expected: '%s', Got: %s", expected, config.Hostname)
+	}
+	globals, _, _ := setGlobalConfigs(config)
+	if globals.Hostname != expected {
+		t.Fatalf("globals.Hostname expected: '%s', Got: %s", expected, globals.Hostname)
+	}
+	pConfig := pipeline.NewPipelineConfig(globals)
+	if pConfig.Hostname() != expected {
+		t.Fatalf("PipelineConfig.Hostname expected: '%s', Got: %s", expected, pConfig.Hostname())
+	}
+	err = loadFullConfig(pConfig, &configPath)
+	if err != nil {
+		t.Fatalf("Error loading full config: %s", err.Error())
+	}
+}
+
 func TestLoadDir(t *testing.T) {
 	origAvailablePlugins := make(map[string]func() interface{})
 	for k, v := range pipeline.AvailablePlugins {

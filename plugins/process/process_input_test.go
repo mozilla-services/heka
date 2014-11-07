@@ -64,6 +64,7 @@ func ProcessInputSpec(c gs.Context) {
 		config.Command = make(map[string]cmdConfig)
 
 		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+		ith.MockHelper.EXPECT().Hostname().Return(pConfig.Hostname())
 
 		tickChan := make(chan time.Time)
 		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
