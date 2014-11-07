@@ -32,6 +32,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/graphite"
 	_ "github.com/mozilla-services/heka/plugins/http"
 	_ "github.com/mozilla-services/heka/plugins/irc"
+	_ "github.com/mozilla-services/heka/plugins/kafka"
 	_ "github.com/mozilla-services/heka/plugins/logstreamer"
 	_ "github.com/mozilla-services/heka/plugins/nagios"
 	_ "github.com/mozilla-services/heka/plugins/payload"

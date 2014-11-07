@@ -19,6 +19,9 @@ Inputs
 .. _config_http_listen_input:
 .. include:: /config/inputs/httplisten.rst
 
+.. _config_kafka_input:
+.. include:: /config/inputs/kafka.rst
+
 .. _config_logstreamer_input:
 .. include:: /config/inputs/logstreamer.rst
 

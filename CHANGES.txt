@@ -51,6 +51,8 @@ Bug Handling
 Features
 --------
 
+* Added Kafka Input/Output plugins (#1148).
+
 * Optimized prefix/suffix testing in the message matcher (#1040).
 
 * LogstreamerInput now supports seekjournal file hashing for files that are
