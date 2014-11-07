@@ -19,10 +19,14 @@ package pipeline
 import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +39,8 @@ const (
 	RELOAD = "reload"
 	STOP   = "stop"
 )
+
+var watchedSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1}
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
@@ -50,7 +56,6 @@ type GlobalConfigStruct struct {
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
-	sigChan               chan os.Signal
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -65,7 +70,6 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxMsgTimerInject:     10,
 		MaxPackIdle:           idle,
 		SampleDenominator:     1000,
-		sigChan:               make(chan os.Signal, 1),
 	}
 }
 
@@ -75,9 +79,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 // work so that the caller won't end up blocking part of the shutdown
 // sequence
 func (g *GlobalConfigStruct) ShutDown() {
-	go func() {
-		g.sigChan <- syscall.SIGINT
-	}()
+	g.stop()
 }
 
 func (g *GlobalConfigStruct) IsShuttingDown() (stopping bool) {
@@ -191,13 +193,174 @@ func (p *PipelinePack) Recycle() {
 	}
 }
 
-// Main function driving Heka execution. Loads config, initializes
-// PipelinePack pools, and starts all the runners. Then it listens for signals
-// and drives the shutdown process when that is triggered.
-func Run(config *PipelineConfig) {
-	log.Println("Starting hekad...")
+// handleSignals takes a channel to recieve signals from and receives from it
+// until we get a signal which we need to respond to.
+// SIGUSR1 generates a report
+// SIGINT, SIGTERM, and SIGHUP cause this function to return with the signal
+// as the return value.
+func handleSignals(pConfig *PipelineConfig, signalChan chan os.Signal) (signal os.Signal) {
+	for {
+		signal = <-signalChan
+		switch signal {
+		case syscall.SIGUSR1:
+			log.Println("Queue report initiated.")
+			go pConfig.allReportsStdout()
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Println("Shutdown initiated.")
+			pConfig.Globals.ShutDown()
+			return
+		case syscall.SIGHUP:
+			log.Println("Reload initiated.")
+			if err := notify.Post(RELOAD, nil); err != nil {
+				log.Println("Error sending reload event: ", err)
+			}
+			return
+		}
+	}
+}
 
-	var outputsWg sync.WaitGroup
+func setupGlobals(configPath string) *GlobalConfigStruct {
+	config := &HekadConfig{}
+	var err error
+	var cpuProfName string
+	var memProfName string
+
+	config, err = LoadHekadConfig(configPath)
+	if err != nil {
+		log.Fatal("Error reading config: ", err)
+	}
+	if config.SampleDenominator <= 0 {
+		log.Fatalln("'sample_denominator' value must be greater than 0.")
+	}
+	globals, cpuProfName, memProfName := setGlobalConfigs(config)
+
+	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
+		log.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
+	}
+
+	if config.PidFile != "" {
+		contents, err := ioutil.ReadFile(config.PidFile)
+		if err == nil {
+			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
+			if err != nil {
+				log.Fatalf("Error reading proccess id from pidfile '%s': %s", config.PidFile, err)
+			}
+
+			process, err := os.FindProcess(pid)
+
+			// on Windows, err != nil if the process cannot be found
+			if runtime.GOOS == "windows" {
+				if err == nil {
+					log.Fatalf("Process %d is already running.", pid)
+				}
+			} else if process != nil {
+				// err is always nil on POSIX, so we have to send the process
+				// a signal to check whether it exists
+				if err = process.Signal(syscall.Signal(0)); err == nil {
+					log.Fatalf("Process %d is already running.", pid)
+				}
+			}
+		}
+		if err = ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())),
+			0644); err != nil {
+
+			log.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
+		}
+		log.Printf("Wrote pid to pidfile '%s'", config.PidFile)
+		defer func() {
+			if err = os.Remove(config.PidFile); err != nil {
+				log.Printf("Unable to remove pidfile '%s': %s", config.PidFile, err)
+			}
+		}()
+	}
+
+	if cpuProfName != "" {
+		profFile, err := os.Create(cpuProfName)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		pprof.StartCPUProfile(profFile)
+		defer func() {
+			pprof.StopCPUProfile()
+			profFile.Close()
+		}()
+	}
+
+	if memProfName != "" {
+		defer func() {
+			profFile, err := os.Create(memProfName)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			pprof.WriteHeapProfile(profFile)
+			profFile.Close()
+		}()
+	}
+
+	return globals
+}
+
+// Start configures Heka and listens for signals. It then starts the pipeline.
+func Start(configPath string) {
+
+	var sig os.Signal
+	signalChan := make(chan os.Signal)
+	defer close(signalChan)
+
+	signal.Notify(signalChan, watchedSignals...)
+
+	manager, err := NetManager()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	shutdown := false
+	for !shutdown {
+		manager.Reset()
+		log.Println("Starting hekad...")
+
+		// Setup global config
+		globals := setupGlobals(configPath)
+		// Set up and load the pipeline configuration
+		pConfig := NewPipelineConfig(globals)
+		if err := LoadFullConfig(pConfig, configPath); err != nil {
+			log.Fatal("Error reading config: ", err)
+		}
+
+		// Init has happened, so all new listeners in use should have a plugin
+		// associated with them.
+
+		// Check which listeners still have no plugin associated
+		err = manager.CloseUnusedListeners()
+		if err != nil {
+			log.Println("Error closing unused listeners", err)
+		}
+
+		// Start the pipeline
+		Run(pConfig)
+		// This function blocks reading from respondChan until we recieve a
+		// signal which triggers a reload, or shutdown
+		sig = handleSignals(pConfig, signalChan)
+
+		if sig != syscall.SIGHUP {
+			shutdown = true
+		} else {
+			log.Println("Restarting")
+			manager.Restart()
+			globals.ShutDown()
+		}
+
+		// Cleanup the pipeline
+		Cleanup(pConfig)
+		log.Println("Shutdown complete.")
+	}
+	log.Println("Exiting Heka.")
+}
+
+// Main function driving Heka execution. Loads config, initializes
+// PipelinePack pools, and starts all the runners.
+func Run(config *PipelineConfig) {
 	var err error
 
 	globals := config.Globals
@@ -205,10 +368,10 @@ func Run(config *PipelineConfig) {
 	config.router.initMatchSlices()
 
 	for name, output := range config.OutputRunners {
-		outputsWg.Add(1)
-		if err = output.Start(config, &outputsWg); err != nil {
+		config.outputsWg.Add(1)
+		if err = output.Start(config, &config.outputsWg); err != nil {
 			log.Printf("Output '%s' failed to start: %s", name, err)
-			outputsWg.Done()
+			config.outputsWg.Done()
 			continue
 		}
 		log.Println("Output started: ", name)
@@ -255,29 +418,9 @@ func Run(config *PipelineConfig) {
 		}
 		log.Printf("Input started: %s\n", name)
 	}
+}
 
-	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
-
-	for !globals.IsShuttingDown() {
-		select {
-		case sig := <-globals.sigChan:
-			switch sig {
-			case syscall.SIGHUP:
-				log.Println("Reload initiated.")
-				if err := notify.Post(RELOAD, nil); err != nil {
-					log.Println("Error sending reload event: ", err)
-				}
-			case syscall.SIGINT, syscall.SIGTERM:
-				log.Println("Shutdown initiated.")
-				globals.stop()
-			case SIGUSR1:
-				log.Println("Queue report initiated.")
-				go config.allReportsStdout()
-			}
-		}
-	}
-
+func Cleanup(config *PipelineConfig) {
 	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {
 		input.Input().Stop()
@@ -311,7 +454,7 @@ func Run(config *PipelineConfig) {
 		config.router.RemoveOutputMatcher() <- output.MatchRunner()
 		log.Printf("Stop message sent to output '%s'", output.Name())
 	}
-	outputsWg.Wait()
+	config.outputsWg.Wait()
 
 	for name, encoder := range config.allEncoders {
 		if stopper, ok := encoder.(NeedsStopping); ok {
@@ -319,6 +462,4 @@ func Run(config *PipelineConfig) {
 			stopper.Stop()
 		}
 	}
-
-	log.Println("Shutdown complete.")
 }

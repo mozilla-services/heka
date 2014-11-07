@@ -27,8 +27,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -182,6 +185,8 @@ type PipelineConfig struct {
 	filtersWg sync.WaitGroup
 	// Is freed when all DecoderRunners have stopped.
 	decodersWg sync.WaitGroup
+	// Is freed when all OutputRunners have stopped.
+	outputsWg sync.WaitGroup
 	// Slice providing access to all running DecoderRunners.
 	allDecoders []DecoderRunner
 	// Mutex protecting allDecoders.
@@ -1054,4 +1059,147 @@ func EnvSub(r io.Reader) (io.Reader, error) {
 		}
 	}
 	return bufOut, nil
+}
+
+func LoadFullConfig(pConfig *PipelineConfig, configPath string) (err error) {
+	p, err := os.Open(configPath)
+	if err != nil {
+		return fmt.Errorf("error opening file: %s", err.Error())
+	}
+	fi, err := p.Stat()
+	if err != nil {
+		return fmt.Errorf("can't stat file: %s", err.Error())
+	}
+
+	if fi.IsDir() {
+		files, _ := ioutil.ReadDir(configPath)
+		for _, f := range files {
+			fName := f.Name()
+			if !strings.HasSuffix(fName, ".toml") {
+				// Skip non *.toml files in a config dir.
+				continue
+			}
+			err = pConfig.LoadFromConfigFile(filepath.Join(configPath, fName))
+			if err != nil {
+				break
+			}
+		}
+	} else {
+		err = pConfig.LoadFromConfigFile(configPath)
+	}
+	return
+}
+
+func setGlobalConfigs(config *HekadConfig) (*GlobalConfigStruct, string, string) {
+	maxprocs := config.Maxprocs
+	poolSize := config.PoolSize
+	chanSize := config.ChanSize
+	cpuProfName := config.CpuProfName
+	memProfName := config.MemProfName
+	maxMsgLoops := config.MaxMsgLoops
+	maxMsgProcessInject := config.MaxMsgProcessInject
+	maxMsgProcessDuration := config.MaxMsgProcessDuration
+	maxMsgTimerInject := config.MaxMsgTimerInject
+
+	runtime.GOMAXPROCS(maxprocs)
+
+	globals := DefaultGlobals()
+	globals.PoolSize = poolSize
+	globals.PluginChanSize = chanSize
+	globals.MaxMsgLoops = maxMsgLoops
+	if globals.MaxMsgLoops == 0 {
+		globals.MaxMsgLoops = 1
+	}
+	globals.MaxMsgProcessInject = maxMsgProcessInject
+	globals.MaxMsgProcessDuration = maxMsgProcessDuration
+	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.BaseDir = config.BaseDir
+	globals.ShareDir = config.ShareDir
+	globals.SampleDenominator = config.SampleDenominator
+
+	return globals, cpuProfName, memProfName
+}
+
+type HekadConfig struct {
+	Maxprocs              int           `toml:"maxprocs"`
+	PoolSize              int           `toml:"poolsize"`
+	ChanSize              int           `toml:"plugin_chansize"`
+	CpuProfName           string        `toml:"cpuprof"`
+	MemProfName           string        `toml:"memprof"`
+	MaxMsgLoops           uint          `toml:"max_message_loops"`
+	MaxMsgProcessInject   uint          `toml:"max_process_inject"`
+	MaxMsgProcessDuration uint64        `toml:"max_process_duration"`
+	MaxMsgTimerInject     uint          `toml:"max_timer_inject"`
+	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
+	BaseDir               string        `toml:"base_dir"`
+	ShareDir              string        `toml:"share_dir"`
+	SampleDenominator     int           `toml:"sample_denominator"`
+	PidFile               string        `toml:"pid_file"`
+}
+
+func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
+	idle, _ := time.ParseDuration("2m")
+
+	config = &HekadConfig{Maxprocs: 1,
+		PoolSize:              100,
+		ChanSize:              50,
+		CpuProfName:           "",
+		MemProfName:           "",
+		MaxMsgLoops:           4,
+		MaxMsgProcessInject:   1,
+		MaxMsgProcessDuration: 100000,
+		MaxMsgTimerInject:     10,
+		MaxPackIdle:           idle,
+		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
+		ShareDir:              filepath.FromSlash("/usr/share/heka"),
+		SampleDenominator:     1000,
+		PidFile:               "",
+	}
+
+	var configFile map[string]toml.Primitive
+	p, err := os.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("Error opening config file: %s", err)
+	}
+	fi, err := p.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching config file info: %s", err)
+	}
+
+	if fi.IsDir() {
+		files, _ := ioutil.ReadDir(configPath)
+		for _, f := range files {
+			fName := f.Name()
+			if !strings.HasSuffix(fName, ".toml") {
+				// Skip non *.toml files in a config dir.
+				continue
+			}
+			fPath := filepath.Join(configPath, fName)
+			contents, err := ReplaceEnvsFile(fPath)
+			if err != nil {
+				return nil, err
+			}
+			if _, err = toml.Decode(contents, &configFile); err != nil {
+				return nil, fmt.Errorf("Error decoding config file: %s", err)
+			}
+		}
+	} else {
+		contents, err := ReplaceEnvsFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = toml.Decode(contents, &configFile); err != nil {
+			return nil, fmt.Errorf("Error decoding config file: %s", err)
+		}
+	}
+
+	empty_ignore := map[string]interface{}{}
+	parsed_config, ok := configFile[HEKA_DAEMON]
+	if ok {
+		if err = toml.PrimitiveDecodeStrict(parsed_config, config, empty_ignore); err != nil {
+			err = fmt.Errorf("Can't unmarshal config: %s", err)
+		}
+	}
+
+	return
 }

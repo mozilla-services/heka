@@ -64,6 +64,9 @@ type TcpInputConfig struct {
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
 	KeepAlivePeriod int `toml:"keep_alive_period"`
+	// Integer indicating the listener's deadline from the time it starts
+	// accepting
+	Deadline int `toml:"deadline"`
 }
 
 func (t *TcpInput) ConfigStruct() interface{} {
@@ -75,11 +78,11 @@ func (t *TcpInput) ConfigStruct() interface{} {
 func (t *TcpInput) Init(config interface{}) error {
 	var err error
 	t.config = config.(*TcpInputConfig)
-	address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
+	manager, err := NetManager()
 	if err != nil {
-		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+		return fmt.Errorf("Error getting NetManager %s\n", err)
 	}
-	t.listener, err = net.ListenTCP(t.config.Net, address)
+	t.listener, err = manager.Listen(t.config.Net, t.config.Address, t)
 	if err != nil {
 		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
 	}
@@ -215,16 +218,29 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.stopChan = make(chan bool)
 	t.name = ir.Name()
 
+	dl, ok := t.listener.(Deadliner)
+	var deadline time.Duration
+	if ok {
+		deadline = time.Second * time.Duration(t.config.Deadline)
+	}
+
 	var conn net.Conn
-	var e error
+	var err error
 	for {
-		if conn, e = t.listener.Accept(); e != nil {
-			if e.(net.Error).Temporary() {
-				t.ir.LogError(fmt.Errorf("TCP accept failed: %s", e))
+		if ok {
+			dl.SetDeadline(time.Now().Add(deadline))
+		}
+		if conn, err = t.listener.Accept(); err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
+				// Dont log timeout errors
+				if !netErr.Timeout() {
+					t.ir.LogError(fmt.Errorf("TCP accept failed: %s", err))
+				}
 				continue
 			} else {
 				break
 			}
+
 		}
 		if t.config.KeepAlive {
 			tcpConn, ok := conn.(*net.TCPConn)

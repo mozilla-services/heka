@@ -13,16 +13,15 @@
 #
 # ***** END LICENSE BLOCK *****/
 
-package main
+package plugins
 
 import (
 	"github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins"
 	"testing"
 )
 
 func TestDecode(t *testing.T) {
-	_, err := LoadHekadConfig("../../pipeline/testsupport/sample-config.toml")
+	_, err := pipeline.LoadHekadConfig("../pipeline/testsupport/sample-config.toml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,8 +38,8 @@ func TestLoadDir(t *testing.T) {
 	}()
 
 	pipeConfig := pipeline.NewPipelineConfig(nil)
-	confDirPath := "../../plugins/testsupport/config_dir"
-	err := loadFullConfig(pipeConfig, &confDirPath)
+	confDirPath := "./testsupport/config_dir"
+	err := pipeline.LoadFullConfig(pipeConfig, confDirPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func TestLoadDir(t *testing.T) {
 	if !ok {
 		t.Fatal("No PayloadEncoder configured.")
 	}
-	_, ok = encoder.(*plugins.PayloadEncoder)
+	_, ok = encoder.(*PayloadEncoder)
 	if !ok {
 		t.Fatal("PayloadEncoder isn't a PayloadEncoder")
 	}
