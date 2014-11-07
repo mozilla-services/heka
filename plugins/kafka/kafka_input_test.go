@@ -18,7 +18,6 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
@@ -57,10 +56,9 @@ func TestInvalidOffsetMethod(t *testing.T) {
 }
 
 func TestReceiveMessage(t *testing.T) {
-	ts := &pipeline_ts.SimpleT{}
 	b1 := sarama.NewMockBroker(t, 1)
 	b2 := sarama.NewMockBroker(t, 2)
-	ctrl := gomock.NewController(ts)
+	ctrl := gomock.NewController(t)
 	tmpDir, tmpErr := ioutil.TempDir("", "kafkainput-tests")
 	if tmpErr != nil {
 		t.Errorf("Unable to create a temporary directory: %s", tmpErr)

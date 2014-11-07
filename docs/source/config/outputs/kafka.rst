@@ -39,10 +39,10 @@ Config:
     *RoundRobin*, *Hash*. Default is Random.
 - hash_variable (string)
     The message variable used for the Hash partitioner only. The variables are
-    restricted to the *Type*, *Logger*, *Hostname* and *Payload* message
-    headers. There are no restrictions on field variables (they will all be
-    converted to their string representation). Field specifications are the same
-    as the :ref:`message_matcher` e.g. Fields[foo][0][0].
+    restricted to *Type*, *Logger*, *Hostname*, *Payload* or any of the
+    message's dynamic field values. All dynamic field values will be converted
+    to a string representation. Field specifications are the same as with the
+    :ref:`message_matcher` e.g. Fields[foo][0][0].
 - topic_variable (string)
     The message variable used as the Kafka topic (cannot be used in conjunction
     with the 'topic' configuration). The variable restrictions are the same as
@@ -56,7 +56,7 @@ Config:
     values are *NoResponse*, *WaitForLocal*, *WaitForAll*. Default is
     WaitForLocal.
 - timeout (uint32)
-    The maximum duration the broker will wait the receipt of the number of
+    The maximum duration the broker will wait for the receipt of the number of
     RequiredAcks (in milliseconds). This is only relevant when RequiredAcks is
     set to WaitForAll. Default is no timeout.
 - compression_codec (string)
@@ -69,7 +69,7 @@ Config:
     The threshold number of bytes buffered before triggering a flush to the
     broker. Default is 1.
 - back_pressure_threshold_bytes (uint32)
-    The maximum number of bytes allowed to accumulare in the buffer before
+    The maximum number of bytes allowed to accumulate in the buffer before
     back-pressure is applied to QueueMessage. Without this, queueing messages
     too fast will cause the producer to construct requests larger than the
     MaxRequestSize (100 MiB). Default is 50 * 1024 * 1024 (50 MiB), cannot be

@@ -246,8 +246,7 @@ func TestInvalidCompressionCodec(t *testing.T) {
 }
 
 func TestSendMessage(t *testing.T) {
-	ts := new(pipeline_ts.SimpleT)
-	ctrl := gomock.NewController(ts)
+	ctrl := gomock.NewController(t)
 	b1 := sarama.NewMockBroker(t, 1)
 	b2 := sarama.NewMockBroker(t, 2)
 
