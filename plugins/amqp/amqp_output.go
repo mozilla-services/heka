@@ -171,6 +171,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				pack.Recycle()
 				continue
 			}
+			pack.Recycle()
 			amqpMsg = amqp.Publishing{
 				DeliveryMode: persist,
 				Timestamp:    time.Now(),
@@ -181,8 +182,6 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				false, false, amqpMsg)
 			if err != nil {
 				ok = false
-			} else {
-				pack.Recycle()
 			}
 		}
 	}
@@ -194,8 +193,6 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 }
 
 func (ao *AMQPOutput) CleanupForRestart() {
-	ao.amqpHub.Close(ao.config.URL, ao.connWg)
-	ao.connWg.Wait()
 	return
 }
 

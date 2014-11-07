@@ -7,9 +7,13 @@ Bug Handling
 * Fix leaky file descriptor bug on http_output.go.
 
 * Only stamp PipelinePack diagnostics in cases when a pack actually matches a
-  message matcher, instead of for every matcher every time.
+  message matcher, instead of for every matcher every time (#1167).
 
-* StatsdInput allows to specify (via max_msg_size option) size of message read from UDP.
+* StatsdInput allows to specify (via max_msg_size option) size of message read
+  from UDP (#1165).
+
+* AMQPOutput now recycles packs even when a publish error causes the output to
+  exit / restart (#1178).
 
 0.8.0 (2014-10-29)
 ==================
