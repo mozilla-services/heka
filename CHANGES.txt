@@ -11,7 +11,10 @@ Features
 --------
 
 * Select unit type and aggregation methods for stats graph
+
 * Added option (immediate_start) to start process immediately in ProcessInput.
+
+* Slightly improve error output in ElasticSearch plugin.
  
 0.8.1 (2014-MM-DD)
 ==================
