@@ -182,10 +182,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 
 	// Declare our hostname
 	if conf.Hostname == "" {
-		li.hostName, err = os.Hostname()
-		if err != nil {
-			return
-		}
+		li.hostName = li.pConfig.Hostname()
 	} else {
 		li.hostName = conf.Hostname
 	}

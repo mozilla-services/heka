@@ -73,7 +73,7 @@ type KafkaInput struct {
 }
 
 func (k *KafkaInput) ConfigStruct() interface{} {
-	hn, _ := os.Hostname()
+	hn := k.pConfig.Hostname()
 	return &KafkaInputConfig{
 		Id:                         hn,
 		MetadataRetries:            3,

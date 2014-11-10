@@ -11,7 +11,12 @@ Features
 --------
 
 * Select unit type and aggregation methods for stats graph
-* Added option (immediate_start) to start process immediately in ProcessInput.
+
+* Added option (immediate_start) to start process immediately in ProcessInput
+  (#1131).
+
+* Added `hostname` setting to global `[hekad]` config options to allow
+  overriding the hostname value provided by Go's `os.Hostname` call (#1123).
  
 0.8.1 (2014-MM-DD)
 ==================

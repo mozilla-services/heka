@@ -51,11 +51,13 @@ type GlobalConfigStruct struct {
 	ShareDir              string
 	SampleDenominator     int
 	sigChan               chan os.Signal
+	Hostname              string
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
 func DefaultGlobals() (globals *GlobalConfigStruct) {
 	idle, _ := time.ParseDuration("2m")
+	hostname, _ := os.Hostname()
 	return &GlobalConfigStruct{
 		PoolSize:              100,
 		PluginChanSize:        50,
@@ -66,6 +68,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		MaxPackIdle:           idle,
 		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
+		Hostname:              hostname,
 	}
 }
 

@@ -43,10 +43,15 @@ type HekadConfig struct {
 	ShareDir              string        `toml:"share_dir"`
 	SampleDenominator     int           `toml:"sample_denominator"`
 	PidFile               string        `toml:"pid_file"`
+	Hostname              string
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	idle, _ := time.ParseDuration("2m")
+	hostname, err := os.Hostname()
+	if err != nil {
+		return
+	}
 
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:              100,
@@ -62,6 +67,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		ShareDir:              filepath.FromSlash("/usr/share/heka"),
 		SampleDenominator:     1000,
 		PidFile:               "",
+		Hostname:              hostname,
 	}
 
 	var configFile map[string]toml.Primitive

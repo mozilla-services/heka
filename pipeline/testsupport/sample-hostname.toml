@@ -7,6 +7,7 @@ maxprocs = 10
 memprof = "/var/log/hekad/memprof.log"
 plugin_chansize = 10
 poolsize = 100
+hostname = "my.example.com"
 
 [StatsdInput]
 address = "127.0.0.1:8125"

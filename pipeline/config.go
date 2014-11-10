@@ -93,6 +93,10 @@ type PluginHelper interface {
 	// StatAccumulator interface, or an error value if such a plugin
 	// can't be found.
 	StatAccumulator(name string) (statAccum StatAccumulator, err error)
+
+	// Returns the configured Hostname for the Heka process. This can come
+	// either from the runtime or from the Heka config.
+	Hostname() string
 }
 
 // Indicates a plug-in has a specific-to-itself config struct that should be
@@ -227,7 +231,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.LogMsgs = make([]string, 0, 4)
 	config.allDecoders = make([]DecoderRunner, 0, 10)
-	config.hostname, _ = os.Hostname()
+	config.hostname = globals.Hostname
 	config.pid = int32(os.Getpid())
 	config.reportRecycleChan = make(chan *PipelinePack, 1)
 

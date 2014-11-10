@@ -265,12 +265,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("unknown parser type: %s", conf.ParserType)
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
-	pi.hostname = hostname
-
 	pi.heka_pid = int32(os.Getpid())
 
 	return nil
@@ -283,6 +277,7 @@ func (pi *ProcessInput) SetName(name string) {
 func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
+	pi.hostname = h.Hostname()
 	pConfig := h.PipelineConfig()
 
 	var (

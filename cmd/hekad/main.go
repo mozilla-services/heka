@@ -82,6 +82,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.BaseDir = config.BaseDir
 	globals.ShareDir = config.ShareDir
 	globals.SampleDenominator = config.SampleDenominator
+	globals.Hostname = config.Hostname
 
 	return globals, cpuProfName, memProfName
 }

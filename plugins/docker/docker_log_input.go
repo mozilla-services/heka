@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
-	"os"
 	"time"
 )
 
@@ -70,11 +69,7 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 		ok      bool
 	)
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-		err = nil
-	}
+	hostname := h.Hostname()
 
 	go di.attachMgr.Listen(di.logstream, di.closer)
 
@@ -89,6 +84,7 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 	}
 
 	ok = true
+	var err error
 	for ok {
 		select {
 		case logline := <-di.logstream:
