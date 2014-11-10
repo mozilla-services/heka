@@ -66,7 +66,7 @@ plugins:
   that will show up as real time graphs in Heka's dashboard. Filters can be
   written entirely in Go, or the core logic can be written in sandboxed Lua
   code. It is also possible to configure Heka to allow Lua filters to be
-  dynamically injected into a running Heka instance with needing to
+  dynamically injected into a running Heka instance without needing to
   reconfigure or restart the Heka process, nor even to have shell access to
   the server on which Heka is running.
 

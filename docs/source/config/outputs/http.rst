@@ -48,6 +48,7 @@ Example:
 	[PayloadEncoder]
 
 	[influxdb]
+	type = "HttpOutput"
 	message_matcher = "Type == 'influx.formatted'"
 	address = "http://influxdb.example.com:8086/db/stats/series"
 	encoder = "PayloadEncoder"
