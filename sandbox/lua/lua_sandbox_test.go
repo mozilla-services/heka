@@ -672,7 +672,7 @@ func TestFailedMessageInjection(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	sb.InjectMessage(func(p, pt, pn string) int {
-		return 1
+		return 3
 	})
 	r := sb.ProcessMessage(pack)
 	if r != 1 {

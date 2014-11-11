@@ -186,14 +186,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
 			err = pipeline.TerminatedError("exceeded InjectMessage count")
-			return 1
+			return 2
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
 				this.pConfig.Globals.MaxMsgLoops))
-			return 1
+			return 3
 		}
 		if len(payload_type) == 0 { // heka protobuf message
 			hostname := pack.Message.GetHostname()
@@ -216,7 +216,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			pack.Message.AddField(pname)
 		}
 		if !fr.Inject(pack) {
-			return 1
+			return 4
 		}
 		atomic.AddInt64(&this.injectMessageCount, 1)
 		return 0

@@ -10,6 +10,8 @@ Bug Handling
 Features
 --------
 
+* Improve the sandbox inject_* error messages (#1156).
+
 * Select unit type and aggregation methods for stats graph
 
 * Added option (immediate_start) to start process immediately in ProcessInput

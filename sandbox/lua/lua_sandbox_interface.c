@@ -300,21 +300,52 @@ int read_next_field(lua_State* lua)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static inline void inject_error(lua_State* lua, const char* fn, int result)
+{
+    switch (result) {
+    case 0:
+        break;
+    case 1:
+        luaL_error(lua, "%s protobuf unmarshal failed", fn);
+        break;
+    case 2:
+        luaL_error(lua, "%s exceeded InjectMessage count", fn);
+        break;
+    case 3:
+        luaL_error(lua, "%s exceeded MaxMsgLoops", fn);
+        break;
+    case 4:
+        luaL_error(lua, "%s creates a circular reference (matches this plugin's message_matcher)", fn);
+        break;
+    default:
+        luaL_error(lua, "%s unknown error", fn);
+        break;
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 int inject_message(lua_State* lua)
 {
+    static const char* fn = "inject_message()";
+
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        luaL_error(lua, "inject_message() invalid lightuserdata");
+        luaL_error(lua, "%s invalid lightuserdata", fn);
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
     if (lua_gettop(lua) != 1 || lua_type(lua, 1) != LUA_TTABLE) {
-        luaL_error(lua, "inject_message() takes a single table argument");
+        luaL_error(lua, "%s takes a single table argument", fn);
     }
 
     if (lsb_output_protobuf(lsb, 1, 0) != 0) {
-      luaL_error(lua, "inject_message() could not encode protobuf - %s",
-                 lsb_get_error(lsb));
+        const char *err = lsb_get_error(lsb);
+        if (err[0] != 0) {
+            luaL_error(lua, "%s could not encode protobuf - %s", fn, err);
+        } else {
+            luaL_error(lua, "%s output_limit exceeded", fn);
+        }
     }
     size_t len;
     const char* output = lsb_get_output(lsb, &len);
@@ -325,9 +356,7 @@ int inject_message(lua_State* lua)
                                            (int)len,
                                            "",
                                            "");
-        if (result != 0) {
-            luaL_error(lua, "inject_message() exceeded MaxMsgLoops");
-        }
+        inject_error(lua, fn, result);
     }
     return 0;
 }
@@ -336,10 +365,11 @@ int inject_message(lua_State* lua)
 int inject_payload(lua_State* lua)
 {
     static const char* default_type = "txt";
+    static const char* fn = "inject_payload()";
 
     void* luserdata = lua_touserdata(lua, lua_upvalueindex(1));
     if (NULL == luserdata) {
-        luaL_error(lua, "inject_message() invalid lightuserdata");
+        luaL_error(lua, "%s invalid lightuserdata", fn);
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
@@ -367,9 +397,7 @@ int inject_payload(lua_State* lua)
                                            (int)len,
                                            (char*)type,
                                            (char*)name);
-        if (result != 0) {
-            luaL_error(lua, "inject_payload() exceeded MaxMsgLoops");
-        }
+        inject_error(lua, fn, result);
     }
     return 0;
 }
