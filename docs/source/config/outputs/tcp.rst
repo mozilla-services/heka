@@ -46,6 +46,21 @@ Config:
     Time duration in seconds that a TCP connection will be maintained before
     keepalive probes start being sent. Defaults to 7200 (i.e. 2 hours).
 
+.. versionadded:: 1.0
+
+- queue_max_buffer_size (uint64):
+    Defines maximum queue buffer size, in bytes.
+    Defaults to 0, which means no max.
+
+- queue_full_action (string, optional):
+    Specifies how Heka should behave when the queue reaches the specified maximum capacity.
+    There are currently three possible actions:
+        - `shutdown` - Shutdowns heka.
+        - `drop` - Messages are dropped until queue is available again.
+        - `block` - Blocks processing of messages, tries to push last message until its possible.
+    Defaults to `shutdown`.
+
+
 Example:
 
 .. code-block:: ini

@@ -72,6 +72,10 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 	}
 }
 
+func (g *GlobalConfigStruct) SigChan() (chan os.Signal) {
+	return g.sigChan
+}
+
 // Initiates a shutdown of heka
 //
 // This method returns immediately by spawning a goroutine to do to

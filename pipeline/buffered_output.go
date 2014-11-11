@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"errors"
 )
 
 type BufferedOutput struct {
@@ -43,13 +44,17 @@ type BufferedOutput struct {
 	queue              string
 	name               string
 	outBytes           []byte
+	maxQueueSize       uint64
+	queueSize          uint64
 }
 
 type BufferedOutputSender interface {
 	SendRecord(record []byte) (err error)
 }
 
-func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHelper) (
+var QueueIsFull = errors.New("Queue is full")
+
+func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHelper, max_queue_size uint64) (
 	*BufferedOutput, error) {
 
 	b := new(BufferedOutput)
@@ -66,12 +71,20 @@ func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHe
 		}
 	}
 	b.writeId = findBufferId(b.queue, true)
+	b.maxQueueSize = max_queue_size
+	b.queueSize = getQueueBufferSize(b.queue)
 	return b, nil
 }
 
 func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 	var msgBytes []byte
+	var msgSize int
+
 	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
+		return
+	}
+	if b.maxQueueSize > 0 && (b.queueSize + uint64(len(msgBytes))) > b.maxQueueSize {
+		err = QueueIsFull
 		return
 	}
 
@@ -84,9 +97,10 @@ func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 		}
 	}
 
-	if _, err = b.writeFile.Write(b.outBytes); err != nil {
+	if msgSize, err = b.writeFile.Write(b.outBytes); err != nil {
 		return fmt.Errorf("writing to %s: %s", getQueueFilename(b.queue, b.writeId), err)
 	}
+	atomic.AddUint64(&b.queueSize, uint64(msgSize))
 	return nil
 }
 
@@ -146,6 +160,7 @@ func (b *BufferedOutput) Start(sender BufferedOutputSender, outputError,
 		outputExit <- err
 		return
 	}
+
 	go b.streamOutput(sender, outputError, outputExit, stopChan)
 }
 
@@ -196,19 +211,31 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 			if err == io.EOF {
 				nextReadId := b.readId + 1
 				filename := getQueueFilename(b.queue, nextReadId)
+
 				if fileExists(filename) {
+					readFileInfo, err := b.readFile.Stat()
 					b.readFile.Close()
 					b.readFile = nil
-					if err = os.Remove(getQueueFilename(b.queue, b.readId)); err != nil {
+
+					if err != nil {
 						break
 					}
+
+					if err = os.Remove(getQueueFilename(b.queue, b.readId)); err != nil {
+						break
+					} else {
+						atomic.AddUint64(&b.queueSize, ^uint64(readFileInfo.Size()-1))
+					}
+
 					if err = b.writeCheckpoint(nextReadId, 0); err != nil {
 						break
 					}
+
 					if err = b.readFromNextFile(); err != nil {
 						break
 					}
 				} else {
+
 					time.Sleep(time.Duration(500) * time.Millisecond)
 				}
 			} else {
@@ -341,4 +368,17 @@ func findBufferId(dir string, newest bool) uint {
 		}
 	}
 	return current
+}
+
+func getQueueBufferSize(dir string) (size uint64) {
+	if matches, err := filepath.Glob(filepath.Join(dir, "*.log")); err == nil {
+		for _, fn := range matches {
+			file_info, err := os.Stat(fn)
+			if err != nil {
+				break
+			}
+			size += uint64(file_info.Size())
+		}
+	}
+    return
 }
