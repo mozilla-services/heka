@@ -22,6 +22,10 @@ Config:
 - server (string):
     ElasticSearch server URL. Supports http://, https:// and udp:// urls.
     Defaults to "http://localhost:9200".
+- connect_timeout (int):
+    Time in milliseconds to wait for a server name resolving and connection to ES.
+    It's included in an overall time (see 'http_timeout' option), if they both are set.
+    Default is 0 (no timeout).
 - http_timeout (int):
     Time in milliseconds to wait for a response for each http post to ES. This
     may drop data as there is currently no retry. Default is 0 (no timeout).

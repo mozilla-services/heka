@@ -19,6 +19,8 @@ Features
 
 * Added `hostname` setting to global `[hekad]` config options to allow
   overriding the hostname value provided by Go's `os.Hostname` call (#1123).
+
+* Added 'connect_timeout' option in ElasticSearch output plugin.
  
 0.8.1 (2014-MM-DD)
 ==================
