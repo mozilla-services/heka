@@ -17,6 +17,7 @@ package elasticsearch
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -246,25 +247,42 @@ func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
 }
 
 func (h *HttpBulkIndexer) Index(body []byte) error {
+	var response_body []byte
+	var response_body_json map[string]interface{}
+
 	url := fmt.Sprintf("%s://%s%s", h.Protocol, h.Domain, "/_bulk")
 
 	// Creating ElasticSearch Bulk HTTP request
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("can't create bulk request: %s", err.Error())
+		return fmt.Errorf("Can't create bulk request: %s", err.Error())
 	}
 	request.Header.Add("Accept", "application/json")
+	request_start_time := time.Now()
 	response, err := h.client.Do(request)
+	request_time := time.Since(request_start_time)
 	if err != nil {
-		return fmt.Errorf("HTTP request failed: %s", err.Error())
+		if (h.client.Timeout > 0) && (request_time >= h.client.Timeout) && (strings.Contains(err.Error(), "use of closed network connection")) {
+			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s", request_time.String())
+		} else {
+			return fmt.Errorf("HTTP request failed: %s", err.Error())
+		}
 	}
 	if response != nil {
 		defer response.Body.Close()
 		if response.StatusCode > 304 {
 			return fmt.Errorf("HTTP response error status: %s", response.Status)
 		}
-		if _, err = ioutil.ReadAll(response.Body); err != nil {
-			return fmt.Errorf("can't read HTTP response body: %s", err.Error())
+		if response_body, err = ioutil.ReadAll(response.Body); err != nil {
+			return fmt.Errorf("Can't read HTTP response body: %s", err.Error())
+		}
+		err = json.Unmarshal(response_body, &response_body_json)
+		if err != nil {
+			return fmt.Errorf("HTTP response didn't contain valid JSON. Body: %s", string(response_body))
+		}
+		json_errors, ok := response_body_json["errors"].(bool)
+		if ok && json_errors {
+			return fmt.Errorf("ElasticSearch server reported error within JSON: %s", string(response_body))
 		}
 	}
 	return nil
