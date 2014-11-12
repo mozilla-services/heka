@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 )
@@ -83,8 +82,6 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	}
 	req.Body.Close()
 
-	unEscapedBody, _ := url.QueryUnescape(string(body))
-
 	pack := <-hli.ir.InChan()
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
@@ -93,7 +90,7 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	pack.Message.SetHostname(req.RemoteAddr)
 	pack.Message.SetPid(int32(os.Getpid()))
 	pack.Message.SetSeverity(int32(6))
-	pack.Message.SetPayload(unEscapedBody)
+	pack.Message.SetPayload(string(body))
 	if field, err := message.NewField("Protocol", req.Proto, ""); err == nil {
 		pack.Message.AddField(field)
 	} else {
