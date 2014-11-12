@@ -12,7 +12,8 @@ Features
 
 * Improve the sandbox inject_* error messages (#1156).
 
-* Select unit type and aggregation methods for stats graph
+* Added ability to specify unit type and aggregation methods for stats graph
+  filter.
 
 * Added option (immediate_start) to start process immediately in ProcessInput
   (#1131).
@@ -21,6 +22,8 @@ Features
   overriding the hostname value provided by Go's `os.Hostname` call (#1123).
 
 * Added 'connect_timeout' option in ElasticSearch output plugin.
+
+* Slightly improve error output in ElasticSearch plugin.
  
 0.8.1 (2014-MM-DD)
 ==================
