@@ -34,6 +34,12 @@ Config:
     ElasticSearch should be disabled. Defaults to false, that means using
     both HTTP keep-alive mode and TCP keep-alives. Set it to true to close
     each TCP connection after 'flushing' messages to ElasticSearch.
+- username (string):
+    The username to use for HTTP authentication against the ElasticSearch host.
+    Defaults to "" (i. e. no authentication).
+- password (string):
+    The password to use for HTTP authentication against the ElasticSearch host.
+    Defaults to "" (i. e. no authentication).
 
 Example:
 
