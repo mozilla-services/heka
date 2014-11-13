@@ -66,6 +66,12 @@ type ElasticSearchOutputConfig struct {
 	// on the local network and the indexing will be done with the UDP Bulk
 	// API. (default to "http://localhost:9200")
 	Server string
+	// Optional ElasticSearch username for HTTP authentication. This is useful
+	// if you have put your ElasticSearch cluster behind a proxy like nginx.
+	// and turned on authentication.
+	Username string `toml:"username"`
+	// Optional password for HTTP authentication.
+	Password string `toml:"password"`
 	// Overall timeout
 	HTTPTimeout uint32 `toml:"http_timeout"`
 	// Disable both TCP and HTTP keepalives
@@ -79,6 +85,8 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		FlushInterval:         1000,
 		FlushCount:            10,
 		Server:                "http://localhost:9200",
+		Username:              "",
+		Password:              "",
 		HTTPTimeout:           0,
 		HTTPDisableKeepalives: false,
 		ConnectTimeout:        0,
@@ -98,8 +106,9 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	if serverUrl, err = url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
-			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
-				o.flushCount, o.http_timeout, o.http_disable_keepalives, o.connect_timeout)
+			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme),
+				serverUrl.Host, o.flushCount, conf.Username, conf.Password,
+				o.http_timeout, o.http_disable_keepalives, o.connect_timeout)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		default:
@@ -215,10 +224,15 @@ type HttpBulkIndexer struct {
 	MaxCount int
 	// Internal HTTP Client.
 	client *http.Client
+	// Optional username for HTTP authentication
+	username string
+	// Optional password for HTTP authentication
+	password string
 }
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
-	httpTimeout uint32, httpDisableKeepalives bool, connectTimeout uint32) *HttpBulkIndexer {
+	username string, password string, httpTimeout uint32, httpDisableKeepalives bool,
+	connectTimeout uint32) *HttpBulkIndexer {
 
 	tr := &http.Transport{
 		DisableKeepAlives: httpDisableKeepalives,
@@ -236,6 +250,8 @@ func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
 		Domain:   domain,
 		MaxCount: maxCount,
 		client:   client,
+		username: username,
+		password: password,
 	}
 }
 
@@ -258,12 +274,19 @@ func (h *HttpBulkIndexer) Index(body []byte) error {
 		return fmt.Errorf("Can't create bulk request: %s", err.Error())
 	}
 	request.Header.Add("Accept", "application/json")
+	if h.username != "" && h.password != "" {
+		request.SetBasicAuth(h.username, h.password)
+	}
+
 	request_start_time := time.Now()
 	response, err := h.client.Do(request)
 	request_time := time.Since(request_start_time)
 	if err != nil {
-		if (h.client.Timeout > 0) && (request_time >= h.client.Timeout) && (strings.Contains(err.Error(), "use of closed network connection")) {
-			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s", request_time.String())
+		if (h.client.Timeout > 0) && (request_time >= h.client.Timeout) &&
+			(strings.Contains(err.Error(), "use of closed network connection")) {
+
+			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s",
+				request_time.String())
 		} else {
 			return fmt.Errorf("HTTP request failed: %s", err.Error())
 		}
@@ -278,11 +301,13 @@ func (h *HttpBulkIndexer) Index(body []byte) error {
 		}
 		err = json.Unmarshal(response_body, &response_body_json)
 		if err != nil {
-			return fmt.Errorf("HTTP response didn't contain valid JSON. Body: %s", string(response_body))
+			return fmt.Errorf("HTTP response didn't contain valid JSON. Body: %s",
+				string(response_body))
 		}
 		json_errors, ok := response_body_json["errors"].(bool)
 		if ok && json_errors {
-			return fmt.Errorf("ElasticSearch server reported error within JSON: %s", string(response_body))
+			return fmt.Errorf("ElasticSearch server reported error within JSON: %s",
+				string(response_body))
 		}
 	}
 	return nil

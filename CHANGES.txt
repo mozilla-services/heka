@@ -24,6 +24,8 @@ Features
 * Added 'connect_timeout' option in ElasticSearch output plugin.
 
 * Slightly improve error output in ElasticSearch plugin.
+
+* Added support for HTTP authentication to ElasticSearchOutput.
  
 0.8.1 (2014-MM-DD)
 ==================
