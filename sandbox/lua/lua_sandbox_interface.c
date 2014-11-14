@@ -32,7 +32,7 @@ int process_message(lua_sandbox* lsb)
         return 1;
     }
 
-    if (lua_pcall(lua, 0, 1, 0) != 0) {
+    if (lua_pcall(lua, 0, 2, 0) != 0) {
         char err[LSB_ERROR_SIZE];
         size_t len = snprintf(err, LSB_ERROR_SIZE, "%s() %s", func_name,
                               lua_tostring(lua, -1));
@@ -43,10 +43,11 @@ int process_message(lua_sandbox* lsb)
         return 1;
     }
 
-    if (!lua_isnumber(lua, 1)) {
+    if (lua_type(lua, 1) != LUA_TNUMBER) {
         char err[LSB_ERROR_SIZE];
         size_t len = snprintf(err, LSB_ERROR_SIZE,
-                              "%s() must return a single numeric value", func_name);
+                              "%s() must return a numeric status code",
+                              func_name);
         if (len >= LSB_ERROR_SIZE) {
           err[LSB_ERROR_SIZE - 1] = 0;
         }
@@ -55,7 +56,28 @@ int process_message(lua_sandbox* lsb)
     }
 
     int status = (int)lua_tointeger(lua, 1);
-    lua_pop(lua, 1);
+    switch (lua_type(lua, 2)) {
+    case LUA_TNIL:
+        lsb_set_error(lsb, NULL);
+        break;
+    case LUA_TSTRING:
+        lsb_set_error(lsb, lua_tostring(lua, 2));
+        break;
+    default:
+        {
+            char err[LSB_ERROR_SIZE];
+            int len = snprintf(err, LSB_ERROR_SIZE,
+                    "%s() must return a nil or string error message",
+                    func_name);
+            if (len >= LSB_ERROR_SIZE || len < 0) {
+                err[LSB_ERROR_SIZE - 1] = 0;
+            }
+            lsb_terminate(lsb, err);
+            return 1;
+        }
+        break;
+    }
+    lua_pop(lua, 2);
 
     lsb_pcall_teardown(lsb);
 

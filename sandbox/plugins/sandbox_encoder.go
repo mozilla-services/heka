@@ -200,7 +200,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		err = errors.New("Failed serializing.")
+		err = fmt.Errorf("Failed serializing: %s", s.sb.LastError())
 		return
 	}
 	return s.output, nil
