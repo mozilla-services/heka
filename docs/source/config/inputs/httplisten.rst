@@ -36,6 +36,11 @@ Config:
     by adding a TOML subsection entitled "headers" to you HttpOutput config
     section. All entries in the subsection must be a list of string values.
 
+.. versionadded:: 0.9
+
+- unescape_body (bool):
+    Whether to unescape the request body or not.
+    Defaults to true for backward compatibility reason.
 
 Example:
 
