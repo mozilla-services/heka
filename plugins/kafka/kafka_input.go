@@ -211,11 +211,12 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 	k.stopChan = make(chan bool)
 
 	var (
-		dRunner    pipeline.DecoderRunner
-		pack       *pipeline.PipelinePack
-		outChan    = k.pConfig.Router().InChan()
-		hostname   = k.pConfig.Hostname()
-		packSupply = ir.InChan()
+		dRunner     pipeline.DecoderRunner
+		pack        *pipeline.PipelinePack
+		outChan     = k.pConfig.Router().InChan()
+		hostname    = k.pConfig.Hostname()
+		packSupply  = ir.InChan()
+		useMsgBytes = false
 	)
 
 	if len(k.config.Decoder) > 0 {
@@ -223,6 +224,9 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 		if dRunner, ok = h.DecoderRunner(k.config.Decoder, fmt.Sprintf("%s-%s", k.name, k.config.Decoder)); !ok {
 			return fmt.Errorf("Decoder not found: %s", k.config.Decoder)
 		} else {
+			if _, ok := dRunner.Decoder().(*pipeline.ProtobufDecoder); ok {
+				useMsgBytes = true
+			}
 			outChan = dRunner.InChan()
 		}
 	}
@@ -247,39 +251,43 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 				break
 			}
 			pack = <-packSupply
-			pack.Message.SetUuid(uuid.NewRandom())
-			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.kafka")
-			pack.Message.SetLogger(k.name)
-			pack.Message.SetHostname(hostname)
-			if field, err := message.NewField("Key", event.Key, ""); err == nil {
-				pack.Message.AddField(field)
+			if useMsgBytes {
+				messageLen := len(event.Value)
+				if messageLen > cap(pack.MsgBytes) {
+					pack.MsgBytes = make([]byte, messageLen)
+				}
+				pack.MsgBytes = pack.MsgBytes[:messageLen]
+				copy(pack.MsgBytes, event.Value)
 			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
+				pack.Message.SetUuid(uuid.NewRandom())
+				pack.Message.SetTimestamp(time.Now().UnixNano())
+				pack.Message.SetType("heka.kafka")
+				pack.Message.SetLogger(k.name)
+				pack.Message.SetHostname(hostname)
+				pack.Message.SetPayload(string(event.Value))
+				if field, err := message.NewField("Key", event.Key, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
 
-			if field, err := message.NewField("Value", event.Value, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
+				if field, err := message.NewField("Topic", event.Topic, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
 
-			if field, err := message.NewField("Topic", event.Topic, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
+				if field, err := message.NewField("Partition", event.Partition, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
 
-			if field, err := message.NewField("Partition", event.Partition, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
-
-			if field, err := message.NewField("Offset", event.Offset, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
+				if field, err := message.NewField("Offset", event.Offset, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
 			}
 
 			outChan <- pack

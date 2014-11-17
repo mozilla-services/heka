@@ -16,7 +16,6 @@ package kafka
 
 import (
 	"github.com/Shopify/sarama"
-	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
@@ -57,7 +56,7 @@ func TestInvalidOffsetMethod(t *testing.T) {
 	}
 }
 
-func TestReceiveMessage(t *testing.T) {
+func TestReceivePayloadMessage(t *testing.T) {
 	b1 := sarama.NewMockBroker(t, 1)
 	b2 := sarama.NewMockBroker(t, 2)
 	ctrl := gomock.NewController(t)
@@ -115,17 +114,8 @@ func TestReceiveMessage(t *testing.T) {
 	if packRef.Message.GetType() != "heka.kafka" {
 		t.Errorf("Invalid Type %s", packRef.Message.GetType())
 	}
-	f := packRef.Message.FindFirstField("Value")
-	if f != nil {
-		if f.GetValueType() != message.Field_BYTES {
-			t.Errorf("Value field should have a type of bytes")
-		} else {
-			if string(f.ValueBytes[0]) != "AB" {
-				t.Errorf("Invalid Value Expected: AB received: %s", string(f.ValueBytes[0]))
-			}
-		}
-	} else {
-		t.Errorf("Missing Value field")
+	if packRef.Message.GetPayload() != "AB" {
+		t.Errorf("Invalid Payload Expected: AB received: %s", packRef.Message.GetPayload())
 	}
 
 	// There is a hang on the consumer close with the mock broker
@@ -147,5 +137,85 @@ func TestReceiveMessage(t *testing.T) {
 		if o != 1 {
 			t.Errorf("Incorrect offset Expected: 1 Received: %d", o)
 		}
+	}
+}
+
+func TestReceiveProtobufMessage(t *testing.T) {
+	b1 := sarama.NewMockBroker(t, 1)
+	b2 := sarama.NewMockBroker(t, 2)
+	ctrl := gomock.NewController(t)
+	tmpDir, tmpErr := ioutil.TempDir("", "kafkainput-tests")
+	if tmpErr != nil {
+		t.Errorf("Unable to create a temporary directory: %s", tmpErr)
+	}
+
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Errorf("Cleanup failed: %s", err)
+		}
+		ctrl.Finish()
+	}()
+
+	topic := "test"
+	mdr := new(sarama.MetadataResponse)
+	mdr.AddBroker(b2.Addr(), b2.BrokerID())
+	mdr.AddTopicPartition(topic, 0, 2)
+	b1.Returns(mdr)
+
+	fr := new(sarama.FetchResponse)
+	fr.AddMessage(topic, 0, nil, sarama.ByteEncoder([]byte{0x41, 0x42}), 0)
+	b2.Returns(fr)
+
+	pConfig := NewPipelineConfig(nil)
+	pConfig.Globals.BaseDir = tmpDir
+	ki := new(KafkaInput)
+	ki.SetName(topic)
+	ki.SetPipelineConfig(pConfig)
+	config := ki.ConfigStruct().(*KafkaInputConfig)
+	config.Addrs = append(config.Addrs, b1.Addr())
+	config.Topic = topic
+	config.Decoder = "ProtobufDecoder"
+
+	ith := new(plugins_ts.InputTestHelper)
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
+	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
+	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
+	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
+	ith.PackSupply = make(chan *PipelinePack, 1)
+	ith.DecodeChan = make(chan *PipelinePack)
+
+	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+
+	mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
+	mockDecoderRunner.EXPECT().Decoder().Return(new(ProtobufDecoder))
+	mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
+	ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "test-ProtobufDecoder").Return(ith.Decoder, true)
+
+	err := ki.Init(config)
+	if err != nil {
+		t.Fatal("%s", err)
+	}
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- ki.Run(ith.MockInputRunner, ith.MockHelper)
+	}()
+	ith.PackSupply <- ith.Pack
+
+	packRef := <-ith.DecodeChan
+	if string(packRef.MsgBytes) != "AB" {
+		t.Errorf("Invalid MsgBytes Expected: AB received: %s", string(packRef.MsgBytes))
+	}
+
+	// There is a hang on the consumer close with the mock broker
+	// closing the brokers before the consumer works around the issue
+	// and is good enough for this test.
+	b1.Close()
+	b2.Close()
+
+	ki.Stop()
+	err = <-errChan
+	if err != nil {
+		t.Fatal(err)
 	}
 }
