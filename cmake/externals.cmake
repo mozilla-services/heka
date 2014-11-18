@@ -172,15 +172,6 @@ if (INCLUDE_MOZSVC)
     add_dependencies(heka-mozsvc-plugins raven-go)
 endif()
 
-if (INCLUDE_DOCUMENTATION)
-    git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
-
-    add_custom_command(TARGET docs POST_BUILD
-    COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html
-    WORKING_DIRECTORY "${HEKA_PATH}/../heka-docs"
-    COMMENT "Built Heka architecture documentation")
-endif()
-
 hg_clone(https://code.google.com/p/go-uuid default)
 git_clone(https://code.google.com/p/gogoprotobuf 7008a93e68bf)
 add_custom_command(TARGET gogoprotobuf POST_BUILD
