@@ -38,7 +38,7 @@ Config:
 
     [influxdb]
     type = "SandboxEncoder"
-    filename = "lua_encoders/influxdb.lua"
+    filename = "lua_encoders/schema_influx.lua"
         [influxdb.config]
         series = "heka.%{Logger}"
         skip_fields = "Pid EnvVersion"
