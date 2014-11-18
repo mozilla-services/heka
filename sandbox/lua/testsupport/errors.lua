@@ -42,6 +42,8 @@ function process_message ()
         read_next_field("test")
     elseif msg == "write_message() should not exist" then
         write_message("Severity", 0)
+    elseif msg == "invalid error message" then
+        return -1, 1
     end
     return 0
 end

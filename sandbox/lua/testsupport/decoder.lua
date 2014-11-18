@@ -37,7 +37,7 @@ function process_message ()
     if t then
         inject_message(t)
     else
-        return -1
+        return -1, "LPeg grammar failed to match"
     end
     return 0
 end

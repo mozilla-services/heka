@@ -17,6 +17,7 @@ package plugins
 
 import (
 	"code.google.com/p/gogoprotobuf/proto"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -278,6 +279,10 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				}
 				if retval < 0 {
 					atomic.AddInt64(&this.processMessageFailures, 1)
+					em := this.sb.LastError()
+					if len(em) > 0 {
+						fr.LogError(errors.New(em))
+					}
 				}
 				sample = 0 == rand.Intn(this.sampleDenominator)
 			} else {

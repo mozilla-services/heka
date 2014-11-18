@@ -15,7 +15,7 @@ API
 Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
 
-**int process_message()**
+**int, string process_message()**
     Called by Heka when a message is available to the sandbox.  The 
     instruction_limit configuration parameter is applied to this function call.
 
@@ -23,10 +23,12 @@ Functions that must be exposed from the Lua sandbox
         none
 
     *Return*
-        - < 0 for non-fatal failure (increments ProcessMessageFailures)
-        - -2 for no output, but no error (encoders only)
-        - 0 for success
-        - > 0 for fatal error (terminates the sandbox)
+        - int
+            - < 0 for non-fatal failure (increments ProcessMessageFailures)
+            - -2 for no output, but no error (encoders only)
+            - 0 for success
+            - > 0 for fatal error (terminates the sandbox)
+        - string optional error message
 
 **timer_event(ns)**
     Called by Heka when the ticker_interval expires.  The instruction_limit 

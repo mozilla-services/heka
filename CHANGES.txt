@@ -10,6 +10,9 @@ Bug Handling
 Features
 --------
 
+* Allow the sandbox process_message function to set the last error string
+  when it returns (#1191).
+
 * Improve the sandbox inject_* error messages (#1156).
 
 * Added ability to specify unit type and aggregation methods for stats graph
