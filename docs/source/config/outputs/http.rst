@@ -36,6 +36,9 @@ Config:
     It is possible to inject arbitrary HTTP headers into each outgoing request
     by adding a TOML subsection entitled "headers" to you HttpOutput config
     section. All entries in the subsection must be a list of string values.
+- http_timeout(uint, optional):
+    Time in milliseconds to wait for a response for each http request. This
+    may drop data as there is currently no retry. Default is 0 (no timeout)
 - tls (subsection, optional):
 	A sub-section that specifies the settings to be used for any SSL/TLS
 	encryption. This will only have any impact if an "https://" address is
