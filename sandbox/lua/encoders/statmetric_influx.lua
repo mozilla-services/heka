@@ -39,12 +39,13 @@ Config:
 --]=]
 
 require "cjson"
+require "string"
 
 function process_message()
-    local output = {}
     local ts = tonumber(read_message("Fields[timestamp]"))
     if not ts then return -1 end
     ts = ts * 1000
+    message = ""
     while true do
         typ, name, value, representation, count = read_next_field()
         if not typ then break end
@@ -55,9 +56,14 @@ function process_message()
                 columns = {"time", "value"},
                 points = {{ts, value}}
             }
-            output[#output+1] = stat
+            message = message .. cjson.encode(stat) .. ","
         end
     end
-    inject_payload("json", "influx_stats", cjson.encode(output))
-    return 0
+    if message ~= "" then
+        message = "[" .. string.match(message, "^(.*),$") .. "]"
+        inject_payload("json", "influx_stats", message)
+        return 0
+    else
+        return -1
+    end
 end
