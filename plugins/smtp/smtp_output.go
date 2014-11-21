@@ -22,6 +22,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
+	"time"
 )
 
 type SmtpOutput struct {
@@ -29,6 +30,7 @@ type SmtpOutput struct {
 	auth         smtp.Auth
 	sendFunction func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
 	encoder      Encoder
+	inMessage    chan string
 }
 
 type SmtpOutputConfig struct {
@@ -46,6 +48,11 @@ type SmtpOutputConfig struct {
 	User string
 	// SMTP password
 	Password string
+	// Set a minimum time interval between each email.
+	// The value indicates a minimum number of seconds between each email.
+	// If more than one message is received in the period, the mail text is concatenated.
+	// Default is 0, meaning no limit.
+	TickerInterval uint `toml:"ticker_interval"`
 }
 
 type smtpHeader struct {
@@ -55,9 +62,10 @@ type smtpHeader struct {
 
 func (s *SmtpOutput) ConfigStruct() interface{} {
 	return &SmtpOutputConfig{
-		SendFrom: "heka@localhost.localdomain",
-		Host:     "127.0.0.1:25",
-		Auth:     "none",
+		SendFrom:       "heka@localhost.localdomain",
+		Host:           "127.0.0.1:25",
+		Auth:           "none",
+		TickerInterval: 0,
 	}
 }
 
@@ -94,14 +102,41 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	}
 	inChan := or.InChan()
 
+	s.inMessage = make(chan string, 1)
+
 	var (
-		pack       *PipelinePack
-		contents   []byte
-		subject    string
-		message    string
-		headerText string
+		pack     *PipelinePack
+		contents []byte
 	)
 
+	// Start sender. This will recieve messages on the s.inMessage channel.
+	go s.sendLoop(or)
+
+	for pack = range inChan {
+		if contents, err = s.encoder.Encode(pack); err == nil {
+			s.inMessage <- string(contents)
+		}
+
+		if err != nil {
+			or.LogError(err)
+		}
+
+		pack.Recycle()
+	}
+	return
+}
+
+func (s SmtpOutput) sendMail(headerText, message string) error {
+	msg := append([]byte(headerText), base64.StdEncoding.EncodeToString([]byte(message))...)
+	return s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, msg)
+}
+
+func (s *SmtpOutput) sendLoop(or OutputRunner) {
+	var (
+		subject    string
+		headerText string
+		err        error
+	)
 	if s.conf.Subject == "" {
 		subject = "Heka [" + or.Name() + "]"
 	} else {
@@ -119,21 +154,52 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
 	}
 
-	for pack = range inChan {
-		message = headerText
+	// When this is true we are waiting for a message on the timeout channel
+	queued := false
+	// All currently queued messages that will be sent in the next mail
+	message := ""
+	// Channel to indicate that timeout has been reached
+	timeOut := make(chan bool, 1)
+	// Minimum duration between each email
+	tickerDur := time.Second * time.Duration(s.conf.TickerInterval)
+	// Time indicating when the last message was sent.
+	lastSent := time.Now().Add(-tickerDur)
 
-		if contents, err = s.encoder.Encode(pack); contents != nil && err == nil {
-			message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
-			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
+	for {
+		select {
+		case msg := <-s.inMessage:
+			// We always append the message, so "message" will contain all recieved messages.
+			message += msg + "\r\n\r\n"
+
+			// If none are queued, and we are after the ticker duration, just send it right away.
+			if !queued && time.Now().After(lastSent.Add(tickerDur)) {
+				err = s.sendMail(headerText, message)
+				lastSent = time.Now()
+				message = ""
+				if err != nil {
+					or.LogError(err)
+				}
+			} else if !queued {
+				// The ticker duration has not expired yet, but no messages are queued,
+				// so we start a timeout funtion that will fire when the duration has passed
+				go func() {
+					dur := lastSent.Sub(time.Now()) + tickerDur
+					time.Sleep(dur)
+					timeOut <- true
+				}()
+				queued = true
+			}
+			// When the timeout has expired, send the messages that are queued
+		case <-timeOut:
+			err = s.sendMail(headerText, message)
+			message = ""
+			lastSent = time.Now()
+			if err != nil {
+				or.LogError(err)
+			}
+			queued = false
 		}
-
-		if err != nil {
-			or.LogError(err)
-		}
-
-		pack.Recycle()
 	}
-	return
 }
 
 func init() {
