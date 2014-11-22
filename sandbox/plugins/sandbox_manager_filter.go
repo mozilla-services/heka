@@ -116,74 +116,42 @@ func (this *SandboxManagerFilter) ReportMsg(msg *message.Message) error {
 	return nil
 }
 
-// Creates a FilterRunner for the specified sandbox name and configuration
+// Creates a FilterRunner for the specified sandbox name and configuration.
 func (this *SandboxManagerFilter) createRunner(dir, name string, configSection toml.Primitive) (
 	pipeline.FilterRunner, error) {
-	var err error
-	var pluginGlobals pipeline.PluginGlobals
 
-	wrapper := new(pipeline.PluginWrapper)
-	wrapper.Name = name
-
-	pluginGlobals.Retries = pipeline.RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
+	maker, err := pipeline.NewPluginMaker(name, this.pConfig, configSection)
+	if err != nil {
+		return nil, err
 	}
-
-	if err = toml.PrimitiveDecode(configSection, &pluginGlobals); err != nil {
-		return nil, fmt.Errorf("Unable to decode config for plugin: %s, error: %s",
-			wrapper.Name, err.Error())
-	}
-	if pluginGlobals.Typ != "SandboxFilter" {
+	if maker.Type() != "SandboxFilter" {
 		return nil, fmt.Errorf("Plugin must be a SandboxFilter, received %s",
-			pluginGlobals.Typ)
+			maker.Type())
 	}
 
-	// Create plugin, test config object generation.
-	wrapper.PluginCreator, _ = pipeline.AvailablePlugins[pluginGlobals.Typ]
-	plugin := wrapper.PluginCreator()
-	sbxFilter := plugin.(*SandboxFilter)
-	sbxFilter.SetPipelineConfig(this.pConfig)
-	var config interface{}
-	if config, err = pipeline.LoadConfigStruct(configSection, plugin); err != nil {
-		return nil, fmt.Errorf("Can't load config for '%s': %s", wrapper.Name, err)
+	// First load the config that the user specified into the filter's config
+	// struct.
+	if err = maker.PrepConfig(); err != nil {
+		return nil, fmt.Errorf("Error prepping config: %s", err.Error())
 	}
-	wrapper.ConfigCreator = func() interface{} { return config }
-	conf := config.(*SandboxConfig)
-	// Override the user provided settings with the manager settings
-	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", wrapper.Name, conf.ScriptType))
+	// Then override some of the user provided settings with the manager
+	// settings.
+	conf := maker.Config().(*SandboxConfig)
+	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", name, conf.ScriptType))
 	conf.ModuleDirectory = this.moduleDirectory
 	conf.MemoryLimit = this.memoryLimit
 	conf.InstructionLimit = this.instructionLimit
 	conf.OutputLimit = this.outputLimit
-	sbxFilter.name = wrapper.Name // preserve the reserved manager hyphenated name
+
+	// Finally call MakeRunner() to initialize the plugin and create the
+	// runner.
+	runner, err := maker.MakeRunner(name)
+	if err != nil {
+		return nil, err
+	}
+	sbxFilter := runner.Plugin().(*SandboxFilter)
 	sbxFilter.manager = this
-
-	// Apply configuration to instantiated plugin.
-	if err = plugin.(pipeline.Plugin).Init(config); err != nil {
-		return nil, fmt.Errorf("Initialization failed for '%s': %s", name, err)
-	}
-
-	runner := pipeline.NewFORunner(wrapper.Name, plugin.(pipeline.Plugin), &pluginGlobals,
-		this.pConfig.Globals.PluginChanSize)
-	runner.SetName(wrapper.Name)
-
-	if pluginGlobals.Ticker != 0 {
-		runner.SetTickLength(time.Duration(pluginGlobals.Ticker) * time.Second)
-	}
-
-	var matcher *pipeline.MatchRunner
-	if pluginGlobals.Matcher != "" {
-		if matcher, err = pipeline.NewMatchRunner(pluginGlobals.Matcher, pluginGlobals.Signer,
-			runner, this.pConfig.Globals.PluginChanSize); err != nil {
-			return nil, fmt.Errorf("Can't create message matcher for '%s': %s",
-				wrapper.Name, err)
-		}
-		runner.SetMatchRunner(matcher)
-	}
-
-	return runner, nil
+	return runner.(pipeline.FilterRunner), nil
 }
 
 // Replaces all non word characters with an underscore and returns the
@@ -216,48 +184,49 @@ func removeAll(dir, glob string) {
 // SandboxFilter
 func (this *SandboxManagerFilter) loadSandbox(fr pipeline.FilterRunner,
 	h pipeline.PluginHelper, dir string, msg *message.Message) (err error) {
+
 	fv, _ := msg.GetFieldValue("config")
 	if config, ok := fv.(string); ok {
 		var configFile pipeline.ConfigFile
 		if _, err = toml.Decode(config, &configFile); err != nil {
 			return fmt.Errorf("loadSandbox failed: %s\n", err)
-		} else {
-			for name, conf := range configFile {
-				name = getSandboxName(fr.Name(), name)
-				if _, ok := h.Filter(name); ok {
-					// todo support reload
-					return fmt.Errorf("loadSandbox failed: %s is already running", name)
-				}
-				fr.LogMessage(fmt.Sprintf("Loading: %s", name))
-				confFile := filepath.Join(dir, fmt.Sprintf("%s.toml", name))
-				err = ioutil.WriteFile(confFile, []byte(config), 0600)
-				if err != nil {
-					return
-				}
-				var sbc SandboxConfig
-				// Default, will get overwritten if necessary
-				sbc.ScriptType = "lua"
-				if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
-					return fmt.Errorf("loadSandbox failed: %s\n", err)
-				}
-				scriptFile := filepath.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
-				err = ioutil.WriteFile(scriptFile, []byte(msg.GetPayload()), 0600)
-				if err != nil {
-					removeAll(dir, fmt.Sprintf("%s.*", name))
-					return
-				}
-				var runner pipeline.FilterRunner
-				runner, err = this.createRunner(dir, name, conf)
-				if err != nil {
-					removeAll(dir, fmt.Sprintf("%s.*", name))
-					return
-				}
-				err = this.pConfig.AddFilterRunner(runner)
-				if err == nil {
-					atomic.AddInt32(&this.currentFilters, 1)
-				}
-				break // only interested in the first item
+		}
+
+		for name, conf := range configFile {
+			name = getSandboxName(fr.Name(), name)
+			if _, ok := h.Filter(name); ok {
+				// todo support reload
+				return fmt.Errorf("loadSandbox failed: %s is already running", name)
 			}
+			fr.LogMessage(fmt.Sprintf("Loading: %s", name))
+			confFile := filepath.Join(dir, fmt.Sprintf("%s.toml", name))
+			err = ioutil.WriteFile(confFile, []byte(config), 0600)
+			if err != nil {
+				return
+			}
+			var sbc SandboxConfig
+			// Default, will get overwritten if necessary
+			sbc.ScriptType = "lua"
+			if err = toml.PrimitiveDecode(conf, &sbc); err != nil {
+				return fmt.Errorf("loadSandbox failed: %s\n", err)
+			}
+			scriptFile := filepath.Join(dir, fmt.Sprintf("%s.%s", name, sbc.ScriptType))
+			err = ioutil.WriteFile(scriptFile, []byte(msg.GetPayload()), 0600)
+			if err != nil {
+				removeAll(dir, fmt.Sprintf("%s.*", name))
+				return
+			}
+			var runner pipeline.FilterRunner
+			runner, err = this.createRunner(dir, name, conf)
+			if err != nil {
+				removeAll(dir, fmt.Sprintf("%s.*", name))
+				return
+			}
+			err = this.pConfig.AddFilterRunner(runner)
+			if err == nil {
+				atomic.AddInt32(&this.currentFilters, 1)
+			}
+			break // only interested in the first item
 		}
 	}
 	return
@@ -276,25 +245,24 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner,
 			if _, err = toml.DecodeFile(fn, &configFile); err != nil {
 				fr.LogError(fmt.Errorf("restoreSandboxes failed: %s\n", err))
 				continue
-			} else {
-				for _, conf := range configFile {
-					var runner pipeline.FilterRunner
-					name := path.Base(fn[:len(fn)-5])
-					fr.LogMessage(fmt.Sprintf("Loading: %s", name))
-					runner, err = this.createRunner(dir, name, conf)
-					if err != nil {
-						fr.LogError(fmt.Errorf("createRunner failed: %s\n", err.Error()))
-						removeAll(dir, fmt.Sprintf("%s.*", name))
-						break
-					}
-					err = this.pConfig.AddFilterRunner(runner)
-					if err != nil {
-						fr.LogError(err)
-					} else {
-						atomic.AddInt32(&this.currentFilters, 1)
-					}
-					break // only interested in the first item
+			}
+			for _, conf := range configFile {
+				var runner pipeline.FilterRunner
+				name := path.Base(fn[:len(fn)-5])
+				fr.LogMessage(fmt.Sprintf("Loading: %s", name))
+				runner, err = this.createRunner(dir, name, conf)
+				if err != nil {
+					fr.LogError(fmt.Errorf("createRunner failed: %s\n", err.Error()))
+					removeAll(dir, fmt.Sprintf("%s.*", name))
+					break
 				}
+				err = this.pConfig.AddFilterRunner(runner)
+				if err != nil {
+					fr.LogError(err)
+				} else {
+					atomic.AddInt32(&this.currentFilters, 1)
+				}
+				break // only interested in the first item
 			}
 		}
 	}

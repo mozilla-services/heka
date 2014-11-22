@@ -77,7 +77,7 @@ func TestLoadDir(t *testing.T) {
 	defer udp.Input().Stop()
 
 	// and the decoders sections load
-	_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
+	_, ok = pipeConfig.DecoderMakers["ProtobufDecoder"]
 	if !ok {
 		t.Fatal("No ProtobufDecoder configured.")
 	}

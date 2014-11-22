@@ -78,6 +78,13 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 	return
 }
 
+func (this *CounterFilter) CleanupForRestart() {
+	this.lastCount = 0
+	this.count = 0
+	this.rate = 0
+	this.rates = nil
+}
+
 func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 	msgLoopCount uint) {
 	msgsSent := this.count - this.lastCount
