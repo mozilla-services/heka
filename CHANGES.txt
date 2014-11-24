@@ -7,6 +7,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Prevent the protobuf stream encoder from creating messages over
+  MAX_MESSAGE_SIZE (#1204).
+
 Features
 --------
 
