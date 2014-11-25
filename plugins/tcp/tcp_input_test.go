@@ -471,6 +471,6 @@ func TcpInputSpecFailure(c gs.Context) {
 		Decoder:    "ProtobufDecoder",
 		ParserType: "message.proto"})
 	c.Assume(err, gs.Not(gs.IsNil))
-	c.Assume(err.Error(), gs.Equals, "ListenTCP failed: unknown network udp\n")
+	c.Assume(err.Error(), gs.Equals, "ResolveTCPAddress failed: unknown network udp\n")
 
 }

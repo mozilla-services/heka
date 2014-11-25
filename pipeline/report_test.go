@@ -74,8 +74,11 @@ func ReportSpec(c gs.Context) {
 
 	fName := "counter"
 	filter := new(CounterFilter)
-	fRunner := NewFORunner(fName, filter, nil, chanSize)
-	var err error
+	foConfig := CommonFOConfig{
+		Matcher: "TRUE",
+	}
+	fRunner, err := NewFORunner(fName, filter, foConfig, "CounterFilter", chanSize)
+	c.Assume(err, gs.IsNil)
 	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner, chanSize)
 	c.Assume(err, gs.IsNil)
 	fRunner.matcher.inChan = make(chan *PipelinePack, chanSize)
@@ -84,7 +87,7 @@ func ReportSpec(c gs.Context) {
 
 	iName := "stat_accum"
 	input := new(StatAccumInput)
-	iRunner := NewInputRunner(iName, input, nil, false)
+	iRunner := NewInputRunner(iName, input, CommonInputConfig{}, false)
 
 	c.Specify("`PopulateReportMsg`", func() {
 		msg := ts.GetTestMessage()

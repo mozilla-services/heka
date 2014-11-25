@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type ProcessEntry struct {
@@ -239,17 +238,15 @@ func (pdi *ProcessDirectoryInput) startInput(name string, config *ProcessInputCo
 		return
 	}
 
-	var pluginGlobals PluginGlobals
-	pluginGlobals.Retries = RetryOptions{
+	var commonInputConfig CommonInputConfig
+	commonInputConfig.Retries = RetryOptions{
 		MaxDelay:   "30s",
 		Delay:      "250ms",
 		MaxRetries: -1,
 	}
-	pluginGlobals.Ticker = uint(config.TickerInterval)
-	tickLength := time.Duration(pluginGlobals.Ticker) * time.Second
-	ir = NewInputRunner(name, input, &pluginGlobals, true)
-	ir.SetTickLength(tickLength)
-	if err = pdi.h.PipelineConfig().AddInputRunner(ir, nil); err != nil {
+	commonInputConfig.Ticker = uint(config.TickerInterval)
+	ir = NewInputRunner(name, input, commonInputConfig, true)
+	if err = pdi.h.PipelineConfig().AddInputRunner(ir); err != nil {
 		return nil, err
 	}
 	return

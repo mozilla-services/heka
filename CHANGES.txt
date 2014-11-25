@@ -4,6 +4,11 @@
 Backwards Incompatibilities
 ---------------------------
 
+* Major overhaul of Heka's configuration loading code. This doesn't impact
+  most plugins, it's only a breaking change for plugins that happen to
+  instantiate and manage the lifecycles of other embedded plugins, e.g.
+  MultiDecoder, ProcessDirectoryInput, SandboxManagerFilter.
+
 Bug Handling
 ------------
 

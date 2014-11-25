@@ -77,7 +77,7 @@ func (t *TcpInput) Init(config interface{}) error {
 	t.config = config.(*TcpInputConfig)
 	address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
 	if err != nil {
-		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+		return fmt.Errorf("ResolveTCPAddress failed: %s\n", err.Error())
 	}
 	t.listener, err = net.ListenTCP(t.config.Net, address)
 	if err != nil {
@@ -119,6 +119,7 @@ func (t *TcpInput) Init(config interface{}) error {
 	if t.config.KeepAlivePeriod != 0 {
 		t.keepAliveDuration = time.Duration(t.config.KeepAlivePeriod) * time.Second
 	}
+	t.stopChan = make(chan bool)
 	closeIt = false
 	return nil
 }
@@ -212,7 +213,6 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.ir = ir
 	t.h = h
-	t.stopChan = make(chan bool)
 	t.name = ir.Name()
 
 	var conn net.Conn

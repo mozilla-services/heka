@@ -24,6 +24,7 @@ import (
 	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
+	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -31,12 +32,15 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"regexp"
 	"testing"
 )
 
 type MultiOutputDecoder struct {
 	recycleChan chan *PipelinePack
+}
+
+func (m *MultiOutputDecoder) Init(config interface{}) error {
+	return nil
 }
 
 func (m *MultiOutputDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
@@ -62,6 +66,37 @@ func MultiDecoderSpec(c gospec.Context) {
 	pConfig := NewPipelineConfig(nil) // initializes Globals()
 
 	c.Specify("A MultiDecoder", func() {
+		subsTOML := `[StartsWithM]
+		type = "PayloadRegexDecoder"
+		match_regex = '^(?P<TheData>m.*)'
+		log_errors = true
+		[StartsWithM.message_fields]
+		StartsWithM = "%TheData%"
+	
+		[StartsWithS]
+		type = "PayloadRegexDecoder"
+		match_regex = '^(?P<TheData>s.*)'
+		log_errors = true
+		[StartsWithS.message_fields]
+		StartsWithS = "%TheData%"
+	
+		[StartsWithM2]
+		type = "PayloadRegexDecoder"
+		match_regex = '^(?P<TheData>m.*)'
+		log_errors = true
+		[StartsWithM2.message_fields]
+		StartsWithM2 = "%TheData%"
+		`
+
+		RegisterPlugin("PayloadRegexDecoder", func() interface{} {
+			return &PayloadRegexDecoder{}
+		})
+		defer delete(AvailablePlugins, "PayloadRegexDecoder")
+
+		var configFile ConfigFile
+		_, err := toml.Decode(subsTOML, &configFile)
+		c.Assume(err, gs.IsNil)
+
 		decoder := new(MultiDecoder)
 		decoder.SetName("MyMultiDecoder")
 		decoder.SetPipelineConfig(pConfig)
@@ -70,17 +105,11 @@ func MultiDecoderSpec(c gospec.Context) {
 		supply := make(chan *PipelinePack, 1)
 		pack := NewPipelinePack(supply)
 
-		rDecoder0 := new(PayloadRegexDecoder)
-		rDecoder0.Match, _ = regexp.Compile("^(?P<TheData>m.*)")
-		rDecoder0.MessageFields = MessageTemplate{
-			"StartsWithM": "%TheData%",
-		}
-		rDecoder0.logErrors = true
-		wrapper0 := NewPluginWrapper("StartsWithM", pConfig)
-		wrapper0.CreateWithError = func() (interface{}, error) {
-			return rDecoder0, nil
-		}
-		pConfig.DecoderWrappers["StartsWithM"] = wrapper0
+		mSection, ok := configFile["StartsWithM"]
+		c.Assume(ok, gs.IsTrue)
+		mMaker, err := NewPluginMaker("StartsWithM", pConfig, mSection)
+		c.Assume(err, gs.IsNil)
+		pConfig.DecoderMakers["StartsWithM"] = mMaker
 
 		conf.Subs = []string{"StartsWithM"}
 		errMsg := "All subdecoders failed."
@@ -144,7 +173,7 @@ func MultiDecoderSpec(c gospec.Context) {
 
 			// Now create a real *dRunner, pass it in, make sure a wrapper
 			// gets handed to the subdecoder.
-			dr := NewDecoderRunner(decoder.Name, decoder, new(PluginGlobals), 10)
+			dr := NewDecoderRunner(decoder.Name, decoder, 10)
 			decoder.SetDecoderRunner(dr)
 			sub := decoder.Decoders[0]
 			subRunner := sub.(*PayloadRegexDecoder).dRunner
@@ -154,31 +183,19 @@ func MultiDecoderSpec(c gospec.Context) {
 		})
 
 		c.Specify("with multiple registered decoders", func() {
-			rDecoder1 := new(PayloadRegexDecoder)
-			rDecoder1.Match, _ = regexp.Compile("^(?P<TheData>s.*)")
-			rDecoder1.MessageFields = MessageTemplate{
-				"StartsWithS": "%TheData%",
-			}
-			wrapper1 := NewPluginWrapper("StartsWithS", pConfig)
-			wrapper1.CreateWithError = func() (interface{}, error) {
-				return rDecoder1, nil
-			}
-			pConfig.DecoderWrappers["StartsWithS"] = wrapper1
+			sSection, ok := configFile["StartsWithS"]
+			c.Assume(ok, gs.IsTrue)
+			sMaker, err := NewPluginMaker("StartsWithS", pConfig, sSection)
+			c.Assume(err, gs.IsNil)
+			pConfig.DecoderMakers["StartsWithS"] = sMaker
 
-			rDecoder2 := new(PayloadRegexDecoder)
-			rDecoder2.Match, _ = regexp.Compile("^(?P<TheData>m.*)")
-			rDecoder2.MessageFields = MessageTemplate{
-				"StartsWithM2": "%TheData%",
-			}
-			wrapper2 := NewPluginWrapper("StartsWithM2", pConfig)
-			wrapper2.CreateWithError = func() (interface{}, error) {
-				return rDecoder2, nil
-			}
-			pConfig.DecoderWrappers["StartsWithM2"] = wrapper2
+			m2Section, ok := configFile["StartsWithM2"]
+			c.Assume(ok, gs.IsTrue)
+			m2Maker, err := NewPluginMaker("StartsWithM2", pConfig, m2Section)
+			c.Assume(err, gs.IsNil)
+			pConfig.DecoderMakers["StartsWithM2"] = m2Maker
 
 			conf.Subs = append(conf.Subs, "StartsWithS", "StartsWithM2")
-
-			var ok bool
 
 			// Two more subdecoders means two more LogError calls.
 			dRunner.EXPECT().LogError(gomock.Any()).Times(2)
@@ -273,6 +290,24 @@ func MultiDecoderSpec(c gospec.Context) {
 	})
 
 	c.Specify("A MultiDecoder w/ MultiOutput", func() {
+		subsTOML := `[sub0]
+		type = "MultiOutputDecoder"
+
+		[sub1]
+		type = "MultiOutputDecoder"
+
+		[sub2]
+		type = "MultiOutputDecoder"
+		`
+
+		RegisterPlugin("MultiOutputDecoder", func() interface{} {
+			return &MultiOutputDecoder{}
+		})
+		defer delete(AvailablePlugins, "MultiOutputDecoder")
+
+		var configFile ConfigFile
+		_, err := toml.Decode(subsTOML, &configFile)
+
 		decoder := new(MultiDecoder)
 		decoder.SetName("MyMultiDecoder")
 		decoder.SetPipelineConfig(pConfig)
@@ -282,27 +317,23 @@ func MultiDecoderSpec(c gospec.Context) {
 		supply := make(chan *PipelinePack, 10)
 		pack := NewPipelinePack(supply)
 
-		sub0 := &MultiOutputDecoder{supply}
-		sub1 := &MultiOutputDecoder{supply}
-		sub2 := &MultiOutputDecoder{supply}
+		sub0Section, ok := configFile["sub0"]
+		c.Assume(ok, gs.IsTrue)
+		sub0Maker, err := NewPluginMaker("sub0", pConfig, sub0Section)
+		c.Assume(err, gs.IsNil)
+		pConfig.DecoderMakers["sub0"] = sub0Maker
 
-		wrapper0 := NewPluginWrapper("sub0", pConfig)
-		wrapper0.CreateWithError = func() (interface{}, error) {
-			return sub0, nil
-		}
-		pConfig.DecoderWrappers["sub0"] = wrapper0
+		sub1Section, ok := configFile["sub1"]
+		c.Assume(ok, gs.IsTrue)
+		sub1Maker, err := NewPluginMaker("sub1", pConfig, sub1Section)
+		c.Assume(err, gs.IsNil)
+		pConfig.DecoderMakers["sub1"] = sub1Maker
 
-		wrapper1 := NewPluginWrapper("sub1", pConfig)
-		wrapper1.CreateWithError = func() (interface{}, error) {
-			return sub1, nil
-		}
-		pConfig.DecoderWrappers["sub1"] = wrapper1
-
-		wrapper2 := NewPluginWrapper("sub2", pConfig)
-		wrapper2.CreateWithError = func() (interface{}, error) {
-			return sub2, nil
-		}
-		pConfig.DecoderWrappers["sub2"] = wrapper2
+		sub2Section, ok := configFile["sub2"]
+		c.Assume(ok, gs.IsTrue)
+		sub2Maker, err := NewPluginMaker("sub2", pConfig, sub2Section)
+		c.Assume(err, gs.IsNil)
+		pConfig.DecoderMakers["sub2"] = sub2Maker
 
 		conf.Subs = []string{"sub0", "sub1", "sub2"}
 		dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
@@ -329,14 +360,22 @@ func BenchmarkMultiDecodeProtobuf(b *testing.B) {
 	decoder := new(MultiDecoder)
 	decoder.SetPipelineConfig(pConfig)
 	conf := decoder.ConfigStruct().(*MultiDecoderConfig)
-	sub := new(ProtobufDecoder)
-	sub.SetPipelineConfig(pConfig)
-	sub.Init(nil)
-	wrapper0 := NewPluginWrapper("sub", pConfig)
-	wrapper0.CreateWithError = func() (interface{}, error) {
-		return sub, nil
+
+	RegisterPlugin("ProtobufDecoder", func() interface{} {
+		return &ProtobufDecoder{}
+	})
+	defer delete(AvailablePlugins, "ProtobufDecoder")
+	var section PluginConfig
+	_, err := toml.Decode("", &section)
+	if err != nil {
+		b.Fatalf("Error decoding empty TOML: %s", err.Error())
 	}
-	pConfig.DecoderWrappers["sub"] = wrapper0
+	maker, err := NewPluginMaker("ProtobufDecoder", pConfig, section)
+	if err != nil {
+		b.Fatalf("Error decoding empty TOML: %s", err.Error())
+	}
+	pConfig.DecoderMakers["ProtobufDecoder"] = maker
+
 	conf.CascadeStrategy = "first-wins"
 	conf.Subs = []string{"sub"}
 	decoder.Init(conf)

@@ -150,26 +150,32 @@ Restarting Plugins
 
 In the event that your plugin fails to initialize properly at startup, hekad
 will exit. However, once hekad is running, if the plugin should fail (perhaps
-because a network connection dropped, a file became unavailable, etc), then
-the plugin will exit.
-If your plugin supports being restarted then when it exits it will be recreated,
-and restarted until it exhausts its max retry attempts. At which point it will
-exit, and heka will shutdown if not configured with `can_exit`.
+because a network connection dropped, a file became unavailable, etc) then the
+plugin will exit. If the plugin supports being restarted then Heka will
+attempt to reset, reinitialize, and restart the plugin. If this fails, Heka
+will try again up until the specified max_retries value. If the failure
+continues beyond the maximum number of retries, or if the plugin didn't
+support restarting in the first place, then Heka will either shut down or, if
+the plugin is a filter or an output with the `can_exit` setting set to true,
+the plugin will be removed from operation and Heka will continue to run.
 
-To add restart support to your plugin, the `Restarting` interface defined in
-the `config.go <https://github.com/mozilla-
+If the reinitialization and restarting is successful, then the retry count
+will be reset to zero and everything will continue to function as normal.
+
+To add restart support to your plugin, you must implement the `Restarting`
+interface defined in the `config.go <https://github.com/mozilla-
 services/heka/blob/master/pipeline/config.go>`_ file::
 
     type Restarting interface {
         CleanupForRestart()
     }
 
-A plugin that implements this interface will not trigger shutdown should it
-fail while hekad is running. The `CleanupForRestart` method will be called
-when the plugins' main run method exits, a single time. Then the runner will
-repeatedly call the plugins Init method until it initializes successfully. It
-will then resume running it unless it exits again at which point the restart
-process will begin anew.
+The `CleanupForRestart` method will be called when the plugin's main run
+method exits, a single time. This allows you a place to perform any additional
+cleanup that might be necessary before attempting to reinitialize the plugin.
+After this, the runner will repeatedly call the plugin's Init method until it
+initializes successfully. It will then resume running it unless it exits again
+at which point the restart process will begin anew.
 
 .. _custom_plugin_config:
 
