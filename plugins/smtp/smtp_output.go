@@ -22,6 +22,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
+	"strings"
 	"time"
 )
 
@@ -152,10 +153,8 @@ func (s *SmtpOutput) sendLoop(or OutputRunner) {
 		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
 	}
 
-	// When this is true we are waiting for a message on the timeout channel
-	queued := false
-	// All currently queued messages that will be sent in the next mail
-	message := ""
+	// Bodies of all currently queued messages that will be sent in the next mail
+	var queue []string
 	// Channel to indicate that timeout has been reached
 	timeOut := make(chan bool, 1)
 	// Minimum duration between each email
@@ -166,18 +165,16 @@ func (s *SmtpOutput) sendLoop(or OutputRunner) {
 	for {
 		select {
 		case msg := <-s.inMessage:
-			// We always append the message, so "message" will contain all recieved messages.
-			message += msg + "\r\n\r\n"
-
 			// If none are queued, and we are after the ticker duration, just send it right away.
-			if !queued && time.Now().After(lastSent.Add(tickerDur)) {
-				err = s.sendMail(headerText, message)
+			if len(queue) == 0 && time.Now().After(lastSent.Add(tickerDur)) {
+				err = s.sendMail(headerText, msg)
 				lastSent = time.Now()
-				message = ""
 				if err != nil {
 					or.LogError(err)
 				}
-			} else if !queued {
+				continue
+			}
+			if len(queue) == 0 {
 				// The ticker duration has not expired yet, but no messages are queued,
 				// so we start a timeout funtion that will fire when the duration has passed
 				go func() {
@@ -185,17 +182,17 @@ func (s *SmtpOutput) sendLoop(or OutputRunner) {
 					time.Sleep(dur)
 					timeOut <- true
 				}()
-				queued = true
 			}
+			queue = append(queue, msg)
 			// When the timeout has expired, send the messages that are queued
 		case <-timeOut:
+			message := strings.Join(queue, "\r\n\r\n")
+			queue = nil
 			err = s.sendMail(headerText, message)
-			message = ""
 			lastSent = time.Now()
 			if err != nil {
 				or.LogError(err)
 			}
-			queued = false
 		}
 	}
 }
