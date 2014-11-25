@@ -97,20 +97,39 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 }
 
 func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	var (
+		pack     *PipelinePack
+		contents []byte
+	)
 	s.encoder = or.Encoder()
 	if s.encoder == nil {
 		return errors.New("Encoder required.")
 	}
 	inChan := or.InChan()
 
-	s.inMessage = make(chan string, 1)
+	// We run this direct output if no minimum interval has been requested
+	if s.conf.TickerInterval == 0 {
+		headerText := s.getHeaderText(or.Name())
+		for pack = range inChan {
+			message := headerText
 
-	var (
-		pack     *PipelinePack
-		contents []byte
-	)
+			if contents, err = s.encoder.Encode(pack); contents != nil && err == nil {
+				message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
+				err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
+			}
+
+			if err != nil {
+				or.LogError(err)
+			}
+
+			pack.Recycle()
+		}
+
+		return nil
+	}
 
 	// Start sender. This will recieve messages on the s.inMessage channel.
+	s.inMessage = make(chan string, 1)
 	go s.sendLoop(or)
 
 	for pack = range inChan {
@@ -130,14 +149,13 @@ func (s SmtpOutput) sendMail(headerText, message string) error {
 	return s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, msg)
 }
 
-func (s *SmtpOutput) sendLoop(or OutputRunner) {
+func (s SmtpOutput) getHeaderText(name string) string {
 	var (
 		subject    string
 		headerText string
-		err        error
 	)
 	if s.conf.Subject == "" {
-		subject = "Heka [" + or.Name() + "]"
+		subject = "Heka [" + name + "]"
 	} else {
 		subject = s.conf.Subject
 	}
@@ -152,6 +170,12 @@ func (s *SmtpOutput) sendLoop(or OutputRunner) {
 	for _, header := range headers {
 		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
 	}
+	return headerText
+}
+
+func (s *SmtpOutput) sendLoop(or OutputRunner) {
+	var err error
+	headerText := s.getHeaderText(or.Name())
 
 	// Bodies of all currently queued messages that will be sent in the next mail
 	var queue []string
