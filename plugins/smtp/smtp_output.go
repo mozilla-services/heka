@@ -115,15 +115,13 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	for pack = range inChan {
 		if contents, err = s.encoder.Encode(pack); err == nil {
 			s.inMessage <- string(contents)
-		}
-
-		if err != nil {
+		} else {
 			or.LogError(err)
 		}
 
 		pack.Recycle()
 	}
-	return
+	return nil
 }
 
 func (s SmtpOutput) sendMail(headerText, message string) error {
