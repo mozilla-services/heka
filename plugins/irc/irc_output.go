@@ -473,7 +473,7 @@ func registerCallbacks(output *IrcOutput) {
 		// If we've gotten this far, we should send a message about why we
 		// couldn't join
 		reason := event.Arguments[2]
-		err := fmt.Errorf("%s. Retrying in %s seconds.",
+		err := fmt.Errorf("%s. Retrying in %d seconds.",
 			IrcCannotJoinError{ircChan, reason}, output.TimeBeforeRejoin)
 		output.runner.LogError(err)
 		// Increment our number of retries each time we try to join

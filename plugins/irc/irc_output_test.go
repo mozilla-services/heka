@@ -379,7 +379,7 @@ func IrcOutputSpec(c gs.Context) {
 				ircOutput.Join(ircChan)
 
 				reason := "full channel"
-				err = fmt.Errorf("%s. Retrying in %s seconds.",
+				err = fmt.Errorf("%s. Retrying in %d seconds.",
 					IrcCannotJoinError{ircChan, reason}.Error(),
 					ircOutput.TimeBeforeRejoin)
 
