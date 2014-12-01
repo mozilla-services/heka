@@ -91,7 +91,7 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 }
 
 func (l *LogstreamLocation) Debug() string {
-	return fmt.Sprintf("Location:\n\tFilename: %s\n\tJournal: %s\n\tSeek: %s\n\tHash: %s\n",
+	return fmt.Sprintf("Location:\n\tFilename: %s\n\tJournal: %s\n\tSeek: %d\n\tHash: %s\n",
 		l.Filename,
 		l.JournalPath,
 		l.SeekPosition,
