@@ -557,7 +557,7 @@ type CommonFOConfig struct {
 	CanExit    *bool  `toml:"can_exit"`
 	Retries    RetryOptions
 	Encoder    string // Output only.
-	UseFraming *bool  `toml:use_framing"` // Output only.
+	UseFraming *bool  `toml:"use_framing"` // Output only.
 }
 
 func getDefaultRetryOptions() RetryOptions {
