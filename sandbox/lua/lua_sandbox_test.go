@@ -753,7 +753,7 @@ func TestInjectMessage(t *testing.T) {
 			}
 			if field := msg.FindFirstField("numbers"); field != nil {
 				if field.GetRepresentation() != "count" {
-					t.Errorf("'numbers' representation expected count received %s", 1e9, field.GetRepresentation())
+					t.Errorf("'numbers' representation expected \"count\" received \"%s\"", field.GetRepresentation())
 				}
 			} else {
 				t.Errorf("'numbers' field not found")
