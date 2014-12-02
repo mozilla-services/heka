@@ -80,7 +80,7 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		}
 		// Make sure socket file is world writable.
 		if err = os.Chmod(u.config.Address, 0666); err != nil {
-			return fmt.Errorf("Error changing unixgram socket permissions: ", err)
+			return fmt.Errorf("Error changing unixgram socket permissions: %s", err)
 		}
 
 	} else if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
@@ -164,7 +164,7 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 			err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, dr)
 			// "use of closed" -> we're stopping.
 			if err != nil && !strings.Contains(err.Error(), "use of closed") {
-				ir.LogError(fmt.Errorf("Read error: ", err))
+				ir.LogError(fmt.Errorf("Read error: %s", err))
 			}
 			u.parser.GetRemainingData() // reset the receiving buffer
 		}

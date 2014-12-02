@@ -325,7 +325,7 @@ func (l *Logstream) DumpDebug() string {
 		finfo, _ = l.fd.Stat()
 	}
 	return fmt.Sprintf("Logfiles: %s\n%s\nFileInfo: %s\n",
-		l.logfiles,
+		l.logfiles.FileNames(),
 		l.position.Debug(),
 		finfo,
 	)
@@ -480,7 +480,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		if len(ls.sortPattern.Priority) == 0 && len(newLogfiles) > 1 {
 			errors.AddMessage(fmt.Sprintf("Found multiple logfiles without Priority to sort "+
 				"on for name: %s, filematch: %s, files: %s",
-				name, ls.sortPattern.FileMatch, newLogfiles))
+				name, ls.sortPattern.FileMatch, newLogfiles.FileNames()))
 			continue
 		}
 

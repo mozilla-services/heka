@@ -101,7 +101,7 @@ type ProcessInputConfig struct {
 	DelimiterLocation string `toml:"delimiter_location"`
 
 	// Trim newline characters from the right side of each record.
-	Trim bool `toml: trim`
+	Trim bool `toml:"trim"`
 
 	// Timeout in seconds.
 	TimeoutSeconds uint `toml:"timeout"`

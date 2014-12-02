@@ -101,7 +101,7 @@ func TestReceivePayloadMessage(t *testing.T) {
 
 	err := ki.Init(config)
 	if err != nil {
-		t.Fatal("%s", err)
+		t.Fatalf("%s", err)
 	}
 
 	errChan := make(chan error)
@@ -193,7 +193,7 @@ func TestReceiveProtobufMessage(t *testing.T) {
 
 	err := ki.Init(config)
 	if err != nil {
-		t.Fatal("%s", err)
+		t.Fatalf("%s", err)
 	}
 
 	errChan := make(chan error)

@@ -156,8 +156,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 
 	var intPerm int64
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
-		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, ",
-			"is it an octal integer string?", o.basePath)
+		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, is it an octal integer string?", o.basePath)
 		return
 	}
 	o.folderPerm = os.FileMode(intPerm)
