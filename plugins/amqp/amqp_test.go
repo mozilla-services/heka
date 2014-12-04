@@ -105,10 +105,20 @@ func AMQPPluginSpec(c gs.Context) {
 				ack := plugins_ts.NewMockAcknowledger(ctrl)
 				ack.EXPECT().Ack(gomock.Any(), false)
 				streamChan <- amqp.Delivery{
-					ContentType:  "text/plain",
-					Body:         []byte("This is a message"),
-					Timestamp:    time.Now(),
-					Acknowledger: ack,
+					ContentType:     "text/plain",
+					ContentEncoding: "utf-8",
+					Body:            []byte("This is a message"),
+					DeliveryMode:    1,
+					CorrelationId:   "foobar",
+					ReplyTo:         "foobaz",
+					Expiration:      "1000",
+					Type:            "app-message",
+					UserId:          "user-abc",
+					AppId:           "app-abc",
+					Timestamp:       time.Now(),
+					RoutingKey:      "testKey",
+					Exchange:        "testExchange",
+					Acknowledger:    ack,
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
@@ -127,9 +137,54 @@ func AMQPPluginSpec(c gs.Context) {
 				ith.PackSupply <- ith.Pack
 				close(streamChan)
 				err = <-errChan
+
 				c.Expect(err, gs.IsNil)
 				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
+
+				fieldValue, ok := ith.Pack.Message.GetFieldValue("ContentType")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "text/plain")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("ContentEncoding")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "utf-8")
+
+				fieldValueNum, ok := ith.Pack.Message.GetFieldValue("DeliveryMode")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValueNum, gs.Equals, int64(1))
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("CorrelationId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "foobar")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("ReplyTo")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "foobaz")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Expiration")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "1000")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Type")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "app-message")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("UserId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "user-abc")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("AppId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "app-abc")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Exchange")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "testExchange")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("RoutingKey")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "testKey")
 			})
 		})
 
@@ -157,10 +212,20 @@ func AMQPPluginSpec(c gs.Context) {
 				ack := plugins_ts.NewMockAcknowledger(ctrl)
 				ack.EXPECT().Ack(gomock.Any(), false)
 				streamChan <- amqp.Delivery{
-					ContentType:  "text/plain",
-					Body:         []byte("This is a message"),
-					Timestamp:    time.Now(),
-					Acknowledger: ack,
+					ContentType:     "text/plain",
+					ContentEncoding: "utf-8",
+					Body:            []byte("This is a message"),
+					DeliveryMode:    1,
+					CorrelationId:   "foobar",
+					ReplyTo:         "foobaz",
+					Expiration:      "1000",
+					Type:            "app-message",
+					UserId:          "user-abc",
+					AppId:           "app-abc",
+					Timestamp:       time.Now(),
+					RoutingKey:      "testKey",
+					Exchange:        "testExchange",
+					Acknowledger:    ack,
 				}
 				mch.EXPECT().Consume("", "", false, false, false, false,
 					gomock.Any()).Return(streamChan, nil)
@@ -181,6 +246,50 @@ func AMQPPluginSpec(c gs.Context) {
 				err = <-errChan
 				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
 				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
+
+				fieldValue, ok := ith.Pack.Message.GetFieldValue("ContentType")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "text/plain")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("ContentEncoding")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "utf-8")
+
+				fieldValueNum, ok := ith.Pack.Message.GetFieldValue("DeliveryMode")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValueNum, gs.Equals, int64(1))
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("CorrelationId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "foobar")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("ReplyTo")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "foobaz")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Expiration")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "1000")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Type")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "app-message")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("UserId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "user-abc")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("AppId")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "app-abc")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("Exchange")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "testExchange")
+
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("RoutingKey")
+				c.Assume(ok, gs.IsTrue)
+				c.Expect(fieldValue, gs.Equals, "testKey")
 			})
 
 			c.Specify("consumes a serialized message", func() {

@@ -16,6 +16,7 @@
 package amqp
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -213,6 +214,21 @@ readLoop:
 			pack.Message.SetType("amqp")
 			pack.Message.SetPayload(string(msg.Body))
 			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
+
+			if "" == msg.MessageId {
+				pack.Message.SetUuid(uuid.NewRandom())
+			} else {
+				pack.Message.SetUuid([]byte(msg.MessageId))
+			}
+
+			for key, value := range fieldMap(msg) {
+				if field, err := message.NewField(key, value, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
+			}
+
 			var packs []*PipelinePack
 			if decoder == nil {
 				packs = []*PipelinePack{pack}
@@ -250,4 +266,20 @@ func init() {
 	RegisterPlugin("AMQPInput", func() interface{} {
 		return new(AMQPInput)
 	})
+}
+
+func fieldMap(msg amqp.Delivery) map[string]interface{} {
+	return map[string]interface{}{
+		"ContentType":     msg.ContentType,
+		"ContentEncoding": msg.ContentEncoding,
+		"DeliveryMode":    int(msg.DeliveryMode),
+		"CorrelationId":   msg.CorrelationId,
+		"ReplyTo":         msg.ReplyTo,
+		"Expiration":      msg.Expiration,
+		"Type":            msg.Type,
+		"UserId":          msg.UserId,
+		"AppId":           msg.AppId,
+		"Exchange":        msg.Exchange,
+		"RoutingKey":      msg.RoutingKey,
+	}
 }
