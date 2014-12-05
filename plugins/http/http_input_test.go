@@ -22,6 +22,7 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"sync"
 	"time"
 )
 
@@ -59,7 +60,20 @@ func HttpInputSpec(c gs.Context) {
 
 		config := httpInput.ConfigStruct().(*HttpInputConfig)
 
-		c.Specify("short circuits packs into the router", func() {
+		var deliverWg sync.WaitGroup
+		deliverWg.Add(1)
+		deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+		deliverCall.Do(func(pack *PipelinePack) {
+			deliverWg.Done()
+		})
+
+		c.Specify("honors time ticker to flush", func() {
+			// Spin up a http server
+			server, err := plugins_ts.NewOneHttpServer(json_post, "localhost", 9876)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/")
+			time.Sleep(10 * time.Millisecond)
+
 			config.Url = "http://localhost:9876/"
 			tickChan := make(chan time.Time)
 
@@ -69,7 +83,7 @@ func HttpInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
-			err := httpInput.Init(config)
+			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			startInput()
 
@@ -79,224 +93,142 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(50 * time.Millisecond)
 		})
 
-		c.Specify("with a decoder", func() {
+		c.Specify("supports configuring HTTP Basic Authentication", func() {
+			// Spin up a http server which expects username "user" and password "password"
+			server, err := plugins_ts.NewHttpBasicAuthServer("user", "password", "localhost", 9875)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/BasicAuthTest")
+			time.Sleep(10 * time.Millisecond)
 
-			decoderName := "TestDecoder"
-			config.DecoderName = decoderName
+			config.Url = "http://localhost:9875/BasicAuthTest"
+			config.User = "user"
+			config.Password = "password"
+			tickChan := make(chan time.Time)
 
-			c.Specify("honors time ticker to flush", func() {
-				// Spin up a http server
-				server, err := plugins_ts.NewOneHttpServer(json_post, "localhost", 9876)
-				c.Expect(err, gs.IsNil)
-				go server.Start("/")
-				time.Sleep(10 * time.Millisecond)
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
 
-				config.Url = "http://localhost:9876/"
-				tickChan := make(chan time.Time)
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
-				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
+			err = httpInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			startInput()
 
-				ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-				ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+			tickChan <- time.Now()
 
-				mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			// we expect a statuscode 200 (i.e. success)
+			deliverWg.Wait()
+			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(statusCode, gs.Equals, int64(200))
 
-				// Stub out the DecoderRunner input channel so that we can
-				// inspect bytes later on
-				dRunnerInChan := make(chan *PipelinePack, 1)
-				mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-
-				ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-				ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
-
-				err = httpInput.Init(config)
-				c.Assume(err, gs.IsNil)
-				startInput()
-
-				tickChan <- time.Now()
-
-				// We need for the pipeline to finish up
-				time.Sleep(50 * time.Millisecond)
-			})
-
-			c.Specify("supports configuring HTTP Basic Authentication", func() {
-				// Spin up a http server which expects username "user" and password "password"
-				server, err := plugins_ts.NewHttpBasicAuthServer("user", "password", "localhost", 9875)
-				c.Expect(err, gs.IsNil)
-				go server.Start("/BasicAuthTest")
-				time.Sleep(10 * time.Millisecond)
-
-				config.Url = "http://localhost:9875/BasicAuthTest"
-				config.User = "user"
-				config.Password = "password"
-				tickChan := make(chan time.Time)
-
-				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-				ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-				ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
-				mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-
-				// Stub out the DecoderRunner input channel so that we can
-				// inspect bytes later on
-				dRunnerInChan := make(chan *PipelinePack, 1)
-				mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-
-				ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-				ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
-
-				err = httpInput.Init(config)
-				c.Assume(err, gs.IsNil)
-				startInput()
-
-				tickChan <- time.Now()
-
-				// we expect a statuscode 200 (i.e. success)
-				pack := <-dRunnerInChan
-				statusCode, ok := pack.Message.GetFieldValue("StatusCode")
-				c.Assume(ok, gs.IsTrue)
-				c.Expect(statusCode, gs.Equals, int64(200))
-
-				// We need for the pipeline to finish up
-				time.Sleep(50 * time.Millisecond)
-			})
-
-			c.Specify("supports configuring a different HTTP method", func() {
-				// Spin up a http server which expects requests with method "POST"
-				server, err := plugins_ts.NewHttpMethodServer("POST", "localhost", 9874)
-				c.Expect(err, gs.IsNil)
-				go server.Start("/PostTest")
-				time.Sleep(10 * time.Millisecond)
-
-				config.Url = "http://localhost:9874/PostTest"
-				config.Method = "POST"
-				tickChan := make(chan time.Time)
-
-				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-				ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-				ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
-				mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-
-				// Stub out the DecoderRunner input channel so that we can
-				// inspect bytes later on
-				dRunnerInChan := make(chan *PipelinePack, 1)
-				mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-
-				ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-				ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
-
-				err = httpInput.Init(config)
-				c.Assume(err, gs.IsNil)
-				startInput()
-
-				tickChan <- time.Now()
-
-				// we expect a statuscode 200 (i.e. success)
-				pack := <-dRunnerInChan
-				statusCode, ok := pack.Message.GetFieldValue("StatusCode")
-				c.Assume(ok, gs.IsTrue)
-				c.Expect(statusCode, gs.Equals, int64(200))
-
-				// We need for the pipeline to finish up
-				time.Sleep(50 * time.Millisecond)
-			})
-
-			c.Specify("supports configuring HTTP headers", func() {
-				// Spin up a http server which expects requests with method "POST"
-				server, err := plugins_ts.NewHttpHeadersServer(map[string]string{"Accept": "text/plain"}, "localhost", 9873)
-				c.Expect(err, gs.IsNil)
-				go server.Start("/HeadersTest")
-				time.Sleep(10 * time.Millisecond)
-
-				config.Url = "http://localhost:9873/HeadersTest"
-				config.Headers = map[string]string{"Accept": "text/plain"}
-
-				tickChan := make(chan time.Time)
-
-				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-				ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-				ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
-				mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-
-				// Stub out the DecoderRunner input channel so that we can
-				// inspect bytes later on
-				dRunnerInChan := make(chan *PipelinePack, 1)
-				mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-
-				ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-				ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
-
-				err = httpInput.Init(config)
-				c.Assume(err, gs.IsNil)
-				startInput()
-
-				tickChan <- time.Now()
-
-				// we expect a statuscode 200 (i.e. success)
-				pack := <-dRunnerInChan
-				statusCode, ok := pack.Message.GetFieldValue("StatusCode")
-				c.Assume(ok, gs.IsTrue)
-				c.Expect(statusCode, gs.Equals, int64(200))
-
-				// We need for the pipeline to finish up
-				time.Sleep(50 * time.Millisecond)
-			})
-
-			c.Specify("supports configuring a request body", func() {
-				// Spin up a http server that echoes back the request body
-				server, err := plugins_ts.NewHttpBodyServer("localhost", 9872)
-				c.Expect(err, gs.IsNil)
-				go server.Start("/BodyTest")
-				time.Sleep(10 * time.Millisecond)
-
-				config.Url = "http://localhost:9872/BodyTest"
-				config.Method = "POST"
-				config.Body = json_post
-
-				tickChan := make(chan time.Time)
-
-				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-				ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-				ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
-				mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-
-				// Stub out the DecoderRunner input channel so that we can
-				// inspect bytes later on
-				dRunnerInChan := make(chan *PipelinePack, 1)
-				mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-
-				ith.MockInputRunner.EXPECT().Name().Return("HttpInput")
-				ith.MockHelper.EXPECT().DecoderRunner(decoderName, "HttpInput-TestDecoder").Return(mockDecoderRunner, true)
-
-				err = httpInput.Init(config)
-				c.Assume(err, gs.IsNil)
-				startInput()
-
-				tickChan <- time.Now()
-
-				pack := <-dRunnerInChan
-				c.Expect(*pack.Message.Payload, gs.Equals, json_post)
-
-				// We need for the pipeline to finish up
-				time.Sleep(50 * time.Millisecond)
-			})
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
-			httpInput.Stop()
-			runOutput := <-runOutputChan
-			c.Expect(runOutput, gs.Equals, "")
+			// We need for the pipeline to finish up
+			time.Sleep(50 * time.Millisecond)
 		})
+
+		c.Specify("supports configuring a different HTTP method", func() {
+			// Spin up a http server which expects requests with method "POST"
+			server, err := plugins_ts.NewHttpMethodServer("POST", "localhost", 9874)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/PostTest")
+			time.Sleep(10 * time.Millisecond)
+
+			config.Url = "http://localhost:9874/PostTest"
+			config.Method = "POST"
+			tickChan := make(chan time.Time)
+
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
+
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+			err = httpInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			startInput()
+
+			tickChan <- time.Now()
+
+			// we expect a statuscode 200 (i.e. success)
+			deliverWg.Wait()
+			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(statusCode, gs.Equals, int64(200))
+
+			// We need for the pipeline to finish up
+			time.Sleep(50 * time.Millisecond)
+		})
+
+		c.Specify("supports configuring HTTP headers", func() {
+			// Spin up a http server which expects requests with method "POST"
+			server, err := plugins_ts.NewHttpHeadersServer(map[string]string{"Accept": "text/plain"}, "localhost", 9873)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/HeadersTest")
+			time.Sleep(10 * time.Millisecond)
+
+			config.Url = "http://localhost:9873/HeadersTest"
+			config.Headers = map[string]string{"Accept": "text/plain"}
+
+			tickChan := make(chan time.Time)
+
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
+
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+			err = httpInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			startInput()
+
+			tickChan <- time.Now()
+
+			// we expect a statuscode 200 (i.e. success)
+			deliverWg.Wait()
+			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(statusCode, gs.Equals, int64(200))
+
+			// We need for the pipeline to finish up
+			time.Sleep(50 * time.Millisecond)
+		})
+
+		c.Specify("supports configuring a request body", func() {
+			// Spin up a http server that echoes back the request body
+			server, err := plugins_ts.NewHttpBodyServer("localhost", 9872)
+			c.Expect(err, gs.IsNil)
+			go server.Start("/BodyTest")
+			time.Sleep(10 * time.Millisecond)
+
+			config.Url = "http://localhost:9872/BodyTest"
+			config.Method = "POST"
+			config.Body = json_post
+
+			tickChan := make(chan time.Time)
+
+			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
+
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+
+			err = httpInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			startInput()
+
+			tickChan <- time.Now()
+
+			deliverWg.Wait()
+			c.Expect(*ith.Pack.Message.Payload, gs.Equals, json_post)
+
+			// We need for the pipeline to finish up
+			time.Sleep(50 * time.Millisecond)
+		})
+
+		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
+		httpInput.Stop()
+		runOutput := <-runOutputChan
+		c.Expect(runOutput, gs.Equals, "")
 	})
 }

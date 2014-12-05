@@ -27,8 +27,6 @@ import (
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
 	Endpoint string `toml:"endpoint"`
-	// Name of configured decoder to receive the input.
-	Decoder string `toml:"decoder"`
 }
 
 type DockerLogInput struct {
@@ -64,9 +62,8 @@ func (di *DockerLogInput) Init(config interface{}) error {
 
 func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
 	var (
-		pack    *pipeline.PipelinePack
-		dRunner pipeline.DecoderRunner
-		ok      bool
+		pack *pipeline.PipelinePack
+		ok   bool
 	)
 
 	hostname := h.Hostname()
@@ -75,13 +72,6 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
-
-	if di.conf.Decoder != "" {
-		if dRunner, ok = h.DecoderRunner(di.conf.Decoder,
-			fmt.Sprintf("%s-%s", ir.Name(), di.conf.Decoder)); !ok {
-			return fmt.Errorf("Decoder not found: %s", di.conf.Decoder)
-		}
-	}
 
 	ok = true
 	var err error
@@ -98,12 +88,7 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 			pack.Message.SetUuid(uuid.NewRandom())
 			message.NewStringField(pack.Message, "ContainerID", logline.ID)
 			message.NewStringField(pack.Message, "ContainerName", logline.Name)
-
-			if dRunner == nil {
-				ir.Inject(pack)
-			} else {
-				dRunner.InChan() <- pack
-			}
+			ir.Deliver(pack)
 
 		case err, ok = <-di.attachErrors:
 			if !ok {

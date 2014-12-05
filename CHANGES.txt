@@ -9,6 +9,18 @@ Backwards Incompatibilities
   instantiate and manage the lifecycles of other embedded plugins, e.g.
   MultiDecoder, ProcessDirectoryInput, SandboxManagerFilter.
 
+* All inputs now support `decoder`, `synchronous_decode`, and
+  `send_decode_failures` config options, automatically extracted by Heka's
+  config system.
+
+* InputRunner interface has added a `Deliver` method, which handles decoding
+  and injection to the router according to the specifications of the
+  `decoder`, `synchronous_decode`, and send_decode_failure` config options,
+  *except* in cases when an input implements a `SetCommonInputConfig` method.
+  If that is implemented, the InputRunner will pass in a struct containing the
+  specified decoding options, and the input will be expected to handle
+  decoding accordingly.
+
 Bug Handling
 ------------
 

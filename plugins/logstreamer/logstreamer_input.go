@@ -48,8 +48,6 @@ type LogstreamerInputConfig struct {
 	// Rescan interval declares how often the full directory scanner
 	// runs to locate more logfiles/streams
 	RescanInterval string `toml:"rescan_interval"`
-	// Name of configured decoder instance.
-	Decoder string
 	// Type of parser used to break the log file up into messages
 	ParserType string `toml:"parser_type"`
 	// Delimiter used to split the log stream into log messages
@@ -69,7 +67,6 @@ type LogstreamerInput struct {
 	plugins               map[string]*LogstreamInput
 	stopLogstreamChans    []chan chan bool
 	stopChan              chan bool
-	decoderName           string
 	parser                string
 	delimiter             string
 	delimiterLocation     string
@@ -120,7 +117,6 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		conf.FileMatch += "$"
 	}
 
-	li.decoderName = conf.Decoder
 	li.parser = conf.ParserType
 	li.delimiter = conf.Delimiter
 	li.delimiterLocation = conf.DelimiterLocation
@@ -175,8 +171,8 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	}
 
 	// Verify we can make a parser
-	if _, _, err = CreateParser(li.parser, li.delimiter,
-		li.delimiterLocation, li.decoderName); err != nil {
+	_, _, err = CreateParser(li.parser, li.delimiter, li.delimiterLocation)
+	if err != nil {
 		return
 	}
 
@@ -196,7 +192,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 			continue
 		}
 		stParser, parserFunc, _ := CreateParser(li.parser, li.delimiter,
-			li.delimiterLocation, li.decoderName)
+			li.delimiterLocation)
 		li.plugins[name] = NewLogstreamInput(stream, stParser, parserFunc,
 			name, li.hostName, li.keepTruncatedMessages)
 	}
@@ -212,24 +208,19 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) {
 	var (
 		ok         bool
-		dRunner    p.DecoderRunner
 		errs       *ls.MultipleError
 		newstreams []string
 	)
 
-	// Setup the decoder runner that will be used
-	if li.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s",
-			li.pluginName, li.decoderName)); !ok {
-
-			return fmt.Errorf("Decoder not found: %s", li.decoderName)
-		}
+	// message.proto parser needs ProtobufDecoder.
+	if li.parser == "message.proto" && !ir.UseMsgBytes() {
+		return errors.New("`message.proto` parser_type requires ProtobufDecoder")
 	}
 
 	// Kick off all the current logstreams we know of
 	for _, logstream := range li.plugins {
 		stop := make(chan chan bool, 1)
-		go logstream.Run(ir, h, stop, dRunner)
+		go logstream.Run(ir, h, stop)
 		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 	}
 
@@ -270,13 +261,13 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 				// Setup a new logstream input for this logstream and start it running
 				stParser, parserFunc, _ := CreateParser(li.parser, li.delimiter,
-					li.delimiterLocation, li.decoderName)
+					li.delimiterLocation)
 
 				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
 					li.hostName, li.keepTruncatedMessages)
 				li.plugins[name] = lsi
 				stop := make(chan chan bool, 1)
-				go lsi.Run(ir, h, stop, dRunner)
+				go lsi.Run(ir, h, stop)
 				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
 			}
 			li.logstreamSetLock.Unlock()
@@ -318,11 +309,10 @@ func NewLogstreamInput(stream *ls.Logstream, parser p.StreamParser, parserFuncti
 	}
 }
 
-func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan chan bool,
-	dRunner p.DecoderRunner) {
+func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan chan bool) {
 
 	var (
-		parser func(ir p.InputRunner, deliver Deliver, stop chan chan bool) error
+		parser func(ir p.InputRunner, stop chan chan bool) error
 		err    error
 	)
 
@@ -330,15 +320,6 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		parser = lsi.payloadParser
 	} else if lsi.parseFunction == "messageProto" {
 		parser = lsi.messageProtoParser
-	}
-
-	// Setup our pack delivery function appropriately for the configuration
-	deliver := func(pack *p.PipelinePack) {
-		if dRunner == nil {
-			ir.Inject(pack)
-		} else {
-			dRunner.InChan() <- pack
-		}
 	}
 
 	// Check for more data interval
@@ -351,7 +332,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		err = nil
 
 		// Attempt to read as many as we can
-		err = parser(ir, deliver, stopChan)
+		err = parser(ir, stopChan)
 
 		// Save our location after reading as much as we can
 		lsi.stream.SavePosition()
@@ -379,12 +360,13 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 }
 
 // Standard text log file parser
-func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop chan chan bool) (err error) {
+func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, stop chan chan bool) (err error) {
 	var (
 		pack   *p.PipelinePack
 		record []byte
 		n      int
 	)
+	inChan := ir.InChan()
 	for err == nil {
 		select {
 		case lsi.stopped = <-stop:
@@ -411,14 +393,14 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop
 				if is_message_truncated == false || lsi.keepTruncatedMessages == true {
 					// pack message if it's not truncated or it is truncated and force keeping is set
 					payload := string(record)
-					pack = <-ir.InChan()
+					pack = <-inChan
 					pack.Message.SetUuid(uuid.NewRandom())
 					pack.Message.SetTimestamp(time.Now().UnixNano())
 					pack.Message.SetType("logfile")
 					pack.Message.SetHostname(lsi.hostName)
 					pack.Message.SetLogger(lsi.loggerIdent)
 					pack.Message.SetPayload(payload)
-					deliver(pack)
+					ir.Deliver(pack)
 					lsi.countRecord()
 				}
 			} // any part of big message (fist, possible next big one or tail) are ignored
@@ -429,7 +411,7 @@ func (lsi *LogstreamInput) payloadParser(ir p.InputRunner, deliver Deliver, stop
 }
 
 // Framed protobuf message parser
-func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver, stop chan chan bool) (err error) {
+func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, stop chan chan bool) (err error) {
 	var (
 		pack   *p.PipelinePack
 		record []byte
@@ -455,7 +437,7 @@ func (lsi *LogstreamInput) messageProtoParser(ir p.InputRunner, deliver Deliver,
 			}
 			pack.MsgBytes = pack.MsgBytes[:messageLen]
 			copy(pack.MsgBytes, record[headerLen:])
-			deliver(pack)
+			ir.Deliver(pack)
 			lsi.countRecord()
 		}
 	}
@@ -470,10 +452,13 @@ func (lsi *LogstreamInput) countRecord() {
 	}
 }
 
-func CreateParser(parserType, delimiter, delimiterLocation, decoder string) (parser p.StreamParser,
+func CreateParser(parserType, delimiter, delimiterLocation string) (parser p.StreamParser,
 	parseFunction string, err error) {
+
 	parseFunction = "payload"
-	if parserType == "" || parserType == "token" {
+
+	switch parserType {
+	case "", "token":
 		tp := p.NewTokenParser()
 		switch len(delimiter) {
 		case 0: // use default
@@ -483,23 +468,20 @@ func CreateParser(parserType, delimiter, delimiterLocation, decoder string) (par
 			err = fmt.Errorf("invalid delimiter: %s", delimiter)
 		}
 		parser = tp
-	} else if parserType == "regexp" {
+	case "regexp":
 		rp := p.NewRegexpParser()
 		if len(delimiter) > 0 {
 			err = rp.SetDelimiter(delimiter)
 		}
 		err = rp.SetDelimiterLocation(delimiterLocation)
 		parser = rp
-	} else if parserType == "message.proto" {
+	case "message.proto":
 		parser = p.NewMessageProtoParser()
 		parseFunction = "messageProto"
-		if decoder == "" {
-			err = fmt.Errorf("The message.proto parser must have a decoder")
-		}
-	} else {
+	default:
 		err = fmt.Errorf("unknown parser type: %s", parserType)
 	}
-	return
+	return parser, parseFunction, err
 }
 
 func init() {
