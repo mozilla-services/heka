@@ -17,6 +17,9 @@ Bug Handling
 
 * Fixed HttpOutput TLS section parsing (#1163).
 
+* Fixed LogstreamInput extraneous journal saves that caused high disk IO
+  when EOF is reached.
+
 0.8.0 (2014-10-29)
 ==================
 
