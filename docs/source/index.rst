@@ -34,8 +34,12 @@ questions, report problems, or learn more:
 * Github Project: https://github.com/mozilla-services/heka/
 * IRC: #heka channel on irc.mozilla.org
 
-Heka is a heavily plugin based system. There are five different types of Heka
-plugins:
+Heka is a heavily plugin based system. Common operations such as
+adding data to Heka, processing it, and writing it out are
+implemented as plugins. Heka ships with numerous plugins for performing
+common tasks.
+
+There are five different types of Heka plugins:
 
 * :ref:`config_inputs`
 
