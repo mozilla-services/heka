@@ -41,7 +41,7 @@ common tasks.
 
 There are five different types of Heka plugins:
 
-* :ref:`config_inputs`
+:ref:`config_inputs`
 
   Input plugins acquire data from the outside world and inject it into the
   Heka pipeline. They can do this by reading files from a file system,
@@ -52,7 +52,7 @@ There are five different types of Heka plugins:
 
   Input plugins must be written in Go.
 
-* :ref:`config_decoders`
+:ref:`config_decoders`
 
   Decoder plugins convert data that comes in through the Input plugins to
   Heka's internal Message data structure. Typically decoders are responsible
@@ -62,7 +62,7 @@ There are five different types of Heka plugins:
   Decoder plugins can be written entirely in Go, or the core logic can
   be written in sandboxed Lua code.
 
-* :ref:`config_filters`
+:ref:`config_filters`
 
   Filter plugins are Heka's processing engines. They are configured to receive
   messages matching certain specific characteristics (using Heka's
@@ -79,7 +79,7 @@ There are five different types of Heka plugins:
   needing to reconfigure or restart the Heka process, nor even to have
   shell access to the server on which Heka is running.
 
-* :ref:`config_encoders`
+:ref:`config_encoders`
 
   Encoder plugins are the inverse of Decoders. They generate arbitrary byte
   streams using data extracted from Heka Message structs. Encoders are
@@ -89,7 +89,7 @@ There are five different types of Heka plugins:
   Encoder plugins can be written entirely in Go, or the core logic can
   be written in sandboxed Lua code.
 
-* :ref:`config_outputs`
+:ref:`config_outputs`
 
   Output plugins send data that has been serialized by an Encoder to some
   external destination. They handle all of the details of interacting with the
