@@ -183,12 +183,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		deliver = func(pack *PipelinePack) {
 			packs, err := decoder.Decode(pack)
 			if err != nil {
-				t.ir.LogError(fmt.Errorf("decode error: %s", err.Error()))
+				errMsg := err.Error()
+				t.ir.LogError(fmt.Errorf("decode error: %s", errMsg))
 				if !sendFailure {
 					pack.Recycle()
 					return
 				}
-				if err = AddDecodeFailureField(pack.Message); err != nil {
+				if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
 					t.ir.LogError(err)
 				}
 				t.ir.Inject(pack)

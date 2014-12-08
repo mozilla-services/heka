@@ -88,14 +88,27 @@ func (pr *pRunnerBase) LeakCount() int {
 	return pr.leakCount
 }
 
-func AddDecodeFailureField(m *message.Message) error {
-	field, err := message.NewField("decode_failure", true, "")
-	if err == nil {
-		m.AddField(field)
-	} else {
+// AddDecodeFailureFields adds two fields to the provided message object. The
+// first field is a boolean field called `decode_failure`, set to true. The
+// second is a string field called `decode_error` which will contain the
+// provided error message, truncated to 500 bytes if necessary.
+func AddDecodeFailureFields(m *message.Message, errMsg string) error {
+	field0, err := message.NewField("decode_failure", true, "")
+	if err != nil {
 		err = fmt.Errorf("field creation error: %s", err.Error())
+		return err
 	}
-	return err
+	if len(errMsg) > 500 {
+		errMsg = errMsg[:500]
+	}
+	field1, err := message.NewField("decode_error", errMsg, "")
+	if err != nil {
+		err = fmt.Errorf("field creation error: %s", err.Error())
+		return err
+	}
+	m.AddField(field0)
+	m.AddField(field1)
+	return nil
 }
 
 // Heka PluginRunner for Input plugins.
@@ -317,12 +330,13 @@ func (ir *iRunner) Deliver(pack *PipelinePack) {
 	if ir.syncDecode {
 		packs, err := ir.decoder.Decode(pack)
 		if err != nil {
-			ir.LogError(fmt.Errorf("decode error: %s", err.Error()))
+			errMsg := err.Error()
+			ir.LogError(fmt.Errorf("decode error: %s", errMsg))
 			if !ir.sendDecodeFailures {
 				pack.Recycle()
 				return
 			}
-			if err = AddDecodeFailureField(pack.Message); err != nil {
+			if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
 				ir.LogError(err)
 			}
 			ir.Inject(pack)
@@ -410,7 +424,7 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 			if err != nil {
 				dr.LogError(err)
 				if dr.sendFailure {
-					if err = AddDecodeFailureField(pack.Message); err != nil {
+					if err = AddDecodeFailureFields(pack.Message, err.Error()); err != nil {
 						dr.LogError(err)
 					}
 					dr.router.InChan() <- pack
