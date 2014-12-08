@@ -1,3 +1,4 @@
+.. _config_file_polling_input:
 
 FilePollingInput
 ================

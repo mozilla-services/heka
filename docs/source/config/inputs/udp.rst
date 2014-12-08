@@ -1,3 +1,4 @@
+.. _config_udp_input:
 
 UdpInput
 ========

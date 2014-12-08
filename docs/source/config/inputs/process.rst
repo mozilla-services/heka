@@ -1,3 +1,5 @@
+.. _config_process_input:
+
 ProcessInput
 ============
 

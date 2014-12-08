@@ -1,3 +1,4 @@
+.. _config_amqp_input:
 
 AMQPInput
 =========

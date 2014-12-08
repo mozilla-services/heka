@@ -1,3 +1,4 @@
+.. _config_process_directory_input:
 
 ProcessDirectoryInput
 =====================

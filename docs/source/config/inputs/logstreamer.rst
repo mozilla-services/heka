@@ -1,3 +1,4 @@
+.. _config_logstreamer_input:
 
 Logstreamer Input
 =================

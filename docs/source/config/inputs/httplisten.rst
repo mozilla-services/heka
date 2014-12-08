@@ -1,3 +1,4 @@
+.. _config_http_listen_input:
 
 HttpListenInput
 ===============

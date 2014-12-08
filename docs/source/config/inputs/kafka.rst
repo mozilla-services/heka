@@ -1,3 +1,4 @@
+.. _config_kafka_input:
 
 KafkaInput
 ===========

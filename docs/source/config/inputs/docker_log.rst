@@ -1,3 +1,4 @@
+.. _config_docker_log_input:
 
 DockerLogInput
 ==============

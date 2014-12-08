@@ -4,41 +4,19 @@
 Inputs
 ======
 
-.. _config_amqp_input:
-.. include:: /config/inputs/amqp.rst
+.. toctree::
+   :maxdepth: 1
 
-.. _config_docker_log_input:
-.. include:: /config/inputs/docker_log.rst
-
-.. _config_file_polling_input:
-.. include:: /config/inputs/file_polling.rst
-
-.. _config_http_input:
-.. include:: /config/inputs/http.rst
-
-.. _config_http_listen_input:
-.. include:: /config/inputs/httplisten.rst
-
-.. _config_kafka_input:
-.. include:: /config/inputs/kafka.rst
-
-.. _config_logstreamer_input:
-.. include:: /config/inputs/logstreamer.rst
-
-.. _config_process_input:
-.. include:: /config/inputs/process.rst
-
-.. _config_process_directory_input:
-.. include:: /config/inputs/processdir.rst
-
-.. _config_stat_accum_input:
-.. include:: /config/inputs/stataccum.rst
-
-.. _config_statsd_input:
-.. include:: /config/inputs/statsd.rst
-
-.. _config_tcp_input:
-.. include:: /config/inputs/tcp.rst
-
-.. _config_udp_input:
-.. include:: /config/inputs/udp.rst
+   amqp
+   docker_log
+   file_polling
+   http
+   httplisten
+   kafka
+   logstreamer
+   process
+   processdir
+   stataccum
+   statsd
+   tcp
+   udp

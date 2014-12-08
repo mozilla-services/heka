@@ -1,3 +1,4 @@
+.. _config_http_input:
 
 HttpInput
 =========

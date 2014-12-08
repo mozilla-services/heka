@@ -1,3 +1,4 @@
+.. _config_stat_accum_input:
 
 StatAccumInput
 ==============
