@@ -1,9 +1,11 @@
 .. _config_http_listen_input:
 
-HttpListenInput
-===============
+HTTP Listen Input
+=================
 
 .. versionadded:: 0.5
+
+Plugin Name: **HttpListenInput**
 
 HttpListenInput plugins start a webserver listening on the specified address
 and port. If no decoder is specified data in the request body will be populated

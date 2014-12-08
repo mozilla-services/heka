@@ -1,7 +1,9 @@
 .. _config_stat_accum_input:
 
-StatAccumInput
-==============
+Stat Accumulator Input
+======================
+
+Plugin Name: **StatAccumInput**
 
 Provides an implementation of the `StatAccumulator` interface which other
 plugins can use to submit `Stat` objects for aggregation and roll-up.

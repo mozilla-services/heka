@@ -1,9 +1,11 @@
 .. _config_logstreamer_input:
 
-Logstreamer Input
-=================
+Log Streamer Input
+==================
 
 .. versionadded:: 0.5
+
+Plugin Name:: **LogstreamerInput**
 
 Tails a single log file, a sequential single log source, or multiple log sources
 of either a single logstream or multiple logstreams.

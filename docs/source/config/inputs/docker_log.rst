@@ -1,9 +1,11 @@
 .. _config_docker_log_input:
 
-DockerLogInput
-==============
+Docker Log Input
+================
 
 .. versionadded:: 0.8
+
+Plugin Name: **DockerLogInput**
 
 The DockerLogInput plugin attaches to all containers running on a host and
 sends their logs messages into the Heka pipeline. The plugin is based on

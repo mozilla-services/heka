@@ -1,7 +1,9 @@
 .. _config_process_directory_input:
 
-ProcessDirectoryInput
-=====================
+Process Directory Input
+=======================
+
+Plugin Name: **ProcessDirectoryInput**
 
 .. versionadded:: 0.5
 

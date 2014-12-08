@@ -1,7 +1,9 @@
 .. _config_amqp_input:
 
-AMQPInput
-=========
+AMQP Input
+==========
+
+Plugin Name: **AMQPInput**
 
 Connects to a remote AMQP broker (RabbitMQ) and retrieves messages from the
 specified queue. As AMQP is dynamically programmable, the broker topology
