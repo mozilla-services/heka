@@ -31,14 +31,14 @@ Example:
 
 .. code-block:: ini
 
-	[nginx_log_decoder]
-	type = "SandboxDecoder"
-	filename = "lua_decoders/nginx_access.lua"
+   [nginx_log_decoder]
+   type = "SandboxDecoder"
+   filename = "lua_decoders/nginx_access.lua"
 
-	    [nginx_log_decoder.config]
-	    type = "nginx.access"
-	    user_agent_transform = true
-	    log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
+   [nginx_log_decoder.config]
+   type = "nginx.access"
+   user_agent_transform = true
+   log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
 
-    [DockerLogInput]
-    decoder = "nginx_log_decoder"
+   [DockerLogInput]
+   decoder = "nginx_log_decoder"
