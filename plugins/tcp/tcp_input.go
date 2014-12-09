@@ -209,11 +209,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		parser        StreamParser
 		parseFunction NetworkParseFunction
 	)
-	if t.config.ParserType == "message.proto" {
+
+	switch t.config.ParserType {
+	case "message.proto":
 		mp := NewMessageProtoParser()
 		parser = mp
 		parseFunction = NetworkMessageProtoParser
-	} else if t.config.ParserType == "regexp" {
+	case "regexp":
 		rp := NewRegexpParser()
 		parser = rp
 		parseFunction = NetworkPayloadParser
@@ -221,7 +223,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 			rp.SetDelimiter(t.config.Delimiter)
 		}
 		rp.SetDelimiterLocation(t.config.DelimiterLocation)
-	} else if t.config.ParserType == "token" {
+	case "token":
 		tp := NewTokenParser()
 		parser = tp
 		parseFunction = NetworkPayloadParser
