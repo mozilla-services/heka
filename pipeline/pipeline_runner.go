@@ -205,8 +205,6 @@ func Run(config *PipelineConfig) {
 
 	globals := config.Globals
 
-	config.router.initMatchSlices()
-
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
 		if err = output.Start(config, &outputsWg); err != nil {
@@ -226,6 +224,9 @@ func Run(config *PipelineConfig) {
 		}
 		log.Println("Filter started: ", name)
 	}
+
+	// Finish initializing the router's matchers.
+	config.router.initMatchSlices()
 
 	// Setup the diagnostic trackers
 	inputTracker := NewDiagnosticTracker("input", globals)

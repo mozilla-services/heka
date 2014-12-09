@@ -287,6 +287,7 @@ func TestAPIErrors(t *testing.T) {
 		"read_config() must have a single argument",
 		"read_next_field() takes no arguments",
 		"write_message() should not exist",
+		"invalid error message",
 	}
 	msgs := []string{
 		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
@@ -294,8 +295,8 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
 		"process_message() ./testsupport/errors.lua:22: attempt to perform arithmetic on global 'x' (a nil value)",
-		"process_message() must return a single numeric value",
-		"process_message() must return a single numeric value",
+		"process_message() must return a numeric status code",
+		"process_message() must return a numeric status code",
 		"process_message() ./testsupport/errors.lua:28: read_message() incorrect number of arguments",
 		"process_message() ./testsupport/errors.lua:30: bad argument #1 to 'read_message' (string expected, got nil)",
 		"process_message() ./testsupport/errors.lua:32: bad argument #2 to 'read_message' (field index must be >= 0)",
@@ -304,6 +305,7 @@ func TestAPIErrors(t *testing.T) {
 		"process_message() ./testsupport/errors.lua:40: read_config() must have a single argument",
 		"process_message() ./testsupport/errors.lua:42: read_next_field() takes no arguments",
 		"process_message() ./testsupport/errors.lua:44: attempt to call global 'write_message' (a nil value)",
+		"process_message() must return a nil or string error message",
 	}
 
 	if runtime.GOOS == "windows" {
@@ -751,7 +753,7 @@ func TestInjectMessage(t *testing.T) {
 			}
 			if field := msg.FindFirstField("numbers"); field != nil {
 				if field.GetRepresentation() != "count" {
-					t.Errorf("'numbers' representation expected count received %s", 1e9, field.GetRepresentation())
+					t.Errorf("'numbers' representation expected \"count\" received \"%s\"", field.GetRepresentation())
 				}
 			} else {
 				t.Errorf("'numbers' field not found")

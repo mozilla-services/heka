@@ -17,6 +17,7 @@ package elasticsearch
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -39,10 +40,15 @@ type ElasticSearchOutput struct {
 	// The BulkIndexer used to index documents
 	bulkIndexer BulkIndexer
 
-	// Specify a timeout value in milliseconds for bulk request to complete.
+	// Specify an overall timeout value in milliseconds for bulk request to complete.
 	// Default is 0 (infinite)
 	http_timeout uint32
+	//Disable both TCP and HTTP keepalives
 	http_disable_keepalives bool
+	// Specify a resolve and connect timeout value in milliseconds for bulk request.
+	// It's always included in overall request timeout (see 'http_timeout' option).
+	// Default is 0 (infinite)
+	connect_timeout uint32
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -60,18 +66,30 @@ type ElasticSearchOutputConfig struct {
 	// on the local network and the indexing will be done with the UDP Bulk
 	// API. (default to "http://localhost:9200")
 	Server string
-	// Timeout
+	// Optional ElasticSearch username for HTTP authentication. This is useful
+	// if you have put your ElasticSearch cluster behind a proxy like nginx.
+	// and turned on authentication.
+	Username string `toml:"username"`
+	// Optional password for HTTP authentication.
+	Password string `toml:"password"`
+	// Overall timeout
 	HTTPTimeout uint32 `toml:"http_timeout"`
+	// Disable both TCP and HTTP keepalives
 	HTTPDisableKeepalives bool `toml:"http_disable_keepalives"`
+	// Resolve and connect timeout only
+	ConnectTimeout uint32 `toml:"connect_timeout"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 	return &ElasticSearchOutputConfig{
-		FlushInterval: 1000,
-		FlushCount:    10,
-		Server:        "http://localhost:9200",
-		HTTPTimeout:   0,
+		FlushInterval:         1000,
+		FlushCount:            10,
+		Server:                "http://localhost:9200",
+		Username:              "",
+		Password:              "",
+		HTTPTimeout:           0,
 		HTTPDisableKeepalives: false,
+		ConnectTimeout:        0,
 	}
 }
 
@@ -83,12 +101,14 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.backChan = make(chan []byte, 2)
 	o.http_timeout = conf.HTTPTimeout
 	o.http_disable_keepalives = conf.HTTPDisableKeepalives
+	o.connect_timeout = conf.ConnectTimeout
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(conf.Server); err == nil {
 		switch strings.ToLower(serverUrl.Scheme) {
 		case "http", "https":
-			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme), serverUrl.Host,
-				o.flushCount, o.http_timeout, o.http_disable_keepalives)
+			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme),
+				serverUrl.Host, o.flushCount, conf.Username, conf.Password,
+				o.http_timeout, o.http_disable_keepalives, o.connect_timeout)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
 		default:
@@ -204,24 +224,34 @@ type HttpBulkIndexer struct {
 	MaxCount int
 	// Internal HTTP Client.
 	client *http.Client
+	// Optional username for HTTP authentication
+	username string
+	// Optional password for HTTP authentication
+	password string
 }
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
-	httpTimeout uint32, httpDisableKeepalives bool) *HttpBulkIndexer {
+	username string, password string, httpTimeout uint32, httpDisableKeepalives bool,
+	connectTimeout uint32) *HttpBulkIndexer {
 
-	tr := &http.Transport {
+	tr := &http.Transport{
 		DisableKeepAlives: httpDisableKeepalives,
+		Dial: func(network, address string) (net.Conn, error) {
+			return net.DialTimeout(network, address, time.Duration(connectTimeout)*time.Millisecond)
+		},
 	}
 
 	client := &http.Client{
 		Transport: tr,
-		Timeout: time.Duration(httpTimeout) * time.Millisecond,
+		Timeout:   time.Duration(httpTimeout) * time.Millisecond,
 	}
 	return &HttpBulkIndexer{
 		Protocol: protocol,
 		Domain:   domain,
 		MaxCount: maxCount,
 		client:   client,
+		username: username,
+		password: password,
 	}
 }
 
@@ -233,25 +263,51 @@ func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
 }
 
 func (h *HttpBulkIndexer) Index(body []byte) error {
+	var response_body []byte
+	var response_body_json map[string]interface{}
+
 	url := fmt.Sprintf("%s://%s%s", h.Protocol, h.Domain, "/_bulk")
 
 	// Creating ElasticSearch Bulk HTTP request
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("can't create bulk request: %s", err.Error())
+		return fmt.Errorf("Can't create bulk request: %s", err.Error())
 	}
 	request.Header.Add("Accept", "application/json")
+	if h.username != "" && h.password != "" {
+		request.SetBasicAuth(h.username, h.password)
+	}
+
+	request_start_time := time.Now()
 	response, err := h.client.Do(request)
+	request_time := time.Since(request_start_time)
 	if err != nil {
-		return fmt.Errorf("HTTP request failed: %s", err.Error())
+		if (h.client.Timeout > 0) && (request_time >= h.client.Timeout) &&
+			(strings.Contains(err.Error(), "use of closed network connection")) {
+
+			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s",
+				request_time.String())
+		} else {
+			return fmt.Errorf("HTTP request failed: %s", err.Error())
+		}
 	}
 	if response != nil {
 		defer response.Body.Close()
 		if response.StatusCode > 304 {
 			return fmt.Errorf("HTTP response error status: %s", response.Status)
 		}
-		if _, err = ioutil.ReadAll(response.Body); err != nil {
-			return fmt.Errorf("can't read HTTP response body: %s", err.Error())
+		if response_body, err = ioutil.ReadAll(response.Body); err != nil {
+			return fmt.Errorf("Can't read HTTP response body: %s", err.Error())
+		}
+		err = json.Unmarshal(response_body, &response_body_json)
+		if err != nil {
+			return fmt.Errorf("HTTP response didn't contain valid JSON. Body: %s",
+				string(response_body))
+		}
+		json_errors, ok := response_body_json["errors"].(bool)
+		if ok && json_errors {
+			return fmt.Errorf("ElasticSearch server reported error within JSON: %s",
+				string(response_body))
 		}
 	}
 	return nil

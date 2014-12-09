@@ -110,6 +110,22 @@ func FilterSpec(c gs.Context) {
 			err = os.Remove("sandbox_preservation/serialize.data")
 			c.Expect(err, gs.IsNil)
 		})
+
+		c.Specify("process_message error string", func() {
+			var timer <-chan time.Time
+			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("script provided error message"))
+
+			config.ScriptFilename = "../lua/testsupport/process_message_error_string.lua"
+			err := sbFilter.Init(config)
+			c.Assume(err, gs.IsNil)
+			inChan <- pack
+			close(inChan)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
+
+		})
 	})
 
 	c.Specify("A SandboxManagerFilter", func() {

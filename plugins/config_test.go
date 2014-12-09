@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 )
 
 type DefaultsTestOutput struct{}
@@ -83,9 +84,9 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(ok, gs.Equals, true)
 
 			// and the decoders sections load
-			_, ok = pipeConfig.DecoderWrappers["JsonDecoder"]
+			_, ok = pipeConfig.DecoderMakers["JsonDecoder"]
 			c.Expect(ok, gs.Equals, false)
-			_, ok = pipeConfig.DecoderWrappers["ProtobufDecoder"]
+			_, ok = pipeConfig.DecoderMakers["ProtobufDecoder"]
 			c.Expect(ok, gs.Equals, true)
 
 			// and the outputs sections load
@@ -115,7 +116,14 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 
 			log, ok := pipeConfig.OutputRunners["LogOutput"]
-			c.Expect(ok, gs.IsTrue)
+			c.Assume(ok, gs.IsTrue)
+			var wg sync.WaitGroup
+			wg.Add(1)
+			err = log.Start(pipeConfig, &wg)
+			c.Assume(err, gs.IsNil)
+			close(log.InChan())
+			wg.Wait()
+
 			var encoder Encoder
 			encoder = log.Encoder()
 			_, ok = encoder.(*PayloadEncoder)
@@ -136,7 +144,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Assume(err, gs.Not(gs.IsNil))
 
 			// Only the ProtobufDecoder is loaded
-			c.Expect(len(pipeConfig.DecoderWrappers), gs.Equals, 1)
+			c.Expect(len(pipeConfig.DecoderMakers), gs.Equals, 1)
 		})
 
 		c.Specify("works w/ MultiDecoder", func() {
@@ -145,10 +153,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			hasSyncDecoder := false
 
 			// ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 4)
+			c.Assume(len(pipeConfig.DecoderMakers), gs.Equals, 4)
 
 			// Check that the MultiDecoder actually loaded
-			for k, _ := range pipeConfig.DecoderWrappers {
+			for k, _ := range pipeConfig.DecoderMakers {
 				if k == "syncdecoder" {
 					hasSyncDecoder = true
 					break
@@ -163,10 +171,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			hasSyncDecoder := false
 
 			// ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 5)
+			c.Assume(len(pipeConfig.DecoderMakers), gs.Equals, 5)
 
 			// Check that the MultiDecoder actually loaded
-			for k, _ := range pipeConfig.DecoderWrappers {
+			for k, _ := range pipeConfig.DecoderMakers {
 				if k == "syncdecoder" {
 					hasSyncDecoder = true
 					break
@@ -182,7 +190,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(err.Error(), ts.StringContains, "circular dependency detected")
 
 			// ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderWrappers), gs.Equals, 0)
+			c.Assume(len(pipeConfig.DecoderMakers), gs.Equals, 0)
 
 		})
 

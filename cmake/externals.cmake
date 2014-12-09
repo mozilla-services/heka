@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG 6eb7a907d8f4777418463dc5b56d237f1c845a67
+        GIT_TAG 238cb24d1c1a3c537d8898996640812af8f832a1
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -170,15 +170,6 @@ if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 91278658b5d52bd45b0b74d54e478a230c0ef0c4)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
     add_dependencies(heka-mozsvc-plugins raven-go)
-endif()
-
-if (INCLUDE_DOCUMENTATION)
-    git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
-
-    add_custom_command(TARGET docs POST_BUILD
-    COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html
-    WORKING_DIRECTORY "${HEKA_PATH}/../heka-docs"
-    COMMENT "Built Heka architecture documentation")
 endif()
 
 hg_clone(https://code.google.com/p/go-uuid default)

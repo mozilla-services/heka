@@ -256,9 +256,9 @@ restart is handled. If preferred, the plugin can be configured to not restart
 at which point hekad will exit, or it could be restarted only 100 times, or
 restart attempts can proceed forever.
 
-Adding the restarting configuration is done by adding a config section to the
-plugins' config called `retries`. A small amount of jitter will be added to
-the delay between restart attempts.
+Adding the restarting configuration is done by adding a config section to a
+plugin's configuration called `retries`. A small amount of jitter will be
+added to the delay between restart attempts.
 
 Config:
 

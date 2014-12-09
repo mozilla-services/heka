@@ -22,6 +22,10 @@ Config:
 - server (string):
     ElasticSearch server URL. Supports http://, https:// and udp:// urls.
     Defaults to "http://localhost:9200".
+- connect_timeout (int):
+    Time in milliseconds to wait for a server name resolving and connection to ES.
+    It's included in an overall time (see 'http_timeout' option), if they both are set.
+    Default is 0 (no timeout).
 - http_timeout (int):
     Time in milliseconds to wait for a response for each http post to ES. This
     may drop data as there is currently no retry. Default is 0 (no timeout).
@@ -30,6 +34,12 @@ Config:
     ElasticSearch should be disabled. Defaults to false, that means using
     both HTTP keep-alive mode and TCP keep-alives. Set it to true to close
     each TCP connection after 'flushing' messages to ElasticSearch.
+- username (string):
+    The username to use for HTTP authentication against the ElasticSearch host.
+    Defaults to "" (i. e. no authentication).
+- password (string):
+    The password to use for HTTP authentication against the ElasticSearch host.
+    Defaults to "" (i. e. no authentication).
 
 Example:
 
