@@ -27,6 +27,7 @@ import (
 	"net"
 	"os"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -42,6 +43,7 @@ func TcpOutputSpec(c gs.Context) {
 	}()
 	globals := DefaultGlobals()
 	globals.BaseDir = tmpDir
+
 	pConfig := NewPipelineConfig(globals)
 
 	c.Specify("TcpOutput", func() {
@@ -77,7 +79,7 @@ func TcpOutputSpec(c gs.Context) {
 
 		errChan := make(chan error)
 		startOutput := func() {
-			oth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			oth.MockHelper.EXPECT().PipelineConfig().Return(pConfig).AnyTimes()
 			go func() {
 				err := tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				errChan <- err
@@ -211,5 +213,85 @@ func TcpOutputSpec(c gs.Context) {
 			err = <-errChan
 			c.Expect(err, gs.IsNil)
 		})
+
+		c.Specify("Overload queue drops messages", func() {
+			config.QueueFullAction = "drop"
+			config.QueueMaxBufferSize = uint64(1)
+			use_framing := false
+			config.UseFraming = &use_framing
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+			oth.MockOutputRunner.EXPECT().LogError(QueueIsFull)
+
+			err := tcpOutput.Init(config)
+			c.Expect(err, gs.IsNil)
+
+			startOutput()
+
+			inChan <- pack
+
+			dropcount := atomic.LoadInt64(&tcpOutput.dropMessageCount)
+
+			for x := 0; x < 5 && dropcount == 0; x++ {
+				dropcount = atomic.LoadInt64(&tcpOutput.dropMessageCount)
+				time.Sleep(time.Duration(100) * time.Millisecond)
+			}
+
+			c.Expect(dropcount, gs.Equals, int64(1))
+
+			close(inChan)
+		})
+
+		c.Specify("Overload queue shutdowns Heka", func() {
+			config.QueueFullAction = "shutdown"
+			config.QueueMaxBufferSize = uint64(1)
+			use_framing := false
+			config.UseFraming = &use_framing
+
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+			oth.MockOutputRunner.EXPECT().LogError(QueueIsFull)
+
+			sigChan := globals.SigChan()
+
+			err := tcpOutput.Init(config)
+			c.Expect(err, gs.IsNil)
+
+			startOutput()
+
+			inChan <- pack
+			shutdownSignal := <-sigChan
+			c.Expect(shutdownSignal, gs.Equals, syscall.SIGINT)
+
+			close(inChan)
+		})
+
+		c.Specify("Overload queue blocks processing until packet is sent", func() {
+			config.QueueFullAction = "block"
+			config.QueueMaxBufferSize = uint64(1)
+			use_framing := false
+			config.UseFraming = &use_framing
+
+			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack)).AnyTimes()
+			oth.MockOutputRunner.EXPECT().LogError(QueueIsFull)
+
+			err := tcpOutput.Init(config)
+			c.Expect(err, gs.IsNil)
+
+			startOutput()
+
+			inChan <- pack
+
+			msgcount := atomic.LoadInt64(&tcpOutput.dropMessageCount)
+
+			for x := 0; x < 5 && msgcount == 0; x++ {
+				msgcount = atomic.LoadInt64(&tcpOutput.dropMessageCount)
+				time.Sleep(time.Duration(100) * time.Millisecond)
+			}
+
+			c.Expect(atomic.LoadInt64(&tcpOutput.dropMessageCount), gs.Equals, int64(0))
+			c.Expect(atomic.LoadInt64(&tcpOutput.processMessageCount), gs.Equals, int64(0))
+
+			close(inChan)
+		})
+
 	})
 }
