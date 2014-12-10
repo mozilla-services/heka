@@ -25,14 +25,12 @@ import (
 
 type FilePollingInput struct {
 	*FilePollingInputConfig
-	decoderChan chan *pipeline.PipelinePack
-	stop        chan bool
-	runner      pipeline.InputRunner
+	stop   chan bool
+	runner pipeline.InputRunner
 }
 
 type FilePollingInputConfig struct {
 	TickerInterval uint   `toml:"ticker_interval"`
-	DecoderName    string `toml:"decoder"`
 	FilePath       string `toml:"file_path"`
 }
 
@@ -57,22 +55,12 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 	helper pipeline.PluginHelper) error {
 
 	var (
-		data    []byte
-		pack    *pipeline.PipelinePack
-		dRunner pipeline.DecoderRunner
-		ok      bool
-		err     error
+		data []byte
+		pack *pipeline.PipelinePack
+		err  error
 	)
 
-	if input.DecoderName != "" {
-		if dRunner, ok = helper.DecoderRunner(input.DecoderName,
-			fmt.Sprintf("%s-%s", runner.Name(), input.DecoderName)); !ok {
-			return fmt.Errorf("Decoder not found: %s", input.DecoderName)
-		}
-		input.decoderChan = dRunner.InChan()
-	}
 	input.runner = runner
-
 	hostname := helper.PipelineConfig().Hostname()
 	packSupply := runner.InChan()
 	tickChan := runner.Ticker()
@@ -106,18 +94,10 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 		} else {
 			pack.Message.AddField(field)
 		}
-		input.sendPack(pack)
+		runner.Deliver(pack)
 	}
 
 	return nil
-}
-
-func (input *FilePollingInput) sendPack(pack *pipeline.PipelinePack) {
-	if input.decoderChan != nil {
-		input.decoderChan <- pack
-	} else {
-		input.runner.Inject(pack)
-	}
 }
 
 func init() {

@@ -108,49 +108,6 @@ type HasConfigStruct interface {
 	ConfigStruct() interface{}
 }
 
-// Indicates a plug-in needs its name before it has access to the runner interface.
-type WantsName interface {
-	// Passes the toml section name into the plugin at configuration time.
-	SetName(name string)
-}
-
-// WantsPipelineConfig indicates that a plugin wants access to the
-// PipelineConfig before any methods on the plugin are called. This (and the
-// other `Wants*` interfaces) is a bit kludgey, but it will have to do until
-// we overhaul the config loading code to make all of the right components
-// automatically available to each plugin earlier in the life cycle, which
-// will involve small breaking changes to the core plugin APIs.
-type WantsPipelineConfig interface {
-	SetPipelineConfig(pConfig *PipelineConfig)
-}
-
-// Indicates a plug-in can handle being restart should it exit before
-// heka is shut-down.
-type Restarting interface {
-	// Is called anytime the plug-in returns during the main Run loop to
-	// clean up the plug-in state and determine whether the plugin should
-	// be restarted or not.
-	CleanupForRestart()
-}
-
-// Indicates a plug-in can stop without causing a heka shut-down
-// Callers should first check IsStoppable, and if it returns true, Unregister
-// should be called to remove it from Heka while running.
-type Stoppable interface {
-	IsStoppable() bool
-	Unregister(pConfig *PipelineConfig) error
-}
-
-type notStoppable struct{}
-
-func (s *notStoppable) IsStoppable() bool {
-	return false
-}
-
-func (s *notStoppable) Unregister(pConfig *PipelineConfig) error {
-	return nil
-}
-
 // Master config object encapsulating the entire heka/pipeline configuration.
 type PipelineConfig struct {
 	// Heka global values.
@@ -546,8 +503,11 @@ type CommonConfig struct {
 }
 
 type CommonInputConfig struct {
-	Ticker  uint `toml:"ticker_interval"`
-	Retries RetryOptions
+	Ticker             uint `toml:"ticker_interval"`
+	Decoder            string
+	SyncDecode         *bool `toml:"synchronous_decode"`
+	SendDecodeFailures *bool `toml:"send_decode_failures"`
+	Retries            RetryOptions
 }
 
 type CommonFOConfig struct {
@@ -572,10 +532,24 @@ type PluginMaker interface {
 	Name() string
 	Type() string
 	Category() string
-	PrepConfig() error
 	Config() interface{}
+	PrepConfig() error
 	Make() (Plugin, error)
 	MakeRunner(name string) (PluginRunner, error)
+}
+
+// MutableMaker is for consumers that want to customize the behavior of the
+// PluginMaker in "bad touch" ways, use at your own risk. Both interfaces are
+// implemented by the same struct, so a PluginMaker can be turned into a
+// MutableMaker via type coersion.
+type MutableMaker interface {
+	PluginMaker
+	SetConfig(config interface{})
+	CommonTypedConfig() interface{}
+	SetCommonTypedConfig(config interface{})
+	SetName(name string)
+	SetType(typ string)
+	SetCategory(category string)
 }
 
 type pluginMaker struct {
@@ -662,6 +636,18 @@ func (m *pluginMaker) Category() string {
 	return m.category
 }
 
+func (m *pluginMaker) SetName(name string) {
+	m.name = name
+}
+
+func (m *pluginMaker) SetType(typ string) {
+	m.commonConfig.Typ = typ
+}
+
+func (m *pluginMaker) SetCategory(category string) {
+	m.category = category
+}
+
 // makePlugin instantiates a plugin instance, provides name and pConfig to the
 // plugin if necessary, and returns the plugin.
 func (m *pluginMaker) makePlugin() Plugin {
@@ -698,6 +684,18 @@ func (m *pluginMaker) Config() interface{} {
 		m.makeConfig()
 	}
 	return m.configStruct
+}
+
+func (m *pluginMaker) CommonTypedConfig() interface{} {
+	return m.commonTypedConfig
+}
+
+func (m *pluginMaker) SetConfig(config interface{}) {
+	m.configStruct = config
+}
+
+func (m *pluginMaker) SetCommonTypedConfig(config interface{}) {
+	m.commonTypedConfig = config
 }
 
 // PrepConfig generates a config struct for the plugin (instantiating an
@@ -828,7 +826,44 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		if commonInput.Ticker == 0 {
 			commonInput.Ticker = defaultTickerInterval.(uint)
 		}
-		runner = NewInputRunner(name, plugin.(Input), commonInput, false)
+
+		// Boolean types are tricky, we use pointer types to distinguish btn
+		// false and not set, but a plugin's config struct might not be so
+		// smart, so we have to account for both cases.
+		if commonInput.SyncDecode == nil {
+			syncDecode := getAttr(m.configStruct, "SyncDecode", false)
+			switch syncDecode := syncDecode.(type) {
+			case bool:
+				commonInput.SyncDecode = &syncDecode
+			case *bool:
+				if syncDecode == nil {
+					b := false
+					syncDecode = &b
+				}
+				commonInput.SyncDecode = syncDecode
+			}
+		}
+
+		if commonInput.SendDecodeFailures == nil {
+			sendFailures := getAttr(m.configStruct, "SendDecodeFailures", false)
+			switch sendFailures := sendFailures.(type) {
+			case bool:
+				commonInput.SendDecodeFailures = &sendFailures
+			case *bool:
+				if sendFailures == nil {
+					b := false
+					sendFailures = &b
+				}
+				commonInput.SendDecodeFailures = sendFailures
+			}
+		}
+
+		if commonInput.Decoder == "" {
+			decoder := getAttr(m.configStruct, "Decoder", "")
+			commonInput.Decoder = decoder.(string)
+		}
+
+		runner = NewInputRunner(name, plugin.(Input), commonInput)
 		return runner, nil
 	}
 

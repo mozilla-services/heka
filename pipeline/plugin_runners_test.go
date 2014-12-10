@@ -56,14 +56,13 @@ func InputRunnerSpec(c gs.Context) {
 
 	globals := &GlobalConfigStruct{
 		PluginChanSize: 5,
+		PoolSize:       1,
 	}
 	pConfig := NewPipelineConfig(globals)
 	mockHelper := NewMockPluginHelper(ctrl)
-	input := &StoppingInput{}
-	maker := &pluginMaker{}
-	maker.configStruct = make(map[string]interface{})
 
-	c.Specify("Runner restarts a plugin on the first time only", func() {
+	c.Specify("An InputRunner", func() {
+
 		var commonInput CommonInputConfig
 		commonInput.Retries = RetryOptions{
 			MaxDelay:   "1us",
@@ -72,15 +71,117 @@ func InputRunnerSpec(c gs.Context) {
 			MaxRetries: 1,
 		}
 
-		runner := NewInputRunner("stopping", input, commonInput, false)
-		runner.(*iRunner).maker = maker
 		var wg sync.WaitGroup
-		cfgCall := mockHelper.EXPECT().PipelineConfig().Times(2)
-		cfgCall.Return(pConfig)
-		wg.Add(1)
-		runner.Start(mockHelper, &wg)
-		wg.Wait()
-		c.Expect(stopinputTimes, gs.Equals, 2)
+		// mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		c.Specify("honors MaxRetries", func() {
+			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+			input := &StoppingInput{}
+			maker := &pluginMaker{}
+			maker.configStruct = make(map[string]interface{})
+			runner := NewInputRunner("stopping", input, commonInput).(*iRunner)
+			runner.maker = maker
+			wg.Add(1)
+			runner.Start(mockHelper, &wg)
+			wg.Wait()
+			c.Expect(stopinputTimes, gs.Equals, 2)
+		})
+
+		c.Specify("delivers messages correctly", func() {
+			input := &StatAccumInput{
+				pConfig: pConfig,
+			}
+			iConfig := &StatAccumInputConfig{
+				EmitInPayload: true,
+			}
+			err := input.Init(iConfig)
+			c.Assume(err, gs.IsNil)
+			pack := NewPipelinePack(pConfig.inputRecycleChan)
+			pack.Message = ts.GetTestMessage()
+
+			c.Specify("when there's no decoder", func() {
+				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
+				wg.Add(1)
+				runner.Start(mockHelper, &wg)
+				runner.Deliver(pack)
+				recd := <-pConfig.router.inChan // It was delivered to the router.
+				c.Expect(recd, gs.Equals, pack)
+				pack.Recycle() // Put it back so input.Flush() can use it again.
+				input.Stop()
+				wg.Wait()
+			})
+
+			c.Specify("when using a decoder runner", func() {
+				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
+				runner.decoder = &_fooDecoder{}
+				runner.dRunner = NewDecoderRunner("FooDecoder", runner.decoder, 5)
+				wg.Add(1)
+				runner.Start(mockHelper, &wg)
+				go runner.Deliver(pack)
+				recd := <-runner.dRunner.InChan() // It was delivered to the DecoderRunner.
+				c.Expect(recd, gs.Equals, pack)
+				pack.Recycle()
+				input.Stop()
+				wg.Wait()
+			})
+
+			c.Specify("when using a decoder", func() {
+				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+				b := true
+				commonInput.SyncDecode = &b
+				commonInput.SendDecodeFailures = &b
+				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
+				runner.decoder = &_fooDecoder{}
+				wg.Add(1)
+				runner.Start(mockHelper, &wg)
+
+				c.Specify("and the decode succeeds", func() {
+					runner.Deliver(pack)
+					recd := <-pConfig.router.inChan // It was delivered to the router.
+					c.Expect(recd, gs.Equals, pack)
+					c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO") // And decoded.
+					pack.Recycle()
+					input.Stop()
+					wg.Wait()
+				})
+
+				c.Specify("and the decode fails", func() {
+					runner.decoder.(*_fooDecoder).fail = true
+					runner.Deliver(pack)
+					recd := <-pConfig.router.inChan // It was delivered to the router.
+					c.Expect(recd, gs.Equals, pack)
+					c.Expect(pack.Message.GetPayload(), gs.Not(gs.Equals), "FOO") // No decode.
+					f := pack.Message.FindFirstField("decode_failure")
+					c.Expect(f, gs.Not(gs.IsNil))
+					c.Expect(f.GetValue().(bool), gs.IsTrue)
+					pack.Recycle()
+					input.Stop()
+					wg.Wait()
+				})
+
+				c.Specify("unless sendDecodeFailure is false", func() {
+					runner.decoder.(*_fooDecoder).fail = true
+					runner.sendDecodeFailures = false
+					runner.Deliver(pack)
+					var (
+						recd *PipelinePack
+						ok   bool
+					)
+					select {
+					case recd = <-pConfig.router.inChan:
+					default:
+						ok = true
+					}
+					c.Expect(recd, gs.IsNil)
+					c.Expect(ok, gs.IsTrue)
+					c.Expect(pack.Message.GetPayload(), gs.Equals, "") // Pack was recycled.
+					input.Stop()
+					wg.Wait()
+				})
+			})
+		})
 	})
 }
 
@@ -105,6 +206,22 @@ func (s *StoppingOutput) CleanupForRestart() {
 
 func (s *StoppingOutput) Stop() {
 	return
+}
+
+type _fooDecoder struct {
+	fail bool
+}
+
+func (d *_fooDecoder) Init(config interface{}) error {
+	return nil
+}
+
+func (d *_fooDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err error) {
+	if d.fail {
+		return nil, errors.New("DECODE ERROR")
+	}
+	pack.Message.SetPayload("FOO")
+	return []*PipelinePack{pack}, nil
 }
 
 type _payloadEncoder struct{}

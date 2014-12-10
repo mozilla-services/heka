@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -29,8 +30,6 @@ import (
 )
 
 type KafkaInputConfig struct {
-	Decoder string
-
 	// Client Config
 	Id                         string
 	Addrs                      []string
@@ -211,25 +210,11 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 	k.stopChan = make(chan bool)
 
 	var (
-		dRunner     pipeline.DecoderRunner
 		pack        *pipeline.PipelinePack
-		outChan     = k.pConfig.Router().InChan()
 		hostname    = k.pConfig.Hostname()
 		packSupply  = ir.InChan()
-		useMsgBytes = false
+		useMsgBytes = ir.UseMsgBytes()
 	)
-
-	if len(k.config.Decoder) > 0 {
-		var ok bool
-		if dRunner, ok = h.DecoderRunner(k.config.Decoder, fmt.Sprintf("%s-%s", k.name, k.config.Decoder)); !ok {
-			return fmt.Errorf("Decoder not found: %s", k.config.Decoder)
-		} else {
-			if _, ok := dRunner.Decoder().(*pipeline.ProtobufDecoder); ok {
-				useMsgBytes = true
-			}
-			outChan = dRunner.InChan()
-		}
-	}
 
 	for {
 		select {
@@ -290,7 +275,7 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 				}
 			}
 
-			outChan <- pack
+			ir.Deliver(pack)
 
 			if k.consumerConfig.OffsetMethod == sarama.OffsetMethodManual {
 				if err = k.writeCheckpoint(event.Offset + 1); err != nil {

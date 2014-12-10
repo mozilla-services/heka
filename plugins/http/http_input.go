@@ -65,8 +65,6 @@ type HttpInputConfig struct {
 	Password string
 	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
-	// Configured decoder instance used to decode http.Get payload.
-	DecoderName string `toml:"decoder"`
 	// Severity level of successful requests. Default is 6 (information)
 	SuccessSeverity int32 `toml:"success_severity"`
 	// Severity level of errors and unsuccessful requests. Default is 1 (alert)
@@ -109,12 +107,7 @@ func (hi *HttpInput) Init(config interface{}) error {
 }
 
 func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var (
-		pack                *PipelinePack
-		dRunner             DecoderRunner
-		ok                  bool
-		router_shortcircuit bool
-	)
+	var pack *PipelinePack
 
 	ir.LogMessage(fmt.Sprintf("[HttpInput (%s)] Running...",
 		hi.Monitor.urls))
@@ -124,12 +117,6 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	pConfig := h.PipelineConfig()
 	hostname := pConfig.Hostname()
 	packSupply := ir.InChan()
-
-	if hi.conf.DecoderName == "" {
-		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(hi.conf.DecoderName, fmt.Sprintf("%s-%s", ir.Name(), hi.conf.DecoderName)); !ok {
-		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
-	}
 
 	for {
 		select {
@@ -171,11 +158,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			} else {
 				ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
-				dRunner.InChan() <- pack
-			}
+			ir.Deliver(pack)
 		case data := <-hi.errChan:
 			pack = <-packSupply
 			pack.Message.SetUuid(uuid.NewRandom())
@@ -184,11 +167,7 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			pack.Message.SetPayload(string(data.ResponseData))
 			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
 			pack.Message.SetLogger(data.Url)
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
-				dRunner.InChan() <- pack
-			}
+			ir.Deliver(pack)
 		case <-hi.stopChan:
 			return
 		}

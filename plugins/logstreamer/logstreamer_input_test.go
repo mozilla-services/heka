@@ -62,16 +62,14 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(config.InputRecycleChan())
 
-	// Specify localhost, but we're not really going to use the network
+	// Specify localhost, but we're not really going to use the network.
 	ith.AddrStr = "localhost:55565"
 	ith.ResolvedAddrStr = "127.0.0.1:55565"
 
-	// set up mock helper, decoder set, and packSupply channel
+	// Set up mock helper, runner, and pack supply channel.
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
-	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A LogstreamerInput", func() {
 		lsInput := &LogstreamerInput{pConfig: config}
@@ -80,13 +78,11 @@ func LogstreamerInputSpec(c gs.Context) {
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
 		lsiConfig.Differentiator = []string{"logfile"}
 		lsiConfig.Priority = []string{"^Seq"}
-		lsiConfig.Decoder = "decoder-name"
 
 		c.Specify("w/ no translation map", func() {
 			err := lsInput.Init(lsiConfig)
 			c.Expect(err, gs.IsNil)
 			c.Expect(len(lsInput.plugins), gs.Equals, 1)
-			mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
 
 			// Create pool of packs.
 			numLines := 5 // # of lines in the log file we're parsing.
@@ -97,20 +93,19 @@ func LogstreamerInputSpec(c gs.Context) {
 				ith.PackSupply <- packs[i]
 			}
 
+			deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
+			deliverCall.Times(numLines)
+
 			c.Specify("reads a log file", func() {
-				// Expect InputRunner calls to get InChan and inject outgoing msgs
+				// Expect InputRunner calls to get InChan and inject outgoing msgs.
 				ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-				// Expect calls to get decoder and decode each message. Since the
-				// decoding is a no-op, the message payload will be the log file
-				// line, unchanged.
-				pbcall := ith.MockHelper.EXPECT().DecoderRunner(lsiConfig.Decoder,
-					"-"+lsiConfig.Decoder)
-				pbcall.Return(mockDecoderRunner, true)
+				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
-				decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
-				decodeCall.Return(ith.DecodeChan)
+				deliverChan := make(chan bool)
+				deliverCall.Do(func(pack *PipelinePack) {
+					deliverChan <- true
+				})
 
 				runOutChan := make(chan error, 1)
 				go func() {
@@ -123,7 +118,7 @@ func LogstreamerInputSpec(c gs.Context) {
 				timed := false
 				for x := 0; x < numLines; x++ {
 					select {
-					case <-ith.DecodeChan:
+					case <-deliverChan:
 					case <-timeout:
 						timed = true
 						x += numLines

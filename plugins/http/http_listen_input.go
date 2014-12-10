@@ -34,7 +34,6 @@ type HttpListenInput struct {
 	ir          InputRunner
 	dRunner     DecoderRunner
 	pConfig     *PipelineConfig
-	decoderName string
 	server      *http.Server
 	starterFunc func(hli *HttpListenInput) error
 }
@@ -44,10 +43,6 @@ type HttpListenInputConfig struct {
 	// TCP Address to listen to for SNS notifications.
 	// Defaults to "0.0.0.0:8325".
 	Address string
-	// Name of configured decoder instance used to decode the messages.
-	// Defaults to request body as payload.
-	Decoder string
-
 	Headers http.Header
 }
 
@@ -121,22 +116,15 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	if hli.dRunner == nil {
-		hli.ir.Inject(pack)
-	} else {
-		hli.dRunner.InChan() <- pack
-	}
+	hli.ir.Deliver(pack)
 }
 
 func (hli *HttpListenInput) Init(config interface{}) (err error) {
+	hli.conf = config.(*HttpListenInputConfig)
 	if hli.starterFunc == nil {
 		hli.starterFunc = defaultStarter
 	}
-
 	hli.stopChan = make(chan bool, 1)
-
-	hli.conf = config.(*HttpListenInputConfig)
-	hli.decoderName = hli.conf.Decoder
 
 	handler := http.HandlerFunc(hli.RequestHandler)
 	hli.server = &http.Server{
@@ -147,17 +135,8 @@ func (hli *HttpListenInput) Init(config interface{}) (err error) {
 }
 
 func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
-	var ok bool
-
 	hli.ir = ir
 	hli.pConfig = h.PipelineConfig()
-
-	if hli.decoderName != "" {
-		if hli.dRunner, ok = h.DecoderRunner(hli.decoderName, fmt.Sprintf("%s-%s", ir.Name(), hli.decoderName)); !ok {
-			return fmt.Errorf("Decoder not found: %s", hli.decoderName)
-		}
-	}
-
 	err = hli.starterFunc(hli)
 	if err != nil {
 		return err

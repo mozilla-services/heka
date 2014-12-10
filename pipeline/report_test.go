@@ -87,7 +87,7 @@ func ReportSpec(c gs.Context) {
 
 	iName := "stat_accum"
 	input := new(StatAccumInput)
-	iRunner := NewInputRunner(iName, input, CommonInputConfig{}, false)
+	iRunner := NewInputRunner(iName, input, CommonInputConfig{})
 
 	c.Specify("`PopulateReportMsg`", func() {
 		msg := ts.GetTestMessage()

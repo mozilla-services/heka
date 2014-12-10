@@ -35,7 +35,9 @@ type TcpInput struct {
 	stopChan          chan bool
 	ir                InputRunner
 	h                 PluginHelper
+	pConfig           *PipelineConfig
 	config            *TcpInputConfig
+	commonConfig      CommonInputConfig
 }
 
 type TcpInputConfig struct {
@@ -46,8 +48,6 @@ type TcpInputConfig struct {
 	Address string
 	// Set of message signer objects, keyed by signer id string.
 	Signers map[string]Signer `toml:"signer"`
-	// Name of configured decoder to receive the input
-	Decoder string
 	// Type of parser used to break the stream up into messages
 	ParserType string `toml:"parser_type"`
 	// Delimiter used to split the stream into messages
@@ -95,11 +95,7 @@ func (t *TcpInput) Init(config interface{}) error {
 			return err
 		}
 	}
-	if t.config.ParserType == "message.proto" {
-		if t.config.Decoder == "" {
-			return fmt.Errorf("The message.proto parser must have a decoder")
-		}
-	} else if t.config.ParserType == "regexp" {
+	if t.config.ParserType == "regexp" {
 		rp := NewRegexpParser() // temporary parser to test the config
 		if len(t.config.Delimiter) > 0 {
 			if err = rp.SetDelimiter(t.config.Delimiter); err != nil {
@@ -113,7 +109,7 @@ func (t *TcpInput) Init(config interface{}) error {
 		if len(t.config.Delimiter) > 1 {
 			return fmt.Errorf("invalid delimiter: %s", t.config.Delimiter)
 		}
-	} else {
+	} else if t.config.ParserType != "message.proto" {
 		return fmt.Errorf("unknown parser type: %s", t.config.ParserType)
 	}
 	if t.config.KeepAlivePeriod != 0 {
@@ -122,6 +118,10 @@ func (t *TcpInput) Init(config interface{}) error {
 	t.stopChan = make(chan bool)
 	closeIt = false
 	return nil
+}
+
+func (t *TcpInput) SetCommonInputConfig(commonConfig CommonInputConfig) {
+	t.commonConfig = commonConfig
 }
 
 func (t *TcpInput) setupTls(tomlConf *TlsConfig) (err error) {
@@ -144,19 +144,64 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 	}()
 
 	var (
-		dr DecoderRunner
-		ok bool
+		dr      DecoderRunner
+		decoder Decoder
+		ok      bool
 	)
-	if t.config.Decoder != "" {
+
+	sendFailure := t.commonConfig.SendDecodeFailures != nil && *t.commonConfig.SendDecodeFailures
+	decoderName := t.commonConfig.Decoder
+	if decoderName != "" {
 		raddr := conn.RemoteAddr().String()
 		host, _, err := net.SplitHostPort(raddr)
 		if err != nil {
 			host = raddr
 		}
-		if dr, ok = t.h.DecoderRunner(t.config.Decoder,
-			fmt.Sprintf("%s-%s-%s", t.name, host, t.config.Decoder)); !ok {
-			t.ir.LogError(fmt.Errorf("Error getting decoder: %s", t.config.Decoder))
+
+		if t.commonConfig.SyncDecode != nil && *t.commonConfig.SyncDecode {
+			if decoder, ok = t.pConfig.Decoder(decoderName); !ok {
+				t.ir.LogError(fmt.Errorf("Error getting decoder: %s", decoderName))
+				return
+			}
+		} else {
+			decoderFullName := fmt.Sprintf("%s-%s-%s", t.name, host, decoderName)
+			if dr, ok = t.h.DecoderRunner(decoderName, decoderFullName); !ok {
+				t.ir.LogError(fmt.Errorf("Error getting decoder: %s", decoderName))
+				return
+			}
+			dr.SetSendFailure(sendFailure)
+		}
+	}
+
+	var deliver func(*PipelinePack)
+
+	if dr != nil {
+		deliver = func(pack *PipelinePack) {
+			dr.InChan() <- pack
+		}
+	} else if decoder != nil {
+		deliver = func(pack *PipelinePack) {
+			packs, err := decoder.Decode(pack)
+			if err != nil {
+				errMsg := err.Error()
+				t.ir.LogError(fmt.Errorf("decode error: %s", errMsg))
+				if !sendFailure {
+					pack.Recycle()
+					return
+				}
+				if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
+					t.ir.LogError(err)
+				}
+				t.ir.Inject(pack)
+			}
+			for _, p := range packs {
+				t.ir.Inject(p)
+			}
 			return
+		}
+	} else {
+		deliver = func(pack *PipelinePack) {
+			t.ir.Inject(pack)
 		}
 	}
 
@@ -164,11 +209,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		parser        StreamParser
 		parseFunction NetworkParseFunction
 	)
-	if t.config.ParserType == "message.proto" {
+
+	switch t.config.ParserType {
+	case "message.proto":
 		mp := NewMessageProtoParser()
 		parser = mp
 		parseFunction = NetworkMessageProtoParser
-	} else if t.config.ParserType == "regexp" {
+	case "regexp":
 		rp := NewRegexpParser()
 		parser = rp
 		parseFunction = NetworkPayloadParser
@@ -176,7 +223,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 			rp.SetDelimiter(t.config.Delimiter)
 		}
 		rp.SetDelimiterLocation(t.config.DelimiterLocation)
-	} else if t.config.ParserType == "token" {
+	case "token":
 		tp := NewTokenParser()
 		parser = tp
 		parseFunction = NetworkPayloadParser
@@ -193,7 +240,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		case <-t.stopChan:
 			stopped = true
 		default:
-			err = parseFunction(conn, parser, t.ir, t.config.Signers, dr)
+			err = parseFunction(conn, parser, t.ir, t.config.Signers, deliver)
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					// keep the connection open, we are just checking to see if
@@ -213,7 +260,14 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.ir = ir
 	t.h = h
+	t.pConfig = h.PipelineConfig()
 	t.name = ir.Name()
+
+	if t.config.ParserType == "message.proto" {
+		if t.commonConfig.Decoder == "" {
+			return fmt.Errorf("The message.proto parser must have a decoder")
+		}
+	}
 
 	var conn net.Conn
 	var e error

@@ -47,8 +47,6 @@ type UdpInputConfig struct {
 	Address string
 	// Set of message signer objects, keyed by signer id string.
 	Signers map[string]Signer `toml:"signer"`
-	// Name of configured decoder to receive the input
-	Decoder string
 	// Type of parser used to break the stream up into messages
 	ParserType string `toml:"parser_type"`
 	// Delimiter used to split the stream into messages
@@ -112,9 +110,6 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		mp := NewMessageProtoParser()
 		u.parser = mp
 		u.parseFunction = NetworkMessageProtoParser
-		if u.config.Decoder == "" {
-			return fmt.Errorf("The message.proto parser must have a decoder")
-		}
 	} else if u.config.ParserType == "regexp" {
 		rp := NewRegexpParser()
 		u.parser = rp
@@ -145,23 +140,14 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 }
 
 func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
-	var dr DecoderRunner
 	ok := true
-
-	if u.config.Decoder != "" {
-		decoderFullName := fmt.Sprintf("%s-%s", ir.Name(), u.config.Decoder)
-		if dr, ok = h.DecoderRunner(u.config.Decoder, decoderFullName); !ok {
-			return fmt.Errorf("Error getting decoder: %s", u.config.Decoder)
-		}
-	}
-
 	var err error
 	for ok {
 		select {
 		case _, ok = <-u.stopChan:
 			break
 		default:
-			err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, dr)
+			err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, ir.Deliver)
 			// "use of closed" -> we're stopping.
 			if err != nil && !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: %s", err))
