@@ -23,6 +23,7 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"regexp"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -31,6 +32,7 @@ import (
 // Output plugin that sends messages via TCP using the Heka protocol.
 type TcpOutput struct {
 	processMessageCount int64
+	dropMessageCount    int64
 	keepAliveDuration   time.Duration
 	conf                *TcpOutputConfig
 	address             string
@@ -40,6 +42,8 @@ type TcpOutput struct {
 	reportLock          sync.Mutex
 	bufferedOut         *BufferedOutput
 	or                  OutputRunner
+	outputBlock         *RetryHelper
+	pConfig             *PipelineConfig
 }
 
 // ConfigStruct for TcpOutput plugin.
@@ -63,13 +67,21 @@ type TcpOutputConfig struct {
 	// output. We do some magic to default to true if ProtobufEncoder is used,
 	// false otherwise.
 	UseFraming *bool `toml:"use_framing"`
+	// Specifies size of queue buffer for output. 0 means that buffer is
+	// unlimited.
+	QueueMaxBufferSize uint64 `toml:"queue_max_buffer_size"`
+	// Specifies action which should be executed if queue is full. Possible
+	// values are "shutdown", "drop", or "block".
+	QueueFullAction string `toml:"queue_full_action"`
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
 	return &TcpOutputConfig{
-		Address:        "localhost:9125",
-		TickerInterval: uint(300),
-		Encoder:        "ProtobufEncoder",
+		Address:            "localhost:9125",
+		TickerInterval:     uint(300),
+		Encoder:            "ProtobufEncoder",
+		QueueMaxBufferSize: 0,
+		QueueFullAction:    "shutdown",
 	}
 }
 
@@ -93,6 +105,13 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 
 	if t.conf.KeepAlivePeriod != 0 {
 		t.keepAliveDuration = time.Duration(t.conf.KeepAlivePeriod) * time.Second
+	}
+
+	switch t.conf.QueueFullAction {
+	case "shutdown", "drop", "block":
+	default:
+		return fmt.Errorf("`queue_full_action` must be 'shutdown', 'drop', or 'block', got %s",
+			t.conf.QueueFullAction)
 	}
 	return
 }
@@ -128,6 +147,7 @@ func (t *TcpOutput) connect() (err error) {
 
 func (t *TcpOutput) SendRecord(record []byte) (err error) {
 	var n int
+
 	if t.connection == nil {
 		if err = t.connect(); err != nil {
 			// Explicitly set t.connection to nil because Go, see
@@ -166,6 +186,16 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		stopChan    = make(chan bool, 1)
 	)
 
+	t.outputBlock, err = NewRetryHelper(RetryOptions{
+		MaxDelay:   "5s",
+		MaxRetries: -1,
+	})
+	if err != nil {
+		return fmt.Errorf("can't create retry helper: %s", err.Error())
+	}
+
+	t.pConfig = h.PipelineConfig()
+
 	if t.conf.UseFraming == nil {
 		// Nothing was specified, we'll default to framing IFF ProtobufEncoder
 		// is being used.
@@ -182,9 +212,13 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}()
 
-	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or, h)
+	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or, h, t.conf.QueueMaxBufferSize)
 	if err != nil {
-		return
+		if err == QueueIsFull {
+			or.LogMessage("Queue capacity is already reached.")
+		} else {
+			return
+		}
 	}
 	t.bufferedOut.Start(t, outputError, outputExit, stopChan)
 
@@ -197,16 +231,22 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if !ok {
 				stopChan <- true
 				<-outputExit
+
 				break
 			}
-			atomic.AddInt64(&t.processMessageCount, 1)
-			if err = t.bufferedOut.QueueRecord(pack); err != nil {
+			if err := t.bufferedOut.QueueRecord(pack); err != nil {
 				or.LogError(err)
+				if err == QueueIsFull {
+					ok = t.queueFull(pack)
+				}
+			} else {
+				atomic.AddInt64(&t.processMessageCount, 1)
 			}
 			pack.Recycle()
 
 		case <-ticker:
 			if err = t.bufferedOut.RollQueue(); err != nil {
+				or.LogError(err)
 				return
 			}
 
@@ -216,6 +256,29 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	}
 
 	return
+}
+
+func (t *TcpOutput) queueFull(pack *PipelinePack) bool {
+	switch t.conf.QueueFullAction {
+	// Tries to queue message until its possible to send it to output.
+	case "block":
+		for t.outputBlock.Wait() == nil && !t.pConfig.Globals.IsShuttingDown() {
+			if blockErr := t.bufferedOut.QueueRecord(pack); blockErr == nil {
+				atomic.AddInt64(&t.processMessageCount, 1)
+				break
+			}
+			runtime.Gosched()
+		}
+	// Terminate Heka activity.
+	case "shutdown":
+		t.pConfig.Globals.ShutDown()
+		return false
+
+	// Drop packets
+	case "drop":
+		atomic.AddInt64(&t.dropMessageCount, 1)
+	}
+	return true
 }
 
 func init() {
@@ -232,6 +295,9 @@ func (t *TcpOutput) ReportMsg(msg *message.Message) error {
 
 	message.NewInt64Field(msg, "ProcessMessageCount",
 		atomic.LoadInt64(&t.processMessageCount), "count")
+	message.NewInt64Field(msg, "DropMessageCount",
+		atomic.LoadInt64(&t.dropMessageCount), "count")
+
 	t.bufferedOut.ReportMsg(msg)
 	return nil
 }

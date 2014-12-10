@@ -48,7 +48,7 @@ func BufferedOutputSpec(c gs.Context) {
 		h := NewMockPluginHelper(ctrl)
 		h.EXPECT().PipelineConfig().Return(pConfig)
 
-		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h)
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))
 		c.Expect(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 
@@ -217,6 +217,54 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(outMsg.GetPayload(), gs.Equals, payload)
 			})
 
+			c.Specify("when queue has limit", func(){
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				or.EXPECT().UsesFraming().Return(false)
+
+				bufferedOutput.maxQueueSize = uint64(200)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+
+				err = bufferedOutput.RollQueue()
+				c.Expect(err, gs.IsNil)
+
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(115))
+			})
+
+			c.Specify("when queue has limit and is full", func(){
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				bufferedOutput.maxQueueSize = uint64(50)
+
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+				err = bufferedOutput.RollQueue()
+				c.Expect(err, gs.IsNil)
+
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.Equals, QueueIsFull)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+			})
+
+
+		})
+
+		c.Specify("getQueueBufferSize", func() {
+			c.Expect(getQueueBufferSize(tmpDir), gs.Equals, uint64(0))
+
+			fd, _ := os.Create(filepath.Join(tmpDir, "4.log"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			fd, _ = os.Create(filepath.Join(tmpDir, "5.log"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			// Only size of *.log files should be taken in calculations.
+			fd, _ = os.Create(filepath.Join(tmpDir, "random_file"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			c.Expect(getQueueBufferSize(tmpDir), gs.Equals, uint64(20))
 		})
 	})
 }
