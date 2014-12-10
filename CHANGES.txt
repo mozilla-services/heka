@@ -37,6 +37,11 @@ Features
 * Slightly improve error output in ElasticSearch plugin.
 
 * Added support for HTTP authentication to ElasticSearchOutput.
+
+* TcpOutput's disk buffering now supports specification of a max buffer size
+  and an action to take if the max size is reached, from 'shutdown', 'drop',
+  or 'block' (#1110).
+
  
 0.8.1 (2014-MM-DD)
 ==================
