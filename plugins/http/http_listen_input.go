@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Christian Vozar (christian@bellycard.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -42,14 +43,16 @@ type HttpListenInput struct {
 type HttpListenInputConfig struct {
 	// TCP Address to listen to for SNS notifications.
 	// Defaults to "0.0.0.0:8325".
-	Address string
-	Headers http.Header
+	Address      string
+	Headers      http.Header
+	UnescapeBody bool `toml:"unescape_body"`
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
 	return &HttpListenInputConfig{
-		Address: "127.0.0.1:8325",
-		Headers: make(http.Header),
+		Address:      "127.0.0.1:8325",
+		Headers:      make(http.Header),
+		UnescapeBody: true,
 	}
 }
 
@@ -78,8 +81,6 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	}
 	req.Body.Close()
 
-	unEscapedBody, _ := url.QueryUnescape(string(body))
-
 	pack := <-hli.ir.InChan()
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetTimestamp(time.Now().UnixNano())
@@ -88,7 +89,12 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	pack.Message.SetHostname(req.RemoteAddr)
 	pack.Message.SetPid(int32(os.Getpid()))
 	pack.Message.SetSeverity(int32(6))
-	pack.Message.SetPayload(unEscapedBody)
+	if hli.conf.UnescapeBody {
+		unEscapedBody, _ := url.QueryUnescape(string(body))
+		pack.Message.SetPayload(unEscapedBody)
+	} else {
+		pack.Message.SetPayload(string(body))
+	}
 	if field, err := message.NewField("Protocol", req.Proto, ""); err == nil {
 		pack.Message.AddField(field)
 	} else {

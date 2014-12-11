@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -110,6 +111,43 @@ func HttpListenInputSpec(c gs.Context) {
 			eq = reflect.DeepEqual(resp.Header["Four"], config.Headers["Four"])
 			c.Expect(eq, gs.IsTrue)
 
+		})
+
+		c.Specify("Unescape the request body", func() {
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
+			ith.PackSupply <- ith.Pack
+			<-startedChan
+			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("1+2"))
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+			deliverWg.Wait()
+
+			payload := ith.Pack.Message.GetPayload()
+			c.Expect(payload, gs.Equals, "1 2")
+		})
+
+		c.Specify("Do not unescape the request body", func() {
+			config.UnescapeBody = false
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
+			ith.PackSupply <- ith.Pack
+			<-startedChan
+			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("1+2"))
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+			deliverWg.Wait()
+
+			payload := ith.Pack.Message.GetPayload()
+			c.Expect(payload, gs.Equals, "1+2")
 		})
 
 		ts.Close()
