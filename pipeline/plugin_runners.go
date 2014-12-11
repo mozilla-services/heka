@@ -240,6 +240,13 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		_, ok := ir.decoder.(*ProtobufDecoder)
 		if ok {
 			ir.useMsgBytes = true
+		} else if d, ok := ir.decoder.(*MultiDecoder); ok {
+			if len(d.Decoders) > 0 {
+				_, ok = d.Decoders[0].(*ProtobufDecoder)
+				if ok {
+					ir.useMsgBytes = true
+				}
+			}
 		}
 	}
 
