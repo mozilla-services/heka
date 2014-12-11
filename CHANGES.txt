@@ -12,6 +12,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Reset header when discarding valid but oversized messages (#1221).
+
 * Prevent the protobuf stream encoder from creating messages over
   MAX_MESSAGE_SIZE (#1204).
 

@@ -28,6 +28,7 @@ package main
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"code.google.com/p/gogoprotobuf/proto"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -57,6 +58,7 @@ type FloodTest struct {
 	Signer               message.MessageSigningConfig `toml:"signer"`
 	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
 	SignedPercentage     float64                      `toml:"signed_percentage"`
+	OversizedPercentage  float64                      `toml:"oversized_percentage"`
 	VariableSizeMessages bool                         `toml:"variable_size_messages"`
 	AsciiOnly            bool                         `toml:"ascii_only"`
 	UseTls               bool                         `toml:"use_tls"`
@@ -102,7 +104,7 @@ func timerLoop(count, bytes *uint64, ticker *time.Ticker) {
 }
 
 func makeVariableMessage(encoder client.StreamEncoder, items int,
-	rdm *randomDataMaker) [][]byte {
+	rdm *randomDataMaker, oversized bool) [][]byte {
 
 	ma := make([][]byte, items)
 	hostname, _ := os.Hostname()
@@ -119,7 +121,11 @@ func makeVariableMessage(encoder client.StreamEncoder, items int,
 		msg.SetPid(pid)
 		msg.SetHostname(hostname)
 		cnt = (rand.Int() % 3) * 1024
-		msg.SetPayload(makePayload(uint64(cnt), rdm))
+		if oversized {
+			msg.SetPayload(makePayload(uint64(cnt)+message.MAX_MESSAGE_SIZE, rdm))
+		} else {
+			msg.SetPayload(makePayload(uint64(cnt), rdm))
+		}
 		cnt = rand.Int() % 5
 		for c := 0; c < cnt; c++ {
 			field, _ := message.NewField(fmt.Sprintf("string%d", c), fmt.Sprintf("value%d", c), "")
@@ -200,6 +206,43 @@ func makePayload(size uint64, rdm *randomDataMaker) (payload string) {
 		log.Println("Error getting random string: ", err)
 	}
 	return
+}
+
+type OversizedEncoder struct{}
+
+func (o *OversizedEncoder) EncodeMessage(msg *message.Message) ([]byte, error) {
+	return proto.Marshal(msg)
+}
+
+func (o *OversizedEncoder) EncodeMessageStream(msg *message.Message,
+	outBytes *[]byte) (err error) {
+
+	msgBytes, err := o.EncodeMessage(msg)
+	if err == nil {
+		err = CreateHekaStream(msgBytes, outBytes)
+	}
+	return
+}
+
+func CreateHekaStream(msgBytes []byte, outBytes *[]byte) error {
+	h := &message.Header{}
+	h.SetMessageLength(uint32(len(msgBytes)))
+	headerSize := proto.Size(h)
+	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
+	if cap(*outBytes) < requiredSize {
+		*outBytes = make([]byte, requiredSize)
+	} else {
+		*outBytes = (*outBytes)[:requiredSize]
+	}
+	(*outBytes)[0] = message.RECORD_SEPARATOR
+	(*outBytes)[1] = uint8(headerSize)
+	pbuf := proto.NewBuffer((*outBytes)[message.HEADER_DELIMITER_SIZE:message.HEADER_DELIMITER_SIZE])
+	if err := pbuf.Marshal(h); err != nil {
+		return err
+	}
+	(*outBytes)[headerSize+message.HEADER_DELIMITER_SIZE] = message.UNIT_SEPARATOR
+	copy((*outBytes)[message.HEADER_FRAMING_SIZE+headerSize:], msgBytes)
+	return nil
 }
 
 func makeFixedMessage(encoder client.StreamEncoder, size uint64,
@@ -292,10 +335,12 @@ func main() {
 
 	unsignedEncoder := client.NewProtobufEncoder(nil)
 	signedEncoder := client.NewProtobufEncoder(&test.Signer)
+	oversizedEncoder := &OversizedEncoder{}
 
 	var numTestMessages = 1
 	var unsignedMessages [][]byte
 	var signedMessages [][]byte
+	var oversizedMessages [][]byte
 
 	rdm := &randomDataMaker{
 		src:       rand.NewSource(time.Now().UnixNano()),
@@ -304,8 +349,9 @@ func main() {
 
 	if test.VariableSizeMessages {
 		numTestMessages = 64
-		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages, rdm)
-		signedMessages = makeVariableMessage(signedEncoder, numTestMessages, rdm)
+		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages, rdm, false)
+		signedMessages = makeVariableMessage(signedEncoder, numTestMessages, rdm, false)
+		oversizedMessages = makeVariableMessage(oversizedEncoder, 1, rdm, true)
 	} else {
 		if test.StaticMessageSize == 0 {
 			test.StaticMessageSize = 1000
@@ -319,7 +365,7 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT)
 	var msgsSent, bytesSent, msgsDelivered uint64
-	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage float64
+	var corruptPercentage, lastCorruptPercentage, signedPercentage, lastSignedPercentage, oversizedPercentage, lastOversizedPercentage float64
 	var corrupt bool
 
 	// set up counter loop
@@ -328,6 +374,7 @@ func main() {
 
 	test.CorruptPercentage /= 100.0
 	test.SignedPercentage /= 100.0
+	test.OversizedPercentage /= 100.0
 
 	var buf []byte
 	for gotsigint := false; !gotsigint; {
@@ -351,7 +398,13 @@ func main() {
 			lastSignedPercentage = signedPercentage
 			buf = signedMessages[msgId]
 		} else {
-			buf = unsignedMessages[msgId]
+			oversizedPercentage = math.Floor(float64(msgsSent) * test.OversizedPercentage)
+			if oversizedPercentage != lastOversizedPercentage {
+				lastOversizedPercentage = oversizedPercentage
+				buf = oversizedMessages[0]
+			} else {
+				buf = unsignedMessages[msgId]
+			}
 		}
 		bytesSent += uint64(len(buf))
 		if err = sendMessage(sender, buf, corrupt); err != nil {
