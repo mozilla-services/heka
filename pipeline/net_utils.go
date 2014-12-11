@@ -128,7 +128,6 @@ type Signer struct {
 // Decodes provided byte slice into a Heka protocol header object.
 func DecodeHeader(buf []byte, header *Header) bool {
 	if buf[len(buf)-1] != UNIT_SEPARATOR {
-		log.Println("missing unit separator")
 		return false
 	}
 	err := proto.Unmarshal(buf[0:len(buf)-1], header)
@@ -137,7 +136,8 @@ func DecodeHeader(buf []byte, header *Header) bool {
 		return false
 	}
 	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
-		log.Printf("message exceeds the maximum length (bytes): %d", MAX_MESSAGE_SIZE)
+		log.Printf("message exceeds the maximum length [%d bytes] len: %d", MAX_MESSAGE_SIZE, header.GetMessageLength())
+		header.Reset()
 		return false
 	}
 	return true
