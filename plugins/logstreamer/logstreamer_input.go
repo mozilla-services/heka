@@ -214,6 +214,11 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// message.proto parser needs ProtobufDecoder.
 	if li.parser == "message.proto" && !ir.UseMsgBytes() {
+		// stopChan dance needed to prevent hang on shutdown.
+		go func() {
+			<-li.stopChan
+			close(li.stopChan)
+		}()
 		return errors.New("`message.proto` parser_type requires ProtobufDecoder")
 	}
 
@@ -273,8 +278,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 			li.logstreamSetLock.Unlock()
 		}
 	}
-	err = nil
-	return
+	return nil
 }
 
 func (li *LogstreamerInput) Stop() {
