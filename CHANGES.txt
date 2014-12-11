@@ -54,7 +54,9 @@ Features
   and an action to take if the max size is reached, from 'shutdown', 'drop',
   or 'block' (#1110).
 
- 
+* Added `unescape_body` option to HttpListenInput to allow users to turn off
+  unescaping of the HTTP request body (#1124).
+
 0.8.1 (2014-MM-DD)
 ==================
 
