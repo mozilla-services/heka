@@ -71,7 +71,9 @@ Heka specific functions that are exposed to the Lua sandbox
         number, string, bool, nil depending on the type of variable requested
 
 **read_message(variableName, fieldIndex, arrayIndex)**
-    Provides access to the Heka message data.
+    Provides access to the Heka message data. Note that both `fieldIndex` and
+    `arrayIndex` are zero-based (i.e. the first element is 0) as opposed to
+    Lua's standard indexing, which is one-based.
 
     *Arguments*
         - variableName (string)
@@ -87,9 +89,11 @@ Heka specific functions that are exposed to the Lua sandbox
             - Pid
             - Fields[_name_]
         - fieldIndex (unsigned) only used in combination with the Fields variableName
-            - use to retrieve a specific instance of a repeated field _name_
+            - use to retrieve a specific instance of a repeated field _name_;
+              zero indexed
         - arrayIndex (unsigned) only used in combination with the Fields variableName
-            - use to retrieve a specific element out of a field containing an array
+            - use to retrieve a specific element out of a field containing an array; zero
+              indexed
 
     *Return*
         number, string, bool, nil depending on the type of variable requested
