@@ -25,6 +25,14 @@ Config:
 - password (string, optional)
     SMTP user password
 
+.. versionadded:: 0.9
+
+- send_interval (uint, optional)
+    Minimum time interval between each email, in seconds. First email in an
+    interval goes out immediately, subsequent messages in the same interval
+    are concatenated and all sent when the interval expires. Defaults to 0,
+    meaning all emails are sent immediately.
+
 Example:
 
 .. code-block:: ini
