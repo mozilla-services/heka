@@ -898,7 +898,7 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		}
 	}
 
-	if m.commonConfig.Typ == "Output" {
+	if m.category == "Output" {
 		if commonFO.UseFraming == nil {
 			useFraming := getAttr(m.configStruct, "UseFraming", false)
 			switch useFraming := useFraming.(type) {
