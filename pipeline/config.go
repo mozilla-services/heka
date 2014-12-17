@@ -877,6 +877,10 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		commonFO.Matcher = matcherVal.(string)
 	}
 
+	if commonFO.Ticker == 0 {
+		commonFO.Ticker = defaultTickerInterval.(uint)
+	}
+
 	// Boolean types are tricky, we use pointer types to distinguish btn false
 	// and not set, but a plugin's config struct might not be so smart, so we
 	// have to account for both cases.
