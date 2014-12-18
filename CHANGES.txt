@@ -61,7 +61,7 @@ Features
 
 * Added `send_interval` setting to SmtpOutput.
 
-0.8.1 (2014-MM-DD)
+0.8.1 (2014-12-17)
 ==================
 
 Bug Handling
@@ -79,6 +79,9 @@ Bug Handling
   exit / restart (#1178).
 
 * Fixed HttpOutput TLS section parsing (#1163).
+
+* Fixed LogstreamInput extraneous journal saves that caused high disk IO
+  when EOF is reached.
 
 0.8.0 (2014-10-29)
 ==================

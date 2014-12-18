@@ -338,8 +338,10 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		// Attempt to read as many as we can
 		err = parser(ir, stopChan)
 
-		// Save our location after reading as much as we can
-		lsi.stream.SavePosition()
+		// Save our position if the stream hasn't done so for us.
+		if err != io.EOF {
+			lsi.stream.SavePosition()
+		}
 		lsi.recordCount = 0
 
 		if err != nil && err != io.EOF {
