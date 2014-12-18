@@ -3,13 +3,19 @@ StatFilter
 ==========
 
 Filter plugin that accepts messages of a specfied form and uses extracted
-message data to generate statsd-style numerical metrics in the form of `Stat`
-objects that can be consumed by a `StatAccumulator`.
+message data to feed statsd-style numerical metrics in the form of `Stat`
+objects to a `StatAccumulator`.
 
 Config:
 
 - Metric:
-    Subsection defining a single metric to be generated:
+
+    Subsection defining a single metric to be generated. Both the `name` and
+    `value` fields for each metric support interpolation of message field
+    values (from 'Type', 'Hostname', 'Logger', 'Payload',  or any dynamic
+    field name) with the use of %% delimiters, so `%Hostname%` would be
+    replaced by the message's Hostname field, and %Foo% would be replaced by
+    the first value of a dynamic field called "Foo":
 
     - type (string):
         Metric type, supports "Counter", "Timer", "Gauge".
@@ -24,7 +30,7 @@ Config:
     StatAccumulator for submitting generate stat values. Defaults to
     "StatAccumInput".
 
-Example (Assuming you had TransformFilter inserting messages as above):
+Example:
 
 .. code-block:: ini
 
