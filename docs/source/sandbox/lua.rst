@@ -174,7 +174,7 @@ Heka specific functions that are exposed to the Lua sandbox
 
     * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
     * UUID is automatically generated, anything provided by the user is ignored.
-    * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
+    * Hostname and Logger are automatically set by the SandboxFilter if not provided.
     * Type is prepended with "heka.sandbox." by the SandboxFilter to avoid data confusion/mis-representation.
     * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
         * name=value i.e., foo="bar"; foo=1; foo=true
@@ -198,8 +198,8 @@ Sample Lua Message Structure
 
     {
     Uuid        = "data",               -- always ignored
-    Logger      = "nginx",              -- ignored in the SandboxFilter
-    Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
+    Logger      = "nginx",
+    Hostname    = "bogus.mozilla.com",
 
     Timestamp   = 1e9,
     Type        = "TEST",               -- will become "heka.sandbox.TEST" in the SandboxFilter
