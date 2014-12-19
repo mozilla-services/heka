@@ -202,8 +202,16 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			if err == nil {
 				// do not allow filters to override the following
 				pack.Message.SetType("heka.sandbox." + pack.Message.GetType())
-				pack.Message.SetLogger(fr.Name())
-				pack.Message.SetHostname(hostname)
+				if pack.Message.GetLogger() != "" {
+					pack.Message.SetLogger(pack.Message.GetLogger())
+				} else {
+					pack.Message.SetLogger(fr.Name())
+				}
+				if pack.Message.GetHostname() != "" {
+					pack.Message.SetHostname(pack.Message.GetHostname())
+				} else {
+					pack.Message.SetHostname(hostname)
+				}
 			} else {
 				return 1
 			}
