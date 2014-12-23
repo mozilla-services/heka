@@ -187,7 +187,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		li.hostName = conf.Hostname
 	}
 
-	// Create all our initial logstream plugins for the logstreams found
+	// Create all our initial logstream plugins for the logstreams found.
 	for _, name := range plugins {
 		stream, ok := li.logstreamSet.GetLogstream(name)
 		if !ok {
@@ -217,15 +217,17 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 
 	// Setup the decoder runner that will be used
 	if li.decoderName != "" {
-		if dRunner, ok = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s",
-			li.pluginName, li.decoderName)); !ok {
-
+		if _, ok = li.pConfig.DecoderWrappers[li.decoderName]; !ok {
 			return fmt.Errorf("Decoder not found: %s", li.decoderName)
 		}
 	}
 
-	// Kick off all the current logstreams we know of
+	// Kick off all the current logstreams we know of.
+	i := 0
 	for _, logstream := range li.plugins {
+		i++
+		dRunner, _ = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s-%d",
+			li.pluginName, li.decoderName, i))
 		stop := make(chan chan bool, 1)
 		go logstream.Run(ir, h, stop, dRunner)
 		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
@@ -273,6 +275,9 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
 					li.hostName)
 				li.plugins[name] = lsi
+				i++
+				dRunner, _ = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s-%d",
+					li.pluginName, li.decoderName, i))
 				stop := make(chan chan bool, 1)
 				go lsi.Run(ir, h, stop, dRunner)
 				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
@@ -326,12 +331,16 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		parser = lsi.messageProtoParser
 	}
 
-	// Setup our pack delivery function appropriately for the configuration
-	deliver := func(pack *p.PipelinePack) {
-		if dRunner == nil {
+	var deliver func(*p.PipelinePack)
+	// Setup our pack delivery function appropriately for the configuration.
+	if dRunner == nil {
+		deliver = func(pack *p.PipelinePack) {
 			ir.Inject(pack)
-		} else {
-			dRunner.InChan() <- pack
+		}
+	} else {
+		inChan := dRunner.InChan()
+		deliver = func(pack *p.PipelinePack) {
+			inChan <- pack
 		}
 	}
 
@@ -372,6 +381,9 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 		}
 	}
 	close(lsi.stopped)
+	if dRunner != nil {
+		h.StopDecoderRunner(dRunner)
+	}
 }
 
 // Standard text log file parser
