@@ -77,7 +77,7 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error())
+		hli.ir.LogError(fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error()))
 	}
 	req.Body.Close()
 
