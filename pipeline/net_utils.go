@@ -37,14 +37,14 @@ type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	deliver func(*PipelinePack)) (err error)
+	deliver DeliverFunc) (err error)
 
 // Standard text log file parser
 func NetworkPayloadParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	deliver func(*PipelinePack)) (err error) {
+	deliver DeliverFunc) (err error) {
 	var (
 		pack   *PipelinePack
 		record []byte
@@ -81,7 +81,7 @@ func NetworkMessageProtoParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	deliver func(*PipelinePack)) (err error) {
+	deliver DeliverFunc) (err error) {
 	var (
 		pack   *PipelinePack
 		record []byte
