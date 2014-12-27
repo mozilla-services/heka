@@ -153,6 +153,9 @@ func parseMessage(message []byte) ([]Stat, error) {
 	}
 
 	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
 		colonPos := bytes.IndexByte(line, ':')
 		if colonPos == -1 {
 			return nil, fmt.Errorf(errFmt, line)
