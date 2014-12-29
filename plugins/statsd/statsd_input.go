@@ -32,14 +32,14 @@ import (
 // via a configured StatFilter plugin) over the exposed `Packet` channel. It
 // currently doesn't support Sets or other metric types.
 type StatsdInput struct {
-	name		  string
-	listener	  net.Conn
-	stopChan	  chan bool
-	statChan	  chan<- Stat
-	statAccumName string
-	statAccum	 StatAccumulator
-	maxMsgSize	uint
-	ir			InputRunner
+	name             string
+	listener         net.Conn
+	stopChan         chan bool
+	statChan         chan<- Stat
+	statAccumName    string
+	statAccum        StatAccumulator
+	maxMsgSize       uint
+	ir               InputRunner
 }
 
 // StatsInput config struct
@@ -58,9 +58,9 @@ type StatsdInputConfig struct {
 
 func (s *StatsdInput) ConfigStruct() interface{} {
 	return &StatsdInputConfig{
-		Address:	   "127.0.0.1:8125",
+		Address:       "127.0.0.1:8125",
 		StatAccumName: "StatAccumInput",
-		MaxMsgSize: 512,
+		MaxMsgSize:    512,
 	}
 }
 
