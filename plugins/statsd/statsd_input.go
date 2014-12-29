@@ -32,14 +32,14 @@ import (
 // via a configured StatFilter plugin) over the exposed `Packet` channel. It
 // currently doesn't support Sets or other metric types.
 type StatsdInput struct {
-	name             string
-	listener         net.Conn
-	stopChan         chan bool
-	statChan         chan<- Stat
-	statAccumName    string
-	statAccum        StatAccumulator
-	maxMsgSize       uint
-	ir               InputRunner
+	name          string
+	listener      net.Conn
+	stopChan      chan bool
+	statChan      chan<- Stat
+	statAccumName string
+	statAccum     StatAccumulator
+	maxMsgSize    uint
+	ir            InputRunner
 }
 
 // StatsInput config struct
@@ -90,8 +90,8 @@ func (s *StatsdInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 	// Spin up the UDP listener.
 	var (
-		n	   int
-		e	   error
+		n       int
+		e       error
 		stopped bool
 	)
 	defer s.listener.Close()
