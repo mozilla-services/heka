@@ -61,6 +61,17 @@ Features
 
 * Added `send_interval` setting to SmtpOutput.
 
+0.8.2 (2015-01-05)
+==================
+
+Bug Handling
+------------
+
+* Fix rsyslog sandbox decoder test to use current year and location for
+  timestamp parsing, since syslog timestamp format makes that assumption.
+
+* Ensure that geoip_decoder is not included in release binaries.
+
 0.8.1 (2014-12-17)
 ==================
 
