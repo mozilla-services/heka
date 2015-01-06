@@ -61,7 +61,7 @@ Features
 
 * Added `send_interval` setting to SmtpOutput.
 
-0.8.2 (2015-01-05)
+0.8.2 (2015-01-06)
 ==================
 
 Bug Handling
