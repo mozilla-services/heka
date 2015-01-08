@@ -57,10 +57,10 @@ func LogstreamerInputSpec(c gs.Context) {
 
 	globals := DefaultGlobals()
 	globals.BaseDir = tmpDir
-	config := NewPipelineConfig(globals)
+	pConfig := NewPipelineConfig(globals)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	// Specify localhost, but we're not really going to use the network
 	ith.AddrStr = "localhost:55565"
@@ -74,13 +74,15 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A LogstreamerInput", func() {
-		lsInput := &LogstreamerInput{pConfig: config}
+		lsInput := &LogstreamerInput{pConfig: pConfig}
 		lsiConfig := lsInput.ConfigStruct().(*LogstreamerInputConfig)
 		lsiConfig.LogDirectory = dirPath
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
 		lsiConfig.Differentiator = []string{"logfile"}
 		lsiConfig.Priority = []string{"^Seq"}
 		lsiConfig.Decoder = "decoder-name"
+		// Fool the input into thinking the decoder really exists.
+		pConfig.DecoderWrappers[lsiConfig.Decoder] = nil
 
 		c.Specify("w/ no translation map", func() {
 			err := lsInput.Init(lsiConfig)
@@ -106,11 +108,12 @@ func LogstreamerInputSpec(c gs.Context) {
 				// decoding is a no-op, the message payload will be the log file
 				// line, unchanged.
 				pbcall := ith.MockHelper.EXPECT().DecoderRunner(lsiConfig.Decoder,
-					"-"+lsiConfig.Decoder)
+					"-"+lsiConfig.Decoder+"-1")
 				pbcall.Return(mockDecoderRunner, true)
 
-				decodeCall := mockDecoderRunner.EXPECT().InChan().Times(numLines)
-				decodeCall.Return(ith.DecodeChan)
+				inChanCall := mockDecoderRunner.EXPECT().InChan()
+				inChanCall.Return(ith.DecodeChan)
+				ith.MockHelper.EXPECT().StopDecoderRunner(mockDecoderRunner)
 
 				runOutChan := make(chan error, 1)
 				go func() {
