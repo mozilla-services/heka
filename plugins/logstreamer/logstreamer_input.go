@@ -221,7 +221,6 @@ func (li *LogstreamerInput) startLogstreamInput(logstream *LogstreamInput, i int
 func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) {
 	var (
 		ok         bool
-		dRunner    p.DecoderRunner
 		errs       *ls.MultipleError
 		newstreams []string
 	)
