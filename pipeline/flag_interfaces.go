@@ -57,13 +57,3 @@ func (s *notStoppable) IsStoppable() bool {
 func (s *notStoppable) Unregister(pConfig *PipelineConfig) error {
 	return nil
 }
-
-// DoesOwnDecoding can be implemented by an input plugin to indicate that it
-// handles creating and managing its own decoders rather than having that be
-// handled by the InputRunner. The InputRunner will call SetCommonInputConfig
-// to pass in the CommonInputConfig (which contains details re: which decoder
-// to use and how decoding should be handled) before the input's Run method is
-// called.
-type DoesOwnDecoding interface {
-	SetCommonInputConfig(commonInputConfig CommonInputConfig)
-}

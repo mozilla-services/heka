@@ -60,6 +60,18 @@ func InputRunnerSpec(c gs.Context) {
 	}
 	pConfig := NewPipelineConfig(globals)
 	mockHelper := NewMockPluginHelper(ctrl)
+	decoder := &_fooDecoder{}
+
+	decoderMaker := &pluginMaker{
+		name:          "FooDecoder",
+		category:      "Decoder",
+		pConfig:       pConfig,
+		configPrepped: true,
+	}
+	decoderMaker.constructor = func() interface{} {
+		return decoder
+	}
+	pConfig.DecoderMakers["FooDecoder"] = decoderMaker
 
 	c.Specify("An InputRunner", func() {
 
@@ -72,7 +84,6 @@ func InputRunnerSpec(c gs.Context) {
 		}
 
 		var wg sync.WaitGroup
-		// mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 		c.Specify("honors MaxRetries", func() {
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
@@ -102,6 +113,7 @@ func InputRunnerSpec(c gs.Context) {
 			c.Specify("when there's no decoder", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
+				runner.pConfig = pConfig
 				wg.Add(1)
 				runner.Start(mockHelper, &wg)
 				runner.Deliver(pack)
@@ -114,13 +126,15 @@ func InputRunnerSpec(c gs.Context) {
 
 			c.Specify("when using a decoder runner", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+				commonInput.Decoder = "FooDecoder"
 				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
-				runner.decoder = &_fooDecoder{}
-				runner.dRunner = NewDecoderRunner("FooDecoder", runner.decoder, 5)
+				runner.pConfig = pConfig
+				d := runner.NewDeliverer("").(*deliverer)
+				runner.deliver = d.deliver
 				wg.Add(1)
 				runner.Start(mockHelper, &wg)
 				go runner.Deliver(pack)
-				recd := <-runner.dRunner.InChan() // It was delivered to the DecoderRunner.
+				recd := <-d.dRunner.InChan() // It was delivered to the DecoderRunner.
 				c.Expect(recd, gs.Equals, pack)
 				pack.Recycle()
 				input.Stop()
@@ -132,8 +146,11 @@ func InputRunnerSpec(c gs.Context) {
 				b := true
 				commonInput.SyncDecode = &b
 				commonInput.SendDecodeFailures = &b
+				commonInput.Decoder = "FooDecoder"
 				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
-				runner.decoder = &_fooDecoder{}
+				runner.pConfig = pConfig
+				d := runner.NewDeliverer("").(*deliverer)
+				runner.deliver = d.deliver
 				wg.Add(1)
 				runner.Start(mockHelper, &wg)
 
@@ -148,7 +165,7 @@ func InputRunnerSpec(c gs.Context) {
 				})
 
 				c.Specify("and the decode fails", func() {
-					runner.decoder.(*_fooDecoder).fail = true
+					decoder.fail = true
 					runner.Deliver(pack)
 					recd := <-pConfig.router.inChan // It was delivered to the router.
 					c.Expect(recd, gs.Equals, pack)
@@ -162,7 +179,7 @@ func InputRunnerSpec(c gs.Context) {
 				})
 
 				c.Specify("unless sendDecodeFailure is false", func() {
-					runner.decoder.(*_fooDecoder).fail = true
+					decoder.fail = true
 					runner.sendDecodeFailures = false
 					runner.Deliver(pack)
 					var (

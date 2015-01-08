@@ -37,7 +37,6 @@ type TcpInput struct {
 	h                 PluginHelper
 	pConfig           *PipelineConfig
 	config            *TcpInputConfig
-	commonConfig      CommonInputConfig
 }
 
 type TcpInputConfig struct {
@@ -120,10 +119,6 @@ func (t *TcpInput) Init(config interface{}) error {
 	return nil
 }
 
-func (t *TcpInput) SetCommonInputConfig(commonConfig CommonInputConfig) {
-	t.commonConfig = commonConfig
-}
-
 func (t *TcpInput) setupTls(tomlConf *TlsConfig) (err error) {
 	if tomlConf.CertFile == "" || tomlConf.KeyFile == "" {
 		return errors.New("TLS config requires both cert_file and key_file value.")
@@ -143,67 +138,13 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		t.wg.Done()
 	}()
 
-	var (
-		dr      DecoderRunner
-		decoder Decoder
-		ok      bool
-	)
-
-	sendFailure := t.commonConfig.SendDecodeFailures != nil && *t.commonConfig.SendDecodeFailures
-	decoderName := t.commonConfig.Decoder
-	if decoderName != "" {
-		raddr := conn.RemoteAddr().String()
-		host, _, err := net.SplitHostPort(raddr)
-		if err != nil {
-			host = raddr
-		}
-
-		if t.commonConfig.SyncDecode != nil && *t.commonConfig.SyncDecode {
-			if decoder, ok = t.pConfig.Decoder(decoderName); !ok {
-				t.ir.LogError(fmt.Errorf("Error getting decoder: %s", decoderName))
-				return
-			}
-		} else {
-			decoderFullName := fmt.Sprintf("%s-%s-%s", t.name, host, decoderName)
-			if dr, ok = t.h.DecoderRunner(decoderName, decoderFullName); !ok {
-				t.ir.LogError(fmt.Errorf("Error getting decoder: %s", decoderName))
-				return
-			}
-			dr.SetSendFailure(sendFailure)
-		}
+	raddr := conn.RemoteAddr().String()
+	host, _, err := net.SplitHostPort(raddr)
+	if err != nil {
+		host = raddr
 	}
 
-	var deliver func(*PipelinePack)
-
-	if dr != nil {
-		deliver = func(pack *PipelinePack) {
-			dr.InChan() <- pack
-		}
-	} else if decoder != nil {
-		deliver = func(pack *PipelinePack) {
-			packs, err := decoder.Decode(pack)
-			if err != nil {
-				errMsg := err.Error()
-				t.ir.LogError(fmt.Errorf("decode error: %s", errMsg))
-				if !sendFailure {
-					pack.Recycle()
-					return
-				}
-				if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
-					t.ir.LogError(err)
-				}
-				t.ir.Inject(pack)
-			}
-			for _, p := range packs {
-				t.ir.Inject(p)
-			}
-			return
-		}
-	} else {
-		deliver = func(pack *PipelinePack) {
-			t.ir.Inject(pack)
-		}
-	}
+	deliverer := t.ir.NewDeliverer(host)
 
 	var (
 		parser        StreamParser
@@ -232,7 +173,6 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		}
 	}
 
-	var err error
 	stopped := false
 	for !stopped {
 		conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -240,7 +180,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		case <-t.stopChan:
 			stopped = true
 		default:
-			err = parseFunction(conn, parser, t.ir, t.config.Signers, deliver)
+			err = parseFunction(conn, parser, t.ir, t.config.Signers, deliverer.DeliverFunc())
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					// keep the connection open, we are just checking to see if
@@ -252,9 +192,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		}
 	}
 	// Stop the decoder, see Issue #713.
-	if dr != nil {
-		t.h.StopDecoderRunner(dr)
-	}
+	deliverer.Done()
 }
 
 func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
@@ -264,8 +202,8 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	t.name = ir.Name()
 
 	if t.config.ParserType == "message.proto" {
-		if t.commonConfig.Decoder == "" {
-			return fmt.Errorf("The message.proto parser must have a decoder")
+		if !ir.UseMsgBytes() {
+			return fmt.Errorf("The message.proto parser must use a ProtobufDecoder")
 		}
 	}
 
