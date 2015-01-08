@@ -203,10 +203,21 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	return
 }
 
-// Main Logstreamer Input runner
-// This runner kicks off all the other logstream inputs, and handles rescanning for
-// updates to the filesystem that might affect file visibility for the logstream
-// inputs
+// Creates DecoderRunner and stop channel and starts the provided
+// LogstreamInput plugin.
+func (li *LogstreamerInput) startLogstreamInput(logstream *LogstreamInput, i int,
+	ir p.InputRunner, h p.PluginHelper) {
+
+	fullName := fmt.Sprintf("%s-%s-%d", li.pluginName, li.decoderName, i)
+	dRunner, _ := h.DecoderRunner(li.decoderName, fullName)
+	stop := make(chan chan bool, 1)
+	li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+	go logstream.Run(ir, h, stop, dRunner)
+}
+
+// Main Logstreamer Input runner. This runner kicks off all the other
+// logstream inputs, and handles rescanning for updates to the filesystem that
+// might affect file visibility for the logstream inputs.
 func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) {
 	var (
 		ok         bool
@@ -226,11 +237,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 	i := 0
 	for _, logstream := range li.plugins {
 		i++
-		dRunner, _ = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s-%d",
-			li.pluginName, li.decoderName, i))
-		stop := make(chan chan bool, 1)
-		go logstream.Run(ir, h, stop, dRunner)
-		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+		li.startLogstreamInput(logstream, i, ir, h)
 	}
 
 	ok = true
@@ -276,11 +283,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 					li.hostName)
 				li.plugins[name] = lsi
 				i++
-				dRunner, _ = h.DecoderRunner(li.decoderName, fmt.Sprintf("%s-%s-%d",
-					li.pluginName, li.decoderName, i))
-				stop := make(chan chan bool, 1)
-				go lsi.Run(ir, h, stop, dRunner)
-				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+				li.startLogstreamInput(lsi, i, ir, h)
 			}
 			li.logstreamSetLock.Unlock()
 		}
