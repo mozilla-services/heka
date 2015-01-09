@@ -17,15 +17,14 @@ package elasticsearch
 import (
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"strings"
 	"testing"
 	"time"
-	"encoding/base64"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -67,7 +66,7 @@ func getTestMessageWithFunnyFields() *message.Message {
 	field10.AddValue([]byte("{\"asdf\":123}"))
 	field11 := message.NewFieldInit("test_raw_field_string_array", message.Field_STRING, "")
 	field11.AddValue("{\"asdf\":123}")
-	field11.AddValue("{\"jkl;\":123}")	
+	field11.AddValue("{\"jkl;\":123}")
 	field12 := message.NewFieldInit("stringArray", message.Field_STRING, "")
 	field12.AddValue("asdf")
 	field12.AddValue("jkl;")
@@ -156,8 +155,8 @@ func ESEncodersSpec(c gs.Context) {
 
 	c.Specify("ESLogstashV0Encoder", func() {
 		encoder := new(ESLogstashV0Encoder)
-		config := encoder.ConfigStruct()
-		config.(*ESLogstashV0EncoderConfig).RawBytesFields = []string{
+		config := encoder.ConfigStruct().(*ESLogstashV0EncoderConfig)
+		config.RawBytesFields = []string{
 			"test_raw_field_string",
 			"test_raw_field_bytes",
 			"test_raw_field_string_array",
@@ -166,25 +165,24 @@ func ESEncodersSpec(c gs.Context) {
 
 		c.Specify("Should properly encode a message", func() {
 			err := encoder.Init(config)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			b, err := encoder.Encode(pack)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 
 			output := string(b)
 			lines := strings.Split(output, string(NEWLINE))
 
 			decoded := make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[0]), &decoded)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			sub := decoded["index"].(map[string]interface{})
 			t := time.Now().UTC()
 			c.Expect(sub["_index"], gs.Equals, "logstash-"+t.Format("2006.01.02"))
 			c.Expect(sub["_type"], gs.Equals, "message")
 
-			fmt.Println(lines[1])
 			decoded = make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			c.Expect(decoded["@fields"].(map[string]interface{})[`"foo`], gs.Equals, "bar\n")
 			c.Expect(decoded["@fields"].(map[string]interface{})[`"number`], gs.Equals, 64.0)
 			c.Expect(decoded["@fields"].(map[string]interface{})["\xEF\xBF\xBD"], gs.Equals,
@@ -237,12 +235,28 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 		})
+
+		c.Specify("encodes w/ a different timestamp format", func() {
+			config.Timestamp = "2006/01/02 15:04:05.000 -0700"
+			err := encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			b, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+
+			output := string(b)
+			lines := strings.Split(output, string(NEWLINE))
+			decoded := make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[1]), &decoded)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(decoded["@timestamp"], gs.Equals, "2013/07/16 15:49:05.070 +0000")
+		})
 	})
 
 	c.Specify("ESJsonEncoder", func() {
 		encoder := new(ESJsonEncoder)
-		config := encoder.ConfigStruct()
-		config.(*ESJsonEncoderConfig).RawBytesFields = []string{
+		config := encoder.ConfigStruct().(*ESJsonEncoderConfig)
+		config.RawBytesFields = []string{
 			"test_raw_field_string",
 			"test_raw_field_bytes",
 			"test_raw_field_string_array",
@@ -251,25 +265,24 @@ func ESEncodersSpec(c gs.Context) {
 
 		c.Specify("Should properly encode a message", func() {
 			err := encoder.Init(config)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			b, err := encoder.Encode(pack)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 
 			output := string(b)
 			lines := strings.Split(output, string(NEWLINE))
 
 			decoded := make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[0]), &decoded)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			sub := decoded["index"].(map[string]interface{})
 			t := time.Now().UTC()
 			c.Expect(sub["_index"], gs.Equals, "heka-"+t.Format("2006.01.02"))
 			c.Expect(sub["_type"], gs.Equals, "message")
 
-			fmt.Println(lines[1])
 			decoded = make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
-			c.Expect(err, gs.IsNil)
+			c.Assume(err, gs.IsNil)
 			c.Expect(decoded[`"foo`], gs.Equals, "bar\n")
 			c.Expect(decoded[`"number`], gs.Equals, 64.0)
 			c.Expect(decoded["\xEF\xBF\xBD"], gs.Equals, "\xEF\xBF\xBD")
@@ -282,7 +295,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["EnvVersion"], gs.Equals, "0.8")
 			c.Expect(decoded["Pid"], gs.Equals, 14098.0)
 			c.Expect(decoded["Hostname"], gs.Equals, "hostname")
-			
+
 			stringsArray := decoded["stringArray"].([]interface{})
 			c.Expect(len(stringsArray), gs.Equals, 4)
 			c.Expect(stringsArray[0], gs.Equals, "asdf")
@@ -320,6 +333,22 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["test_raw_field_string_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
+		})
+
+		c.Specify("encodes w/ a different timestamp format", func() {
+			config.Timestamp = "2006/01/02 15:04:05.000 -0700"
+			err := encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			b, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+
+			output := string(b)
+			lines := strings.Split(output, string(NEWLINE))
+			decoded := make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[1]), &decoded)
+			c.Assume(err, gs.IsNil)
+
+			c.Expect(decoded["Timestamp"], gs.Equals, "2013/07/16 15:49:05.070 +0000")
 		})
 	})
 }

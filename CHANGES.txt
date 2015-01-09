@@ -59,6 +59,8 @@ Features
 
 * Added `send_interval` setting to SmtpOutput.
 
+* Added `timestamp` format setting to ESLogstashV0Encoder (#1142).
+
 0.8.2 (2015-01-06)
 ==================
 
