@@ -61,6 +61,9 @@ Features
 
 * Added `timestamp` format setting to ESLogstashV0Encoder (#1142).
 
+* LogstreamerInput now uses first two "magic" bytes to identify gzip files
+  instead of relying on `.gz` suffix.
+
 0.8.2 (2015-01-06)
 ==================
 
