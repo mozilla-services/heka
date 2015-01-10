@@ -64,6 +64,16 @@ Features
 * LogstreamerInput now uses first two "magic" bytes to identify gzip files
   instead of relying on `.gz` suffix.
 
+0.8.3 (2015-01-08)
+==================
+
+Bug Handling
+------------
+
+* Fixed LogstreamerInput to use a separate DecoderRunner for every
+  LogstreamInput created, rather than sending all of the streams through a
+  single decoder.
+
 0.8.2 (2015-01-06)
 ==================
 

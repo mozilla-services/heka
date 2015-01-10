@@ -196,10 +196,19 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	return
 }
 
-// Main Logstreamer Input runner
-// This runner kicks off all the other logstream inputs, and handles rescanning for
-// updates to the filesystem that might affect file visibility for the logstream
-// inputs
+// Creates deliverer and stop channel and starts the provided LogstreamInput.
+func (li *LogstreamerInput) startLogstreamInput(logstream *LogstreamInput, i int,
+	ir p.InputRunner, h p.PluginHelper) {
+
+	stop := make(chan chan bool, 1)
+	deliverer := ir.NewDeliverer(strconv.Itoa(i))
+	li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+	go logstream.Run(ir, h, stop, deliverer)
+}
+
+// Main Logstreamer Input runner. This runner kicks off all the other
+// logstream inputs, and handles rescanning for updates to the filesystem that
+// might affect file visibility for the logstream inputs.
 func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) {
 	var (
 		ok         bool
@@ -221,10 +230,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 	i := 0
 	for _, logstream := range li.plugins {
 		i++
-		stop := make(chan chan bool, 1)
-		deliverer := ir.NewDeliverer(strconv.Itoa(i))
-		go logstream.Run(ir, h, stop, deliverer)
-		li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+		li.startLogstreamInput(logstream, i, ir, h)
 	}
 
 	ok = true
@@ -269,11 +275,8 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 				lsi := NewLogstreamInput(stream, stParser, parserFunc, name,
 					li.hostName, li.keepTruncatedMessages)
 				li.plugins[name] = lsi
-				stop := make(chan chan bool, 1)
 				i++
-				deliverer := ir.NewDeliverer(strconv.Itoa(i))
-				go lsi.Run(ir, h, stop, deliverer)
-				li.stopLogstreamChans = append(li.stopLogstreamChans, stop)
+				li.startLogstreamInput(lsi, i, ir, h)
 			}
 			li.logstreamSetLock.Unlock()
 		}

@@ -72,10 +72,10 @@ func LogstreamerInputSpec(c gs.Context) {
 
 	globals := DefaultGlobals()
 	globals.BaseDir = tmpDir
-	config := NewPipelineConfig(globals)
+	pConfig := NewPipelineConfig(globals)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	// Specify localhost, but we're not really going to use the network.
 	ith.AddrStr = "localhost:55565"
@@ -87,7 +87,7 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	c.Specify("A LogstreamerInput", func() {
-		lsInput := &LogstreamerInput{pConfig: config}
+		lsInput := &LogstreamerInput{pConfig: pConfig}
 		lsiConfig := lsInput.ConfigStruct().(*LogstreamerInputConfig)
 		lsiConfig.LogDirectory = dirPath
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
