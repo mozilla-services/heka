@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -27,7 +28,6 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
-	"errors"
 )
 
 type BufferedOutput struct {
@@ -76,14 +76,9 @@ func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHe
 	return b, nil
 }
 
-func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
-	var msgBytes []byte
+func (b *BufferedOutput) QueueBytes(msgBytes []byte) (err error) {
 	var msgSize int
-
-	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
-		return
-	}
-	if b.maxQueueSize > 0 && (b.queueSize + uint64(len(msgBytes))) > b.maxQueueSize {
+	if b.maxQueueSize > 0 && (b.queueSize+uint64(len(msgBytes))) > b.maxQueueSize {
 		err = QueueIsFull
 		return
 	}
@@ -104,11 +99,19 @@ func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 	return nil
 }
 
+func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
+	var msgBytes []byte
+
+	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
+		return
+	}
+	return b.QueueBytes(msgBytes)
+}
+
 func (b *BufferedOutput) writeCheckpoint(id uint, offset int64) (err error) {
 	if b.checkpointFile == nil {
 		if b.checkpointFile, err = os.OpenFile(b.checkpointFilename,
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-
 			return
 		}
 	}
@@ -380,5 +383,5 @@ func getQueueBufferSize(dir string) (size uint64) {
 			size += uint64(file_info.Size())
 		}
 	}
-    return
+	return
 }
