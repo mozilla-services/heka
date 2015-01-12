@@ -1,6 +1,8 @@
 0.9.0 (2014-MM-DD)
 ==================
 
+* Added TLS support to ElasticSearchOutput (#1259).
+
 Backwards Incompatibilities
 ---------------------------
 
