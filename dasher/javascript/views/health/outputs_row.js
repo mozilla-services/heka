@@ -1,10 +1,11 @@
 define(
   [
     "views/base_view",
+    "views/health/coders_row",
     "presenters/plugin_presenter",
     "hgn!templates/health/outputs_row"
   ],
-  function(BaseView, PluginPresenter, OutputsRowTemplate) {
+  function(BaseView, CodersRow, PluginPresenter, OutputsRowTemplate) {
     "use strict";
 
     /**
@@ -16,12 +17,21 @@ define(
     * @constructor
     */
     var OutputsRow = BaseView.extend({
-      tagName: "tr",
       presenter: PluginPresenter,
       template: OutputsRowTemplate,
 
       initialize: function() {
         this.listenTo(this.model, "change", this.render, this);
+        this.CodersRow = CodersRow; // inject for BaseView.renderCoders
+      },
+
+      /**
+      * Renders Encoder plugins as children of the corresponding Output plugin.
+      *
+      * @method afterRender
+      */
+      afterRender: function() {
+        this.renderCoders();
       }
     });
 

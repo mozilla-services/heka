@@ -30,10 +30,8 @@ define(
 
         this.globalsIndex = new GlobalsIndex({ collection: this.adapter.globals });
         this.inputsIndex = new InputsIndex({ collection: this.adapter.inputs });
-        this.decodersIndex = new DecodersIndex({ collection: this.adapter.decoders });
         this.filtersIndex = new FiltersIndex({ collection: this.adapter.filters });
         this.outputsIndex = new OutputsIndex({ collection: this.adapter.outputs });
-        this.encodersIndex = new EncodersIndex({ collection: this.adapter.encoders });
 
         this.adapter.fill();
       },
@@ -47,10 +45,8 @@ define(
       afterRender: function() {
         this.assign(this.globalsIndex, "#globals-index");
         this.assign(this.inputsIndex, "#inputs-index");
-        this.assign(this.decodersIndex, "#decoders-index");
         this.assign(this.filtersIndex, "#filters-index");
         this.assign(this.outputsIndex, "#outputs-index");
-        this.assign(this.encodersIndex, "#encoders-index");
       }
     });
 

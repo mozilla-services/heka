@@ -5,6 +5,7 @@ require.config({
 
   paths: {
     "jquery":                "vendor/jquery",
+    "jquery-cookie":         "vendor/jquery.cookie",
     "underscore":            "vendor/underscore",
     "backbone":              "vendor/backbone",
     "bootstrap":             "vendor/bootstrap.min",
@@ -40,6 +41,11 @@ require.config({
 
     "crc32": {
       exports: "crc32"
+    },
+
+    "jquery-cookie": {
+      deps: ["jquery"],
+      exports: "$.cookie"
     }
   }
 });
@@ -49,7 +55,8 @@ define(
   [
     "backbone",
     "router",
-    "bootstrap"
+    "bootstrap",
+    "jquery-cookie"
   ],
   function (Backbone, Router) {
     "use strict";

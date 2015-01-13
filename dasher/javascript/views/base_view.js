@@ -19,9 +19,10 @@ define(
     var BaseView = Backbone.View.extend({
       constructor: function(options) {
         this.subviews = [];
-
         Backbone.View.call(this, options);
       },
+
+      instantiated: false,
 
       /**
       * Basic object presenter using model's attributes. This should be overridden by subclasses
@@ -97,6 +98,104 @@ define(
         }.bind(this));
 
         this.$(selector).append(els);
+      },
+
+      /**
+      * Input and output plugins may have, respectively, decoder and encoder
+      * plugins consuming and feeding them. This method renders the
+      * appropriate coders.
+      *
+      * @method renderCoders
+      */
+      renderCoders: function() {
+        var collection = this.model.get('coders');
+        if (!collection) {
+          return;
+        }
+
+        this.$(".coders_container").empty()
+        collection.forEach(function(item) {
+          // We assume that *puts have unique names, and that *coder names
+          // begin with the name of the *put they work with.
+          if (item.id.indexOf(this.model.id) == 0)  {
+            var view = new this.CodersRow({model: item});
+            this.trackSubview(view);
+            this.$(".coders_container").append(view.render().el);
+          }
+        }.bind(this))
+      },
+
+      loadCollapseState: function() {
+        var cook = $.cookie('collapseState');
+        if (typeof cook == "undefined") {
+          cook = {};
+        }
+        return cook;
+      },
+
+      storeCollapseState: function(k, v) {
+        var collapseState = this.loadCollapseState();
+        collapseState[k] = v;
+        $.cookie('collapseState', collapseState);
+      },
+
+      clearCollapseState: function(k) {
+        var collapseState = this.loadCollapseState();
+        delete collapseState[k];
+        $.cookie('collapseState', collapseState);
+      },
+
+      /**
+      * Manually manage state for coder collapsers. Must be idempotent.
+      * Includes initialization routines that have to happen after children
+      * have rendered. Called by Input/OutputIndex.
+      */
+      manageCollapseState: function(rowContainerSelector) {
+        // Don't use "this." in any stateful way; keep state in the cookie.
+
+        if (!BaseView.instantiated) {
+          BaseView.instantiated = true;
+          $.cookie.json = true;
+          // https://github.com/twbs/bootstrap/issues/14282#issuecomment-51553141
+          $.fn.collapse.Constructor.DEFAULTS.toggle = false;
+          if (this.checkForDecoders) { // InputsIndex
+            this.checkForDecoders();
+          }
+        }
+
+        // setTimeout is for the Firefox drawing bug.
+        var eachState, div, anchor;
+        var collapseState = this.loadCollapseState();
+
+        setTimeout(function() {
+          $(".panel-collapse").each(function(i, el) {
+            $(this).removeClass('in'); // Closes.
+          });
+          for (var divId in collapseState) {
+            eachState = collapseState[divId];
+            div = $('#'+divId);
+            if (div) {
+              div.collapse(eachState);
+              // XXX have to manually set twirly glyph per main.css
+              anchor = div.parent().find(".accordion-toggle")
+              $(anchor).removeClass("collapsed");
+            }
+          }
+        }, 10);
+
+        // Bind cookie updates to show and hide.
+        $(rowContainerSelector).on('shown.bs.collapse', function (event) {
+          var divId = event.target.id;
+          this.storeCollapseState(divId, 'show');
+        }.bind(this));
+
+        $(rowContainerSelector).on('hidden.bs.collapse', function (event) {
+          var divId = event.target.id;
+          this.clearCollapseState(divId);
+        }.bind(this));
+
+        // Finally, schedule a call to prevent slow drift open.
+        setTimeout(this.manageCollapseState.bind(this), 30*1000);
       },
 
       /**

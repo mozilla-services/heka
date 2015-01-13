@@ -219,6 +219,8 @@ Features
 
 * Changed default plugin_chansize setting from 50 to 30 (#1242).
 
+* Reworked Health Report display in dashboard.
+
 0.8.3 (2015-01-08)
 ==================
 

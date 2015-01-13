@@ -23,12 +23,12 @@ define(
       },
 
       /**
-      * Renders FiltersRow into `.filters tbody` after render.
+      * Renders FiltersRow into `.filters_row_container` after render.
       *
       * @method afterRender
       */
       afterRender: function() {
-        this.renderCollection(FiltersRow, ".filters tbody");
+        this.renderCollection(FiltersRow, ".filters_row_container");
       }
     });
 

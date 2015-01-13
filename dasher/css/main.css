@@ -12,8 +12,13 @@ div.empty-list {
   padding: 10px;
 }
 
-table .progress {
+div .progress {
   margin-bottom: 0;
+}
+
+.progress-bar-label {
+  font-size: 80%;
+  color: LightBlue;
 }
 
 .navbar-fixed-top {
@@ -52,6 +57,21 @@ h2 .glyphicon {
   background-color: #fafafa;
 }
 
+/* The :before instruction creates a "quasi-element" (not in DOM).
+ * It can't be selected. To manipulate it, change the class attribute
+ * of the affected elements. */
+.panel-heading .accordion-toggle:before {
+    font-family: Glyphicons Halflings;
+    font-size: small;
+    content: "\e114";
+    float: left;
+    color: grey;
+}
+.panel-heading .accordion-toggle.collapsed:before {
+    /* symbol for "collapsed" panels */
+    content: "\e080";    /* adjust as needed, taken from bootstrap.css */
+}
+
 .stat-widget {
   text-align: center;
 }
@@ -71,23 +91,6 @@ h2 .glyphicon {
 
 #globals-index h3 {
   margin: 0;
-}
-
-table.plugins .name {
-  width: 30%;
-}
-
-table.plugins .in-channel, table.plugins .match-channel {
-  width: 18%;
-}
-
-table.plugins tr.decoder td.name {
-  padding-left: 29px;
-}
-
-table.plugins td.name span.glyphicon {
-  color: #555;
-  margin-right: 4px;
 }
 
 table.sandboxes tbody th {

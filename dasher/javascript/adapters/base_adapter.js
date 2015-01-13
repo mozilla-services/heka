@@ -35,6 +35,7 @@ define(
           });
         }
       },
+
       /**
       * Fills local variables with data fetched from the server. Should be implemented by
       * subclasses.
