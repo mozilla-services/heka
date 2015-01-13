@@ -22,6 +22,7 @@ import (
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -196,6 +197,8 @@ type iRunner struct {
 	sendDecodeFailures bool
 	useMsgBytes        bool
 	deliver            DeliverFunc
+	logInfo            *log.Logger
+	logError           *log.Logger
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -223,6 +226,8 @@ func NewInputRunner(name string, input Input, config CommonInputConfig) (ir Inpu
 		input:  input,
 		config: config,
 	}
+	runner.logInfo = log.New(os.Stdout, fmt.Sprintf("[INFO][InputRunner:%s] ", name), log.Ldate|log.Ltime|log.Lmicroseconds)
+	runner.logError = log.New(os.Stderr, fmt.Sprintf("[ERROR][InputRunner:%s] ", name), log.Ldate|log.Ltime|log.Lmicroseconds)
 	if config.SyncDecode != nil {
 		runner.syncDecode = *config.SyncDecode
 	}
@@ -339,11 +344,11 @@ func (ir *iRunner) Inject(pack *PipelinePack) {
 }
 
 func (ir *iRunner) LogError(err error) {
-	log.Printf("Input '%s' error: %s", ir.name, err)
+	ir.logError.Println(err)
 }
 
 func (ir *iRunner) LogMessage(msg string) {
-	log.Printf("Input '%s': %s", ir.name, msg)
+	ir.logInfo.Println(msg)
 }
 
 func (ir *iRunner) UseMsgBytes() bool {
