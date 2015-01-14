@@ -108,7 +108,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	}
 
 	if ai.amqpHub == nil {
-		ai.amqpHub = getAmqpHub()
+		ai.amqpHub = GetAmqpHub()
 	}
 	var dialer = AMQPDialer{tlsConf}
 	ch, usageWg, connWg, err := ai.amqpHub.GetChannel(conf.URL, dialer)

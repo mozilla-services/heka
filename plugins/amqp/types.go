@@ -74,6 +74,11 @@ type AMQPDialer struct {
 	tlsConfig *tls.Config
 }
 
+// NewAMQPDialer exposes factory for AMQPDialers
+func NewAMQPDialer(tlsConfig *tls.Config) AMQPDialer {
+	return AMQPDialer{tlsConfig}
+}
+
 // If additional TLS settings were specified, the dialer uses amqp.DialTLS
 // instead of amqp.Dial.
 func (dialer *AMQPDialer) Dial(url string) (conn AMQPConnection, err error) {
@@ -112,7 +117,7 @@ func newAmqpHub() AMQPConnectionHub {
 	return ach
 }
 
-func getAmqpHub() AMQPConnectionHub {
+func GetAmqpHub() AMQPConnectionHub {
 	if amqpHub == nil {
 		amqpHub = newAmqpHub()
 	}
