@@ -50,6 +50,7 @@ Config:
 
 require "cjson"
 require "string"
+local cbuf_utils = require "cbuf_utils"
 
 last_times = {}
 
@@ -66,18 +67,10 @@ function generate_gauges_list(source, headers, rows, idx)
     local time = headers.time + ((idx - 1) * headers.seconds_per_row)
     local gauges = {}
     for i = idx, headers.rows - 1 do -- This omits the last, maybe incomplete, row.
-        local values = {}
-        for value in string.gmatch(rows[i], "[^\t]+") do
-            values[#values+1] = value
-        end
         local label, value, record
-        for i, column in ipairs(col_info) do
-            value = values[i]
+        for j, column in ipairs(col_info) do
+            value = rows[i][j]
             if value ~= "nan" then
-                value = tonumber(value)
-                if not value then
-                    return nil
-                end
                 record = {name=column.name, source=source, value=value, measure_time=time}
                 gauges[#gauges+1] = record
             end
@@ -87,95 +80,22 @@ function generate_gauges_list(source, headers, rows, idx)
     return gauges
 end
 
-function check_headers(headers)
-    if (not headers.time) or (not headers.rows) or (not headers.seconds_per_row)
-        or (not headers.columns) or (not headers.column_info) then
-
-        return
-    end
-    if headers.columns ~= #headers.column_info then
-        return
-    end
-    return true
-end
-
-function parse_cbuf(cbuf_text)
-    local rows = {}
-    local headersText, headers, ok
-    local first = true
-    for row in string.gmatch(cbuf_text, "[^\n]+") do
-        if first == true then
-            headersText = row
-            ok, headers = pcall(cjson.decode, headersText)
-            if not ok then
-                return
-            end
-            -- Skip annotations line, if it exists.
-            if not headers.annotations then
-                if not check_headers(headers) then
-                    return
-                end
-                first = false
-            end
-        else
-            rows[#rows+1] = row
-        end
-    end
-    local num_rows = #rows
-    if num_rows < 3 or num_rows ~= headers.rows then
-        return
-    end
-    return headers, rows
-end
-
 function process_message()
     -- Split payload into lines.
-    local headers, rows = parse_cbuf(read_message("Payload"))
+    local headers, rows = cbuf_utils.parse_cbuf(read_message("Payload"))
     if not headers then
         return -1
     end
 
-    local time = headers.time
-    local num_rows = headers.rows
-    local sec_per_row = headers.seconds_per_row
-
-    -- Extract more message data, including message key, and look up last time
-    -- for the key.
+    -- Extract message key and look up last time for the key.
     local hostname = read_message("Hostname")
     local logger = read_message("Logger")
     local payload_name = read_message("Fields[payload_name]") or ""
     local msg_key = string.format("%s:%s", logger, payload_name)
     local last_time = last_times[msg_key]
-    local start_idx
-    if not last_time then
-        -- First time from this source, start from the first data row.
-        start_idx = 1
-    else
-        if last_time > time then
-            -- Invalid, error out.
-            return -1
-        end
-        if last_time == time then
-            -- Duplicate, ignore it.
-            return -2
-        end
-        -- Calculate the number of rows that have passed since the last
-        -- message.
-        local elapsed_time = time - last_time
-        if elapsed_time % sec_per_row ~= 0 then
-            -- Non-integer number of rows, no bueno.
-            return -1
-        end
-        local rows_elapsed = elapsed_time / sec_per_row
-
-        if rows_elapsed >= num_rows - 1 then
-            -- All the rows we've consumed so far have been advanced, start at
-            -- the beginning.
-            start_idx = 1
-        else
-            -- We've partially advanced, need to compute the starting row.
-            start_idx = num_rows - rows_elapsed
-        end
+    local start_idx = cbuf_utils.get_start_idx(last_time, headers)
+    if start_idx < 0 then
+        return start_idx
     end
 
     -- We've got our starting index, we can generate our gauges and emit the
@@ -189,6 +109,6 @@ function process_message()
     end
     local output = {gauges = gauges}
     inject_payload("json", "output", cjson.encode(output))
-    last_times[msg_key] = time
+    last_times[msg_key] = headers.time
     return 0
 end
