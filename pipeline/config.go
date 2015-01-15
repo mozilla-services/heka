@@ -337,6 +337,7 @@ func (self *PipelineConfig) Encoder(baseName, fullName string) (Encoder, bool) {
 	if err != nil {
 		msg := fmt.Sprintf("Error creating encoder '%s': %s", fullName, err.Error())
 		self.log(msg)
+		return nil, false
 	}
 	encoder := plugin.(Encoder)
 	if wantsName, ok := encoder.(WantsName); ok {
