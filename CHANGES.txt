@@ -39,6 +39,8 @@ Bug Handling
 * Hekad now respects --config parameter and loads default config path
   instead of printing help and exit (#1239).
 
+* SmtpOutput now encodes email subject when necessary (#1277).
+
 Features
 --------
 

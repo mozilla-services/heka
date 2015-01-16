@@ -26,7 +26,6 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net/smtp"
 	"sync"
-	"testing"
 	//"time"
 )
 
@@ -47,15 +46,6 @@ func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte
 	}
 	sendCount++
 	return nil
-}
-
-func TestAllSpecs(t *testing.T) {
-	r := gs.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(SmtpOutputSpec)
-
-	gs.MainGoTest(r, t)
 }
 
 func SmtpOutputSpec(c gs.Context) {

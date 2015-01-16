@@ -164,7 +164,7 @@ func (s SmtpOutput) getHeader() []byte {
 	}
 	headers := make([]string, 5)
 	headers[0] = "From: " + s.conf.SendFrom
-	headers[1] = "Subject: " + subject
+	headers[1] = encodeSubject(subject)
 	headers[2] = "MIME-Version: 1.0"
 	headers[3] = "Content-Type: text/plain; charset=\"utf-8\""
 	headers[4] = "Content-Transfer-Encoding: base64"
