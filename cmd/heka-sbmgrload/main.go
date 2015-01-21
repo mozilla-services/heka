@@ -29,7 +29,6 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
-	"log"
 	"os"
 	"time"
 )
@@ -101,7 +100,7 @@ preserve_data = true
 
 	var config SbmgrConfig
 	if _, err := toml.DecodeFile(*configFile, &config); err != nil {
-		log.Printf("Error decoding config file: %s", err)
+		client.LogError.Printf("Error decoding config file: %s", err)
 		return
 	}
 	var sender *client.NetworkSender
@@ -110,14 +109,14 @@ preserve_data = true
 		var goTlsConfig *tls.Config
 		goTlsConfig, err = tcp.CreateGoTlsConfig(&config.Tls)
 		if err != nil {
-			log.Fatalf("Error creating TLS config: %s\n", err)
+			client.LogError.Fatalf("Error creating TLS config: %s\n", err)
 		}
 		sender, err = client.NewTlsSender("tcp", config.IpAddress, goTlsConfig)
 	} else {
 		sender, err = client.NewNetworkSender("tcp", config.IpAddress)
 	}
 	if err != nil {
-		log.Fatalf("Error creating sender: %s\n", err.Error())
+		client.LogError.Fatalf("Error creating sender: %s\n", err.Error())
 	}
 	encoder := client.NewProtobufEncoder(&config.Signer)
 	manager := client.NewClient(sender, encoder)
@@ -140,7 +139,7 @@ preserve_data = true
 			msg.AddField(f1)
 			err = manager.SendMessage(msg)
 			if err != nil {
-				log.Printf("Error sending message: %s\n", err.Error())
+				client.LogError.Printf("Error sending message: %s\n", err.Error())
 			}
 		}
 	case "unload":
@@ -157,12 +156,12 @@ preserve_data = true
 			msg.AddField(f1)
 			err = manager.SendMessage(msg)
 			if err != nil {
-				log.Printf("Error sending message: %s\n", err.Error())
+				client.LogError.Printf("Error sending message: %s\n", err.Error())
 			}
 		}
 
 	default:
-		log.Printf("Invalid action: %s\n", *action)
+		client.LogError.Printf("Invalid action: %s\n", *action)
 	}
 
 }

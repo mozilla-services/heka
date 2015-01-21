@@ -26,7 +26,6 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"io"
-	"log"
 	"net"
 	"time"
 )
@@ -132,11 +131,11 @@ func DecodeHeader(buf []byte, header *Header) bool {
 	}
 	err := proto.Unmarshal(buf[0:len(buf)-1], header)
 	if err != nil {
-		log.Println("error unmarshaling header:", err)
+		LogError.Println("error unmarshaling header:", err)
 		return false
 	}
 	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
-		log.Printf("message exceeds the maximum length [%d bytes] len: %d", MAX_MESSAGE_SIZE, header.GetMessageLength())
+		LogError.Printf("message exceeds the maximum length [%d bytes] len: %d", MAX_MESSAGE_SIZE, header.GetMessageLength())
 		header.Reset()
 		return false
 	}

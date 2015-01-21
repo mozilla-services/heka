@@ -19,6 +19,9 @@ Backwards Incompatibilities
   decoding might need to happen in separate goroutines, through `Deliverer`
   objects available from the `NewDeliverer` method.
 
+* Hekad and all clients started using stdio for informational messages and
+  stderr for error messages.
+
 Bug Handling
 ------------
 

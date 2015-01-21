@@ -22,6 +22,13 @@ package client
 
 import (
 	"github.com/mozilla-services/heka/message"
+	"log"
+	"os"
+)
+
+var (
+	LogInfo  = log.New(os.Stdout, "", log.LstdFlags)
+	LogError = log.New(os.Stderr, "", log.LstdFlags)
 )
 
 type Client struct {

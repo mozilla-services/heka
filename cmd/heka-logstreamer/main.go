@@ -24,9 +24,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/logstreamer"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,11 +62,11 @@ func main() {
 
 	p, err := os.Open(*configFile)
 	if err != nil {
-		log.Fatalf("Error opening config file: %s", err)
+		client.LogError.Fatalf("Error opening config file: %s", err)
 	}
 	fi, err := p.Stat()
 	if err != nil {
-		log.Fatalf("Error fetching config file info: %s", err)
+		client.LogError.Fatalf("Error fetching config file info: %s", err)
 	}
 
 	fconfig := make(FileConfig)
@@ -81,12 +81,12 @@ func main() {
 			}
 			fPath := filepath.Join(*configFile, fName)
 			if _, err = toml.DecodeFile(fPath, &fconfig); err != nil {
-				log.Fatalf("Error decoding config file: %s", err)
+				client.LogError.Fatalf("Error decoding config file: %s", err)
 			}
 		}
 	} else {
 		if _, err := toml.DecodeFile(*configFile, &fconfig); err != nil {
-			log.Fatalf("Error decoding config file: %s", err)
+			client.LogError.Fatalf("Error decoding config file: %s", err)
 		}
 	}
 
@@ -116,7 +116,7 @@ func parseConfig(name string, prim toml.Primitive) {
 		LogDirectory:   "/var/log",
 	}
 	if err := toml.PrimitiveDecode(prim, &config); err != nil {
-		log.Printf("Error decoding config file: %s", err)
+		client.LogError.Printf("Error decoding config file: %s", err)
 		return
 	}
 
@@ -133,11 +133,11 @@ func parseConfig(name string, prim toml.Primitive) {
 	oldest, _ := time.ParseDuration(config.OldestDuration)
 	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "")
 	if err != nil {
-		log.Fatalf("Error initializing LogstreamSet: %s\n", err.Error())
+		client.LogError.Fatalf("Error initializing LogstreamSet: %s\n", err.Error())
 	}
 	streams, errs := ls.ScanForLogstreams()
 	if errs.IsError() {
-		log.Fatalf("Error scanning: %s\n", errs)
+		client.LogError.Fatalf("Error scanning: %s\n", errs)
 	}
 
 	fmt.Printf("Found %d Logstream(s) for section [%s].\n", len(streams), name)
