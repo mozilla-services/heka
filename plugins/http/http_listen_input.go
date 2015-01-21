@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Christian Vozar (christian@bellycard.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Anton Lindstrom (carlantonlindstrom@gmail.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -33,7 +34,6 @@ type HttpListenInput struct {
 	listener    net.Listener
 	stopChan    chan bool
 	ir          InputRunner
-	dRunner     DecoderRunner
 	pConfig     *PipelineConfig
 	server      *http.Server
 	starterFunc func(hli *HttpListenInput) error
@@ -43,32 +43,34 @@ type HttpListenInput struct {
 type HttpListenInputConfig struct {
 	// TCP Address to listen to for SNS notifications.
 	// Defaults to "0.0.0.0:8325".
-	Address      string
-	Headers      http.Header
-	UnescapeBody bool `toml:"unescape_body"`
+	Address        string
+	Headers        http.Header
+	RequestHeaders []string `toml:"request_headers"`
+	UnescapeBody   bool     `toml:"unescape_body"`
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
 	return &HttpListenInputConfig{
-		Address:      "127.0.0.1:8325",
-		Headers:      make(http.Header),
-		UnescapeBody: true,
+		Address:        "127.0.0.1:8325",
+		Headers:        make(http.Header),
+		RequestHeaders: []string{},
+		UnescapeBody:   true,
 	}
 }
 
 func defaultStarter(hli *HttpListenInput) (err error) {
 	hli.listener, err = net.Listen("tcp", hli.conf.Address)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
+		return fmt.Errorf("Listener [%s] start fail: %s",
 			hli.conf.Address, err.Error())
 	} else {
-		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
+		hli.ir.LogMessage(fmt.Sprintf("Listening on %s",
 			hli.conf.Address))
 	}
 
 	err = hli.server.Serve(hli.listener)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+		return fmt.Errorf("Serve fail: %s", err.Error())
 	}
 
 	return nil
@@ -77,7 +79,7 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		hli.ir.LogError(fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error()))
+		hli.ir.LogError(fmt.Errorf("Read HTTP request body fail: %s\n", err.Error()))
 	}
 	req.Body.Close()
 
@@ -109,6 +111,17 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		pack.Message.AddField(field)
 	} else {
 		hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+	}
+
+	for _, key := range hli.conf.RequestHeaders {
+		value := req.Header.Get(key)
+		if len(value) == 0 {
+			continue
+		} else if field, err := message.NewField(key, value, ""); err == nil {
+			pack.Message.AddField(field)
+		} else {
+			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+		}
 	}
 
 	for key, values := range req.URL.Query() {
