@@ -166,7 +166,7 @@ func AMQPPluginSpec(c gs.Context) {
 				c.Assume(ok, gs.IsTrue)
 				c.Expect(fieldValue, gs.Equals, "1000")
 
-				fieldValue, ok = ith.Pack.Message.GetFieldValue("Type")
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("MessageType")
 				c.Assume(ok, gs.IsTrue)
 				c.Expect(fieldValue, gs.Equals, "app-message")
 
@@ -271,7 +271,7 @@ func AMQPPluginSpec(c gs.Context) {
 				c.Assume(ok, gs.IsTrue)
 				c.Expect(fieldValue, gs.Equals, "1000")
 
-				fieldValue, ok = ith.Pack.Message.GetFieldValue("Type")
+				fieldValue, ok = ith.Pack.Message.GetFieldValue("MessageType")
 				c.Assume(ok, gs.IsTrue)
 				c.Expect(fieldValue, gs.Equals, "app-message")
 

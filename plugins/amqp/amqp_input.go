@@ -276,7 +276,7 @@ func fieldMap(msg amqp.Delivery) map[string]interface{} {
 		"CorrelationId":   msg.CorrelationId,
 		"ReplyTo":         msg.ReplyTo,
 		"Expiration":      msg.Expiration,
-		"Type":            msg.Type,
+		"MessageType":     msg.Type,
 		"UserId":          msg.UserId,
 		"AppId":           msg.AppId,
 		"Exchange":        msg.Exchange,
