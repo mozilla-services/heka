@@ -99,11 +99,6 @@ func main() {
 	var cpuProfName string
 	var memProfName string
 
-	if flag.NFlag() == 0 {
-		flag.PrintDefaults()
-		os.Exit(0)
-	}
-
 	if *version {
 		fmt.Println(VERSION)
 		os.Exit(0)
