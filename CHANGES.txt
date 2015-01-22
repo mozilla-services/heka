@@ -80,7 +80,6 @@ Features
   (more like statsd itself).
   
 
->>>>>>> upstream/dev
 0.8.3 (2015-01-08)
 ==================
 
