@@ -326,6 +326,7 @@ type ESLogstashV0Encoder struct {
 	coord          *ElasticSearchCoordinates
 	// Field names to include in ElasticSearch document for "clean" format.
 	fields         []string
+	timestampFormat string
 	useMessageType bool
 }
 
@@ -339,6 +340,8 @@ type ESLogstashV0EncoderConfig struct {
 	UseMessageType bool `toml:"use_message_type"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
+	// Timestamp format. Defaults to "2006-01-02T15:04:05.000Z"
+	Timestamp string
 	// When formating the Index use the Timestamp from the Message instead of
 	// time of processing. Defaults to false.
 	ESIndexFromTimestamp bool `toml:"es_index_from_timestamp"`
@@ -352,6 +355,7 @@ func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 	config := &ESLogstashV0EncoderConfig{
 		Index:                "logstash-%{2006.01.02}",
 		TypeName:             "message",
+		Timestamp:            "2006-01-02T15:04:05.000Z",
 		UseMessageType:       false,
 		ESIndexFromTimestamp: false,
 		Id:                   "",
@@ -377,6 +381,7 @@ func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 	conf := config.(*ESLogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
 	e.fields = conf.Fields
+	e.timestampFormat = conf.Timestamp
 	e.useMessageType = conf.UseMessageType
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
@@ -401,7 +406,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			writeStringField(first, &buf, `@uuid`, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeStringField(first, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
+			writeStringField(first, &buf, `@timestamp`, t.Format(e.timestampFormat))
 		case "type":
 			if e.useMessageType || len(e.coord.Type) < 1 {
 				writeStringField(first, &buf, `@type`, m.GetType())

@@ -40,6 +40,21 @@ func TestAllSpecs(t *testing.T) {
 	gs.MainGoTest(r, t)
 }
 
+type deliverer struct {
+	deliver DeliverFunc
+}
+
+func (d *deliverer) Deliver(pack *PipelinePack) {
+	d.deliver(pack)
+}
+
+func (d *deliverer) DeliverFunc() DeliverFunc {
+	return d.deliver
+}
+
+func (d *deliverer) Done() {
+}
+
 func LogstreamerInputSpec(c gs.Context) {
 	t := &pipeline_ts.SimpleT{}
 	ctrl := gomock.NewController(t)
@@ -57,10 +72,10 @@ func LogstreamerInputSpec(c gs.Context) {
 
 	globals := DefaultGlobals()
 	globals.BaseDir = tmpDir
-	config := NewPipelineConfig(globals)
+	pConfig := NewPipelineConfig(globals)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	// Specify localhost, but we're not really going to use the network.
 	ith.AddrStr = "localhost:55565"
@@ -72,7 +87,7 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	c.Specify("A LogstreamerInput", func() {
-		lsInput := &LogstreamerInput{pConfig: config}
+		lsInput := &LogstreamerInput{pConfig: pConfig}
 		lsiConfig := lsInput.ConfigStruct().(*LogstreamerInputConfig)
 		lsiConfig.LogDirectory = dirPath
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
@@ -93,9 +108,6 @@ func LogstreamerInputSpec(c gs.Context) {
 				ith.PackSupply <- packs[i]
 			}
 
-			deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
-			deliverCall.Times(numLines)
-
 			c.Specify("reads a log file", func() {
 				// Expect InputRunner calls to get InChan and inject outgoing msgs.
 				ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
@@ -103,9 +115,14 @@ func LogstreamerInputSpec(c gs.Context) {
 				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 
 				deliverChan := make(chan bool)
-				deliverCall.Do(func(pack *PipelinePack) {
+				deliver := func(pack *PipelinePack) {
 					deliverChan <- true
-				})
+				}
+				d := &deliverer{
+					deliver: deliver,
+				}
+				delivererCall := ith.MockInputRunner.EXPECT().NewDeliverer(gomock.Any())
+				delivererCall.Return(d)
 
 				runOutChan := make(chan error, 1)
 				go func() {
@@ -113,8 +130,8 @@ func LogstreamerInputSpec(c gs.Context) {
 					runOutChan <- err
 				}()
 
-				d, _ := time.ParseDuration("5s")
-				timeout := time.After(d)
+				dur, _ := time.ParseDuration("5s")
+				timeout := time.After(dur)
 				timed := false
 				for x := 0; x < numLines; x++ {
 					select {

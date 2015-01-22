@@ -111,6 +111,34 @@ func AddDecodeFailureFields(m *message.Message, errMsg string) error {
 	return nil
 }
 
+type DeliverFunc func(pack *PipelinePack)
+
+type Deliverer interface {
+	Deliver(pack *PipelinePack)
+	DeliverFunc() DeliverFunc
+	Done()
+}
+
+type deliverer struct {
+	deliver DeliverFunc
+	dRunner DecoderRunner
+	pConfig *PipelineConfig
+}
+
+func (d *deliverer) Deliver(pack *PipelinePack) {
+	d.deliver(pack)
+}
+
+func (d *deliverer) DeliverFunc() DeliverFunc {
+	return d.deliver
+}
+
+func (d *deliverer) Done() {
+	if d.dRunner != nil {
+		d.pConfig.StopDecoderRunner(d.dRunner)
+	}
+}
+
 // Heka PluginRunner for Input plugins.
 type InputRunner interface {
 	PluginRunner
@@ -136,6 +164,12 @@ type InputRunner interface {
 	// SetTransient specifies whether or not this Input should be considered
 	// transient.
 	SetTransient(transient bool)
+	// Creates and returns a new Deliverer, creating a new Decoder or
+	// DecoderRunner to handle decoding before router injection if necessary.
+	// It is the caller's responsibility to call `Done()` when the deliverer
+	// is no longer in use to ensure that any DecoderRunner goroutines get
+	// cleaned up.
+	NewDeliverer(token string) Deliverer
 	// Deliver accepts packs from the Input plugin and performs the
 	// appropriate one of three possible next actions. Possible actions are 1)
 	// placing the pack on a Decoder's input channel, if a decoder is
@@ -161,8 +195,7 @@ type iRunner struct {
 	syncDecode         bool
 	sendDecodeFailures bool
 	useMsgBytes        bool
-	dRunner            DecoderRunner
-	decoder            Decoder
+	deliver            DeliverFunc
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -217,30 +250,20 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		ir.ticker = time.Tick(tickLength)
 	}
 
-	if ownDecoding, ok := ir.input.(DoesOwnDecoding); ok {
-		ownDecoding.SetCommonInputConfig(ir.config)
-	} else if ir.decoder == nil && ir.dRunner == nil && ir.config.Decoder != "" {
-		var ok bool
-		if ir.syncDecode {
-			ir.decoder, ok = ir.pConfig.Decoder(ir.config.Decoder)
-		} else {
-			fullName := fmt.Sprintf("%s-%s", ir.name, ir.config.Decoder)
-			ir.dRunner, ok = h.DecoderRunner(ir.config.Decoder, fullName)
-			if ok {
-				ir.decoder = ir.dRunner.Decoder()
-				ir.dRunner.SetSendFailure(ir.sendDecodeFailures)
-			}
-		}
+	// This bit is a bit kludgey; we're creating a decoder just to see if it's
+	// a ProtobufDecoder or a MultiDecoder starting with a ProtobufDecoder,
+	// and if so we set useMsgBytes to true. This should go away entirely when
+	// the splitter branch lands, this is just to keep the dev branch working
+	// in the meantime.
+	if ir.config.Decoder != "" {
+		decoder, ok := ir.pConfig.Decoder(ir.config.Decoder)
 		if !ok {
 			return fmt.Errorf("%s can't create decoder %s", ir.name, ir.config.Decoder)
 		}
-	}
-
-	if ir.decoder != nil {
-		_, ok := ir.decoder.(*ProtobufDecoder)
+		_, ok = decoder.(*ProtobufDecoder)
 		if ok {
 			ir.useMsgBytes = true
-		} else if d, ok := ir.decoder.(*MultiDecoder); ok {
+		} else if d, ok := decoder.(*MultiDecoder); ok {
 			if len(d.Decoders) > 0 {
 				_, ok = d.Decoders[0].(*ProtobufDecoder)
 				if ok {
@@ -327,18 +350,52 @@ func (ir *iRunner) UseMsgBytes() bool {
 	return ir.useMsgBytes
 }
 
-func (ir *iRunner) Deliver(pack *PipelinePack) {
-	if ir.decoder == nil {
-		// No decoder, hand it right to the router.
-		ir.Inject(pack)
-		return
+func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
+	var deliver DeliverFunc
+	decoderName := ir.config.Decoder
+
+	// If no decoder is specified we just inject into the router.
+	if decoderName == "" {
+		deliver = func(pack *PipelinePack) {
+			ir.Inject(pack)
+		}
+		return deliver, nil
 	}
-	// If we get this far we have a decoder.
-	if ir.syncDecode {
-		packs, err := ir.decoder.Decode(pack)
+
+	ir.pConfig.makersLock.RLock()
+	_, ok := ir.pConfig.DecoderMakers[decoderName]
+	ir.pConfig.makersLock.RUnlock()
+	if !ok {
+		ir.LogError(fmt.Errorf("decoder '%s' not registered", decoderName))
+		return nil, nil
+	}
+
+	// No synchronous decode means create a DecoderRunner and drop packs on
+	// its inChan.
+	if !ir.syncDecode {
+		var fullName string
+		if token == "" {
+			fullName = fmt.Sprintf("%s-%s", ir.name, decoderName)
+		} else {
+			fullName = fmt.Sprintf("%s-%s-%s", ir.name, decoderName, token)
+		}
+		dr, _ := ir.pConfig.DecoderRunner(decoderName, fullName)
+		dr.SetSendFailure(ir.sendDecodeFailures)
+		inChan := dr.InChan()
+		deliver = func(pack *PipelinePack) {
+			inChan <- pack
+		}
+		return deliver, dr
+	}
+
+	// Synchronous decode means create a decoder instance and call Decode
+	// directly.
+	decoder, _ := ir.pConfig.Decoder(decoderName)
+	deliver = func(pack *PipelinePack) {
+		packs, err := decoder.Decode(pack)
 		if err != nil {
 			errMsg := err.Error()
-			ir.LogError(fmt.Errorf("decode error: %s", errMsg))
+			ir.LogError(fmt.Errorf("decoding: %s", errMsg))
 			if !ir.sendDecodeFailures {
 				pack.Recycle()
 				return
@@ -352,11 +409,25 @@ func (ir *iRunner) Deliver(pack *PipelinePack) {
 		for _, p := range packs {
 			ir.Inject(p)
 		}
-		return
 	}
-	// If we get this far we're not synchronously decoding, just drop the pack
-	// on the DecoderRunner input channel.
-	ir.dRunner.InChan() <- pack
+	return deliver, nil
+}
+
+func (ir *iRunner) NewDeliverer(token string) Deliverer {
+	deliver, dRunner := ir.getDeliverFunc(token)
+	d := &deliverer{
+		deliver: deliver,
+		dRunner: dRunner,
+		pConfig: ir.pConfig,
+	}
+	return d
+}
+
+func (ir *iRunner) Deliver(pack *PipelinePack) {
+	if ir.deliver == nil {
+		ir.deliver, _ = ir.getDeliverFunc("")
+	}
+	ir.deliver(pack)
 }
 
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,

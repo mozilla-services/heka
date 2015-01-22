@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -9,6 +10,7 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
+	"time"
 )
 
 func DecoderSpec(c gs.Context) {
@@ -624,9 +626,16 @@ HugePages_Free:        0
 			_, err = decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 
-			c.Expect(pack.Message.GetTimestamp(),
-				gs.Equals,
-				int64(1392065938000000000))
+			// Syslog timestamp doesn't support year, so we have to calculate
+			// it for the current year or else this test will fail every
+			// January.
+			year := time.Now().Year()
+			tStr := fmt.Sprintf("%d Feb 10 12:58:58 -0800", year)
+			t, err := time.Parse("2006 Jan 02 15:04:05 -0700", tStr)
+			c.Assume(err, gs.IsNil)
+			unixT := t.UnixNano()
+
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, unixT)
 
 			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(4))
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "testhost")

@@ -142,9 +142,9 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		outBytes []byte
 	)
 	if conf.Persistent {
-		persist = uint8(1)
+		persist = amqp.Persistent
 	} else {
-		persist = uint8(0)
+		persist = amqp.Transient
 	}
 
 	// Spin up separate goroutine so we can wait for close notifications from

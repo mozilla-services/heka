@@ -22,10 +22,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/ringbuf"
 	"io"
 	"os"
-	"strings"
+
+	"github.com/mozilla-services/heka/ringbuf"
 )
 
 // A location in a logstream indicating the farthest that has been read
@@ -327,10 +327,21 @@ func createFileReader(path string, fd *os.File) (reader io.Reader, err error) {
 	return
 }
 
-// Guesses if the given file is gzipped. Currently this uses the filename,
-// but it could sniff the file header.
+// Guesses if the given file is gzipped.
 func isGzipFile(path string) bool {
-	return strings.HasSuffix(path, ".gz")
+	file, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	magic := make([]byte, 2)
+	numbytes, err := file.Read(magic)
+	if numbytes != 2 || err != nil {
+		return false
+	}
+
+	return (magic[0] == 0x1f && magic[1] == 0x8b)
 }
 
 var ErrorCantSeekPosition = errors.New("Unable to locate position")

@@ -30,6 +30,9 @@ Bug Handling
 * AMQPOutput now uses defined constants for delivery mode instead of hard
   coded (and wrong) integer values (#1235).
 
+* Hekad now respects --config parameter and loads default config path
+  instead of printing help and exit (#1239).
+
 Features
 --------
 
@@ -76,6 +79,8 @@ Features
   one at time without skipping all the "good" stats in a multi-line input
   (more like statsd itself).
   
+
+>>>>>>> upstream/dev
 0.8.3 (2015-01-08)
 ==================
 
