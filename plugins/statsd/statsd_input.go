@@ -137,7 +137,7 @@ func (s *StatsdInput) handleMessage(message []byte) {
 
 	for _, stat := range stats {
 		if !s.statAccum.DropStat(stat) {
-			s.ir.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+			s.ir.LogError(fmt.Errorf("Undelivered stat: %+v", stat))
 		}
 	}
 }
