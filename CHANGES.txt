@@ -61,6 +61,11 @@ Features
 
 * Added `send_interval` setting to SmtpOutput.
 
+* Added ability for Statsd input handler to treat a malformed stat line 
+  one at time without skipping all the "good" stats in a multi-line input
+  (more like statsd itself).
+  
+
 0.8.1 (2014-12-17)
 ==================
 
