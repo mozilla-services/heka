@@ -115,10 +115,8 @@ func (o *ElasticSearchOutput) SetName(name string) {
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.conf = config.(*ElasticSearchOutputConfig)
 
-	if !o.conf.UseBuffering {
-		o.batchChan = make(chan []byte)
-		o.backChan = make(chan []byte, 2)
-	}
+	o.batchChan = make(chan []byte)
+	o.backChan = make(chan []byte, 2)
 	var serverUrl *url.URL
 
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
@@ -186,9 +184,7 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		o.bufferedOut.Start(o, outputError, outputExit, stopChan)
 	}
 
-	if !o.conf.UseBuffering {
-		go o.committer(outputExit)
-	}
+	go o.committer(outputExit, &count)
 
 	for ok {
 		select {
@@ -198,15 +194,11 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			// Closed inChan => we're shutting down, flush data
 			if !ok {
 				if len(outBatch) > 0 {
-					if !o.conf.UseBuffering {
-						o.batchChan <- outBatch
-						outBatch = <-o.backChan
-					}
+					o.batchChan <- outBatch
+					outBatch = <-o.backChan
 					atomic.AddInt64(&o.processMessageCount, int64(count))
 				}
-				if o.batchChan != nil {
-					close(o.batchChan)
-				}
+				close(o.batchChan)
 				stopChan <- true
 				<-outputExit
 
@@ -220,24 +212,8 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				outBatch = append(outBatch, outBytes...)
 				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
 					if len(outBatch) > 0 {
-						if o.conf.UseBuffering {
-							// This will not block, so we can immediate buffer a chunk of
-							// data to disk and start on the next one regardless of how fast
-							// the target ElasticSearch instance can accept data.
-							err = o.bufferedOut.QueueBytes(outBatch)
-							if err == QueueIsFull && !o.queueFull(outBatch, count) {
-								outputExit <- err
-							} else if err != nil {
-								or.LogError(fmt.Errorf("unable to write to output queue: %s", err.Error()))
-							}
-							// Clear out temporary buffer for next round of messages
-							outBatch = outBatch[:0]
-						} else {
-							// This will block until the other side is ready to accept
-							// this batch, so we can't get too far ahead.
-							o.batchChan <- outBatch
-							outBatch = <-o.backChan
-						}
+						o.batchChan <- outBatch
+						outBatch = <-o.backChan
 						atomic.AddInt64(&o.processMessageCount, int64(count))
 					}
 					count = 0
@@ -247,25 +223,14 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if len(outBatch) > 0 {
 				if o.conf.UseBuffering {
 					if err = o.bufferedOut.RollQueue(); err != nil {
-						return fmt.Errorf("can't create new buffer queue file: %s", err.Error())
+						or.LogError(err)
+						return
 					}
-					// This will not block, so we can immediate buffer a chunk of
-					// data to disk and start on the next one regardless of how fast
-					// the target ElasticSearch instance can accept data.
-					err = o.bufferedOut.QueueBytes(outBatch)
-					if err == QueueIsFull && !o.queueFull(outBatch, count) {
-						outputExit <- err
-					} else if err != nil {
-						or.LogError(fmt.Errorf("unable to write to output queue: %s", err.Error()))
-					}
-					// Clear out temporary buffer for next round of messages
-					outBatch = outBatch[:0]
-				} else {
-					// This will block until the other side is ready to accept
-					// this batch, so we can't get too far ahead.
-					o.batchChan <- outBatch
-					outBatch = <-o.backChan
 				}
+				// This will block until the other side is ready to accept
+				// this batch, so we can't get too far ahead.
+				o.batchChan <- outBatch
+				outBatch = <-o.backChan
 				atomic.AddInt64(&o.processMessageCount, int64(count))
 			}
 			count = 0
@@ -279,15 +244,25 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 // Runs in a separate goroutine, waits for buffered data on the committer
 // channel, bulk index it out to the elasticsearch cluster, and puts the now
 // empty buffer on the return channel for reuse.
-func (o *ElasticSearchOutput) committer(outputExit chan error) {
+func (o *ElasticSearchOutput) committer(outputExit chan error, recordCount *int) {
 	var (
 		outBatch []byte
+		err      error
 	)
 	o.backChan <- make([]byte, 0, 10000)
 
 	for outBatch = range o.batchChan {
-		if err := o.SendRecord(outBatch); err != nil {
-			o.or.LogError(err)
+		if o.conf.UseBuffering {
+			err = o.bufferedOut.QueueBytes(outBatch)
+		} else {
+			err = o.SendRecord(outBatch)
+		}
+		if err != nil {
+			if o.conf.UseBuffering && err == QueueIsFull && !o.queueFull(outBatch, *recordCount) {
+				outputExit <- err
+			} else {
+				o.or.LogError(err)
+			}
 		}
 		outBatch = outBatch[:0]
 		o.backChan <- outBatch
@@ -457,9 +432,6 @@ func (u *UDPBulkIndexer) Index(body []byte) error {
 	return nil
 }
 
-// This function will be called if the queue is full and another item is sent
-// to the queue. The result depends on the configured queue full action.
-// The returned bool indicates if the queue can continue to accept items.
 func (o *ElasticSearchOutput) queueFull(buffer []byte, recordCount int) bool {
 	switch o.conf.QueueFullAction {
 	// Tries to queue message until its possible to send it to output.
