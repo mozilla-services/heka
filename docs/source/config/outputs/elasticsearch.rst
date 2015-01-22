@@ -43,6 +43,10 @@ Config:
 
 .. versionadded:: 0.9
 
+- tls (TlsConfig):
+    An optional sub-section that specifies the settings to be used for any
+    SSL/TLS encryption. This will only have any impact if `URL` uses the
+    `HTTPS` URI scheme. See :ref:`tls`.
 - use_buffering: (bool, optional):
     Buffer records to a disk-backed buffer on the Heka server before writing them to ElasticSearch.
     Defaults to true.

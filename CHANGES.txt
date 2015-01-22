@@ -69,6 +69,11 @@ Features
 
 * Added on-disk buffering to ElasticSearchOutput. It is enabled by default.
 
+* Added TLS support to ElasticSearchOutput (#1259).
+
+* Added ability for HttpListenInput to capture specified HTTP request headers
+  and write them as message fields.
+
 0.8.3 (2015-01-08)
 ==================
 

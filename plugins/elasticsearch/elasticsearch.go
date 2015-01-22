@@ -17,11 +17,13 @@ package elasticsearch
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -66,6 +68,9 @@ type ElasticSearchOutputConfig struct {
 	// on the local network and the indexing will be done with the UDP Bulk
 	// API. (default to "http://localhost:9200")
 	Server string
+	// Optional subsection for TLS configuration of ElasticSearch connections. If
+	// unspecified, the default ElasticSearch settings will be used.
+	Tls tcp.TlsConfig
 	// Optional ElasticSearch username for HTTP authentication. This is useful
 	// if you have put your ElasticSearch cluster behind a proxy like nginx.
 	// and turned on authentication.
@@ -118,13 +123,20 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2)
 	var serverUrl *url.URL
-
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
-		switch strings.ToLower(serverUrl.Scheme) {
+		var scheme string = strings.ToLower(serverUrl.Scheme)
+		switch scheme {
 		case "http", "https":
-			o.bulkIndexer = NewHttpBulkIndexer(strings.ToLower(serverUrl.Scheme),
-				serverUrl.Host, o.conf.FlushCount, o.conf.Username, o.conf.Password,
-				o.conf.HTTPTimeout, o.conf.HTTPDisableKeepalives, o.conf.ConnectTimeout)
+			var tlsConf *tls.Config = nil
+			if scheme == "https" && &o.conf.Tls != nil {
+				if tlsConf, err = tcp.CreateGoTlsConfig(&o.conf.Tls); err != nil {
+					return fmt.Errorf("TLS init error: %s", err)
+				}
+			}
+
+			o.bulkIndexer = NewHttpBulkIndexer(scheme, serverUrl.Host,
+				o.conf.FlushCount, o.conf.Username, o.conf.Password, o.conf.HTTPTimeout,
+				o.conf.HTTPDisableKeepalives, o.conf.ConnectTimeout, tlsConf)
 		case "udp":
 			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.conf.FlushCount)
 		default:
@@ -301,9 +313,10 @@ type HttpBulkIndexer struct {
 
 func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
 	username string, password string, httpTimeout uint32, httpDisableKeepalives bool,
-	connectTimeout uint32) *HttpBulkIndexer {
+	connectTimeout uint32, tlsConf *tls.Config) *HttpBulkIndexer {
 
 	tr := &http.Transport{
+		TLSClientConfig:   tlsConf,
 		DisableKeepAlives: httpDisableKeepalives,
 		Dial: func(network, address string) (net.Conn, error) {
 			return net.DialTimeout(network, address, time.Duration(connectTimeout)*time.Millisecond)

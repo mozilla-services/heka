@@ -150,6 +150,33 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Expect(payload, gs.Equals, "1+2")
 		})
 
+		c.Specify("Add request headers as fields", func() {
+			config.RequestHeaders = []string{
+				"X-REQUEST-ID",
+			}
+			err := httpListenInput.Init(config)
+			ts.Config = httpListenInput.server
+			c.Assume(err, gs.IsNil)
+
+			startInput()
+			ith.PackSupply <- ith.Pack
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			req.Header.Add("X-REQUEST-ID", "12345")
+			resp, err := client.Do(req)
+
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+
+			deliverWg.Wait()
+			fieldValue, ok := ith.Pack.Message.GetFieldValue("X-REQUEST-ID")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, "12345")
+		})
+
 		ts.Close()
 		httpListenInput.Stop()
 	})
