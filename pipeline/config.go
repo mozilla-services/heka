@@ -44,6 +44,8 @@ var (
 	AvailablePlugins     = make(map[string]func() interface{})
 	ErrMissingCloseDelim = errors.New("Missing closing delimiter")
 	ErrInvalidChars      = errors.New("Invalid characters in environmental variable")
+	LogInfo              = log.New(os.Stdout, "", log.LstdFlags)
+	LogError             = log.New(os.Stderr, "", log.LstdFlags)
 )
 
 // Adds a plugin to the set of usable Heka plugins that can be referenced from
@@ -485,7 +487,7 @@ func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}
 // Used internally to log and record plugin config loading errors.
 func (self *PipelineConfig) log(msg string) {
 	self.LogMsgs = append(self.LogMsgs, msg)
-	log.Println(msg)
+	LogError.Println(msg)
 }
 
 var PluginTypeRegex = regexp.MustCompile("(Decoder|Encoder|Filter|Input|Output)$")
@@ -962,7 +964,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		if name == HEKA_DAEMON {
 			continue
 		}
-		log.Printf("Pre-loading: [%s]\n", name)
+		LogInfo.Printf("Pre-loading: [%s]\n", name)
 		maker, err := NewPluginMaker(name, self, conf)
 		if err != nil {
 			self.log(err.Error())
@@ -991,7 +993,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	if !protobufDRegistered {
 		var configDefault ConfigFile
 		toml.Decode(protobufDecoderToml, &configDefault)
-		log.Println("Pre-loading: [ProtobufDecoder]")
+		LogInfo.Println("Pre-loading: [ProtobufDecoder]")
 		maker, err := NewPluginMaker("ProtobufDecoder", self,
 			configDefault["ProtobufDecoder"])
 		if err != nil {
@@ -1008,7 +1010,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	if !protobufERegistered {
 		var configDefault ConfigFile
 		toml.Decode(protobufEncoderToml, &configDefault)
-		log.Println("Pre-loading: [ProtobufEncoder]")
+		LogInfo.Println("Pre-loading: [ProtobufEncoder]")
 		maker, err := NewPluginMaker("ProtobufEncoder", self,
 			configDefault["ProtobufEncoder"])
 		if err != nil {
@@ -1046,7 +1048,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	order := []string{"Decoder", "Encoder", "Input", "Filter", "Output"}
 	for _, category := range order {
 		for _, maker := range makersByCategory[category] {
-			log.Printf("Loading: [%s]\n", maker.Name())
+			LogInfo.Printf("Loading: [%s]\n", maker.Name())
 			if err = maker.PrepConfig(); err != nil {
 				self.log(err.Error())
 				errcnt++

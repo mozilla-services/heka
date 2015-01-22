@@ -37,7 +37,6 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
-	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -99,7 +98,7 @@ func timerLoop(count, bytes *uint64, ticker *time.Ticker) {
 		} else {
 			zeroes = 0
 		}
-		log.Printf("Sent %d messages. %0.2f msg/sec %0.2f Mbit/sec\n", newCount, msgRate, bitRate)
+		client.LogInfo.Printf("Sent %d messages. %0.2f msg/sec %0.2f Mbit/sec\n", newCount, msgRate, bitRate)
 	}
 }
 
@@ -159,7 +158,7 @@ func makeVariableMessage(encoder client.StreamEncoder, items int,
 
 		var stream []byte
 		if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
-			log.Println(err)
+			client.LogError.Println(err)
 		}
 		ma[x] = stream
 	}
@@ -203,7 +202,7 @@ func makePayload(size uint64, rdm *randomDataMaker) (payload string) {
 	if _, err := io.CopyN(payloadSuffix, rdm, int64(size)); err == nil {
 		payload = fmt.Sprintf("%s - %s", payload, payloadSuffix.String())
 	} else {
-		log.Println("Error getting random string: ", err)
+		client.LogError.Println("Error getting random string: ", err)
 	}
 	return
 }
@@ -263,7 +262,7 @@ func makeFixedMessage(encoder client.StreamEncoder, size uint64,
 	msg.SetPayload(makePayload(size, rdm))
 	var stream []byte
 	if err := encoder.EncodeMessageStream(msg, &stream); err != nil {
-		log.Println(err)
+		client.LogError.Println(err)
 	}
 	ma[0] = stream
 	return ma
@@ -298,20 +297,20 @@ func main() {
 
 	var config FloodConfig
 	if _, err := toml.DecodeFile(*configFile, &config); err != nil {
-		log.Printf("Error decoding config file: %s", err)
+		client.LogError.Printf("Error decoding config file: %s", err)
 		return
 	}
 	var test FloodTest
 	var ok bool
 	if test, ok = config[*configTest]; !ok {
-		log.Printf("Configuration test: '%s' was not found", *configTest)
+		client.LogError.Printf("Configuration test: '%s' was not found", *configTest)
 		return
 	}
 
 	if test.PprofFile != "" {
 		profFile, err := os.Create(test.PprofFile)
 		if err != nil {
-			log.Fatalln(err)
+			client.LogError.Fatalln(err)
 		}
 		pprof.StartCPUProfile(profFile)
 		defer pprof.StopCPUProfile()
@@ -323,14 +322,14 @@ func main() {
 		var goTlsConfig *tls.Config
 		goTlsConfig, err = tcp.CreateGoTlsConfig(&test.Tls)
 		if err != nil {
-			log.Fatalf("Error creating TLS config: %s\n", err)
+			client.LogError.Fatalf("Error creating TLS config: %s\n", err)
 		}
 		sender, err = client.NewTlsSender(test.Sender, test.IpAddress, goTlsConfig)
 	} else {
 		sender, err = client.NewNetworkSender(test.Sender, test.IpAddress)
 	}
 	if err != nil {
-		log.Fatalf("Error creating sender: %s\n", err)
+		client.LogError.Fatalf("Error creating sender: %s\n", err)
 	}
 
 	unsignedEncoder := client.NewProtobufEncoder(nil)
@@ -408,7 +407,7 @@ func main() {
 		}
 		bytesSent += uint64(len(buf))
 		if err = sendMessage(sender, buf, corrupt); err != nil {
-			log.Printf("Error sending message: %s\n", err.Error())
+			client.LogError.Printf("Error sending message: %s\n", err.Error())
 		} else {
 			msgsDelivered++
 		}
@@ -418,6 +417,6 @@ func main() {
 		}
 	}
 	sender.Close()
-	log.Println("Clean shutdown: ", msgsSent, " messages sent; ",
+	client.LogInfo.Println("Clean shutdown: ", msgsSent, " messages sent; ",
 		msgsDelivered, " messages delivered.")
 }

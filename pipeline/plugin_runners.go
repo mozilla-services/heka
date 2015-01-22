@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"sync"
 	"time"
 )
@@ -339,11 +338,11 @@ func (ir *iRunner) Inject(pack *PipelinePack) {
 }
 
 func (ir *iRunner) LogError(err error) {
-	log.Printf("Input '%s' error: %s", ir.name, err)
+	LogError.Printf("Input '%s' error: %s", ir.name, err)
 }
 
 func (ir *iRunner) LogMessage(msg string) {
-	log.Printf("Input '%s': %s", ir.name, msg)
+	LogInfo.Printf("Input '%s': %s", ir.name, msg)
 }
 
 func (ir *iRunner) UseMsgBytes() bool {
@@ -533,11 +532,11 @@ func (dr *dRunner) NewPack() *PipelinePack {
 }
 
 func (dr *dRunner) LogError(err error) {
-	log.Printf("Decoder '%s' error: %s", dr.name, err)
+	LogError.Printf("Decoder '%s' error: %s", dr.name, err)
 }
 
 func (dr *dRunner) LogMessage(msg string) {
-	log.Printf("Decoder '%s': %s", dr.name, msg)
+	LogInfo.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
 func (dr *dRunner) SetSendFailure(sendFailure bool) {
@@ -906,11 +905,11 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 }
 
 func (foRunner *foRunner) LogError(err error) {
-	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
+	LogError.Printf("Plugin '%s' error: %s", foRunner.name, err)
 }
 
 func (foRunner *foRunner) LogMessage(msg string) {
-	log.Printf("Plugin '%s': %s", foRunner.name, msg)
+	LogInfo.Printf("Plugin '%s': %s", foRunner.name, msg)
 }
 
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
