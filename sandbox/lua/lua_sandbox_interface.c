@@ -13,7 +13,7 @@
 #include <lauxlib.h>
 #include <lualib.h>
 #include <time.h>
-#include <lua_sandbox.h>
+#include <lsb.h>
 #include "_cgo_export.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,10 +356,6 @@ int inject_message(lua_State* lua)
         luaL_error(lua, "%s invalid lightuserdata", fn);
     }
     lua_sandbox* lsb = (lua_sandbox*)luserdata;
-
-    if (lua_gettop(lua) != 1 || lua_type(lua, 1) != LUA_TTABLE) {
-        luaL_error(lua, "%s takes a single table argument", fn);
-    }
 
     if (lsb_output_protobuf(lsb, 1, 0) != 0) {
         const char *err = lsb_get_error(lsb);

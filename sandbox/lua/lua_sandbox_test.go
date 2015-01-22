@@ -290,7 +290,7 @@ func TestAPIErrors(t *testing.T) {
 		"invalid error message",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: cannot open /unknown.lua: No such file or directory",
+		"process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '/unknown.lua'\n\tno file '/unknown.so'",
 		"process_message() ./testsupport/errors.lua:13: bad argument #0 to 'add_to_payload' (must have at least one argument)",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -309,7 +309,7 @@ func TestAPIErrors(t *testing.T) {
 	}
 
 	if runtime.GOOS == "windows" {
-		msgs[0] = "process_message() ./testsupport/errors.lua:11: cannot open \\unknown.lua: No such file or directory"
+		msgs[0] = "process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '\\unknown.lua'\n\tno file '\\unknown.dll'"
 	}
 
 	var sbc SandboxConfig
@@ -596,7 +596,7 @@ func TestRestoreMissingData(t *testing.T) {
 	if err == nil {
 		t.Errorf("Init should fail on data load error")
 	} else {
-		expect := "Init() restore_global_data cannot open ./testsupport/missing.data: No such file or directory"
+		expect := "Init() lsb_restore_global_data cannot open ./testsupport/missing.data: No such file or directory"
 		if err.Error() != expect {
 			t.Errorf("expected '%s' got '%s'", expect, err)
 		}
@@ -630,31 +630,6 @@ func TestPreserveFailure(t *testing.T) {
 	_, err = os.Stat(output)
 	if err == nil {
 		t.Errorf("The output file should be removed on failure")
-	}
-}
-
-func TestPreserveFailureNoGlobal(t *testing.T) {
-	var sbc SandboxConfig
-	sbc.ScriptFilename = "./testsupport/serialize_noglobal.lua"
-	sbc.MemoryLimit = 32767
-	sbc.InstructionLimit = 1000
-	sb, err := lua.CreateLuaSandbox(&sbc)
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	err = sb.Init("", "")
-	if err != nil {
-		t.Errorf("%s", err)
-	}
-	output := "/tmp/serialize_noglobal.lua.data"
-	err = sb.Destroy(output)
-	if err == nil {
-		t.Errorf("The global table should be in accessible")
-	} else {
-		expect := "Destroy() preserve_global_data cannot access the global table"
-		if err.Error() != expect {
-			t.Errorf("expected '%s' got '%s'", expect, err)
-		}
 	}
 }
 
@@ -719,6 +694,7 @@ func TestInjectMessage(t *testing.T) {
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
@@ -806,16 +782,17 @@ func TestInjectMessageError(t *testing.T) {
 	}
 	errors := []string{
 		"process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)",
-		"process_message() ./testsupport/inject_message.lua:44: strbuf max_size exceeded",
+		"process_message() ./testsupport/inject_message.lua:44: strbuf output_limit exceeded",
 		"process_message() ./testsupport/inject_message.lua:50: inject_message() could not encode protobuf - array has mixed types",
 		"process_message() ./testsupport/inject_message.lua:53: inject_message() could not encode protobuf - unsupported type: nil",
 		"process_message() ./testsupport/inject_message.lua:55: bad argument #1 to 'inject_payload' (string expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:57: bad argument #2 to 'inject_payload' (string expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:59: inject_message() takes a single table argument",
+		"process_message() ./testsupport/inject_message.lua:59: inject_message() could not encode protobuf - takes a single table argument",
 		"process_message() ./testsupport/inject_message.lua:62: output_limit exceeded",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 1000000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 1024
@@ -845,6 +822,7 @@ func TestInjectMessageError(t *testing.T) {
 func TestLpeg(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/lpeg_csv.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
@@ -876,6 +854,7 @@ func TestLpeg(t *testing.T) {
 func TestReadConfig(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/read_config.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.Config = make(map[string]interface{})
@@ -899,6 +878,7 @@ func TestReadConfig(t *testing.T) {
 func TestCJson(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/cjson.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 100000
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 8000
@@ -922,6 +902,7 @@ func TestCJson(t *testing.T) {
 func TestReadNilConfig(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/read_config_nil.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sb, err := lua.CreateLuaSandbox(&sbc)
@@ -961,6 +942,7 @@ func TestExternalModule(t *testing.T) {
 func TestReadNextField(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/read_next_field.lua"
+	sbc.ModuleDirectory = "./modules"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	pack := getTestPack()
