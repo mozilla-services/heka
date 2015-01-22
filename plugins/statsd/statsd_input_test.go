@@ -166,8 +166,16 @@ func TestParseMessage(t *testing.T) {
 	}
 
 	for msg, expected := range testData {
-		obtained, _, err := parseMessage([]byte(msg + "\n"))
-
+		obtained, warn, err := parseMessage([]byte(msg + "\n"))
+	
+		if warn != nil {
+			t.Fatalf("warning should be nil, got %s", warn)
+		}
+		
+		if err != nil {
+			t.Fatalf("error should be nil, got %s", err)
+		}
+		
 		if err != nil {
 			t.Fatalf("error should be nil, got %s", err)
 		}
