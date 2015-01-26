@@ -47,7 +47,7 @@ type StatAccumInput struct {
 	statChan chan Stat
 	counters map[string]int
 	timers   map[string][]float64
-	gauges   map[string]int
+	gauges   map[string]float64
 	pConfig  *PipelineConfig
 	config   *StatAccumInputConfig
 	ir       InputRunner
@@ -120,7 +120,7 @@ func (sm *StatAccumInput) SetPipelineConfig(pConfig *PipelineConfig) {
 func (sm *StatAccumInput) Init(config interface{}) error {
 	sm.counters = make(map[string]int)
 	sm.timers = make(map[string][]float64)
-	sm.gauges = make(map[string]int)
+	sm.gauges = make(map[string]float64)
 	sm.statChan = make(chan Stat, sm.pConfig.Globals.PoolSize)
 	sm.stopChan = make(chan bool, 1)
 
@@ -138,7 +138,6 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
 		stat       Stat
 		floatValue float64
-		intValue   int
 	)
 
 	sm.ir = ir
@@ -159,8 +158,8 @@ func (sm *StatAccumInput) Run(ir InputRunner, h PluginHelper) (err error) {
 				floatValue, _ = strconv.ParseFloat(stat.Value, 64)
 				sm.timers[stat.Bucket] = append(sm.timers[stat.Bucket], floatValue)
 			case "g":
-				intValue, _ = strconv.Atoi(stat.Value)
-				sm.gauges[stat.Bucket] = intValue
+				floatValue, _ = strconv.ParseFloat(stat.Value, 64)
+				sm.gauges[stat.Bucket] = floatValue
 			default:
 				floatValue, _ = strconv.ParseFloat(stat.Value, 32)
 				sm.counters[stat.Bucket] += int(float32(floatValue) * (1 / stat.Sampling))
@@ -249,7 +248,7 @@ func (sm *StatAccumInput) Flush() {
 		numStats++
 	}
 	for key, gauge := range sm.gauges {
-		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, int64(gauge))
+		globalNs.Namespace(sm.config.GaugePrefix).Emit(key, float64(gauge))
 		if sm.config.DeleteIdleStats {
 			delete(sm.gauges, key)
 		}

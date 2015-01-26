@@ -22,6 +22,9 @@ Backwards Incompatibilities
 * Hekad and all clients started using stdio for informational messages and
   stderr for error messages.
 
+* Stats Accum Input treats gauge inputs as float64 rather than int64 to match
+  statsd spec and other statsd implementations (#850).
+
 Bug Handling
 ------------
 

@@ -175,8 +175,8 @@ func StatAccumInputSpec(c gs.Context) {
 					sendGauge("sample2.gauge", 1, 2, 3, 4, 5)
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
-					validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
-					validateValueAtKey(msg, "stats.gauges.sample2.gauge", int64(5))
+					validateValueAtKey(msg, "stats.gauges.sample.gauge", float64(2))
+					validateValueAtKey(msg, "stats.gauges.sample2.gauge", float64(5))
 				})
 
 				c.Specify("emits correct statsd.numStats count", func() {
@@ -207,7 +207,7 @@ func StatAccumInputSpec(c gs.Context) {
 
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
-					validateValueAtKey(msg, "stats.gauges.sample.gauge", int64(2))
+					validateValueAtKey(msg, "stats.gauges.sample.gauge", float64(2))
 					validateValueAtKey(msg, "stats.counters.sample.cnt.count", int64(0))
 					validateValueAtKey(msg, "stats.timers.sample.timer.count", int64(0))
 					validateValueAtKey(msg, "stats.statsd.numStats", int64(3))
