@@ -22,7 +22,7 @@ Config:
     filename = "lua_filters/heka_message_schema.lua"
     ticker_interval = 60
     preserve_data = false
-    message_matcher = "Logger =~ /^Sync/"
+    message_matcher = "Logger != 'SyncMessageSchema' && Logger =~ /^Sync/"
 
 *Example Output*
 
