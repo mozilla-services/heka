@@ -4,12 +4,13 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
 #   Christian Vozar (christian@bellycard.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -22,13 +23,18 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
+	"strings"
+	"time"
 )
 
 type SmtpOutput struct {
 	conf         *SmtpOutputConfig
 	auth         smtp.Auth
 	sendFunction func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
-	encoder      Encoder
+	inMessage    chan []byte
+	or           OutputRunner
+	fullMsg      []byte
+	headerLen    int
 }
 
 type SmtpOutputConfig struct {
@@ -46,6 +52,11 @@ type SmtpOutputConfig struct {
 	User string
 	// SMTP password
 	Password string
+	// Set a minimum time interval between each email. The value indicates a
+	// minimum number of seconds between each email. If more than one message
+	// is received in the period, the mail text is concatenated. Default is 0,
+	// meaning no limit.
+	SendInterval uint `toml:"send_interval"`
 }
 
 type smtpHeader struct {
@@ -55,9 +66,10 @@ type smtpHeader struct {
 
 func (s *SmtpOutput) ConfigStruct() interface{} {
 	return &SmtpOutputConfig{
-		SendFrom: "heka@localhost.localdomain",
-		Host:     "127.0.0.1:25",
-		Auth:     "none",
+		SendFrom:     "heka@localhost.localdomain",
+		Host:         "127.0.0.1:25",
+		Auth:         "none",
+		SendInterval: 0,
 	}
 }
 
@@ -88,52 +100,126 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 }
 
 func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	s.encoder = or.Encoder()
-	if s.encoder == nil {
-		return errors.New("Encoder required.")
-	}
-	inChan := or.InChan()
-
 	var (
-		pack       *PipelinePack
-		contents   []byte
-		subject    string
-		message    string
-		headerText string
+		pack     *PipelinePack
+		contents []byte
 	)
-
-	if s.conf.Subject == "" {
-		subject = "Heka [" + or.Name() + "]"
-	} else {
-		subject = s.conf.Subject
+	s.or = or
+	if or.Encoder() == nil {
+		return errors.New("encoder required")
 	}
 
-	headers := make([]smtpHeader, 5)
-	headers[0] = smtpHeader{"From", s.conf.SendFrom}
-	headers[1] = smtpHeader{"Subject", subject}
-	headers[2] = smtpHeader{"MIME-Version", "1.0"}
-	headers[3] = smtpHeader{"Content-Type", "text/plain; charset=\"utf-8\""}
-	headers[4] = smtpHeader{"Content-Transfer-Encoding", "base64"}
+	inChan := or.InChan()
+	s.fullMsg = s.getHeader()
+	s.headerLen = len(s.fullMsg)
 
-	for _, header := range headers {
-		headerText += fmt.Sprintf("%s: %s\r\n", header.name, header.value)
+	if s.conf.SendInterval != 0 {
+		// Start sender. This will receive messages on the s.inMessage channel.
+		s.inMessage = make(chan []byte, 1)
+		go s.sendLoop()
 	}
 
 	for pack = range inChan {
-		message = headerText
-
-		if contents, err = s.encoder.Encode(pack); contents != nil && err == nil {
-			message += "\r\n" + base64.StdEncoding.EncodeToString(contents)
-			err = s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, []byte(message))
+		contents, err = or.Encode(pack)
+		if contents == nil || err != nil {
+			if err != nil {
+				or.LogError(fmt.Errorf("encoding error: %s", err.Error()))
+			}
+			pack.Recycle()
+			continue
 		}
 
-		if err != nil {
-			or.LogError(err)
+		// We run this direct output if no minimum interval has been requested.
+		if s.conf.SendInterval == 0 {
+			err = s.sendMail(contents)
+			if err != nil {
+				or.LogError(fmt.Errorf("sending error: %s", err.Error()))
+			}
+		} else {
+			s.inMessage <- contents
 		}
-
 		pack.Recycle()
 	}
-	return
+	return nil
+}
+
+func (s SmtpOutput) sendMail(contents []byte) error {
+	encodedLen := base64.StdEncoding.EncodedLen(len(contents))
+	if cap(s.fullMsg) < s.headerLen+encodedLen {
+		newFullMsg := make([]byte, s.headerLen+encodedLen)
+		copy(newFullMsg, s.fullMsg[:s.headerLen])
+		s.fullMsg = newFullMsg
+	}
+	s.fullMsg = s.fullMsg[:s.headerLen+encodedLen]
+	base64.StdEncoding.Encode(s.fullMsg[s.headerLen:], contents)
+	return s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, s.fullMsg)
+}
+
+func (s SmtpOutput) getHeader() []byte {
+	var subject string
+	if s.conf.Subject != "" {
+		subject = s.conf.Subject
+	} else {
+		subject = fmt.Sprintf("Heka [%s]", s.or.Name())
+	}
+	headers := make([]string, 5)
+	headers[0] = "From: " + s.conf.SendFrom
+	headers[1] = "Subject: " + subject
+	headers[2] = "MIME-Version: 1.0"
+	headers[3] = "Content-Type: text/plain; charset=\"utf-8\""
+	headers[4] = "Content-Transfer-Encoding: base64"
+	return []byte(strings.Join(headers, "\r\n") + "\r\n\r\n")
+}
+
+func (s *SmtpOutput) sendLoop() {
+	var err error
+
+	// Bodies of all currently queued messages that will be sent in the next mail
+	var queue []byte
+	// Channel to indicate that timeout has been reached
+	timeOut := make(chan bool, 1)
+	// Minimum duration between each email
+	tickerDur := time.Second * time.Duration(s.conf.SendInterval)
+	// Time indicating when the last message was sent.
+	lastSent := time.Now().Add(-tickerDur)
+
+	for {
+		select {
+		case msg := <-s.inMessage:
+			// If none are queued, and we are after the ticker duration, just
+			// send it right away.
+			if len(queue) == 0 && time.Now().After(lastSent.Add(tickerDur)) {
+				err = s.sendMail(msg)
+				lastSent = time.Now()
+				if err != nil {
+					s.or.LogError(err)
+				}
+				continue
+			}
+			if len(queue) == 0 {
+				// The ticker duration has not expired yet, but no messages
+				// are queued, so we start a timeout function that will fire
+				// when the duration has passed.
+				go func() {
+					dur := lastSent.Sub(time.Now()) + tickerDur
+					time.Sleep(dur)
+					timeOut <- true
+				}()
+			}
+			queue = append(queue, msg...)
+			queue = append(queue, []byte("\r\n\r\n")...)
+		case <-timeOut:
+			// When the timeout has expired, send the messages that are
+			// queued.
+			contents := queue[:len(queue)-4]
+			queue = queue[:0]
+			err = s.sendMail(contents)
+			lastSent = time.Now()
+			if err != nil {
+				s.or.LogError(err)
+			}
+		}
+	}
 }
 
 func init() {

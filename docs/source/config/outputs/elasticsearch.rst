@@ -41,6 +41,13 @@ Config:
     The password to use for HTTP authentication against the ElasticSearch host.
     Defaults to "" (i. e. no authentication).
 
+.. versionadded:: 0.9
+
+- tls (TlsConfig):
+    An optional sub-section that specifies the settings to be used for any
+    SSL/TLS encryption. This will only have any impact if `URL` uses the
+    `HTTPS` URI scheme. See :ref:`tls`.
+
 Example:
 
 .. code-block:: ini

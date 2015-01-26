@@ -43,7 +43,7 @@ type HttpOutputConfig struct {
 	Headers     http.Header
 	Username    string `toml:"username"`
 	Password    string `toml:"password"`
-	Tls         *tcp.TlsConfig
+	Tls         tcp.TlsConfig
 }
 
 func (o *HttpOutput) ConfigStruct() interface{} {
@@ -76,9 +76,9 @@ func (o *HttpOutput) Init(config interface{}) (err error) {
 	if o.Username != "" || o.Password != "" {
 		o.useBasicAuth = true
 	}
-	if o.url.Scheme == "https" && o.Tls != nil {
+	if o.url.Scheme == "https" {
 		transport := &http.Transport{}
-		if transport.TLSClientConfig, err = tcp.CreateGoTlsConfig(o.Tls); err != nil {
+		if transport.TLSClientConfig, err = tcp.CreateGoTlsConfig(&o.Tls); err != nil {
 			return fmt.Errorf("TLS init error: %s", err.Error())
 		}
 		o.client.Transport = transport

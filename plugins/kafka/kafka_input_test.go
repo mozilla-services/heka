@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -23,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -98,6 +100,15 @@ func TestReceivePayloadMessage(t *testing.T) {
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+	var deliverWg sync.WaitGroup
+	deliverWg.Add(1)
+	// deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+	deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
+	deliverCall.Do(func(pack *PipelinePack) {
+		deliverWg.Done()
+	})
+
+	ith.MockInputRunner.EXPECT().UseMsgBytes().Return(false)
 
 	err := ki.Init(config)
 	if err != nil {
@@ -110,12 +121,12 @@ func TestReceivePayloadMessage(t *testing.T) {
 	}()
 	ith.PackSupply <- ith.Pack
 
-	packRef := <-pConfig.Router().InChan()
-	if packRef.Message.GetType() != "heka.kafka" {
-		t.Errorf("Invalid Type %s", packRef.Message.GetType())
+	deliverWg.Wait()
+	if ith.Pack.Message.GetType() != "heka.kafka" {
+		t.Errorf("Invalid Type %s", ith.Pack.Message.GetType())
 	}
-	if packRef.Message.GetPayload() != "AB" {
-		t.Errorf("Invalid Payload Expected: AB received: %s", packRef.Message.GetPayload())
+	if ith.Pack.Message.GetPayload() != "AB" {
+		t.Errorf("Invalid Payload Expected: AB received: %s", ith.Pack.Message.GetPayload())
 	}
 
 	// There is a hang on the consumer close with the mock broker
@@ -174,22 +185,23 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	config := ki.ConfigStruct().(*KafkaInputConfig)
 	config.Addrs = append(config.Addrs, b1.Addr())
 	config.Topic = topic
-	config.Decoder = "ProtobufDecoder"
 
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
-	ith.DecodeChan = make(chan *PipelinePack)
 
 	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+	var deliverWg sync.WaitGroup
+	deliverWg.Add(1)
+	// deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+	deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
+	deliverCall.Do(func(pack *PipelinePack) {
+		deliverWg.Done()
+	})
 
-	mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-	mockDecoderRunner.EXPECT().Decoder().Return(new(ProtobufDecoder))
-	mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
-	ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "test-ProtobufDecoder").Return(ith.Decoder, true)
+	ith.MockInputRunner.EXPECT().UseMsgBytes().Return(true)
 
 	err := ki.Init(config)
 	if err != nil {
@@ -202,9 +214,9 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	}()
 	ith.PackSupply <- ith.Pack
 
-	packRef := <-ith.DecodeChan
-	if string(packRef.MsgBytes) != "AB" {
-		t.Errorf("Invalid MsgBytes Expected: AB received: %s", string(packRef.MsgBytes))
+	deliverWg.Wait()
+	if string(ith.Pack.MsgBytes) != "AB" {
+		t.Errorf("Invalid MsgBytes Expected: AB received: %s", string(ith.Pack.MsgBytes))
 	}
 
 	// There is a hang on the consumer close with the mock broker

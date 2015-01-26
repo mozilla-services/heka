@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -165,7 +164,7 @@ func (d *DiagnosticTracker) Run() {
 				runner.SetLeakCount(count)
 				g.LogMessage("Diagnostics", fmt.Sprintf("\t%s: %d", runner.Name(), count))
 			}
-			log.Println("")
+			LogInfo.Println("")
 		}
 	}
 }

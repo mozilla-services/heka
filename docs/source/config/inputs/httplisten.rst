@@ -20,6 +20,12 @@ as the message payload. Messages will be populated as follows:
 - Fields["Protocol"] (string): HTTP protocol used for the request (e.g.
                                "HTTP/1.0")
 
+.. versionadded:: 0.6
+
+All query parameters are added as fields. For example, a request to
+"127.0.0.1:8325?user=bob" will create a field "user" with the value
+"bob".
+
 Config:
 
 - address (string):
@@ -39,8 +45,11 @@ Config:
 .. versionadded:: 0.9
 
 - unescape_body (bool):
-    Whether to unescape the request body or not.
-    Defaults to true for backward compatibility reason.
+    Specifies whether or not the received request body will be URL unescaped
+    before being written to the message payload. Defaults to true.
+
+- request_headers ([]string):
+    Add additional request headers as message fields. Defaults to empty list.
 
 Example:
 

@@ -5,6 +5,7 @@ pprof_file          = ""
 num_messages        = 0                     # number of message to send 0 = infinite
 corrupt_percentage  = 0.0001                # 1 in a million
 signed_percentage   = 0.00011
+oversized_percentage  = 0.00007
 variable_size_messages = true
 [default.signer]
     name            = "test"

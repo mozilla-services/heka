@@ -279,10 +279,12 @@ UDP listener somewhere. The initialization code looks as follows::
 
 In addition to specifying configuration options that are specific to your
 plugin, it is also possible to use the config struct to specify default values
-for the `ticker_interval` and `message_matcher` values that are available to
-all Filter and Output plugins. If a config struct contains a uint attribute
-called `TickerInterval`, that will be used as a default ticker interval value
-(in seconds) if none is supplied in the TOML. Similarly, if a config struct
+for any common configuration options that are processed by Heka, such as the
+`synchronous_decode` option available to Input plugins, or the
+`ticker_interval` and `message_matcher` values that are available to all
+Filter and Output plugins. If a config struct contains a uint attribute called
+`TickerInterval`, that will be used as a default ticker interval value (in
+seconds) if none is supplied in the TOML. Similarly, if a config struct
 contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
@@ -334,9 +336,9 @@ Inside the `Run` method, an input has three primary responsibilities:
 2. Use acquired information to populate `PipelinePack` objects that can be
    processed by Heka.
 3. Pass the populated `PipelinePack` objects on to the appropriate next stage
-   in the Heka pipeline (either to a decoder plugin so raw input data can be
-   converted to a `Message` object, or by injecting them directly into the
-   Heka message router if the `Message` object is already populated.)
+   in the Heka pipeline, either to a decoder plugin so raw input data can be
+   converted to a `Message` object, or directly to the Heka message router if
+   no decoding is necessary.
 
 The details of the first step are clearly entirely defined by the plugin's
 intended input mechanism(s). Plugins can (and should!) spin up goroutines as
@@ -349,47 +351,42 @@ to actually *have* one. You can get empty packs from a channel provided to you
 by the `InputRunner`. You get the channel itself by calling `ir.InChan()` and
 then pull a pack from the channel whenever you need one.
 
-Often, populating a `PipelinePack` is as simple as storing the raw data that
-was retrieved from the outside world in the pack's `MsgBytes` attribute. For
-efficiency's sake, it's best to write directly into the already allocated
-memory rather than overwriting the attribute with a `[]byte` slice pointing to
-a new array. Overwriting the array is likely to lead to a lot of garbage
-collector churn.
+In some cases, populating a `PipelinePack` is as simple as storing the raw
+data that was retrieved from the outside world in the pack's `MsgBytes`
+attribute. For efficiency's sake, it's best to write directly into the already
+allocated memory rather than overwriting the attribute with a `[]byte` slice
+pointing to a new array. Overwriting the array is likely to lead to a lot of
+garbage collector churn. Right now the ProtobufDecoder is the only decoder
+that expects to find its input data in the MsgBytes attribute of the pack.
 
-The third step involves the input plugin deciding where next to pass the
-`PipelinePack` and then doing so. Once the `MsgBytes` attribute has been set
-the pack will typically be passed on to a decoder plugin, which will convert
-the raw bytes into a `Message` object, also an attribute of the
-`PipelinePack`. An input can gain access to the decoders that are available by
-calling `PluginHelper.DecoderRunner`, which can be used to access decoders by
-the name they have been registered as in the config. Each call to
-`PluginHelper.DecoderRunner` will spin up a new decoder in its own goroutine.
-It's perfectly fine for an input to ask for multiple decoders; for instance
-the TcpInput creates one for each separate TCP connection. All decoders will
-be closed when Heka shuts down, but if a decoder will not longer be used (e.g.
-when a TCP connection is closed in the TcpInput example mentioned above) it's
-a good idea to call `PluginHelper.StopDecoderRunner` to shut it down or else
-it will continue to consume system resources throughout the life of the Heka
-process.
+In all other cases, the decoder will expect to find its input data stored as
+the payload of the pack's Message struct. This should also be the case when
+there is no decoder in use, since it allows the rest of the Heka pipeline to
+access the raw textual data that was loaded by the input plugin.
 
-It is up to the input to decide which decoder should be used. Once the decoder
-has been determined and fetched from the `PluginHelper` the input can call
-`DecoderRunner.InChan()` to fetch a DecoderRunner's input channel upon which
-the `PipelinePack` can be placed.
+For the third step, if an input only ever needs a single decoder instance, it
+can simply pass the now populated PipelinePack to the InputRunner's `Deliver`
+method.  The InputRunner will decode the pack according to the input's
+specified config, ultimately delivering the message to the message router.
 
-Sometimes the input itself might wish to decode the data, rather than
-delegating that job to a separate decoder. In this case the input can directly
-populate the `pack.Message` and set the `pack.Decoded` value as `true`, as a
-decoder would do. Decoded messages are then injected into Heka's routing
-system by calling `InputRunner.Inject(pack)`. The message will then be
-delivered to the appropriate filter and output plugins.
+In some cases, however, you might want to use multiple decoders instances in a
+single input. For example, the TcpInput spins up a goroutine for each incoming
+connection, and the decoding work for each connection can be handled in
+parallel if each goroutine has its own decoder. In this case, you should *not*
+use `InputRunner.Deliver`. Instead each goroutine should call
+`InputRunner.NewDeliverer`, passing in a unique string token to identify each
+decoder. This will return a Deliverer object, which has its own `Deliver`
+method that can be used in lieu of the one on the InputRunner. If a Deliverer
+object should become no longer needed (e.g. when a connection is closed in the
+TcpInput) then the input *must* call `Deliverer.Done` to make sure all
+resources are freed.
 
-One final important detail: if for any reason your input plugin should pull a
-`PipelinePack` off of the input channel and *not* end up passing it on to
-another step in the pipeline (i.e. to a decoder or to the router), you *must*
-call `PipelinePack.Recycle()` to free the pack up to be used again. Failure to
-do so will cause the `PipelinePack` pool to be depleted and will cause Heka to
-freeze.
+One final important detail about developing input plugins: if for any reason
+your plugin should pull a `PipelinePack` off of the input channel and *not*
+end up passing it on to another step in the pipeline by calling one of the
+`Deliver` methods, you *must* call `PipelinePack.Recycle()` to free the pack
+up to be used again. Failure to do so will deplete the pool of PipelinePacks
+and will cause Heka to freeze.
 
 .. _decoders:
 

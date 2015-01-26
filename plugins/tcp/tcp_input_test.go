@@ -68,15 +68,30 @@ func getPayloadText(mbytes []byte) func(msgBytes []byte) {
 	}
 }
 
+type deliverer struct {
+	deliver DeliverFunc
+}
+
+func (d *deliverer) Deliver(pack *PipelinePack) {
+	d.deliver(pack)
+}
+
+func (d *deliverer) DeliverFunc() DeliverFunc {
+	return d.deliver
+}
+
+func (d *deliverer) Done() {
+}
+
 func TcpInputSpec(c gs.Context) {
 	t := &pipeline_ts.SimpleT{}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	config := NewPipelineConfig(nil)
+	pConfig := NewPipelineConfig(nil)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	ith.AddrStr = "localhost:55565"
 	ith.ResolvedAddrStr = "127.0.0.1:55565"
@@ -84,20 +99,34 @@ func TcpInputSpec(c gs.Context) {
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
-	ith.DecodeChan = make(chan *PipelinePack)
 	key := "testkey"
 	signers := map[string]Signer{"test_1": {key}}
 	signer := "test"
+	decodeChan := make(chan *PipelinePack)
+	deliverFunc := func(pack *PipelinePack) {
+		decodeChan <- pack
+	}
+	d := &deliverer{
+		deliver: deliverFunc,
+	}
 
 	c.Specify("A TcpInput protobuf parser", func() {
+		addr := &address{
+			str: "123",
+		}
+
 		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
-		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
+		ith.MockInputRunner.EXPECT().NewDeliverer(addr.str).Return(d)
+		ith.MockInputRunner.EXPECT().UseMsgBytes().Return(true)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+		tcpInput := &TcpInput{}
+		err := tcpInput.Init(&TcpInputConfig{
+			Net:        "tcp",
+			Address:    ith.AddrStr,
 			Signers:    signers,
-			Decoder:    "ProtobufDecoder",
-			ParserType: "message.proto"})
+			ParserType: "message.proto",
+		})
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
 		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -107,8 +136,6 @@ func TcpInputSpec(c gs.Context) {
 		mockListener := pipeline_ts.NewMockListener(ctrl)
 		tcpInput.listener = mockListener
 
-		addr := new(address)
-		addr.str = "123"
 		mockConnection.EXPECT().RemoteAddr().Return(addr)
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
@@ -128,12 +155,7 @@ func TcpInputSpec(c gs.Context) {
 			acceptCall.Return(nil, neterr)
 		})
 
-		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("ProtobufDecoder", "TcpInput-123-ProtobufDecoder").AnyTimes()
-		enccall.Return(ith.Decoder, true)
-		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
 		cleanup := func() {
 			mockListener.EXPECT().Close()
@@ -149,7 +171,7 @@ func TcpInputSpec(c gs.Context) {
 			go tcpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			defer cleanup()
 			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
+			packRef := <-decodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 		})
@@ -175,7 +197,7 @@ func TcpInputSpec(c gs.Context) {
 				timeout <- true
 			}()
 			select {
-			case packRef := <-ith.DecodeChan:
+			case packRef := <-decodeChan:
 				c.Expect(ith.Pack, gs.Equals, packRef)
 				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 				c.Expect(ith.Pack.Signer, gs.Equals, "test")
@@ -205,7 +227,7 @@ func TcpInputSpec(c gs.Context) {
 				timeout <- true
 			}()
 			select {
-			case packRef := <-ith.DecodeChan:
+			case packRef := <-decodeChan:
 				c.Expect(ith.Pack, gs.Equals, packRef)
 				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
 				c.Expect(ith.Pack.Signer, gs.Equals, "test")
@@ -235,7 +257,7 @@ func TcpInputSpec(c gs.Context) {
 				timeout <- true
 			}()
 			select {
-			case packRef := <-mockDecoderRunner.InChan():
+			case packRef := <-decodeChan:
 				c.Expect(packRef, gs.IsNil)
 			case t := <-timeout:
 				c.Expect(t, gs.IsTrue)
@@ -263,7 +285,7 @@ func TcpInputSpec(c gs.Context) {
 				timeout <- true
 			}()
 			select {
-			case packRef := <-mockDecoderRunner.InChan():
+			case packRef := <-decodeChan:
 				c.Expect(packRef, gs.IsNil)
 			case t := <-timeout:
 				c.Expect(t, gs.IsTrue)
@@ -272,16 +294,20 @@ func TcpInputSpec(c gs.Context) {
 	})
 
 	c.Specify("A TcpInput regexp parser", func() {
+		addr := &address{
+			str: "123",
+		}
 		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
+		ith.MockInputRunner.EXPECT().NewDeliverer(addr.str).Return(d)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 		config := &TcpInputConfig{
 			Net:        "tcp",
 			Address:    ith.AddrStr,
-			Decoder:    "RegexpDecoder",
 			ParserType: "regexp",
 		}
 
-		tcpInput := TcpInput{}
+		tcpInput := &TcpInput{}
 		err := tcpInput.Init(config)
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
@@ -292,8 +318,6 @@ func TcpInputSpec(c gs.Context) {
 		mockListener := pipeline_ts.NewMockListener(ctrl)
 		tcpInput.listener = mockListener
 
-		addr := new(address)
-		addr.str = "123"
 		mockConnection.EXPECT().RemoteAddr().Return(addr).Times(2)
 		mbytes := []byte("this is a test message\n")
 		err = errors.New("connection closed") // used in the read return(s)
@@ -311,13 +335,8 @@ func TcpInputSpec(c gs.Context) {
 			acceptCall.Return(nil, neterr)
 		})
 
-		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "TcpInput-123-RegexpDecoder").AnyTimes()
-		enccall.Return(ith.Decoder, true)
-		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)
@@ -329,7 +348,7 @@ func TcpInputSpec(c gs.Context) {
 				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
+			packRef := <-decodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, string(mbytes[:len(mbytes)-1]))
 			c.Expect(ith.Pack.Message.GetLogger(), gs.Equals, "logger")
@@ -338,12 +357,21 @@ func TcpInputSpec(c gs.Context) {
 	})
 
 	c.Specify("A TcpInput token parser", func() {
+		addr := &address{
+			str: "123",
+		}
 		ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
-		tcpInput := TcpInput{}
-		err := tcpInput.Init(&TcpInputConfig{Net: "tcp", Address: ith.AddrStr,
-			Decoder:    "TokenDecoder",
+		ith.MockInputRunner.EXPECT().NewDeliverer(addr.str).Return(d)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+		tcpInput := &TcpInput{}
+
+		err := tcpInput.Init(&TcpInputConfig{
+			Net:        "tcp",
+			Address:    ith.AddrStr,
 			ParserType: "token",
-			Delimiter:  "\n"})
+			Delimiter:  "\n",
+		})
 		c.Assume(err, gs.IsNil)
 		realListener := tcpInput.listener
 		c.Expect(realListener.Addr().String(), gs.Equals, ith.ResolvedAddrStr)
@@ -353,8 +381,6 @@ func TcpInputSpec(c gs.Context) {
 		mockListener := pipeline_ts.NewMockListener(ctrl)
 		tcpInput.listener = mockListener
 
-		addr := new(address)
-		addr.str = "123"
 		mockConnection.EXPECT().RemoteAddr().Return(addr).Times(2)
 		mbytes := []byte("this is a test message\n")
 		err = errors.New("connection closed") // used in the read return(s)
@@ -372,13 +398,8 @@ func TcpInputSpec(c gs.Context) {
 			acceptCall.Return(nil, neterr)
 		})
 
-		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan)
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
 		ith.MockInputRunner.EXPECT().Name().Return("logger")
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("TokenDecoder", "TcpInput-123-TokenDecoder").AnyTimes()
-		enccall.Return(ith.Decoder, true)
-		ith.MockHelper.EXPECT().StopDecoderRunner(ith.Decoder)
 
 		c.Specify("reads a message from its connection", func() {
 			readCall.Return(len(mbytes), nil)
@@ -390,7 +411,7 @@ func TcpInputSpec(c gs.Context) {
 				tcpInput.wg.Wait()
 			}()
 			ith.PackSupply <- ith.Pack
-			packRef := <-ith.DecodeChan
+			packRef := <-decodeChan
 			c.Expect(ith.Pack, gs.Equals, packRef)
 			c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, string(mbytes))
 			c.Expect(ith.Pack.Message.GetLogger(), gs.Equals, "logger")
@@ -399,7 +420,7 @@ func TcpInputSpec(c gs.Context) {
 	})
 
 	c.Specify("A TcpInput using TLS", func() {
-		tcpInput := TcpInput{}
+		tcpInput := &TcpInput{}
 		config := &TcpInputConfig{
 			Net:        "tcp",
 			Address:    ith.AddrStr,
@@ -415,6 +436,8 @@ func TcpInputSpec(c gs.Context) {
 
 		c.Specify("accepts TLS client connections", func() {
 			ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
+			ith.MockInputRunner.EXPECT().NewDeliverer("127.0.0.1").Return(d)
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			config.Tls = TlsConfig{
 				CertFile: "./testsupport/cert.pem",
 				KeyFile:  "./testsupport/key.pem",
@@ -440,6 +463,8 @@ func TcpInputSpec(c gs.Context) {
 
 		c.Specify("doesn't accept connections below specified min TLS version", func() {
 			ith.MockInputRunner.EXPECT().Name().Return("TcpInput")
+			ith.MockInputRunner.EXPECT().NewDeliverer("127.0.0.1").Return(d)
+			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			config.Tls = TlsConfig{
 				CertFile:   "./testsupport/cert.pem",
 				KeyFile:    "./testsupport/key.pem",
@@ -467,9 +492,11 @@ func TcpInputSpec(c gs.Context) {
 
 func TcpInputSpecFailure(c gs.Context) {
 	tcpInput := TcpInput{}
-	err := tcpInput.Init(&TcpInputConfig{Net: "udp", Address: "localhost:55565",
-		Decoder:    "ProtobufDecoder",
-		ParserType: "message.proto"})
+	err := tcpInput.Init(&TcpInputConfig{
+		Net:        "udp",
+		Address:    "localhost:55565",
+		ParserType: "message.proto",
+	})
 	c.Assume(err, gs.Not(gs.IsNil))
 	c.Assume(err.Error(), gs.Equals, "ResolveTCPAddress failed: unknown network udp\n")
 

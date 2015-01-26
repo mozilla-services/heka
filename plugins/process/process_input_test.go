@@ -24,6 +24,7 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -44,9 +45,7 @@ func ProcessInputSpec(c gs.Context) {
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
-	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A ProcessInput", func() {
 		pInput := ProcessInput{}
@@ -54,16 +53,9 @@ func ProcessInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
 		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
 
-		enccall := ith.MockHelper.EXPECT().DecoderRunner("RegexpDecoder", "logger-RegexpDecoder").AnyTimes()
-		enccall.Return(ith.Decoder, true)
-
-		mockDecoderRunner := ith.Decoder.(*pipelinemock.MockDecoderRunner)
-		mockDecoderRunner.EXPECT().InChan().Return(ith.DecodeChan).AnyTimes()
-
 		config := pInput.ConfigStruct().(*ProcessInputConfig)
 		config.Command = make(map[string]cmdConfig)
 
-		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 		ith.MockHelper.EXPECT().Hostname().Return(pConfig.Hostname())
 
 		tickChan := make(chan time.Time)
@@ -74,7 +66,6 @@ func ProcessInputSpec(c gs.Context) {
 		c.Specify("reads a message from ProcessInput", func() {
 
 			pInput.SetName("SimpleTest")
-			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
 			config.Delimiter = "|"
 
@@ -86,6 +77,12 @@ func ProcessInputSpec(c gs.Context) {
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
+			deliverChan := make(chan *PipelinePack)
+			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack).Times(4)
+			deliverCall.Do(func(pack *PipelinePack) {
+				deliverChan <- pack
+			})
+
 			go func() {
 				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
@@ -96,7 +93,7 @@ func ProcessInputSpec(c gs.Context) {
 
 			for x := 0; x < 4; x++ {
 				ith.PackSupply <- ith.Pack
-				packRef := <-ith.DecodeChan
+				packRef := <-deliverChan
 				c.Expect(ith.Pack, gs.Equals, packRef)
 				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
 				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
@@ -119,7 +116,6 @@ func ProcessInputSpec(c gs.Context) {
 			pInput.SetName("BadArgs")
 			config.ParseStdout = false
 			config.ParseStderr = true
-			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
 			config.Delimiter = "|"
 
@@ -132,13 +128,20 @@ func ProcessInputSpec(c gs.Context) {
 			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
 			ith.MockInputRunner.EXPECT().LogError(expected_err)
 
+			var deliverWg sync.WaitGroup
+			deliverWg.Add(1)
+			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+			deliverCall.Do(func(pack *PipelinePack) {
+				deliverWg.Done()
+			})
+
 			go func() {
 				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 			tickChan <- time.Now()
 
 			ith.PackSupply <- ith.Pack
-			<-ith.DecodeChan
+			deliverWg.Wait()
 			runtime.Gosched()
 
 			pInput.Stop()
@@ -149,7 +152,6 @@ func ProcessInputSpec(c gs.Context) {
 		c.Specify("can pipe multiple commands together", func() {
 
 			pInput.SetName("PipedCmd")
-			config.Decoder = "RegexpDecoder"
 			config.ParserType = "token"
 			// Overload the delimiter
 			config.Delimiter = " "
@@ -166,6 +168,13 @@ func ProcessInputSpec(c gs.Context) {
 			err := pInput.Init(config)
 			c.Assume(err, gs.IsNil)
 
+			deliverChan := make(chan *PipelinePack)
+			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+			deliverCall.Times(len(PROCESSINPUT_PIPE_OUTPUT))
+			deliverCall.Do(func(pack *PipelinePack) {
+				deliverChan <- pack
+			})
+
 			go func() {
 				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
@@ -176,7 +185,7 @@ func ProcessInputSpec(c gs.Context) {
 
 			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
 				ith.PackSupply <- ith.Pack
-				packRef := <-ith.DecodeChan
+				packRef := <-deliverChan
 				c.Expect(ith.Pack, gs.Equals, packRef)
 				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
 				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")

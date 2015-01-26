@@ -9,11 +9,32 @@ Backwards Incompatibilities
   instantiate and manage the lifecycles of other embedded plugins, e.g.
   MultiDecoder, ProcessDirectoryInput, SandboxManagerFilter.
 
+* All inputs now support `decoder`, `synchronous_decode`, and
+  `send_decode_failures` config options, automatically extracted by Heka's
+  config system.
+
+* InputRunner now handles message decoding and delivery to the router,
+  according to the specifications of the input's configuration. This is
+  accomplished either directly via the `Deliver` method or, in cases where
+  decoding might need to happen in separate goroutines, through `Deliverer`
+  objects available from the `NewDeliverer` method.
+
+* Hekad and all clients started using stdio for informational messages and
+  stderr for error messages.
+
 Bug Handling
 ------------
 
+* Reset header when discarding valid but oversized messages (#1221).
+
 * Prevent the protobuf stream encoder from creating messages over
   MAX_MESSAGE_SIZE (#1204).
+
+* AMQPOutput now uses defined constants for delivery mode instead of hard
+  coded (and wrong) integer values (#1235).
+
+* Hekad now respects --config parameter and loads default config path
+  instead of printing help and exit (#1239).
 
 Features
 --------
@@ -37,8 +58,48 @@ Features
 * Slightly improve error output in ElasticSearch plugin.
 
 * Added support for HTTP authentication to ElasticSearchOutput.
- 
-0.8.1 (2014-MM-DD)
+
+* TcpOutput's disk buffering now supports specification of a max buffer size
+  and an action to take if the max size is reached, from 'shutdown', 'drop',
+  or 'block' (#1110).
+
+* Added `unescape_body` option to HttpListenInput to allow users to turn off
+  unescaping of the HTTP request body (#1124).
+
+* Added `send_interval` setting to SmtpOutput.
+
+* Added `timestamp` format setting to ESLogstashV0Encoder (#1142).
+
+* LogstreamerInput now uses first two "magic" bytes to identify gzip files
+  instead of relying on `.gz` suffix.
+
+* Added TLS support to ElasticSearchOutput (#1259).
+
+* Added ability for HttpListenInput to capture specified HTTP request headers
+  and write them as message fields.
+
+0.8.3 (2015-01-08)
+==================
+
+Bug Handling
+------------
+
+* Fixed LogstreamerInput to use a separate DecoderRunner for every
+  LogstreamInput created, rather than sending all of the streams through a
+  single decoder.
+
+0.8.2 (2015-01-06)
+==================
+
+Bug Handling
+------------
+
+* Fix rsyslog sandbox decoder test to use current year and location for
+  timestamp parsing, since syslog timestamp format makes that assumption.
+
+* Ensure that geoip_decoder is not included in release binaries.
+
+0.8.1 (2014-12-17)
 ==================
 
 Bug Handling
@@ -54,6 +115,11 @@ Bug Handling
 
 * AMQPOutput now recycles packs even when a publish error causes the output to
   exit / restart (#1178).
+
+* Fixed HttpOutput TLS section parsing (#1163).
+
+* Fixed LogstreamInput extraneous journal saves that caused high disk IO
+  when EOF is reached.
 
 0.8.0 (2014-10-29)
 ==================

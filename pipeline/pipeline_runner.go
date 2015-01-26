@@ -19,7 +19,6 @@ package pipeline
 import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -72,6 +71,10 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 	}
 }
 
+func (g *GlobalConfigStruct) SigChan() chan os.Signal {
+	return g.sigChan
+}
+
 // Initiates a shutdown of heka
 //
 // This method returns immediately by spawning a goroutine to do to
@@ -99,7 +102,7 @@ func (g *GlobalConfigStruct) stop() {
 
 // Log a message out
 func (g *GlobalConfigStruct) LogMessage(src, msg string) {
-	log.Printf("%s: %s", src, msg)
+	LogInfo.Printf("%s: %s", src, msg)
 }
 
 func isAbs(path string) bool {
@@ -198,7 +201,7 @@ func (p *PipelinePack) Recycle() {
 // PipelinePack pools, and starts all the runners. Then it listens for signals
 // and drives the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
-	log.Println("Starting hekad...")
+	LogInfo.Println("Starting hekad...")
 
 	var outputsWg sync.WaitGroup
 	var err error
@@ -208,21 +211,21 @@ func Run(config *PipelineConfig) {
 	for name, output := range config.OutputRunners {
 		outputsWg.Add(1)
 		if err = output.Start(config, &outputsWg); err != nil {
-			log.Printf("Output '%s' failed to start: %s", name, err)
+			LogError.Printf("Output '%s' failed to start: %s", name, err)
 			outputsWg.Done()
 			continue
 		}
-		log.Println("Output started: ", name)
+		LogInfo.Println("Output started: ", name)
 	}
 
 	for name, filter := range config.FilterRunners {
 		config.filtersWg.Add(1)
 		if err = filter.Start(config, &config.filtersWg); err != nil {
-			log.Printf("Filter '%s' failed to start: %s", name, err)
+			LogError.Printf("Filter '%s' failed to start: %s", name, err)
 			config.filtersWg.Done()
 			continue
 		}
-		log.Println("Filter started: ", name)
+		LogInfo.Println("Filter started: ", name)
 	}
 
 	// Finish initializing the router's matchers.
@@ -253,11 +256,11 @@ func Run(config *PipelineConfig) {
 	for name, input := range config.InputRunners {
 		config.inputsWg.Add(1)
 		if err = input.Start(config, &config.inputsWg); err != nil {
-			log.Printf("Input '%s' failed to start: %s", name, err)
+			LogError.Printf("Input '%s' failed to start: %s", name, err)
 			config.inputsWg.Done()
 			continue
 		}
-		log.Printf("Input started: %s\n", name)
+		LogInfo.Printf("Input started: %s\n", name)
 	}
 
 	// wait for sigint
@@ -268,15 +271,15 @@ func Run(config *PipelineConfig) {
 		case sig := <-globals.sigChan:
 			switch sig {
 			case syscall.SIGHUP:
-				log.Println("Reload initiated.")
+				LogInfo.Println("Reload initiated.")
 				if err := notify.Post(RELOAD, nil); err != nil {
-					log.Println("Error sending reload event: ", err)
+					LogError.Println("Error sending reload event: ", err)
 				}
 			case syscall.SIGINT, syscall.SIGTERM:
-				log.Println("Shutdown initiated.")
+				LogInfo.Println("Shutdown initiated.")
 				globals.stop()
 			case SIGUSR1:
-				log.Println("Queue report initiated.")
+				LogInfo.Println("Queue report initiated.")
 				go config.allReportsStdout()
 			}
 		}
@@ -285,18 +288,18 @@ func Run(config *PipelineConfig) {
 	config.inputsLock.Lock()
 	for _, input := range config.InputRunners {
 		input.Input().Stop()
-		log.Printf("Stop message sent to input '%s'", input.Name())
+		LogInfo.Printf("Stop message sent to input '%s'", input.Name())
 	}
 	config.inputsLock.Unlock()
 	config.inputsWg.Wait()
 
-	log.Println("Waiting for decoders shutdown")
+	LogInfo.Println("Waiting for decoders shutdown")
 	for _, decoder := range config.allDecoders {
 		close(decoder.InChan())
-		log.Printf("Stop message sent to decoder '%s'", decoder.Name())
+		LogError.Printf("Stop message sent to decoder '%s'", decoder.Name())
 	}
 	config.decodersWg.Wait()
-	log.Println("Decoders shutdown complete")
+	LogInfo.Println("Decoders shutdown complete")
 
 	config.filtersLock.Lock()
 	for _, filter := range config.FilterRunners {
@@ -306,23 +309,23 @@ func Run(config *PipelineConfig) {
 		// 3. closes the filter input channel and lets it drain
 		// 4. exits the filter
 		config.router.RemoveFilterMatcher() <- filter.MatchRunner()
-		log.Printf("Stop message sent to filter '%s'", filter.Name())
+		LogInfo.Printf("Stop message sent to filter '%s'", filter.Name())
 	}
 	config.filtersLock.Unlock()
 	config.filtersWg.Wait()
 
 	for _, output := range config.OutputRunners {
 		config.router.RemoveOutputMatcher() <- output.MatchRunner()
-		log.Printf("Stop message sent to output '%s'", output.Name())
+		LogInfo.Printf("Stop message sent to output '%s'", output.Name())
 	}
 	outputsWg.Wait()
 
 	for name, encoder := range config.allEncoders {
 		if stopper, ok := encoder.(NeedsStopping); ok {
-			log.Printf("Stopping encoder '%s'", name)
+			LogInfo.Printf("Stopping encoder '%s'", name)
 			stopper.Stop()
 		}
 	}
 
-	log.Println("Shutdown complete.")
+	LogInfo.Println("Shutdown complete.")
 }

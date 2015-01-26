@@ -136,16 +136,18 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	}
 	// Then override some of the user provided settings with the manager
 	// settings.
-	conf := maker.Config().(*SandboxConfig)
+	mutMaker := maker.(pipeline.MutableMaker)
+	conf := mutMaker.Config().(*SandboxConfig)
 	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", name, conf.ScriptType))
 	conf.ModuleDirectory = this.moduleDirectory
 	conf.MemoryLimit = this.memoryLimit
 	conf.InstructionLimit = this.instructionLimit
 	conf.OutputLimit = this.outputLimit
+	mutMaker.SetConfig(conf)
 
 	// Finally call MakeRunner() to initialize the plugin and create the
 	// runner.
-	runner, err := maker.MakeRunner(name)
+	runner, err := mutMaker.MakeRunner(name)
 	if err != nil {
 		return nil, err
 	}

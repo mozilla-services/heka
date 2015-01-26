@@ -108,7 +108,6 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 		err = pdiInput.Init(config)
 		c.Expect(err, gs.IsNil)
 
-		ith.MockHelper.EXPECT().PipelineConfig().Times(4).Return(pConfig)
 		for _, p := range paths {
 			expectLogMessage("Added: " + p)
 		}
@@ -154,7 +153,6 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 			}()
 
 			// Set up expectations and trigger process dir reload.
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			expectLogMessage("Added: " + newPath)
 			tickChan <- time.Now()
 			loaded.Wait()
@@ -174,7 +172,6 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 			}()
 
 			// Set up expectations and trigger process dir reload.
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			expectLogMessage("Removed: " + paths[3])
 			tickChan <- time.Now()
 			loaded.Wait()
@@ -189,7 +186,6 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 			defer copyFile(paths[1], paths[3])
 
 			// Set up expectations and trigger process dir reload.
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig).AnyTimes()
 			expectLogMessage("Removed: " + paths[3])
 			expectLogMessage("Added: " + paths[3])
 			tickChan <- time.Now()

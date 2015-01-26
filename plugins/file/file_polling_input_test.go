@@ -79,31 +79,13 @@ func FilePollingInputSpec(c gs.Context) {
 			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			c.Specify("gets updated information when reading a file", func() {
 
-				c.Specify("injects messages into the pipeline when not configured with a decoder", func() {
-					ith.MockInputRunner.EXPECT().Inject(ith.Pack).Do(func(pack *PipelinePack) {
+				c.Specify("delivers messages", func() {
+					ith.MockInputRunner.EXPECT().Deliver(ith.Pack).Do(func(pack *PipelinePack) {
 						retPackChan <- pack
 					}).Times(2)
 
 					err := input.Init(config)
 					c.Assume(err, gs.IsNil)
-
-					c.Expect(input.DecoderName, gs.Equals, "")
-
-				})
-
-				c.Specify("sends messages to a decoder when configured with a decoder", func() {
-					decoderName := "ScribbleDecoder"
-					config.DecoderName = decoderName
-
-					mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-					mockDecoderRunner.EXPECT().InChan().Return(retPackChan)
-					ith.MockHelper.EXPECT().DecoderRunner(decoderName,
-						fmt.Sprintf("%s-%s", inputName, decoderName)).Return(mockDecoderRunner, true)
-
-					err := input.Init(config)
-					c.Assume(err, gs.IsNil)
-
-					c.Expect(input.DecoderName, gs.Equals, decoderName)
 				})
 
 				startInput()

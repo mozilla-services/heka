@@ -44,6 +44,8 @@ var (
 	AvailablePlugins     = make(map[string]func() interface{})
 	ErrMissingCloseDelim = errors.New("Missing closing delimiter")
 	ErrInvalidChars      = errors.New("Invalid characters in environmental variable")
+	LogInfo              = log.New(os.Stdout, "", log.LstdFlags)
+	LogError             = log.New(os.Stderr, "", log.LstdFlags)
 )
 
 // Adds a plugin to the set of usable Heka plugins that can be referenced from
@@ -106,49 +108,6 @@ type HasConfigStruct interface {
 	// Returns a default-value-populated configuration structure into which
 	// the plugin's TOML configuration will be deserialized.
 	ConfigStruct() interface{}
-}
-
-// Indicates a plug-in needs its name before it has access to the runner interface.
-type WantsName interface {
-	// Passes the toml section name into the plugin at configuration time.
-	SetName(name string)
-}
-
-// WantsPipelineConfig indicates that a plugin wants access to the
-// PipelineConfig before any methods on the plugin are called. This (and the
-// other `Wants*` interfaces) is a bit kludgey, but it will have to do until
-// we overhaul the config loading code to make all of the right components
-// automatically available to each plugin earlier in the life cycle, which
-// will involve small breaking changes to the core plugin APIs.
-type WantsPipelineConfig interface {
-	SetPipelineConfig(pConfig *PipelineConfig)
-}
-
-// Indicates a plug-in can handle being restart should it exit before
-// heka is shut-down.
-type Restarting interface {
-	// Is called anytime the plug-in returns during the main Run loop to
-	// clean up the plug-in state and determine whether the plugin should
-	// be restarted or not.
-	CleanupForRestart()
-}
-
-// Indicates a plug-in can stop without causing a heka shut-down
-// Callers should first check IsStoppable, and if it returns true, Unregister
-// should be called to remove it from Heka while running.
-type Stoppable interface {
-	IsStoppable() bool
-	Unregister(pConfig *PipelineConfig) error
-}
-
-type notStoppable struct{}
-
-func (s *notStoppable) IsStoppable() bool {
-	return false
-}
-
-func (s *notStoppable) Unregister(pConfig *PipelineConfig) error {
-	return nil
 }
 
 // Master config object encapsulating the entire heka/pipeline configuration.
@@ -528,7 +487,7 @@ func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}
 // Used internally to log and record plugin config loading errors.
 func (self *PipelineConfig) log(msg string) {
 	self.LogMsgs = append(self.LogMsgs, msg)
-	log.Println(msg)
+	LogError.Println(msg)
 }
 
 var PluginTypeRegex = regexp.MustCompile("(Decoder|Encoder|Filter|Input|Output)$")
@@ -546,8 +505,11 @@ type CommonConfig struct {
 }
 
 type CommonInputConfig struct {
-	Ticker  uint `toml:"ticker_interval"`
-	Retries RetryOptions
+	Ticker             uint `toml:"ticker_interval"`
+	Decoder            string
+	SyncDecode         *bool `toml:"synchronous_decode"`
+	SendDecodeFailures *bool `toml:"send_decode_failures"`
+	Retries            RetryOptions
 }
 
 type CommonFOConfig struct {
@@ -572,10 +534,24 @@ type PluginMaker interface {
 	Name() string
 	Type() string
 	Category() string
-	PrepConfig() error
 	Config() interface{}
+	PrepConfig() error
 	Make() (Plugin, error)
 	MakeRunner(name string) (PluginRunner, error)
+}
+
+// MutableMaker is for consumers that want to customize the behavior of the
+// PluginMaker in "bad touch" ways, use at your own risk. Both interfaces are
+// implemented by the same struct, so a PluginMaker can be turned into a
+// MutableMaker via type coersion.
+type MutableMaker interface {
+	PluginMaker
+	SetConfig(config interface{})
+	CommonTypedConfig() interface{}
+	SetCommonTypedConfig(config interface{})
+	SetName(name string)
+	SetType(typ string)
+	SetCategory(category string)
 }
 
 type pluginMaker struct {
@@ -662,6 +638,18 @@ func (m *pluginMaker) Category() string {
 	return m.category
 }
 
+func (m *pluginMaker) SetName(name string) {
+	m.name = name
+}
+
+func (m *pluginMaker) SetType(typ string) {
+	m.commonConfig.Typ = typ
+}
+
+func (m *pluginMaker) SetCategory(category string) {
+	m.category = category
+}
+
 // makePlugin instantiates a plugin instance, provides name and pConfig to the
 // plugin if necessary, and returns the plugin.
 func (m *pluginMaker) makePlugin() Plugin {
@@ -698,6 +686,18 @@ func (m *pluginMaker) Config() interface{} {
 		m.makeConfig()
 	}
 	return m.configStruct
+}
+
+func (m *pluginMaker) CommonTypedConfig() interface{} {
+	return m.commonTypedConfig
+}
+
+func (m *pluginMaker) SetConfig(config interface{}) {
+	m.configStruct = config
+}
+
+func (m *pluginMaker) SetCommonTypedConfig(config interface{}) {
+	m.commonTypedConfig = config
 }
 
 // PrepConfig generates a config struct for the plugin (instantiating an
@@ -828,7 +828,44 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		if commonInput.Ticker == 0 {
 			commonInput.Ticker = defaultTickerInterval.(uint)
 		}
-		runner = NewInputRunner(name, plugin.(Input), commonInput, false)
+
+		// Boolean types are tricky, we use pointer types to distinguish btn
+		// false and not set, but a plugin's config struct might not be so
+		// smart, so we have to account for both cases.
+		if commonInput.SyncDecode == nil {
+			syncDecode := getAttr(m.configStruct, "SyncDecode", false)
+			switch syncDecode := syncDecode.(type) {
+			case bool:
+				commonInput.SyncDecode = &syncDecode
+			case *bool:
+				if syncDecode == nil {
+					b := false
+					syncDecode = &b
+				}
+				commonInput.SyncDecode = syncDecode
+			}
+		}
+
+		if commonInput.SendDecodeFailures == nil {
+			sendFailures := getAttr(m.configStruct, "SendDecodeFailures", false)
+			switch sendFailures := sendFailures.(type) {
+			case bool:
+				commonInput.SendDecodeFailures = &sendFailures
+			case *bool:
+				if sendFailures == nil {
+					b := false
+					sendFailures = &b
+				}
+				commonInput.SendDecodeFailures = sendFailures
+			}
+		}
+
+		if commonInput.Decoder == "" {
+			decoder := getAttr(m.configStruct, "Decoder", "")
+			commonInput.Decoder = decoder.(string)
+		}
+
+		runner = NewInputRunner(name, plugin.(Input), commonInput)
 		return runner, nil
 	}
 
@@ -840,6 +877,10 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 	if commonFO.Matcher == "" {
 		matcherVal := getAttr(m.configStruct, "MessageMatcher", "")
 		commonFO.Matcher = matcherVal.(string)
+	}
+
+	if commonFO.Ticker == 0 {
+		commonFO.Ticker = defaultTickerInterval.(uint)
 	}
 
 	// Boolean types are tricky, we use pointer types to distinguish btn false
@@ -859,7 +900,7 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		}
 	}
 
-	if m.commonConfig.Typ == "Output" {
+	if m.category == "Output" {
 		if commonFO.UseFraming == nil {
 			useFraming := getAttr(m.configStruct, "UseFraming", false)
 			switch useFraming := useFraming.(type) {
@@ -923,7 +964,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		if name == HEKA_DAEMON {
 			continue
 		}
-		log.Printf("Pre-loading: [%s]\n", name)
+		LogInfo.Printf("Pre-loading: [%s]\n", name)
 		maker, err := NewPluginMaker(name, self, conf)
 		if err != nil {
 			self.log(err.Error())
@@ -952,7 +993,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	if !protobufDRegistered {
 		var configDefault ConfigFile
 		toml.Decode(protobufDecoderToml, &configDefault)
-		log.Println("Pre-loading: [ProtobufDecoder]")
+		LogInfo.Println("Pre-loading: [ProtobufDecoder]")
 		maker, err := NewPluginMaker("ProtobufDecoder", self,
 			configDefault["ProtobufDecoder"])
 		if err != nil {
@@ -969,7 +1010,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	if !protobufERegistered {
 		var configDefault ConfigFile
 		toml.Decode(protobufEncoderToml, &configDefault)
-		log.Println("Pre-loading: [ProtobufEncoder]")
+		LogInfo.Println("Pre-loading: [ProtobufEncoder]")
 		maker, err := NewPluginMaker("ProtobufEncoder", self,
 			configDefault["ProtobufEncoder"])
 		if err != nil {
@@ -1007,7 +1048,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	order := []string{"Decoder", "Encoder", "Input", "Filter", "Output"}
 	for _, category := range order {
 		for _, maker := range makersByCategory[category] {
-			log.Printf("Loading: [%s]\n", maker.Name())
+			LogInfo.Printf("Loading: [%s]\n", maker.Name())
 			if err = maker.PrepConfig(); err != nil {
 				self.log(err.Error())
 				errcnt++

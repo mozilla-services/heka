@@ -33,7 +33,9 @@ import (
 var sendCount int
 
 func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte) error {
-	results := [][]byte{[]byte("From: heka@localhost.localdomain\r\nSubject: Heka [SmtpOutput]\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\nV3JpdGUgbWUgb3V0IHRvIHRoZSBuZXR3b3Jr")}
+	results := [][]byte{
+		[]byte("From: heka@localhost.localdomain\r\nSubject: Heka [SmtpOutput]\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\nV3JpdGUgbWUgb3V0IHRvIHRoZSBuZXR3b3Jr"),
+	}
 
 	switch sendCount {
 	case 0:
@@ -85,7 +87,8 @@ func SmtpOutputSpec(c gs.Context) {
 		inChanCall.Return(inChan)
 		runnerName := oth.MockOutputRunner.EXPECT().Name().AnyTimes()
 		runnerName.Return("SmtpOutput")
-		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder).AnyTimes()
+		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+		encCall := oth.MockOutputRunner.EXPECT().Encode(pack)
 
 		c.Specify("send email payload message", func() {
 			err := smtpOutput.Init(config)
@@ -94,8 +97,9 @@ func SmtpOutputSpec(c gs.Context) {
 
 			outStr := "Write me out to the network"
 			pack.Message.SetPayload(outStr)
+			encCall.Return(encoder.Encode(pack))
+			wg.Add(1)
 			go func() {
-				wg.Add(1)
 				smtpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				wg.Done()
 			}()
@@ -105,40 +109,42 @@ func SmtpOutputSpec(c gs.Context) {
 		})
 	})
 
-	// Use this test with a real server
-	//  c.Specify("Real SmtpOutput output", func() {
-	//  	smtpOutput := new(SmtpOutput)
-	//
-	//  	config := smtpOutput.ConfigStruct().(*SmtpOutputConfig)
-	//  	config.SendTo = []string{"root"}
-	//
-	//  	msg := pipeline_ts.GetTestMessage()
-	//  	pack := NewPipelinePack(pConfig.InputRecycleChan())
-	//  	pack.Message = msg
-	//  	pack.Decoded = true
-	//  	inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
-	//  	inChanCall.Return(inChan)
-	//  	runnerName := oth.MockOutputRunner.EXPECT().Name().AnyTimes()
-	//  	runnerName.Return("SmtpOutput")
-	//      oth.MockOutputRunner.EXPECT().Encoder().Return(encoder).AnyTimes()
-	//
-	//  	c.Specify("send a real email essage", func() {
-	//
-	//  		err := smtpOutput.Init(config)
-	//  		c.Assume(err, gs.IsNil)
-	//
-	//  		outStr := "Write me out to the network"
-	//  		pack.Message.SetPayload(outStr)
-	//  		go func() {
-	//  			wg.Add(1)
-	//  			smtpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
-	//  			wg.Done()
-	//  		}()
-	//  		inChan <- pack
-	//  		time.Sleep(1000) // allow time for the message output
-	//  		close(inChan)
-	//  		wg.Wait()
-	//  		// manually check the mail
-	//  	})
-	//  })
+	// // Use this test with a real server
+	// c.Specify("Real SmtpOutput output", func() {
+	// 	smtpOutput := new(SmtpOutput)
+
+	// 	config := smtpOutput.ConfigStruct().(*SmtpOutputConfig)
+	// 	config.SendTo = []string{"root"}
+
+	// 	msg := pipeline_ts.GetTestMessage()
+	// 	pack := NewPipelinePack(pConfig.InputRecycleChan())
+	// 	pack.Message = msg
+	// 	pack.Decoded = true
+	// 	inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
+	// 	inChanCall.Return(inChan)
+	// 	runnerName := oth.MockOutputRunner.EXPECT().Name().AnyTimes()
+	// 	runnerName.Return("SmtpOutput")
+	// 	oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+	// 	encCall := oth.MockOutputRunner.EXPECT().Encode(pack)
+
+	// 	c.Specify("send a real email essage", func() {
+
+	// 		err := smtpOutput.Init(config)
+	// 		c.Assume(err, gs.IsNil)
+
+	// 		outStr := "Write me out to the network"
+	// 		pack.Message.SetPayload(outStr)
+	// 		encCall.Return(encoder.Encode(pack))
+	// 		go func() {
+	// 			wg.Add(1)
+	// 			smtpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+	// 			wg.Done()
+	// 		}()
+	// 		inChan <- pack
+	// 		time.Sleep(1000) // allow time for the message output
+	// 		close(inChan)
+	// 		wg.Wait()
+	// // manually check the mail
+	//	})
+	// })
 }

@@ -26,7 +26,6 @@ import (
 	. "github.com/mozilla-services/heka/message"
 	"hash"
 	"io"
-	"log"
 	"net"
 	"time"
 )
@@ -37,14 +36,14 @@ type NetworkParseFunction func(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	dr DecoderRunner) (err error)
+	deliver DeliverFunc) (err error)
 
 // Standard text log file parser
 func NetworkPayloadParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	dr DecoderRunner) (err error) {
+	deliver DeliverFunc) (err error) {
 	var (
 		pack   *PipelinePack
 		record []byte
@@ -71,11 +70,7 @@ func NetworkPayloadParser(conn net.Conn,
 		}
 		pack.Message.SetLogger(ir.Name())
 		pack.Message.SetPayload(string(record))
-		if dr == nil {
-			ir.Inject(pack)
-		} else {
-			dr.InChan() <- pack
-		}
+		deliver(pack)
 	}
 	return
 }
@@ -85,7 +80,7 @@ func NetworkMessageProtoParser(conn net.Conn,
 	parser StreamParser,
 	ir InputRunner,
 	signers map[string]Signer,
-	dr DecoderRunner) (err error) {
+	deliver DeliverFunc) (err error) {
 	var (
 		pack   *PipelinePack
 		record []byte
@@ -119,7 +114,7 @@ func NetworkMessageProtoParser(conn net.Conn,
 		}
 		pack.MsgBytes = pack.MsgBytes[:messageLen]
 		copy(pack.MsgBytes, record[headerLen:])
-		dr.InChan() <- pack
+		deliver(pack)
 	}
 	return
 }
@@ -132,16 +127,16 @@ type Signer struct {
 // Decodes provided byte slice into a Heka protocol header object.
 func DecodeHeader(buf []byte, header *Header) bool {
 	if buf[len(buf)-1] != UNIT_SEPARATOR {
-		log.Println("missing unit separator")
 		return false
 	}
 	err := proto.Unmarshal(buf[0:len(buf)-1], header)
 	if err != nil {
-		log.Println("error unmarshaling header:", err)
+		LogError.Println("error unmarshaling header:", err)
 		return false
 	}
 	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
-		log.Printf("message exceeds the maximum length (bytes): %d", MAX_MESSAGE_SIZE)
+		LogError.Printf("message exceeds the maximum length [%d bytes] len: %d", MAX_MESSAGE_SIZE, header.GetMessageLength())
+		header.Reset()
 		return false
 	}
 	return true

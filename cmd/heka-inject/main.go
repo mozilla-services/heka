@@ -28,7 +28,6 @@ import (
 	"flag"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"os"
 	"time"
 )
@@ -74,11 +73,11 @@ func (hc *HekaClient) injectMessage(m *InjectData) (err error) {
 
 	err = hc.encoder.EncodeMessageStream(msg, &stream)
 	if err != nil {
-		log.Printf("Inject: [error] encode message: %s\n", err)
+		client.LogError.Printf("Inject: [error] encode message: %s\n", err)
 	}
 	err = hc.sender.SendMessage(stream)
 	if err != nil {
-		log.Printf("Inject: [error] send message: %s\n", err)
+		client.LogError.Printf("Inject: [error] send message: %s\n", err)
 	}
 	return nil
 }
@@ -122,7 +121,7 @@ func main() {
 	if err == nil {
 		err := hc.injectMessage(data)
 		if err != nil {
-			log.Printf("Inject: [error] %s\n", err)
+			client.LogError.Printf("Inject: [error] %s\n", err)
 		}
 	}
 }

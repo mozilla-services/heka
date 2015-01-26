@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"sync"
 	"time"
 )
@@ -88,15 +87,66 @@ func (pr *pRunnerBase) LeakCount() int {
 	return pr.leakCount
 }
 
+// AddDecodeFailureFields adds two fields to the provided message object. The
+// first field is a boolean field called `decode_failure`, set to true. The
+// second is a string field called `decode_error` which will contain the
+// provided error message, truncated to 500 bytes if necessary.
+func AddDecodeFailureFields(m *message.Message, errMsg string) error {
+	field0, err := message.NewField("decode_failure", true, "")
+	if err != nil {
+		err = fmt.Errorf("field creation error: %s", err.Error())
+		return err
+	}
+	if len(errMsg) > 500 {
+		errMsg = errMsg[:500]
+	}
+	field1, err := message.NewField("decode_error", errMsg, "")
+	if err != nil {
+		err = fmt.Errorf("field creation error: %s", err.Error())
+		return err
+	}
+	m.AddField(field0)
+	m.AddField(field1)
+	return nil
+}
+
+type DeliverFunc func(pack *PipelinePack)
+
+type Deliverer interface {
+	Deliver(pack *PipelinePack)
+	DeliverFunc() DeliverFunc
+	Done()
+}
+
+type deliverer struct {
+	deliver DeliverFunc
+	dRunner DecoderRunner
+	pConfig *PipelineConfig
+}
+
+func (d *deliverer) Deliver(pack *PipelinePack) {
+	d.deliver(pack)
+}
+
+func (d *deliverer) DeliverFunc() DeliverFunc {
+	return d.deliver
+}
+
+func (d *deliverer) Done() {
+	if d.dRunner != nil {
+		d.pConfig.StopDecoderRunner(d.dRunner)
+	}
+}
+
 // Heka PluginRunner for Input plugins.
 type InputRunner interface {
 	PluginRunner
-	// Input channel from which Inputs can get fresh PipelinePacks, ready to
-	// be populated.
+	// InChan returns the input channel from which Inputs can get fresh
+	// PipelinePacks, ready to be populated.
 	InChan() chan *PipelinePack
-	// Associated Input plugin object.
+	// Input returns the associated Input plugin object.
 	Input() Input
-	// Returns a ticker channel configured to send ticks at an interval
+	// Ticker returns a ticker channel configured to send ticks at an interval
 	// specified by the plugin's ticker_interval config value, if provided.
 	Ticker() (ticker <-chan time.Time)
 	// Starts Input in a separate goroutine and returns. Should decrement the
@@ -110,15 +160,41 @@ type InputRunner interface {
 	// transient InputRunner must be managed by the code that creates the
 	// runner.
 	Transient() bool
+	// SetTransient specifies whether or not this Input should be considered
+	// transient.
+	SetTransient(transient bool)
+	// Creates and returns a new Deliverer, creating a new Decoder or
+	// DecoderRunner to handle decoding before router injection if necessary.
+	// It is the caller's responsibility to call `Done()` when the deliverer
+	// is no longer in use to ensure that any DecoderRunner goroutines get
+	// cleaned up.
+	NewDeliverer(token string) Deliverer
+	// Deliver accepts packs from the Input plugin and performs the
+	// appropriate one of three possible next actions. Possible actions are 1)
+	// placing the pack on a Decoder's input channel, if a decoder is
+	// specified and syncDecode is false; 2) synchronously decoding the pack
+	// and then placing it on the router's input channel, if a decoder is
+	// specified and syncDecode is true; or 3) placing the pack directly on
+	// the router's input channel, if no decoder is specified.
+	Deliver(pack *PipelinePack)
+	// UseMsgBytes returns true if the InputRunner has a decoder that expects
+	// to find the raw input data in the PipelinePack's `MsgBytes` attribute,
+	// which is typically a ProtobufDecoder. Returns false otherwise.
+	UseMsgBytes() bool
 }
 
 type iRunner struct {
 	pRunnerBase
-	input     Input
-	config    CommonInputConfig
-	inChan    chan *PipelinePack
-	ticker    <-chan time.Time
-	transient bool
+	input              Input
+	config             CommonInputConfig
+	pConfig            *PipelineConfig
+	inChan             chan *PipelinePack
+	ticker             <-chan time.Time
+	transient          bool
+	syncDecode         bool
+	sendDecodeFailures bool
+	useMsgBytes        bool
+	deliver            DeliverFunc
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -129,26 +205,34 @@ func (ir *iRunner) Transient() bool {
 	return ir.transient
 }
 
+func (ir *iRunner) SetTransient(transient bool) {
+	ir.transient = transient
+}
+
 // Creates and returns a new (not yet started) InputRunner associated w/ the
 // provided Input. If transient is true Heka won't try to manage the input's
 // life span at all, it's up to the caller to do so.
-func NewInputRunner(name string, input Input, config CommonInputConfig,
-	transient bool) (ir InputRunner) {
+func NewInputRunner(name string, input Input, config CommonInputConfig) (ir InputRunner) {
 
 	runner := &iRunner{
 		pRunnerBase: pRunnerBase{
 			name:   name,
 			plugin: input.(Plugin),
 		},
-		input:     input,
-		config:    config,
-		transient: transient,
+		input:  input,
+		config: config,
+	}
+	if config.SyncDecode != nil {
+		runner.syncDecode = *config.SyncDecode
+	}
+	if config.SendDecodeFailures != nil {
+		runner.sendDecodeFailures = *config.SendDecodeFailures
 	}
 	return runner
 }
 
 func (ir *iRunner) Input() Input {
-	return ir.plugin.(Input)
+	return ir.input
 }
 
 func (ir *iRunner) InChan() chan *PipelinePack {
@@ -157,11 +241,35 @@ func (ir *iRunner) InChan() chan *PipelinePack {
 
 func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	ir.h = h
-	ir.inChan = h.PipelineConfig().inputRecycleChan
+	ir.pConfig = h.PipelineConfig()
+	ir.inChan = ir.pConfig.inputRecycleChan
 
 	if ir.config.Ticker != 0 {
 		tickLength := time.Duration(ir.config.Ticker) * time.Second
 		ir.ticker = time.Tick(tickLength)
+	}
+
+	// This bit is a bit kludgey; we're creating a decoder just to see if it's
+	// a ProtobufDecoder or a MultiDecoder starting with a ProtobufDecoder,
+	// and if so we set useMsgBytes to true. This should go away entirely when
+	// the splitter branch lands, this is just to keep the dev branch working
+	// in the meantime.
+	if ir.config.Decoder != "" {
+		decoder, ok := ir.pConfig.Decoder(ir.config.Decoder)
+		if !ok {
+			return fmt.Errorf("%s can't create decoder %s", ir.name, ir.config.Decoder)
+		}
+		_, ok = decoder.(*ProtobufDecoder)
+		if ok {
+			ir.useMsgBytes = true
+		} else if d, ok := decoder.(*MultiDecoder); ok {
+			if len(d.Decoders) > 0 {
+				_, ok = d.Decoders[0].(*ProtobufDecoder)
+				if ok {
+					ir.useMsgBytes = true
+				}
+			}
+		}
 	}
 
 	go ir.Starter(h, wg)
@@ -171,8 +279,7 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	pConfig := h.PipelineConfig()
-	globals := pConfig.Globals
+	globals := ir.pConfig.Globals
 	rh, err := NewRetryHelper(ir.config.Retries)
 	if err != nil {
 		ir.LogError(err)
@@ -209,7 +316,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 		recon.CleanupForRestart()
 		if ir.maker == nil {
-			ir.maker = pConfig.makers["Input"][ir.name]
+			ir.maker = ir.pConfig.makers["Input"][ir.name]
 		}
 	initLoop:
 		if err = rh.Wait(); err != nil {
@@ -227,15 +334,99 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 }
 
 func (ir *iRunner) Inject(pack *PipelinePack) {
-	ir.h.PipelineConfig().router.InChan() <- pack
+	ir.pConfig.router.InChan() <- pack
 }
 
 func (ir *iRunner) LogError(err error) {
-	log.Printf("Input '%s' error: %s", ir.name, err)
+	LogError.Printf("Input '%s' error: %s", ir.name, err)
 }
 
 func (ir *iRunner) LogMessage(msg string) {
-	log.Printf("Input '%s': %s", ir.name, msg)
+	LogInfo.Printf("Input '%s': %s", ir.name, msg)
+}
+
+func (ir *iRunner) UseMsgBytes() bool {
+	return ir.useMsgBytes
+}
+
+func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
+	var deliver DeliverFunc
+	decoderName := ir.config.Decoder
+
+	// If no decoder is specified we just inject into the router.
+	if decoderName == "" {
+		deliver = func(pack *PipelinePack) {
+			ir.Inject(pack)
+		}
+		return deliver, nil
+	}
+
+	ir.pConfig.makersLock.RLock()
+	_, ok := ir.pConfig.DecoderMakers[decoderName]
+	ir.pConfig.makersLock.RUnlock()
+	if !ok {
+		ir.LogError(fmt.Errorf("decoder '%s' not registered", decoderName))
+		return nil, nil
+	}
+
+	// No synchronous decode means create a DecoderRunner and drop packs on
+	// its inChan.
+	if !ir.syncDecode {
+		var fullName string
+		if token == "" {
+			fullName = fmt.Sprintf("%s-%s", ir.name, decoderName)
+		} else {
+			fullName = fmt.Sprintf("%s-%s-%s", ir.name, decoderName, token)
+		}
+		dr, _ := ir.pConfig.DecoderRunner(decoderName, fullName)
+		dr.SetSendFailure(ir.sendDecodeFailures)
+		inChan := dr.InChan()
+		deliver = func(pack *PipelinePack) {
+			inChan <- pack
+		}
+		return deliver, dr
+	}
+
+	// Synchronous decode means create a decoder instance and call Decode
+	// directly.
+	decoder, _ := ir.pConfig.Decoder(decoderName)
+	deliver = func(pack *PipelinePack) {
+		packs, err := decoder.Decode(pack)
+		if err != nil {
+			errMsg := err.Error()
+			ir.LogError(fmt.Errorf("decoding: %s", errMsg))
+			if !ir.sendDecodeFailures {
+				pack.Recycle()
+				return
+			}
+			if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
+				ir.LogError(err)
+			}
+			ir.Inject(pack)
+			return
+		}
+		for _, p := range packs {
+			ir.Inject(p)
+		}
+	}
+	return deliver, nil
+}
+
+func (ir *iRunner) NewDeliverer(token string) Deliverer {
+	deliver, dRunner := ir.getDeliverFunc(token)
+	d := &deliverer{
+		deliver: deliver,
+		dRunner: dRunner,
+		pConfig: ir.pConfig,
+	}
+	return d
+}
+
+func (ir *iRunner) Deliver(pack *PipelinePack) {
+	if ir.deliver == nil {
+		ir.deliver, _ = ir.getDeliverFunc("")
+	}
+	ir.deliver(pack)
 }
 
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
@@ -256,13 +447,18 @@ type DecoderRunner interface {
 	// for decoders that generate multiple messages from a single input
 	// message.
 	NewPack() *PipelinePack
+	// SetSendFailure allows the InputRunner to specify whether or not
+	// messages that fail decoding should still be tagged and given to the
+	// router.
+	SetSendFailure(sendFailure bool)
 }
 
 type dRunner struct {
 	pRunnerBase
-	inChan chan *PipelinePack
-	router *messageRouter
-	h      PluginHelper
+	inChan      chan *PipelinePack
+	router      *messageRouter
+	h           PluginHelper
+	sendFailure bool
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -284,34 +480,43 @@ func (dr *dRunner) Decoder() Decoder {
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	dr.h = h
 	dr.router = h.PipelineConfig().router
-	go func() {
-		var (
-			pack  *PipelinePack
-			packs []*PipelinePack
-			err   error
-		)
-		if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
-			wanter.SetDecoderRunner(dr)
-		}
-		for pack = range dr.inChan {
-			if packs, err = dr.Decoder().Decode(pack); packs != nil {
-				for _, p := range packs {
-					h.PipelineConfig().router.InChan() <- p
-				}
-			} else {
-				if err != nil {
-					dr.LogError(err)
-				}
-				pack.Recycle()
-				continue
+	go dr.start(h, wg)
+}
+
+func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
+	var (
+		pack  *PipelinePack
+		packs []*PipelinePack
+		err   error
+	)
+	if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
+		wanter.SetDecoderRunner(dr)
+	}
+	for pack = range dr.inChan {
+		if packs, err = dr.Decoder().Decode(pack); packs != nil {
+			for _, p := range packs {
+				dr.router.InChan() <- p
 			}
+		} else {
+			if err != nil {
+				dr.LogError(err)
+				if dr.sendFailure {
+					if err = AddDecodeFailureFields(pack.Message, err.Error()); err != nil {
+						dr.LogError(err)
+					}
+					dr.router.InChan() <- pack
+					continue
+				}
+			}
+			pack.Recycle()
+			continue
 		}
-		if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
-			wanter.Shutdown()
-		}
-		dr.LogMessage("stopped")
-		wg.Done()
-	}()
+	}
+	if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
+		wanter.Shutdown()
+	}
+	dr.LogMessage("stopped")
+	wg.Done()
 }
 
 func (dr *dRunner) InChan() chan *PipelinePack {
@@ -327,11 +532,15 @@ func (dr *dRunner) NewPack() *PipelinePack {
 }
 
 func (dr *dRunner) LogError(err error) {
-	log.Printf("Decoder '%s' error: %s", dr.name, err)
+	LogError.Printf("Decoder '%s' error: %s", dr.name, err)
 }
 
 func (dr *dRunner) LogMessage(msg string) {
-	log.Printf("Decoder '%s': %s", dr.name, msg)
+	LogInfo.Printf("Decoder '%s': %s", dr.name, msg)
+}
+
+func (dr *dRunner) SetSendFailure(sendFailure bool) {
+	dr.sendFailure = sendFailure
 }
 
 // Any decoder that needs access to its DecoderRunner can implement this
@@ -696,11 +905,11 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 }
 
 func (foRunner *foRunner) LogError(err error) {
-	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
+	LogError.Printf("Plugin '%s' error: %s", foRunner.name, err)
 }
 
 func (foRunner *foRunner) LogMessage(msg string) {
-	log.Printf("Plugin '%s': %s", foRunner.name, msg)
+	LogInfo.Printf("Plugin '%s': %s", foRunner.name, msg)
 }
 
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {

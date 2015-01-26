@@ -85,9 +85,6 @@ type ProcessInputConfig struct {
 	// Skips wait
 	ImmediateStart bool `toml:"immediate_start"`
 
-	// Name of configured decoder instance.
-	Decoder string
-
 	// ParserType is the parser used to split program output into heka
 	// messages. Defaults to "token".
 	ParserType string `toml:"parser_type"`
@@ -114,9 +111,6 @@ type ProcessInputConfig struct {
 // we can't use `==`.
 func (pic *ProcessInputConfig) Equals(otherPic *ProcessInputConfig) bool {
 	if pic.TickerInterval != otherPic.TickerInterval {
-		return false
-	}
-	if pic.Decoder != otherPic.Decoder {
 		return false
 	}
 	if pic.ParserType != otherPic.ParserType {
@@ -163,7 +157,6 @@ type ProcessInput struct {
 	ProcessName string
 	cc          *CommandChain
 	ir          InputRunner
-	decoderName string
 
 	parseStdout bool
 	parseStderr bool
@@ -237,8 +230,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 		}
 	}
 
-	pi.decoderName = conf.Decoder
-
 	switch conf.ParserType {
 	case "token":
 		tp := NewTokenParser()
@@ -278,23 +269,12 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
 	pi.hostname = h.Hostname()
-	pConfig := h.PipelineConfig()
 
 	var (
-		pack    *PipelinePack
-		dRunner DecoderRunner
-		data    string
+		pack *PipelinePack
+		data string
 	)
 	ok := true
-
-	// Try to get the configured decoder.
-	hasDecoder := pi.decoderName != ""
-	if hasDecoder {
-		decoderFullName := fmt.Sprintf("%s-%s", ir.Name(), pi.decoderName)
-		if dRunner, ok = h.DecoderRunner(pi.decoderName, decoderFullName); !ok {
-			return fmt.Errorf("Decoder not found: %s", pi.decoderName)
-		}
-	}
 
 	// Start the output parser and start running commands.
 	go pi.RunCmd()
@@ -309,21 +289,11 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 			}
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stdout")
-
-			if hasDecoder {
-				dRunner.InChan() <- pack
-			} else {
-				pConfig.Router().InChan() <- pack
-			}
+			ir.Deliver(pack)
 		case data = <-pi.stderrChan:
 			pack = <-packSupply
 			pi.writeToPack(data, pack, "stderr")
-
-			if hasDecoder {
-				dRunner.InChan() <- pack
-			} else {
-				pConfig.Router().InChan() <- pack
-			}
+			ir.Deliver(pack)
 		case <-pi.stopChan:
 			ok = false
 		}
