@@ -283,41 +283,65 @@ int read_next_field(lua_State* lua)
 
     struct go_lua_read_next_field_return gr;
     gr = go_lua_read_next_field(lsb_get_parent(lsb));
-    if (gr.r3 == NULL) {
+    if (!gr.r1) { // a null name is the end of the field array
         lua_pushnil(lua);
         lua_pushnil(lua);
         lua_pushnil(lua);
         lua_pushnil(lua);
         lua_pushnil(lua);
-    } else {
-        lua_pushinteger(lua, gr.r0); // type
-        lua_pushlstring(lua, gr.r1, gr.r2); // name
-        free(gr.r1);
-        switch (gr.r0) { // value
-        case 0:
+        return 5;
+    }
+
+    lua_pushinteger(lua, gr.r0); // type
+    lua_pushlstring(lua, gr.r1, gr.r2); // name
+    free(gr.r1);
+    switch (gr.r0) { // value
+    case 0:
+        if (gr.r3) {
             lua_pushlstring(lua, gr.r3, gr.r4);
             free(gr.r3);
-            break;
-        case 1:
-            lua_pushlstring(lua, gr.r3, gr.r4);
-            break;
-        case 2:
-            lua_pushnumber(lua, *((GoInt64*)gr.r3));
-            break;
-        case 3:
-            lua_pushnumber(lua, *((GoFloat64*)gr.r3));
-            break;
-        case 4:
-            lua_pushboolean(lua, *((GoInt8*)gr.r3));
-            break;
-        default:
+        } else {
             lua_pushnil(lua);
-            break;
         }
+        break;
+    case 1:
+        if (gr.r3) {
+            lua_pushlstring(lua, gr.r3, gr.r4);
+        } else {
+            lua_pushnil(lua);
+        }
+        break;
+    case 2:
+        if (gr.r3) {
+            lua_pushnumber(lua, *((GoInt64*)gr.r3));
+        } else {
+            lua_pushnil(lua);
+        }
+        break;
+    case 3:
+        if (gr.r3) {
+            lua_pushnumber(lua, *((GoFloat64*)gr.r3));
+        } else {
+            lua_pushnil(lua);
+        }
+        break;
+    case 4:
+        if (gr.r3) {
+            lua_pushboolean(lua, *((GoInt8*)gr.r3));
+        } else {
+            lua_pushnil(lua);
+        }
+        break;
+    default:
+        lua_pushnil(lua);
+        break;
+    }
+    if (gr.r5) {
         lua_pushlstring(lua, gr.r5, gr.r6); // representation
         free(gr.r5);
-        lua_pushinteger(lua, gr.r7); // count
     }
+    lua_pushinteger(lua, gr.r7); // count
+
     return 5;
 }
 
