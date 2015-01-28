@@ -81,6 +81,8 @@ Features
 * Added ability for HttpListenInput to capture specified HTTP request headers
   and write them as message fields.
 
+* Added `message_interval` setting support to heka-flood test configuration.
+
 0.8.3 (2015-01-08)
 ==================
 

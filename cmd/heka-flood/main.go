@@ -54,6 +54,7 @@ type FloodTest struct {
 	Sender               string                       `toml:"sender"`
 	PprofFile            string                       `toml:"pprof_file"`
 	Encoder              string                       `toml:"encoder"`
+	MsgInterval          string                       `toml:"message_interval"`
 	Signer               message.MessageSigningConfig `toml:"signer"`
 	CorruptPercentage    float64                      `toml:"corrupt_percentage"`
 	SignedPercentage     float64                      `toml:"signed_percentage"`
@@ -62,6 +63,7 @@ type FloodTest struct {
 	AsciiOnly            bool                         `toml:"ascii_only"`
 	UseTls               bool                         `toml:"use_tls"`
 	Tls                  tcp.TlsConfig                `toml:"tls"`
+	msgInterval          time.Duration
 }
 
 type FloodConfig map[string]FloodTest
@@ -307,6 +309,15 @@ func main() {
 		return
 	}
 
+	if test.MsgInterval != "" {
+		var err error
+		if test.msgInterval, err = time.ParseDuration(test.MsgInterval); err != nil {
+			client.LogError.Printf("Invalid message_interval duration %s: %s", test.MsgInterval,
+				err.Error())
+			return
+		}
+	}
+
 	if test.PprofFile != "" {
 		profFile, err := os.Create(test.PprofFile)
 		if err != nil {
@@ -414,6 +425,9 @@ func main() {
 		msgsSent++
 		if test.NumMessages != 0 && msgsSent >= test.NumMessages {
 			break
+		}
+		if test.msgInterval != 0 {
+			time.Sleep(test.msgInterval)
 		}
 	}
 	sender.Close()

@@ -27,6 +27,8 @@ Configuration Variables
 - pprof_file (string): The name of the file to save the profiling data to.
 - encoder (string): protobuf or json
 - num_messages (int): The number of messages to be sent, 0 for infinite.
+- message_interval (string): Duration of time to delay between the sending of each message. Accepts
+duration values as supported by Go's `time.ParseDuration function <http://golang.org/pkg/time/#ParseDuration>`_. Default of 0 means no delay.
 - corrupt_percentage (float): The percentage of messages that will be randomly corrupted.
 - signed_percentage (float): The percentage of message that will signed.
 - variable_size_messages (bool): True, if a random selection of variable size messages are to be sent.  False, if a single fixed message will be sent.
