@@ -28,6 +28,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Handle empty byte fields in the sandbox interface (#1284).
+
 * Reset header when discarding valid but oversized messages (#1221).
 
 * Prevent the protobuf stream encoder from creating messages over

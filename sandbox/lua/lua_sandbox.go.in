@@ -66,30 +66,34 @@ func lookup_field(msg *message.Message, fn string, fi, ai int) (int,
 	switch field.GetValueType() {
 	case message.Field_STRING:
 		if ai >= len(field.ValueString) {
-			return fieldType, unsafe.Pointer(nil), 0
+			break
 		}
 		value := field.ValueString[ai]
 		cs := C.CString(value) // freed by the caller
 		return fieldType, unsafe.Pointer(cs), len(value)
 	case message.Field_BYTES:
 		if ai >= len(field.ValueBytes) {
-			return fieldType, unsafe.Pointer(nil), 0
+			break
 		}
 		value := field.ValueBytes[ai]
-		return fieldType, unsafe.Pointer(&field.ValueBytes[ai][0]), len(value)
+		valueLen := len(value)
+		if valueLen == 0 {
+			break
+		}
+		return fieldType, unsafe.Pointer(&field.ValueBytes[ai][0]), valueLen
 	case message.Field_INTEGER:
 		if ai >= len(field.ValueInteger) {
-			return fieldType, unsafe.Pointer(nil), 0
+			break
 		}
 		return fieldType, unsafe.Pointer(&field.ValueInteger[ai]), 0
 	case message.Field_DOUBLE:
 		if ai >= len(field.ValueDouble) {
-			return fieldType, unsafe.Pointer(nil), 0
+			break
 		}
 		return fieldType, unsafe.Pointer(&field.ValueDouble[ai]), 0
 	case message.Field_BOOL:
 		if ai >= len(field.ValueBool) {
-			return fieldType, unsafe.Pointer(nil), 0
+			break
 		}
 		return fieldType, unsafe.Pointer(&field.ValueBool[ai]), 0
 	}
@@ -445,9 +449,8 @@ func go_lua_read_next_field(ptr unsafe.Pointer) (int, unsafe.Pointer, int,
 		fieldLen          int
 	)
 	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
-	var field *message.Field
 	if lsb.pack != nil && lsb.field < len(lsb.pack.Message.Fields) {
-		field = lsb.pack.Message.Fields[lsb.field]
+		field := lsb.pack.Message.Fields[lsb.field]
 		lsb.field++
 
 		fieldType = int(field.GetValueType())
@@ -472,8 +475,11 @@ func go_lua_read_next_field(ptr unsafe.Pointer) (int, unsafe.Pointer, int,
 				break
 			}
 			value := field.ValueBytes[0]
-			valuePtr = unsafe.Pointer(&field.ValueBytes[0][0])
 			valueLen = len(value)
+			if valueLen == 0 {
+				break
+			}
+			valuePtr = unsafe.Pointer(&field.ValueBytes[0][0])
 		case message.Field_INTEGER:
 			fieldLen = len(field.ValueInteger)
 			if fieldLen == 0 {
