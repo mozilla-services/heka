@@ -259,6 +259,19 @@ func (m *Message) AddField(f *Field) {
 	m.Fields[l] = f
 }
 
+// Deletes a Field from the message
+func (m *Message) DeleteField(f *Field) {
+	if m == nil {
+		return
+	}
+	for i, v := range m.Fields {
+		if v == f {
+			m.Fields = append(m.Fields[:i], m.Fields[i+1:]...)
+			break
+		}
+	}
+}
+
 // Field constructor
 func NewField(name string, value interface{}, representation string) (f *Field, err error) {
 	v := reflect.ValueOf(value)

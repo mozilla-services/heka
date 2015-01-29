@@ -204,6 +204,60 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	return nil
 }
 
+// Enforces field and array index limits.
+func delete_field(msg *message.Message, fn string, fi, ai int, has_ai bool) error {
+
+	var field *message.Field
+	fields := msg.FindAllFields(fn)
+
+	// We're only allowed to delete existing fields
+	if len(fields) == 0 {
+		return errors.New("bad field name")
+	}
+	if fi > len(fields) {
+		return errors.New("bad field index")
+	}
+
+	field = fields[fi]
+	if has_ai {
+		switch field.GetValueType() {
+		case message.Field_STRING:
+			if ai > len(field.ValueString) {
+				return errors.New("bad array index")
+			} else {
+				field.ValueString = append(field.ValueString[:ai], field.ValueString[ai+1:]...)
+			}
+		case message.Field_BYTES:
+			if ai > len(field.ValueBytes) {
+				return errors.New("bad array index")
+			} else {
+				field.ValueBytes = append(field.ValueBytes[:ai], field.ValueBytes[ai+1:]...)
+			}
+		case message.Field_INTEGER:
+			if ai > len(field.ValueInteger) {
+				return errors.New("bad array index")
+			} else {
+				field.ValueInteger = append(field.ValueInteger[:ai], field.ValueInteger[ai+1:]...)
+			}
+		case message.Field_DOUBLE:
+			if ai > len(field.ValueDouble) {
+				return errors.New("bad array index")
+			} else {
+				field.ValueDouble = append(field.ValueDouble[:ai], field.ValueDouble[ai+1:]...)
+			}
+		case message.Field_BOOL:
+			if ai > len(field.ValueBool) {
+				return errors.New("bad array index")
+			} else {
+				field.ValueBool = append(field.ValueBool[:ai], field.ValueBool[ai+1:]...)
+			}
+		}
+	} else {
+		msg.DeleteField(field)
+	}
+	return nil
+}
+
 //export go_lua_read_message
 func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe.Pointer,
 	int) {
@@ -426,6 +480,31 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 		return 0
 	}
 	lsb.globals.LogMessage("go_lua_write_message_bool", "Bad field name.")
+	return 1
+}
+
+//export go_lua_delete_message_field
+func go_lua_delete_message_field(ptr unsafe.Pointer, c *C.char, fi, ai int, has_ai bool) int {
+
+	fieldName := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		lsb.globals.LogMessage("go_lua_delete_message_field", "No sandbox pack.")
+		return 1
+	}
+	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
+		lsb.messageCopied = true
+	}
+
+	if fn, found := extractLuaFieldName(fieldName); found {
+		if err := delete_field(lsb.pack.Message, fn, fi, ai, has_ai); err != nil {
+			lsb.globals.LogMessage("go_lua_delete_message_field", err.Error())
+			return 1
+		}
+		return 0
+	}
+	lsb.globals.LogMessage("go_lua_delete_message_field", "Bad field name.")
 	return 1
 }
 

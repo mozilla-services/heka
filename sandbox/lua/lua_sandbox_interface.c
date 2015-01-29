@@ -232,6 +232,7 @@ int write_message(lua_State* lua)
     luaL_argcheck(lua, fi >= 0, 4, "field index must be >= 0");
     int ai = luaL_optinteger(lua, 5, 0);
     luaL_argcheck(lua, ai >= 0, 5, "array index must be >= 0");
+    int has_ai = !lua_isnoneornil(lua, 5); // needed for deletion
 
     int result;
 
@@ -256,6 +257,10 @@ int write_message(lua_State* lua)
         const char* value = lua_tostring(lua, 2);
         result = go_lua_write_message_string(lsb_get_parent(lsb), (char*)field,
             (char*)value, (char*)rep, fi, ai);
+        break;
+    }
+    case LUA_TNIL: {
+        result = go_lua_delete_message_field(lsb_get_parent(lsb), (char*)field, fi, ai, has_ai);
         break;
     }
     default:

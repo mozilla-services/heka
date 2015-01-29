@@ -356,7 +356,6 @@ func TestWriteMessageErrors(t *testing.T) {
 		"Negative field index",
 		"Negative array index",
 		"nil field",
-		"nil value",
 		"empty uuid",
 		"invalid uuid",
 		"empty timestamp",
@@ -374,13 +373,12 @@ func TestWriteMessageErrors(t *testing.T) {
 		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
-		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean field values",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
-		"process_message() ./testsupport/write_message_errors.lua:41: write_message() failed",
 	}
 
 	var sbc SandboxConfig
