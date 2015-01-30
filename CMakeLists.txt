@@ -73,6 +73,7 @@ if (MINGW)
         set(ADDRESS_MODEL 32)
     endif()
     set(LDFLAGS "-ldflags=\"-s\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -lluasandbox -llua -lm")
     set(CPACK_GENERATOR "ZIP")
 elseif(APPLE)
     set(CPACK_GENERATOR "PackageMaker")
@@ -80,6 +81,7 @@ elseif(APPLE)
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
     set(LDFLAGS "-ldflags=\"-s\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -Wl,-rpath,$ORIGIN/../lib -lluasandbox -llua -ldl -lm")
 
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
 
@@ -168,11 +170,6 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 if (MINGW AND INCLUDE_SANDBOX)
-    set(LUA_DLL_PATH "${PROJECT_PATH}/lib/liblua.dll")
-    set(LPEG_DLL_PATH "${PROJECT_PATH}/lib/liblpeg.dll")
-    set(CJSON_DLL_PATH "${PROJECT_PATH}/lib/libcjson.dll")
-    set(LUASANDBOX_DLL_PATH "${PROJECT_PATH}/lib/libluasandbox.dll")
-    install(FILES ${LUA_DLL_PATH} ${LPEG_DLL_PATH} ${CJSON_DLL_PATH} ${LUASANDBOX_DLL_PATH} DESTINATION bin)
     add_custom_command(TARGET heka_source POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
@@ -181,6 +178,9 @@ if (MINGW AND INCLUDE_SANDBOX)
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
     COMMENT "Install dll's for the mock generation and unit tests")
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION bin PATTERN "*.dll")
+else()
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib PATTERN "*.so")
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
@@ -276,7 +276,6 @@ if(INCLUDE_SANDBOX)
 install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
 endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
-install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib FILES_MATCHING REGEX "\\.(so|dll)$")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${PROJECT_PATH}/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")

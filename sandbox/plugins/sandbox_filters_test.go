@@ -208,10 +208,9 @@ func FilterSpec(c gs.Context) {
 			sbxName := "SandboxFilter"
 			sbxMgrName := "SandboxManagerFilter"
 			code := `
-			require("cjson")
 
 			function process_message()
-			    inject_payload(cjson.encode({a = "b"}))
+			    inject_payload('{a = "b"}')
 			    return 0
 			end
 			`

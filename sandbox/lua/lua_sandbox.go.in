@@ -16,7 +16,7 @@ package lua
 
 /*
 #cgo CFLAGS: -std=gnu99 -I @LUA_INCLUDE_PATH@
-#cgo LDFLAGS: -L@LUA_LIB_PATH@ -lluasandbox -llua -llpeg -lcjson -lm
+#@CGO_LDFLAGS@
 #include <stdlib.h>
 #include <lsb.h>
 #include <lsb_output.h>
