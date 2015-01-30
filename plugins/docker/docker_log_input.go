@@ -27,6 +27,7 @@ import (
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
 	Endpoint string `toml:"endpoint"`
+	CertPath string `toml:"cert_path"`
 }
 
 type DockerLogInput struct {
@@ -41,6 +42,7 @@ type DockerLogInput struct {
 func (di *DockerLogInput) ConfigStruct() interface{} {
 	return &DockerLogInputConfig{
 		Endpoint: "unix:///var/run/docker.sock",
+		CertPath: "",
 	}
 }
 
@@ -51,7 +53,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan error)
 
-	m, err := NewAttachManager(di.conf.Endpoint, di.attachErrors)
+	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
