@@ -262,11 +262,20 @@ func NewMessageProtoParser() (m *MessageProtoParser) {
 
 func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
 	if m.needData {
-		if bytesRead, err = m.read(reader); err != nil {
+		bytesRead, err = m.read(reader)
+		m.readPos += bytesRead
+		if err == io.EOF {
+			var findRead int
+			findRead, record = m.findRecord(m.buf[m.scanPos:m.readPos])
+			m.scanPos += findRead
+			if len(record) > 0 {
+				bytesRead = findRead
+			}
+		}
+		if err != nil {
 			return
 		}
 	}
-	m.readPos += bytesRead
 
 	bytesRead, record = m.findRecord(m.buf[m.scanPos:m.readPos])
 	m.scanPos += bytesRead
