@@ -9,6 +9,7 @@ BUILD_DIR=$PWD/build
 export CTEST_OUTPUT_ON_FAILURE=1
 export GOPATH=$BUILD_DIR/heka
 export LD_LIBRARY_PATH=$BUILD_DIR/heka/lib
+export DYLD_LIBRARY_PATH=$BUILD_DIR/heka/lib
 export GOBIN=$GOPATH/bin
 export PATH=$GOBIN:$PATH
 
