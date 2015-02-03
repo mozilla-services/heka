@@ -54,10 +54,13 @@ Config:
 - queue_full_action (string, optional):
     Specifies how Heka should behave when the queue reaches the specified
     maximum capacity. There are currently three possible actions:
-        - `shutdown` - Shutdowns heka.
-        - `drop` - Messages are dropped until queue is available again.
+
+        - `shutdown` - Shuts down Heka.
+        - `drop` - New messages are dropped until queue is available again.
+          Already queued messages are unaffected.
         - `block` - Blocks processing of messages, tries to push last message
-                    until its possible.
+          until its possible.
+
     Defaults to `shutdown`.
 
 Example:

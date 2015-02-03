@@ -78,6 +78,8 @@ Features
 * LogstreamerInput now uses first two "magic" bytes to identify gzip files
   instead of relying on `.gz` suffix.
 
+* Added on-disk buffering to ElasticSearchOutput. It is enabled by default.
+
 * Added TLS support to ElasticSearchOutput (#1259).
 
 * Added ability for HttpListenInput to capture specified HTTP request headers
