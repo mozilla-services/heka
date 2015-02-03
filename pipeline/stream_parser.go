@@ -259,27 +259,58 @@ func (r *RegexpParser) findRecord(buf []byte) (bytesRead int, record []byte) {
 type MessageProtoParser struct {
 	*streamParserBuffer
 	header *message.Header
+	reachedEOF bool
 }
 
 func NewMessageProtoParser() (m *MessageProtoParser) {
 	m = new(MessageProtoParser)
 	m.streamParserBuffer = newStreamParserBuffer()
 	m.header = new(message.Header)
+	m.reachedEOF = false
 	return
 }
 
 func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []byte, err error) {
-	if m.needData {
-		if bytesRead, err = m.read(reader); err != nil {
+	if m.needData && !m.reachedEOF {
+		bytesRead, err = m.read(reader)
+		m.readPos += bytesRead
+
+		// We could still have one or more records at the end of the stream.
+		// Hang on to the EOF error until all the records have been used up.
+		if err == io.EOF {
+			m.reachedEOF = true
+			if bytesRead == 0 {
+				// If we didn't read any bytes, we don't need to look for more
+				// records.
+				return
+			}
+			// We did read some bytes, so clear the EOF for now.
+			err = nil
+		}
+
+		if err == io.ErrShortBuffer {
+			record = m.buf
+			// return truncated message and allow input plugin to decide what to do with it
+		}
+
+		if err != nil {
 			return
 		}
 	}
-	m.readPos += bytesRead
 
 	bytesRead, record = m.findRecord(m.buf[m.scanPos:m.readPos])
 	m.scanPos += bytesRead
 	if len(record) == 0 {
-		m.needData = true
+		// If the record is empty and we've reached EOF, we will not find any
+		// more full records in the stream. There may still be some bytes left
+		// over, which can be fetched with GetRemainingData(). Now is the time
+		// to return the EOF error.
+		if m.reachedEOF {
+			err = io.EOF
+		} else {
+			// If we haven't yet reached EOF, then we need to read more data.
+			m.needData = true
+		}
 	} else {
 		if m.readPos == m.scanPos {
 			m.readPos = 0
@@ -289,6 +320,7 @@ func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []by
 			m.needData = false
 		}
 	}
+
 	return
 }
 
