@@ -271,6 +271,12 @@ func (m *MessageProtoParser) Parse(reader io.Reader) (bytesRead int, record []by
 		// Hang on to the EOF error until all the records have been used up.
 		if err == io.EOF {
 			m.reachedEOF = true
+			if bytesRead == 0 {
+				// If we didn't read any bytes, we don't need to look for more
+				// records.
+				return
+			}
+			// We did read some bytes, so clear the EOF for now.
 			err = nil
 		}
 		if err != nil {
