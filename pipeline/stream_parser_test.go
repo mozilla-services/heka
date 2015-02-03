@@ -19,7 +19,35 @@ import (
 	"github.com/mozilla-services/heka/message"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
+	"io/ioutil"
+	"path/filepath"
 )
+
+// Dummy reader that will return some data along with the EOF error.
+type MockDataReader struct {
+	data []byte
+	ptr  int
+}
+
+func (d *MockDataReader) Read(p []byte) (n int, err error) {
+	var start = d.ptr
+	d.ptr += len(p)
+	if d.ptr >= len(d.data) {
+		d.ptr = len(d.data)
+		copy(p, d.data[start:])
+		return (d.ptr - start), io.EOF
+	}
+	copy(p, d.data[start:d.ptr])
+	return (d.ptr - start), nil
+}
+
+func makeMockReader(data []byte) (d *MockDataReader) {
+	d = new(MockDataReader)
+	d.data = make([]byte, len(data))
+	d.ptr = 0
+	copy(d.data, data)
+	return
+}
 
 func StreamParserSpec(c gs.Context) {
 	buf := []byte("test1\ntest12\ntest123\npartial")
@@ -196,6 +224,8 @@ func StreamParserSpec(c gs.Context) {
 		c.Expect(n, gs.Equals, 0)
 		c.Expect(err, gs.Equals, io.EOF)
 		c.Expect(len(record), gs.Equals, 0)
+		record = p.GetRemainingData()
+		c.Expect(len(record), gs.Equals, 3) // check the trailing junk
 	})
 
 	c.Specify("message.proto parser invalid header (no unit separator)", func() {
@@ -240,5 +270,54 @@ func StreamParserSpec(c gs.Context) {
 		c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
 		c.Expect(len(record), gs.Equals, message.MAX_RECORD_SIZE)
 		c.Expect(err, gs.Equals, io.ErrShortBuffer)
+	})
+
+	c.Specify("data at eof", func() {
+		b, err := ioutil.ReadFile(filepath.Join(".", "testsupport", "multi.dat"))
+		c.Expect(err, gs.IsNil)
+		reader := makeMockReader(b)
+		p := NewMessageProtoParser()
+
+		count := 0
+		errCount := 0
+		bytesRead := 0
+		foundEOFCount := 0
+		remainingDataLength := 0
+		finalRecordLength := 0
+		eofRecordLength := 0
+
+		done := false
+		for !done {
+			n, record, err := p.Parse(reader)
+			if len(record) > 0 {
+				count += 1
+				finalRecordLength = len(record)
+			}
+			bytesRead += n
+			if err != nil {
+				if err == io.EOF {
+					foundEOFCount = count
+					eofRecordLength = len(record)
+
+					rem := p.GetRemainingData()
+					remainingDataLength = len(rem)
+
+					done = true
+				} else {
+					errCount++
+					continue
+				}
+
+			}
+		}
+
+		c.Expect(done, gs.Equals, true)
+		c.Expect(errCount, gs.Equals, 0)
+		c.Expect(count, gs.Equals, 50)
+		c.Expect(foundEOFCount, gs.Equals, 50)
+		c.Expect(remainingDataLength, gs.Equals, 0)
+		c.Expect(finalRecordLength, gs.Equals, 215)
+		c.Expect(eofRecordLength, gs.Equals, 0)
+		c.Expect(bytesRead, gs.Equals, len(b))
 	})
 }

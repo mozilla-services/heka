@@ -1,4 +1,4 @@
-0.9.0 (2014-MM-DD)
+0.9.0 (2015-MM-DD)
 ==================
 
 Backwards Incompatibilities
@@ -40,6 +40,10 @@ Bug Handling
 
 * Hekad now respects --config parameter and loads default config path
   instead of printing help and exit (#1239).
+
+* MessageProtoParser now handles EOF gracefully, and returns all
+  complete records up to the end of the stream without having to
+  use GetRemainingData() (#1305).
 
 Features
 --------
