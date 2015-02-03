@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -36,21 +36,26 @@ import (
 	"time"
 )
 
+type ESBatch struct {
+	count int64
+	batch []byte
+}
+
 // Output plugin that index messages to an elasticsearch cluster.
 // Largely based on FileOutput plugin.
 type ElasticSearchOutput struct {
 	backChan            chan []byte
-	batchChan           chan []byte     // Chan to pass completed batches
+	batchChan           chan ESBatch    // Chan to pass completed batches
 	bufferedOut         *BufferedOutput // The output buffering object
 	bulkIndexer         BulkIndexer     // The BulkIndexer used to index documents
 	conf                *ElasticSearchOutputConfig
+	processMessageCount int64
 	dropMessageCount    int64
-	name                string // Persistant plugin name
 	or                  OutputRunner
 	outputBlock         *RetryHelper
 	pConfig             *PipelineConfig
-	processMessageCount int64
 	reportLock          sync.Mutex
+	outputExit          chan error
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -113,15 +118,18 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 }
 
 func (o *ElasticSearchOutput) SetName(name string) {
-	re := regexp.MustCompile("\\W")
-	o.name = re.ReplaceAllString(name, "_")
 }
 
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.conf = config.(*ElasticSearchOutputConfig)
 
-	o.batchChan = make(chan []byte)
-	o.backChan = make(chan []byte, 2)
+	if !o.conf.UseBuffering {
+		o.batchChan = make(chan ESBatch)
+		o.backChan = make(chan []byte, 2)
+	}
+
+	o.outputExit = make(chan error)
+
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
 		var scheme string = strings.ToLower(serverUrl.Scheme)
@@ -154,15 +162,39 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	return
 }
 
+func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch []byte) {
+	if o.conf.UseBuffering {
+		err := o.bufferedOut.QueueBytes(outBatch)
+		if err == nil {
+			atomic.AddInt64(&o.processMessageCount, count)
+		} else if err == QueueIsFull && !o.queueFull(outBatch, count) {
+			o.outputExit <- err
+		} else if err != nil {
+			o.or.LogError(err)
+			atomic.AddInt64(&o.dropMessageCount, count)
+		}
+		nextBatch = outBatch[:0]
+	} else {
+		// This will block until the other side is ready to accept
+		// this batch, so we can't get too far ahead.
+		b := ESBatch{
+			count: count,
+			batch: outBatch,
+		}
+		o.batchChan <- b
+		nextBatch = <-o.backChan
+	}
+	return nextBatch
+}
+
 func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
 		ok          = true
 		pack        *PipelinePack
 		inChan      = or.InChan()
-		count       int
+		count       int64
 		e           error
 		outBytes    []byte
-		outputExit  = make(chan error)
 		outputError = make(chan error, 5)
 		stopChan    = make(chan bool, 1)
 		outBatch    = make([]byte, 0, 10000)
@@ -172,6 +204,9 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
 	}
+
+	re := regexp.MustCompile("\\W")
+	name := re.ReplaceAllString(or.Name(), "_")
 
 	o.outputBlock, err = NewRetryHelper(RetryOptions{
 		MaxDelay:   "5s",
@@ -185,7 +220,8 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	o.or = or
 
 	if o.conf.UseBuffering {
-		o.bufferedOut, err = NewBufferedOutput("output_queue", o.name, or, h, o.conf.QueueMaxBufferSize)
+		o.bufferedOut, err = NewBufferedOutput("output_queue", name, or, h,
+			o.conf.QueueMaxBufferSize)
 		if err != nil {
 			if err == QueueIsFull {
 				or.LogMessage("Queue capacity is already reached.")
@@ -193,40 +229,42 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				return
 			}
 		}
-		o.bufferedOut.Start(o, outputError, outputExit, stopChan)
+		o.bufferedOut.Start(o, outputError, o.outputExit, stopChan)
+	} else {
+		go o.committer()
 	}
-
-	go o.committer(outputExit, &count)
 
 	for ok {
 		select {
 		case e := <-outputError:
 			or.LogError(e)
 		case pack, ok = <-inChan:
-			// Closed inChan => we're shutting down, flush data
+			// Closed inChan => we're shutting down, flush data.
 			if !ok {
 				if len(outBatch) > 0 {
-					o.batchChan <- outBatch
-					outBatch = <-o.backChan
-					atomic.AddInt64(&o.processMessageCount, int64(count))
+					o.sendBatch(outBatch, count)
 				}
-				close(o.batchChan)
+				if !o.conf.UseBuffering {
+					close(o.batchChan)
+				}
 				stopChan <- true
-				<-outputExit
-
+				<-o.outputExit
 				break
 			}
+
 			outBytes, e = or.Encode(pack)
 			pack.Recycle()
 			if e != nil {
 				or.LogError(e)
-			} else if outBytes != nil {
+				atomic.AddInt64(&o.dropMessageCount, 1)
+				continue
+			}
+
+			if outBytes != nil {
 				outBatch = append(outBatch, outBytes...)
-				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
+				if count++; o.bulkIndexer.CheckFlush(int(count), len(outBatch)) {
 					if len(outBatch) > 0 {
-						o.batchChan <- outBatch
-						outBatch = <-o.backChan
-						atomic.AddInt64(&o.processMessageCount, int64(count))
+						outBatch = o.sendBatch(outBatch, count)
 					}
 					count = 0
 				}
@@ -239,51 +277,78 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 						return
 					}
 				}
-				// This will block until the other side is ready to accept
-				// this batch, so we can't get too far ahead.
-				o.batchChan <- outBatch
-				outBatch = <-o.backChan
-				atomic.AddInt64(&o.processMessageCount, int64(count))
+				outBatch = o.sendBatch(outBatch, count)
 			}
 			count = 0
-		case err = <-outputExit:
+		case err = <-o.outputExit:
 			ok = false
 		}
 	}
 	return
 }
 
-// Runs in a separate goroutine, waits for buffered data on the committer
-// channel, bulk index it out to the elasticsearch cluster, and puts the now
-// empty buffer on the return channel for reuse.
-func (o *ElasticSearchOutput) committer(outputExit chan error, recordCount *int) {
-	var (
-		outBatch []byte
-		err      error
-	)
+// Waits for batched data on the committer channel and sends it out to the
+// elasticsearch cluster, putting now empty buffer on the return channel for
+// reuse. Only used if we're *not* using disk buffering, in which case the
+// BufferedOutput handles this for us.
+func (o *ElasticSearchOutput) committer() {
 	o.backChan <- make([]byte, 0, 10000)
 
-	for outBatch = range o.batchChan {
-		if o.conf.UseBuffering {
-			err = o.bufferedOut.QueueBytes(outBatch)
+	for b := range o.batchChan {
+		if err := o.SendRecord(b.batch); err != nil {
+			atomic.AddInt64(&o.dropMessageCount, b.count)
+			o.or.LogError(err)
 		} else {
-			err = o.SendRecord(outBatch)
+			atomic.AddInt64(&o.processMessageCount, b.count)
 		}
-		if err != nil {
-			if o.conf.UseBuffering && err == QueueIsFull && !o.queueFull(outBatch, *recordCount) {
-				outputExit <- err
-			} else {
-				o.or.LogError(err)
-			}
-		}
-		outBatch = outBatch[:0]
-		o.backChan <- outBatch
+		b.batch = b.batch[:0]
+		o.backChan <- b.batch
 	}
-	outputExit <- nil
+	o.outputExit <- nil
+}
+
+func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
+	switch o.conf.QueueFullAction {
+	// Tries to queue message until its possible to send it to output.
+	case "block":
+		for o.outputBlock.Wait() == nil && !o.pConfig.Globals.IsShuttingDown() {
+			if blockErr := o.bufferedOut.QueueBytes(buffer); blockErr == nil {
+				atomic.AddInt64(&o.processMessageCount, count)
+				break
+			}
+			runtime.Gosched()
+		}
+	// Terminate Heka activity.
+	case "shutdown":
+		o.pConfig.Globals.ShutDown()
+		return false
+
+	// Drop packets
+	case "drop":
+		atomic.AddInt64(&o.dropMessageCount, count)
+	}
+	return true
 }
 
 func (o *ElasticSearchOutput) SendRecord(buffer []byte) (err error) {
 	return o.bulkIndexer.Index(buffer)
+}
+
+// Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
+// information to the Heka report and dashboard.
+func (o *ElasticSearchOutput) ReportMsg(msg *message.Message) error {
+	o.reportLock.Lock()
+	defer o.reportLock.Unlock()
+
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&o.processMessageCount), "count")
+	message.NewInt64Field(msg, "DropMessageCount",
+		atomic.LoadInt64(&o.dropMessageCount), "count")
+
+	if o.conf.UseBuffering {
+		o.bufferedOut.ReportMsg(msg)
+	}
+	return nil
 }
 
 // A BulkIndexer is used to index documents in ElasticSearch
@@ -445,48 +510,8 @@ func (u *UDPBulkIndexer) Index(body []byte) error {
 	return nil
 }
 
-func (o *ElasticSearchOutput) queueFull(buffer []byte, recordCount int) bool {
-	switch o.conf.QueueFullAction {
-	// Tries to queue message until its possible to send it to output.
-	case "block":
-		for o.outputBlock.Wait() == nil && !o.pConfig.Globals.IsShuttingDown() {
-			atomic.AddInt64(&o.processMessageCount, int64(recordCount))
-			if blockErr := o.bufferedOut.QueueBytes(buffer); blockErr == nil {
-				break
-			}
-			runtime.Gosched()
-		}
-	// Terminate Heka activity.
-	case "shutdown":
-		o.pConfig.Globals.ShutDown()
-		return false
-
-	// Drop packets
-	case "drop":
-		atomic.AddInt64(&o.dropMessageCount, int64(recordCount))
-	}
-	return true
-}
-
 func init() {
 	RegisterPlugin("ElasticSearchOutput", func() interface{} {
 		return new(ElasticSearchOutput)
 	})
-}
-
-// Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
-// information to the Heka report and dashboard.
-func (o *ElasticSearchOutput) ReportMsg(msg *message.Message) error {
-	o.reportLock.Lock()
-	defer o.reportLock.Unlock()
-
-	message.NewInt64Field(msg, "ProcessMessageCount",
-		atomic.LoadInt64(&o.processMessageCount), "count")
-	message.NewInt64Field(msg, "DropMessageCount",
-		atomic.LoadInt64(&o.dropMessageCount), "count")
-
-	if o.conf.UseBuffering {
-		o.bufferedOut.ReportMsg(msg)
-	}
-	return nil
 }
