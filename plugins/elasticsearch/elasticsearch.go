@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -21,36 +21,41 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+type ESBatch struct {
+	count int64
+	batch []byte
+}
 
 // Output plugin that index messages to an elasticsearch cluster.
 // Largely based on FileOutput plugin.
 type ElasticSearchOutput struct {
-	flushInterval uint32
-	flushCount    int
-	batchChan     chan []byte
-	backChan      chan []byte
-	// The BulkIndexer used to index documents
-	bulkIndexer BulkIndexer
-
-	// Specify an overall timeout value in milliseconds for bulk request to complete.
-	// Default is 0 (infinite)
-	http_timeout uint32
-	//Disable both TCP and HTTP keepalives
-	http_disable_keepalives bool
-	// Specify a resolve and connect timeout value in milliseconds for bulk request.
-	// It's always included in overall request timeout (see 'http_timeout' option).
-	// Default is 0 (infinite)
-	connect_timeout uint32
+	backChan            chan []byte
+	batchChan           chan ESBatch    // Chan to pass completed batches
+	bufferedOut         *BufferedOutput // The output buffering object
+	bulkIndexer         BulkIndexer     // The BulkIndexer used to index documents
+	conf                *ElasticSearchOutputConfig
+	processMessageCount int64
+	dropMessageCount    int64
+	or                  OutputRunner
+	outputBlock         *RetryHelper
+	pConfig             *PipelineConfig
+	reportLock          sync.Mutex
+	outputExit          chan error
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -77,12 +82,23 @@ type ElasticSearchOutputConfig struct {
 	Username string `toml:"username"`
 	// Optional password for HTTP authentication.
 	Password string `toml:"password"`
-	// Overall timeout
+	// Specify an overall timeout value in milliseconds for bulk request to complete.
+	// Default is 0 (infinite)
 	HTTPTimeout uint32 `toml:"http_timeout"`
 	// Disable both TCP and HTTP keepalives
 	HTTPDisableKeepalives bool `toml:"http_disable_keepalives"`
-	// Resolve and connect timeout only
+	// Specify a resolve and connect timeout value in milliseconds for bulk request.
+	// It's always included in overall request timeout (see 'http_timeout' option).
+	// Default is 0 (infinite)
 	ConnectTimeout uint32 `toml:"connect_timeout"`
+	// Whether or not to buffer records to disk before sending to ElasticSearch.
+	UseBuffering bool `toml:"use_buffering"`
+	// Specifies size of queue buffer for output. 0 means that buffer is
+	// unlimited.
+	QueueMaxBufferSize uint64 `toml:"queue_max_buffer_size"`
+	// Specifies action which should be executed if queue is full. Possible
+	// values are "shutdown", "drop", or "block".
+	QueueFullAction string `toml:"queue_full_action"`
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
@@ -95,128 +111,244 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		HTTPTimeout:           0,
 		HTTPDisableKeepalives: false,
 		ConnectTimeout:        0,
+		UseBuffering:          true,
+		QueueMaxBufferSize:    0,
+		QueueFullAction:       "shutdown",
 	}
 }
 
+func (o *ElasticSearchOutput) SetName(name string) {
+}
+
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
-	conf := config.(*ElasticSearchOutputConfig)
-	o.flushInterval = conf.FlushInterval
-	o.flushCount = conf.FlushCount
-	o.batchChan = make(chan []byte)
-	o.backChan = make(chan []byte, 2)
-	o.http_timeout = conf.HTTPTimeout
-	o.http_disable_keepalives = conf.HTTPDisableKeepalives
-	o.connect_timeout = conf.ConnectTimeout
+	o.conf = config.(*ElasticSearchOutputConfig)
+
+	if !o.conf.UseBuffering {
+		o.batchChan = make(chan ESBatch)
+		o.backChan = make(chan []byte, 2)
+	}
+
+	o.outputExit = make(chan error)
+
 	var serverUrl *url.URL
-	if serverUrl, err = url.Parse(conf.Server); err == nil {
+	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
 		var scheme string = strings.ToLower(serverUrl.Scheme)
 		switch scheme {
 		case "http", "https":
 			var tlsConf *tls.Config = nil
-			if scheme == "https" && &conf.Tls != nil {
-				if tlsConf, err = tcp.CreateGoTlsConfig(&conf.Tls); err != nil {
+			if scheme == "https" && &o.conf.Tls != nil {
+				if tlsConf, err = tcp.CreateGoTlsConfig(&o.conf.Tls); err != nil {
 					return fmt.Errorf("TLS init error: %s", err)
 				}
 			}
 
-			o.bulkIndexer = NewHttpBulkIndexer(scheme,
-				serverUrl.Host, o.flushCount, conf.Username, conf.Password,
-				o.http_timeout, o.http_disable_keepalives, o.connect_timeout, tlsConf)
-
+			o.bulkIndexer = NewHttpBulkIndexer(scheme, serverUrl.Host,
+				o.conf.FlushCount, o.conf.Username, o.conf.Password, o.conf.HTTPTimeout,
+				o.conf.HTTPDisableKeepalives, o.conf.ConnectTimeout, tlsConf)
 		case "udp":
-			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.flushCount)
+			o.bulkIndexer = NewUDPBulkIndexer(serverUrl.Host, o.conf.FlushCount)
 		default:
 			err = errors.New("Server URL must specify one of `udp`, `http`, or `https`.")
 		}
 	} else {
-		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", conf.Server, err)
+		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", o.conf.Server, err)
+	}
+	switch o.conf.QueueFullAction {
+	case "shutdown", "drop", "block":
+	default:
+		return fmt.Errorf("`queue_full_action` must be 'shutdown', 'drop', or 'block', got %s",
+			o.conf.QueueFullAction)
 	}
 	return
+}
+
+func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch []byte) {
+	if o.conf.UseBuffering {
+		err := o.bufferedOut.QueueBytes(outBatch)
+		if err == nil {
+			atomic.AddInt64(&o.processMessageCount, count)
+		} else if err == QueueIsFull && !o.queueFull(outBatch, count) {
+			o.outputExit <- err
+		} else if err != nil {
+			o.or.LogError(err)
+			atomic.AddInt64(&o.dropMessageCount, count)
+		}
+		nextBatch = outBatch[:0]
+	} else {
+		// This will block until the other side is ready to accept
+		// this batch, so we can't get too far ahead.
+		b := ESBatch{
+			count: count,
+			batch: outBatch,
+		}
+		o.batchChan <- b
+		nextBatch = <-o.backChan
+	}
+	return nextBatch
 }
 
 func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+	var (
+		ok          = true
+		pack        *PipelinePack
+		inChan      = or.InChan()
+		count       int64
+		e           error
+		outBytes    []byte
+		outputError = make(chan error, 5)
+		stopChan    = make(chan bool, 1)
+		outBatch    = make([]byte, 0, 10000)
+		ticker      = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
+	)
+
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
 	}
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go o.receiver(or, &wg)
-	go o.committer(or, &wg)
-	wg.Wait()
-	return
-}
 
-// Runs in a separate goroutine, accepting incoming messages, buffering output
-// data until the ticker triggers the buffered data should be put onto the
-// committer channel.
-func (o *ElasticSearchOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
-	var (
-		pack     *PipelinePack
-		e        error
-		count    int
-		outBytes []byte
-	)
-	ok := true
-	ticker := time.Tick(time.Duration(o.flushInterval) * time.Millisecond)
-	outBatch := make([]byte, 0, 10000)
-	inChan := or.InChan()
+	re := regexp.MustCompile("\\W")
+	name := re.ReplaceAllString(or.Name(), "_")
+
+	o.outputBlock, err = NewRetryHelper(RetryOptions{
+		MaxDelay:   "5s",
+		MaxRetries: -1,
+	})
+	if err != nil {
+		return fmt.Errorf("can't create retry helper: %s", err.Error())
+	}
+
+	o.pConfig = h.PipelineConfig()
+	o.or = or
+
+	if o.conf.UseBuffering {
+		o.bufferedOut, err = NewBufferedOutput("output_queue", name, or, h,
+			o.conf.QueueMaxBufferSize)
+		if err != nil {
+			if err == QueueIsFull {
+				or.LogMessage("Queue capacity is already reached.")
+			} else {
+				return
+			}
+		}
+		o.bufferedOut.Start(o, outputError, o.outputExit, stopChan)
+	} else {
+		go o.committer()
+	}
 
 	for ok {
 		select {
+		case e := <-outputError:
+			or.LogError(e)
 		case pack, ok = <-inChan:
+			// Closed inChan => we're shutting down, flush data.
 			if !ok {
-				// Closed inChan => we're shutting down, flush data
 				if len(outBatch) > 0 {
-					o.batchChan <- outBatch
+					o.sendBatch(outBatch, count)
 				}
-				close(o.batchChan)
+				if !o.conf.UseBuffering {
+					close(o.batchChan)
+				}
+				stopChan <- true
+				<-o.outputExit
 				break
 			}
+
 			outBytes, e = or.Encode(pack)
 			pack.Recycle()
 			if e != nil {
 				or.LogError(e)
-			} else if outBytes != nil {
+				atomic.AddInt64(&o.dropMessageCount, 1)
+				continue
+			}
+
+			if outBytes != nil {
 				outBatch = append(outBatch, outBytes...)
-				if count = count + 1; o.bulkIndexer.CheckFlush(count, len(outBatch)) {
+				if count++; o.bulkIndexer.CheckFlush(int(count), len(outBatch)) {
 					if len(outBatch) > 0 {
-						// This will block until the other side is ready to accept
-						// this batch, so we can't get too far ahead.
-						o.batchChan <- outBatch
-						outBatch = <-o.backChan
-						count = 0
+						outBatch = o.sendBatch(outBatch, count)
 					}
+					count = 0
 				}
 			}
 		case <-ticker:
 			if len(outBatch) > 0 {
-				// This will block until the other side is ready to accept
-				// this batch, freeing us to start on the next one.
-				o.batchChan <- outBatch
-				outBatch = <-o.backChan
-				count = 0
+				if o.conf.UseBuffering {
+					if err = o.bufferedOut.RollQueue(); err != nil {
+						or.LogError(err)
+						return
+					}
+				}
+				outBatch = o.sendBatch(outBatch, count)
 			}
+			count = 0
+		case err = <-o.outputExit:
+			ok = false
 		}
 	}
-	wg.Done()
+	return
 }
 
-// Runs in a separate goroutine, waits for buffered data on the committer
-// channel, bulk index it out to the elasticsearch cluster, and puts the now
-// empty buffer on the return channel for reuse.
-func (o *ElasticSearchOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
-	initBatch := make([]byte, 0, 10000)
-	o.backChan <- initBatch
-	var outBatch []byte
+// Waits for batched data on the committer channel and sends it out to the
+// elasticsearch cluster, putting now empty buffer on the return channel for
+// reuse. Only used if we're *not* using disk buffering, in which case the
+// BufferedOutput handles this for us.
+func (o *ElasticSearchOutput) committer() {
+	o.backChan <- make([]byte, 0, 10000)
 
-	for outBatch = range o.batchChan {
-		if err := o.bulkIndexer.Index(outBatch); err != nil {
-			or.LogError(err)
+	for b := range o.batchChan {
+		if err := o.SendRecord(b.batch); err != nil {
+			atomic.AddInt64(&o.dropMessageCount, b.count)
+			o.or.LogError(err)
+		} else {
+			atomic.AddInt64(&o.processMessageCount, b.count)
 		}
-		outBatch = outBatch[:0]
-		o.backChan <- outBatch
+		b.batch = b.batch[:0]
+		o.backChan <- b.batch
 	}
-	wg.Done()
+	o.outputExit <- nil
+}
+
+func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
+	switch o.conf.QueueFullAction {
+	// Tries to queue message until its possible to send it to output.
+	case "block":
+		for o.outputBlock.Wait() == nil && !o.pConfig.Globals.IsShuttingDown() {
+			if blockErr := o.bufferedOut.QueueBytes(buffer); blockErr == nil {
+				atomic.AddInt64(&o.processMessageCount, count)
+				break
+			}
+			runtime.Gosched()
+		}
+	// Terminate Heka activity.
+	case "shutdown":
+		o.pConfig.Globals.ShutDown()
+		return false
+
+	// Drop packets
+	case "drop":
+		atomic.AddInt64(&o.dropMessageCount, count)
+	}
+	return true
+}
+
+func (o *ElasticSearchOutput) SendRecord(buffer []byte) (err error) {
+	return o.bulkIndexer.Index(buffer)
+}
+
+// Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
+// information to the Heka report and dashboard.
+func (o *ElasticSearchOutput) ReportMsg(msg *message.Message) error {
+	o.reportLock.Lock()
+	defer o.reportLock.Unlock()
+
+	message.NewInt64Field(msg, "ProcessMessageCount",
+		atomic.LoadInt64(&o.processMessageCount), "count")
+	message.NewInt64Field(msg, "DropMessageCount",
+		atomic.LoadInt64(&o.dropMessageCount), "count")
+
+	if o.conf.UseBuffering {
+		o.bufferedOut.ReportMsg(msg)
+	}
+	return nil
 }
 
 // A BulkIndexer is used to index documents in ElasticSearch

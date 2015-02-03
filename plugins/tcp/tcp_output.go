@@ -246,8 +246,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		case <-ticker:
 			if err = t.bufferedOut.RollQueue(); err != nil {
-				or.LogError(err)
-				return
+				return fmt.Errorf("can't create new buffer queue file: %s", err.Error())
 			}
 
 		case err = <-outputExit:
@@ -258,6 +257,9 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return
 }
 
+// This function will be called if the queue is full and another item is sent
+// to the queue. The result depends on the configured queue full action.
+// The returned bool indicates if the queue can continue to accept items.
 func (t *TcpOutput) queueFull(pack *PipelinePack) bool {
 	switch t.conf.QueueFullAction {
 	// Tries to queue message until its possible to send it to output.
