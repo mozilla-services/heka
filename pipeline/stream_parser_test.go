@@ -19,8 +19,8 @@ import (
 	"github.com/mozilla-services/heka/message"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
-	"path/filepath"
 	"io/ioutil"
+	"path/filepath"
 )
 
 // Dummy reader that will return some data along with the EOF error.

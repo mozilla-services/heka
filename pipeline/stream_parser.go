@@ -258,7 +258,7 @@ func (r *RegexpParser) findRecord(buf []byte) (bytesRead int, record []byte) {
 // Protobuf record parser
 type MessageProtoParser struct {
 	*streamParserBuffer
-	header *message.Header
+	header     *message.Header
 	reachedEOF bool
 }
 
