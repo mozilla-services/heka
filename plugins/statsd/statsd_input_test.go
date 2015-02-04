@@ -166,39 +166,30 @@ func TestParseMessage(t *testing.T) {
 	}
 
 	for msg, expected := range testData {
-		obtained, warn, err := parseMessage([]byte(msg + "\n"))
-	
-		if warn != nil {
-			t.Fatalf("warning should be nil, got %s", warn)
+		stats, badLines := parseMessage([]byte(msg + "\n"))
+		if len(badLines) != 0 {
+			t.Fatalf("valid statsd stat failed to parse: %s", badLines[0])
 		}
-		
-		if err != nil {
-			t.Fatalf("error should be nil, got %s", err)
-		}
-		
-		if err != nil {
-			t.Fatalf("error should be nil, got %s", err)
+		if len(stats) != len(expected) {
+			t.Fatalf("expected %d Stat objects, got %d", len(expected), len(stats))
 		}
 
-		if len(obtained) != len(expected) {
-			t.Fatalf("expected %d Stat objects, got %d", len(expected), len(obtained))
-		}
-
-		for index, stat := range obtained {
+		for index, stat := range stats {
 			if stat.Bucket != expected[index].Bucket {
-				t.Fatalf("expected %s at index %d, got %s", expected[index].Bucket, index, stat.Bucket)
+				t.Fatalf("expected %s at index %d, got %s",
+					expected[index].Bucket, index, stat.Bucket)
 			}
-
 			if stat.Value != expected[index].Value {
-				t.Fatalf("expected %s at index %d, got %s", expected[index].Value, index, stat.Value)
+				t.Fatalf("expected %s at index %d, got %s",
+					expected[index].Value, index, stat.Value)
 			}
-
 			if stat.Modifier != expected[index].Modifier {
-				t.Fatalf("expected %s at index %d, got %s", expected[index].Modifier, index, stat.Modifier)
+				t.Fatalf("expected %s at index %d, got %s",
+					expected[index].Modifier, index, stat.Modifier)
 			}
-
 			if stat.Sampling != expected[index].Sampling {
-				t.Fatalf("expected %f at index %d, got %f", expected[index].Sampling, index, stat.Sampling)
+				t.Fatalf("expected %f at index %d, got %f",
+					expected[index].Sampling, index, stat.Sampling)
 			}
 		}
 	}
@@ -212,10 +203,9 @@ func TestParseMessageInvalid(t *testing.T) {
 	}
 
 	for _, m := range messages {
-		_, _, err := parseMessage([]byte(m + "\n"))
-
-		if err == nil {
-			t.Fatalf("err should not be nil, got : %s", err.Error())
+		stats, badLines := parseMessage([]byte(m + "\n"))
+		if len(stats) > 0 || len(badLines) != 1 || string(badLines[0]) != m {
+			t.Fatalf("bad statsd stat successfully parsed: %s", m)
 		}
 	}
 }

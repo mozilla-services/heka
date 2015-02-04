@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -125,29 +125,21 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	stats, warn, err := parseMessage(message)
-	if err != nil {
-		s.ir.LogError(fmt.Errorf("Can not parse message: %s", message))
-		return
+	stats, badLines := parseMessage(message)
+	for _, line := range badLines {
+		s.ir.LogError(fmt.Errorf("can't parse message: %s", string(line)))
 	}
-
-	if warn != nil || len(warn) > 0 {
-		s.ir.LogError(fmt.Errorf("Warning Part of message could not be parsed: %s", warn))
-	}
-
 	for _, stat := range stats {
 		if !s.statAccum.DropStat(stat) {
-			s.ir.LogError(fmt.Errorf("Undelivered stat: %+v", stat))
+			s.ir.LogError(fmt.Errorf("undelivered stat: %+v", stat))
 		}
 	}
 }
 
-func parseMessage(message []byte) ([]Stat, [][]byte, error) {
+func parseMessage(message []byte) ([]Stat, [][]byte) {
 	message = bytes.Trim(message, " \t\n")
 
 	stats := make([]Stat, 0, int(math.Max(1, float64(bytes.Count(message, []byte("\n"))))))
-
-	errFmt := "Invalid statsd message %s"
 
 	var lines [][]byte
 	if bytes.IndexByte(message, '\n') > -1 {
@@ -156,14 +148,11 @@ func parseMessage(message []byte) ([]Stat, [][]byte, error) {
 		lines = [][]byte{message}
 	}
 
-	var num_lines int = len(lines)
-	var bad_lines_ct int = 0
-	var bad_lines = [][]byte{}
+	badLines := make([][]byte, 0, 2)
 
 	for _, s_line := range lines {
-
 		//trim white space
-		var line = bytes.Trim(s_line, " \t\n")
+		line := bytes.Trim(s_line, " \t\n")
 
 		// skip blank lines
 		if len(line) == 0 {
@@ -171,43 +160,32 @@ func parseMessage(message []byte) ([]Stat, [][]byte, error) {
 		}
 
 		colonPos := bytes.IndexByte(line, ':')
-		if colonPos == -1 {
-			// bail if not a multi line
-			if num_lines > 1 {
-				bad_lines = append(bad_lines, line)
-				bad_lines_ct++
-				continue
-			}
-			return nil, nil, fmt.Errorf(errFmt, line)
+		if colonPos == -1 || len(line) < colonPos+3 {
+			badLines = append(badLines, line)
+			continue
 		}
 
-		pipePos := bytes.IndexByte(line, '|')
-		if pipePos == -1 {
-			return nil,  nil, fmt.Errorf(errFmt, line)
+		pipePos := bytes.IndexByte(line[colonPos+1:], '|') + colonPos + 1
+		if pipePos == -1 || len(line) < pipePos+2 {
+			badLines = append(badLines, line)
+			continue
 		}
 
 		bucket := line[:colonPos]
 		value := line[colonPos+1 : pipePos]
-		modifier, err := extractModifier(line, pipePos+1)
-
+		modifier, sampleMaybe, err := extractModifier(line[pipePos+1:])
 		if err != nil {
-			if num_lines > 1 {
-				bad_lines = append(bad_lines, line)
-				bad_lines_ct++
-				continue
-			}
-			return nil, nil, err
+			badLines = append(badLines, line)
+			continue
 		}
 
 		sampleRate := float32(1)
-		sampleRate, err = extractSampleRate(line)
-		if err != nil {
-			if num_lines > 1 {
-				bad_lines = append(bad_lines, line)
-				bad_lines_ct++
+		if sampleMaybe {
+			sampleRate, err = extractSampleRate(line[pipePos+2:])
+			if err != nil {
+				badLines = append(badLines, line)
 				continue
 			}
-			return nil, nil, err
 		}
 
 		var stat Stat
@@ -219,51 +197,47 @@ func parseMessage(message []byte) ([]Stat, [][]byte, error) {
 		stats = append(stats, stat)
 	}
 
-	if bad_lines_ct > 0 {
-		return stats, bad_lines, nil
-	}
-	return stats, nil, nil
+	return stats, badLines
 }
 
-func extractModifier(message []byte, startAt int) ([]byte, error) {
-	modifier := message[startAt:]
-
-	l := len(modifier)
-
-	if l == 1 {
+func extractModifier(message []byte) ([]byte, bool, error) {
+	l := len(message)
+	switch {
+	case l == 1:
 		for _, m := range []byte{'g', 'h', 'm', 'c'} {
-			if modifier[0] == m {
-				return modifier, nil
+			if message[0] == m {
+				return message, false, nil
 			}
 		}
-	}
-
-	if l >= 2 {
-		if bytes.HasPrefix(modifier, []byte("ms")) {
-			return []byte("ms"), nil
+	case l == 2:
+		if bytes.Equal(message, []byte("ms")) {
+			return []byte("ms"), false, nil
 		}
-
-		if modifier[0] == 'c' {
-			return []byte("c"), nil
+	case l > 2:
+		if message[0] == 'c' {
+			return []byte("c"), true, nil
+		}
+		if bytes.HasPrefix(message, []byte("ms")) {
+			return []byte("ms"), true, nil
 		}
 	}
-
-	return []byte{}, fmt.Errorf("Can not find modifier in message %s", message)
+	return []byte{}, false, fmt.Errorf("invalid modifier in message %s", message)
 }
 
 func extractSampleRate(message []byte) (float32, error) {
-	atPos := bytes.IndexByte(message, '@')
-
-	// no sample rate
-	if atPos == -1 {
+	l := len(message)
+	if l > 0 && message[0] == 's' {
+		// Leftover "s" from "ms" modifier.
+		l = l - 1
+		message = message[1:]
+	}
+	if l < 3 || !bytes.HasPrefix(message, []byte("|@")) {
 		return 1, nil
 	}
-
-	sampleRate, err := strconv.ParseFloat(string(message[atPos+1:]), 32)
+	sampleRate, err := strconv.ParseFloat(string(message[2:]), 32)
 	if err != nil {
 		return 1, err
 	}
-
 	return float32(sampleRate), nil
 }
 
