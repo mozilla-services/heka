@@ -1,0 +1,19 @@
+#! /bin/sh
+
+set -eu
+USER="heka"
+GROUP="$USER"
+
+if [ ! -d /etc/heka/conf.d/ ]
+then
+    mkdir -p /etc/heka/conf.d/
+    cp /usr/share/heka/examples/hekad.toml /etc/heka/conf.d/00-hekad.toml
+fi
+
+if [ ! -d /usr/share/doc/heka/ ]
+then
+    mkdir -p /usr/share/doc/heka
+    ln -s /usr/share/heka/examples /usr/share/doc/heka/examples
+fi
+
+#DEBHELPER#
