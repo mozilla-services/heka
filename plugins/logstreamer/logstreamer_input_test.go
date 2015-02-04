@@ -63,9 +63,6 @@ func LogstreamerInputSpec(c gs.Context) {
 
 	here, _ := os.Getwd()
 	dirPath := filepath.Join(here, "../../logstreamer", "testdir", "filehandling/subdir")
-	// fileBytes, err := ioutil.ReadFile(filepath.Join(dirPath, "file.log.1"))
-	// c.Assume(err, gs.IsNil)
-	// fileLines := bytes.Split(fileBytes, []byte("\n"))
 
 	tmpDir, tmpErr := ioutil.TempDir("", "hekad-tests")
 	c.Expect(tmpErr, gs.Equals, nil)

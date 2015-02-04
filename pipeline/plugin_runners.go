@@ -111,8 +111,6 @@ func AddDecodeFailureFields(m *message.Message, errMsg string) error {
 	return nil
 }
 
-type SplitFunc func(r io.Reader) (*PipelinePack, error)
-
 type DeliverFunc func(pack *PipelinePack)
 
 type Deliverer interface {
