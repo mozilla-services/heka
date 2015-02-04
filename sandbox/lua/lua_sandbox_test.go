@@ -97,7 +97,7 @@ func TestInit(t *testing.T) {
 		t.Errorf("status should be %d, received %d",
 			STATUS_UNKNOWN, sb.Status())
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -153,7 +153,7 @@ func TestFailedInit(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err == nil {
 		t.Errorf("Init() should have failed on a missing file")
 	}
@@ -179,7 +179,7 @@ func TestMissingProcessMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -212,7 +212,7 @@ func TestMissingTimeEvent(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -322,7 +322,7 @@ func TestAPIErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		err = sb.Init("", "")
+		err = sb.Init("")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -388,12 +388,13 @@ func TestWriteMessageErrors(t *testing.T) {
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 128
+	sbc.PluginType = "decoder"
 	for i, v := range tests {
 		sb, err := lua.CreateLuaSandbox(&sbc)
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		err = sb.Init("", "decoder")
+		err = sb.Init("")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -421,7 +422,7 @@ func TestTimerEvent(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -447,7 +448,7 @@ func TestReadMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -469,12 +470,13 @@ func TestWriteMessage(t *testing.T) {
 	sbc.ScriptFilename = "./testsupport/field_scribble.lua"
 	sbc.MemoryLimit = 32767
 	sbc.InstructionLimit = 1000
+	sbc.PluginType = "decoder"
 	pack := getTestPack()
 	sb, err := lua.CreateLuaSandbox(&sbc)
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "decoder")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -566,7 +568,7 @@ func TestRestore(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("./testsupport/simple_count.lua.data", "")
+	err = sb.Init("./testsupport/simple_count.lua.data")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -592,7 +594,7 @@ func TestRestoreMissingData(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("./testsupport/missing.data", "")
+	err = sb.Init("./testsupport/missing.data")
 	if err == nil {
 		t.Errorf("Init should fail on data load error")
 	} else {
@@ -613,7 +615,7 @@ func TestPreserveFailure(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -644,7 +646,7 @@ func TestFailedMessageInjection(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -703,7 +705,7 @@ func TestInjectMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -802,7 +804,7 @@ func TestInjectMessageError(t *testing.T) {
 		if err != nil {
 			t.Errorf("%s", err)
 		}
-		err = sb.Init("", "")
+		err = sb.Init("")
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -831,7 +833,7 @@ func TestLpeg(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -868,7 +870,7 @@ func TestReadConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -887,7 +889,7 @@ func TestCJson(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -909,7 +911,7 @@ func TestReadNilConfig(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -928,7 +930,7 @@ func TestExternalModule(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -950,7 +952,7 @@ func TestReadNextField(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -979,7 +981,7 @@ func TestAlert(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -1027,7 +1029,7 @@ func TestAnnotation(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -1066,7 +1068,7 @@ func TestAnomaly(t *testing.T) {
 	if err != nil {
 		t.Errorf("%s", err)
 	}
-	err = sb.Init("", "")
+	err = sb.Init("")
 	if err != nil {
 		t.Errorf("%s", err)
 	}
@@ -1090,7 +1092,7 @@ func TestElasticSearch(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if err = sb.Init("", ""); err != nil {
+	if err = sb.Init(""); err != nil {
 		t.Error(err)
 	}
 	r := sb.ProcessMessage(pack)
@@ -1107,7 +1109,7 @@ func BenchmarkSandboxCreateInitDestroy(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("", "")
+		sb.Init("")
 		sb.Destroy("")
 	}
 }
@@ -1119,7 +1121,7 @@ func BenchmarkSandboxCreateInitDestroyRestore(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("./testsupport/serialize.lua.data", "")
+		sb.Init("./testsupport/serialize.lua.data")
 		sb.Destroy("")
 	}
 }
@@ -1131,7 +1133,7 @@ func BenchmarkSandboxCreateInitDestroyPreserve(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	for i := 0; i < b.N; i++ {
 		sb, _ := lua.CreateLuaSandbox(&sbc)
-		sb.Init("", "")
+		sb.Init("")
 		sb.Destroy("/tmp/serialize.lua.data")
 	}
 }
@@ -1144,7 +1146,7 @@ func BenchmarkSandboxProcessMessageCounter(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		sb.ProcessMessage(pack)
@@ -1160,7 +1162,7 @@ func BenchmarkSandboxReadMessageString(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		sb.ProcessMessage(pack)
@@ -1176,7 +1178,7 @@ func BenchmarkSandboxReadMessageInt(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		sb.ProcessMessage(pack)
@@ -1192,7 +1194,7 @@ func BenchmarkSandboxReadMessageField(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		sb.ProcessMessage(pack)
@@ -1209,7 +1211,7 @@ func BenchmarkSandboxOutputLuaTypes(b *testing.B) {
 	sbc.OutputLimit = 1024
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1230,7 +1232,7 @@ func BenchmarkSandboxOutputTable(b *testing.B) {
 	sbc.OutputLimit = 1024
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1250,7 +1252,7 @@ func BenchmarkSandboxOutputCbuf(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1269,7 +1271,7 @@ func BenchmarkSandboxOutputMessage(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1288,7 +1290,7 @@ func BenchmarkSandboxOutputMessageAsJSON(b *testing.B) {
 	sbc.InstructionLimit = 1000
 	sbc.OutputLimit = 64512
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})
@@ -1308,7 +1310,7 @@ func BenchmarkSandboxLpegDecoder(b *testing.B) {
 	sbc.OutputLimit = 1024 * 63
 	pack := getTestPack()
 	sb, _ := lua.CreateLuaSandbox(&sbc)
-	sb.Init("", "")
+	sb.Init("")
 	sb.InjectMessage(func(p, pt, pn string) int {
 		return 0
 	})

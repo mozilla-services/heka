@@ -118,6 +118,7 @@ exclude_patterns = [
 'config/outputs/tcp.rst',
 'config/outputs/udp.rst',
 'config/outputs/whisper.rst',
+'config/outputs/sandbox.rst',
 'developing/release.rst',
 'sandbox/cookbook.rst',
 'sandbox/decoder.rst',
@@ -127,7 +128,8 @@ exclude_patterns = [
 'sandbox/lpeg.rst',
 'sandbox/lua.rst',
 'sandbox/manager.rst',
-'sandbox/module.rst'
+'sandbox/module.rst',
+'sandbox/output.rst',
 ]
 
 # The reST default role (used for this markup: `text`) to use for all documents.

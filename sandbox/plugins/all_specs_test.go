@@ -31,6 +31,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(FilterSpec)
 	r.AddSpec(DecoderSpec)
 	r.AddSpec(EncoderSpec)
+	r.AddSpec(OutputSpec)
 
 	gs.MainGoTest(r, t)
 }

@@ -72,6 +72,7 @@ func (s *SandboxDecoder) Init(config interface{}) (err error) {
 	s.sbc = config.(*SandboxConfig)
 	globals := s.pConfig.Globals
 	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
+	s.sbc.PluginType = "decoder"
 	s.sampleDenominator = globals.SampleDenominator
 
 	s.tz = time.UTC
@@ -156,9 +157,9 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		s.preservationFile = filepath.Join(s.pConfig.Globals.PrependBaseDir(DATA_DIR),
 			dr.Name()+DATA_EXT)
 		if s.sbc.PreserveData && fileExists(s.preservationFile) {
-			s.err = s.sb.Init(s.preservationFile, "decoder")
+			s.err = s.sb.Init(s.preservationFile)
 		} else {
-			s.err = s.sb.Init("", "decoder")
+			s.err = s.sb.Init("")
 		}
 	}
 	if s.err != nil {

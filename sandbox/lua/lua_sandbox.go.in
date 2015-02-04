@@ -32,11 +32,22 @@ import (
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/sandbox"
 	"log"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 )
+
+const SandboxIoTemplate = `{
+memory_limit = %d,
+instruction_limit = %d,
+output_limit = %d,
+path = [[%s]],
+cpath = [[%s]],
+remove_entries = {
+[''] = { 'dofile', 'load', 'loadfile','loadstring', 'print'},
+os = {'exit', 'setlocale'}}}`
 
 func extractLuaFieldName(wrapped string) (fn string, found bool) {
 	if l := len(wrapped); l > 0 && wrapped[l-1] == ']' {
@@ -272,7 +283,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		lsb.globals.LogMessage("go_lua_write_message_string", "No sandbox pack.")
 		return 1
 	}
-	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
 	}
@@ -372,7 +383,7 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		lsb.globals.LogMessage("go_lua_write_message_double", "No sandbox pack.")
 		return 1
 	}
-	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
 	}
@@ -414,7 +425,7 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 		lsb.globals.LogMessage("go_lua_write_message_bool", "No sandbox pack.")
 		return 1
 	}
-	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
 	}
@@ -542,22 +553,36 @@ type LuaSandbox struct {
 	config        map[string]interface{}
 	field         int
 	messageCopied bool
-	pluginType    string
 	globals       *pipeline.GlobalConfigStruct
+	sbConfig      *sandbox.SandboxConfig
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 	lsb := new(LuaSandbox)
+	lsb.sbConfig = conf
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
-	md := C.CString(conf.ModuleDirectory)
-	defer C.free(unsafe.Pointer(md))
-	lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
-		cs,
-		md,
-		C.uint(conf.MemoryLimit),
-		C.uint(conf.InstructionLimit),
-		C.uint(conf.OutputLimit))
+	if conf.PluginType == "output" {
+		cfg := fmt.Sprintf(SandboxIoTemplate,
+			conf.MemoryLimit,
+			conf.InstructionLimit,
+			conf.OutputLimit,
+			filepath.Join(conf.ModuleDirectory, "?.lua"),
+			filepath.Join(conf.ModuleDirectory, "?@LUA_SHARED_LIBRARY_SUFFIX@"))
+		ccfg := C.CString(cfg)
+		defer C.free(unsafe.Pointer(ccfg))
+		lsb.lsb = C.lsb_create_custom(unsafe.Pointer(lsb), cs, ccfg)
+	} else {
+		md := C.CString(conf.ModuleDirectory)
+		defer C.free(unsafe.Pointer(md))
+		lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
+			cs,
+			md,
+			C.uint(conf.MemoryLimit),
+			C.uint(conf.InstructionLimit),
+			C.uint(conf.OutputLimit))
+	}
+
 	if lsb.lsb == nil {
 		return nil, fmt.Errorf("Sandbox creation failed")
 	}
@@ -570,10 +595,9 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 	return lsb, nil
 }
 
-func (this *LuaSandbox) Init(dataFile, pluginType string) error {
-	this.pluginType = pluginType
+func (this *LuaSandbox) Init(dataFile string) error {
 	csDataFile := C.CString(dataFile)
-	csPluginType := C.CString(pluginType)
+	csPluginType := C.CString(this.sbConfig.PluginType)
 	defer func() {
 		C.free(unsafe.Pointer(csDataFile))
 		C.free(unsafe.Pointer(csPluginType))

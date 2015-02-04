@@ -31,5 +31,6 @@ Features
 .. include:: lpeg.rst
 .. include:: filter.rst
 .. include:: encoder.rst
+.. include:: output.rst
 .. include:: development.rst
 .. include:: cookbook.rst

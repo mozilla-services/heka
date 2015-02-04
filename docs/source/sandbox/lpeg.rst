@@ -9,9 +9,10 @@ Best practices (using Lpeg in the sandbox)
 
 2) The 're' module is now available in the sandbox but the best practice is
    to use the LPeg syntax whenever possible (i.e., in Lua code). Why?
-    - Consistency and readability of a single syntax.
-    - Promotes more modular grammars.
-    - Is easier to comment.
+
+  - Consistency and readability of a single syntax.
+  - Promotes more modular grammars.
+  - Is easier to comment.
 
 3) Do not use parentheses around function calls that take a single string argument.
 

@@ -33,6 +33,8 @@ Bug Handling
 Features
 --------
 
+* Added a SandboxOutput plugin.
+
 * Include the new lua_sandbox with support for shared library modules.
 
 * Allow the sandbox process_message function to set the last error string

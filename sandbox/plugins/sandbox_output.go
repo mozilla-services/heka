@@ -1,0 +1,178 @@
+/***** BEGIN LICENSE BLOCK *****
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2015
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Mike Trinkala (trink@mozilla.com)
+#
+# ***** END LICENSE BLOCK *****/
+
+package plugins
+
+import (
+	"errors"
+	"fmt"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+// Heka Output plugin that acts as a wrapper for sandboxed output scripts.
+// Each sandboxed output maps to exactly one SandboxOutput instance.
+type SandboxOutput struct {
+	processMessageCount    int64
+	processMessageFailures int64
+	processMessageSamples  int64
+	processMessageDuration int64
+	timerEventSamples      int64
+	timerEventDuration     int64
+
+	sb                Sandbox
+	sbc               *SandboxConfig
+	preservationFile  string
+	reportLock        sync.Mutex
+	name              string
+	pConfig           *pipeline.PipelineConfig
+	sample            bool
+	sampleDenominator int
+}
+
+// Heka will call this before calling any other methods to give us access to
+// the pipeline configuration.
+func (s *SandboxOutput) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
+	s.pConfig = pConfig
+}
+
+func (s *SandboxOutput) ConfigStruct() interface{} {
+	return NewSandboxConfig(s.pConfig.Globals)
+}
+
+func (s *SandboxOutput) Init(config interface{}) (err error) {
+	s.sbc = config.(*SandboxConfig)
+	globals := s.pConfig.Globals
+	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
+	s.sbc.InstructionLimit = 0
+	s.sbc.PluginType = "output"
+
+	data_dir := globals.PrependBaseDir(DATA_DIR)
+	if !fileExists(data_dir) {
+		err = os.MkdirAll(data_dir, 0700)
+		if err != nil {
+			return
+		}
+	}
+
+	switch s.sbc.ScriptType {
+	case "lua":
+		s.sb, err = lua.CreateLuaSandbox(s.sbc)
+		if err != nil {
+			return
+		}
+	default:
+		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
+	}
+
+	s.preservationFile = filepath.Join(data_dir, s.name+DATA_EXT)
+	if s.sbc.PreserveData && fileExists(s.preservationFile) {
+		err = s.sb.Init(s.preservationFile)
+	} else {
+		err = s.sb.Init("")
+	}
+
+	s.sample = true
+	s.sampleDenominator = globals.SampleDenominator
+	return
+}
+
+func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err error) {
+	var (
+		pack      *pipeline.PipelinePack
+		retval    int
+		inChan    = or.InChan()
+		duration  int64
+		startTime time.Time
+		ok        = true
+		ticker    = or.Ticker()
+	)
+
+	for ok {
+		select {
+		case pack, ok = <-inChan:
+			if !ok {
+				break
+			}
+			if s.sample {
+				startTime = time.Now()
+			}
+			retval = s.sb.ProcessMessage(pack)
+			if s.sample {
+				duration = time.Since(startTime).Nanoseconds()
+				s.reportLock.Lock()
+				s.processMessageDuration += duration
+				s.processMessageSamples++
+				s.reportLock.Unlock()
+			}
+			s.sample = 0 == rand.Intn(s.sampleDenominator)
+			pack.Recycle()
+
+			if retval == 0 {
+				atomic.AddInt64(&s.processMessageCount, 1)
+			} else if retval < 0 {
+				atomic.AddInt64(&s.processMessageFailures, 1)
+				em := s.sb.LastError()
+				if len(em) > 0 {
+					or.LogError(errors.New(em))
+				}
+			} else {
+				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+				or.LogError(err)
+				ok = false
+			}
+
+		case t := <-ticker:
+			startTime = time.Now()
+			if retval = s.sb.TimerEvent(t.UnixNano()); retval != 0 {
+				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+				or.LogError(err)
+				ok = false
+			}
+			duration = time.Since(startTime).Nanoseconds()
+			s.reportLock.Lock()
+			s.timerEventDuration += duration
+			s.timerEventSamples++
+			s.reportLock.Unlock()
+		}
+	}
+
+	s.reportLock.Lock()
+	var destroyErr error
+	if s.sbc.PreserveData {
+		destroyErr = s.sb.Destroy(s.preservationFile)
+	} else {
+		destroyErr = s.sb.Destroy("")
+	}
+	if destroyErr != nil {
+		err = destroyErr
+	}
+
+	s.sb = nil
+	s.reportLock.Unlock()
+	return
+}
+
+func init() {
+	pipeline.RegisterPlugin("SandboxOutput", func() interface{} {
+		return new(SandboxOutput)
+	})
+}
