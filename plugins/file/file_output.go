@@ -4,12 +4,13 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Rob Miller (rmiller@mozilla.com)
 #   Mike Trinkala (trink@mozilla.com)
+#   Bruno Binet (bruno.binet@gmail.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -24,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -39,6 +39,8 @@ type FileOutput struct {
 	backChan   chan []byte
 	folderPerm os.FileMode
 	timerChan  <-chan time.Time
+	rotateChan chan time.Time
+	closing    chan struct{}
 }
 
 // ConfigStruct for FileOutput plugin.
@@ -84,12 +86,12 @@ type FileOutputConfig struct {
 
 func (o *FileOutput) ConfigStruct() interface{} {
 	return &FileOutputConfig{
-		Perm:          "644",
+		Perm:             "644",
 		RotationInterval: 0,
-		FlushInterval: 1000,
-		FlushCount:    1,
-		FlushOperator: "AND",
-		FolderPerm:    "700",
+		FlushInterval:    1000,
+		FlushCount:       1,
+		FlushOperator:    "AND",
+		FolderPerm:       "700",
 	}
 }
 
@@ -101,38 +103,20 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
 		err = fmt.Errorf("FileOutput '%s' can't parse `folder_perm`, is it an octal integer string?",
 			o.Path)
-		return
+		return err
 	}
 	o.folderPerm = os.FileMode(intPerm)
 
 	if intPerm, err = strconv.ParseInt(conf.Perm, 8, 32); err != nil {
 		err = fmt.Errorf("FileOutput '%s' can't parse `perm`, is it an octal integer string?",
 			o.Path)
-		return
+		return err
 	}
 	o.perm = os.FileMode(intPerm)
 
-	switch conf.RotationInterval {
-	case 0:
-		// date rotation is disabled
-		o.path = o.Path
-	case 1, 4, 12, 24:
-		// RotationInterval value is allowed
-		t := time.Now().Truncate(time.Duration(o.RotationInterval) * time.Hour)
-		o.path = t.Format(o.Path)
-	default:
-		err = fmt.Errorf("Parameter 'rotation_interval' must be one of: 0, 1, 4, 12, 24.")
-		return
-	}
-
-	if err = o.openFile(); err != nil {
-		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
-		return
-	}
-
 	if conf.FlushCount < 1 {
 		err = fmt.Errorf("Parameter 'flush_count' needs to be greater 1.")
-		return
+		return err
 	}
 	switch conf.FlushOperator {
 	case "AND":
@@ -142,12 +126,58 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	default:
 		err = fmt.Errorf("Parameter 'flush_operator' needs to be either 'AND' or 'OR', is currently: '%s'",
 			conf.FlushOperator)
-		return
+		return err
+	}
+
+	o.closing = make(chan struct{})
+	switch conf.RotationInterval {
+	case 0:
+		// date rotation is disabled
+		o.path = o.Path
+	case 1, 4, 12, 24:
+		// RotationInterval value is allowed
+		o.startRotateNotifier()
+	default:
+		err = fmt.Errorf("Parameter 'rotation_interval' must be one of: 0, 1, 4, 12, 24.")
+		return err
+	}
+	if err = o.openFile(); err != nil {
+		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
+		close(o.closing)
+		return err
 	}
 
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2) // Never block on the hand-back
-	return
+	return nil
+}
+
+func (o *FileOutput) startRotateNotifier() {
+	now := time.Now()
+	interval := time.Duration(o.RotationInterval) * time.Hour
+	last := now.Truncate(interval)
+	next := last.Add(interval)
+	until := next.Sub(now)
+	after := time.After(until)
+
+	o.path = last.Format(o.Path)
+	o.rotateChan = make(chan time.Time)
+
+	go func() {
+		ok := true
+		for ok {
+			select {
+			case _, ok = <-o.closing:
+				break
+			case <-after:
+				last = next
+				next = next.Add(interval)
+				until = next.Sub(time.Now())
+				after = time.After(until)
+				o.rotateChan <- last
+			}
+		}
+	}()
 }
 
 func (o *FileOutput) openFile() (err error) {
@@ -162,21 +192,7 @@ func (o *FileOutput) openFile() (err error) {
 	return
 }
 
-func (o *FileOutput) tryRotateFile() (err error) {
-	if o.RotationInterval == 0 {
-		return
-	}
-	t := time.Now().Truncate(time.Duration(o.RotationInterval) * time.Hour)
-	if path := t.Format(o.Path); path != o.path {
-		// output file needs to be rotated
-		o.file.Close()
-		o.path = path
-		err = o.openFile()
-	}
-	return
-}
-
-func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
+func (o *FileOutput) Run(or OutputRunner, h PluginHelper) error {
 	enc := or.Encoder()
 	if enc == nil {
 		return errors.New("Encoder required.")
@@ -188,18 +204,13 @@ func (o *FileOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			or.SetUseFraming(true)
 		}
 	}
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go o.receiver(or, &wg)
-	go o.committer(or, &wg)
-	wg.Wait()
-	return
+
+	errChan := make(chan error, 1)
+	go o.committer(or, errChan)
+	return o.receiver(or, errChan)
 }
 
-// Runs in a separate goroutine, accepting incoming messages, buffering output
-// data until the ticker triggers the buffered data should be put onto the
-// committer channel.
-func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
+func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 	var (
 		pack            *PipelinePack
 		e               error
@@ -271,15 +282,18 @@ func (o *FileOutput) receiver(or OutputRunner, wg *sync.WaitGroup) {
 				intervalElapsed = true
 			}
 			timer.Reset(timerDuration)
+		case err = <-errChan:
+			ok = false
+			break
 		}
 	}
-	wg.Done()
+	return err
 }
 
 // Runs in a separate goroutine, waits for buffered data on the committer
 // channel, writes it out to the filesystem, and puts the now empty buffer on
 // the return channel for reuse.
-func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
+func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 	initBatch := make([]byte, 0, 10000)
 	o.backChan <- initBatch
 	var outBatch []byte
@@ -294,11 +308,9 @@ func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 		case outBatch, ok = <-o.batchChan:
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
+				o.file.Close()
+				close(o.closing)
 				break
-			}
-			if err = o.tryRotateFile(); err != nil {
-				panic(fmt.Sprintf("FileOutput unable to rotate file '%s': %s",
-					o.path, err))
 			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {
@@ -313,16 +325,24 @@ func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 		case <-hupChan:
 			o.file.Close()
 			if err = o.openFile(); err != nil {
-				// TODO: Need a way to handle this gracefully, see
-				// https://github.com/mozilla-services/heka/issues/38
-				panic(fmt.Sprintf("FileOutput unable to reopen file '%s': %s",
-					o.path, err))
+				close(o.closing)
+				err = fmt.Errorf("unable to reopen file '%s': %s", o.path, err)
+				errChan <- err
+				ok = false
+				break
+			}
+		case rotateTime := <-o.rotateChan:
+			o.file.Close()
+			o.path = rotateTime.Format(o.Path)
+			if err = o.openFile(); err != nil {
+				close(o.closing)
+				err = fmt.Errorf("unable to open rotated file '%s': %s", o.path, err)
+				errChan <- err
+				ok = false
+				break
 			}
 		}
 	}
-
-	o.file.Close()
-	wg.Done()
 }
 
 func init() {

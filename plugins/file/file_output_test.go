@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -61,6 +61,8 @@ func FileOutputSpec(c gs.Context) {
 		pack.Message = msg
 		pack.Decoded = true
 
+		errChan := make(chan error, 1)
+
 		c.Specify("w/ ProtobufEncoder", func() {
 			encoder := new(ProtobufEncoder)
 			encoder.SetPipelineConfig(pConfig)
@@ -113,12 +115,10 @@ func FileOutputSpec(c gs.Context) {
 
 			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
 			oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
-			wg.Add(1)
-			go fileOutput.receiver(oth.MockOutputRunner, &wg)
+			go fileOutput.receiver(oth.MockOutputRunner, errChan)
 			inChan <- pack
 			close(inChan)
 			outBatch := <-fileOutput.batchChan
-			wg.Wait()
 			c.Expect(string(outBatch), gs.Equals, payload)
 		})
 
@@ -130,21 +130,18 @@ func FileOutputSpec(c gs.Context) {
 				err := fileOutput.Init(config)
 				c.Assume(err, gs.IsNil)
 
-				// Start committer loop
-				wg.Add(1)
-				go fileOutput.committer(oth.MockOutputRunner, &wg)
+				// Start committer loop.
+				go fileOutput.committer(oth.MockOutputRunner, errChan)
 
-				// Feed and close the batchChan
+				// Feed and close the batchChan.
 				go func() {
 					fileOutput.batchChan <- outBytes
-					_ = <-fileOutput.backChan // clear backChan to prevent blocking
+					_ = <-fileOutput.backChan // clear backChan to prevent blocking.
 					close(fileOutput.batchChan)
 				}()
 
-				wg.Wait()
-				// Wait for the file close operation to happen.
-				//for ; err == nil; _, err = fileOutput.file.Stat() {
-				//}
+				// Wait until we know processing has finished.
+				<-fileOutput.closing
 
 				tmpFile, err := os.Open(tmpFilePath)
 				defer tmpFile.Close()
@@ -159,21 +156,18 @@ func FileOutputSpec(c gs.Context) {
 				err := fileOutput.Init(config)
 				c.Assume(err, gs.IsNil)
 
-				// Start committer loop
-				wg.Add(1)
-				go fileOutput.committer(oth.MockOutputRunner, &wg)
+				// Start committer loop.
+				go fileOutput.committer(oth.MockOutputRunner, errChan)
 
-				// Feed and close the batchChan
+				// Feed and close the batchChan.
 				go func() {
 					fileOutput.batchChan <- outBytes
-					_ = <-fileOutput.backChan // clear backChan to prevent blocking
+					_ = <-fileOutput.backChan // clear backChan to prevent blocking.
 					close(fileOutput.batchChan)
 				}()
 
-				wg.Wait()
-				// Wait for the file close operation to happen.
-				//for ; err == nil; _, err = fileOutput.file.Stat() {
-				//}
+				// Wait until we know processing has finished.
+				<-fileOutput.closing
 
 				tmpFile, err := os.Open(tmpFilePath)
 				defer tmpFile.Close()
@@ -184,7 +178,7 @@ func FileOutputSpec(c gs.Context) {
 				if runtime.GOOS == "windows" {
 					c.Expect(fileMode.String(), pipeline_ts.StringContains, "-rw-rw-rw-")
 				} else {
-					// 7 consecutive dashes implies no perms for group or other
+					// 7 consecutive dashes implies no perms for group or other.
 					c.Expect(fileMode.String(), pipeline_ts.StringContains, "-------")
 				}
 			})
@@ -230,16 +224,15 @@ func FileOutputSpec(c gs.Context) {
 			recvWithConfig := func(config *FileOutputConfig) {
 				err := fileOutput.Init(config)
 				c.Assume(err, gs.IsNil)
-				wg.Add(1)
+
 				fileOutput.timerChan = timerChan
-				go fileOutput.receiver(oth.MockOutputRunner, &wg)
+				go fileOutput.receiver(oth.MockOutputRunner, errChan)
 				runtime.Gosched() // Yield so receiver will start.
 			}
 
 			cleanUp := func() {
 				close(inChan)
 				fileOutput.file.Close()
-				wg.Done()
 			}
 
 			c.Specify("honors flush interval", func() {
