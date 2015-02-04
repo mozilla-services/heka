@@ -88,6 +88,11 @@ Features
 
 * Added ability for HttpListenInput to capture specified HTTP request headers
   and write them as message fields.
+  
+* Added ability for Statsd input handler to treat a malformed stat line 
+  one at time without skipping all the "good" stats in a multi-line input
+  (more like statsd itself).
+  
 
 * Added `message_interval` setting support to heka-flood test configuration.
 

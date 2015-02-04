@@ -125,20 +125,24 @@ func (s *StatsdInput) Stop() {
 // Parses received raw statsd bytes data and converts it into a StatPacket
 // object that can be passed to the StatMonitor.
 func (s *StatsdInput) handleMessage(message []byte) {
-	stats, err := parseMessage(message)
+	stats, warn, err := parseMessage(message)
 	if err != nil {
 		s.ir.LogError(fmt.Errorf("Can not parse message: %s", message))
 		return
 	}
 
+	if warn != nil || len(warn) > 0 {
+		s.ir.LogError(fmt.Errorf("Warning Part of message could not be parsed: %s", warn))
+	}
+
 	for _, stat := range stats {
 		if !s.statAccum.DropStat(stat) {
-			s.ir.LogError(fmt.Errorf("Undelivered stat: %v", stat))
+			s.ir.LogError(fmt.Errorf("Undelivered stat: %+v", stat))
 		}
 	}
 }
 
-func parseMessage(message []byte) ([]Stat, error) {
+func parseMessage(message []byte) ([]Stat, [][]byte, error) {
 	message = bytes.Trim(message, " \t\n")
 
 	stats := make([]Stat, 0, int(math.Max(1, float64(bytes.Count(message, []byte("\n"))))))
@@ -152,15 +156,34 @@ func parseMessage(message []byte) ([]Stat, error) {
 		lines = [][]byte{message}
 	}
 
-	for _, line := range lines {
+	var num_lines int = len(lines)
+	var bad_lines_ct int = 0
+	var bad_lines = [][]byte{}
+
+	for _, s_line := range lines {
+
+		//trim white space
+		var line = bytes.Trim(s_line, " \t\n")
+
+		// skip blank lines
+		if len(line) == 0 {
+			continue
+		}
+
 		colonPos := bytes.IndexByte(line, ':')
 		if colonPos == -1 {
-			return nil, fmt.Errorf(errFmt, line)
+			// bail if not a multi line
+			if num_lines > 1 {
+				bad_lines = append(bad_lines, line)
+				bad_lines_ct++
+				continue
+			}
+			return nil, nil, fmt.Errorf(errFmt, line)
 		}
 
 		pipePos := bytes.IndexByte(line, '|')
 		if pipePos == -1 {
-			return nil, fmt.Errorf(errFmt, line)
+			return nil,  nil, fmt.Errorf(errFmt, line)
 		}
 
 		bucket := line[:colonPos]
@@ -168,13 +191,23 @@ func parseMessage(message []byte) ([]Stat, error) {
 		modifier, err := extractModifier(line, pipePos+1)
 
 		if err != nil {
-			return nil, err
+			if num_lines > 1 {
+				bad_lines = append(bad_lines, line)
+				bad_lines_ct++
+				continue
+			}
+			return nil, nil, err
 		}
 
 		sampleRate := float32(1)
 		sampleRate, err = extractSampleRate(line)
 		if err != nil {
-			return nil, err
+			if num_lines > 1 {
+				bad_lines = append(bad_lines, line)
+				bad_lines_ct++
+				continue
+			}
+			return nil, nil, err
 		}
 
 		var stat Stat
@@ -186,7 +219,10 @@ func parseMessage(message []byte) ([]Stat, error) {
 		stats = append(stats, stat)
 	}
 
-	return stats, nil
+	if bad_lines_ct > 0 {
+		return stats, bad_lines, nil
+	}
+	return stats, nil, nil
 }
 
 func extractModifier(message []byte, startAt int) ([]byte, error) {
