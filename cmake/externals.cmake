@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG 66f8c218ad8f97a96db4fa5873303507e9ffa788
+        GIT_TAG db9af9f150783776b773a190d7949d6db36e8426
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
