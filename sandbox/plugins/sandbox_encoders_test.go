@@ -41,6 +41,7 @@ func EncoderSpec(c gs.Context) {
 
 		c.Specify("emits JSON correctly", func() {
 			conf.ScriptFilename = "../lua/testsupport/encoder_json.lua"
+			conf.ModuleDirectory = "../lua/modules"
 			err = encoder.Init(conf)
 			c.Expect(err, gs.IsNil)
 
@@ -59,6 +60,7 @@ func EncoderSpec(c gs.Context) {
 
 		c.Specify("emits text correctly", func() {
 			conf.ScriptFilename = "../lua/testsupport/encoder_text.lua"
+			conf.ModuleDirectory = "../lua/modules"
 			err = encoder.Init(conf)
 			c.Expect(err, gs.IsNil)
 
@@ -71,6 +73,7 @@ func EncoderSpec(c gs.Context) {
 
 			c.Specify("when inject_message is used", func() {
 				conf.ScriptFilename = "../lua/testsupport/encoder_protobuf.lua"
+				conf.ModuleDirectory = "../lua/modules"
 				err = encoder.Init(conf)
 				c.Expect(err, gs.IsNil)
 
@@ -90,6 +93,7 @@ func EncoderSpec(c gs.Context) {
 
 			c.Specify("when `write_message` is used", func() {
 				conf.ScriptFilename = "../lua/testsupport/encoder_writemessage.lua"
+				conf.ModuleDirectory = "../lua/modules"
 				err = encoder.Init(conf)
 				c.Expect(err, gs.IsNil)
 
@@ -122,7 +126,7 @@ func EncoderSpec(c gs.Context) {
 			err    error
 		)
 		conf.ScriptFilename = "../lua/encoders/cbuf_librato.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.Config = make(map[string]interface{})
 		err = encoder.Init(conf)
 		c.Assume(err, gs.IsNil)
@@ -197,7 +201,7 @@ func EncoderSpec(c gs.Context) {
 		pack.Message.AddField(f)
 
 		conf.ScriptFilename = "../lua/encoders/schema_influx.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.Config = make(map[string]interface{})
 
 		c.Specify("encodes a basic message", func() {

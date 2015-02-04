@@ -7,7 +7,8 @@ Best practices (using Lpeg in the sandbox)
 ------------------------------------------
 1) Read the `LPeg reference <http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html>`_
 
-2) There are no plans to include the 're' module so embrace the SNOBOL tradition. Why?
+2) The 're' module is now available in the sandbox but the best practice is
+   to use the LPeg syntax whenever possible (i.e., in Lua code). Why?
     - Consistency and readability of a single syntax.
     - Promotes more modular grammars.
     - Is easier to comment.
