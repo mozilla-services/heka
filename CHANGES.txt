@@ -45,6 +45,8 @@ Bug Handling
   complete records up to the end of the stream without having to
   use GetRemainingData() (#1305).
 
+* SmtpOutput now encodes email subject when necessary (#1277).
+
 Features
 --------
 
