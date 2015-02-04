@@ -31,6 +31,7 @@ import (
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
 	*FileOutputConfig
+	path       string
 	perm       os.FileMode
 	flushOpAnd bool
 	file       *os.File
@@ -43,10 +44,19 @@ type FileOutput struct {
 // ConfigStruct for FileOutput plugin.
 type FileOutputConfig struct {
 	// Full output file path.
+	// If date rotation is in use, then the output file name can support
+	// Go's time.Format syntax to embed timestamps in the filename:
+	// http://golang.org/pkg/time/#Time.Format
 	Path string
 
 	// Output file permissions (default "644").
 	Perm string
+
+	// Interval at which the output file should be rotated, in hours.
+	// Only the following values are allowed: 0, 1, 4, 12, 24
+	// The files will be named relative to midnight of the day.
+	// (default 0, i.e. disabled). Set to 0 to disable.
+	RotationInterval uint32 `toml:"rotation_interval"`
 
 	// Interval at which accumulated file data should be written to disk, in
 	// milliseconds (default 1000, i.e. 1 second). Set to 0 to disable.
@@ -75,6 +85,7 @@ type FileOutputConfig struct {
 func (o *FileOutput) ConfigStruct() interface{} {
 	return &FileOutputConfig{
 		Perm:          "644",
+		RotationInterval: 0,
 		FlushInterval: 1000,
 		FlushCount:    1,
 		FlushOperator: "AND",
@@ -100,8 +111,22 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		return
 	}
 	o.perm = os.FileMode(intPerm)
+
+	switch conf.RotationInterval {
+	case 0:
+		// date rotation is disabled
+		o.path = o.Path
+	case 1, 4, 12, 24:
+		// RotationInterval value is allowed
+		t := time.Now().Truncate(time.Duration(o.RotationInterval) * time.Hour)
+		o.path = t.Format(o.Path)
+	default:
+		err = fmt.Errorf("Parameter 'rotation_interval' must be one of: 0, 1, 4, 12, 24.")
+		return
+	}
+
 	if err = o.openFile(); err != nil {
-		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.Path, err)
+		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
 		return
 	}
 
@@ -126,14 +151,28 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 }
 
 func (o *FileOutput) openFile() (err error) {
-	basePath := filepath.Dir(o.Path)
+	basePath := filepath.Dir(o.path)
 	if err = os.MkdirAll(basePath, o.folderPerm); err != nil {
 		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
 	}
 	if err = plugins.CheckWritePermission(basePath); err != nil {
 		return
 	}
-	o.file, err = os.OpenFile(o.Path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
+	o.file, err = os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, o.perm)
+	return
+}
+
+func (o *FileOutput) tryRotateFile() (err error) {
+	if o.RotationInterval == 0 {
+		return
+	}
+	t := time.Now().Truncate(time.Duration(o.RotationInterval) * time.Hour)
+	if path := t.Format(o.Path); path != o.path {
+		// output file needs to be rotated
+		o.file.Close()
+		o.path = path
+		err = o.openFile()
+	}
 	return
 }
 
@@ -257,11 +296,15 @@ func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 				// Channel is closed => we're shutting down, exit cleanly.
 				break
 			}
+			if err = o.tryRotateFile(); err != nil {
+				panic(fmt.Sprintf("FileOutput unable to rotate file '%s': %s",
+					o.path, err))
+			}
 			n, err := o.file.Write(outBatch)
 			if err != nil {
-				or.LogError(fmt.Errorf("Can't write to %s: %s", o.Path, err))
+				or.LogError(fmt.Errorf("Can't write to %s: %s", o.path, err))
 			} else if n != len(outBatch) {
-				or.LogError(fmt.Errorf("Truncated output for %s", o.Path))
+				or.LogError(fmt.Errorf("Truncated output for %s", o.path))
 			} else {
 				o.file.Sync()
 			}
@@ -273,7 +316,7 @@ func (o *FileOutput) committer(or OutputRunner, wg *sync.WaitGroup) {
 				// TODO: Need a way to handle this gracefully, see
 				// https://github.com/mozilla-services/heka/issues/38
 				panic(fmt.Sprintf("FileOutput unable to reopen file '%s': %s",
-					o.Path, err))
+					o.path, err))
 			}
 		}
 	}
