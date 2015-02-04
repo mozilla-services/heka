@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"io"
 	"sync"
 	"time"
 )
