@@ -195,6 +195,8 @@ type iRunner struct {
 	sendDecodeFailures bool
 	useMsgBytes        bool
 	deliver            DeliverFunc
+	shutdownWanters    []WantsDecoderRunnerShutdown
+	shutdownLock       sync.Mutex
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -289,11 +291,21 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 	for !globals.IsShuttingDown() {
 		// ir.Input().Run() shouldn't return unless error or shutdown.
-		if err := ir.input.Run(ir, h); err != nil {
+		err := ir.input.Run(ir, h)
+		if err != nil {
 			ir.LogError(err)
 		} else if !ir.transient {
 			rh.Reset()
 			ir.LogMessage("stopped")
+		}
+
+		// Send shutdown signal to any decoders that need it.
+		if len(ir.shutdownWanters) > 0 {
+			ir.shutdownLock.Lock()
+			for _, wanter := range ir.shutdownWanters {
+				wanter.Shutdown()
+			}
+			ir.shutdownLock.Unlock()
 		}
 
 		// Are we supposed to stop? Save ourselves some time by exiting now.
@@ -369,15 +381,16 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 		return nil, nil
 	}
 
+	var fullName string
+	if token == "" {
+		fullName = fmt.Sprintf("%s-%s", ir.name, decoderName)
+	} else {
+		fullName = fmt.Sprintf("%s-%s-%s", ir.name, decoderName, token)
+	}
+
 	// No synchronous decode means create a DecoderRunner and drop packs on
 	// its inChan.
 	if !ir.syncDecode {
-		var fullName string
-		if token == "" {
-			fullName = fmt.Sprintf("%s-%s", ir.name, decoderName)
-		} else {
-			fullName = fmt.Sprintf("%s-%s-%s", ir.name, decoderName, token)
-		}
 		dr, _ := ir.pConfig.DecoderRunner(decoderName, fullName)
 		dr.SetSendFailure(ir.sendDecodeFailures)
 		inChan := dr.InChan()
@@ -390,6 +403,17 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 	// Synchronous decode means create a decoder instance and call Decode
 	// directly.
 	decoder, _ := ir.pConfig.Decoder(decoderName)
+	if wanter, ok := decoder.(WantsDecoderRunner); ok {
+		dr := NewDecoderRunner(fullName, decoder, 0).(*dRunner)
+		dr.h = ir.h
+		dr.router = ir.pConfig.router
+		wanter.SetDecoderRunner(dr)
+	}
+	if wanter, ok := decoder.(WantsDecoderRunnerShutdown); ok {
+		ir.shutdownLock.Lock()
+		ir.shutdownWanters = append(ir.shutdownWanters, wanter)
+		ir.shutdownLock.Unlock()
+	}
 	deliver = func(pack *PipelinePack) {
 		packs, err := decoder.Decode(pack)
 		if err != nil {
@@ -550,7 +574,7 @@ type WantsDecoderRunner interface {
 }
 
 // Any decoder that needs to know when the DecoderRunner is exiting can
-// implement this interface and it will called on DecoderRunner exit.
+// implement this interface and it will be called on DecoderRunner exit.
 type WantsDecoderRunnerShutdown interface {
 	Shutdown()
 }
