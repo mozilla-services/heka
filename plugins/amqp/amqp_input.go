@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,9 +17,7 @@ package amqp
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/streadway/amqp"
@@ -46,8 +44,6 @@ type AMQPInputConfig struct {
 	// the routing key to bind the queue to the exchange with
 	// Defaults to empty string
 	RoutingKey string `toml:"routing_key"`
-	// Name of configured decoder instance used to decode the messages.
-	Decoder string
 	// How many messages should be pre-fetched before message acks
 	// See http://www.rabbitmq.com/blog/2012/04/25/rabbitmq-performance-measurements-part-2/
 	// for benchmarks showing the impact of low prefetch counts
@@ -153,86 +149,46 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	return
 }
 
+func (ai *AMQPInput) packDecorator(pack *PipelinePack) {
+	pack.Message.SetType("amqp")
+}
+
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	var (
-		dRunner DecoderRunner
-		decoder Decoder
-		pack    *PipelinePack
-		e       error
-		ok      bool
+		n   int
+		e   error
+		msg amqp.Delivery
+		ok  bool
 	)
 	defer ai.usageWg.Done()
-	packSupply := ir.InChan()
 
-	conf := ai.config
-
-	// Right now we have a kludgey and brittle way of mapping messages to
-	// decoders. A (protobuf) decoder is required if a message of type
-	// `application/hekad` is received. Any other message type doesn't require
-	// a decoder. In either case, the specified decoder must be able to handle
-	// the incoming data. This can (and will) be greatly improved once we
-	// abstract out the stream parsing code so it can used here w/o having to
-	// reimplement the entire stream_type -> stream parser mapping.
-	if conf.Decoder != "" {
-		if dRunner, ok = h.DecoderRunner(conf.Decoder, fmt.Sprintf("%s-%s", ir.Name(), conf.Decoder)); !ok {
-			return fmt.Errorf("Decoder not found: %s", conf.Decoder)
-		}
-		decoder = dRunner.Decoder()
-	}
-	header := &message.Header{}
-
-	stream, err := ai.ch.Consume(conf.Queue, "", false, conf.QueueExclusive,
+	stream, err := ai.ch.Consume(ai.config.Queue, "", false, ai.config.QueueExclusive,
 		false, false, nil)
 	if err != nil {
 		return
 	}
-readLoop:
+
+	sRunner := ir.NewSplitterRunner("")
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(ai.packDecorator)
+	}
+
 	for {
 		e = nil
-		pack = <-packSupply
-		msg, ok := <-stream
-		if !ok {
-			break readLoop
+		if msg, ok = <-stream; !ok {
+			break
 		}
 
-		if msg.ContentType == "application/hekad" {
-			if dRunner == nil {
-				pack.Recycle()
-				ir.LogError(errors.New("`application/hekad` messages require a decoder."))
-			} else {
-				_, msgOk := findMessage(msg.Body, header, &(pack.MsgBytes))
-				if msgOk {
-					dRunner.InChan() <- pack
-				} else {
-					pack.Recycle()
-					ir.LogError(errors.New("Can't find Heka message."))
-				}
-				header.Reset()
-			}
-		} else {
-			pack.Message.SetType("amqp")
-			pack.Message.SetPayload(string(msg.Body))
-			pack.Message.SetTimestamp(msg.Timestamp.UnixNano())
-			var packs []*PipelinePack
-			if decoder == nil {
-				packs = []*PipelinePack{pack}
-			} else {
-				packs, e = decoder.Decode(pack)
-			}
-			if packs != nil {
-				for _, p := range packs {
-					ir.Inject(p)
-				}
-			} else {
-				if e != nil {
-					ir.LogError(fmt.Errorf("Couldn't parse AMQP message: %s", msg.Body))
-				}
-				pack.Recycle()
-			}
+		n, e = sRunner.SplitBytes(msg.Body, nil)
+		if e != nil {
+			ir.LogError(fmt.Errorf("processing message of type %s: %s", msg.Type, err.Error()))
+		}
+		if n > 0 && n != len(msg.Body) {
+			ir.LogError(fmt.Errorf("extra data in message of type %s dropped", msg.Type))
 		}
 		msg.Ack(false)
 	}
-	return
+	return nil
 }
 
 func (ai *AMQPInput) CleanupForRestart() {

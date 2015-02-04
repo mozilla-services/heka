@@ -212,7 +212,8 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	}()
 
-	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or, h, t.conf.QueueMaxBufferSize)
+	t.bufferedOut, err = NewBufferedOutput("output_queue", t.name, or, h,
+		t.conf.QueueMaxBufferSize)
 	if err != nil {
 		if err == QueueIsFull {
 			or.LogMessage("Queue capacity is already reached.")

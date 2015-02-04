@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -53,16 +53,9 @@ func NewManagedCmd(path string, args []string, timeout time.Duration) (mc *Manag
 
 func (mc *ManagedCmd) Start(pipeOutput bool) (err error) {
 	if pipeOutput {
-		var stdout_w *io.PipeWriter
-		var stderr_w *io.PipeWriter
-
-		mc.Stdout_r, stdout_w = io.Pipe()
-		mc.Stderr_r, stderr_w = io.Pipe()
-
-		mc.Stdout = stdout_w
-		mc.Stderr = stderr_w
+		mc.Stdout_r, mc.Stdout = io.Pipe()
+		mc.Stderr_r, mc.Stderr = io.Pipe()
 	}
-
 	return mc.Cmd.Start()
 }
 

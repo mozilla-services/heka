@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 )
 
@@ -97,36 +96,43 @@ func TestReceivePayloadMessage(t *testing.T) {
 	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.PackSupply = make(chan *PipelinePack, 1)
 
-	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-	var deliverWg sync.WaitGroup
-	deliverWg.Add(1)
-	// deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
-	deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
-	deliverCall.Do(func(pack *PipelinePack) {
-		deliverWg.Done()
-	})
-
-	ith.MockInputRunner.EXPECT().UseMsgBytes().Return(false)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 
 	err := ki.Init(config)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
 
+	ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+	ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+
+	decChan := make(chan func(*PipelinePack), 1)
+	decCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+	decCall.Do(func(dec func(pack *PipelinePack)) {
+		decChan <- dec
+	})
+
+	bytesChan := make(chan []byte, 1)
+	splitCall := ith.MockSplitterRunner.EXPECT().SplitBytes(gomock.Any(), nil)
+	splitCall.Do(func(recd []byte, del Deliverer) {
+		bytesChan <- recd
+	})
+
 	errChan := make(chan error)
 	go func() {
 		errChan <- ki.Run(ith.MockInputRunner, ith.MockHelper)
 	}()
-	ith.PackSupply <- ith.Pack
 
-	deliverWg.Wait()
+	recd := <-bytesChan
+	if string(recd) != "AB" {
+		t.Errorf("Invalid Payload Expected: AB received: %s", string(recd))
+	}
+
+	packDec := <-decChan
+	packDec(ith.Pack)
 	if ith.Pack.Message.GetType() != "heka.kafka" {
 		t.Errorf("Invalid Type %s", ith.Pack.Message.GetType())
-	}
-	if ith.Pack.Message.GetPayload() != "AB" {
-		t.Errorf("Invalid Payload Expected: AB received: %s", ith.Pack.Message.GetPayload())
 	}
 
 	// There is a hang on the consumer close with the mock broker
@@ -190,33 +196,31 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.PackSupply = make(chan *PipelinePack, 1)
 
-	ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-	var deliverWg sync.WaitGroup
-	deliverWg.Add(1)
-	// deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
-	deliverCall := ith.MockInputRunner.EXPECT().Deliver(gomock.Any())
-	deliverCall.Do(func(pack *PipelinePack) {
-		deliverWg.Done()
-	})
-
-	ith.MockInputRunner.EXPECT().UseMsgBytes().Return(true)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 
 	err := ki.Init(config)
 	if err != nil {
 		t.Fatalf("%s", err)
 	}
 
+	ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+	ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(true)
+
+	bytesChan := make(chan []byte, 1)
+	splitCall := ith.MockSplitterRunner.EXPECT().SplitBytes(gomock.Any(), nil)
+	splitCall.Do(func(recd []byte, del Deliverer) {
+		bytesChan <- recd
+	})
+
 	errChan := make(chan error)
 	go func() {
 		errChan <- ki.Run(ith.MockInputRunner, ith.MockHelper)
 	}()
-	ith.PackSupply <- ith.Pack
 
-	deliverWg.Wait()
-	if string(ith.Pack.MsgBytes) != "AB" {
-		t.Errorf("Invalid MsgBytes Expected: AB received: %s", string(ith.Pack.MsgBytes))
+	recd := <-bytesChan
+	if string(recd) != "AB" {
+		t.Errorf("Invalid MsgBytes Expected: AB received: %s", string(recd))
 	}
 
 	// There is a hang on the consumer close with the mock broker

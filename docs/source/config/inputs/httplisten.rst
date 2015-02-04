@@ -31,9 +31,6 @@ Config:
 - address (string):
     An IP address:port on which this plugin will expose a HTTP server.
     Defaults to "127.0.0.1:8325".
-- decoder (string):
-    The name of the decoder used to further transform the request body text
-    into a structured hekad message. No default decoder is specified.
 
 .. versionadded:: 0.7
 

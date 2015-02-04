@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -181,6 +181,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.makers["Filter"] = make(map[string]PluginMaker)
 	config.makers["Encoder"] = make(map[string]PluginMaker)
 	config.makers["Output"] = make(map[string]PluginMaker)
+	config.makers["Splitter"] = make(map[string]PluginMaker)
 	config.DecoderMakers = config.makers["Decoder"]
 
 	config.InputRunners = make(map[string]InputRunner)
@@ -490,7 +491,7 @@ func (self *PipelineConfig) log(msg string) {
 	LogError.Println(msg)
 }
 
-var PluginTypeRegex = regexp.MustCompile("(Decoder|Encoder|Filter|Input|Output)$")
+var PluginTypeRegex = regexp.MustCompile("(Decoder|Encoder|Filter|Input|Output|Splitter)$")
 
 func getPluginCategory(pluginType string) string {
 	pluginCats := PluginTypeRegex.FindStringSubmatch(pluginType)
@@ -507,6 +508,7 @@ type CommonConfig struct {
 type CommonInputConfig struct {
 	Ticker             uint `toml:"ticker_interval"`
 	Decoder            string
+	Splitter           string
 	SyncDecode         *bool `toml:"synchronous_decode"`
 	SendDecodeFailures *bool `toml:"send_decode_failures"`
 	Retries            RetryOptions
@@ -520,6 +522,11 @@ type CommonFOConfig struct {
 	Retries    RetryOptions
 	Encoder    string // Output only.
 	UseFraming *bool  `toml:"use_framing"` // Output only.
+}
+
+type CommonSplitterConfig struct {
+	KeepTruncated *bool `toml:"keep_truncated"`
+	UseMsgBytes   *bool `toml:"use_message_bytes"`
 }
 
 func getDefaultRetryOptions() RetryOptions {
@@ -616,13 +623,16 @@ func NewPluginMaker(name string, pConfig *PipelineConfig, tomlSection toml.Primi
 		}
 		err = toml.PrimitiveDecode(tomlSection, &commonFO)
 		maker.commonTypedConfig = commonFO
+	case "Splitter":
+		commonSplitter := CommonSplitterConfig{}
+		err = toml.PrimitiveDecode(tomlSection, &commonSplitter)
+		maker.commonTypedConfig = commonSplitter
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("can't decode common %s config for '%s': %s",
 			strings.ToLower(maker.category), name, err)
 	}
-
 	return maker, nil
 }
 
@@ -791,13 +801,85 @@ func (m *pluginMaker) Make() (Plugin, error) {
 	return plugin, nil
 }
 
+// getDefaultBool expects the name of a boolean setting and will extract and
+// return the plugin's default value for the setting, as a boolean pointer.
+func (m *pluginMaker) getDefaultBool(name string) (*bool, error) {
+	defaultValue := getAttr(m.configStruct, name, false)
+	switch defaultValue := defaultValue.(type) {
+	case bool:
+		return &defaultValue, nil
+	case *bool:
+		if defaultValue == nil {
+			b := false
+			defaultValue = &b
+		}
+		return defaultValue, nil
+	}
+	// If you hit this then a non-boolean config setting is conflicting
+	// with one of Heka's defined boolean settings.
+	return nil, fmt.Errorf("%s config setting must be boolean", name)
+}
+
+func (m *pluginMaker) makeSplitterRunner(name string, splitter Splitter) (*sRunner, error) {
+	var err error
+	commonSplitter := m.commonTypedConfig.(CommonSplitterConfig)
+	if commonSplitter.KeepTruncated == nil {
+		commonSplitter.KeepTruncated, err = m.getDefaultBool("KeepTruncated")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if commonSplitter.UseMsgBytes == nil {
+		commonSplitter.UseMsgBytes, err = m.getDefaultBool("UseMsgBytes")
+		if err != nil {
+			return nil, err
+		}
+	}
+	sr := NewSplitterRunner(name, splitter, commonSplitter)
+	if wantsSplitterRunner, ok := splitter.(WantsSplitterRunner); ok {
+		wantsSplitterRunner.SetSplitterRunner(sr)
+	}
+	return sr, nil
+}
+
+func (m *pluginMaker) makeInputRunner(name string, input Input, defaultTick uint) (
+	InputRunner, error) {
+
+	var err error
+	commonInput := m.commonTypedConfig.(CommonInputConfig)
+	if commonInput.Ticker == 0 {
+		commonInput.Ticker = defaultTick
+	}
+	if commonInput.SyncDecode == nil {
+		if commonInput.SyncDecode, err = m.getDefaultBool("SyncDecode"); err != nil {
+			return nil, err
+		}
+	}
+	if commonInput.SendDecodeFailures == nil {
+		commonInput.SendDecodeFailures, err = m.getDefaultBool("SendDecodeFailures")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if commonInput.Decoder == "" {
+		decoder := getAttr(m.configStruct, "Decoder", "")
+		commonInput.Decoder = decoder.(string)
+	}
+	if commonInput.Splitter == "" {
+		splitter := getAttr(m.configStruct, "Splitter", "")
+		commonInput.Splitter = splitter.(string)
+	}
+	runner := NewInputRunner(name, input, commonInput)
+	return runner, nil
+}
+
 // MakeRunner returns a new, unstarted PluginRunner wrapped around a new,
 // configured plugin instance. If name is provided, then the Runner will be
 // given the specified name; if name is an empty string, the plugin name will
 // be used.
 func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 	if m.category == "Encoder" {
-		return nil, errors.New("Encoder plugins don't support PluginRunners")
+		return nil, fmt.Errorf("%s plugins don't support PluginRunners", m.category)
 	}
 
 	plugin, err := m.Make()
@@ -816,57 +898,20 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		return runner, nil
 	}
 
+	if m.category == "Splitter" {
+		return m.makeSplitterRunner(name, plugin.(Splitter))
+	}
+
 	// In some cases a plugin implementation will specify a default value for
 	// one or more common config settings by including values for those
 	// settings in the config struct. We extract them in this function's outer
 	// scope, but we only need to use them if the common config hasn't already
 	// been populated by values from the TOML.
 	defaultTickerInterval := getAttr(m.configStruct, "TickerInterval", uint(0))
+	defaultTick := defaultTickerInterval.(uint)
 
 	if m.category == "Input" {
-		commonInput := m.commonTypedConfig.(CommonInputConfig)
-		if commonInput.Ticker == 0 {
-			commonInput.Ticker = defaultTickerInterval.(uint)
-		}
-
-		// Boolean types are tricky, we use pointer types to distinguish btn
-		// false and not set, but a plugin's config struct might not be so
-		// smart, so we have to account for both cases.
-		if commonInput.SyncDecode == nil {
-			syncDecode := getAttr(m.configStruct, "SyncDecode", false)
-			switch syncDecode := syncDecode.(type) {
-			case bool:
-				commonInput.SyncDecode = &syncDecode
-			case *bool:
-				if syncDecode == nil {
-					b := false
-					syncDecode = &b
-				}
-				commonInput.SyncDecode = syncDecode
-			}
-		}
-
-		if commonInput.SendDecodeFailures == nil {
-			sendFailures := getAttr(m.configStruct, "SendDecodeFailures", false)
-			switch sendFailures := sendFailures.(type) {
-			case bool:
-				commonInput.SendDecodeFailures = &sendFailures
-			case *bool:
-				if sendFailures == nil {
-					b := false
-					sendFailures = &b
-				}
-				commonInput.SendDecodeFailures = sendFailures
-			}
-		}
-
-		if commonInput.Decoder == "" {
-			decoder := getAttr(m.configStruct, "Decoder", "")
-			commonInput.Decoder = decoder.(string)
-		}
-
-		runner = NewInputRunner(name, plugin.(Input), commonInput)
-		return runner, nil
+		return m.makeInputRunner(name, plugin.(Input), defaultTick)
 	}
 
 	// We're a filter or an output.
@@ -880,38 +925,22 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 	}
 
 	if commonFO.Ticker == 0 {
-		commonFO.Ticker = defaultTickerInterval.(uint)
+		commonFO.Ticker = defaultTick
 	}
 
 	// Boolean types are tricky, we use pointer types to distinguish btn false
 	// and not set, but a plugin's config struct might not be so smart, so we
 	// have to account for both cases.
 	if commonFO.CanExit == nil {
-		canExit := getAttr(m.configStruct, "CanExit", false)
-		switch canExit := canExit.(type) {
-		case bool:
-			commonFO.CanExit = &canExit
-		case *bool:
-			if canExit == nil {
-				b := false
-				canExit = &b
-			}
-			commonFO.CanExit = canExit
+		if commonFO.CanExit, err = m.getDefaultBool("CanExit"); err != nil {
+			return nil, err
 		}
 	}
 
 	if m.category == "Output" {
 		if commonFO.UseFraming == nil {
-			useFraming := getAttr(m.configStruct, "UseFraming", false)
-			switch useFraming := useFraming.(type) {
-			case bool:
-				commonFO.UseFraming = &useFraming
-			case *bool:
-				if useFraming == nil {
-					b := false
-					useFraming = &b
-				}
-				commonFO.UseFraming = useFraming
+			if commonFO.UseFraming, err = m.getDefaultBool("UseFraming"); err != nil {
+				return nil, err
 			}
 		}
 
@@ -925,14 +954,39 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		m.pConfig.Globals.PluginChanSize)
 }
 
-// Default protobuf configurations.
-const protobufDecoderToml = `
-[ProtobufDecoder]
-`
+// Default configurations.
+func getDefaultConfigs() map[string]bool {
+	return map[string]bool{
+		"ProtobufDecoder":     false,
+		"ProtobufEncoder":     false,
+		"TokenSplitter":       false,
+		"HekaFramingSplitter": false,
+		"NullSplitter":        false,
+	}
+}
 
-const protobufEncoderToml = `
-[ProtobufEncoder]
-`
+func (self *PipelineConfig) RegisterDefault(name string) error {
+	var config ConfigFile
+	confStr := fmt.Sprintf("[%s]", name)
+	toml.Decode(confStr, &config)
+	LogInfo.Printf("Pre-loading: %s\n", confStr)
+	maker, err := NewPluginMaker(name, self, config[name])
+	if err != nil {
+		// This really shouldn't happen.
+		return err
+	}
+	LogInfo.Printf("Loading: [%s]\n", maker.Name())
+	if err = maker.PrepConfig(); err != nil {
+		return err
+	}
+	category := maker.Category()
+	self.makersLock.Lock()
+	self.makers[category][name] = maker
+	self.makersLock.Unlock()
+	// If we ever add a default input, filter, or output we'd need to call
+	// maker.MakeRunner() here and store the runner on the PipelineConfig.
+	return nil
+}
 
 // Loads all plugin configuration from a TOML configuration file. The
 // PipelineConfig should be already initialized via the Init function before
@@ -952,17 +1006,17 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		return fmt.Errorf("Error decoding config file: %s", err)
 	}
 
-	var (
-		errcnt              uint
-		protobufDRegistered bool
-		protobufERegistered bool
-	)
+	var errcnt uint
 	makersByCategory := make(map[string][]PluginMaker)
+	defaultConfigs := getDefaultConfigs()
 
 	// Load all the plugin makers and file them by category.
 	for name, conf := range configFile {
 		if name == HEKA_DAEMON {
 			continue
+		}
+		if _, ok := defaultConfigs[name]; ok {
+			defaultConfigs[name] = true
 		}
 		LogInfo.Printf("Pre-loading: [%s]\n", name)
 		maker, err := NewPluginMaker(name, self, conf)
@@ -981,45 +1035,16 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			category := maker.Category()
 			makersByCategory[category] = append(makersByCategory[category], maker)
 		}
-		if maker.Name() == "ProtobufDecoder" {
-			protobufDRegistered = true
-		}
-		if maker.Name() == "ProtobufEncoder" {
-			protobufERegistered = true
-		}
 	}
 
-	// Make sure ProtobufDecoder is registered.
-	if !protobufDRegistered {
-		var configDefault ConfigFile
-		toml.Decode(protobufDecoderToml, &configDefault)
-		LogInfo.Println("Pre-loading: [ProtobufDecoder]")
-		maker, err := NewPluginMaker("ProtobufDecoder", self,
-			configDefault["ProtobufDecoder"])
-		if err != nil {
-			// This really shouldn't happen.
-			self.log(err.Error())
-			errcnt++
-		} else {
-			makersByCategory["Decoder"] = append(makersByCategory["Decoder"],
-				maker)
+	// Make sure our default plugins are registered.
+	for name, registered := range defaultConfigs {
+		if registered {
+			continue
 		}
-	}
-
-	// Make sure ProtobufEncoder is registered.
-	if !protobufERegistered {
-		var configDefault ConfigFile
-		toml.Decode(protobufEncoderToml, &configDefault)
-		LogInfo.Println("Pre-loading: [ProtobufEncoder]")
-		maker, err := NewPluginMaker("ProtobufEncoder", self,
-			configDefault["ProtobufEncoder"])
-		if err != nil {
-			// This really shouldn't happen.
+		if err := self.RegisterDefault(name); err != nil {
 			self.log(err.Error())
 			errcnt++
-		} else {
-			makersByCategory["Encoder"] = append(makersByCategory["Encoder"],
-				maker)
 		}
 	}
 
@@ -1045,7 +1070,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 	// Force decoders and encoders to be loaded before the other plugin
 	// types are initialized so we know they'll be there for inputs and
 	// outputs to use during initialization.
-	order := []string{"Decoder", "Encoder", "Input", "Filter", "Output"}
+	order := []string{"Decoder", "Encoder", "Splitter", "Input", "Filter", "Output"}
 	for _, category := range order {
 		for _, maker := range makersByCategory[category] {
 			LogInfo.Printf("Loading: [%s]\n", maker.Name())

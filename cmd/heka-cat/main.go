@@ -4,11 +4,13 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
+#
 # ***** END LICENSE BLOCK *****/
 
 /*
@@ -30,6 +32,18 @@ import (
 	"os"
 	"time"
 )
+
+func makeSplitterRunner() (pipeline.SplitterRunner, error) {
+	splitter := &pipeline.HekaFramingSplitter{}
+	config := splitter.ConfigStruct()
+	err := splitter.Init(config)
+	if err != nil {
+		return nil, fmt.Errorf("Error initializing HekaFramingSplitter: %s", err)
+	}
+	srConfig := pipeline.CommonSplitterConfig{}
+	sRunner := pipeline.NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)
+	return sRunner, nil
+}
 
 func main() {
 	flagMatch := flag.String("match", "TRUE", "message_matcher filter expression")
@@ -75,14 +89,18 @@ func main() {
 		os.Exit(5)
 	}
 
-	parser := pipeline.NewMessageProtoParser()
+	sRunner, err := makeSplitterRunner()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(7)
+	}
 	msg := new(message.Message)
 	var processed, matched int64
 
 	fmt.Printf("Input:%s  Offset:%d  Match:%s  Format:%s  Tail:%t  Output:%s\n",
 		flag.Arg(0), *flagOffset, *flagMatch, *flagFormat, *flagTail, *flagOutput)
 	for true {
-		n, record, err := parser.Parse(file)
+		n, record, err := sRunner.GetRecordFromStream(file)
 		if n > 0 && n != len(record) {
 			fmt.Printf("Corruption detected at offset: %d bytes: %d\n", offset, n-len(record))
 		}

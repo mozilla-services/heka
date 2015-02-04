@@ -34,7 +34,7 @@ questions, report problems, or learn more:
 * Github Project: https://github.com/mozilla-services/heka/
 * IRC: #heka channel on irc.mozilla.org
 
-Heka is a heavily plugin based system. There are five different types of Heka
+Heka is a heavily plugin based system. There are six different types of Heka
 plugins:
 
 * :ref:`config_inputs`
@@ -45,6 +45,11 @@ plugins:
   listening on a network socket for external actors to push data in, launching
   processes on the local system to gather arbitrary data, or any other
   mechanism. They must be written in Go.
+
+* :ref:`config_splitters`
+
+  Splitter plugins receive the data that is being acquired by an input plugin
+  and slice it up into individual records. They must be written in Go.
 
 * :ref:`config_decoders`
 
@@ -132,6 +137,7 @@ Contents:
    getting_started
    config/index
    config/inputs/index
+   config/splitters/index
    config/decoders/index
    config/filters/index
    config/encoders/index

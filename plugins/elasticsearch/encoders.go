@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -27,6 +27,7 @@ import (
 )
 
 const lowerhex = "0123456789abcdef"
+const NEWLINE byte = 10
 
 func writeUTF16Escape(b *bytes.Buffer, c rune) {
 	b.WriteString(`\u`)
@@ -102,7 +103,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 				} else {
 					writeQuotedString(b, value)
 				}
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -124,7 +125,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 				} else {
 					writeQuotedString(b, base64.StdEncoding.EncodeToString(value))
 				}
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -142,7 +143,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatInt(value, 10))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -156,7 +157,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -170,7 +171,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatBool(value))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -306,7 +307,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					}
 				}
 				writeField(first, &buf, field, raw)
-		 		first = false
+				first = false
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
@@ -325,9 +326,9 @@ type ESLogstashV0Encoder struct {
 	rawBytesFields []string
 	coord          *ElasticSearchCoordinates
 	// Field names to include in ElasticSearch document for "clean" format.
-	fields         []string
+	fields          []string
 	timestampFormat string
-	useMessageType bool
+	useMessageType  bool
 }
 
 type ESLogstashV0EncoderConfig struct {

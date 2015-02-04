@@ -49,6 +49,8 @@ add_internal_mock(pipeline mock_filterrunner_test.go        FilterRunner        
 add_internal_mock(pipeline mock_outputrunner_test.go        OutputRunner        plugin_runners.go)
 add_internal_mock(pipeline mock_input_test.go               Input               plugin_interfaces.go)
 add_internal_mock(pipeline mock_stataccumulator_test.go     StatAccumulator     stat_accum_input.go)
+add_internal_mock(pipeline mock_deliverer_test.go           Deliverer           plugin_runners.go)
+add_internal_mock(pipeline mock_splitterrunner_test.go      SplitterRunner      splitter_runner.go)
 
 add_external_mock(pipelinemock mock_pluginhelper.go github.com/mozilla-services/heka/pipeline   PluginHelper)
 add_external_mock(pipelinemock mock_filterrunner.go github.com/mozilla-services/heka/pipeline   FilterRunner)
@@ -57,6 +59,8 @@ add_external_mock(pipelinemock mock_outputrunner.go github.com/mozilla-services/
 add_external_mock(pipelinemock mock_inputrunner.go github.com/mozilla-services/heka/pipeline    InputRunner)
 add_external_mock(pipelinemock mock_decoder.go github.com/mozilla-services/heka/pipeline        Decoder)
 add_external_mock(pipelinemock mock_stataccumulator.go github.com/mozilla-services/heka/pipeline StatAccumulator)
+add_external_mock(pipelinemock mock_deliverer.go github.com/mozilla-services/heka/pipeline Deliverer)
+add_external_mock(pipelinemock mock_splitterrunner.go github.com/mozilla-services/heka/pipeline SplitterRunner)
 
 add_external_mock(pipeline/testsupport mock_net_conn.go          net                         Conn)
 add_external_mock(pipeline/testsupport mock_net_listener.go      net                         Listener)
