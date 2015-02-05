@@ -18,6 +18,15 @@ Messages will be populated as follows:
 - Fields["ContainerID"] (string): The container ID
 - Fields["ContainerName"] (string): The container name
 
+.. note::
+
+	Logspout expects to be dealing exclusively with textual log file data, and
+	always assumes that the file data is newline delimited, i.e. one line in
+	the log file equals one logical unit of data. For this reason, the
+	DockerLogInput currently does *not* support the use of alternate splitter
+	plugins. Any splitter setting specified in a DockerLogInput's
+	configuration will be ignored.
+
 Config:
 
 - endpoint (string):

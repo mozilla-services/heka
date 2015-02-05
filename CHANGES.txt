@@ -25,6 +25,9 @@ Backwards Incompatibilities
 * Stats Accum Input treats gauge inputs as float64 rather than int64 to match
   statsd spec and other statsd implementations (#850).
 
+* Introduction of Splitter plugins, accompanied by major changes to how input
+  plugins work to support the use of Splitter plugins. (#424)
+
 Bug Handling
 ------------
 
@@ -44,6 +47,8 @@ Bug Handling
 * MessageProtoParser now handles EOF gracefully, and returns all
   complete records up to the end of the stream without having to
   use GetRemainingData() (#1305).
+
+* HttpListenInput no longer URL unescapes the HTTP request body (#1124).
 
 * SmtpOutput now encodes email subject when necessary (#1277).
 
@@ -75,9 +80,6 @@ Features
 * TcpOutput's disk buffering now supports specification of a max buffer size
   and an action to take if the max size is reached, from 'shutdown', 'drop',
   or 'block' (#1110).
-
-* Added `unescape_body` option to HttpListenInput to allow users to turn off
-  unescaping of the HTTP request body (#1124).
 
 * Added `send_interval` setting to SmtpOutput.
 

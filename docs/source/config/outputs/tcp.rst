@@ -55,11 +55,11 @@ Config:
     Specifies how Heka should behave when the queue reaches the specified
     maximum capacity. There are currently three possible actions:
 
-        - `shutdown` - Shuts down Heka.
-        - `drop` - New messages are dropped until queue is available again.
-          Already queued messages are unaffected.
-        - `block` - Blocks processing of messages, tries to push last message
-          until its possible.
+      - `shutdown`: Shutdowns heka.
+      - `drop`: Messages are dropped until queue is available again. Already queued
+                messages are unaffected.
+      - `block`: Blocks processing of messages, tries to push last message
+                 until its possible.
 
     Defaults to `shutdown`.
 

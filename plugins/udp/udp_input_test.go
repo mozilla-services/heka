@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -54,19 +54,11 @@ func UdpInputSpec(c gs.Context) {
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.PackSupply = make(chan *PipelinePack, 1)
-
-	delChan := make(chan *PipelinePack)
-	deliver := func(pack *PipelinePack) {
-		delChan <- pack
-	}
-	ith.MockInputRunner.EXPECT().Deliver(ith.Pack).AnyTimes().Do(deliver)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 
 	c.Specify("A UdpInput", func() {
 		udpInput := UdpInput{}
-		config := &UdpInputConfig{
-			ParserType: "message.proto",
-		}
+		config := &UdpInputConfig{}
 
 		mbytes, _ := proto.Marshal(ith.Msg)
 		header := &message.Header{}
@@ -74,7 +66,19 @@ func UdpInputSpec(c gs.Context) {
 		hbytes, _ := proto.Marshal(header)
 		buf := encodeMessage(hbytes, mbytes)
 
-		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		bytesChan := make(chan []byte, 1)
+
+		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+		ith.MockSplitterRunner.EXPECT().GetRemainingData().AnyTimes()
+
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
+			nil).AnyTimes()
+		splitCall.Do(func(conn net.Conn, del Deliverer) {
+			recd := make([]byte, 65536)
+			n, _ := conn.Read(recd)
+			recd = recd[:n]
+			bytesChan <- recd
+		})
 
 		c.Specify("using a udp address", func() {
 			ith.AddrStr = "localhost:55565"
@@ -87,20 +91,18 @@ func UdpInputSpec(c gs.Context) {
 			realListener := (udpInput.listener).(*net.UDPConn)
 			c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
 
-			c.Specify("reads a message from the connection and passes it to the decoder", func() {
-				go func() {
-					udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-				}()
-				conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
+			c.Specify("passes the connection to SplitStream", func() {
+				go udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+
+				conn, err := net.Dial("udp", ith.AddrStr)
 				c.Assume(err, gs.IsNil)
 				_, err = conn.Write(buf)
 				c.Assume(err, gs.IsNil)
-				ith.PackSupply <- ith.Pack
-				packRef := <-delChan
+				conn.Close()
+
+				recd := <-bytesChan
+				c.Expect(string(recd), gs.Equals, string(buf))
 				udpInput.Stop()
-				c.Expect(ith.Pack, gs.Equals, packRef)
-				c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
-				c.Expect(ith.Pack.Decoded, gs.IsFalse)
 			})
 		})
 
@@ -118,63 +120,32 @@ func UdpInputSpec(c gs.Context) {
 				realListener := (udpInput.listener).(*net.UnixConn)
 				c.Expect(realListener.LocalAddr().String(), gs.Equals, unixPath)
 
-				c.Specify("reads a message from the socket and passes it to the decoder", func() {
-					go func() {
-						udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-					}()
+				c.Specify("passes the socket to SplitStream", func() {
+					go udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+
 					unixAddr, err := net.ResolveUnixAddr("unixgram", unixPath)
 					c.Assume(err, gs.IsNil)
 					conn, err := net.DialUnix("unixgram", nil, unixAddr)
 					c.Assume(err, gs.IsNil)
 					_, err = conn.Write(buf)
 					c.Assume(err, gs.IsNil)
-					ith.PackSupply <- ith.Pack
-					packRef := <-delChan
+					conn.Close()
+
+					recd := <-bytesChan
+					c.Expect(string(recd), gs.Equals, string(buf))
 					udpInput.Stop()
-					c.Expect(ith.Pack, gs.Equals, packRef)
-					c.Expect(string(ith.Pack.MsgBytes), gs.Equals, string(mbytes))
-					c.Expect(ith.Pack.Decoded, gs.IsFalse)
 				})
 			})
 		}
-	})
-
-	c.Specify("A UdpInput Multiline input", func() {
-		ith.AddrStr = "localhost:55566"
-		ith.ResolvedAddrStr = "127.0.0.1:55566"
-		udpInput := UdpInput{}
-		err := udpInput.Init(&UdpInputConfig{Net: "udp", Address: ith.AddrStr,
-			ParserType: "token"})
-		c.Assume(err, gs.IsNil)
-		realListener := (udpInput.listener).(*net.UDPConn)
-		c.Expect(realListener.LocalAddr().String(), gs.Equals, ith.ResolvedAddrStr)
-
-		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(2)
-		ith.MockInputRunner.EXPECT().Name().Return("UdpInput").Times(2)
-
-		c.Specify("reads two messages from a packet and passes them to the decoder", func() {
-			go func() {
-				udpInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			conn, err := net.Dial("udp", ith.AddrStr) // a mock connection will not work here since the mock read cannot block
-			c.Assume(err, gs.IsNil)
-			_, err = conn.Write([]byte("message1\nmessage2\n"))
-			c.Assume(err, gs.IsNil)
-			ith.PackSupply <- ith.Pack
-			packRef := <-delChan
-			c.Expect(string(packRef.Message.GetPayload()), gs.Equals, "message1\n")
-			ith.PackSupply <- ith.Pack
-			packRef = <-delChan
-			c.Expect(string(packRef.Message.GetPayload()), gs.Equals, "message2\n")
-			udpInput.Stop()
-		})
 	})
 }
 
 func UdpInputSpecFailure(c gs.Context) {
 	udpInput := UdpInput{}
-	err := udpInput.Init(&UdpInputConfig{Net: "tcp", Address: "localhost:55565",
-		ParserType: "message.proto"})
+	err := udpInput.Init(&UdpInputConfig{
+		Net:     "tcp",
+		Address: "localhost:55565",
+	})
 	c.Assume(err, gs.Not(gs.IsNil))
 	c.Assume(err.Error(), gs.Equals, "ResolveUDPAddr failed: unknown network tcp\n")
 

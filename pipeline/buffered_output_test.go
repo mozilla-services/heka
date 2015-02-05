@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -47,9 +47,12 @@ func BufferedOutputSpec(c gs.Context) {
 		or := NewMockOutputRunner(ctrl)
 		h := NewMockPluginHelper(ctrl)
 		h.EXPECT().PipelineConfig().Return(pConfig)
+		or.EXPECT().Name().Return("FooOutput")
 
+		err := pConfig.RegisterDefault("HekaFramingSplitter")
+		c.Assume(err, gs.IsNil)
 		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))
-		c.Expect(err, gs.IsNil)
+		c.Assume(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 
 		c.Specify("fileExists", func() {
@@ -179,7 +182,7 @@ func BufferedOutputSpec(c gs.Context) {
 				f, err := os.Open(fName)
 				c.Expect(err, gs.IsNil)
 
-				n, record, err := bufferedOutput.parser.Parse(f)
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
 				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
@@ -206,7 +209,7 @@ func BufferedOutputSpec(c gs.Context) {
 				f, err := os.Open(fName)
 				c.Expect(err, gs.IsNil)
 
-				n, record, err := bufferedOutput.parser.Parse(f)
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
 				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
@@ -217,7 +220,7 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(outMsg.GetPayload(), gs.Equals, payload)
 			})
 
-			c.Specify("when queue has limit", func(){
+			c.Specify("when queue has limit", func() {
 				or.EXPECT().Encode(newpack).Return(protoBytes, err)
 				or.EXPECT().UsesFraming().Return(false)
 
@@ -232,7 +235,7 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(115))
 			})
 
-			c.Specify("when queue has limit and is full", func(){
+			c.Specify("when queue has limit and is full", func() {
 				or.EXPECT().Encode(newpack).Return(protoBytes, err)
 				bufferedOutput.maxQueueSize = uint64(50)
 
@@ -244,7 +247,6 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(err, gs.Equals, QueueIsFull)
 				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
 			})
-
 
 		})
 

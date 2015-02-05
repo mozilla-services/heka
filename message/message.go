@@ -24,6 +24,7 @@ package message
 
 import (
 	"bytes"
+	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
 	"reflect"
 )
@@ -44,6 +45,24 @@ type MessageSigningConfig struct {
 	Hash    string `toml:"hmac_hash"`
 	Key     string `toml:"hmac_key"`
 	Version uint32 `toml:"version"`
+}
+
+// Decodes provided byte slice into a Heka protocol header object.
+func DecodeHeader(buf []byte, header *Header) (bool, error) {
+	if buf[len(buf)-1] != UNIT_SEPARATOR {
+		return false, nil
+	}
+	err := proto.Unmarshal(buf[0:len(buf)-1], header)
+	if err != nil {
+		return false, fmt.Errorf("error unmarshaling header: ", err)
+	}
+	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
+		err = fmt.Errorf("message exceeds the maximum length [%d bytes] len: %d",
+			MAX_MESSAGE_SIZE, header.GetMessageLength())
+		header.Reset()
+		return false, err
+	}
+	return true, nil
 }
 
 func (h *Header) SetMessageLength(v uint32) {

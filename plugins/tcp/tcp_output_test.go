@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -45,6 +45,7 @@ func TcpOutputSpec(c gs.Context) {
 	globals.BaseDir = tmpDir
 
 	pConfig := NewPipelineConfig(globals)
+	pConfig.RegisterDefault("HekaFramingSplitter")
 
 	c.Specify("TcpOutput", func() {
 		tcpOutput := new(TcpOutput)
@@ -79,8 +80,9 @@ func TcpOutputSpec(c gs.Context) {
 
 		errChan := make(chan error)
 		startOutput := func() {
-			oth.MockHelper.EXPECT().PipelineConfig().Return(pConfig).AnyTimes()
 			go func() {
+				oth.MockHelper.EXPECT().PipelineConfig().Return(pConfig).AnyTimes()
+				oth.MockOutputRunner.EXPECT().Name().Return("TcpOutput")
 				err := tcpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
 				errChan <- err
 			}()

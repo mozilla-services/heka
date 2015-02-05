@@ -16,9 +16,6 @@ Config:
 - ticker_interval (unit):
     How often, in seconds to input should read the contents of the file.
 
-- decoder (string):
-    The name of the decoder used to process the payload of the input.
-
 Example:
 
 .. code-block:: ini

@@ -50,7 +50,7 @@ var TIMEOUT_PIPE_CMD2_ARGS = []string{"-i", "TEST"}
 const PROCESSINPUT_TEST1_CMD = "cat"
 
 var PROCESSINPUT_TEST1_CMD_ARGS = []string{"./testsupport/process_input_test.data"}
-var PROCESSINPUT_TEST1_OUTPUT = []string{"this|", "is|", "a|", "test|"}
+var PROCESSINPUT_TEST1_OUTPUT = "this|is|a|test|"
 
 const PROCESSINPUT_PIPE_CMD1 = "cat"
 
@@ -59,4 +59,4 @@ var PROCESSINPUT_PIPE_CMD1_ARGS = []string{"./testsupport/process_input_pipes_te
 const PROCESSINPUT_PIPE_CMD2 = "grep"
 
 var PROCESSINPUT_PIPE_CMD2_ARGS = []string{"ignore"}
-var PROCESSINPUT_PIPE_OUTPUT = []string{"ignore ", "this ", "line"}
+var PROCESSINPUT_PIPE_OUTPUT = "ignore this line"

@@ -76,9 +76,6 @@ Config:
 
     Severity level of errors, unreachable connections, and non-200 responses
     of successful HTTP requests. Defaults to 1 (alert).
-- decoder (string):
-    The name of the decoder used to further transform the response body text
-    into a structured hekad message. No default decoder is specified.
 
 Example:
 

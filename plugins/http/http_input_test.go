@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -22,7 +22,7 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"sync"
+	"io"
 	"time"
 )
 
@@ -41,56 +41,51 @@ func HttpInputSpec(c gs.Context) {
 		ith := new(plugins_ts.InputTestHelper)
 		ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 		ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
+		ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 
-		runOutputChan := make(chan string, 1)
+		runOutputChan := make(chan error, 1)
 		startInput := func() {
 			go func() {
-				err := httpInput.Run(ith.MockInputRunner, ith.MockHelper)
-				var runOutput string
-				if err != nil {
-					runOutput = err.Error()
-				}
-				runOutputChan <- runOutput
+				runOutputChan <- httpInput.Run(ith.MockInputRunner, ith.MockHelper)
 			}()
 		}
 
 		ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
-		ith.PackSupply = make(chan *PipelinePack, 1)
-		ith.PackSupply <- ith.Pack
 
+		// These assume that every sub-spec starts the input.
 		config := httpInput.ConfigStruct().(*HttpInputConfig)
+		tickChan := make(chan time.Time)
+		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+		ith.MockHelper.EXPECT().Hostname().Return("hekatests.example.com")
 
-		var deliverWg sync.WaitGroup
-		deliverWg.Add(1)
-		deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
-		deliverCall.Do(func(pack *PipelinePack) {
-			deliverWg.Done()
+		// These assume that every sub-spec makes exactly one HTTP request.
+		ith.MockInputRunner.EXPECT().NewSplitterRunner("0").Return(ith.MockSplitterRunner)
+		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(gomock.Any())
+		getRecCall.Return(len(json_post), []byte(json_post), io.EOF)
+		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+		decChan := make(chan func(*PipelinePack), 1)
+		packDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+		packDecCall.Do(func(dec func(*PipelinePack)) {
+			decChan <- dec
 		})
+		ith.MockSplitterRunner.EXPECT().DeliverRecord([]byte(json_post), nil)
 
 		c.Specify("honors time ticker to flush", func() {
-			// Spin up a http server
+			// Spin up a http server.
 			server, err := plugins_ts.NewOneHttpServer(json_post, "localhost", 9876)
 			c.Expect(err, gs.IsNil)
 			go server.Start("/")
 			time.Sleep(10 * time.Millisecond)
 
 			config.Url = "http://localhost:9876/"
-			tickChan := make(chan time.Time)
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			startInput()
-
 			tickChan <- time.Now()
 
-			// We need for the pipeline to finish up
-			time.Sleep(50 * time.Millisecond)
+			// Getting the decorator means we've made our HTTP request.
+			<-decChan
 		})
 
 		c.Specify("supports configuring HTTP Basic Authentication", func() {
@@ -103,28 +98,19 @@ func HttpInputSpec(c gs.Context) {
 			config.Url = "http://localhost:9875/BasicAuthTest"
 			config.User = "user"
 			config.Password = "password"
-			tickChan := make(chan time.Time)
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			startInput()
-
 			tickChan <- time.Now()
 
+			dec := <-decChan
+			dec(ith.Pack)
+
 			// we expect a statuscode 200 (i.e. success)
-			deliverWg.Wait()
 			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(statusCode, gs.Equals, int64(200))
-
-			// We need for the pipeline to finish up
-			time.Sleep(50 * time.Millisecond)
 		})
 
 		c.Specify("supports configuring a different HTTP method", func() {
@@ -136,28 +122,19 @@ func HttpInputSpec(c gs.Context) {
 
 			config.Url = "http://localhost:9874/PostTest"
 			config.Method = "POST"
-			tickChan := make(chan time.Time)
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			startInput()
-
 			tickChan <- time.Now()
 
+			dec := <-decChan
+			dec(ith.Pack)
+
 			// we expect a statuscode 200 (i.e. success)
-			deliverWg.Wait()
 			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(statusCode, gs.Equals, int64(200))
-
-			// We need for the pipeline to finish up
-			time.Sleep(50 * time.Millisecond)
 		})
 
 		c.Specify("supports configuring HTTP headers", func() {
@@ -170,28 +147,18 @@ func HttpInputSpec(c gs.Context) {
 			config.Url = "http://localhost:9873/HeadersTest"
 			config.Headers = map[string]string{"Accept": "text/plain"}
 
-			tickChan := make(chan time.Time)
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			startInput()
-
 			tickChan <- time.Now()
 
+			dec := <-decChan
+			dec(ith.Pack)
+
 			// we expect a statuscode 200 (i.e. success)
-			deliverWg.Wait()
 			statusCode, ok := ith.Pack.Message.GetFieldValue("StatusCode")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(statusCode, gs.Equals, int64(200))
-
-			// We need for the pipeline to finish up
-			time.Sleep(50 * time.Millisecond)
 		})
 
 		c.Specify("supports configuring a request body", func() {
@@ -205,30 +172,26 @@ func HttpInputSpec(c gs.Context) {
 			config.Method = "POST"
 			config.Body = json_post
 
-			tickChan := make(chan time.Time)
-
-			ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).Times(2)
-
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
-			startInput()
+			respBodyChan := make(chan []byte, 1)
+			getRecCall.Do(func(r io.Reader) {
+				respBody := make([]byte, len(config.Body))
+				n, err := r.Read(respBody)
+				c.Expect(n, gs.Equals, len(config.Body))
+				c.Expect(err, gs.Equals, io.EOF)
+				respBodyChan <- respBody
+			})
 
+			startInput()
 			tickChan <- time.Now()
 
-			deliverWg.Wait()
-			c.Expect(*ith.Pack.Message.Payload, gs.Equals, json_post)
-
-			// We need for the pipeline to finish up
-			time.Sleep(50 * time.Millisecond)
+			respBody := <-respBodyChan
+			c.Expect(string(respBody), gs.Equals, json_post)
 		})
 
-		ith.MockInputRunner.EXPECT().LogMessage(gomock.Any())
 		httpInput.Stop()
 		runOutput := <-runOutputChan
-		c.Expect(runOutput, gs.Equals, "")
+		c.Expect(runOutput, gs.IsNil)
 	})
 }

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -23,8 +23,8 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"runtime"
-	"sync"
+	"io"
+	"io/ioutil"
 	"time"
 )
 
@@ -36,22 +36,15 @@ func ProcessInputSpec(c gs.Context) {
 	pConfig := NewPipelineConfig(nil)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
-	// Specify localhost, but we're not really going to use the network
-	ith.AddrStr = "localhost:55565"
-	ith.ResolvedAddrStr = "127.0.0.1:55565"
-
-	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.PackSupply = make(chan *PipelinePack, 1)
+	ith.MockDeliverer = pipelinemock.NewMockDeliverer(ctrl)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	c.Specify("A ProcessInput", func() {
 		pInput := ProcessInput{}
-
-		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).AnyTimes()
-		ith.MockInputRunner.EXPECT().Name().Return("logger").AnyTimes()
 
 		config := pInput.ConfigStruct().(*ProcessInputConfig)
 		config.Command = make(map[string]cmdConfig)
@@ -63,153 +56,126 @@ func ProcessInputSpec(c gs.Context) {
 
 		errChan := make(chan error)
 
-		c.Specify("reads a message from ProcessInput", func() {
+		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 
-			pInput.SetName("SimpleTest")
-			config.ParserType = "token"
-			config.Delimiter = "|"
+		decChan := make(chan func(*PipelinePack), 1)
+		setDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+		setDecCall.Do(func(dec func(*PipelinePack)) {
+			decChan <- dec
+		})
 
-			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmdConfig{
-				Bin:  PROCESSINPUT_TEST1_CMD,
-				Args: PROCESSINPUT_TEST1_CMD_ARGS,
-			}
-			err := pInput.Init(config)
+		bytesChan := make(chan []byte, 1)
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
+			ith.MockDeliverer).Return(nil)
+		splitCall.Do(func(r io.Reader, del Deliverer) {
+			bytes, err := ioutil.ReadAll(r)
 			c.Assume(err, gs.IsNil)
+			bytesChan <- bytes
+		})
 
-			deliverChan := make(chan *PipelinePack)
-			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack).Times(4)
-			deliverCall.Do(func(pack *PipelinePack) {
-				deliverChan <- pack
-			})
+		ith.MockDeliverer.EXPECT().Done()
 
-			go func() {
-				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			tickChan <- time.Now()
+		c.Specify("using stdout", func() {
+			ith.MockInputRunner.EXPECT().NewDeliverer("stdout").Return(ith.MockDeliverer)
+			ith.MockInputRunner.EXPECT().NewSplitterRunner("stdout").Return(
+				ith.MockSplitterRunner)
 
-			expected_payloads := PROCESSINPUT_TEST1_OUTPUT
-			actual_payloads := []string{}
+			c.Specify("reads a message from ProcessInput", func() {
+				pInput.SetName("SimpleTest")
 
-			for x := 0; x < 4; x++ {
-				ith.PackSupply <- ith.Pack
-				packRef := <-deliverChan
-				c.Expect(ith.Pack, gs.Equals, packRef)
-				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
-				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				// Note that no working directory is explicitly specified.
+				config.Command["0"] = cmdConfig{
+					Bin:  PROCESSINPUT_TEST1_CMD,
+					Args: PROCESSINPUT_TEST1_CMD_ARGS,
+				}
+				err := pInput.Init(config)
+				c.Assume(err, gs.IsNil)
+
+				go func() {
+					errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				tickChan <- time.Now()
+
+				actual := <-bytesChan
+				c.Expect(string(actual), gs.Equals, PROCESSINPUT_TEST1_OUTPUT+"\n")
+
+				dec := <-decChan
+				dec(ith.Pack)
+				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "SimpleTest.stdout")
-				// Free up the scheduler
-				runtime.Gosched()
-			}
 
-			for x := 0; x < 4; x++ {
-				c.Expect(expected_payloads[x], gs.Equals, actual_payloads[x])
-			}
-
-			pInput.Stop()
-			err = <-errChan
-			c.Expect(err, gs.IsNil)
-		})
-
-		c.Specify("handles bad arguments", func() {
-
-			pInput.SetName("BadArgs")
-			config.ParseStdout = false
-			config.ParseStderr = true
-			config.ParserType = "token"
-			config.Delimiter = "|"
-
-			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmdConfig{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
-
-			err := pInput.Init(config)
-			c.Assume(err, gs.IsNil)
-
-			expected_err := fmt.Errorf("BadArgs CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
-			ith.MockInputRunner.EXPECT().LogError(expected_err)
-
-			var deliverWg sync.WaitGroup
-			deliverWg.Add(1)
-			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
-			deliverCall.Do(func(pack *PipelinePack) {
-				deliverWg.Done()
+				pInput.Stop()
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
 			})
 
-			go func() {
-				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			tickChan <- time.Now()
+			c.Specify("can pipe multiple commands together", func() {
+				pInput.SetName("PipedCmd")
 
-			ith.PackSupply <- ith.Pack
-			deliverWg.Wait()
-			runtime.Gosched()
+				// Note that no working directory is explicitly specified.
+				config.Command["0"] = cmdConfig{
+					Bin:  PROCESSINPUT_PIPE_CMD1,
+					Args: PROCESSINPUT_PIPE_CMD1_ARGS,
+				}
+				config.Command["1"] = cmdConfig{
+					Bin:  PROCESSINPUT_PIPE_CMD2,
+					Args: PROCESSINPUT_PIPE_CMD2_ARGS,
+				}
+				err := pInput.Init(config)
+				c.Assume(err, gs.IsNil)
 
-			pInput.Stop()
-			err = <-errChan
-			c.Expect(err, gs.IsNil)
-		})
+				go func() {
+					errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				tickChan <- time.Now()
 
-		c.Specify("can pipe multiple commands together", func() {
+				actual := <-bytesChan
+				c.Expect(string(actual), gs.Equals, PROCESSINPUT_PIPE_OUTPUT+"\n")
 
-			pInput.SetName("PipedCmd")
-			config.ParserType = "token"
-			// Overload the delimiter
-			config.Delimiter = " "
-
-			// Note that no working directory is explicitly specified
-			config.Command["0"] = cmdConfig{
-				Bin:  PROCESSINPUT_PIPE_CMD1,
-				Args: PROCESSINPUT_PIPE_CMD1_ARGS,
-			}
-			config.Command["1"] = cmdConfig{
-				Bin:  PROCESSINPUT_PIPE_CMD2,
-				Args: PROCESSINPUT_PIPE_CMD2_ARGS,
-			}
-			err := pInput.Init(config)
-			c.Assume(err, gs.IsNil)
-
-			deliverChan := make(chan *PipelinePack)
-			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
-			deliverCall.Times(len(PROCESSINPUT_PIPE_OUTPUT))
-			deliverCall.Do(func(pack *PipelinePack) {
-				deliverChan <- pack
-			})
-
-			go func() {
-				errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
-			}()
-			tickChan <- time.Now()
-
-			expected_payloads := PROCESSINPUT_PIPE_OUTPUT
-			actual_payloads := []string{}
-
-			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
-				ith.PackSupply <- ith.Pack
-				packRef := <-deliverChan
-				c.Expect(ith.Pack, gs.Equals, packRef)
-				actual_payloads = append(actual_payloads, *packRef.Message.Payload)
-				fPInputName := *packRef.Message.FindFirstField("ProcessInputName")
+				dec := <-decChan
+				dec(ith.Pack)
+				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")
-				// Free up the scheduler
-				runtime.Gosched()
-			}
 
-			for x := 0; x < len(PROCESSINPUT_PIPE_OUTPUT); x++ {
-				c.Expect(fmt.Sprintf("[%d] [%s] [%x]",
-					len(actual_payloads[x]),
-					actual_payloads[x],
-					actual_payloads[x]),
-					gs.Equals,
-					fmt.Sprintf("[%d] [%s] [%x]",
-						len(expected_payloads[x]),
-						expected_payloads[x],
-						expected_payloads[x]))
-			}
-
-			pInput.Stop()
-			err = <-errChan
-			c.Expect(err, gs.IsNil)
+				pInput.Stop()
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
+			})
 		})
 
+		c.Specify("using stderr", func() {
+			ith.MockInputRunner.EXPECT().NewDeliverer("stderr").Return(ith.MockDeliverer)
+			ith.MockInputRunner.EXPECT().NewSplitterRunner("stderr").Return(
+				ith.MockSplitterRunner)
+
+			c.Specify("handles bad arguments", func() {
+				pInput.SetName("BadArgs")
+				config.ParseStdout = false
+				config.ParseStderr = true
+
+				// Note that no working directory is explicitly specified.
+				config.Command["0"] = cmdConfig{Bin: STDERR_CMD, Args: STDERR_CMD_ARGS}
+
+				err := pInput.Init(config)
+				c.Assume(err, gs.IsNil)
+
+				expectedErr := fmt.Errorf(
+					"BadArgs CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
+				ith.MockInputRunner.EXPECT().LogError(expectedErr)
+
+				go func() {
+					errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
+				}()
+				tickChan <- time.Now()
+
+				// Error message differs by platform, but we at least wait
+				// until we get it.
+				<-bytesChan
+
+				pInput.Stop()
+				err = <-errChan
+				c.Expect(err, gs.IsNil)
+			})
+		})
 	})
 }

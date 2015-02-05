@@ -53,25 +53,6 @@ Config:
 - translation (hash map of hash maps of ints):
     A set of translation mappings for matched groupings to the ints to use for
     sorting purposes.
-- decoder (string):
-    A :ref:`config_protobuf_decoder` instance must be specified for the
-    message.proto parser. Use of a decoder is optional for token and regexp
-    parsers; if no decoder is specified the parsed data is available in the
-    Heka message payload.
-- parser_type (string):
-    - token - splits the log on a byte delimiter (default).
-    - regexp - splits the log on a regexp delimiter.
-    - message.proto - splits the log on protobuf message boundaries
-- delimiter (string): Only used for token or regexp parsers.
-    Character or regexp delimiter used by the parser (default "\\n").  For the
-    regexp delimiter a single capture group can be specified to preserve the
-    delimiter (or part of the delimiter). The capture will be added to the start
-    or end of the log line depending on the delimiter_location configuration.
-    Note: when a start delimiter is used the last line in the file will not be
-    processed (since the next record defines its end) until the log is rolled.
-- delimiter_location (string): Only used for regexp parsers.
-    - start - the regexp delimiter occurs at the start of a log line.
-    - end - the regexp delimiter occurs at the end of the log line (default).
-- keep_truncated_messages (bool): Only used for token or regexp parsers.
-    Whether to keep first part of big message exceeding buffer size or just drop it (default).
-
+- splitter (string, optional):
+    Defaults to "TokenSplitter", which will split the log stream into one
+    Heka message per line.

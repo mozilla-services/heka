@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -48,21 +48,22 @@ func AMQPPluginSpec(c gs.Context) {
 
 	config := NewPipelineConfig(nil)
 
-	// Our two user/conn waitgroups
+	// Our two user/conn waitgroups.
 	ug := new(sync.WaitGroup)
 	cg := new(sync.WaitGroup)
 
-	// Setup the mock channel
+	// Setup the mock channel.
 	mch := NewMockAMQPChannel(ctrl)
 
-	// Setup the mock amqpHub with the mock chan return
+	// Setup the mock amqpHub with the mock chan return.
 	aqh := NewMockAMQPConnectionHub(ctrl)
 	aqh.EXPECT().GetChannel("", AMQPDialer{}).Return(mch, ug, cg, nil)
 
 	errChan := make(chan error, 1)
+	bytesChan := make(chan []byte, 1)
 
 	c.Specify("An amqp input", func() {
-		// Setup all the mock calls for Init
+		// Setup all the mock calls for Init.
 		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false,
 			gomock.Any()).Return(nil)
 		mch.EXPECT().QueueDeclare("", false, true, false, false,
@@ -74,14 +75,13 @@ func AMQPPluginSpec(c gs.Context) {
 		ith.Msg = pipeline_ts.GetTestMessage()
 		ith.Pack = NewPipelinePack(config.InputRecycleChan())
 
-		// set up mock helper, decoder set, and packSupply channel
+		// Set up relevant mocks.
 		ith.MockHelper = NewMockPluginHelper(ctrl)
 		ith.MockInputRunner = NewMockInputRunner(ctrl)
-		mockDRunner := NewMockDecoderRunner(ctrl)
+		ith.MockSplitterRunner = NewMockSplitterRunner(ctrl)
 		ith.PackSupply = make(chan *PipelinePack, 1)
-		ith.DecodeChan = make(chan *PipelinePack)
 
-		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
+		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 
 		amqpInput := new(AMQPInput)
 		amqpInput.amqpHub = aqh
@@ -92,147 +92,95 @@ func AMQPPluginSpec(c gs.Context) {
 		config.RoutingKey = "test"
 		config.QueueTTL = 300000
 
-		c.Specify("with a valid setup and no decoder", func() {
-			err := amqpInput.Init(config)
-			c.Assume(err, gs.IsNil)
-			c.Expect(amqpInput.ch, gs.Equals, mch)
+		err := amqpInput.Init(config)
+		c.Assume(err, gs.IsNil)
+		c.Expect(amqpInput.ch, gs.Equals, mch)
 
-			c.Specify("consumes a message", func() {
+		c.Specify("consumes a text message", func() {
+			// Create a channel to send data to the input. Drop a message on
+			// there and close the channel.
+			streamChan := make(chan amqp.Delivery, 1)
+			ack := plugins_ts.NewMockAcknowledger(ctrl)
+			ack.EXPECT().Ack(gomock.Any(), false)
+			streamChan <- amqp.Delivery{
+				ContentType:  "text/plain",
+				Body:         []byte("This is a message"),
+				Timestamp:    time.Now(),
+				Acknowledger: ack,
+			}
+			mch.EXPECT().Consume("", "", false, false, false, false,
+				gomock.Any()).Return(streamChan, nil)
 
-				// Create a channel to send data to the input
-				// Drop a message on there and close the channel
-				streamChan := make(chan amqp.Delivery, 1)
-				ack := plugins_ts.NewMockAcknowledger(ctrl)
-				ack.EXPECT().Ack(gomock.Any(), false)
-				streamChan <- amqp.Delivery{
-					ContentType:  "text/plain",
-					Body:         []byte("This is a message"),
-					Timestamp:    time.Now(),
-					Acknowledger: ack,
-				}
-				mch.EXPECT().Consume("", "", false, false, false, false,
-					gomock.Any()).Return(streamChan, nil)
+			// Increase the usage since Run decrements it on close.
+			ug.Add(1)
 
-				// Expect the injected packet
-				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
-
-				// Increase the usage since Run decrements it on close
-				ug.Add(1)
-
-				ith.PackSupply <- ith.Pack
-				go func() {
-					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
-					errChan <- err
-				}()
-				ith.PackSupply <- ith.Pack
-				close(streamChan)
-				err = <-errChan
-				c.Expect(err, gs.IsNil)
-				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
-				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
+			splitCall := ith.MockSplitterRunner.EXPECT().SplitBytes(gomock.Any(),
+				nil)
+			splitCall.Do(func(recd []byte, del Deliverer) {
+				bytesChan <- recd
 			})
+			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			go func() {
+				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+				errChan <- err
+			}()
+
+			msgBytes := <-bytesChan
+			c.Expect(string(msgBytes), gs.Equals, "This is a message")
+			close(streamChan)
+			err = <-errChan
 		})
 
-		c.Specify("with a valid setup using a decoder", func() {
-			decoderName := "defaultDecoder"
-			config.Decoder = decoderName
-			err := amqpInput.Init(config)
-			c.Assume(err, gs.IsNil)
-			c.Expect(amqpInput.ch, gs.Equals, mch)
+		c.Specify("consumes a protobuf encoded message", func() {
+			encoder := client.NewProtobufEncoder(nil)
+			streamChan := make(chan amqp.Delivery, 1)
 
-			// Mock up our default decoder runner and decoder.
-			ith.MockInputRunner.EXPECT().Name().Return("AMQPInput")
-			decCall := ith.MockHelper.EXPECT().DecoderRunner(decoderName, "AMQPInput-defaultDecoder")
-			decCall.Return(mockDRunner, true)
-			mockDecoder := NewMockDecoder(ctrl)
-			mockDRunner.EXPECT().Decoder().Return(mockDecoder)
+			msg := new(message.Message)
+			msg.SetUuid(uuid.NewRandom())
+			msg.SetTimestamp(time.Now().UnixNano())
+			msg.SetType("logfile")
+			msg.SetLogger("/a/nice/path")
+			msg.SetSeverity(int32(0))
+			msg.SetEnvVersion("0.2")
+			msg.SetPid(0)
+			msg.SetPayload("This is a message")
+			msg.SetHostname("TestHost")
 
-			c.Specify("consumes a message", func() {
-				packs := []*PipelinePack{ith.Pack}
-				mockDecoder.EXPECT().Decode(ith.Pack).Return(packs, nil)
+			msgBody := make([]byte, 0, 500)
+			_ = encoder.EncodeMessageStream(msg, &msgBody)
 
-				// Create a channel to send data to the input
-				// Drop a message on there and close the channel
-				streamChan := make(chan amqp.Delivery, 1)
-				ack := plugins_ts.NewMockAcknowledger(ctrl)
-				ack.EXPECT().Ack(gomock.Any(), false)
-				streamChan <- amqp.Delivery{
-					ContentType:  "text/plain",
-					Body:         []byte("This is a message"),
-					Timestamp:    time.Now(),
-					Acknowledger: ack,
-				}
-				mch.EXPECT().Consume("", "", false, false, false, false,
-					gomock.Any()).Return(streamChan, nil)
+			ack := plugins_ts.NewMockAcknowledger(ctrl)
+			ack.EXPECT().Ack(gomock.Any(), false)
 
-				// Expect the injected packet
-				ith.MockInputRunner.EXPECT().Inject(gomock.Any())
+			streamChan <- amqp.Delivery{
+				ContentType:  "application/hekad",
+				Body:         msgBody,
+				Timestamp:    time.Now(),
+				Acknowledger: ack,
+			}
+			mch.EXPECT().Consume("", "", false, false, false, false,
+				gomock.Any()).Return(streamChan, nil)
 
-				// Increase the usage since Run decrements it on close
-				ug.Add(1)
+			// Increase the usage since Run decrements it on close.
+			ug.Add(1)
 
-				ith.PackSupply <- ith.Pack
-				go func() {
-					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
-					errChan <- err
-				}()
-				ith.PackSupply <- ith.Pack
-				close(streamChan)
-				err = <-errChan
-				c.Expect(ith.Pack.Message.GetType(), gs.Equals, "amqp")
-				c.Expect(ith.Pack.Message.GetPayload(), gs.Equals, "This is a message")
+			splitCall := ith.MockSplitterRunner.EXPECT().SplitBytes(gomock.Any(),
+				nil)
+			splitCall.Do(func(recd []byte, del Deliverer) {
+				bytesChan <- recd
 			})
+			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(true)
+			go func() {
+				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
+				errChan <- err
+			}()
 
-			c.Specify("consumes a serialized message", func() {
-				encoder := client.NewProtobufEncoder(nil)
-				streamChan := make(chan amqp.Delivery, 1)
-
-				msg := new(message.Message)
-				msg.SetUuid(uuid.NewRandom())
-				msg.SetTimestamp(time.Now().UnixNano())
-				msg.SetType("logfile")
-				msg.SetLogger("/a/nice/path")
-				msg.SetSeverity(int32(0))
-				msg.SetEnvVersion("0.2")
-				msg.SetPid(0)
-				msg.SetPayload("This is a message")
-				msg.SetHostname("TestHost")
-
-				msgBody := make([]byte, 0, 500)
-				_ = encoder.EncodeMessageStream(msg, &msgBody)
-
-				ack := plugins_ts.NewMockAcknowledger(ctrl)
-				ack.EXPECT().Ack(gomock.Any(), false)
-
-				streamChan <- amqp.Delivery{
-					ContentType:  "application/hekad",
-					Body:         msgBody,
-					Timestamp:    time.Now(),
-					Acknowledger: ack,
-				}
-				mch.EXPECT().Consume("", "", false, false, false, false,
-					gomock.Any()).Return(streamChan, nil)
-
-				// Expect the decoded pack
-				mockDRunner.EXPECT().InChan().Return(ith.DecodeChan)
-
-				// Increase the usage since Run decrements it on close
-				ug.Add(1)
-
-				ith.PackSupply <- ith.Pack
-				go func() {
-					err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
-					errChan <- err
-				}()
-				packRef := <-ith.DecodeChan
-				c.Expect(ith.Pack, gs.Equals, packRef)
-				// Ignore leading 5 bytes of encoded message as thats the header
-				c.Expect(string(packRef.MsgBytes), gs.Equals, string(msgBody[5:]))
-				ith.PackSupply <- ith.Pack
-				close(streamChan)
-				err = <-errChan
-				c.Expect(err, gs.IsNil)
-			})
+			msgBytes := <-bytesChan
+			c.Expect(string(msgBytes), gs.Equals, string(msgBody))
+			close(streamChan)
+			err = <-errChan
+			c.Expect(err, gs.IsNil)
 		})
 	})
 
@@ -256,10 +204,10 @@ func AMQPPluginSpec(c gs.Context) {
 		mch.EXPECT().ExchangeDeclare("", "", false, true, false, false,
 			gomock.Any()).Return(nil)
 
-		// Increase the usage since Run decrements it on close
+		// Increase the usage since Run decrements it on close.
 		ug.Add(1)
 
-		// Expect the close and the InChan calls
+		// Expect the close and the InChan calls.
 		aqh.EXPECT().Close("", cg)
 		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
 

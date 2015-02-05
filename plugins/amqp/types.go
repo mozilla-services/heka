@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,10 +16,7 @@
 package amqp
 
 import (
-	"bytes"
 	"crypto/tls"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/streadway/amqp"
 	"sync"
 )
@@ -187,39 +184,4 @@ func (ah *amqpConnectionHub) Close(url string, connWg *sync.WaitGroup) {
 		return
 	}
 	trk.conn.Close()
-}
-
-// Scans provided byte slice for the next record separator and tries to
-// populate provided header and message objects using the scanned data.
-// Returns new starting index into the passed buffer, or ok == false if no
-// message was able to be extracted.
-//
-// TODO this code duplicates what is in the StreamParser and should be
-// removed.
-func findMessage(buf []byte, header *message.Header, msg *[]byte) (pos int, ok bool) {
-	pos = bytes.IndexByte(buf, message.RECORD_SEPARATOR)
-	if pos != -1 {
-		if len(buf)-pos > 1 {
-			headerLength := int(buf[pos+1])
-			headerEnd := pos + headerLength + 3 // recsep+len+header+unitsep
-			if len(buf) >= headerEnd {
-				if header.MessageLength != nil || DecodeHeader(buf[pos+2:headerEnd], header) {
-					messageEnd := headerEnd + int(header.GetMessageLength())
-					if len(buf) >= messageEnd {
-						*msg = (*msg)[:messageEnd-headerEnd]
-						copy(*msg, buf[headerEnd:messageEnd])
-						pos = messageEnd
-						ok = true
-					} else {
-						*msg = (*msg)[:0]
-					}
-				} else {
-					pos, ok = findMessage(buf[pos+1:], header, msg)
-				}
-			}
-		}
-	} else {
-		pos = len(buf)
-	}
-	return
 }

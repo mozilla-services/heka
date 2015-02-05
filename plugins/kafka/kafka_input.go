@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,7 +16,6 @@
 package kafka
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -30,6 +29,8 @@ import (
 )
 
 type KafkaInputConfig struct {
+	Splitter string
+
 	// Client Config
 	Id                         string
 	Addrs                      []string
@@ -65,6 +66,7 @@ type KafkaInput struct {
 	client             *sarama.Client
 	consumer           *sarama.Consumer
 	pConfig            *pipeline.PipelineConfig
+	ir                 pipeline.InputRunner
 	checkpointFile     *os.File
 	stopChan           chan bool
 	name               string
@@ -74,6 +76,7 @@ type KafkaInput struct {
 func (k *KafkaInput) ConfigStruct() interface{} {
 	hn := k.pConfig.Hostname()
 	return &KafkaInputConfig{
+		Splitter:                   "NullSplitter",
 		Id:                         hn,
 		MetadataRetries:            3,
 		WaitForElection:            250,
@@ -199,6 +202,16 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 	return
 }
 
+func (k *KafkaInput) addField(pack *pipeline.PipelinePack, name string,
+	value interface{}, representation string) {
+
+	if field, err := message.NewField(name, value, representation); err == nil {
+		pack.Message.AddField(field)
+	} else {
+		k.ir.LogError(fmt.Errorf("can't add '%s' field: %s", name, err.Error()))
+	}
+}
+
 func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
 	defer func() {
 		k.consumer.Close()
@@ -207,25 +220,42 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 			k.checkpointFile.Close()
 		}
 	}()
+	k.ir = ir
 	k.stopChan = make(chan bool)
 
 	var (
-		pack        *pipeline.PipelinePack
-		hostname    = k.pConfig.Hostname()
-		packSupply  = ir.InChan()
-		useMsgBytes = ir.UseMsgBytes()
+		hostname = k.pConfig.Hostname()
+		event    *sarama.ConsumerEvent
+		ok       bool
+		n        int
 	)
+
+	sRunner := ir.NewSplitterRunner("")
+
+	packDec := func(pack *pipeline.PipelinePack) {
+		pack.Message.SetType("heka.kafka")
+		pack.Message.SetLogger(k.name)
+		pack.Message.SetHostname(hostname)
+		k.addField(pack, "Key", event.Key, "")
+		k.addField(pack, "Topic", event.Topic, "")
+		k.addField(pack, "Partition", event.Partition, "")
+		k.addField(pack, "Offset", event.Offset, "")
+	}
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(packDec)
+	}
 
 	for {
 		select {
-		case event, ok := <-k.consumer.Events():
+		case event, ok = <-k.consumer.Events():
 			if !ok {
 				return
 			}
 			atomic.AddInt64(&k.processMessageCount, 1)
 			if event.Err != nil {
 				if event.Err == sarama.OffsetOutOfRange {
-					ir.LogError(fmt.Errorf("removing the out of range checkpoint file and stopping"))
+					ir.LogError(fmt.Errorf(
+						"removing the out of range checkpoint file and stopping"))
 					if err := os.Remove(k.checkpointFilename); err != nil {
 						ir.LogError(err)
 					}
@@ -235,47 +265,14 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 				ir.LogError(event.Err)
 				break
 			}
-			pack = <-packSupply
-			if useMsgBytes {
-				messageLen := len(event.Value)
-				if messageLen > cap(pack.MsgBytes) {
-					pack.MsgBytes = make([]byte, messageLen)
-				}
-				pack.MsgBytes = pack.MsgBytes[:messageLen]
-				copy(pack.MsgBytes, event.Value)
-			} else {
-				pack.Message.SetUuid(uuid.NewRandom())
-				pack.Message.SetTimestamp(time.Now().UnixNano())
-				pack.Message.SetType("heka.kafka")
-				pack.Message.SetLogger(k.name)
-				pack.Message.SetHostname(hostname)
-				pack.Message.SetPayload(string(event.Value))
-				if field, err := message.NewField("Key", event.Key, ""); err == nil {
-					pack.Message.AddField(field)
-				} else {
-					ir.LogError(fmt.Errorf("can't add field: %s", err))
-				}
-
-				if field, err := message.NewField("Topic", event.Topic, ""); err == nil {
-					pack.Message.AddField(field)
-				} else {
-					ir.LogError(fmt.Errorf("can't add field: %s", err))
-				}
-
-				if field, err := message.NewField("Partition", event.Partition, ""); err == nil {
-					pack.Message.AddField(field)
-				} else {
-					ir.LogError(fmt.Errorf("can't add field: %s", err))
-				}
-
-				if field, err := message.NewField("Offset", event.Offset, ""); err == nil {
-					pack.Message.AddField(field)
-				} else {
-					ir.LogError(fmt.Errorf("can't add field: %s", err))
-				}
+			if n, err = sRunner.SplitBytes(event.Value, nil); err != nil {
+				ir.LogError(fmt.Errorf("processing message from topic %s: %s",
+					event.Topic, err))
 			}
-
-			ir.Deliver(pack)
+			if n > 0 && n != len(event.Value) {
+				ir.LogError(fmt.Errorf("extra data dropped in message from topic %s",
+					event.Topic))
+			}
 
 			if k.consumerConfig.OffsetMethod == sarama.OffsetMethodManual {
 				if err = k.writeCheckpoint(event.Offset + 1); err != nil {

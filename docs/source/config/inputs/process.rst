@@ -33,23 +33,6 @@ Config:
     If true, for each run of the process chain a message will be generated
     with the last command in the chain's stderr as the payload. Defaults to
     false.
-- decoder (string):
-    Name of the decoder instance to send messages to. If omitted messages will
-    be injected directly into Heka's message router.
-- parser_type (string):
-    - token - splits the log on a byte delimiter (default).
-    - regexp - splits the log on a regexp delimiter.
-- delimiter (string): Only used for token or regexp parsers.
-    Character or regexp delimiter used by the parser (default "\\n").  For the
-    regexp delimiter a single capture group can be specified to preserve the
-    delimiter (or part of the delimiter). The capture will be added to the
-    start or end of the log line depending on the delimiter_location
-    configuration. Note: when a start delimiter is used the last line in the
-    file will not be processed (since the next record defines its end) until
-    the log is rolled.
-- delimiter_location (string): Only used for regexp parsers.
-    - start - the regexp delimiter occurs at the start of a log line.
-    - end - the regexp delimiter occurs at the end of the log line (default).
 - timeout (uint):
     Timeout in seconds before any one of the commands in the chain is
     terminated.
@@ -78,11 +61,14 @@ Example:
 
 .. code-block:: ini
 
+    [on_space]
+    type = "TokenSplitter"
+    delimiter = " "
+
     [DemoProcessInput]
     type = "ProcessInput"
     ticker_interval = 2
-    parser_type = "token"
-    delimiter = " "
+    splitter = "on_space"
     stdout = true
     stderr = false
     trim = true
