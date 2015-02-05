@@ -1,6 +1,9 @@
+. _config_heka_framing_splitter
 
-HekaFramingSplitter
-===================
+Heka Framing Splitter
+=====================
+
+Plugin Name: **HekaFramingSplitter**
 
 A HekaFramingSplitter is used to split streams of data that use Heka's built-
 in :ref:`stream_framing`, with a protocol buffers encoded message header

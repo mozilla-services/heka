@@ -42,44 +42,23 @@ initialization code.
     Whether or not this plugin can exit without causing Heka to shutdown.
     Defaults to false.
 
-.. _config_amqp_output:
-.. include:: /config/outputs/amqp.rst
+Available Output Plugins
+========================
 
-.. _config_carbon_output:
-.. include:: /config/outputs/carbon.rst
+.. toctree::
+   :maxdepth: 1
 
-.. _config_dashboard_output:
-.. include:: /config/outputs/dashboard.rst
-
-.. _config_elasticsearch_output:
-.. include:: /config/outputs/elasticsearch.rst
-
-.. _config_file_output:
-.. include:: /config/outputs/file.rst
-
-.. _config_http_output:
-.. include:: /config/outputs/http.rst
-
-.. _config_irc_output:
-.. include:: /config/outputs/irc.rst
-
-.. _config_kafka_output:
-.. include:: /config/outputs/kafka.rst
-
-.. _config_log_output:
-.. include:: /config/outputs/log.rst
-
-.. _config_nagios_output:
-.. include:: /config/outputs/nagios.rst
-
-.. _config_smtp_output:
-.. include:: /config/outputs/smtp.rst
-
-.. _config_tcp_output:
-.. include:: /config/outputs/tcp.rst
-
-.. _config_udp_output:
-.. include:: /config/outputs/udp.rst
-
-.. _config_whisper_output:
-.. include:: /config/outputs/whisper.rst
+   amqp
+   carbon
+   dashboard
+   elasticsearch
+   file
+   http
+   irc
+   kafka
+   log
+   nagios
+   smtp
+   tcp
+   udp
+   whisper

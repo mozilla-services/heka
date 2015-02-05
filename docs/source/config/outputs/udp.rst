@@ -1,8 +1,11 @@
+.. _config_udp_output:
+
+UDP Output
+==========
 
 .. versionadded:: 0.7
 
-UdpOutput
-=========
+Plugin Name: **UdpOutput**
 
 Output plugin that delivers Heka message data to a specified UDP or Unix
 datagram socket location.

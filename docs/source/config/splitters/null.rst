@@ -1,6 +1,9 @@
+.. _config_null_splitter:
 
-NullSplitter
-============
+Null Splitter
+=============
+
+Plugin Name: **NullSplitter**
 
 The NullSplitter is used in cases where the incoming data is already naturally
 divided into logical messages, such that Heka doesn't need to do any further

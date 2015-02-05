@@ -1,6 +1,9 @@
+.. _config_payload_xml_decoder:
 
-PayloadXmlDecoder
-=================
+Payload XML Decoder
+===================
+
+Plugin Name: **PayloadXmlDecoder**
 
 This decoder plugin accepts XML blobs in the message payload and allows you to
 map parts of the XML into Field attributes of the pipeline pack message using

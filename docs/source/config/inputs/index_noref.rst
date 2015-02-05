@@ -4,8 +4,8 @@ Inputs
 ======
 
 .. include:: /config/inputs/index.rst
-   :start-line: 9
-   :end-line: 44
+   :start-after: _config_common_input_parameters:
+   :end-before: Available Input Plugins
 
 .. include:: /config/inputs/amqp.rst
    :start-line: 1

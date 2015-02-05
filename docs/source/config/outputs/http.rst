@@ -1,8 +1,11 @@
+.. _config_http_output:
 
 .. versionadded:: 0.6
 
-HttpOutput
-==========
+HTTP Output
+===========
+
+Plugin Name: **HttpOutput**
 
 A very simple output plugin that uses HTTP GET, POST, or PUT requests to
 deliver data to an HTTP endpoint. When using POST or PUT request methods the

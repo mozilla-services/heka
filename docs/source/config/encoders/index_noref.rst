@@ -3,50 +3,35 @@
 Encoders
 ========
 
-Alert Encoder
-=============
+.. include:: /config/encoders/alert.rst
+   :start-line: 1
 
-.. include:: /../../sandbox/lua/encoders/alert.lua
-   :start-after: --[[
-   :end-before: --]]
-
-CBUF Librato Encoder
---------------------
-
-..include:: /../../sandbox/lua/encoders/cbuf_librato.lua
-   :start-after: --[[
-   :end-before: --]]
+.. include:: /config/encoders/cbuf_librato.rst
+   :start-line: 1
 
 .. include:: /config/encoders/esjson.rst
+   :start-line: 1
 
 .. include:: /config/encoders/eslogstashv0.rst
+   :start-line: 1
 
-ESPayloadEncoder
-================
-
-.. include:: /../../sandbox/lua/encoders/es_payload.lua
-   :start-after: --[[
-   :end-before: --]]
+.. include:: /config/encoders/espayload.rst
+   :start-line: 1
 
 .. include:: /config/encoders/payload.rst
+   :start-line: 1
 
 .. include:: /config/encoders/protobuf.rst
+   :start-line: 1
 
 .. include:: /config/encoders/rst.rst
+   :start-line: 1
 
 .. include:: /config/encoders/sandbox.rst
+   :start-line: 1
 
-Schema InfluxDB Encoder
-=======================
+.. include:: /config/encoders/schema_influx.rst
+   :start-line: 1
 
-.. include:: /../../sandbox/lua/encoders/schema_influx.lua
-    :start-after: --[=[
-    :end-before: --]=]
-
-
-StatMetric InfluxDB Encoder
-===========================
-
-.. include:: /../../sandbox/lua/encoders/es_payload.lua
-    :start-after: --[[
-    :end-before: --]]
+.. include:: /config/encoders/statmetric_influx.rst
+   :start-line: 1

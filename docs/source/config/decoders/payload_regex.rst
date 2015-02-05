@@ -1,6 +1,9 @@
+.. _config_payloadregex_decoder:
 
-PayloadRegexDecoder
-===================
+Payload Regex Decoder
+=====================
+
+Plugin Name: **PayloadRegexDecoder**
 
 Decoder plugin that accepts messages of a specified form and generates new
 outgoing messages from extracted data, effectively transforming one message

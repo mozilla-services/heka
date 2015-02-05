@@ -20,9 +20,8 @@ Example hekad.toml File
     :end-before: end-hekad-toml
 
 .. include:: /config/index.rst
-    :start-after: start-restarting
+    :start-after: _configuring_restarting:
     :end-before: end-restarting
-
 
 See Also
 ========

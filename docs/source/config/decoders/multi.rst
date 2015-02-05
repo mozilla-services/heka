@@ -1,6 +1,9 @@
+.. _config_multidecoder:
 
 MultiDecoder
 ============
+
+Plugin Name: **MultiDecoder**
 
 This decoder plugin allows you to specify an ordered list of delegate
 decoders.  The MultiDecoder will pass the PipelinePack to be decoded to each

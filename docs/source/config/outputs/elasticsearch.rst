@@ -1,6 +1,9 @@
+.. _config_elasticsearch_output:
 
-ElasticSearchOutput
-===================
+ElasticSearch Output
+====================
+
+Plugin Name: **ElasticSearchOutput**
 
 Output plugin that uses HTTP or UDP to insert records into an ElasticSearch
 database. Note that it is up to the specified encoder to both serialize the

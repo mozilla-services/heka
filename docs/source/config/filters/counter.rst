@@ -1,6 +1,9 @@
+.. _config_counter_filter:
 
-CounterFilter
-=============
+Counter Filter
+==============
+
+Plugin Name: **CounterFilter**
 
 Once per ticker interval a CounterFilter will generate a message of type `heka
 .counter-output`. The payload will contain text indicating the number of

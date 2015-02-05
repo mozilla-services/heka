@@ -1,6 +1,7 @@
 .. _sandboxencoder:
 
 .. include:: ../config/encoders/sandbox.rst
+   :start-line: 1
 
 .. _sandboxencoders:
 

@@ -1,6 +1,9 @@
+.. _config_rstencoder:
 
-RstEncoder
-==========
+Restructured Text Encoder
+=========================
+
+Plugin Name: **RstEncoder**
 
 The RstEncoder generates a `reStructuredText
 <http://docutils.sourceforge.net/rst.html>`_ rendering of a Heka message,

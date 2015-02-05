@@ -1,6 +1,9 @@
+.. _config_token_splitter:
 
-TokenSplitter
-=============
+Token Splitter
+==============
+
+Plugin Name: **TokenSplitter**
 
 A TokenSplitter is used to split an incoming data stream on every occurrence
 of a single, one byte token character. The token will be included as the final
