@@ -1,6 +1,9 @@
+.. _config_kafka_input:
 
-KafkaInput
+Kafka Input
 ===========
+
+Plugin Name: **KafkaInput**
 
 Connects to a Kafka broker and subscribes to messages from the specified topic
 and partition.

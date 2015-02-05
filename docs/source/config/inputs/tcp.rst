@@ -1,6 +1,9 @@
+.. _config_tcp_input:
 
-TcpInput
-========
+TCP Input
+=========
+
+Plugin Name: **TcpInput**
 
 Listens on a specific TCP address and port for messages. If the message is
 signed it is verified against the signer name and specified key version. If

@@ -1,5 +1,9 @@
-ProcessInput
-============
+.. _config_process_input:
+
+Process Input
+=============
+
+Plugin Name: **ProcessInput**
 
 Executes one or more external programs on an interval, creating messages from
 the output.  Supports a chain of commands, where stdout from each process will
