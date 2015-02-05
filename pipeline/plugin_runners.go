@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"sync"
 	"time"
 )
@@ -172,16 +171,14 @@ type InputRunner interface {
 	NewDeliverer(token string) Deliverer
 	// Deliver accepts packs from the Input plugin and performs the
 	// appropriate one of three possible next actions. Possible actions are 1)
-	// placing the pack on a Decoder's input channel, if a decoder is
+	// placing the pack on the Decoder's input channel, if a decoder is
 	// specified and syncDecode is false; 2) synchronously decoding the pack
 	// and then placing it on the router's input channel, if a decoder is
 	// specified and syncDecode is true; or 3) placing the pack directly on
-	// the router's input channel, if no decoder is specified.
+	// the router's input channel, if no decoder is specified. Delegates to
+	// DeliverTo.
 	Deliver(pack *PipelinePack)
-	// UseMsgBytes returns true if the InputRunner has a decoder that expects
-	// to find the raw input data in the PipelinePack's `MsgBytes` attribute,
-	// which is typically a ProtobufDecoder. Returns false otherwise.
-	UseMsgBytes() bool
+	NewSplitterRunner(token string) SplitterRunner
 }
 
 type iRunner struct {
@@ -194,7 +191,6 @@ type iRunner struct {
 	transient          bool
 	syncDecode         bool
 	sendDecodeFailures bool
-	useMsgBytes        bool
 	deliver            DeliverFunc
 }
 
@@ -250,27 +246,19 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		ir.ticker = time.Tick(tickLength)
 	}
 
-	// This bit is a bit kludgey; we're creating a decoder just to see if it's
-	// a ProtobufDecoder or a MultiDecoder starting with a ProtobufDecoder,
-	// and if so we set useMsgBytes to true. This should go away entirely when
-	// the splitter branch lands, this is just to keep the dev branch working
-	// in the meantime.
-	if ir.config.Decoder != "" {
-		decoder, ok := ir.pConfig.Decoder(ir.config.Decoder)
-		if !ok {
-			return fmt.Errorf("%s can't create decoder %s", ir.name, ir.config.Decoder)
-		}
-		_, ok = decoder.(*ProtobufDecoder)
-		if ok {
-			ir.useMsgBytes = true
-		} else if d, ok := decoder.(*MultiDecoder); ok {
-			if len(d.Decoders) > 0 {
-				_, ok = d.Decoders[0].(*ProtobufDecoder)
-				if ok {
-					ir.useMsgBytes = true
-				}
-			}
-		}
+	if ir.config.Splitter == "" {
+		ir.config.Splitter = "NullSplitter"
+	}
+
+	splitters := ir.pConfig.makers["Splitter"]
+	splitterMaker, ok := splitters[ir.config.Splitter]
+	if !ok {
+		return fmt.Errorf("%s specifies undefined splitter %s", ir.name,
+			ir.config.Splitter)
+	}
+	if _, err = splitterMaker.MakeRunner(ir.name); err != nil {
+		return fmt.Errorf("%s error creating splitter %s: %s", ir.name,
+			ir.config.Splitter, err.Error())
 	}
 
 	go ir.Starter(h, wg)
@@ -339,15 +327,11 @@ func (ir *iRunner) Inject(pack *PipelinePack) {
 }
 
 func (ir *iRunner) LogError(err error) {
-	log.Printf("Input '%s' error: %s", ir.name, err)
+	LogError.Printf("Input '%s' error: %s", ir.name, err)
 }
 
 func (ir *iRunner) LogMessage(msg string) {
-	log.Printf("Input '%s': %s", ir.name, msg)
-}
-
-func (ir *iRunner) UseMsgBytes() bool {
-	return ir.useMsgBytes
+	LogInfo.Printf("Input '%s': %s", ir.name, msg)
 }
 
 func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
@@ -428,6 +412,25 @@ func (ir *iRunner) Deliver(pack *PipelinePack) {
 		ir.deliver, _ = ir.getDeliverFunc("")
 	}
 	ir.deliver(pack)
+}
+
+func (ir *iRunner) NewSplitterRunner(token string) SplitterRunner {
+	if ir.config.Splitter == "" {
+		ir.config.Splitter = "NullSplitter"
+	}
+	ir.pConfig.makersLock.RLock()
+	maker := ir.pConfig.makers["Splitter"][ir.config.Splitter]
+	ir.pConfig.makersLock.RUnlock()
+	var name string
+	if token == "" {
+		name = fmt.Sprintf("%s-%s", ir.name, ir.config.Splitter)
+	} else {
+		name = fmt.Sprintf("%s-%s-%s", ir.name, ir.config.Splitter, token)
+	}
+	srInterface, _ := maker.MakeRunner(name)
+	sr := srInterface.(*sRunner)
+	sr.ir = ir
+	return sr
 }
 
 // Heka PluginRunner for Decoder plugins. Decoding is typically a simpler job,
@@ -533,11 +536,11 @@ func (dr *dRunner) NewPack() *PipelinePack {
 }
 
 func (dr *dRunner) LogError(err error) {
-	log.Printf("Decoder '%s' error: %s", dr.name, err)
+	LogError.Printf("Decoder '%s' error: %s", dr.name, err)
 }
 
 func (dr *dRunner) LogMessage(msg string) {
-	log.Printf("Decoder '%s': %s", dr.name, msg)
+	LogInfo.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
 func (dr *dRunner) SetSendFailure(sendFailure bool) {
@@ -906,11 +909,11 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 }
 
 func (foRunner *foRunner) LogError(err error) {
-	log.Printf("Plugin '%s' error: %s", foRunner.name, err)
+	LogError.Printf("Plugin '%s' error: %s", foRunner.name, err)
 }
 
 func (foRunner *foRunner) LogMessage(msg string) {
-	log.Printf("Plugin '%s': %s", foRunner.name, msg)
+	LogInfo.Printf("Plugin '%s': %s", foRunner.name, msg)
 }
 
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {

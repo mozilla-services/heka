@@ -4,13 +4,14 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
 #   Christian Vozar (christian@bellycard.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Kun Liu (git@lk.vc)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -26,6 +27,9 @@ import (
 	"strings"
 	"time"
 )
+
+const BASE64_ENCODING_LINE_LENGTH = 76
+const BASE64_SOURCE_CHARS_PER_LINE = BASE64_ENCODING_LINE_LENGTH / 4 * 3
 
 type SmtpOutput struct {
 	conf         *SmtpOutputConfig
@@ -143,18 +147,50 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	return nil
 }
 
-func (s SmtpOutput) sendMail(contents []byte) error {
-	encodedLen := base64.StdEncoding.EncodedLen(len(contents))
+func (s *SmtpOutput) encodeFullMsg(contents []byte) {
+	// RFC 2045 6.8 Base64 Content-Transfer-Encoding
+	// The encoded output stream must be represented in lines of no more
+	// than 76 characters each.
+	contentLen := len(contents)
+	encodedLen := base64.StdEncoding.EncodedLen(contentLen)
+	if encodedLen > BASE64_ENCODING_LINE_LENGTH {
+		// append "\r\n" for each line
+		encodedLen += (encodedLen - 1) / BASE64_ENCODING_LINE_LENGTH * 2
+	}
 	if cap(s.fullMsg) < s.headerLen+encodedLen {
 		newFullMsg := make([]byte, s.headerLen+encodedLen)
 		copy(newFullMsg, s.fullMsg[:s.headerLen])
 		s.fullMsg = newFullMsg
 	}
 	s.fullMsg = s.fullMsg[:s.headerLen+encodedLen]
-	base64.StdEncoding.Encode(s.fullMsg[s.headerLen:], contents)
+	encodedLines := 0
+	contentLines := 1 + (contentLen-1)/BASE64_SOURCE_CHARS_PER_LINE
+	if contentLen <= 0 {
+		contentLines = 0
+	}
+	for encodedLines < contentLines {
+		offset := s.headerLen + encodedLines*(BASE64_ENCODING_LINE_LENGTH+2)
+		contentsBegin := encodedLines * BASE64_SOURCE_CHARS_PER_LINE
+		contentsEnd := contentsBegin + BASE64_SOURCE_CHARS_PER_LINE
+		if contentsEnd > contentLen {
+			contentsEnd = contentLen
+		}
+		base64.StdEncoding.Encode(s.fullMsg[offset:], contents[contentsBegin:contentsEnd])
+		encodedLines++
+		if encodedLines < contentLines {
+			offset += BASE64_ENCODING_LINE_LENGTH
+			s.fullMsg[offset] = '\r'
+			s.fullMsg[offset+1] = '\n'
+		}
+	}
+}
+
+func (s SmtpOutput) sendMail(contents []byte) error {
+	s.encodeFullMsg(contents)
 	return s.sendFunction(s.conf.Host, s.auth, s.conf.SendFrom, s.conf.SendTo, s.fullMsg)
 }
 
+// Only called once at startup.
 func (s SmtpOutput) getHeader() []byte {
 	var subject string
 	if s.conf.Subject != "" {
@@ -164,7 +200,7 @@ func (s SmtpOutput) getHeader() []byte {
 	}
 	headers := make([]string, 5)
 	headers[0] = "From: " + s.conf.SendFrom
-	headers[1] = "Subject: " + subject
+	headers[1] = encodeSubject(subject)
 	headers[2] = "MIME-Version: 1.0"
 	headers[3] = "Content-Type: text/plain; charset=\"utf-8\""
 	headers[4] = "Content-Transfer-Encoding: base64"

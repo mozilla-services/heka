@@ -59,6 +59,7 @@ func InputRunnerSpec(c gs.Context) {
 		PoolSize:       1,
 	}
 	pConfig := NewPipelineConfig(globals)
+	pConfig.RegisterDefault("NullSplitter")
 	mockHelper := NewMockPluginHelper(ctrl)
 	decoder := &_fooDecoder{}
 
@@ -85,6 +86,15 @@ func InputRunnerSpec(c gs.Context) {
 
 		var wg sync.WaitGroup
 
+		startRunner := func(runner InputRunner) {
+			wg.Add(1)
+			err := runner.Start(mockHelper, &wg)
+			if err != nil {
+				wg.Done()
+			}
+			c.Assume(err, gs.IsNil)
+		}
+
 		c.Specify("honors MaxRetries", func() {
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			input := &StoppingInput{}
@@ -92,8 +102,7 @@ func InputRunnerSpec(c gs.Context) {
 			maker.configStruct = make(map[string]interface{})
 			runner := NewInputRunner("stopping", input, commonInput).(*iRunner)
 			runner.maker = maker
-			wg.Add(1)
-			runner.Start(mockHelper, &wg)
+			startRunner(runner)
 			wg.Wait()
 			c.Expect(stopinputTimes, gs.Equals, 2)
 		})
@@ -114,8 +123,7 @@ func InputRunnerSpec(c gs.Context) {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
 				runner.pConfig = pConfig
-				wg.Add(1)
-				runner.Start(mockHelper, &wg)
+				startRunner(runner)
 				runner.Deliver(pack)
 				recd := <-pConfig.router.inChan // It was delivered to the router.
 				c.Expect(recd, gs.Equals, pack)
@@ -131,8 +139,7 @@ func InputRunnerSpec(c gs.Context) {
 				runner.pConfig = pConfig
 				d := runner.NewDeliverer("").(*deliverer)
 				runner.deliver = d.deliver
-				wg.Add(1)
-				runner.Start(mockHelper, &wg)
+				startRunner(runner)
 				go runner.Deliver(pack)
 				recd := <-d.dRunner.InChan() // It was delivered to the DecoderRunner.
 				c.Expect(recd, gs.Equals, pack)
@@ -151,8 +158,7 @@ func InputRunnerSpec(c gs.Context) {
 				runner.pConfig = pConfig
 				d := runner.NewDeliverer("").(*deliverer)
 				runner.deliver = d.deliver
-				wg.Add(1)
-				runner.Start(mockHelper, &wg)
+				startRunner(runner)
 
 				c.Specify("and the decode succeeds", func() {
 					runner.Deliver(pack)
@@ -420,8 +426,9 @@ func OutputRunnerSpec(c gs.Context) {
 				c.Expect(i > 3, gs.IsTrue, -1)
 				c.Expect(string(result[i+1:]), gs.Equals, payload)
 				header := new(message.Header)
-				ok := DecodeHeader(result[2:i+1], header)
+				ok, err := message.DecodeHeader(result[2:i+1], header)
 				c.Expect(ok, gs.IsTrue)
+				c.Expect(err, gs.IsNil)
 				c.Expect(header.GetMessageLength(), gs.Equals, uint32(len(payload)))
 			})
 		})

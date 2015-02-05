@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -32,6 +32,18 @@ type Input interface {
 	// Called as a signal to the Input to stop listening for / gathering
 	// incoming data and to perform any necessary clean-up.
 	Stop()
+}
+
+// Splitter plugin interface type.
+type Splitter interface {
+	FindRecord(buf []byte) (bytesRead int, record []byte)
+}
+
+// UnframingSplitter is an interface optionally implemented by splitter
+// plugins to remove and process any record framing that may have been used by
+// the splitter.
+type UnframingSplitter interface {
+	UnframeRecord(framed []byte, pack *PipelinePack) []byte
 }
 
 // Heka Decoder plugin interface.

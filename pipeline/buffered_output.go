@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,6 +17,7 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -27,13 +28,12 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
-	"errors"
 )
 
 type BufferedOutput struct {
 	sentMessageCount   int64
 	readOffset         int64
-	parser             *MessageProtoParser
+	sRunner            SplitterRunner
 	or                 OutputRunner
 	writeFile          *os.File
 	writeId            uint
@@ -54,36 +54,49 @@ type BufferedOutputSender interface {
 
 var QueueIsFull = errors.New("Queue is full")
 
-func NewBufferedOutput(queue_dir, queue_name string, or OutputRunner, h PluginHelper, max_queue_size uint64) (
-	*BufferedOutput, error) {
+func NewBufferedOutput(queueDir, queueName string, or OutputRunner, h PluginHelper,
+	maxQueueSize uint64) (*BufferedOutput, error) {
 
-	b := new(BufferedOutput)
-	b.or = or
-	b.parser = NewMessageProtoParser()
-	globals := h.PipelineConfig().Globals
-	b.queue = globals.PrependBaseDir(filepath.Join(queue_dir, queue_name))
+	b := &BufferedOutput{
+		or:           or,
+		maxQueueSize: maxQueueSize,
+	}
+	pConfig := h.PipelineConfig()
+
+	pConfig.makersLock.RLock()
+	splitterMakers := pConfig.makers["Splitter"]
+	maker, ok := splitterMakers["HekaFramingSplitter"]
+	if !ok {
+		pConfig.makersLock.RUnlock()
+		return nil, errors.New("no registered `HekaFramingSplitter`.")
+	}
+	splitterName := fmt.Sprintf("%s-buffer-splitter", or.Name())
+	runner, err := maker.MakeRunner(splitterName)
+	pConfig.makersLock.RUnlock()
+	if err != nil {
+		return nil, fmt.Errorf("can't make SplitterRunner: %s", err.Error())
+	}
+	b.sRunner = runner.(SplitterRunner)
+
+	globals := pConfig.Globals
+	b.queue = globals.PrependBaseDir(filepath.Join(queueDir, queueName))
 	b.checkpointFilename = filepath.Join(b.queue, "checkpoint.txt")
 	b.outBytes = make([]byte, 0, 1000) // encoding will reallocate the buffer as necessary
 
 	if !fileExists(b.queue) {
-		if err := os.MkdirAll(b.queue, 0766); err != nil {
-			return nil, err
+		if err = os.MkdirAll(b.queue, 0766); err != nil {
+			return nil, fmt.Errorf("can't make queue directory: %s", err.Error())
 		}
 	}
 	b.writeId = findBufferId(b.queue, true)
-	b.maxQueueSize = max_queue_size
 	b.queueSize = getQueueBufferSize(b.queue)
 	return b, nil
 }
 
-func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
-	var msgBytes []byte
+func (b *BufferedOutput) QueueBytes(msgBytes []byte) (err error) {
 	var msgSize int
 
-	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
-		return
-	}
-	if b.maxQueueSize > 0 && (b.queueSize + uint64(len(msgBytes))) > b.maxQueueSize {
+	if b.maxQueueSize > 0 && (b.queueSize+uint64(len(msgBytes))) > b.maxQueueSize {
 		err = QueueIsFull
 		return
 	}
@@ -104,11 +117,19 @@ func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
 	return nil
 }
 
+func (b *BufferedOutput) QueueRecord(pack *PipelinePack) (err error) {
+	var msgBytes []byte
+
+	if msgBytes, err = b.or.Encode(pack); msgBytes == nil || err != nil {
+		return
+	}
+	return b.QueueBytes(msgBytes)
+}
+
 func (b *BufferedOutput) writeCheckpoint(id uint, offset int64) (err error) {
 	if b.checkpointFile == nil {
 		if b.checkpointFile, err = os.OpenFile(b.checkpointFilename,
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-
 			return
 		}
 	}
@@ -206,7 +227,7 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 			return
 		default: // carry on
 		}
-		n, record, err = b.parser.Parse(b.readFile)
+		n, record, err = b.sRunner.GetRecordFromStream(b.readFile)
 		if err != nil {
 			if err == io.EOF {
 				nextReadId := b.readId + 1
@@ -380,5 +401,5 @@ func getQueueBufferSize(dir string) (size uint64) {
 			size += uint64(file_info.Size())
 		}
 	}
-    return
+	return
 }

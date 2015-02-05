@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Chance Zibolski (chance.zibolski@gmail.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -22,6 +23,8 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -43,6 +46,7 @@ func FilePollingInputSpec(c gs.Context) {
 	pConfig := NewPipelineConfig(nil)
 	var wg sync.WaitGroup
 	errChan := make(chan error, 1)
+	bytesChan := make(chan []byte, 1)
 	tickChan := make(chan time.Time)
 
 	retPackChan := make(chan *PipelinePack, 2)
@@ -54,68 +58,66 @@ func FilePollingInputSpec(c gs.Context) {
 		ith := new(plugins_ts.InputTestHelper)
 		ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 		ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-
-		ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
-		ith.PackSupply = make(chan *PipelinePack, 2)
-		ith.PackSupply <- ith.Pack
-		ith.PackSupply <- ith.Pack
+		ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 
 		config := input.ConfigStruct().(*FilePollingInputConfig)
 		config.FilePath = tmpFilePath
 
-		c.Specify("That is started", func() {
-			startInput := func() {
-				wg.Add(1)
-				go func() {
-					errChan <- input.Run(ith.MockInputRunner, ith.MockHelper)
-					wg.Done()
-				}()
-			}
+		startInput := func(msgCount int) {
+			wg.Add(1)
+			go func() {
+				errChan <- input.Run(ith.MockInputRunner, ith.MockHelper)
+				wg.Done()
+			}()
+		}
 
-			inputName := "FilePollingInput"
-			ith.MockInputRunner.EXPECT().Name().Return(inputName).AnyTimes()
-			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-			c.Specify("gets updated information when reading a file", func() {
+		ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
+		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
-				c.Specify("delivers messages", func() {
-					ith.MockInputRunner.EXPECT().Deliver(ith.Pack).Do(func(pack *PipelinePack) {
-						retPackChan <- pack
-					}).Times(2)
+		c.Specify("gets updated information when reading a file", func() {
 
-					err := input.Init(config)
-					c.Assume(err, gs.IsNil)
-				})
+			err := input.Init(config)
+			c.Assume(err, gs.IsNil)
 
-				startInput()
-
-				f, err := os.Create(tmpFilePath)
-				c.Expect(err, gs.IsNil)
-
-				_, err = f.Write([]byte("test1"))
-				c.Expect(err, gs.IsNil)
-				c.Expect(f.Close(), gs.IsNil)
-
-				tickChan <- time.Now()
-				pack := <-retPackChan
-				c.Expect(pack.Message.GetPayload(), gs.Equals, "test1")
-
-				f, err = os.Create(tmpFilePath)
-				c.Expect(err, gs.IsNil)
-
-				_, err = f.Write([]byte("test2"))
-				c.Expect(err, gs.IsNil)
-				c.Expect(f.Close(), gs.IsNil)
-
-				tickChan <- time.Now()
-				pack = <-retPackChan
-				c.Expect(pack.Message.GetPayload(), gs.Equals, "test2")
-
-				input.Stop()
-				wg.Wait()
-				c.Expect(<-errChan, gs.IsNil)
+			ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+			splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
+				nil).Return(io.EOF).Times(2)
+			splitCall.Do(func(f *os.File, del Deliverer) {
+				fBytes, err := ioutil.ReadAll(f)
+				if err != nil {
+					fBytes = []byte(err.Error())
+				}
+				bytesChan <- fBytes
 			})
+
+			startInput(2)
+
+			f, err := os.Create(tmpFilePath)
+			c.Expect(err, gs.IsNil)
+
+			_, err = f.Write([]byte("test1"))
+			c.Expect(err, gs.IsNil)
+			c.Expect(f.Close(), gs.IsNil)
+
+			tickChan <- time.Now()
+
+			msgBytes := <-bytesChan
+			c.Expect(string(msgBytes), gs.Equals, "test1")
+
+			f, err = os.Create(tmpFilePath)
+			c.Expect(err, gs.IsNil)
+
+			_, err = f.Write([]byte("test2"))
+			c.Expect(err, gs.IsNil)
+			c.Expect(f.Close(), gs.IsNil)
+
+			tickChan <- time.Now()
+			msgBytes = <-bytesChan
+			c.Expect(string(msgBytes), gs.Equals, "test2")
+
+			input.Stop()
+			wg.Wait()
+			c.Expect(<-errChan, gs.IsNil)
 		})
 
 	})

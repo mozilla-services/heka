@@ -1,7 +1,7 @@
 [udp_stats]
 type = "UdpInput"
 address = "127.0.0.1:29330"
-parser_type = "message.proto"
+splitter = "HekaFramingSplitter"
 decoder = "ProtobufDecoder"
 
 [WhatOutput]

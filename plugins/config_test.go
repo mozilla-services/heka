@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -190,7 +190,7 @@ func LoadFromConfigSpec(c gs.Context) {
 			c.Expect(err.Error(), ts.StringContains, "circular dependency detected")
 
 			// ProtobufDecoder will always be loaded
-			c.Assume(len(pipeConfig.DecoderMakers), gs.Equals, 0)
+			c.Assume(len(pipeConfig.DecoderMakers), gs.Equals, 1)
 
 		})
 

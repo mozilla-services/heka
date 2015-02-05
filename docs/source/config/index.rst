@@ -6,11 +6,11 @@ Configuring hekad
 
 .. start-hekad-config
 
-A hekad configuration file specifies what inputs, decoders, filters, encoders,
-and outputs will be loaded. The configuration file is in `TOML
-<https://github.com/mojombo/toml>`_ format. TOML looks very similar to INI
-configuration formats, but with slightly more rich data structures and nesting
-support.
+A hekad configuration file specifies what inputs, splitters, decoders,
+filters, encoders, and outputs will be loaded. The configuration file is in
+`TOML <https://github.com/mojombo/toml>`_ format. TOML looks very similar to
+INI configuration formats, but with slightly more rich data structures and
+nesting support.
 
 If hekad's config file is specified to be a directory, all contained files
 with a filename ending in ".toml" will be loaded and merged into a single
@@ -29,7 +29,7 @@ instance of Heka's plugin type "TcpInput":
 
     [tcp:5565]
     type = "TcpInput"
-    parser_type = "message.proto"
+    splitter = "HekaFramingSplitter"
     decoder = "ProtobufDecoder"
     address = ":5565"
 
@@ -42,7 +42,7 @@ be used as the type. Thus, the following section describes a plugin named
 
     [TcpInput]
     address = ":5566"
-    parser_type = "message.proto"
+    splitter = "HekaFramingSplitter"
     decoder = "ProtobufDecoder"
 
 Note that it's fine to have more than one instance of the same plugin type, as

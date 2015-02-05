@@ -1,6 +1,6 @@
 [UdpInput]
 address = "127.0.0.1:5565"
-parser_type = "message.proto"
+splitter = "HekaFramingSplitter"
 decoder = "ProtobufDecoder"
 
 [UdpInput.retries]

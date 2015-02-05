@@ -21,26 +21,63 @@ Example::
 
 Configuration Variables
 -----------------------
-- test (object): Name of the test section (toml key) in the configuration file.
-- ip_address (string): IP address of the Heka server.
-- sender (string): tcp or udp
-- pprof_file (string): The name of the file to save the profiling data to.
-- encoder (string): protobuf or json
-- num_messages (int): The number of messages to be sent, 0 for infinite.
-- corrupt_percentage (float): The percentage of messages that will be randomly corrupted.
-- signed_percentage (float): The percentage of message that will signed.
-- variable_size_messages (bool): True, if a random selection of variable size messages are to be sent.  False, if a single fixed message will be sent.
+
+- test (object):
+    Name of the test section (toml key) in the configuration file.
+
+- ip_address (string):
+    IP address of the Heka server.
+
+- sender (string):
+    tcp or udp
+
+- pprof_file (string):
+    The name of the file to save the profiling data to.
+
+- encoder (string):
+    protobuf or json
+
+- num_messages (int):
+    The number of messages to be sent, 0 for infinite.
+
+- message_interval (string):
+    Duration of time to delay between the sending of each message. Accepts
+    duration values as supported by Go's `time.ParseDuration function
+    <http://golang.org/pkg/time/#ParseDuration>`_. Default of 0 means no
+    delay.
+
+- corrupt_percentage (float):
+    The percentage of messages that will be randomly corrupted.
+
+- signed_percentage (float):
+    The percentage of message that will signed.
+
+- variable_size_messages (bool):
+    True, if a random selection of variable size messages are to be sent.
+    False, if a single fixed message will be sent.
+
 - signer (object): Signer information for the encoder.
+
     - name (string): The name of the signer.
     - hmac_hash (string): md5 or sha1
     - hmac_key (string): The key the message will be signed with.
     - version (int): The version number of the hmac_key.
-- ascii_only (bool): True, if generated message payloads should only contain ASCII characters. False, if message payloads should contain arbitrary binary data. Defaults to false.
+
+- ascii_only (bool):
+    True, if generated message payloads should only contain ASCII characters.
+    False, if message payloads should contain arbitrary binary data. Defaults
+    to false.
 
 .. versionadded:: 0.5
 
-- use_tls (bool): Specifies whether or not SSL/TLS encryption should be used for the TCP connections. Defaults to false.
-- tls (TlsConfig): A sub-section that specifies the settings to be used for any SSL/TLS encryption. This will only have any impact if `use_tls` is set to true. See :ref:`tls`.
+- use_tls (bool):
+    Specifies whether or not SSL/TLS encryption should be used for the TCP
+    connections. Defaults to false.
+
+- tls (TlsConfig):
+    A sub-section that specifies the settings to be used for any SSL/TLS
+    encryption. This will only have any impact if `use_tls` is set to true.
+    See :ref:`tls`.
 
 Example
 

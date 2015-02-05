@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -29,12 +29,10 @@ import (
 // Input plugin implementation that listens for Heka protocol messages on a
 // specified UDP socket.
 type UdpInput struct {
-	listener      net.Conn
-	name          string
-	stopChan      chan struct{}
-	config        *UdpInputConfig
-	parser        StreamParser
-	parseFunction NetworkParseFunction
+	listener net.Conn
+	name     string
+	stopChan chan struct{}
+	config   *UdpInputConfig
 }
 
 // ConfigStruct for NetworkInput plugins.
@@ -45,19 +43,12 @@ type UdpInputConfig struct {
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").
 	Address string
-	// Set of message signer objects, keyed by signer id string.
-	Signers map[string]Signer `toml:"signer"`
-	// Type of parser used to break the stream up into messages
-	ParserType string `toml:"parser_type"`
-	// Delimiter used to split the stream into messages
-	Delimiter string
-	// String indicating if the delimiter is at the start or end of the line,
-	// only used for regexp delimiters
-	DelimiterLocation string `toml:"delimiter_location"`
 }
 
 func (u *UdpInput) ConfigStruct() interface{} {
-	return &UdpInputConfig{Net: "udp"}
+	return &UdpInputConfig{
+		Net: "udp",
+	}
 }
 
 func (u *UdpInput) Init(config interface{}) (err error) {
@@ -106,53 +97,26 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
 	}
-	if u.config.ParserType == "message.proto" {
-		mp := NewMessageProtoParser()
-		u.parser = mp
-		u.parseFunction = NetworkMessageProtoParser
-	} else if u.config.ParserType == "regexp" {
-		rp := NewRegexpParser()
-		u.parser = rp
-		u.parseFunction = NetworkPayloadParser
-		if err = rp.SetDelimiter(u.config.Delimiter); err != nil {
-			return err
-		}
-		if err = rp.SetDelimiterLocation(u.config.DelimiterLocation); err != nil {
-			return err
-		}
-	} else if u.config.ParserType == "token" {
-		tp := NewTokenParser()
-		u.parser = tp
-		u.parseFunction = NetworkPayloadParser
-		switch len(u.config.Delimiter) {
-		case 0: // no value was set, the default provided by the StreamParser will be used
-		case 1:
-			tp.SetDelimiter(u.config.Delimiter[0])
-		default:
-			return fmt.Errorf("invalid delimiter: %s", u.config.Delimiter)
-		}
-	} else {
-		return fmt.Errorf("unknown parser type: %s", u.config.ParserType)
-	}
-	u.parser.SetMinimumBufferSize(1024 * 64)
 	u.stopChan = make(chan struct{})
 	return
 }
 
 func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
+	sr := ir.NewSplitterRunner("")
 	ok := true
 	var err error
+
 	for ok {
 		select {
 		case _, ok = <-u.stopChan:
 			break
 		default:
-			err = u.parseFunction(u.listener, u.parser, ir, u.config.Signers, ir.Deliver)
+			err = sr.SplitStream(u.listener, nil)
 			// "use of closed" -> we're stopping.
 			if err != nil && !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: %s", err))
 			}
-			u.parser.GetRemainingData() // reset the receiving buffer
+			sr.GetRemainingData() // reset the receiving buffer
 		}
 	}
 	if u.config.Net == "unixgram" {

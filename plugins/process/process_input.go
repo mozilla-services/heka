@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,8 +17,6 @@
 package process
 
 import (
-	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -85,21 +83,6 @@ type ProcessInputConfig struct {
 	// Skips wait
 	ImmediateStart bool `toml:"immediate_start"`
 
-	// ParserType is the parser used to split program output into heka
-	// messages. Defaults to "token".
-	ParserType string `toml:"parser_type"`
-
-	// Delimiter used to split the output stream into heka messages. Defaults
-	// to newline.
-	Delimiter string
-
-	// String indicating if the delimiter is at the start or end of the line.
-	// Only used for regexp delimiters
-	DelimiterLocation string `toml:"delimiter_location"`
-
-	// Trim newline characters from the right side of each record.
-	Trim bool `toml:"trim"`
-
 	// Timeout in seconds.
 	TimeoutSeconds uint `toml:"timeout"`
 
@@ -111,18 +94,6 @@ type ProcessInputConfig struct {
 // we can't use `==`.
 func (pic *ProcessInputConfig) Equals(otherPic *ProcessInputConfig) bool {
 	if pic.TickerInterval != otherPic.TickerInterval {
-		return false
-	}
-	if pic.ParserType != otherPic.ParserType {
-		return false
-	}
-	if pic.Delimiter != otherPic.Delimiter {
-		return false
-	}
-	if pic.DelimiterLocation != otherPic.DelimiterLocation {
-		return false
-	}
-	if pic.Trim != otherPic.Trim {
 		return false
 	}
 	if pic.TimeoutSeconds != otherPic.TimeoutSeconds {
@@ -161,18 +132,17 @@ type ProcessInput struct {
 	parseStdout bool
 	parseStderr bool
 
-	stdoutChan chan string
-	stderrChan chan string
+	stdoutDeliverer Deliverer
+	stdoutSRunner   SplitterRunner
+	stderrDeliverer Deliverer
+	stderrSRunner   SplitterRunner
 
 	stopChan chan bool
-	parser   StreamParser
 
 	hostname       string
-	heka_pid       int32
+	hekaPid        int32
 	tickInterval   uint
 	immediateStart bool
-
-	trim bool
 
 	once sync.Once
 }
@@ -183,10 +153,8 @@ func (pi *ProcessInput) ConfigStruct() interface{} {
 	return &ProcessInputConfig{
 		TickerInterval: uint(15),
 		ImmediateStart: false,
-		ParserType:     "token",
 		ParseStdout:    true,
 		ParseStderr:    false,
-		Trim:           true,
 	}
 }
 
@@ -194,11 +162,7 @@ func (pi *ProcessInput) ConfigStruct() interface{} {
 func (pi *ProcessInput) Init(config interface{}) (err error) {
 	conf := config.(*ProcessInputConfig)
 
-	pi.stdoutChan = make(chan string)
-	pi.stderrChan = make(chan string)
 	pi.stopChan = make(chan bool)
-
-	pi.trim = conf.Trim
 
 	pi.tickInterval = conf.TickerInterval
 	pi.immediateStart = conf.ImmediateStart
@@ -230,33 +194,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 		}
 	}
 
-	switch conf.ParserType {
-	case "token":
-		tp := NewTokenParser()
-		pi.parser = tp
-
-		switch len(conf.Delimiter) {
-		case 0: // no value was set, the default provided by the StreamParser will be used
-		case 1:
-			tp.SetDelimiter(conf.Delimiter[0])
-		default:
-			return fmt.Errorf("invalid delimiter: %s", conf.Delimiter)
-		}
-
-	case "regexp":
-		rp := NewRegexpParser()
-		pi.parser = rp
-		if err = rp.SetDelimiter(conf.Delimiter); err != nil {
-			return err
-		}
-		if err = rp.SetDelimiterLocation(conf.DelimiterLocation); err != nil {
-			return nil
-		}
-	default:
-		return fmt.Errorf("unknown parser type: %s", conf.ParserType)
-	}
-
-	pi.heka_pid = int32(os.Getpid())
+	pi.hekaPid = int32(os.Getpid())
 
 	return nil
 }
@@ -270,53 +208,43 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	pi.ir = ir
 	pi.hostname = h.Hostname()
 
-	var (
-		pack *PipelinePack
-		data string
-	)
-	ok := true
+	if pi.parseStdout {
+		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
+	}
+
+	if pi.parseStderr {
+		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
+	}
 
 	// Start the output parser and start running commands.
 	go pi.RunCmd()
 
-	packSupply := ir.InChan()
-	// Wait for and route populated PipelinePacks.
-	for ok {
-		select {
-		case data, ok = <-pi.stdoutChan:
-			if !ok {
-				break
-			}
-			pack = <-packSupply
-			pi.writeToPack(data, pack, "stdout")
-			ir.Deliver(pack)
-		case data = <-pi.stderrChan:
-			pack = <-packSupply
-			pi.writeToPack(data, pack, "stderr")
-			ir.Deliver(pack)
-		case <-pi.stopChan:
-			ok = false
-		}
-	}
+	// Wait for stop signal.
+	<-pi.stopChan
 
 	return nil
 }
 
-func (pi *ProcessInput) writeToPack(data string, pack *PipelinePack, stream_name string) {
-	pack.Message.SetUuid(uuid.NewRandom())
-	pack.Message.SetTimestamp(time.Now().UnixNano())
-	pack.Message.SetType("ProcessInput")
-	pack.Message.SetPid(pi.heka_pid)
-	pack.Message.SetHostname(pi.hostname)
-	pack.Message.SetLogger(pi.ir.Name())
-	pack.Message.SetPayload(data)
-	fPInputName, err := message.NewField("ProcessInputName",
-		fmt.Sprintf("%s.%s", pi.ProcessName, stream_name), "")
-	if err == nil {
-		pack.Message.AddField(fPInputName)
-	} else {
-		pi.ir.LogError(err)
+func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunner) {
+	deliverer := pi.ir.NewDeliverer(streamName)
+	sRunner := pi.ir.NewSplitterRunner(streamName)
+	if !sRunner.UseMsgBytes() {
+		packDecorator := func(pack *PipelinePack) {
+			pack.Message.SetType("ProcessInput")
+			pack.Message.SetPid(pi.hekaPid)
+			pack.Message.SetHostname(pi.hostname)
+			fPInputName, err := message.NewField("ProcessInputName",
+				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
+			if err == nil {
+				pack.Message.AddField(fPInputName)
+			} else {
+				pi.ir.LogError(err)
+			}
+		}
+		sRunner.SetPackDecorator(packDecorator)
 	}
+
+	return deliverer, sRunner
 }
 
 func (pi *ProcessInput) Stop() {
@@ -327,35 +255,36 @@ func (pi *ProcessInput) Stop() {
 }
 
 // RunCmd pipes multiple commands together, runs them per the configured
-// msInterval, and passes the output to the provided stdout.
+// msInterval, and passes the output to the appropriate splitter.
 func (pi *ProcessInput) RunCmd() {
-	var err error
+	defer func() {
+		if pi.parseStdout {
+			pi.stdoutDeliverer.Done()
+		}
+		if pi.parseStderr {
+			pi.stderrDeliverer.Done()
+		}
+	}()
+
 	if pi.tickInterval == 0 {
 		pi.runOnce()
-		close(pi.stdoutChan)
-	} else {
+		pi.Stop()
+		return
+	}
 
-		if pi.immediateStart {
+	if pi.immediateStart {
+		pi.runOnce()
+	}
+	tickChan := pi.ir.Ticker()
+	for {
+		select {
+		case <-tickChan:
+			// No need to spin up a new goroutine as we've already
+			// detached from the main thread.
+			pi.cc = pi.cc.clone()
 			pi.runOnce()
-		}
-
-		tickChan := pi.ir.Ticker()
-		for {
-			select {
-			case <-tickChan:
-				// No need to spin up a new goroutine as we've already
-				// detached from the main thread.
-				pi.cc = pi.cc.clone()
-
-				if err != nil {
-					pi.ir.LogError(fmt.Errorf("%s Error cloning CommandChain: [%s]",
-						pi.ProcessName,
-						err.Error()))
-				}
-				pi.runOnce()
-			case <-pi.stopChan:
-				return
-			}
+		case <-pi.stopChan:
+			return
 		}
 	}
 }
@@ -369,22 +298,32 @@ func (pi *ProcessInput) runOnce() {
 			pi.ProcessName, err.Error()))
 	}
 
-	if pi.parseStdout {
-		var stdoutReader io.Reader
-		if stdoutReader, err = pi.cc.Stdout_r(); err == nil {
-			go pi.ParseOutput(stdoutReader, pi.stdoutChan)
-		} else {
-			pi.ir.LogError(fmt.Errorf("Error getting stdout channel: %s", err))
+	// We don't get EOF on the pipe readers unless we drain both the stdout
+	// and the stderr pipes.
+	throwAway := func(r io.Reader) {
+		scratch := make([]byte, 500)
+		var e error
+		for e == nil {
+			_, e = r.Read(scratch)
 		}
 	}
 
-	if pi.parseStderr {
-		var stderrReader io.Reader
-		if stderrReader, err = pi.cc.Stderr_r(); err == nil {
-			go pi.ParseOutput(stderrReader, pi.stderrChan)
-		} else {
-			pi.ir.LogError(fmt.Errorf("Error getting stderr channel: %s", err))
-		}
+	var stdoutReader io.Reader
+	if stdoutReader, err = pi.cc.Stdout_r(); err != nil {
+		pi.ir.LogError(fmt.Errorf("Error getting stdout reader: %s", err))
+	} else if pi.parseStdout {
+		go pi.ParseOutput(stdoutReader, pi.stdoutDeliverer, pi.stdoutSRunner)
+	} else {
+		go throwAway(stdoutReader)
+	}
+
+	var stderrReader io.Reader
+	if stderrReader, err = pi.cc.Stderr_r(); err != nil {
+		pi.ir.LogError(fmt.Errorf("Error getting stderr reader: %s", err))
+	} else if pi.parseStderr {
+		go pi.ParseOutput(stderrReader, pi.stderrDeliverer, pi.stderrSRunner)
+	} else {
+		go throwAway(stderrReader)
 	}
 
 	err = pi.cc.Wait()
@@ -394,46 +333,19 @@ func (pi *ProcessInput) runOnce() {
 	}
 }
 
-func (pi *ProcessInput) ParseOutput(r io.Reader, outputChannel chan string) {
-	var (
-		record []byte
-		err    error
-	)
+func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
+	sRunner SplitterRunner) {
 
-	for err == nil {
-		// Use configured StreamParser to split output from commands.
-		_, record, err = pi.parser.Parse(r)
-		if err != nil {
-			if err == io.EOF {
-				record = pi.parser.GetRemainingData()
-			} else if err == io.ErrShortBuffer {
-				pi.ir.LogError(fmt.Errorf("record exceeded MAX_RECORD_SIZE %d",
-					message.MAX_RECORD_SIZE))
-				err = nil // non-fatal, keep going
-			}
-		}
+	err := sRunner.SplitStream(r, deliverer)
+	// Go doesn't seem to have a good solution to streaming output
+	// between subprocesses.  It seems like you have to read *all* the
+	// content in a goroutine instead of just streaming the content.
+	//
+	// See: http://code.google.com/p/go/issues/detail?id=2266
+	// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
+	if err != nil && err != io.ErrShortBuffer && err != io.EOF &&
+		!strings.Contains(err.Error(), "read |0: bad file descriptor") {
 
-		if pi.trim && record != nil {
-			record = bytes.TrimRight(record, "\n")
-		}
-
-		if len(record) > 0 {
-			// Setup and send the Message
-			outputChannel <- string(record)
-		}
-
-		if err != nil {
-			// Go doesn't seem to have a good solution to streaming output
-			// between subprocesses.  It seems like you have to read *all* the
-			// content in a goroutine instead of just streaming the content.
-			//
-			// See: http://code.google.com/p/go/issues/detail?id=2266
-			// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
-			if !strings.Contains(err.Error(), "read |0: bad file descriptor") &&
-				(err != io.EOF) {
-				pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
-			}
-		}
 	}
 }
 

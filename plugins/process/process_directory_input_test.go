@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -36,23 +36,24 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	config := NewPipelineConfig(nil)
+	pConfig := NewPipelineConfig(nil)
 	ith := new(plugins_ts.InputTestHelper)
 	ith.Msg = pipeline_ts.GetTestMessage()
-	ith.Pack = NewPipelinePack(config.InputRecycleChan())
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	// set up mock helper, decoder set, and packSupply channel
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
+	ith.MockDeliverer = pipelinemock.NewMockDeliverer(ctrl)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
 
 	ith.PackSupply <- ith.Pack
 
-	ith.DecodeChan = make(chan *PipelinePack)
+	err := pConfig.RegisterDefault("NullSplitter")
+	c.Assume(err, gs.IsNil)
 
 	c.Specify("A ProcessDirectoryInput", func() {
-		pConfig := NewPipelineConfig(nil)
 		pdiInput := ProcessDirectoryInput{}
 		pdiInput.SetPipelineConfig(pConfig)
 

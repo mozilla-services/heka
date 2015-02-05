@@ -4,28 +4,26 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Christian Vozar (christian@bellycard.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Anton Lindstrom (carlantonlindstrom@gmail.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package http
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
-	"time"
 )
 
 type HttpListenInput struct {
@@ -33,96 +31,123 @@ type HttpListenInput struct {
 	listener    net.Listener
 	stopChan    chan bool
 	ir          InputRunner
-	dRunner     DecoderRunner
-	pConfig     *PipelineConfig
 	server      *http.Server
 	starterFunc func(hli *HttpListenInput) error
+	hekaPid     int32
 }
 
 // HTTP Listen Input config struct
 type HttpListenInputConfig struct {
 	// TCP Address to listen to for SNS notifications.
 	// Defaults to "0.0.0.0:8325".
-	Address      string
-	Headers      http.Header
-	UnescapeBody bool `toml:"unescape_body"`
+	Address        string
+	Headers        http.Header
+	RequestHeaders []string `toml:"request_headers"`
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
 	return &HttpListenInputConfig{
-		Address:      "127.0.0.1:8325",
-		Headers:      make(http.Header),
-		UnescapeBody: true,
+		Address:        "127.0.0.1:8325",
+		Headers:        make(http.Header),
+		RequestHeaders: []string{},
 	}
 }
 
 func defaultStarter(hli *HttpListenInput) (err error) {
 	hli.listener, err = net.Listen("tcp", hli.conf.Address)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Listener [%s] start fail: %s\n",
+		return fmt.Errorf("Listener [%s] start fail: %s",
 			hli.conf.Address, err.Error())
 	} else {
-		hli.ir.LogMessage(fmt.Sprintf("[HttpListenInput (%s)] Listening.",
+		hli.ir.LogMessage(fmt.Sprintf("Listening on %s",
 			hli.conf.Address))
 	}
 
 	err = hli.server.Serve(hli.listener)
 	if err != nil {
-		return fmt.Errorf("[HttpListenInput] Serve fail: %s\n", err.Error())
+		return fmt.Errorf("Serve fail: %s", err.Error())
 	}
 
 	return nil
 }
 
-func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
-	body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		hli.ir.LogError(fmt.Errorf("[HttpListenInput] Read HTTP request body fail: %s\n", err.Error()))
-	}
-	req.Body.Close()
-
-	pack := <-hli.ir.InChan()
-	pack.Message.SetUuid(uuid.NewRandom())
-	pack.Message.SetTimestamp(time.Now().UnixNano())
-	pack.Message.SetType("heka.httpdata.request")
-	pack.Message.SetLogger(hli.ir.Name())
-	pack.Message.SetHostname(req.RemoteAddr)
-	pack.Message.SetPid(int32(os.Getpid()))
-	pack.Message.SetSeverity(int32(6))
-	if hli.conf.UnescapeBody {
-		unEscapedBody, _ := url.QueryUnescape(string(body))
-		pack.Message.SetPayload(unEscapedBody)
-	} else {
-		pack.Message.SetPayload(string(body))
-	}
-	if field, err := message.NewField("Protocol", req.Proto, ""); err == nil {
-		pack.Message.AddField(field)
-	} else {
-		hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
-	}
-	if field, err := message.NewField("UserAgent", req.UserAgent(), ""); err == nil {
-		pack.Message.AddField(field)
-	} else {
-		hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
-	}
-	if field, err := message.NewField("ContentType", req.Header.Get("Content-Type"), ""); err == nil {
-		pack.Message.AddField(field)
-	} else {
-		hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
-	}
-
-	for key, values := range req.URL.Query() {
-		for i := range values {
-			value := values[i]
-			if field, err := message.NewField(key, value, ""); err == nil {
+func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelinePack) {
+	packDecorator := func(pack *PipelinePack) {
+		pack.Message.SetType("heka.httpdata.request")
+		pack.Message.SetPid(hli.hekaPid)
+		pack.Message.SetSeverity(int32(6))
+		if field, err := message.NewField("Protocol", req.Proto, ""); err == nil {
+			pack.Message.AddField(field)
+		} else {
+			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+		}
+		if field, err := message.NewField("UserAgent", req.UserAgent(), ""); err == nil {
+			pack.Message.AddField(field)
+		} else {
+			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+		}
+		if field, err := message.NewField("ContentType", req.Header.Get("Content-Type"), ""); err == nil {
+			pack.Message.AddField(field)
+		} else {
+			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+		}
+		for _, key := range hli.conf.RequestHeaders {
+			value := req.Header.Get(key)
+			if len(value) == 0 {
+				continue
+			} else if field, err := message.NewField(key, value, ""); err == nil {
 				pack.Message.AddField(field)
 			} else {
 				hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
 		}
+		for key, values := range req.URL.Query() {
+			for i := range values {
+				value := values[i]
+				if field, err := message.NewField(key, value, ""); err == nil {
+					pack.Message.AddField(field)
+				} else {
+					hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+				}
+			}
+		}
 	}
+	return packDecorator
+}
 
-	hli.ir.Deliver(pack)
+func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
+	sRunner := hli.ir.NewSplitterRunner(req.RemoteAddr)
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(hli.makePackDecorator(req))
+	}
+	var (
+		record  []byte
+		err     error
+		deliver bool
+	)
+	for err == nil {
+		deliver = true
+		_, record, err = sRunner.GetRecordFromStream(req.Body)
+		if err == io.ErrShortBuffer {
+			if sRunner.KeepTruncated() {
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated",
+					message.MAX_RECORD_SIZE)
+			} else {
+				deliver = false
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped",
+					message.MAX_RECORD_SIZE)
+			}
+			hli.ir.LogError(err)
+			err = nil // non-fatal, keep going
+		}
+		if len(record) > 0 && deliver {
+			sRunner.DeliverRecord(record, nil)
+		}
+	}
+	req.Body.Close()
+	if err != io.EOF {
+		hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
+	}
 }
 
 func (hli *HttpListenInput) Init(config interface{}) (err error) {
@@ -136,13 +161,12 @@ func (hli *HttpListenInput) Init(config interface{}) (err error) {
 	hli.server = &http.Server{
 		Handler: CustomHeadersHandler(handler, hli.conf.Headers),
 	}
-
+	hli.hekaPid = int32(os.Getpid())
 	return nil
 }
 
 func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	hli.ir = ir
-	hli.pConfig = h.PipelineConfig()
 	err = hli.starterFunc(hli)
 	if err != nil {
 		return err

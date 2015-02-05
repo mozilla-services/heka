@@ -246,6 +246,7 @@ func getTestMessage() *message.Message {
 	msg.SetHostname(hostname)
 	msg.AddField(field)
 
+	var emptyByte []byte
 	data := []byte("data")
 	field1, _ := message.NewField("bytes", data, "")
 	field2, _ := message.NewField("int", int64(999), "")
@@ -254,12 +255,14 @@ func getTestMessage() *message.Message {
 	field4, _ := message.NewField("bool", true, "")
 	field5, _ := message.NewField("foo", "alternate", "")
 	field6, _ := message.NewField("false", false, "")
+	field7, _ := message.NewField("empty_bytes", emptyByte, "")
 	msg.AddField(field1)
 	msg.AddField(field2)
 	msg.AddField(field3)
 	msg.AddField(field4)
 	msg.AddField(field5)
 	msg.AddField(field6)
+	msg.AddField(field7)
 	return msg
 }
 
