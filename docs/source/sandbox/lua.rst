@@ -44,7 +44,7 @@ Functions that must be exposed from the Lua sandbox
 
 Core functions that are exposed to the Lua sandbox
 --------------------------------------------------
-See: https://github.com/mozilla-services/lua_sandbox/blob/master/docs/sandbox_api.md
+See: https://github.com/mozilla-services/lua_sandbox/
 
 **require(libraryName)**
 

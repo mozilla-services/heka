@@ -73,13 +73,19 @@ if (MINGW)
         set(ADDRESS_MODEL 32)
     endif()
     set(LDFLAGS "-ldflags=\"-s\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -lluasandbox -llua -lm")
     set(CPACK_GENERATOR "ZIP")
 elseif(APPLE)
     set(CPACK_GENERATOR "PackageMaker")
     set(LDFLAGS "-ldflags=\"-linkmode=external\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -lluasandbox -llua -ldl -lm")
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
     set(LDFLAGS "-ldflags=\"-s\"")
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+        set(LINK_DL "-ldl")
+    endif()
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -Wl,-rpath,$ORIGIN/../lib -lluasandbox -llua ${LINK_DL} -lm")
 
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
 
@@ -168,11 +174,6 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 if (MINGW AND INCLUDE_SANDBOX)
-    set(LUA_DLL_PATH "${PROJECT_PATH}/lib/liblua.dll")
-    set(LPEG_DLL_PATH "${PROJECT_PATH}/lib/liblpeg.dll")
-    set(CJSON_DLL_PATH "${PROJECT_PATH}/lib/libcjson.dll")
-    set(LUASANDBOX_DLL_PATH "${PROJECT_PATH}/lib/libluasandbox.dll")
-    install(FILES ${LUA_DLL_PATH} ${LPEG_DLL_PATH} ${CJSON_DLL_PATH} ${LUASANDBOX_DLL_PATH} DESTINATION bin)
     add_custom_command(TARGET heka_source POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
@@ -181,6 +182,9 @@ if (MINGW AND INCLUDE_SANDBOX)
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
     COMMENT "Install dll's for the mock generation and unit tests")
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION bin PATTERN "*.dll")
+else()
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib PATTERN "*${CMAKE_SHARED_LIBRARY_SUFFIX}")
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
@@ -238,7 +242,6 @@ if (UNIX AND DPKG_EXECUTABLE)
     DEPENDS hekad
     COMMENT "Custom deb target")
 endif()
-
 add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
@@ -265,8 +268,9 @@ add_test(plugins/udp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.c
 add_test(logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/logstreamer)
 add_test(client ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/client)
 if(INCLUDE_SANDBOX)
-	add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
-	add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)
+    add_test(sandbox_move_modules cmake -E copy_directory ${CMAKE_BINARY_DIR}/heka/modules ${CMAKE_BINARY_DIR}/heka/src/github.com/mozilla-services/heka/sandbox/lua/modules)
+    add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
+    add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)
 endif()
 if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)

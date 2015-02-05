@@ -32,6 +32,7 @@ func DecoderSpec(c gs.Context) {
 		c.Specify("that uses lpeg and inject_message", func() {
 			dRunner.EXPECT().Name().Return("serialize")
 			conf.ScriptFilename = "../lua/testsupport/decoder.lua"
+			conf.ModuleDirectory = "../lua/modules"
 			err := decoder.Init(conf)
 			c.Assume(err, gs.IsNil)
 
@@ -77,6 +78,7 @@ func DecoderSpec(c gs.Context) {
 
 			c.Specify("Preserves data", func() {
 				conf.ScriptFilename = "../lua/testsupport/serialize.lua"
+				conf.ModuleDirectory = "../lua/modules"
 				conf.PreserveData = true
 				err := decoder.Init(conf)
 				c.Assume(err, gs.IsNil)
@@ -91,6 +93,7 @@ func DecoderSpec(c gs.Context) {
 
 		c.Specify("that only uses write_message", func() {
 			conf.ScriptFilename = "../lua/testsupport/write_message_decoder.lua"
+			conf.ModuleDirectory = "../lua/modules"
 			dRunner.EXPECT().Name().Return("write_message")
 			err := decoder.Init(conf)
 			decoder.SetDecoderRunner(dRunner)
@@ -198,6 +201,7 @@ func DecoderSpec(c gs.Context) {
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/testsupport/multipack_decoder.lua"
+		conf.ModuleDirectory = "../lua/modules"
 		supply := make(chan *pipeline.PipelinePack, 3)
 		pack := pipeline.NewPipelinePack(supply)
 		pack.Message = getTestMessage()
@@ -237,7 +241,7 @@ func DecoderSpec(c gs.Context) {
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/linux_loadavg.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		supply := make(chan *pipeline.PipelinePack, 1)
@@ -298,7 +302,7 @@ func DecoderSpec(c gs.Context) {
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/linux_memstats.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		supply := make(chan *pipeline.PipelinePack, 1)
@@ -358,7 +362,7 @@ HugePages_Free:        0
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/linux_diskstats.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		supply := make(chan *pipeline.PipelinePack, 1)
@@ -468,7 +472,7 @@ HugePages_Free:        0
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/nginx_access.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["log_format"] = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
@@ -537,7 +541,7 @@ HugePages_Free:        0
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/apache_access.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["log_format"] = "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
@@ -606,7 +610,7 @@ HugePages_Free:        0
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/rsyslog.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["type"] = "MyTestFormat"
@@ -676,7 +680,7 @@ HugePages_Free:        0
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/mysql_slow_query.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["truncate_sql"] = int64(5)
@@ -716,7 +720,7 @@ WHERE id = 10;`
 		decoder.SetPipelineConfig(pConfig)
 		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/decoders/mariadb_slow_query.lua"
-		conf.ModuleDirectory = "../../../../../../modules"
+		conf.ModuleDirectory = "../lua/modules"
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["truncate_sql"] = int64(5)

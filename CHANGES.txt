@@ -50,8 +50,12 @@ Bug Handling
 
 * HttpListenInput no longer URL unescapes the HTTP request body (#1124).
 
+* SmtpOutput now encodes email subject when necessary (#1277).
+
 Features
 --------
+
+* Include the new lua_sandbox with support for shared library modules.
 
 * Allow the sandbox process_message function to set the last error string
   when it returns (#1191).
@@ -90,7 +94,11 @@ Features
 
 * Added ability for HttpListenInput to capture specified HTTP request headers
   and write them as message fields.
-
+  
+* Added ability for Statsd input handler to treat a malformed stat line
+  one at time without skipping all the "good" stats in a multi-line input
+  (more like statsd itself).
+  
 * Added `message_interval` setting support to heka-flood test configuration.
 
 0.8.3 (2015-01-08)

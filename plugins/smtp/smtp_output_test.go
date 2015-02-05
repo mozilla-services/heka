@@ -4,12 +4,13 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
 #   Christian Vozar (christian@bellycard.com)
+#   Kun Liu (git@lk.vc)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -26,7 +27,6 @@ import (
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net/smtp"
 	"sync"
-	"testing"
 	//"time"
 )
 
@@ -47,15 +47,6 @@ func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte
 	}
 	sendCount++
 	return nil
-}
-
-func TestAllSpecs(t *testing.T) {
-	r := gs.NewRunner()
-	r.Parallel = false
-
-	r.AddSpec(SmtpOutputSpec)
-
-	gs.MainGoTest(r, t)
 }
 
 func SmtpOutputSpec(c gs.Context) {
@@ -107,6 +98,24 @@ func SmtpOutputSpec(c gs.Context) {
 			close(inChan)
 			wg.Wait()
 		})
+	})
+
+	c.Specify("SmtpOutput Message Body Encoding", func() {
+		smtpOutput := new(SmtpOutput)
+		chars := "123456789012345678901234567890123456789012345678901234567"
+		charsE := "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3"
+		examples := [][]string{
+			{"Hello", "SGVsbG8="},
+			{chars, charsE},
+			{chars + chars, charsE + "\r\n" + charsE},
+			{chars + chars + "Hello", charsE + "\r\n" + charsE + "\r\n" + "SGVsbG8="},
+			{"", ""},
+			{"1", "MQ=="},
+		}
+		for _, example := range examples {
+			smtpOutput.encodeFullMsg([]byte(example[0]))
+			c.Expect(string(smtpOutput.fullMsg), gs.Equals, example[1])
+		}
 	})
 
 	// // Use this test with a real server
