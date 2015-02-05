@@ -93,7 +93,7 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 		}
 		for err == nil {
 			err = sRunner.SplitStream(f, nil)
-			if err != io.EOF {
+			if err != io.EOF && err != nil {
 				runner.LogError(fmt.Errorf("Error reading file: %s", err.Error()))
 			}
 		}
