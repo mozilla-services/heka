@@ -1,6 +1,9 @@
+.. _config_irc_output:
 
-IrcOutput
-===============
+IRC Output
+==========
+
+Plugin Name: **IrcOutput**
 
 Connects to an Irc Server and sends messages to the specified Irc channels.
 Output is encoded using the specified encoder, and expects output to be properly

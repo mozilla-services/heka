@@ -1,6 +1,9 @@
+.. _config_regex_splitter:
 
-RegexSplitter
-=============
+Regex Splitter
+==============
+
+Plugin Name: **RegexSplitter**
 
 A RegexSplitter considers any text that matches a specified regular expression
 to represent a boundary on which records should be split. The regular

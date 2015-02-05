@@ -1,6 +1,9 @@
+.. _config_amqp_output:
 
-AMQPOutput
-==========
+AMQP Output
+===========
+
+Plugin Name: **AMQPOutput**
 
 Connects to a remote AMQP broker (RabbitMQ) and sends messages to the
 specified queue. The message is serialized if specified, otherwise only

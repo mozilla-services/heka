@@ -1,8 +1,11 @@
+.. _config_statstofieldsdecoder:
 
-StatsToFieldsDecoder
-====================
+Stats To Fields Decoder
+=======================
 
 .. versionadded:: 0.4
+
+Plugin Name: **StatsToFieldsDecoder**
 
 The StatsToFieldsDecoder will parse time series statistics data in the
 `graphite message format <http://graphite.wikidot.com/getting-your-data-into-

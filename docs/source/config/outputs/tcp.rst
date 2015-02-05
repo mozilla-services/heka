@@ -1,6 +1,9 @@
+.. _config_tcp_output:
 
-TcpOutput
-=========
+TCP Output
+==========
+
+Plugin Name: **TcpOutput**
 
 Output plugin that delivers Heka message data to a listening TCP connection.
 Can be used to deliver messages from a local running Heka agent to a remote

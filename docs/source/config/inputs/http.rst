@@ -1,6 +1,9 @@
+.. _config_http_input:
 
-HttpInput
-=========
+HTTP Input
+==========
+
+Plugin Name: **HttpInput**
 
 HttpInput plugins intermittently poll remote HTTP URLs for data and populate
 message objects based on the results of the HTTP interactions. Messages will

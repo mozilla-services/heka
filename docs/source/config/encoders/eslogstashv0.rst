@@ -1,6 +1,9 @@
+.. _config_eslogstashv0encoder:
 
-ESLogstashV0Encoder
-===================
+ElasticSearch Logstash V0 Encoder
+=================================
+
+Plugin Name: **ESLogstashV0Encoder**
 
 This encoder serializes a Heka message into a JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch

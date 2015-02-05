@@ -32,14 +32,13 @@ initialization code.
 	cases, but defaults to true for the HekaFramingSplitter, which is almost
 	always used with the ProtobufDecoder.
 
-.. _config_heka_framing_splitter:
-.. include:: /config/splitters/heka_framing.rst
+Available Splitter Plugins
+==========================
 
-.. _config_null_splitter:
-.. include:: /config/splitters/null.rst
+.. toctree::
+   :maxdepth: 1
 
-.. _config_regex_splitter:
-.. include:: /config/splitters/regex.rst
-
-.. _config_token_splitter:
-.. include:: /config/splitters/token.rst
+   heka_framing
+   null
+   regex
+   token

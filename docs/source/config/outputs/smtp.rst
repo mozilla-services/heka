@@ -1,6 +1,9 @@
+.. _config_smtp_output:
 
-SmtpOutput
-==========
+SMTP Output
+===========
+
+Plugin Name: **SmtpOutput**
 
 .. versionadded:: 0.5
 

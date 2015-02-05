@@ -1,6 +1,7 @@
 .. _sandboxfilter:
 
 .. include:: ../config/filters/sandbox.rst
+   :start-line: 1
 
 .. _sandboxfilters:
 

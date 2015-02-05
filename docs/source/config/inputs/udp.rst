@@ -1,6 +1,9 @@
+.. _config_udp_input:
 
-UdpInput
-========
+UDP Input
+=========
+
+Plugin Name: **UdpInput**
 
 Listens on a specific UDP address and port for messages. If the message is
 signed it is verified against the signer name and specified key version. If

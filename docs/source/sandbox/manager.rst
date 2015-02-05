@@ -1,6 +1,7 @@
 .. _sandboxmanager:
 
 .. include:: ../config/filters/sandboxmanager.rst
+   :start-line: 1
 
 Control Message
 ---------------

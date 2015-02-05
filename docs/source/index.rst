@@ -34,32 +34,39 @@ questions, report problems, or learn more:
 * Github Project: https://github.com/mozilla-services/heka/
 * IRC: #heka channel on irc.mozilla.org
 
-Heka is a heavily plugin based system. There are six different types of Heka
-plugins:
+Heka is a heavily plugin based system. Common operations such as adding data
+to Heka, processing it, and writing it out are implemented as plugins. Heka
+ships with numerous plugins for performing common tasks.
 
-* :ref:`config_inputs`
+There are six different types of Heka plugins:
+
+:ref:`config_inputs`
 
   Input plugins acquire data from the outside world and inject it into the
   Heka pipeline. They can do this by reading files from a file system,
   actively making network connections to acquire data from remote servers,
   listening on a network socket for external actors to push data in, launching
   processes on the local system to gather arbitrary data, or any other
-  mechanism. They must be written in Go.
+  mechanism.
 
-* :ref:`config_splitters`
+  Input plugins must be written in Go.
+
+:ref:`config_splitters`
 
   Splitter plugins receive the data that is being acquired by an input plugin
   and slice it up into individual records. They must be written in Go.
 
-* :ref:`config_decoders`
+:ref:`config_decoders`
 
   Decoder plugins convert data that comes in through the Input plugins to
   Heka's internal Message data structure. Typically decoders are responsible
   for any parsing, deserializing, or extracting of structure from unstructured
-  data that needs to happen. They can be written entirely in Go, or the core
-  logic can be written in sandboxed Lua code.
+  data that needs to happen.
 
-* :ref:`config_filters`
+  Decoder plugins can be written entirely in Go, or the core logic can
+  be written in sandboxed Lua code.
+
+:ref:`config_filters`
 
   Filter plugins are Heka's processing engines. They are configured to receive
   messages matching certain specific characteristics (using Heka's
@@ -68,38 +75,39 @@ plugins:
   generate new messages that can be reinjected into the Heka pipeline, such as
   summary messages containing aggregate data, notification messages in cases
   where suspicious anomalies are detected, or circular buffer data messages
-  that will show up as real time graphs in Heka's dashboard. Filters can be
-  written entirely in Go, or the core logic can be written in sandboxed Lua
-  code. It is also possible to configure Heka to allow Lua filters to be
-  dynamically injected into a running Heka instance without needing to
-  reconfigure or restart the Heka process, nor even to have shell access to
-  the server on which Heka is running.
+  that will show up as real time graphs in Heka's dashboard.
 
-* :ref:`config_encoders`
+  Filters can be written entirely in Go, or the core logic can be written in
+  sandboxed Lua code. It is also possible to configure Heka to allow Lua
+  filters to be dynamically injected into a running Heka instance without
+  needing to reconfigure or restart the Heka process, nor even to have
+  shell access to the server on which Heka is running.
+
+:ref:`config_encoders`
 
   Encoder plugins are the inverse of Decoders. They generate arbitrary byte
   streams using data extracted from Heka Message structs. Encoders are
   embedded within Output plugins; Encoders handle the serialization, Outputs
-  handle the details of interacting with the outside world. They can be
-  written entirely in Go, or the core logic can be written in sandboxed Lua
-  code.
+  handle the details of interacting with the outside world.
 
-* :ref:`config_outputs`
+  Encoder plugins can be written entirely in Go, or the core logic can
+  be written in sandboxed Lua code.
+
+:ref:`config_outputs`
 
   Output plugins send data that has been serialized by an Encoder to some
   external destination. They handle all of the details of interacting with the
   network, filesystem, or any other outside resource. They are, like Filters,
   configured using Heka's :ref:`message_matcher` so they will only receive and
-  deliver messages matching certain characteristics. They must be written in
-  Go.
+  deliver messages matching certain characteristics.
+
+  Output plugins must be written in Go.
 
 Information about developing plugins in Go can be found in the :ref:`plugins`
 section. Details about using Lua sandboxes for Decoder, Filter, and Encoder
 plugins can be found in the :ref:`sandbox` section.
 
 .. end-description
-
-
 
 .. start-hekad
 
@@ -131,7 +139,7 @@ hekad Command Line Options
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    installing
    getting_started

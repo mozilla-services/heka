@@ -1,6 +1,9 @@
+.. _config_kafka_output:
 
-KafkaOutput
-===========
+Kafka Output
+============
+
+Plugin Name: **KafkaOutput**
 
 Connects to a Kafka broker and sends messages to the specified topic.
 

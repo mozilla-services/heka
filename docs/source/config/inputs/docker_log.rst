@@ -1,8 +1,11 @@
+.. _config_docker_log_input:
 
-DockerLogInput
-==============
+Docker Log Input
+================
 
 .. versionadded:: 0.8
+
+Plugin Name: **DockerLogInput**
 
 The DockerLogInput plugin attaches to all containers running on a host and
 sends their logs messages into the Heka pipeline. The plugin is based on
@@ -45,14 +48,14 @@ Example:
 
 .. code-block:: ini
 
-	[nginx_log_decoder]
-	type = "SandboxDecoder"
-	filename = "lua_decoders/nginx_access.lua"
+   [nginx_log_decoder]
+   type = "SandboxDecoder"
+   filename = "lua_decoders/nginx_access.lua"
 
-	    [nginx_log_decoder.config]
-	    type = "nginx.access"
-	    user_agent_transform = true
-	    log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
+   [nginx_log_decoder.config]
+   type = "nginx.access"
+   user_agent_transform = true
+   log_format = '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"'
 
-    [DockerLogInput]
-    decoder = "nginx_log_decoder"
+   [DockerLogInput]
+   decoder = "nginx_log_decoder"

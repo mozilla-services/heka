@@ -1,22 +1,18 @@
+.. _config_file_output:
 
-FileOutput
-==========
+File Output
+===========
+
+Plugin Name: **FileOutput**
 
 Writes message data out to a file system.
 
 Config:
 
 - path (string):
-    Full path to the output file.
-    If date rotation is in use, then the output file path can support
-    Go's time.Format syntax to embed timestamps in the file path:
-    http://golang.org/pkg/time/#Time.Format
-- rotation_interval (uint32, optional):
-    Interval at which the output file should be rotated, in hours.
-    Only the following values are allowed: 0, 1, 4, 12, 24 (set to 0 to
-    disable).
-    The files will be named relative to midnight of the day.
-    Defaults to 0, i.e. disabled.
+    Full path to the output file. If date rotation is in use, then the output
+    file path can support Go's time.Format syntax to embed timestamps in the
+    file path: http://golang.org/pkg/time/#Time.Format
 - perm (string, optional):
     File permission for writing. A string of the octal digit representation.
     Defaults to "644".
@@ -41,6 +37,14 @@ Config:
     Specifies whether or not the encoded data sent out over the TCP connection
     should be delimited by Heka's :ref:`stream_framing`. Defaults to true if a
     ProtobufEncoder is used, false otherwise.
+
+.. versionadded:: 0.9
+
+- rotation_interval (uint32, optional):
+    Interval at which the output file should be rotated, in hours. Only the
+    following values are allowed: 0, 1, 4, 12, 24 (set to 0 to disable). The
+    files will be named relative to midnight of the day. Defaults to 0, i.e.
+    disabled.
 
 Example:
 

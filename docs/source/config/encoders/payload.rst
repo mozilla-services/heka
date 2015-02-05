@@ -1,6 +1,9 @@
+.. _config_payloadencoder:
 
-PayloadEncoder
-==============
+Payload Encoder
+===============
+
+Plugin Name: **PayloadEncoder**
 
 The PayloadEncoder simply extracts the payload from the provided Heka message
 and converts it into a byte stream for delivery to an external resource.
