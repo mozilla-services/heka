@@ -35,6 +35,12 @@ Config:
     The name of the decoder used to further transform the message into a
     structured hekad message. No default decoder is specified.
 
+.. versionadded:: 0.9
+
+- cert_path (string, optional):
+    Path to directory containing client certificate and keys. This value works
+    in the same way as `DOCKER_CERT_PATH <https://docs.docker.com/articles/https/#client-modes>`_.
+
 Example:
 
 .. code-block:: ini
