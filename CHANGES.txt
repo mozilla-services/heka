@@ -101,6 +101,8 @@ Features
   
 * Added `message_interval` setting support to heka-flood test configuration.
 
+* Added `cert_path` setting for TLS support to DockerLogInput. 
+
 0.8.3 (2015-01-08)
 ==================
 
