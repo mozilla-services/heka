@@ -72,6 +72,9 @@ initialization code.
 .. _config_nagios_output:
 .. include:: /config/outputs/nagios.rst
 
+.. _config_sandbox_output:
+.. include:: /config/outputs/sandbox.rst
+
 .. _config_smtp_output:
 .. include:: /config/outputs/smtp.rst
 

@@ -87,6 +87,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	this.sbc = config.(*SandboxConfig)
 	globals := this.pConfig.Globals
 	this.sbc.ScriptFilename = globals.PrependShareDir(this.sbc.ScriptFilename)
+	this.sbc.PluginType = "filter"
 	this.sampleDenominator = globals.SampleDenominator
 
 	data_dir := globals.PrependBaseDir(DATA_DIR)
@@ -109,9 +110,9 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 
 	this.preservationFile = filepath.Join(data_dir, this.name+DATA_EXT)
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
-		err = this.sb.Init(this.preservationFile, "filter")
+		err = this.sb.Init(this.preservationFile)
 	} else {
-		err = this.sb.Init("", "filter")
+		err = this.sb.Init("")
 	}
 
 	return

@@ -62,6 +62,7 @@ type SandboxEncoderConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+	PluginType       string
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -98,6 +99,7 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 		OutputLimit:      conf.OutputLimit,
 		Profile:          conf.Profile,
 		Config:           conf.Config,
+		PluginType:       "encoder",
 	}
 	globals := s.pConfig.Globals
 	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
@@ -130,9 +132,9 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 
 	s.preservationFile = filepath.Join(dataDir, s.name+sandbox.DATA_EXT)
 	if s.sbc.PreserveData && fileExists(s.preservationFile) {
-		err = s.sb.Init(s.preservationFile, "encoder")
+		err = s.sb.Init(s.preservationFile)
 	} else {
-		err = s.sb.Init("", "encoder")
+		err = s.sb.Init("")
 	}
 	if err != nil {
 		return fmt.Errorf("Sandbox initialization failed: %s", err)

@@ -143,6 +143,7 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 	conf.MemoryLimit = this.memoryLimit
 	conf.InstructionLimit = this.instructionLimit
 	conf.OutputLimit = this.outputLimit
+	conf.PluginType = "filter"
 	mutMaker.SetConfig(conf)
 
 	// Finally call MakeRunner() to initialize the plugin and create the
