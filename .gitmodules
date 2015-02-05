@@ -1,0 +1,4 @@
+[submodule "docs/source/_themes/mozilla"]
+	path = docs/source/_themes/mozilla
+	url = https://github.com/rafrombrc/mozilla-sphinx-theme.git
+	branch = heka

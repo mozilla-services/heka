@@ -1,6 +1,6 @@
 .. _config_logstreamer_input:
 
-Log Streamer Input
+Logstreamer Input
 ==================
 
 .. versionadded:: 0.5
