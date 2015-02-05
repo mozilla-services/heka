@@ -41,6 +41,7 @@ Config:
     filename = "lua_encoders/schema_influx.lua"
         [influxdb.config]
         series = "heka.%{Logger}"
+        prepend_fields = "%{Type}_"
         skip_fields = "Pid EnvVersion"
 
     [InfluxOutput]
@@ -62,6 +63,7 @@ Config:
 require "cjson"
 require "string"
 
+local prepend_fields  = read_config("prepend_fields") or ""
 local series_orig  = read_config("series") or "series"
 local series = series_orig
 local use_subs
@@ -139,7 +141,7 @@ function process_message()
 
     local place = 2
     for _, field in ipairs(used_base_fields) do
-        columns[place] = field
+        columns[place] = string.gsub(prepend_fields, "%%{([%w%p]-)}", sub_func)..field
         values[place] = read_message(field)
         place = place + 1
     end
@@ -154,7 +156,7 @@ function process_message()
             if not skip_fields_str or not skip_fields[name] then
                 seen_count = seen[name]
                 if not seen_count then
-                    columns[place] = name
+                    columns[place] = string.gsub(prepend_fields, "%%{([%w%p]-)}", sub_func)..name
                     seen[name] = 1
                     seen_count = 1
                 else
