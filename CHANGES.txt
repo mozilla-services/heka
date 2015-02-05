@@ -48,6 +48,8 @@ Bug Handling
   complete records up to the end of the stream without having to
   use GetRemainingData() (#1305).
 
+* HttpListenInput no longer URL unescapes the HTTP request body (#1124).
+
 Features
 --------
 
@@ -74,9 +76,6 @@ Features
 * TcpOutput's disk buffering now supports specification of a max buffer size
   and an action to take if the max size is reached, from 'shutdown', 'drop',
   or 'block' (#1110).
-
-* Added `unescape_body` option to HttpListenInput to allow users to turn off
-  unescaping of the HTTP request body (#1124).
 
 * Added `send_interval` setting to SmtpOutput.
 

@@ -55,10 +55,10 @@ instance of the appropriate type, passing in the plugin.
 
 For inputs, filters, and outputs, there's a 1:1 correspondence between
 sections specified in the config file and running plugin instances. This is
-not the case for splitters, decoders and encoders, however. Splitter, decoder
-and encoder sections register possible configurations, but actual running
-instances of these types aren't created until they are used by input or output
-plugins.
+not the case for splitters, decoders and encoders, however. Configuration
+sections for splitter, decoder and encoder plugins register *possible*
+configurations, but actual running instances of these types aren't created
+until they are used by input or output plugins.
 
 .. _plugin_config:
 
@@ -414,9 +414,9 @@ in error cases, or when all of the data isn't consumed.
 If you're using SplitStream, then the SplitStream call will block for as long
 as it is consuming data. When data processing pauses or stops, SplitStream
 will exit and return control back to the input, returning either nil or any
-relevant errors. Typically if nil is returned, you'll want to again call
-SplitStream again to continue processing the stream. Code such as the following
-is a common idiom::
+relevant errors. Typically if nil is returned, you'll want to call SplitStream
+again to continue processing the stream. Code such as the following is a
+common idiom::
 
     var err error
     for err == nil {
@@ -685,7 +685,7 @@ the ``PipelinePack``.
 
 To generate new messages, your filter must call
 ``PluginHelper.PipelinePack(msgLoopCount int)``. The ``msgloopCount`` value to
-be passed in should be obtained from the ``MsgLoopCount`` value on the pac,
+be passed in should be obtained from the ``MsgLoopCount`` value on the pack
 that you're already holding, or possibly zero if the new message is being
 triggered by a timed ticker instead of an incoming message. The PipelinePack
 method will either return a pack ready for you to populate or nil if the loop

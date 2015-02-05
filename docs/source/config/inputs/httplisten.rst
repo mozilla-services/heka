@@ -41,10 +41,6 @@ Config:
 
 .. versionadded:: 0.9
 
-- unescape_body (bool):
-    Specifies whether or not the received request body will be URL unescaped
-    before being written to the message payload. Defaults to true.
-
 - request_headers ([]string):
     Add additional request headers as message fields. Defaults to empty list.
 
