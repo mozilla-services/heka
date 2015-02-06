@@ -26,6 +26,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 )
@@ -183,6 +184,50 @@ func HttpListenInputSpec(c gs.Context) {
 			fieldValue, ok := ith.Pack.Message.GetFieldValue("X-REQUEST-ID")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue, gs.Equals, "12345")
+		})
+
+		c.Specify("Add other request properties as fields", func() {
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			startInput()
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL+"/foo/bar?baz=2", nil)
+			c.Assume(err, gs.IsNil)
+			req.Host = "incoming.example.com:8080"
+			resp, err := client.Do(req)
+			resp.Body.Close()
+			c.Assume(err, gs.IsNil)
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+
+			packDec := <-decChan
+			packDec(ith.Pack)
+
+			fieldValue, ok := ith.Pack.Message.GetFieldValue("Host")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, "incoming.example.com:8080")
+			fieldValue, ok = ith.Pack.Message.GetFieldValue("Path")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, "/foo/bar")
+
+			hostname, err := os.Hostname()
+			c.Assume(err, gs.IsNil)
+			c.Expect(*ith.Pack.Message.Hostname, gs.Equals, hostname)
+			c.Expect(*ith.Pack.Message.EnvVersion, gs.Equals, "1")
+
+			// Typically 127.0.0.1:55555, where 55555 is the port on which the
+			// server aswered.
+			fieldValue, ok = ith.Pack.Message.GetFieldValue("RemoteAddr")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue != nil, gs.IsTrue)
+			fieldValueStr, ok := fieldValue.(string)
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(fieldValueStr) > 0, gs.IsTrue)
+			c.Expect(strings.Contains(fieldValueStr, ":"), gs.IsTrue)
 		})
 
 		ts.Close()
