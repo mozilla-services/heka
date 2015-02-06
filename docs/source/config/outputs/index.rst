@@ -58,6 +58,7 @@ Available Output Plugins
    kafka
    log
    nagios
+   sandbox
    smtp
    tcp
    udp

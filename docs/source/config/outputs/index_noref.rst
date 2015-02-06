@@ -37,6 +37,9 @@ Outputs
 .. include:: /config/outputs/nagios.rst
    :start-line: 1
 
+.. include:: /config/outputs/sandbox.rst
+   :start-line: 1
+
 .. include:: /config/outputs/smtp.rst
    :start-line: 1
 
