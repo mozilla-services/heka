@@ -41,8 +41,7 @@ Glossary
 
     Plugin
         Hekad plugins are functional units that perform specific actions on or
-        with messages. There are four distinct types of plugins: inputs,
-        decoders, filters, and outputs.
+        with messages. 
 
     PluginChanSize
         A Heka configuration setting which specifies the size of the input
@@ -57,9 +56,9 @@ Glossary
     PluginRunner
         A plugin-specific helper object that manages the lifespan of a given
         plugin and handles most details of interaction w/ the greater Heka
-        environment. Comes in four variants, each tailored to a specific
-        plugin type (i.e. `InputRunner`, `DecoderRunner`, `FilterRunner`,
-        `OutputRunner`).
+        environment. Comes in six variants, each tailored to a specific
+        plugin type (i.e. `InputRunner`, `SplitterRunner`, `DecoderRunner`, 
+        `FilterRunner`, `EncoderRunner`, `OutputRunner`).
 
     PoolSize
         A Heka configuration setting which specifies the number of
