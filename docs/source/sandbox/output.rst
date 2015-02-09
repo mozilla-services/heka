@@ -5,7 +5,7 @@
 
 .. _sandboxoutputs:
 
-Available Sandbox Decoders
-==========================
+Available Sandbox Outputs
+=========================
 
 TBD
