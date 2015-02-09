@@ -196,6 +196,12 @@ func (sr *sRunner) GetRecordFromStream(r io.Reader) (bytesRead int, record []byt
 		// to return the EOF error.
 		if sr.reachedEOF {
 			err = io.EOF
+			// Reset reachedEOF so that if any new data is appended to the file,
+			// we can continue reading where we left off. Note that if you want
+			// to reuse this SplitterRunner on a different stream, you should
+			// call GetRemainingData() to clear any remaining data out of the
+			// buffer.
+			sr.reachedEOF = false
 		} else {
 			// If we haven't yet reached EOF, then we need to read more data.
 			sr.needData = true

@@ -43,11 +43,48 @@ func (d *MockDataReader) Read(p []byte) (n int, err error) {
 	return (d.ptr - start), nil
 }
 
+func (d *MockDataReader) Append(p []byte) {
+	newData := make([]byte, len(d.data)+len(p))
+	copy(newData, d.data)
+	copy(newData[len(d.data):], p)
+	d.data = newData
+}
+
 func makeMockReader(data []byte) (d *MockDataReader) {
 	d = new(MockDataReader)
 	d.data = make([]byte, len(data))
 	d.ptr = 0
 	copy(d.data, data)
+	return
+}
+
+func readRecordsFromStream(sr *sRunner, reader io.Reader, getRemaining bool) (count int,
+	errCount int, bytesRead int, foundEOFCount int, remainingDataLength int,
+	finalRecordLength int, eofRecordLength int) {
+	done := false
+	for !done {
+		n, record, err := (*sr).GetRecordFromStream(reader)
+		if len(record) > 0 {
+			count += 1
+			finalRecordLength = len(record)
+		}
+		bytesRead += n
+		if err != nil {
+			if err == io.EOF {
+				foundEOFCount = count
+				eofRecordLength = len(record)
+
+				if getRemaining {
+					rem := (*sr).GetRemainingData()
+					remainingDataLength = len(rem)
+				}
+				done = true
+			} else {
+				errCount++
+				continue
+			}
+		}
+	}
 	return
 }
 
@@ -73,40 +110,10 @@ func SplitterRunnerSpec(c gs.Context) {
 		reader := makeMockReader(b)
 
 		c.Specify("correctly handles data at EOF", func() {
-			count := 0
-			errCount := 0
-			bytesRead := 0
-			foundEOFCount := 0
-			remainingDataLength := 0
-			finalRecordLength := 0
-			eofRecordLength := 0
+			count, errCount, bytesRead, foundEOFCount,
+				remainingDataLength, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader, true)
 
-			done := false
-			for !done {
-				n, record, err := sr.GetRecordFromStream(reader)
-				if len(record) > 0 {
-					count += 1
-					finalRecordLength = len(record)
-				}
-				bytesRead += n
-				if err != nil {
-					if err == io.EOF {
-						foundEOFCount = count
-						eofRecordLength = len(record)
-
-						rem := sr.GetRemainingData()
-						remainingDataLength = len(rem)
-
-						done = true
-					} else {
-						errCount++
-						continue
-					}
-
-				}
-			}
-
-			c.Expect(done, gs.Equals, true)
 			c.Expect(errCount, gs.Equals, 0)
 			c.Expect(count, gs.Equals, 50)
 			c.Expect(foundEOFCount, gs.Equals, 50)
@@ -133,6 +140,110 @@ func SplitterRunnerSpec(c gs.Context) {
 				err = sr.SplitStream(reader, nil)
 			}
 			c.Expect(err, gs.Equals, io.EOF)
+		})
+
+		c.Specify("correctly handles appends after EOF", func() {
+			half := len(b) / 2
+			reader := makeMockReader(b[:half])
+			totalBytesRead := 0
+
+			count, errCount, bytesRead, foundEOFCount, _, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader, false)
+			totalBytesRead += bytesRead
+
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 25)
+			c.Expect(foundEOFCount, gs.Equals, 25)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+			c.Expect(bytesRead <= half, gs.IsTrue)
+
+			reader.Append(b[half:])
+
+			count, errCount, bytesRead, foundEOFCount,
+				remainingDataLength, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader, true)
+			totalBytesRead += bytesRead
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 25)
+			c.Expect(foundEOFCount, gs.Equals, 25)
+			c.Expect(remainingDataLength, gs.Equals, 0)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+
+			c.Expect(totalBytesRead, gs.Equals, len(b))
+		})
+
+		c.Specify("reuse on another stream without GetRemainingData", func() {
+			// Test the case where we reuse the same SplitterRunner on
+			// two different readers, and we do not call GetRemainingData before
+			// using the second reader.
+			half := len(b) / 2
+			reader1 := makeMockReader(b[:half])
+
+			count, errCount, bytesRead, foundEOFCount, _, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader1, false)
+
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 25)
+			c.Expect(foundEOFCount, gs.Equals, 25)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+
+			leftovers := half - bytesRead
+			c.Expect(leftovers > 0, gs.IsTrue)
+
+			reader2 := makeMockReader(b)
+
+			// Don't call GetRemainingData before using sr on a new stream
+			count, errCount, bytesRead, foundEOFCount, remainingDataLength, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader2, true)
+
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 50)
+			c.Expect(foundEOFCount, gs.Equals, 50)
+			c.Expect(remainingDataLength, gs.Equals, 0)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+			// sr misreports the "remaining data" piece from reader1 as being
+			// read from reader2
+			c.Expect(bytesRead, gs.Equals, len(b)+leftovers)
+		})
+
+		c.Specify("reuse on another stream with reset", func() {
+			// Test the case where we reuse the same SplitterRunner on
+			// two different readers, but we call GetRemainingData before using
+			// the second reader.
+			half := len(b) / 2
+			reader1 := makeMockReader(b[:half])
+
+			count, errCount, bytesRead, foundEOFCount, _, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader1, false)
+
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 25)
+			c.Expect(foundEOFCount, gs.Equals, 25)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+
+			leftovers := half - bytesRead
+			c.Expect(leftovers > 0, gs.IsTrue)
+
+			reader2 := makeMockReader(b)
+
+			// Call GetRemainingData before using sr on a new stream
+			sr.GetRemainingData()
+			count, errCount, bytesRead, foundEOFCount, remainingDataLength, finalRecordLength,
+				eofRecordLength := readRecordsFromStream(sr, reader2, true)
+
+			c.Expect(errCount, gs.Equals, 0)
+			c.Expect(count, gs.Equals, 50)
+			c.Expect(foundEOFCount, gs.Equals, 50)
+			c.Expect(remainingDataLength, gs.Equals, 0)
+			c.Expect(finalRecordLength, gs.Equals, 215)
+			c.Expect(eofRecordLength, gs.Equals, 0)
+			// Now we see the correct number of bytes being read.
+			c.Expect(bytesRead, gs.Equals, len(b))
 		})
 	})
 }
