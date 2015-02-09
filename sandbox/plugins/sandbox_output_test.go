@@ -70,7 +70,6 @@ func OutputSpec(c gs.Context) {
 
 		c.Specify("user abort processing data", func() {
 			e := errors.New("FATAL: user abort")
-			oth.MockOutputRunner.EXPECT().LogError(e)
 			pack.Message.SetPayload("USERABORT")
 			inChan <- pack
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -78,7 +77,6 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("fatal error processing data", func() {
-			oth.MockOutputRunner.EXPECT().LogError(gomock.Any())
 			pack.Message.SetPayload("FATAL")
 			inChan <- pack
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -86,7 +84,6 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("fatal error in timer_event", func() {
-			oth.MockOutputRunner.EXPECT().LogError(gomock.Any())
 			timer <- time.Now()
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
 			c.Expect(err, gs.Not(gs.IsNil))

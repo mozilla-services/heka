@@ -17,6 +17,7 @@ package plugins
 import (
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	. "github.com/mozilla-services/heka/sandbox"
 	"github.com/mozilla-services/heka/sandbox/lua"
@@ -136,7 +137,6 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 				}
 			} else {
 				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
-				or.LogError(err)
 				ok = false
 			}
 
@@ -144,7 +144,6 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 			startTime = time.Now()
 			if retval = s.sb.TimerEvent(t.UnixNano()); retval != 0 {
 				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
-				or.LogError(err)
 				ok = false
 			}
 			duration = time.Since(startTime).Nanoseconds()
@@ -169,6 +168,42 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 	s.sb = nil
 	s.reportLock.Unlock()
 	return
+}
+
+// Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
+// information to the Heka report and dashboard.
+func (s *SandboxOutput) ReportMsg(msg *message.Message) error {
+	if s.sb == nil {
+		return fmt.Errorf("Output is not running")
+	}
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
+	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,
+		STAT_CURRENT)), "B")
+	message.NewIntField(msg, "MaxMemory", int(s.sb.Usage(TYPE_MEMORY,
+		STAT_MAXIMUM)), "B")
+	message.NewIntField(msg, "MaxInstructions", int(s.sb.Usage(
+		TYPE_INSTRUCTIONS, STAT_MAXIMUM)), "count")
+
+	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&s.processMessageCount), "count")
+	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&s.processMessageFailures), "count")
+	message.NewInt64Field(msg, "ProcessMessageSamples", s.processMessageSamples, "count")
+	message.NewInt64Field(msg, "TimerEventSamples", s.timerEventSamples, "count")
+
+	var tmp int64 = 0
+	if s.processMessageSamples > 0 {
+		tmp = s.processMessageDuration / s.processMessageSamples
+	}
+	message.NewInt64Field(msg, "ProcessMessageAvgDuration", tmp, "ns")
+
+	tmp = 0
+	if s.timerEventSamples > 0 {
+		tmp = s.timerEventDuration / s.timerEventSamples
+	}
+	message.NewInt64Field(msg, "TimerEventAvgDuration", tmp, "ns")
+
+	return nil
 }
 
 func init() {
