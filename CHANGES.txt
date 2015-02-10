@@ -31,6 +31,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Don't output empty messages when use_framing = true (#1326).
+
 * KafkaInput uses the oldest offset available instead of zero when no
   checkpoint file exists and the offset method is set to manual. KafkaInput
   also correctly closes the checkpoint file before removing it when it is

@@ -253,6 +253,12 @@ func (enc *_payloadEncoder) Encode(pack *PipelinePack) (output []byte, err error
 	return []byte(pack.Message.GetPayload()), nil
 }
 
+type _ignoreEncoder struct{}
+
+func (enc *_ignoreEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
+	return nil, nil
+}
+
 var (
 	stopresumeHolder   []string      = make([]string, 0, 10)
 	_pack              *PipelinePack = new(PipelinePack)
@@ -430,6 +436,14 @@ func OutputRunnerSpec(c gs.Context) {
 				c.Expect(ok, gs.IsTrue)
 				c.Expect(err, gs.IsNil)
 				c.Expect(header.GetMessageLength(), gs.Equals, uint32(len(payload)))
+			})
+
+			c.Specify("with framing, ignore message", func() {
+				oRunner.SetUseFraming(true)
+				oRunner.encoder = new(_ignoreEncoder)
+				result, err := oRunner.Encode(_pack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(result == nil, gs.IsTrue)
 			})
 		})
 	})
