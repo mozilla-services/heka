@@ -31,6 +31,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Fix the RPM dependency errors on Centos7 (#1311).
+
 * Don't output empty messages when use_framing = true (#1326).
 
 * KafkaInput uses the oldest offset available instead of zero when no
