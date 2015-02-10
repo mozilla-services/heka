@@ -31,6 +31,11 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* KafkaInput uses the oldest offset available instead of zero when no
+  checkpoint file exists and the offset method is set to manual. KafkaInput
+  also correctly closes the checkpoint file before removing it when it is
+  invalid (#1325).
+
 * Handle empty byte fields in the sandbox interface (#1284).
 
 * Reset header when discarding valid but oversized messages (#1221).
