@@ -985,7 +985,7 @@ func (foRunner *foRunner) Encoder() Encoder {
 
 func (foRunner *foRunner) Encode(pack *PipelinePack) (output []byte, err error) {
 	var encoded []byte
-	if encoded, err = foRunner.encoder.Encode(pack); err != nil {
+	if encoded, err = foRunner.encoder.Encode(pack); err != nil || encoded == nil {
 		return
 	}
 	if foRunner.useFraming {

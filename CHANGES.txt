@@ -31,6 +31,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Don't output empty messages when use_framing = true (#1326).
+
 * Handle empty byte fields in the sandbox interface (#1284).
 
 * Reset header when discarding valid but oversized messages (#1221).
