@@ -170,9 +170,7 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 			if err = os.MkdirAll(filepath.Dir(k.checkpointFilename), 0766); err != nil {
 				return
 			}
-			if err = k.writeCheckpoint(0); err != nil {
-				return
-			}
+			k.consumerConfig.OffsetMethod = sarama.OffsetMethodOldest
 		}
 	case "Newest":
 		k.consumerConfig.OffsetMethod = sarama.OffsetMethodNewest
@@ -256,6 +254,10 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 				if event.Err == sarama.OffsetOutOfRange {
 					ir.LogError(fmt.Errorf(
 						"removing the out of range checkpoint file and stopping"))
+					if k.checkpointFile != nil {
+						k.checkpointFile.Close()
+						k.checkpointFile = nil
+					}
 					if err := os.Remove(k.checkpointFilename); err != nil {
 						ir.LogError(err)
 					}
@@ -274,7 +276,7 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 					event.Topic))
 			}
 
-			if k.consumerConfig.OffsetMethod == sarama.OffsetMethodManual {
+			if k.config.OffsetMethod == "Manual" {
 				if err = k.writeCheckpoint(event.Offset + 1); err != nil {
 					return
 				}
