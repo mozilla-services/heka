@@ -79,6 +79,10 @@ func TestReceivePayloadMessage(t *testing.T) {
 	mdr.AddTopicPartition(topic, 0, 2)
 	b1.Returns(mdr)
 
+	or := new(sarama.OffsetResponse)
+	or.AddTopicPartition(topic, 0, 0)
+	b2.Returns(or)
+
 	fr := new(sarama.FetchResponse)
 	fr.AddMessage(topic, 0, nil, sarama.ByteEncoder([]byte{0x41, 0x42}), 0)
 	b2.Returns(fr)
@@ -178,6 +182,10 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	mdr.AddBroker(b2.Addr(), b2.BrokerID())
 	mdr.AddTopicPartition(topic, 0, 2)
 	b1.Returns(mdr)
+
+	or := new(sarama.OffsetResponse)
+	or.AddTopicPartition(topic, 0, 0)
+	b2.Returns(or)
 
 	fr := new(sarama.FetchResponse)
 	fr.AddMessage(topic, 0, nil, sarama.ByteEncoder([]byte{0x41, 0x42}), 0)

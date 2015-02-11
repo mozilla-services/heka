@@ -11,12 +11,6 @@ set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
-set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
-    /usr
-    /usr/bin
-    /usr/share
-    /usr/share/man
-)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -95,6 +89,9 @@ elseif(UNIX)
     if (RPMBUILD_EXECUTABLE)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "RPM")
         set(CPACK_RPM_PACKAGE_LICENSE "MPLv2.0")
+		# todo we should pull lua_sandbox out of the heka/build and packaging
+		set(CPACK_RPM_PACKAGE_PROVIDES "liblua.so()(64bit), libluasandbox.so()(64bit)")
+		set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
     endif()
 endif()
 
