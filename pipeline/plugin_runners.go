@@ -779,13 +779,23 @@ func (foRunner *foRunner) Unregister(pConfig *PipelineConfig) error {
 	case foOutput:
 		go pConfig.RemoveOutputRunner(foRunner)
 	}
-	for pack := range foRunner.inChan {
-		pack.Recycle()
-	}
 	return nil
 }
 
 func (foRunner *foRunner) exit() {
+	defer func() {
+		var orphaned int
+		for pack := range foRunner.inChan {
+			// drain and recycle the orphaned packs
+			orphaned++
+			pack.Recycle()
+		}
+		if orphaned == 1 {
+			foRunner.LogError(fmt.Errorf("Lost/Dropped 1 message"))
+		} else if orphaned > 1 {
+			foRunner.LogError(fmt.Errorf("Lost/Dropped %d messages", orphaned))
+		}
+	}()
 	// Just exit if we're stopping.
 	if foRunner.pConfig.Globals.IsShuttingDown() {
 		return

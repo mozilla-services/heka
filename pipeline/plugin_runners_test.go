@@ -285,10 +285,8 @@ func (s *StopResumeOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 	} else if stopresumerunTimes > 1 {
 		inChan := or.InChan()
-		select {
-		case <-inChan:
-			stopresumeHolder = append(stopresumeHolder, "oye")
-		default:
+		_, ok := <-inChan
+		if !ok {
 			stopresumeHolder = append(stopresumeHolder, "woot")
 		}
 	}
@@ -334,6 +332,7 @@ func OutputRunnerSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			oRunner.maker = maker
 
+			close(oRunner.inChan) // signal the shutdown
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -355,6 +354,7 @@ func OutputRunnerSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			oRunner.maker = maker
 
+			close(oRunner.inChan) // signal the shutdown
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			var wg sync.WaitGroup
 			wg.Add(1)
