@@ -103,10 +103,21 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 		}
 
 		// Host which the client requested.
-		if field, err := hli.makeField("Host", req.Host); err == nil {
+		host, port, err := net.SplitHostPort(req.Host)
+		if err != nil {
+			// Fall back to the un-split value.
+			host = req.Host
+		}
+		if field, err := hli.makeField("Host", host); err == nil {
 			pack.Message.AddField(field)
 		}
-		if field, err := hli.makeField("RemoteAddr", req.RemoteAddr); err == nil {
+
+		host, port, err = net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			// Fall back to the un-split value.
+			host = req.RemoteAddr
+		}
+		if field, err := hli.makeField("RemoteAddr", host); err == nil {
 			pack.Message.AddField(field)
 		}
 		for _, key := range hli.conf.RequestHeaders {
