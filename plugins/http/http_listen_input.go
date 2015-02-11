@@ -34,12 +34,13 @@ type HttpListenInput struct {
 	server      *http.Server
 	starterFunc func(hli *HttpListenInput) error
 	hekaPid     int32
+	hostname    string
 }
 
 // HTTP Listen Input config struct
 type HttpListenInputConfig struct {
-	// TCP Address to listen to for SNS notifications.
-	// Defaults to "0.0.0.0:8325".
+	// TCP Address to listen to for incoming requests.
+	// Defaults to "127.0.0.1:8325".
 	Address        string
 	Headers        http.Header
 	RequestHeaders []string `toml:"request_headers"`
@@ -71,43 +72,67 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 	return nil
 }
 
+func (hli *HttpListenInput) makeField(name string, value string) (field *message.Field, err error) {
+	field, err = message.NewField(name, value, "")
+	if err != nil {
+		hli.ir.LogError(fmt.Errorf("can't add field %s: %s", name, err))
+	}
+	return
+}
+
 func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelinePack) {
 	packDecorator := func(pack *PipelinePack) {
 		pack.Message.SetType("heka.httpdata.request")
 		pack.Message.SetPid(hli.hekaPid)
 		pack.Message.SetSeverity(int32(6))
-		if field, err := message.NewField("Protocol", req.Proto, ""); err == nil {
+
+		// Host on which heka is running.
+		pack.Message.SetHostname(hli.hostname)
+		pack.Message.SetEnvVersion("1")
+		if field, err := hli.makeField("Protocol", req.Proto); err == nil {
 			pack.Message.AddField(field)
-		} else {
-			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 		}
-		if field, err := message.NewField("UserAgent", req.UserAgent(), ""); err == nil {
+		if field, err := hli.makeField("UserAgent", req.UserAgent()); err == nil {
 			pack.Message.AddField(field)
-		} else {
-			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 		}
-		if field, err := message.NewField("ContentType", req.Header.Get("Content-Type"), ""); err == nil {
+		if field, err := hli.makeField("ContentType", req.Header.Get("Content-Type")); err == nil {
 			pack.Message.AddField(field)
-		} else {
-			hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
+		}
+		if field, err := hli.makeField("Path", req.URL.Path); err == nil {
+			pack.Message.AddField(field)
+		}
+
+		// Host which the client requested.
+		host, _, err := net.SplitHostPort(req.Host)
+		if err != nil {
+			// Fall back to the un-split value.
+			host = req.Host
+		}
+		if field, err := hli.makeField("Host", host); err == nil {
+			pack.Message.AddField(field)
+		}
+
+		host, _, err = net.SplitHostPort(req.RemoteAddr)
+		if err != nil {
+			// Fall back to the un-split value.
+			host = req.RemoteAddr
+		}
+		if field, err := hli.makeField("RemoteAddr", host); err == nil {
+			pack.Message.AddField(field)
 		}
 		for _, key := range hli.conf.RequestHeaders {
 			value := req.Header.Get(key)
 			if len(value) == 0 {
 				continue
-			} else if field, err := message.NewField(key, value, ""); err == nil {
+			} else if field, err := hli.makeField(key, value); err == nil {
 				pack.Message.AddField(field)
-			} else {
-				hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 			}
 		}
 		for key, values := range req.URL.Query() {
 			for i := range values {
 				value := values[i]
-				if field, err := message.NewField(key, value, ""); err == nil {
+				if field, err := hli.makeField(key, value); err == nil {
 					pack.Message.AddField(field)
-				} else {
-					hli.ir.LogError(fmt.Errorf("can't add field: %s", err))
 				}
 			}
 		}
@@ -167,6 +192,8 @@ func (hli *HttpListenInput) Init(config interface{}) (err error) {
 
 func (hli *HttpListenInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	hli.ir = ir
+	var hostname, _ = os.Hostname()
+	hli.hostname = hostname
 	err = hli.starterFunc(hli)
 	if err != nil {
 		return err
