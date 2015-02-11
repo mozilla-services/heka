@@ -103,7 +103,7 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 		}
 
 		// Host which the client requested.
-		host, port, err := net.SplitHostPort(req.Host)
+		host, _, err := net.SplitHostPort(req.Host)
 		if err != nil {
 			// Fall back to the un-split value.
 			host = req.Host
@@ -112,7 +112,7 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 			pack.Message.AddField(field)
 		}
 
-		host, port, err = net.SplitHostPort(req.RemoteAddr)
+		host, _, err = net.SplitHostPort(req.RemoteAddr)
 		if err != nil {
 			// Fall back to the un-split value.
 			host = req.RemoteAddr

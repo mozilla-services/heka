@@ -24,6 +24,7 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -209,7 +210,8 @@ func HttpListenInputSpec(c gs.Context) {
 
 			fieldValue, ok := ith.Pack.Message.GetFieldValue("Host")
 			c.Assume(ok, gs.IsTrue)
-			c.Expect(fieldValue, gs.Equals, "incoming.example.com:8080")
+			// Host should not include port number.
+			c.Expect(fieldValue, gs.Equals, "incoming.example.com")
 			fieldValue, ok = ith.Pack.Message.GetFieldValue("Path")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue, gs.Equals, "/foo/bar")
@@ -219,15 +221,16 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Expect(*ith.Pack.Message.Hostname, gs.Equals, hostname)
 			c.Expect(*ith.Pack.Message.EnvVersion, gs.Equals, "1")
 
-			// Typically 127.0.0.1:55555, where 55555 is the port on which the
-			// server aswered.
 			fieldValue, ok = ith.Pack.Message.GetFieldValue("RemoteAddr")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue != nil, gs.IsTrue)
 			fieldValueStr, ok := fieldValue.(string)
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(len(fieldValueStr) > 0, gs.IsTrue)
-			c.Expect(strings.Contains(fieldValueStr, ":"), gs.IsTrue)
+			// Per the `Request` docs, this should be an IP address:
+			// http://golang.org/pkg/net/http/#Request
+			ip := net.ParseIP(fieldValueStr)
+			c.Expect(ip != nil, gs.IsTrue)
 		})
 
 		ts.Close()
