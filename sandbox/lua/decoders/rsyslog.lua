@@ -106,6 +106,6 @@ function process_message ()
     fields.msg = nil
 
     msg.Fields = fields
-    inject_message(msg)
+    if not pcall(inject_message, msg) then return -1 end
     return 0
 end
