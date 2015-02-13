@@ -106,6 +106,13 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 	ok := true
 	var err error
 
+	if !sr.UseMsgBytes() {
+		packDec := func(pack *PipelinePack) {
+			pack.Message.SetType("heka.udpinput")
+		}
+		sr.SetPackDecorator(packDec)
+	}
+
 	for ok {
 		select {
 		case _, ok = <-u.stopChan:
