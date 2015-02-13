@@ -52,7 +52,7 @@ local syslog = require "syslog"
 
 local template = read_config("template")
 local msg_type = read_config("type")
-local hostname_keep = read_config("hostname_keep") or false
+local hostname_keep = read_config("hostname_keep")
 
 local msg = {
 Timestamp   = nil,
