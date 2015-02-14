@@ -151,12 +151,16 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxEncoder) Stop() {
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
 	if s.sb != nil {
 		if s.sbc.PreserveData {
 			s.sb.Destroy(s.preservationFile)
 		} else {
 			s.sb.Destroy("")
 		}
+		s.sb = nil
 	}
 }
 
@@ -211,11 +215,12 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
 // information to the Heka report and dashboard.
 func (s *SandboxEncoder) ReportMsg(msg *message.Message) error {
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
 	if s.sb == nil {
 		return fmt.Errorf("Encoder is not running")
 	}
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(sandbox.TYPE_MEMORY,
 		sandbox.STAT_CURRENT)), "B")

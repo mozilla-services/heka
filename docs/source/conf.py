@@ -85,6 +85,7 @@ exclude_patterns = [
 'sandbox/manager.rst',
 'sandbox/module.rst',
 'sandbox/output.rst',
+'sandbox/input.rst',
 ]
 
 # The reST default role (used for this markup: `text`) to use for all documents.

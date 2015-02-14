@@ -90,5 +90,13 @@ int inject_message(lua_State* lua);
  */
 int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);
 
+/**
+ * Sends a shutdown message to the sandbox.
+ *
+ * @param lsb Pointer to the sandbox.
+ *
+ */
+void sandbox_stop(lua_sandbox* lsb);
+
 #endif
 

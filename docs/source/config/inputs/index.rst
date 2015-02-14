@@ -58,6 +58,7 @@ Available Input Plugins
    logstreamer
    process
    processdir
+   sandbox
    stataccum
    statsd
    tcp

@@ -4,7 +4,7 @@
 
 --[[
 API
----
+^^^
 **bulkapi_index_json(index, type_name, id, ns)**
 
     Returns a simple JSON 'index' structure satisfying the `ElasticSearch
@@ -21,7 +21,7 @@ API
             String to use as the `_type` key's value in the generated JSON, or
             nil to omit the key. Supports field interpolation as described
             below.
-        - id (string or nil) 
+        - id (string or nil)
             String to use as the `_id` key' value in the generated JSON, or
             nil to omit the key. Supports field interpolation as described
             below.

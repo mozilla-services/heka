@@ -40,8 +40,6 @@ Outputs
 .. include:: /config/outputs/sandbox.rst
    :start-line: 1
 
-.. include:: /config/outputs/sandbox.rst
-
 .. include:: /config/outputs/smtp.rst
    :start-line: 1
 

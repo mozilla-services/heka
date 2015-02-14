@@ -6,6 +6,11 @@
 .. _sandboxoutputs:
 
 Available Sandbox Outputs
-=========================
+-------------------------
+- none
 
-TBD
+Externally Available Sandbox Outputs
+------------------------------------
+
+- `Example Redshift Output <https://github.com/mozilla-services/data-pipeline/blob/master/heka/sandbox/outputs/redshift.lua>`_
+

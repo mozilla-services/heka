@@ -7,16 +7,15 @@ Sandbox Output
 
 Plugin Name: **SandboxOutput**
 
-The SandboxOutput provides an flexible execution environment for data encoding
-and transmission without the need to recompile Heka. See
-:ref:`sandbox`.
+The SandboxOutput provides a flexible execution environment for data encoding
+and transmission without the need to recompile Heka. See :ref:`sandbox`.
 
 .. _sandboxoutput_settings:
 
 Config:
 
 - The common output configuration paramater 'encoder' is ignored since all data
-  transformation can/should happen in the plugin.
+  transformation should happen in the plugin.
 - :ref:`config_common_sandbox_parameters`
 
 Example

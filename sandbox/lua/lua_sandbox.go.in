@@ -568,7 +568,7 @@ func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
 	lsb.sbConfig = conf
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
-	if conf.PluginType == "output" {
+	if conf.PluginType == "output" || conf.PluginType == "input" {
 		cfg := fmt.Sprintf(SandboxIoTemplate,
 			conf.MemoryLimit,
 			conf.InstructionLimit,
@@ -613,6 +613,10 @@ func (this *LuaSandbox) Init(dataFile string) error {
 		return fmt.Errorf("Init() %s", this.LastError())
 	}
 	return nil
+}
+
+func (this *LuaSandbox) Stop() {
+	C.sandbox_stop(this.lsb)
 }
 
 func (this *LuaSandbox) Destroy(dataFile string) error {

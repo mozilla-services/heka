@@ -34,6 +34,9 @@ Inputs
 .. include:: /config/inputs/processdir.rst
    :start-line: 1
 
+.. include:: /config/inputs/sandbox.rst
+   :start-line: 1
+
 .. include:: /config/inputs/stataccum.rst
    :start-line: 1
 
