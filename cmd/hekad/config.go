@@ -44,6 +44,7 @@ type HekadConfig struct {
 	SampleDenominator     int           `toml:"sample_denominator"`
 	PidFile               string        `toml:"pid_file"`
 	Hostname              string
+	MaxMessageSize        uint32 `toml:"max_message_size"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {

@@ -152,6 +152,9 @@ Features
 
 * Added `read_only` setting to AMQPInput to support read-only users.
 
+* Added ability to specify MAX_MESSAGE_SIZE via configuration file of hekad
+  and heka-flood (#1208).
+
 0.8.3 (2015-01-08)
 ==================
 

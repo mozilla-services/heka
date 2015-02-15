@@ -125,8 +125,8 @@ func (sr *sRunner) GetRemainingData() (record []byte) {
 	return record
 }
 
-func (sr *sRunner) setMinimumBufferSize(size int) {
-	if cap(sr.buf) < size {
+func (sr *sRunner) setMinimumBufferSize(size uint32) {
+	if uint32(cap(sr.buf)) < size {
 		newSlice := make([]byte, size)
 		copy(newSlice, sr.buf)
 		sr.buf = newSlice
@@ -136,9 +136,10 @@ func (sr *sRunner) setMinimumBufferSize(size int) {
 func (sr *sRunner) read(r io.Reader) (n int, err error) {
 	if cap(sr.buf)-sr.readPos <= 1024*4 {
 		if sr.scanPos == 0 { // Line won't fit in the current buffer.
-			newSize := cap(sr.buf) * 2
+			bufCap := uint32(cap(sr.buf))
+			newSize := uint32(bufCap * 2)
 			if newSize > message.MAX_MESSAGE_SIZE {
-				if cap(sr.buf) == message.MAX_RECORD_SIZE {
+				if bufCap == message.MAX_RECORD_SIZE {
 					if sr.readPos == cap(sr.buf) {
 						sr.scanPos = 0
 						sr.readPos = 0
@@ -267,7 +268,7 @@ func (sr *sRunner) SplitBytes(data []byte, del Deliverer) (int, error) {
 	dataLen := len(data)
 	for true {
 		n, record = sr.Splitter().FindRecord(data[seekPos:])
-		recordLen := len(record)
+		recordLen := uint32(len(record))
 		if recordLen == 0 {
 			if seekPos == 0 {
 				return 0, errors.New("no records")

@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	_ "github.com/mozilla-services/heka/plugins"
 	_ "github.com/mozilla-services/heka/plugins/amqp"
@@ -116,6 +117,10 @@ func main() {
 		pipeline.LogError.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
 	}
 
+	if config.MaxMessageSize > 0 {
+		message.SetMaxMessageSize(config.MaxMessageSize)
+	}
+	pipeline.LogInfo.Println("Max message size is %d", message.MAX_MESSAGE_SIZE)
 	if config.PidFile != "" {
 		contents, err := ioutil.ReadFile(config.PidFile)
 		if err == nil {

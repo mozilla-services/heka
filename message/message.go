@@ -33,12 +33,20 @@ const (
 	HEADER_DELIMITER_SIZE = 2                         // record separator + len
 	HEADER_FRAMING_SIZE   = HEADER_DELIMITER_SIZE + 1 // unit separator
 	MAX_HEADER_SIZE       = 255
-	MAX_MESSAGE_SIZE      = 64 * 1024
-	MAX_RECORD_SIZE       = HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE
 	RECORD_SEPARATOR      = uint8(0x1e)
 	UNIT_SEPARATOR        = uint8(0x1f)
 	UUID_SIZE             = 16
 )
+
+var (
+	MAX_MESSAGE_SIZE = uint32(64 * 1024)
+	MAX_RECORD_SIZE  = uint32(HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE)
+)
+
+func SetMaxMessageSize(size uint32) {
+	MAX_MESSAGE_SIZE = size
+	MAX_RECORD_SIZE = uint32(HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE)
+}
 
 type MessageSigningConfig struct {
 	Name    string `toml:"name"`
