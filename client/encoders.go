@@ -61,13 +61,14 @@ func (p *ProtobufEncoder) EncodeMessageStream(msg *message.Message,
 func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 	msc *message.MessageSigningConfig) error {
 
-	if len(msgBytes) > message.MAX_MESSAGE_SIZE {
+	msgSize := uint32(len(msgBytes))
+	if msgSize > message.MAX_MESSAGE_SIZE {
 		return fmt.Errorf("Message too big, requires %d (MAX_MESSAGE_SIZE = %d)",
 			len(msgBytes), message.MAX_MESSAGE_SIZE)
 	}
 
 	h := &message.Header{}
-	h.SetMessageLength(uint32(len(msgBytes)))
+	h.SetMessageLength(msgSize)
 	if msc != nil {
 		h.SetHmacSigner(msc.Name)
 		h.SetHmacKeyVersion(msc.Version)

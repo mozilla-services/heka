@@ -63,6 +63,7 @@ type FloodTest struct {
 	AsciiOnly            bool                         `toml:"ascii_only"`
 	UseTls               bool                         `toml:"use_tls"`
 	Tls                  tcp.TlsConfig                `toml:"tls"`
+	MaxMessageSize       uint32                       `toml:"max_message_size"`
 	msgInterval          time.Duration
 }
 
@@ -123,7 +124,7 @@ func makeVariableMessage(encoder client.StreamEncoder, items int,
 		msg.SetHostname(hostname)
 		cnt = (rand.Int() % 3) * 1024
 		if oversized {
-			msg.SetPayload(makePayload(uint64(cnt)+message.MAX_MESSAGE_SIZE, rdm))
+			msg.SetPayload(makePayload(uint64(cnt)+uint64(message.MAX_MESSAGE_SIZE), rdm))
 		} else {
 			msg.SetPayload(makePayload(uint64(cnt), rdm))
 		}
@@ -325,6 +326,10 @@ func main() {
 		}
 		pprof.StartCPUProfile(profFile)
 		defer pprof.StopCPUProfile()
+	}
+
+	if test.MaxMessageSize > 0 {
+		message.SetMaxMessageSize(test.MaxMessageSize)
 	}
 
 	var sender *client.NetworkSender
