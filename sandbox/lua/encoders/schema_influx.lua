@@ -40,6 +40,12 @@ Config:
     to provide better performance when querying and aggregating across
     multiple series.
 
+- exclude_base_fields (boolean, optional, default false)
+    Don't send the base fields to InfluxDB.  This saves storage space by not
+    including base fields that are mostly redundant and unused data. If 
+    skip_fields includes base fields, this overrides it and will only be
+    relevant for skipping dynamic fields.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -76,6 +82,12 @@ local use_subs
 if string.find(series, "%%{[%w%p]-}") then
     use_subs = true
 end
+
+-- Default this option to false
+local multi_series = read_config("multi_series") or false
+
+-- Default this option to false
+local exclude_base_fields = read_config("exclude_base_fields") or false
 
 local base_fields_map = {
     Type = true,
@@ -183,6 +195,13 @@ end
 
 local function process_multi_series(output, columns, values, place)
     local output_index = 1
+
+    if use_subs then
+        series = string.gsub(series_orig, "%%{([%w%p]-)}", sub_func)
+    else
+        series = series_orig
+    end
+
     while true do
         -- Iterate through Fields array in the message
         local typ, name, value, representation, count = read_next_field()
@@ -198,11 +217,9 @@ local function process_multi_series(output, columns, values, place)
             -- Instantiate a table in the output table for this iteration
             output[output_index] = {}
 
-            -- Set the name attribute of this table appropriately
-            if use_subs then
-                series = string.gsub(series_orig, "%%{([%w%p]-)}", sub_func).."."..name
-            end
-            field_name = series
+            -- Set the name attribute of this table by concatenating series
+            -- with the name of this particular field
+            field_name = series.."."..name
 
             -- Create new tables built from local columns, values in this table
             for k,v in pairs(columns) do field_columns[k] = v end
@@ -236,17 +253,18 @@ function process_message()
     values[1] = read_message("Timestamp") / 1e6
 
     local place = 2
-    for _, field in ipairs(used_base_fields) do
-        columns[place] = field
-        values[place] = read_message(field)
-        place = place + 1
+    if not exclude_base_fields then
+        for _, field in ipairs(used_base_fields) do
+            columns[place] = field
+            values[place] = read_message(field)
+            place = place + 1
+        end
     end
 
-    local multi_series = read_config("multi_series")
-    if not multi_series then
-        output = process_single_series(output, columns, values, place)
-    else
+    if multi_series then
         output = process_multi_series(output, columns, values, place)
+    else
+        output = process_single_series(output, columns, values, place)
     end
 
     inject_payload("json", "influx_message", cjson.encode(output))
