@@ -66,6 +66,11 @@ type AMQPConnectionTracker struct {
 	connWg  *sync.WaitGroup
 }
 
+// NewAMQPDialer exposes factory for AMQPDialers
+func NewAMQPDialer(tlsConfig *tls.Config) AMQPDialer {
+	return AMQPDialer{tlsConfig}
+}
+
 // AMQP connection dialer
 type AMQPDialer struct {
 	tlsConfig *tls.Config
@@ -109,7 +114,7 @@ func newAmqpHub() AMQPConnectionHub {
 	return ach
 }
 
-func getAmqpHub() AMQPConnectionHub {
+func GetAmqpHub() AMQPConnectionHub {
 	if amqpHub == nil {
 		amqpHub = newAmqpHub()
 	}
