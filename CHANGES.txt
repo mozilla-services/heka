@@ -66,6 +66,9 @@ Bug Handling
 Features
 --------
 
+* `heka/plugins/amqp` package now exposes `GetAmqpHub` and `NewAMQPDialer`
+  functions for use by external packages.
+
 * Added heartbeat monitoring sandbox filter plugin.
 
 * Added a SandboxOutput plugin.
