@@ -66,6 +66,8 @@ Bug Handling
 Features
 --------
 
+* Added heartbeat monitoring sandbox filter plugin.
+
 * Added a SandboxOutput plugin.
 
 * Include the new lua_sandbox with support for shared library modules.
