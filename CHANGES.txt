@@ -125,6 +125,14 @@ Features
 
 * Added `hostname_keep` option to RsyslogDecoder (#1338).
 
+* Added an option to Schema InfluxDB Encoder to send the data to InfluxDB as
+  a list of series rather than the default of a single series for all fields
+  in the message.
+
+* Added an option to Schema InfluxDB Encoder that excludes all base fields
+  from being sent to InfluxDB to reduce the network traffic and storage
+  demands if these fields aren't useful.
+
 0.8.3 (2015-01-08)
 ==================
 
