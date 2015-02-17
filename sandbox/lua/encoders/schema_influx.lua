@@ -28,9 +28,22 @@ Config:
     InfluxDB records being generated. Any fieldname values of "Type",
     "Payload", "Hostname", "Pid", "Logger", "Severity", or "EnvVersion" will
     be assumed to refer to the corresponding field from the base message
-    schema, any other values will be assumed to refer to a dynamic message
+    schema. Any other values will be assumed to refer to a dynamic message
     field.
 
+- multi_series (boolean, optional, default false)
+    Instead of submitting all fields to InfluxDB as attributes of a single
+    series, submit a series for each field that sets a "value" attribute to
+    the value of the field.  This also sets the name attribute to the series
+    value with the field name appended to it by a ".". This is the recommended
+    by InfluxDB for v0.9 onwards as it is found to provide better performance
+    when querying and aggregating across multiple series.
+
+- exclude_base_fields (boolean, optional, default false)
+    Don't send the base fields to InfluxDB.  This saves storage space by not
+    including base fields that are mostly redundant and unused data. If 
+    skip_fields includes base fields, this overrides it and will only be
+    relevant for skipping dynamic fields.
 
 *Example Heka Configuration*
 
@@ -68,6 +81,12 @@ local use_subs
 if string.find(series, "%%{[%w%p]-}") then
     use_subs = true
 end
+
+-- Default this option to false
+local multi_series = read_config("multi_series") or false
+
+-- Default this option to false
+local exclude_base_fields = read_config("exclude_base_fields") or false
 
 local base_fields_map = {
     Type = true,
@@ -130,20 +149,7 @@ local function get_array_value(field, field_idx, count)
     return value
 end
 
-function process_message()
-    local columns = {}
-    local values = {}
-
-    columns[1] = "time" -- InfluxDB's default
-    values[1] = read_message("Timestamp") / 1e6
-
-    local place = 2
-    for _, field in ipairs(used_base_fields) do
-        columns[place] = field
-        values[place] = read_message(field)
-        place = place + 1
-    end
-
+local function process_single_series(columns, values, place)
     local seen = {}
     local seen_count
     while true do
@@ -183,6 +189,84 @@ function process_message()
             points =  {values}
         }
     }
+    return output
+end
+
+local function process_multi_series(columns, values, place)
+    local output_index = 1
+
+    if use_subs then
+        series = string.gsub(series_orig, "%%{([%w%p]-)}", sub_func)
+    else
+        series = series_orig
+    end
+
+    local output = {}
+    while true do
+        -- Iterate through Fields array in the message
+        local typ, name, value, representation, count = read_next_field()
+        -- Exit the perpetual loop when the iteration is complete
+        if not typ then break end
+
+        -- Only process fields that are not requested to be skipped
+        if not skip_fields_str or not skip_fields[name] then
+            local field_name = ""
+            local field_columns = {}
+            local field_points = {}
+
+            -- Instantiate a table in the output table for this iteration
+            output[output_index] = {}
+
+            -- Set the name attribute of this table by concatenating series
+            -- with the name of this particular field
+            field_name = series.."."..name
+
+            -- Create new tables built from local columns, values in this table
+            for k,v in pairs(columns) do field_columns[k] = v end
+            for k,v in pairs(values) do field_points[k] = v end
+
+            -- Merge added values to each table for the field in this iteration
+            field_columns[place] = "value"
+            field_points[place] = value
+            -- Structure the table to match the expected Influxdb structure
+            output[output_index] = {
+                name = field_name,
+                columns = field_columns,
+                points = {field_points}
+            }
+            -- Increment the index to the table so the next iteration will
+            -- append another entry to the array. This allows us to send a
+            -- bunch of metrics to InfluxDB with a single HTTP request
+            output_index = output_index + 1
+        end
+    end
+
+    return output
+end
+
+function process_message()
+    local columns = {}
+    local values = {}
+
+    columns[1] = "time" -- InfluxDB's default
+    values[1] = read_message("Timestamp") / 1e6
+
+    local place = 2
+    if not exclude_base_fields then
+        for _, field in ipairs(used_base_fields) do
+            columns[place] = field
+            values[place] = read_message(field)
+            place = place + 1
+        end
+    end
+
+    local output
+    if multi_series then
+        output = process_multi_series(columns, values, place)
+    else
+        output = process_single_series(columns, values, place)
+    end
+
     inject_payload("json", "influx_message", cjson.encode(output))
     return 0
 end
