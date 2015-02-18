@@ -215,7 +215,7 @@ func Run(config *PipelineConfig) {
 			outputsWg.Done()
 			continue
 		}
-		LogInfo.Println("Output started: ", name)
+		LogInfo.Println("Output started:", name)
 	}
 
 	for name, filter := range config.FilterRunners {
@@ -225,7 +225,7 @@ func Run(config *PipelineConfig) {
 			config.filtersWg.Done()
 			continue
 		}
-		LogInfo.Println("Filter started: ", name)
+		LogInfo.Println("Filter started:", name)
 	}
 
 	// Finish initializing the router's matchers.
@@ -260,7 +260,7 @@ func Run(config *PipelineConfig) {
 			config.inputsWg.Done()
 			continue
 		}
-		LogInfo.Printf("Input started: %s\n", name)
+		LogInfo.Println("Input started:", name)
 	}
 
 	// wait for sigint

@@ -70,6 +70,8 @@ func UdpInputSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 		ith.MockSplitterRunner.EXPECT().GetRemainingData().AnyTimes()
+		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+		ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 
 		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
 			nil).AnyTimes()
