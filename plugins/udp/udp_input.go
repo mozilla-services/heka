@@ -107,8 +107,9 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 	var err error
 
 	if !sr.UseMsgBytes() {
+		name := ir.Name()
 		packDec := func(pack *PipelinePack) {
-			pack.Message.SetType("heka.udpinput")
+			pack.Message.SetType(name)
 		}
 		sr.SetPackDecorator(packDec)
 	}

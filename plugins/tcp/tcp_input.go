@@ -129,9 +129,10 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 	}()
 
 	if !sr.UseMsgBytes() {
+		name := t.ir.Name()
 		packDec := func(pack *PipelinePack) {
 			pack.Message.SetHostname(raddr)
-			pack.Message.SetType("heka.tcpinput")
+			pack.Message.SetType(name)
 		}
 		sr.SetPackDecorator(packDec)
 	}
