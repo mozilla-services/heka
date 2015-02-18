@@ -105,6 +105,8 @@ Features
 
 * Added `cert_path` setting for TLS support to DockerLogInput. 
 
+* Added `read_only` setting to AMQPInput to support read-only users.
+
 0.8.3 (2015-01-08)
 ==================
 
