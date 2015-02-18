@@ -93,13 +93,13 @@ func SplitterRunnerSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	srConfig := CommonSplitterConfig{}
+
 	c.Specify("A SplitterRunner w/ HekaFramingSplitter", func() {
 		splitter := &HekaFramingSplitter{}
 		config := splitter.ConfigStruct().(*HekaFramingSplitterConfig)
 		useMsgBytes := true
-		srConfig := CommonSplitterConfig{
-			UseMsgBytes: &useMsgBytes,
-		}
+		srConfig.UseMsgBytes = &useMsgBytes
 		sr := NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)
 
 		err := splitter.Init(config)
