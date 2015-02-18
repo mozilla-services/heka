@@ -72,6 +72,7 @@ func TcpInputSpec(c gs.Context) {
 		errChan := make(chan error, 1)
 
 		startServer := func() {
+			ith.MockInputRunner.EXPECT().Name().Return("mock_name")
 			ith.MockInputRunner.EXPECT().NewDeliverer(gomock.Any()).Return(ith.MockDeliverer)
 			ith.MockDeliverer.EXPECT().Done()
 			ith.MockInputRunner.EXPECT().NewSplitterRunner(gomock.Any()).Return(

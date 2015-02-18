@@ -19,7 +19,7 @@ Backwards Incompatibilities
   decoding might need to happen in separate goroutines, through `Deliverer`
   objects available from the `NewDeliverer` method.
 
-* Hekad and all clients started using stdio for informational messages and
+* Hekad and all clients started using stdout for informational messages and
   stderr for error messages.
 
 * Stats Accum Input treats gauge inputs as float64 rather than int64 to match
@@ -27,6 +27,10 @@ Backwards Incompatibilities
 
 * Introduction of Splitter plugins, accompanied by major changes to how input
   plugins work to support the use of Splitter plugins. (#424)
+
+* TcpInput and UdpInput now set a non-protobuf encoded message's Type field to
+  the configured input plugin name instead of the hard-coded string
+  "NetworkInput".
 
 Bug Handling
 ------------

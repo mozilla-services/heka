@@ -68,8 +68,11 @@ func UdpInputSpec(c gs.Context) {
 
 		bytesChan := make(chan []byte, 1)
 
+		ith.MockInputRunner.EXPECT().Name().Return("mock_name")
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 		ith.MockSplitterRunner.EXPECT().GetRemainingData().AnyTimes()
+		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+		ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 
 		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
 			nil).AnyTimes()
