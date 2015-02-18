@@ -186,7 +186,7 @@ func (s *SandboxInput) ReportMsg(msg *message.Message) error {
 
 	message.NewInt64Field(msg, "ProcessMessageCount", atomic.LoadInt64(&s.processMessageCount), "count")
 	message.NewInt64Field(msg, "ProcessMessageFailures", atomic.LoadInt64(&s.processMessageFailures), "count")
-	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&s.processMessageBytes), "count")
+	message.NewInt64Field(msg, "ProcessMessageBytes", atomic.LoadInt64(&s.processMessageBytes), "B")
 
 	return nil
 }
