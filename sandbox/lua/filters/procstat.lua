@@ -36,7 +36,7 @@ Config:
     preserve_data = true
     message_matcher = "Type == 'stats.procstat'"
     [ProcStatFilter.config]
-        whitelist_pattern = "cpu*"
+        whitelist_regex = "cpu*"
 
 
 Cpu fields:
@@ -96,7 +96,7 @@ local proc_stat_mappings = {
 }
 
 local preserve_data = read_config('preserve_data')
-local blacklist_regex = read_config('blacklist_regex') or 'cpu$'
+local whitelist_regex = read_config('whitelist_regex')
 
 function process_delta(new, old)
     -- Recursion - check diff in table or value
@@ -157,7 +157,7 @@ function process_message()
         Fields = {},
     }
     -- read values found in the fields_index into a usable table
-    local wl = whitelist_pattern
+    local wl = whitelist_regex
     local data = {}
     local index_count = read_message('Fields[index_count]')
     if index_count == nil then return 0 end
