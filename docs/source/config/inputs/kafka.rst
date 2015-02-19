@@ -77,7 +77,7 @@ Config:
     client code consumes events, greatly improving throughput. The default is
     16.
 
-Example (read Fxa messages from partition 0):
+Example 1: Read Fxa messages from partition 0.
 
 .. code-block:: ini
 
@@ -85,4 +85,30 @@ Example (read Fxa messages from partition 0):
     type = "KafkaInput"
     topic = "Fxa"
     addrs = ["localhost:9092"]
+
+Example 2: Send messages between two Heka instances via a Kafka broker.
+
+.. code-block:: ini
+
+    # On the producing instance
+    [KafkaOutputExample]
+    type = "KafkaOutput"
+    message_matcher = "TRUE"
+    topic = "heka"
+    addrs = ["kafka-broker:9092"]
+    encoder = "ProtobufEncoder"
+
+.. code-block:: ini
+
+    # On the consuming instance
+    [KafkaInputExample]
+    type = "KafkaInput"
+    topic = "heka"
+    addrs = ["kafka-broker:9092"]
+    splitter = "KafkaSplitter"
+    decoder = "ProtobufDecoder"
+
+    [KafkaSplitter]
+    type = "NullSplitter"
+    use_message_bytes = true
 
