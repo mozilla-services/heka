@@ -527,6 +527,7 @@ type CommonFOConfig struct {
 type CommonSplitterConfig struct {
 	KeepTruncated *bool `toml:"keep_truncated"`
 	UseMsgBytes   *bool `toml:"use_message_bytes"`
+	BufferSize    uint  `toml:"buffer_size"`
 }
 
 func getDefaultRetryOptions() RetryOptions {

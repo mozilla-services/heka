@@ -60,7 +60,11 @@ type sRunner struct {
 func NewSplitterRunner(name string, splitter Splitter,
 	config CommonSplitterConfig) *sRunner {
 
-	buf := make([]byte, 1024*8)
+	bufSize := config.BufferSize
+	if bufSize == 0 {
+		bufSize = 8 * 1024
+	}
+	buf := make([]byte, bufSize)
 	sr := &sRunner{
 		pRunnerBase: pRunnerBase{
 			name:   name,
