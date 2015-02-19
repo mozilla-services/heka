@@ -87,6 +87,8 @@ func (this *CounterFilter) CleanupForRestart() {
 
 func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 	msgLoopCount uint) {
+	const msgType = "heka.counter-output"
+
 	msgsSent := this.count - this.lastCount
 	if msgsSent == 0 {
 		return
@@ -105,7 +107,8 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 			h.PipelineConfig().Globals.MaxMsgLoops))
 		return
 	}
-	pack.Message.SetType("heka.counter-output")
+	pack.Message.SetLogger(fr.Name())
+	pack.Message.SetType(msgType)
 	pack.Message.SetPayload(fmt.Sprintf("Got %d messages. %0.2f msg/sec",
 		this.count, this.rate))
 	fr.Inject(pack)
@@ -127,7 +130,7 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 			return
 		}
 		pack.Message.SetLogger(fr.Name())
-		pack.Message.SetType("heka.counter-output")
+		pack.Message.SetType(msgType)
 		pack.Message.SetPayload(
 			fmt.Sprintf("AGG Sum. Min: %0.2f    Max: %0.2f    Mean: %0.2f",
 				min, max, mean))
