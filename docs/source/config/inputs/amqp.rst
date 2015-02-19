@@ -57,6 +57,12 @@ Config:
     SSL/TLS encryption. This will only have any impact if `URL` uses the
     `AMQPS` URI scheme. See :ref:`tls`.
 
+.. versionadded:: 0.9
+
+- read_only (bool):
+    Whether the AMQP user is read-only. If this is true the exchange, queue
+    and binding must be declared before starting Heka. Defaults to false.
+
 Since many of these parameters have sane defaults, a minimal configuration to
 consume serialized messages would look like:
 

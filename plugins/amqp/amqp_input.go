@@ -68,6 +68,9 @@ type AMQPInputConfig struct {
 	// Optional subsection for TLS configuration of AMQPS connections. If
 	// unspecified, the default AMQPS settings will be used.
 	Tls tcp.TlsConfig
+	// Specify whether the user is read-only. The exchange and queue must
+	// already exist. Defaults to false.
+	ReadOnly bool `toml:"read_only"`
 }
 
 type AMQPInput struct {
@@ -89,6 +92,7 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 		QueueExclusive:     false,
 		QueueAutoDelete:    true,
 		QueueTTL:           -1,
+		ReadOnly:           false,
 	}
 }
 
@@ -126,26 +130,32 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	}()
 	ai.connWg = connWg
 	ai.usageWg = usageWg
-	err = ch.ExchangeDeclare(conf.Exchange, conf.ExchangeType,
-		conf.ExchangeDurability, conf.ExchangeAutoDelete, false, false,
-		nil)
-	if err != nil {
-		return
+
+	// Only declare the exchange and queue if the user is not read only.
+	if !conf.ReadOnly {
+		err = ch.ExchangeDeclare(conf.Exchange, conf.ExchangeType,
+			conf.ExchangeDurability, conf.ExchangeAutoDelete, false, false,
+			nil)
+		if err != nil {
+			return
+		}
+
+		_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
+			conf.QueueAutoDelete, conf.QueueExclusive, false, args)
+		if err != nil {
+			return
+		}
+
+		err = ch.QueueBind(conf.Queue, conf.RoutingKey, conf.Exchange, false, nil)
+		if err != nil {
+			return
+		}
+		err = ch.Qos(conf.PrefetchCount, 0, false)
+		if err != nil {
+			return
+		}
 	}
 	ai.ch = ch
-	_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
-		conf.QueueAutoDelete, conf.QueueExclusive, false, args)
-	if err != nil {
-		return
-	}
-	err = ch.QueueBind(conf.Queue, conf.RoutingKey, conf.Exchange, false, nil)
-	if err != nil {
-		return
-	}
-	err = ch.Qos(conf.PrefetchCount, 0, false)
-	if err != nil {
-		return
-	}
 	return
 }
 

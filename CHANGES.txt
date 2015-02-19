@@ -140,6 +140,8 @@ Features
   from being sent to InfluxDB to reduce the network traffic and storage
   demands if these fields aren't useful.
 
+* Added `read_only` setting to AMQPInput to support read-only users.
+
 0.8.3 (2015-01-08)
 ==================
 
