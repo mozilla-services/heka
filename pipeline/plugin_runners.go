@@ -711,6 +711,10 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	}
 	runner.matcher = matcher
 
+	if config.CanExit != nil && *config.CanExit {
+		runner.canExit = true
+	}
+
 	if config.UseFraming != nil && *config.UseFraming {
 		runner.useFraming = true
 	}
