@@ -44,6 +44,7 @@ func HttpListenInputSpec(c gs.Context) {
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
 	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
+	splitter := &TokenSplitter{} // Not actually used.
 
 	errChan := make(chan error, 1)
 	startInput := func() {
@@ -72,6 +73,7 @@ func HttpListenInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().NewSplitterRunner(gomock.Any()).Return(
 			ith.MockSplitterRunner)
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
 
 		decChan := make(chan func(*PipelinePack), 1)
 		feedDecorator := func(decorator func(*PipelinePack)) {
