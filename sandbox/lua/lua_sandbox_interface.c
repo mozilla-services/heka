@@ -448,28 +448,63 @@ int inject_payload(lua_State* lua)
 int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type)
 {
     static const char *output = "output";
-    if (!lsb) return 1;
+    if (!lsb || !plugin_type) return 1;
+
+    int add_to_payload = 0;
 
     lsb_add_function(lsb, &read_config, "read_config");
-    lsb_add_function(lsb, &read_message, "read_message");
-    lsb_add_function(lsb, &read_next_field, "read_next_field");
-    lsb_add_function(lsb, &inject_payload, "inject_payload");
-    lsb_add_function(lsb, &inject_message, "inject_message");
 
-    if (strcmp(plugin_type, "decoder") == 0 ||
-        strcmp(plugin_type, "encoder") == 0) {
-        lsb_add_function(lsb, &write_message, "write_message");
+    if (strcmp(plugin_type, "input") == 0) {
+        lsb_add_function(lsb, &inject_message, "inject_message");
+    }
+
+    if (strcmp(plugin_type, "output") == 0) {
+        lsb_add_function(lsb, &read_message, "read_message");
+        lsb_add_function(lsb, &read_next_field, "read_next_field");
+    }
+
+    if (strlen(plugin_type) == 0 // default an empty plugin type to filter
+        || strcmp(plugin_type, "filter") == 0
+        || strcmp(plugin_type, "decoder") == 0
+        || strcmp(plugin_type, "encoder") == 0) {
+        lsb_add_function(lsb, &read_message, "read_message");
+        lsb_add_function(lsb, &read_next_field, "read_next_field");
+        lsb_add_function(lsb, &inject_payload, "inject_payload");
+        lsb_add_function(lsb, &inject_message, "inject_message");
+
+        if (strcmp(plugin_type, "decoder") == 0 ||
+            strcmp(plugin_type, "encoder") == 0) {
+            lsb_add_function(lsb, &write_message, "write_message");
+        }
+        add_to_payload = 1;
     }
 
     int result = lsb_init(lsb, data_file);
     if (result) return result;
 
-    // rename output to add_to_payload
     lua_State* lua = lsb_get_lua(lsb);
-    lua_getglobal(lua, output);
-    lua_setglobal(lua, "add_to_payload");
+    if (add_to_payload) {
+        // rename output to add_to_payload
+        lua_getglobal(lua, output);
+        lua_setglobal(lua, "add_to_payload");
+    }
+    // remove the sandbox provided output function
     lua_pushnil(lua);
     lua_setglobal(lua, output);
 
     return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static void lstop (lua_State *L, lua_Debug *ar) {
+  (void)ar;  /* unused arg. */
+  lua_sethook(L, NULL, 0, 0);
+  luaL_error(L, "shutting down");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void sandbox_stop(lua_sandbox* lsb)
+{
+    lua_State* lua = lsb_get_lua(lsb);
+    lua_sethook(lua, lstop, LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1);
 }

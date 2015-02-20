@@ -16,8 +16,10 @@ Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
 
 **int, string process_message()**
-    Called by Heka when a message is available to the sandbox.  The 
-    instruction_limit configuration parameter is applied to this function call.
+    This is the entry point for input plugins to start creating messages. For
+    all other plugin types it is called by Heka when a message is available to
+    the sandbox. The instruction_limit configuration parameter is applied to
+    this function call for non input plugins.
 
     *Arguments*
         none
@@ -31,10 +33,10 @@ Functions that must be exposed from the Lua sandbox
         - string optional error message
 
 **timer_event(ns)**
-    Called by Heka when the ticker_interval expires.  The instruction_limit 
+    Called by Heka when the ticker_interval expires.  The instruction_limit
     configuration parameter is applied to this function call.  This function
-    is only required in SandboxFilters (SandboxDecoders do not support timer
-    events).
+    is only required in SandboxFilters that have a ticker_interval configuration
+    greater than zero.
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch
@@ -48,18 +50,23 @@ See: https://github.com/mozilla-services/lua_sandbox/
 
 **require(libraryName)**
 
-**add_to_payload(arg1, arg2, ...argN)** 
+    *Available In*
+        All plugin types
+
+**add_to_payload(arg1, arg2, ...argN)**
     Appends the arguments to the payload buffer for incremental construction of
     the final payload output (inject_payload finalizes the buffer and sends the
     message to Heka).  This function is simply a rename of the generic sandbox
-    *output* function to improve the readability of the plugin code. 
+    *output* function to improve the readability of the plugin code.
 
     *Arguments*
         - arg (number, string, bool, nil, circular_buffer)
 
     *Return*
         none
-    
+
+    *Available In*
+        Decoders, filters, encoders
 
 Heka specific functions that are exposed to the Lua sandbox
 -----------------------------------------------------------
@@ -71,6 +78,9 @@ Heka specific functions that are exposed to the Lua sandbox
 
     *Return*
         number, string, bool, nil depending on the type of variable requested
+
+    *Available In*
+        All plugin types
 
 **read_message(variableName, fieldIndex, arrayIndex)**
     Provides access to the Heka message data. Note that both `fieldIndex` and
@@ -100,13 +110,15 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+    *Available In*
+        Decoders, filters, encoders, outputs
+
 .. _write_message:
 
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
     .. versionadded:: 0.5
 
-    Decoders only. Mutates specified field value on the message that is being
-    decoded.
+    Mutates specified field value on the message that is being decoded.
 
     *Arguments*
         - variableName (string)
@@ -133,6 +145,9 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         none
 
+    *Available In*
+        Decoders, encoders
+
 **read_next_field()**
     Iterates through the message fields returning the field contents or nil when the end is reached.
 
@@ -142,15 +157,18 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         value_type, name, value, representation, count (number of items in the field array)
 
+    *Available In*
+        Decoders, filters, encoders, outputs
+
 **inject_payload(payload_type, payload_name, arg3, ..., argN)**
 
     Creates a new Heka message using the contents of the payload buffer
-    (pre-populated with *add_to_payload*) combined with any additional 
+    (pre-populated with *add_to_payload*) combined with any additional
     payload_args passed to this function.  The output buffer is cleared after
     the injection. The payload_type and payload_name arguments are two pieces of
-    optional metadata. If specified, they will be included as fields in the 
-    injected message e.g., Fields[payload_type] == 'csv', 
-    Fields[payload_name] == 'Android Usage Statistics'. The number of messages 
+    optional metadata. If specified, they will be included as fields in the
+    injected message e.g., Fields[payload_type] == 'csv',
+    Fields[payload_name] == 'Android Usage Statistics'. The number of messages
     that may be injected by the process_message or timer_event functions are
     globally controlled by the hekad :ref:`global configuration options <hekad_global_config_options>`;
     if these values are exceeded the sandbox will be terminated.
@@ -164,6 +182,9 @@ Heka specific functions that are exposed to the Lua sandbox
 
     *Return*
         none
+
+    *Available In*
+        Decoders, filters, encoders
 
 .. _inject_message_message_table:
 
@@ -189,8 +210,12 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         none
 
+    *Available In*
+        Inputs, decoders, filters, encoders
+
     *Notes*
-        - injection limits are enforced as described above
+        Injection limits are only enforced on filter plugins.
+        See ``max_*_inject`` in the :ref:`global configuration options <hekad_global_config_options>`.
 
 Sample Lua Message Structure
 ----------------------------

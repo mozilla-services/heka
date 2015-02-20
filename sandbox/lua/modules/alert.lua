@@ -4,7 +4,7 @@
 
 --[[
 API
----
+^^^
 Stores the last alert time in the global *_LAST_ALERT* so alert throttling will
 persist between restarts.
 

@@ -70,6 +70,10 @@ Bug Handling
 Features
 --------
 
+* Added a SandboxInput plugin (#1333).
+
+* Added a SandboxOutput plugin (#1303).
+
 * `heka/plugins/amqp` package now exposes `GetAmqpHub` and `NewAMQPDialer`
   functions for use by external packages.
 

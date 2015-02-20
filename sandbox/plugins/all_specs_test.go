@@ -28,6 +28,7 @@ func TestAllSpecs(t *testing.T) {
 	r := gs.NewRunner()
 	r.Parallel = false
 
+	r.AddSpec(InputSpec)
 	r.AddSpec(FilterSpec)
 	r.AddSpec(DecoderSpec)
 	r.AddSpec(EncoderSpec)

@@ -173,11 +173,12 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
 // information to the Heka report and dashboard.
 func (s *SandboxOutput) ReportMsg(msg *message.Message) error {
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
 	if s.sb == nil {
 		return fmt.Errorf("Output is not running")
 	}
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,
 		STAT_CURRENT)), "B")

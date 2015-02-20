@@ -36,6 +36,7 @@ const (
 type Sandbox interface {
 	// Sandbox control
 	Init(dataFile string) error
+	Stop()
 	Destroy(dataFile string) error
 
 	// Sandbox state
