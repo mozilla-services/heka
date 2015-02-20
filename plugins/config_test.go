@@ -72,7 +72,9 @@ func LoadFromConfigSpec(c gs.Context) {
 
 	c.Specify("Config file loading", func() {
 		c.Specify("works w/ good config file", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 
 			// We use a set of Expect's rather than c.Specify because the
@@ -112,7 +114,9 @@ func LoadFromConfigSpec(c gs.Context) {
 			err := os.Setenv("LOG_ENCODER", "PayloadEncoder")
 			defer os.Setenv("LOG_ENCODER", "")
 			c.Assume(err, gs.IsNil)
-			err = pipeConfig.LoadFromConfigFile("./testsupport/config_env_test.toml")
+			err = pipeConfig.PreloadFromConfigFile("./testsupport/config_env_test.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 
 			log, ok := pipeConfig.OutputRunners["LogOutput"]
@@ -131,16 +135,18 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("returns an error with invalid env variables in config", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_1_test.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/bad_envs/config_1_test.toml")
 			c.Expect(err, gs.Equals, ErrMissingCloseDelim)
 
-			err = pipeConfig.LoadFromConfigFile("./testsupport/bad_envs/config_2_test.toml")
+			err = pipeConfig.PreloadFromConfigFile("./testsupport/bad_envs/config_2_test.toml")
 			c.Expect(err, gs.Equals, ErrInvalidChars)
 
 		})
 
 		c.Specify("works w/ decoder defaults", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_defaults.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_defaults.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.Not(gs.IsNil))
 
 			// Only the ProtobufDecoder is loaded
@@ -148,7 +154,9 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("works w/ MultiDecoder", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_multidecoder.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_multidecoder.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 			hasSyncDecoder := false
 
@@ -166,7 +174,9 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("works w/ Nested MultiDecoders", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_multidecoder_nested.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_multidecoder_nested.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 			hasSyncDecoder := false
 
@@ -184,8 +194,10 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("handles Cyclic Nested MultiDecoders correctly", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_multidecoder_nested_cyclic.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_multidecoder_nested_cyclic.toml")
 			//circular dependency detected
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "circular dependency detected")
 
@@ -195,7 +207,9 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("explodes w/ bad config file", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_bad_test.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_bad_test.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "2 errors loading plugins")
 			c.Expect(pipeConfig.LogMsgs, gs.ContainsAny,
@@ -203,7 +217,7 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("handles missing config file correctly", func() {
-			err := pipeConfig.LoadFromConfigFile("no_such_file.toml")
+			err := pipeConfig.PreloadFromConfigFile("no_such_file.toml")
 			c.Assume(err, gs.Not(gs.IsNil))
 			if runtime.GOOS == "windows" {
 				c.Expect(err.Error(), ts.StringContains, "open no_such_file.toml: The system cannot find the file specified.")
@@ -213,7 +227,9 @@ func LoadFromConfigSpec(c gs.Context) {
 		})
 
 		c.Specify("errors correctly w/ bad outputs config", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_bad_outputs.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_bad_outputs.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.Not(gs.IsNil))
 			c.Expect(err.Error(), ts.StringContains, "1 errors loading plugins")
 			msg := pipeConfig.LogMsgs[0]
@@ -224,8 +240,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			RegisterPlugin("DefaultsTestOutput", func() interface{} {
 				return new(DefaultsTestOutput)
 			})
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_defaults2.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_defaults2.toml")
 			c.Expect(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
+			c.Assume(err, gs.IsNil)
 			runner, ok := pipeConfig.OutputRunners["DefaultsTestOutput"]
 			c.Expect(ok, gs.IsTrue)
 			ticker := runner.Ticker()
@@ -238,8 +256,10 @@ func LoadFromConfigSpec(c gs.Context) {
 			RegisterPlugin("DefaultsTestOutput", func() interface{} {
 				return new(DefaultsTestOutput)
 			})
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_defaults2.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_defaults2.toml")
 			c.Expect(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
+			c.Assume(err, gs.IsNil)
 
 			data := `{"globals":[{"Name":"inputRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"99", "representation":"count"}},{"Name":"injectRecycleChan","InChanCapacity":{"value":"100", "representation":"count"},"InChanLength":{"value":"98", "representation":"count"}},{"Name":"Router","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"26", "representation":"count"}}], "inputs": [{"Name": "TcpInput"}], "decoders": [{"Name":"ProtobufDecoder","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"}}], "filters": [{"Name":"OpsSandboxManager","RunningFilters":{"value":"0", "representation":"count"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"0", "representation":"ns"}},{"Name":"hekabench_counter","Memory":{"value":"20644", "representation":"B"},"MaxMemory":{"value":"20644", "representation":"B"},"MaxInstructions":{"value":"18", "representation":"count"},"MaxOutput":{"value":"0", "representation":"B"},"ProcessMessageCount":{"value":"0", "representation":"count"},"InjectMessageCount":{"value":"0", "representation":"count"},"ProcessMessageAvgDuration":{"value":"0", "representation":"ns"},"TimerEventAvgDuration":{"value":"78532", "representation":"ns"},"InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"445", "representation":"ns"}}], "outputs": [{"Name":"LogOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"406", "representation":"ns"}},{"Name":"DashboardOutput","InChanCapacity":{"value":"50", "representation":"count"},"InChanLength":{"value":"0", "representation":"count"},"MatchChanCapacity":{"value":"50", "representation":"count"},"MatchChanLength":{"value":"0", "representation":"count"},"MatchAvgDuration":{"value":"336", "representation":"ns"}}]} `
 
@@ -314,12 +334,14 @@ NONE
 		})
 
 		c.Specify("works w/ bad param config file", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_bad_params.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_bad_params.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.Not(gs.IsNil))
 		})
 
 		c.Specify("works w/ common parameters that are not part of the struct", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test_common.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test_common.toml")
 			c.Assume(err, gs.IsNil)
 
 		})
@@ -378,7 +400,9 @@ NONE
 
 	c.Specify("PluginHelper", func() {
 		c.Specify("starts and stops DecoderRunners appropriately", func() {
-			err := pipeConfig.LoadFromConfigFile("./testsupport/config_test.toml")
+			err := pipeConfig.PreloadFromConfigFile("./testsupport/config_test.toml")
+			c.Assume(err, gs.IsNil)
+			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 			// Start two DecoderRunners.
 			dr1, ok := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_1")
