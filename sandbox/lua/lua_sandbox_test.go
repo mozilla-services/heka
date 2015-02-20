@@ -683,6 +683,8 @@ func TestInjectMessage(t *testing.T) {
 		"special characters",
 		"message field all types",
 		"internal reference",
+		"round trip",
+		"inject raw",
 	}
 	outputs := []string{
 		`{"value":1}1.2 string nil true false`,
@@ -693,6 +695,8 @@ func TestInjectMessage(t *testing.T) {
 		`{"special\tcharacters":"\"\t\r\n\b\f\\\/"}`,
 		"\x10\x80\x94\xeb\xdc\x03\x52\x13\x0a\x06\x6e\x75\x6d\x62\x65\x72\x10\x03\x39\x00\x00\x00\x00\x00\x00\xf0\x3f\x52\x2c\x0a\x07\x6e\x75\x6d\x62\x65\x72\x73\x10\x03\x1a\x05\x63\x6f\x75\x6e\x74\x3a\x18\x00\x00\x00\x00\x00\x00\xf0\x3f\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x08\x40\x52\x0e\x0a\x05\x62\x6f\x6f\x6c\x73\x10\x04\x42\x03\x01\x00\x00\x52\x0a\x0a\x04\x62\x6f\x6f\x6c\x10\x04\x40\x01\x52\x10\x0a\x06\x73\x74\x72\x69\x6e\x67\x22\x06\x73\x74\x72\x69\x6e\x67\x52\x15\x0a\x07\x73\x74\x72\x69\x6e\x67\x73\x22\x02\x73\x31\x22\x02\x73\x32\x22\x02\x73\x33",
 		`{"y":[2],"x":[1,2,3],"ir":[1,2,3]}`,
+		"\x10\x80\x94\xeb\xdc\x03\x52\x1b\x0a\x05\x63\x6f\x75\x6e\x74\x10\x03\x3a\x10\x00\x00\x00\x00\x00\x00\xf0\x3f\x00\x00\x00\x00\x00\x00\xf0\x3f",
+		"\x10\x80\x94\xeb\xdc\x03\x52\x1b\x0a\x05\x63\x6f\x75\x6e\x74\x10\x03\x3a\x10\x00\x00\x00\x00\x00\x00\xf0\x3f\x00\x00\x00\x00\x00\x00\xf0\x3f",
 	}
 	if false { // lua jit values
 		outputs[1] = `{"Timestamp":0,"Value":0,"StatisticValues":[{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0},{"SampleCount":0,"Sum":0,"Maximum":0,"Minimum":0}],"Unit":"s","MetricName":"example","Dimensions":[{"Name":"d1","Value":"v1"},{"Name":"d2","Value":"v2"}]}`
@@ -784,6 +788,7 @@ func TestInjectMessageError(t *testing.T) {
 		"error nil name arg",
 		"error nil message",
 		"error userdata output_limit",
+		"error invalid protobuf string",
 	}
 	errors := []string{
 		"process_message() ./testsupport/inject_message.lua:38: Cannot serialise, excessive nesting (1001)",
@@ -792,8 +797,9 @@ func TestInjectMessageError(t *testing.T) {
 		"process_message() ./testsupport/inject_message.lua:53: inject_message() could not encode protobuf - unsupported type: nil",
 		"process_message() ./testsupport/inject_message.lua:55: bad argument #1 to 'inject_payload' (string expected, got nil)",
 		"process_message() ./testsupport/inject_message.lua:57: bad argument #2 to 'inject_payload' (string expected, got nil)",
-		"process_message() ./testsupport/inject_message.lua:59: inject_message() could not encode protobuf - takes a single table argument",
+		"process_message() ./testsupport/inject_message.lua:59: inject_message() takes a single string or table argument",
 		"process_message() ./testsupport/inject_message.lua:62: output_limit exceeded",
+		"process_message() ./testsupport/inject_message.lua:69: inject_message() protobuf unmarshal failed",
 	}
 
 	sbc.ScriptFilename = "./testsupport/inject_message.lua"
@@ -804,6 +810,16 @@ func TestInjectMessageError(t *testing.T) {
 	pack := getTestPack()
 	for i, v := range tests {
 		sb, err := lua.CreateLuaSandbox(&sbc)
+		if i == 8 {
+			sb.InjectMessage(func(p, pt, pn string) int {
+				msg := new(message.Message)
+				err := proto.Unmarshal([]byte(p), msg)
+				if err != nil {
+					return 1
+				}
+				return 0
+			})
+		}
 		if err != nil {
 			t.Errorf("%s", err)
 		}
