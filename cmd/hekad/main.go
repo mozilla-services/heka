@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -202,13 +202,16 @@ func loadFullConfig(pipeconf *pipeline.PipelineConfig, configPath *string) (err 
 				// Skip non *.toml files in a config dir.
 				continue
 			}
-			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, fName))
+			err = pipeconf.PreloadFromConfigFile(filepath.Join(*configPath, fName))
 			if err != nil {
 				break
 			}
 		}
 	} else {
-		err = pipeconf.LoadFromConfigFile(*configPath)
+		err = pipeconf.PreloadFromConfigFile(*configPath)
 	}
-	return
+	if err == nil {
+		err = pipeconf.LoadConfig()
+	}
+	return err
 }

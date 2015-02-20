@@ -67,6 +67,10 @@ Bug Handling
 
 * SmtpOutput now encodes email subject when necessary (#1277).
 
+* All config files are now pre-loaded before any of the config is actually
+  loaded to prevent default plugins from being registered for each separate
+  config file, possibly overriding custom config.
+
 Features
 --------
 

@@ -165,6 +165,16 @@ type PipelineConfig struct {
 	outputsLock sync.RWMutex
 	// Internal reporting channel.
 	reportRecycleChan chan *PipelinePack
+
+	// The next few values are used only during the initial configuration
+	// loading process.
+
+	// Track default plugin registration.
+	defaultConfigs map[string]bool
+	// Loaded PluginMakers sorted by category.
+	makersByCategory map[string][]PluginMaker
+	// Number of config loading errors.
+	errcnt uint
 }
 
 // Creates and initializes a PipelineConfig object. `nil` value for `globals`
@@ -956,7 +966,7 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 }
 
 // Default configurations.
-func getDefaultConfigs() map[string]bool {
+func makeDefaultConfigs() map[string]bool {
 	return map[string]bool{
 		"ProtobufDecoder":     false,
 		"ProtobufEncoder":     false,
@@ -989,10 +999,13 @@ func (self *PipelineConfig) RegisterDefault(name string) error {
 	return nil
 }
 
-// Loads all plugin configuration from a TOML configuration file. The
+// PreloadFromConfigFile loads all plugin configuration from a TOML
+// configuration file, generates a PluginMaker for each loaded section, and
+// stores the created PluginMakers in the makersByCategory map. The
 // PipelineConfig should be already initialized via the Init function before
-// this method is called.
-func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
+// this method is called. PreloadFromConfigFile is not reentrant, so it should
+// only be called serially, not from multiple concurrent goroutines.
+func (self *PipelineConfig) PreloadFromConfigFile(filename string) error {
 	var (
 		configFile ConfigFile
 		err        error
@@ -1007,47 +1020,62 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		return fmt.Errorf("Error decoding config file: %s", err)
 	}
 
-	var errcnt uint
-	makersByCategory := make(map[string][]PluginMaker)
-	defaultConfigs := getDefaultConfigs()
+	if self.makersByCategory == nil {
+		self.makersByCategory = make(map[string][]PluginMaker)
+	}
+
+	if self.defaultConfigs == nil {
+		self.defaultConfigs = makeDefaultConfigs()
+	}
 
 	// Load all the plugin makers and file them by category.
 	for name, conf := range configFile {
 		if name == HEKA_DAEMON {
 			continue
 		}
-		if _, ok := defaultConfigs[name]; ok {
-			defaultConfigs[name] = true
+		if _, ok := self.defaultConfigs[name]; ok {
+			self.defaultConfigs[name] = true
 		}
 		LogInfo.Printf("Pre-loading: [%s]\n", name)
 		maker, err := NewPluginMaker(name, self, conf)
 		if err != nil {
 			self.log(err.Error())
-			errcnt++
+			self.errcnt++
 			continue
 		}
 
 		if maker.Type() == "MultiDecoder" {
 			// Special case MultiDecoders so we can make sure they get
 			// registered *after* all possible subdecoders.
-			makersByCategory["MultiDecoder"] = append(makersByCategory["MultiDecoder"],
-				maker)
+			self.makersByCategory["MultiDecoder"] = append(
+				self.makersByCategory["MultiDecoder"], maker)
 		} else {
 			category := maker.Category()
-			makersByCategory[category] = append(makersByCategory[category], maker)
+			self.makersByCategory[category] = append(
+				self.makersByCategory[category], maker)
 		}
 	}
+	return nil
+}
 
+// LoadConfig any not yet preloaded default plugins, then it finishes loading
+// and initializing all of the plugin config that has been prepped from calls
+// to PreloadFromConfigFile. This method should be called only once, after
+// PreloadFromConfigFile has been called as many times as needed.
+func (self *PipelineConfig) LoadConfig() error {
 	// Make sure our default plugins are registered.
-	for name, registered := range defaultConfigs {
+	for name, registered := range self.defaultConfigs {
 		if registered {
 			continue
 		}
 		if err := self.RegisterDefault(name); err != nil {
 			self.log(err.Error())
-			errcnt++
+			self.errcnt++
 		}
 	}
+
+	makersByCategory := self.makersByCategory
+	var err error
 
 	multiDecoders := make([]multiDecoderNode, len(makersByCategory["MultiDecoder"]))
 	multiMakers := make(map[string]PluginMaker)
@@ -1077,7 +1105,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 			LogInfo.Printf("Loading: [%s]\n", maker.Name())
 			if err = maker.PrepConfig(); err != nil {
 				self.log(err.Error())
-				errcnt++
+				self.errcnt++
 			}
 			self.makers[category][maker.Name()] = maker
 			if category == "Encoder" {
@@ -1097,7 +1125,7 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 					msg := fmt.Sprintf("Error making runner for %s: %s", maker.Name(),
 						err.Error())
 					self.log(msg)
-					errcnt++
+					self.errcnt++
 				}
 				continue
 			}
@@ -1112,8 +1140,8 @@ func (self *PipelineConfig) LoadFromConfigFile(filename string) error {
 		}
 	}
 
-	if errcnt != 0 {
-		return fmt.Errorf("%d errors loading plugins", errcnt)
+	if self.errcnt != 0 {
+		return fmt.Errorf("%d errors loading plugins", self.errcnt)
 	}
 
 	return nil
