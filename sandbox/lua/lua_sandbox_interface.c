@@ -379,20 +379,31 @@ int inject_message(lua_State* lua)
     if (NULL == luserdata) {
         luaL_error(lua, "%s invalid lightuserdata", fn);
     }
-    lua_sandbox* lsb = (lua_sandbox*)luserdata;
 
-    if (lsb_output_protobuf(lsb, 1, 0) != 0) {
-        const char *err = lsb_get_error(lsb);
-        if (err[0] != 0) {
-            luaL_error(lua, "%s could not encode protobuf - %s", fn, err);
-        } else {
-            luaL_error(lua, "%s output_limit exceeded", fn);
-        }
+    int t = lua_type(lua, 1);
+    if (lua_gettop(lua) != 1 || ( t != LUA_TSTRING && t != LUA_TTABLE)) {
+        luaL_error(lua, "%s takes a single string or table argument", fn);
+        return 1;
     }
-    size_t len;
-    const char* output = lsb_get_output(lsb, &len);
 
-    if (len != 0) {
+    lua_sandbox* lsb = (lua_sandbox*)luserdata;
+    size_t len = 0;
+    const char* output = NULL;
+    if (t == LUA_TSTRING) {
+        output = lua_tolstring(lua, 1, &len);
+    } else {
+        if (lsb_output_protobuf(lsb, 1, 0) != 0) {
+            const char *err = lsb_get_error(lsb);
+            if (err[0] != 0) {
+                luaL_error(lua, "%s could not encode protobuf - %s", fn, err);
+            } else {
+                luaL_error(lua, "%s output_limit exceeded", fn);
+            }
+        }
+        output = lsb_get_output(lsb, &len);
+    }
+
+    if (output && len > 0) {
         int result = go_lua_inject_message(lsb_get_parent(lsb),
                                            (char*)output,
                                            (int)len,
@@ -453,6 +464,7 @@ int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_typ
     int add_to_payload = 0;
 
     lsb_add_function(lsb, &read_config, "read_config");
+    lsb_add_function(lsb, &lsb_decode_protobuf, "decode_message");
 
     if (strcmp(plugin_type, "input") == 0) {
         lsb_add_function(lsb, &inject_message, "inject_message");

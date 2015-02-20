@@ -70,6 +70,8 @@ Bug Handling
 Features
 --------
 
+* Added decode_message to the sandbox API (#1344).
+
 * Added a SandboxInput plugin (#1333).
 
 * Added a SandboxOutput plugin (#1303).

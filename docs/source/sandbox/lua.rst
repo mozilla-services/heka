@@ -188,24 +188,32 @@ Heka specific functions that are exposed to the Lua sandbox
 
 .. _inject_message_message_table:
 
-**inject_message(message_table)**
+**inject_message(message)**
     Creates a new Heka protocol buffer message using the contents of the
     specified Lua table (overwriting whatever is in the output buffer).
     Notes about message fields:
 
     * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
-    * UUID is automatically generated, anything provided by the user is ignored.
+    * UUID is automatically generated if a 16 byte binary UUID is not provided.
     * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
     * Type is prepended with "heka.sandbox." by the SandboxFilter to avoid data confusion/mis-representation.
-    * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
-        * name=value i.e., foo="bar"; foo=1; foo=true
-        * name={array} i.e., foo={"b", "a", "r"}
-        * name={object} i.e. foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, representation="ms"}
+    * Fields (hash structure) can be represented in multiple forms and support the following primitive types: string, double, bool.
+      These constructs can be added to the 'Fields' table in the message structure.
+
+        * name=value e.g., foo="bar"; foo=1; foo=true
+        * name={array} e.g., foo={"b", "a", "r"}
+        * name={object} e.g., foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, value_type=2, representation="ms"}
+
             * value (required) may be a single value or an array of values
+            * value_type (optional) `value_type enum <https://github.com/mozilla-services/heka/blob/dev/message/message.proto#L23>`_.
+              This is most useful for specifying that numbers should be treated as integers as opposed defaulting to doubles.
             * representation (optional) metadata for display and unit management
 
+    * Fields (array structure)
+        * same as above but the hash key name is moved into the object as 'name' e.g., Fields = {{name="foo", value="bar"}}
+
     *Arguments*
-        - message_table A table with the proper message structure.
+        - message (table or string) A table with the message structure documented below or a string with a Heka protobuf encoded message.
 
     *Return*
         none
@@ -217,12 +225,29 @@ Heka specific functions that are exposed to the Lua sandbox
         Injection limits are only enforced on filter plugins.
         See ``max_*_inject`` in the :ref:`global configuration options <hekad_global_config_options>`.
 
-Sample Lua Message Structure
-----------------------------
+**decode_message(heka_protobuf_string)**
+    Converts a Heka protobuf encoded message string into a Lua table.
+
+    *Arguments*
+        - heka_message (string) Lua variable containing a Heka protobuf encoded message
+
+    *Return*
+        - message (table) The array based version of the message structure with
+          the value member always being an array (even if there is only a single
+          item).  This format makes working with the output more consistent.
+          The wide variation in the inject table format is to ease the
+          construction of the message especially when using an LPeg grammar
+          transformation.
+
+.. _heka_message_table_structure:
+
+
+Lua Message Hash Based Field Structure
+--------------------------------------
 .. code-block:: lua
 
     {
-    Uuid        = "data",               -- always ignored
+    Uuid        = "data",               -- ignored if not 16 byte raw binary UUID
     Logger      = "nginx",              -- ignored in the SandboxFilter
     Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
 
@@ -233,8 +258,20 @@ Sample Lua Message Structure
     Pid         = 1234,
     Severity    = 6,
     Fields      = {
-                http_status     = 200,
-                request_size    = {value=1413, representation="B"}
+                http_status     = 200, -- encoded as a double
+                request_size    = {value=1413, value_type=2, representation="B"} -- encoded as an integer
+                }
+    }
+
+Lua Message Array Based Field Structure
+---------------------------------------
+.. code-block:: lua
+
+    {
+    -- same as above
+    Fields      = {
+                {name="http_status", value=200}, -- encoded as a double
+                {name="request_size", value=1413, value_type=2, representation="B"} -- encoded as an integer
                 }
     }
 
