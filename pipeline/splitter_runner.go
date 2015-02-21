@@ -125,8 +125,8 @@ func (sr *sRunner) GetRemainingData() (record []byte) {
 	return record
 }
 
-func (sr *sRunner) setMinimumBufferSize(size uint32) {
-	if uint32(cap(sr.buf)) < size {
+func (sr *sRunner) setMinimumBufferSize(size int) {
+	if cap(sr.buf) < size {
 		newSlice := make([]byte, size)
 		copy(newSlice, sr.buf)
 		sr.buf = newSlice
@@ -136,19 +136,19 @@ func (sr *sRunner) setMinimumBufferSize(size uint32) {
 func (sr *sRunner) read(r io.Reader) (n int, err error) {
 	if cap(sr.buf)-sr.readPos <= 1024*4 {
 		if sr.scanPos == 0 { // Line won't fit in the current buffer.
-			bufCap := uint32(cap(sr.buf))
-			newSize := uint32(bufCap * 2)
-			if newSize > message.MAX_MESSAGE_SIZE {
-				if bufCap == message.MAX_RECORD_SIZE {
-					if sr.readPos == cap(sr.buf) {
+			bufCap := cap(sr.buf)
+			newSize := bufCap * 2
+			if newSize > int(message.MAX_MESSAGE_SIZE) {
+				if bufCap == int(message.MAX_RECORD_SIZE) {
+					if sr.readPos == bufCap {
 						sr.scanPos = 0
 						sr.readPos = 0
-						return cap(sr.buf), io.ErrShortBuffer
+						return bufCap, io.ErrShortBuffer
 					} else {
 						newSize = 0 // Don't allocate more, just read into what's left.
 					}
 				} else {
-					newSize = message.MAX_RECORD_SIZE
+					newSize = int(message.MAX_RECORD_SIZE)
 				}
 			}
 			if newSize > 0 {

@@ -59,7 +59,7 @@ func TestEncodeMessageStreamMessageLengthFailure(t *testing.T) {
 	msg := &message.Message{}
 	msg.SetType("TEST")
 	msg.SetTimestamp(1416840893000000000)
-	msg.SetPayload(strings.Repeat("x", message.MAX_MESSAGE_SIZE))
+	msg.SetPayload(strings.Repeat("x", int(message.MAX_MESSAGE_SIZE)))
 	pe := NewProtobufEncoder(nil)
 	expected := "Message too big, requires 65556 (MAX_MESSAGE_SIZE = 65536)"
 

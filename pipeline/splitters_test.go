@@ -88,7 +88,7 @@ func TokenSpec(c gs.Context) {
 			for err == nil && len(record) == 0 {
 				n, record, err = sRunner.GetRecordFromStream(reader)
 			}
-			c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
+			c.Expect(n, gs.Equals, int(message.MAX_RECORD_SIZE))
 			c.Expect(string(record), gs.Equals, string(b))
 			c.Expect(err, gs.IsNil)
 		})
@@ -104,7 +104,7 @@ func TokenSpec(c gs.Context) {
 			for err == nil {
 				n, record, err = sRunner.GetRecordFromStream(reader)
 			}
-			c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
+			c.Expect(n, gs.Equals, int(message.MAX_RECORD_SIZE))
 			c.Expect(len(record), gs.Equals, 0)
 			c.Expect(err, gs.Equals, io.ErrShortBuffer)
 		})
@@ -126,8 +126,8 @@ func TokenSpec(c gs.Context) {
 			for err == nil {
 				n, record, err = sRunner.GetRecordFromStream(reader)
 			}
-			c.Expect(n, gs.Equals, message.MAX_RECORD_SIZE)
-			c.Expect(len(record), gs.Equals, message.MAX_RECORD_SIZE)
+			c.Expect(n, gs.Equals, int(message.MAX_RECORD_SIZE))
+			c.Expect(len(record), gs.Equals, int(message.MAX_RECORD_SIZE))
 			c.Expect(err, gs.Equals, io.ErrShortBuffer)
 		})
 	})
