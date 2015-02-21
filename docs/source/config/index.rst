@@ -87,9 +87,6 @@ Config:
     This is used to prevent infinite message loops from filter to filter;
     the default is 4.
 
-- max_message_size (uint32):
-    The maximum size (in bytes) of message can be sent during processing.
-
 - max_process_inject (uint):
     The maximum number of messages that a sandbox filter's ProcessMessage
     function can inject in a single call; the default is 1.
@@ -164,6 +161,9 @@ Config:
     Specifies the hostname to use whenever Heka is asked to provide the local
     host's hostname. Defaults to whatever is provided by Go's `os.Hostname()`
     call.
+
+- max_message_size (uint32):
+    The maximum size (in bytes) of message can be sent during processing.
 
 Example hekad.toml file
 =======================

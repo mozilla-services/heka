@@ -46,9 +46,6 @@ Configuration Variables
     <http://golang.org/pkg/time/#ParseDuration>`_. Default of 0 means no
     delay.
 
-- max_message_size (uint32):
-    The maximum size of the message that will be sent by heka-flood.
-
 - corrupt_percentage (float):
     The percentage of messages that will be randomly corrupted.
 
@@ -81,6 +78,11 @@ Configuration Variables
     A sub-section that specifies the settings to be used for any SSL/TLS
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.
+
+.. versionadded:: 0.9
+
+- max_message_size (uint32):
+    The maximum size of the message that will be sent by heka-flood.
 
 Example
 
