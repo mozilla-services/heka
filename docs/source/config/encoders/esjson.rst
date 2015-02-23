@@ -55,6 +55,10 @@ Config:
     which contain embedded JSON objects to prevent the embedded JSON from
     being escaped as normal strings. Only supports dynamically specified
     message fields.
+- field_mappings (map[string]string):
+    Maps Heka message fields to custom ES keys. Can be used to implement a custom format
+    in ES or implement Logstash V1. The available fields are "Timestamp", "Uuid",
+    "Type", "Logger", "Severity", "Payload", "EnvVersion", "Pid" and "Hostname".
 
 Example
 
@@ -64,6 +68,9 @@ Example
     index = "%{Type}-%{2006.01.02}"
     es_index_from_timestamp = true
     type_name = "%{Type}"
+        [ESJsonEncoder.field_mappings]
+        Timestamp = "@timestamp"
+        Severity = "level"
 
     [ElasticSearchOutput]
     message_matcher = "Type == 'nginx.access'"

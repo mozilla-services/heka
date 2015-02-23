@@ -208,6 +208,20 @@ type ESJsonEncoder struct {
 	timestampFormat string
 	rawBytesFields  []string
 	coord           *ElasticSearchCoordinates
+	fieldMappings   *ESFieldMappings
+}
+
+// Heka fields to ElasticSearch mapping
+type ESFieldMappings struct {
+	Timestamp  string
+	Uuid       string
+	Type       string
+	Logger     string
+	Severity   string
+	Payload    string
+	EnvVersion string
+	Pid        string
+	Hostname   string
 }
 
 type ESJsonEncoderConfig struct {
@@ -227,6 +241,8 @@ type ESJsonEncoderConfig struct {
 	Id string
 	// Fields to which formatting will not be applied.
 	RawBytesFields []string `toml:"raw_bytes_fields"`
+	// Overriding names for Heka fields
+	FieldMappings *ESFieldMappings `toml:"field_mappings"`
 }
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
@@ -236,6 +252,17 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 		Timestamp:            "2006-01-02T15:04:05.000Z",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
+		FieldMappings: &ESFieldMappings{
+			Timestamp:  "Timestamp",
+			Uuid:       "Uuid",
+			Type:       "Type",
+			Logger:     "Logger",
+			Severity:   "Severity",
+			Payload:    "Payload",
+			EnvVersion: "EnvVersion",
+			Pid:        "Pid",
+			Hostname:   "Hostname",
+		},
 	}
 
 	config.Fields = []string{
@@ -265,6 +292,7 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 		ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
 		Id:                   conf.Id,
 	}
+	e.fieldMappings = conf.FieldMappings
 	return
 }
 
@@ -278,24 +306,24 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	for _, f := range e.fields {
 		switch strings.ToLower(f) {
 		case "uuid":
-			writeStringField(first, &buf, f, m.GetUuidString())
+			writeStringField(first, &buf, e.fieldMappings.Uuid, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeStringField(first, &buf, f, t.Format(e.timestampFormat))
+			writeStringField(first, &buf, e.fieldMappings.Timestamp, t.Format(e.timestampFormat))
 		case "type":
-			writeStringField(first, &buf, f, m.GetType())
+			writeStringField(first, &buf, e.fieldMappings.Type, m.GetType())
 		case "logger":
-			writeStringField(first, &buf, f, m.GetLogger())
+			writeStringField(first, &buf, e.fieldMappings.Logger, m.GetLogger())
 		case "severity":
-			writeIntField(first, &buf, f, m.GetSeverity())
+			writeIntField(first, &buf, e.fieldMappings.Severity, m.GetSeverity())
 		case "payload":
-			writeStringField(first, &buf, f, m.GetPayload())
+			writeStringField(first, &buf, e.fieldMappings.Payload, m.GetPayload())
 		case "envversion":
-			writeStringField(first, &buf, f, m.GetEnvVersion())
+			writeStringField(first, &buf, e.fieldMappings.EnvVersion, m.GetEnvVersion())
 		case "pid":
-			writeIntField(first, &buf, f, m.GetPid())
+			writeIntField(first, &buf, e.fieldMappings.Pid, m.GetPid())
 		case "hostname":
-			writeStringField(first, &buf, f, m.GetHostname())
+			writeStringField(first, &buf, e.fieldMappings.Hostname, m.GetHostname())
 		case "fields":
 			for _, field := range m.Fields {
 				raw := false

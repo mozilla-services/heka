@@ -31,6 +31,9 @@ Features
 * Added support for `can_exit` to inputs (defaults to false, except on
   ProcessDirectoryInput spawned processes where it defaults to true)
 
+* Added `field_mappings` setting to the ESJsonEncoder allowing custom names for
+  Heka message fields in ElasticSearch.
+
 Bug Handling
 ------------
 

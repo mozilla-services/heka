@@ -335,6 +335,41 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 		})
 
+		c.Specify("Should use field mappings", func() {
+			config := encoder.ConfigStruct().(*ESJsonEncoderConfig)
+			config.FieldMappings = &ESFieldMappings{
+				Timestamp:  "XTimestamp",
+				Uuid:       "XUuid",
+				Type:       "XType",
+				Logger:     "XLogger",
+				Severity:   "XSeverity",
+				Payload:    "XPayload",
+				EnvVersion: "XEnvVersion",
+				Pid:        "XPid",
+				Hostname:   "XHostname",
+			}
+			err := encoder.Init(config)
+			c.Assume(err, gs.IsNil)
+			b, err := encoder.Encode(pack)
+			c.Assume(err, gs.IsNil)
+
+			output := string(b)
+			lines := strings.Split(output, string(NEWLINE))
+
+			decoded := make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[1]), &decoded)
+			c.Assume(err, gs.IsNil)
+			c.Expect(decoded["XTimestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
+			c.Expect(decoded["XUuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
+			c.Expect(decoded["XType"], gs.Equals, "TEST")
+			c.Expect(decoded["XLogger"], gs.Equals, "GoSpec")
+			c.Expect(decoded["XSeverity"], gs.Equals, 6.0)
+			c.Expect(decoded["XPayload"], gs.Equals, "Test Payload")
+			c.Expect(decoded["XEnvVersion"], gs.Equals, "0.8")
+			c.Expect(decoded["XPid"], gs.Equals, 14098.0)
+			c.Expect(decoded["XHostname"], gs.Equals, "hostname")
+		})
+
 		c.Specify("encodes w/ a different timestamp format", func() {
 			config.Timestamp = "2006/01/02 15:04:05.000 -0700"
 			err := encoder.Init(config)
