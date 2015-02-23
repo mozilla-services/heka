@@ -134,9 +134,9 @@ func (sr *sRunner) setMinimumBufferSize(size int) {
 }
 
 func (sr *sRunner) read(r io.Reader) (n int, err error) {
-	if cap(sr.buf)-sr.readPos <= 1024*4 {
+	bufCap := cap(sr.buf)
+	if bufCap-sr.readPos <= bufCap/2 {
 		if sr.scanPos == 0 { // Line won't fit in the current buffer.
-			bufCap := cap(sr.buf)
 			newSize := bufCap * 2
 			if newSize > int(message.MAX_MESSAGE_SIZE) {
 				if bufCap == int(message.MAX_RECORD_SIZE) {

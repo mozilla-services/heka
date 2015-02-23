@@ -31,9 +31,11 @@ initialization code.
 	written as a string to the Message payload. Defaults to false in most
 	cases, but defaults to true for the HekaFramingSplitter, which is almost
 	always used with the ProtobufDecoder.
-- buffer_size (uint, optional):
-	The size, in bytes, of the internal buffer that the SplitterRunner will
-	use for buffering data streams. Defaults to 8KiB.
+- min_buffer_size (uint, optional):
+	The initial size, in bytes, of the internal buffer that the SplitterRunner
+	will use for buffering data streams. Must not be greater than the globally
+	configured max_message_size. Defaults to 8KiB, although certain splitters
+	may specify a different default.
 
 Available Splitter Plugins
 ==========================
