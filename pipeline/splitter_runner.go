@@ -172,13 +172,13 @@ func (sr *sRunner) GetRecordFromStream(r io.Reader) (bytesRead int, record []byt
 		// We could still have one or more records at the end of the stream.
 		// Hang on to the EOF error until all the records have been used up.
 		if err == io.EOF {
-			sr.reachedEOF = true
 			if bytesRead == 0 {
 				// If we didn't read any bytes, we don't need to look for more
 				// records, we can return the EOF.
 				return bytesRead, record, err
 			}
 			// We did read some bytes, so clear the EOF for now
+			sr.reachedEOF = true
 			err = nil
 		}
 
