@@ -31,7 +31,18 @@ import (
 type NullSplitter struct {
 }
 
+type NullSplitterConfig struct {
+	BufferSize uint `toml:"min_buffer_size"`
+}
+
+func (n *NullSplitter) ConfigStruct() interface{} {
+	return &NullSplitterConfig{
+		BufferSize: 64 * 1024,
+	}
+}
+
 func (n *NullSplitter) Init(config interface{}) error {
+	// BufferSize setting is processed by the SplitterRunner.
 	return nil
 }
 

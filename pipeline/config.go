@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/message"
 	"io"
 	"io/ioutil"
 	"log"
@@ -537,7 +538,7 @@ type CommonFOConfig struct {
 type CommonSplitterConfig struct {
 	KeepTruncated *bool `toml:"keep_truncated"`
 	UseMsgBytes   *bool `toml:"use_message_bytes"`
-	BufferSize    uint  `toml:"buffer_size"`
+	BufferSize    uint  `toml:"min_buffer_size"`
 }
 
 func getDefaultRetryOptions() RetryOptions {
@@ -845,6 +846,15 @@ func (m *pluginMaker) makeSplitterRunner(name string, splitter Splitter) (*sRunn
 		if err != nil {
 			return nil, err
 		}
+	}
+	if commonSplitter.BufferSize == 0 {
+		bufferSize := getAttr(m.configStruct, "BufferSize", uint(8*1024))
+		commonSplitter.BufferSize = bufferSize.(uint)
+	}
+	if uint32(commonSplitter.BufferSize) > message.MAX_RECORD_SIZE {
+		err = fmt.Errorf("'min_buffer_size' (%d) can't be larger than MAX_RECORD_SIZE (%d)",
+			commonSplitter.BufferSize, message.MAX_RECORD_SIZE)
+		return nil, err
 	}
 	sr := NewSplitterRunner(name, splitter, commonSplitter)
 	if wantsSplitterRunner, ok := splitter.(WantsSplitterRunner); ok {

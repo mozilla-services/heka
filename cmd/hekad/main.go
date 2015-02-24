@@ -117,16 +117,18 @@ func main() {
 		pipeline.LogError.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
 	}
 
-	if config.MaxMessageSize > 0 {
+	if config.MaxMessageSize > 1024 {
 		message.SetMaxMessageSize(config.MaxMessageSize)
+	} else if config.MaxMessageSize > 0 {
+		pipeline.LogError.Fatalln("Error: 'max_message_size' setting must be greater than 1024.")
 	}
-	pipeline.LogInfo.Println("Max message size is %d", message.MAX_MESSAGE_SIZE)
 	if config.PidFile != "" {
 		contents, err := ioutil.ReadFile(config.PidFile)
 		if err == nil {
 			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
 			if err != nil {
-				pipeline.LogError.Fatalf("Error reading proccess id from pidfile '%s': %s", config.PidFile, err)
+				pipeline.LogError.Fatalf("Error reading proccess id from pidfile '%s': %s",
+					config.PidFile, err)
 			}
 
 			process, err := os.FindProcess(pid)
