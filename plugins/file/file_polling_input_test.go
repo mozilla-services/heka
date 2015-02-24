@@ -80,6 +80,7 @@ func FilePollingInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 
 			ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 			splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
 				nil).Return(io.EOF).Times(2)
 			splitCall.Do(func(f *os.File, del Deliverer) {
