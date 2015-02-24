@@ -299,6 +299,7 @@ func FileOutputSpec(c gs.Context) {
 
 				c.Specify("when interval triggers first", func() {
 					timerChan <- time.Now()
+					runtime.Gosched()
 					select {
 					case <-fileOutput.batchChan:
 					default:
