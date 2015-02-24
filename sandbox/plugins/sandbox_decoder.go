@@ -43,7 +43,6 @@ type SandboxDecoder struct {
 	preservationFile       string
 	reportLock             sync.Mutex
 	sample                 bool
-	err                    error
 	pack                   *pipeline.PipelinePack
 	packs                  []*pipeline.PipelinePack
 	dRunner                pipeline.DecoderRunner
@@ -145,25 +144,26 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 
 	s.dRunner = dr
 	var original *message.Message
+	var err error
 
 	switch s.sbc.ScriptType {
 	case "lua":
-		s.sb, s.err = lua.CreateLuaSandbox(s.sbc)
+		s.sb, err = lua.CreateLuaSandbox(s.sbc)
 	default:
-		s.err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
+		err = fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
-	if s.err == nil {
+	if err == nil {
 		s.preservationFile = filepath.Join(s.pConfig.Globals.PrependBaseDir(DATA_DIR),
 			dr.Name()+DATA_EXT)
 		if s.sbc.PreserveData && fileExists(s.preservationFile) {
-			s.err = s.sb.Init(s.preservationFile)
+			err = s.sb.Init(s.preservationFile)
 		} else {
-			s.err = s.sb.Init("")
+			err = s.sb.Init("")
 		}
 	}
-	if s.err != nil {
-		dr.LogError(s.err)
+	if err != nil {
+		dr.LogError(err)
 		if s.sb != nil {
 			s.sb.Destroy("")
 			s.sb = nil
@@ -239,14 +239,15 @@ func (s *SandboxDecoder) Shutdown() {
 	defer s.reportLock.Unlock()
 
 	if s.sb != nil {
+		var err error
 		if s.sbc.PreserveData {
-			s.err = s.sb.Destroy(s.preservationFile)
+			err = s.sb.Destroy(s.preservationFile)
 		} else {
-			s.err = s.sb.Destroy("")
+			err = s.sb.Destroy("")
 		}
 		s.sb = nil
-		if s.err != nil {
-			s.dRunner.LogError(s.err)
+		if err != nil {
+			s.dRunner.LogError(err)
 		}
 	}
 }
@@ -273,17 +274,17 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
-		s.err = fmt.Errorf("FATAL: %s", s.sb.LastError())
-		s.dRunner.LogError(s.err)
+		err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+		s.dRunner.LogError(err)
 		s.pConfig.Globals.ShutDown()
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
 		if s.pack != nil {
-			s.err = fmt.Errorf("Failed parsing: %s payload: %s",
+			err = fmt.Errorf("Failed parsing: %s payload: %s",
 				s.sb.LastError(), s.pack.Message.GetPayload())
 		} else {
-			s.err = fmt.Errorf("Failed after a successful inject_message call: %s", s.sb.LastError())
+			err = fmt.Errorf("Failed after a successful inject_message call: %s", s.sb.LastError())
 		}
 		if len(s.packs) > 1 {
 			for _, p := range s.packs[1:] {
@@ -301,7 +302,6 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		packs = s.packs
 	}
 	s.packs = nil
-	err = s.err
 	return
 }
 
