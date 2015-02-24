@@ -256,7 +256,6 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 						break
 					}
 				} else {
-
 					time.Sleep(time.Duration(500) * time.Millisecond)
 				}
 			} else {
