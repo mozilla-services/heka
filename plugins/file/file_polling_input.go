@@ -79,7 +79,9 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 	input.hostname = helper.PipelineConfig().Hostname()
 	tickChan := runner.Ticker()
 	sRunner := runner.NewSplitterRunner("")
-	sRunner.SetPackDecorator(input.packDecorator)
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(input.packDecorator)
+	}
 
 	for {
 		select {
