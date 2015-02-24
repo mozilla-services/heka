@@ -54,6 +54,8 @@ func (input *FilePollingInput) Stop() {
 
 func (input *FilePollingInput) packDecorator(pack *pipeline.PipelinePack) {
 	pack.Message.SetType("heka.file.polling")
+	pack.Message.SetHostname(input.hostname)
+
 	field, err := message.NewField("TickerInterval", int(input.TickerInterval), "")
 	if err != nil {
 		input.runner.LogError(
@@ -76,8 +78,8 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 	input.runner = runner
 	input.hostname = helper.PipelineConfig().Hostname()
 	tickChan := runner.Ticker()
-
 	sRunner := runner.NewSplitterRunner("")
+	sRunner.SetPackDecorator(input.packDecorator)
 
 	for {
 		select {
