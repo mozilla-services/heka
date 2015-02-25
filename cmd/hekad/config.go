@@ -56,7 +56,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 
 	config = &HekadConfig{Maxprocs: 1,
 		PoolSize:              100,
-		ChanSize:              50,
+		ChanSize:              30,
 		CpuProfName:           "",
 		MemProfName:           "",
 		MaxMsgLoops:           4,
