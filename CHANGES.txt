@@ -155,6 +155,8 @@ Features
 * Added ability to specify MAX_MESSAGE_SIZE via configuration file of hekad
   and heka-flood (#1208).
 
+* Changed default plugin_chansize setting from 50 to 30 (#1242).
+
 0.8.3 (2015-01-08)
 ==================
 

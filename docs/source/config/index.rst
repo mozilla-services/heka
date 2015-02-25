@@ -116,13 +116,11 @@ Config:
     Enable memory profiling; output is logged to the `output_file`.
 
 - poolsize (int):
-    Specify the pool size of maximum messages that can exist; default is 100
-    which is usually sufficient and of optimal performance.
+    Specify the pool size of maximum messages that can exist. Default is 100.
 
 - plugin_chansize (int):
     Specify the buffer size for the input channel for the various Heka
-    plugins. Defaults to 50, which is usually sufficient and of optimal
-    performance.
+    plugins. Defaults to 30.
 
 - base_dir (string):
     Base working directory Heka will use for persistent storage through
