@@ -232,12 +232,13 @@ Heka specific functions that are exposed to the Lua sandbox
         - heka_message (string) Lua variable containing a Heka protobuf encoded message
 
     *Return*
-        - message (table) The array based version of the message structure with
+        - message (table or nil) The array based version of the message structure with
           the value member always being an array (even if there is only a single
           item).  This format makes working with the output more consistent.
           The wide variation in the inject table format is to ease the
           construction of the message especially when using an LPeg grammar
           transformation.
+        - err (string) The error message if the decode fails (i.e., message is nil).
 
 .. _heka_message_table_structure:
 
