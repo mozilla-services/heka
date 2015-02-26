@@ -53,7 +53,7 @@ import (
 )
 
 const (
-	VERSION = "0.9.0"
+	VERSION = "0.9.1"
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
