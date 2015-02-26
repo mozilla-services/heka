@@ -17,6 +17,8 @@
 package pipeline
 
 import (
+	"bytes"
+	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
@@ -101,6 +103,7 @@ func SplitterRunnerSpec(c gs.Context) {
 		useMsgBytes := true
 		srConfig.UseMsgBytes = &useMsgBytes
 		sr := NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)
+		splitter.SetSplitterRunner(sr)
 
 		err := splitter.Init(config)
 		c.Assume(err, gs.IsNil)
@@ -244,6 +247,32 @@ func SplitterRunnerSpec(c gs.Context) {
 			c.Expect(eofRecordLength, gs.Equals, 0)
 			// Now we see the correct number of bytes being read.
 			c.Expect(bytesRead, gs.Equals, len(b))
+		})
+	})
+
+	c.Specify("A SplitterRunner w/ TokenSplitter", func() {
+		splitter := &TokenSplitter{}
+		config := splitter.ConfigStruct().(*TokenSplitterConfig)
+		sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
+
+		config.Delimiter = "\t"
+		err := splitter.Init(config)
+		c.Assume(err, gs.IsNil)
+
+		c.Specify("sets readPos to 0 when read returns ErrShortBuffer", func() {
+			b := make([]byte, message.MAX_RECORD_SIZE+1)
+			reader := bytes.NewReader(b)
+
+			var n int
+			var record []byte
+			for err == nil {
+				n, record, err = sr.GetRecordFromStream(reader)
+			}
+			c.Expect(n, gs.Equals, int(message.MAX_RECORD_SIZE))
+			c.Expect(len(record), gs.Equals, 0)
+			c.Expect(err, gs.Equals, io.ErrShortBuffer)
+			c.Expect(sr.readPos, gs.Equals, 0)
+			c.Expect(sr.scanPos, gs.Equals, 0)
 		})
 	})
 }
