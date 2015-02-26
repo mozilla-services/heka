@@ -1,6 +1,9 @@
+.. _config_eslogstashv0encoder:
 
-ESLogstashV0Encoder
-===================
+ElasticSearch Logstash V0 Encoder
+=================================
+
+Plugin Name: **ESLogstashV0Encoder**
 
 This encoder serializes a Heka message into a JSON format, preceded by a
 separate JSON structure containing information required for ElasticSearch
@@ -45,6 +48,9 @@ Config:
     all dynamically specified message fields. Defaults to including all of the
     supported message fields. The "Payload" field is sent to ElasticSearch as
     "@message".
+- timestamp (string):
+    Format to use for timestamps in generated ES documents. Defaults to
+    "2006-01-02T15:04:05.000Z".
 - es_index_from_timestamp (bool):
     When generating the index name use the timestamp from the message instead
     of the current time. Defaults to false.

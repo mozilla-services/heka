@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -22,15 +22,17 @@ import (
 )
 
 type InputTestHelper struct {
-	Msg             *message.Message
-	Pack            *PipelinePack
-	AddrStr         string
-	ResolvedAddrStr string
-	MockHelper      *pipelinemock.MockPluginHelper
-	MockInputRunner *pipelinemock.MockInputRunner
-	Decoder         DecoderRunner
-	PackSupply      chan *PipelinePack
-	DecodeChan      chan *PipelinePack
+	Msg                *message.Message
+	Pack               *PipelinePack
+	AddrStr            string
+	ResolvedAddrStr    string
+	MockHelper         *pipelinemock.MockPluginHelper
+	MockInputRunner    *pipelinemock.MockInputRunner
+	MockDeliverer      *pipelinemock.MockDeliverer
+	MockSplitterRunner *pipelinemock.MockSplitterRunner
+	PackSupply         chan *PipelinePack
+	// Decoder         DecoderRunner
+	// DecodeChan      chan *PipelinePack
 }
 
 type OutputTestHelper struct {

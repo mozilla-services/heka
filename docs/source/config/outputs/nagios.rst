@@ -1,6 +1,9 @@
+.. _config_nagios_output:
 
-NagiosOutput
-============
+Nagios Output
+=============
+
+Plugin Name: **NagiosOutput**
 
 Specialized output plugin that listens for Nagios external command message
 types and delivers passive service check results to Nagios using either HTTP

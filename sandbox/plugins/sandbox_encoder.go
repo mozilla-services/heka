@@ -62,6 +62,7 @@ type SandboxEncoderConfig struct {
 	OutputLimit      uint   `toml:"output_limit"`
 	Profile          bool
 	Config           map[string]interface{}
+	PluginType       string
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -98,6 +99,7 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 		OutputLimit:      conf.OutputLimit,
 		Profile:          conf.Profile,
 		Config:           conf.Config,
+		PluginType:       "encoder",
 	}
 	globals := s.pConfig.Globals
 	s.sbc.ScriptFilename = globals.PrependShareDir(s.sbc.ScriptFilename)
@@ -130,9 +132,9 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 
 	s.preservationFile = filepath.Join(dataDir, s.name+sandbox.DATA_EXT)
 	if s.sbc.PreserveData && fileExists(s.preservationFile) {
-		err = s.sb.Init(s.preservationFile, "encoder")
+		err = s.sb.Init(s.preservationFile)
 	} else {
-		err = s.sb.Init("", "encoder")
+		err = s.sb.Init("")
 	}
 	if err != nil {
 		return fmt.Errorf("Sandbox initialization failed: %s", err)
@@ -149,12 +151,16 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxEncoder) Stop() {
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
 	if s.sb != nil {
 		if s.sbc.PreserveData {
 			s.sb.Destroy(s.preservationFile)
 		} else {
 			s.sb.Destroy("")
 		}
+		s.sb = nil
 	}
 }
 
@@ -200,7 +206,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		err = errors.New("Failed serializing.")
+		err = fmt.Errorf("Failed serializing: %s", s.sb.LastError())
 		return
 	}
 	return s.output, nil
@@ -209,11 +215,12 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
 // information to the Heka report and dashboard.
 func (s *SandboxEncoder) ReportMsg(msg *message.Message) error {
+	s.reportLock.Lock()
+	defer s.reportLock.Unlock()
+
 	if s.sb == nil {
 		return fmt.Errorf("Encoder is not running")
 	}
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(sandbox.TYPE_MEMORY,
 		sandbox.STAT_CURRENT)), "B")

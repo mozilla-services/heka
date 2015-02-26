@@ -1,6 +1,9 @@
+.. _config_protobufencoder:
 
-ProtobufEncoder
-===============
+Protobuf Encoder
+================
+
+Plugin Name: **ProtobufEncoder**
 
 The ProtobufEncoder is used to serialize Heka message objects back into Heka's
 standard protocol buffers format. This is the format that Heka uses to

@@ -1,12 +1,15 @@
+.. _config_protobuf_decoder:
 
-ProtobufDecoder
-===============
+Protobuf Decoder
+================
+
+Plugin Name: **ProtobufDecoder**
 
 The ProtobufDecoder is used for Heka message objects that have been serialized
 into protocol buffers format. This is the format that Heka uses to communicate
 with other Heka instances, so one will always be included in your Heka
-configuration whether specified or not. The ProtobufDecoder has no
-configuration options.
+configuration under the name "ProtobufDecoder", whether specified or not. The
+ProtobufDecoder has no configuration options.
 
 The hekad protocol buffers message schema in defined in the `message.proto`
 file in the `message` package.

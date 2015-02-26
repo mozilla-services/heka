@@ -31,6 +31,7 @@ function process_message ()
     if read_message("Fields[double]") ~= 99.9 then return 18 end
     if read_message("Type") ~= "TEST" then return 19 end
     if read_message("raw") ~= "rawdata" then return 20 end
+    if read_message("Fields[empty_bytes]") ~= nil then return 21 end
 
     return 0
 end

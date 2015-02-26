@@ -4,3 +4,6 @@
 type = "LogOutput"
 message_matcher = "TRUE"
 encoder = "%ENV[LOG_ENCODER]"
+
+	[LogOutput.retries]
+	max_retries = 0

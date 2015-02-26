@@ -1,6 +1,9 @@
+.. _config_log_output:
 
-LogOutput
-=========
+Log Output
+==========
+
+Plugin Name: **LogOutput**
 
 Logs messages to stdout using Go's `log` package.
 

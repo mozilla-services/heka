@@ -15,24 +15,28 @@ API
 Functions that must be exposed from the Lua sandbox
 ---------------------------------------------------
 
-**int process_message()**
-    Called by Heka when a message is available to the sandbox.  The 
-    instruction_limit configuration parameter is applied to this function call.
+**int, string process_message()**
+    This is the entry point for input plugins to start creating messages. For
+    all other plugin types it is called by Heka when a message is available to
+    the sandbox. The instruction_limit configuration parameter is applied to
+    this function call for non input plugins.
 
     *Arguments*
         none
 
     *Return*
-        - < 0 for non-fatal failure (increments ProcessMessageFailures)
-        - -2 for no output, but no error (encoders only)
-        - 0 for success
-        - > 0 for fatal error (terminates the sandbox)
+        - int
+            - < 0 for non-fatal failure (increments ProcessMessageFailures)
+            - -2 for no output, but no error (encoders only)
+            - 0 for success
+            - > 0 for fatal error (terminates the sandbox)
+        - string optional error message
 
 **timer_event(ns)**
-    Called by Heka when the ticker_interval expires.  The instruction_limit 
+    Called by Heka when the ticker_interval expires.  The instruction_limit
     configuration parameter is applied to this function call.  This function
-    is only required in SandboxFilters (SandboxDecoders do not support timer
-    events).
+    is only required in SandboxFilters that have a ticker_interval configuration
+    greater than zero.
 
     *Arguments*
         - ns (int64) current time in nanoseconds since the UNIX epoch
@@ -42,22 +46,27 @@ Functions that must be exposed from the Lua sandbox
 
 Core functions that are exposed to the Lua sandbox
 --------------------------------------------------
-See: https://github.com/mozilla-services/lua_sandbox/blob/master/docs/sandbox_api.md
+See: https://github.com/mozilla-services/lua_sandbox/
 
 **require(libraryName)**
 
-**add_to_payload(arg1, arg2, ...argN)** 
+    *Available In*
+        All plugin types
+
+**add_to_payload(arg1, arg2, ...argN)**
     Appends the arguments to the payload buffer for incremental construction of
     the final payload output (inject_payload finalizes the buffer and sends the
     message to Heka).  This function is simply a rename of the generic sandbox
-    *output* function to improve the readability of the plugin code. 
+    *output* function to improve the readability of the plugin code.
 
     *Arguments*
         - arg (number, string, bool, nil, circular_buffer)
 
     *Return*
         none
-    
+
+    *Available In*
+        Decoders, filters, encoders
 
 Heka specific functions that are exposed to the Lua sandbox
 -----------------------------------------------------------
@@ -69,6 +78,9 @@ Heka specific functions that are exposed to the Lua sandbox
 
     *Return*
         number, string, bool, nil depending on the type of variable requested
+
+    *Available In*
+        All plugin types
 
 **read_message(variableName, fieldIndex, arrayIndex)**
     Provides access to the Heka message data. Note that both `fieldIndex` and
@@ -98,13 +110,15 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         number, string, bool, nil depending on the type of variable requested
 
+    *Available In*
+        Decoders, filters, encoders, outputs
+
 .. _write_message:
 
 **write_message(variableName, value, representation, fieldIndex, arrayIndex)**
     .. versionadded:: 0.5
 
-    Decoders only. Mutates specified field value on the message that is being
-    decoded.
+    Mutates specified field value on the message that is being decoded.
 
     *Arguments*
         - variableName (string)
@@ -131,6 +145,9 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         none
 
+    *Available In*
+        Decoders, encoders
+
 **read_next_field()**
     Iterates through the message fields returning the field contents or nil when the end is reached.
 
@@ -140,15 +157,18 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         value_type, name, value, representation, count (number of items in the field array)
 
+    *Available In*
+        Decoders, filters, encoders, outputs
+
 **inject_payload(payload_type, payload_name, arg3, ..., argN)**
 
     Creates a new Heka message using the contents of the payload buffer
-    (pre-populated with *add_to_payload*) combined with any additional 
+    (pre-populated with *add_to_payload*) combined with any additional
     payload_args passed to this function.  The output buffer is cleared after
     the injection. The payload_type and payload_name arguments are two pieces of
-    optional metadata. If specified, they will be included as fields in the 
-    injected message e.g., Fields[payload_type] == 'csv', 
-    Fields[payload_name] == 'Android Usage Statistics'. The number of messages 
+    optional metadata. If specified, they will be included as fields in the
+    injected message e.g., Fields[payload_type] == 'csv',
+    Fields[payload_name] == 'Android Usage Statistics'. The number of messages
     that may be injected by the process_message or timer_event functions are
     globally controlled by the hekad :ref:`global configuration options <hekad_global_config_options>`;
     if these values are exceeded the sandbox will be terminated.
@@ -163,39 +183,71 @@ Heka specific functions that are exposed to the Lua sandbox
     *Return*
         none
 
+    *Available In*
+        Decoders, filters, encoders
+
 .. _inject_message_message_table:
 
-**inject_message(message_table)**
+**inject_message(message)**
     Creates a new Heka protocol buffer message using the contents of the
     specified Lua table (overwriting whatever is in the output buffer).
     Notes about message fields:
 
     * Timestamp is automatically generated if one is not provided.  Nanosecond since the UNIX epoch is the only valid format.
-    * UUID is automatically generated, anything provided by the user is ignored.
+    * UUID is automatically generated if a 16 byte binary UUID is not provided.
     * Hostname and Logger are automatically set by the SandboxFilter and cannot be overridden.
     * Type is prepended with "heka.sandbox." by the SandboxFilter to avoid data confusion/mis-representation.
-    * Fields can be represented in multiple forms and support the following primitive types: string, double, bool.  These constructs should be added to the 'Fields' table in the message structure. Note: since the Fields structure is a map and not an array, like the protobuf message, fields cannot be repeated.
-        * name=value i.e., foo="bar"; foo=1; foo=true
-        * name={array} i.e., foo={"b", "a", "r"}
-        * name={object} i.e. foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, representation="ms"}
+    * Fields (hash structure) can be represented in multiple forms and support the following primitive types: string, double, bool.
+      These constructs can be added to the 'Fields' table in the message structure.
+
+        * name=value e.g., foo="bar"; foo=1; foo=true
+        * name={array} e.g., foo={"b", "a", "r"}
+        * name={object} e.g., foo={value=1, representation="s"}; foo={value={1010, 2200, 1567}, value_type=2, representation="ms"}
+
             * value (required) may be a single value or an array of values
+            * value_type (optional) `value_type enum <https://github.com/mozilla-services/heka/blob/dev/message/message.proto#L23>`_.
+              This is most useful for specifying that numbers should be treated as integers as opposed defaulting to doubles.
             * representation (optional) metadata for display and unit management
 
+    * Fields (array structure)
+        * same as above but the hash key name is moved into the object as 'name' e.g., Fields = {{name="foo", value="bar"}}
+
     *Arguments*
-        - message_table A table with the proper message structure.
+        - message (table or string) A table with the message structure documented below or a string with a Heka protobuf encoded message.
 
     *Return*
         none
 
-    *Notes*
-        - injection limits are enforced as described above
+    *Available In*
+        Inputs, decoders, filters, encoders
 
-Sample Lua Message Structure
-----------------------------
+    *Notes*
+        Injection limits are only enforced on filter plugins.
+        See ``max_*_inject`` in the :ref:`global configuration options <hekad_global_config_options>`.
+
+**decode_message(heka_protobuf_string)**
+    Converts a Heka protobuf encoded message string into a Lua table.
+
+    *Arguments*
+        - heka_message (string) Lua variable containing a Heka protobuf encoded message
+
+    *Return*
+        - message (table) The array based version of the message structure with
+          the value member always being an array (even if there is only a single
+          item).  This format makes working with the output more consistent.
+          The wide variation in the inject table format is to ease the
+          construction of the message especially when using an LPeg grammar
+          transformation.
+
+.. _heka_message_table_structure:
+
+
+Lua Message Hash Based Field Structure
+--------------------------------------
 .. code-block:: lua
 
     {
-    Uuid        = "data",               -- always ignored
+    Uuid        = "data",               -- ignored if not 16 byte raw binary UUID
     Logger      = "nginx",              -- ignored in the SandboxFilter
     Hostname    = "bogus.mozilla.com",  -- ignored in the SandboxFilter
 
@@ -206,8 +258,20 @@ Sample Lua Message Structure
     Pid         = 1234,
     Severity    = 6,
     Fields      = {
-                http_status     = 200,
-                request_size    = {value=1413, representation="B"}
+                http_status     = 200, -- encoded as a double
+                request_size    = {value=1413, value_type=2, representation="B"} -- encoded as an integer
+                }
+    }
+
+Lua Message Array Based Field Structure
+---------------------------------------
+.. code-block:: lua
+
+    {
+    -- same as above
+    Fields      = {
+                {name="http_status", value=200}, -- encoded as a double
+                {name="request_size", value=1413, value_type=2, representation="B"} -- encoded as an integer
                 }
     }
 

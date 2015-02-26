@@ -1,8 +1,11 @@
+.. _config_http_output:
 
 .. versionadded:: 0.6
 
-HttpOutput
-==========
+HTTP Output
+===========
+
+Plugin Name: **HttpOutput**
 
 A very simple output plugin that uses HTTP GET, POST, or PUT requests to
 deliver data to an HTTP endpoint. When using POST or PUT request methods the
@@ -36,6 +39,9 @@ Config:
     It is possible to inject arbitrary HTTP headers into each outgoing request
     by adding a TOML subsection entitled "headers" to you HttpOutput config
     section. All entries in the subsection must be a list of string values.
+- http_timeout(uint, optional):
+    Time in milliseconds to wait for a response for each http request. This
+    may drop data as there is currently no retry. Default is 0 (no timeout)
 - tls (subsection, optional):
 	A sub-section that specifies the settings to be used for any SSL/TLS
 	encryption. This will only have any impact if an "https://" address is
@@ -48,6 +54,7 @@ Example:
 	[PayloadEncoder]
 
 	[influxdb]
+	type = "HttpOutput"
 	message_matcher = "Type == 'influx.formatted'"
 	address = "http://influxdb.example.com:8086/db/stats/series"
 	encoder = "PayloadEncoder"

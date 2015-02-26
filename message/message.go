@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -24,6 +24,7 @@ package message
 
 import (
 	"bytes"
+	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
 	"reflect"
 )
@@ -32,18 +33,44 @@ const (
 	HEADER_DELIMITER_SIZE = 2                         // record separator + len
 	HEADER_FRAMING_SIZE   = HEADER_DELIMITER_SIZE + 1 // unit separator
 	MAX_HEADER_SIZE       = 255
-	MAX_MESSAGE_SIZE      = 64 * 1024
-	MAX_RECORD_SIZE       = HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE
 	RECORD_SEPARATOR      = uint8(0x1e)
 	UNIT_SEPARATOR        = uint8(0x1f)
 	UUID_SIZE             = 16
 )
+
+var (
+	MAX_MESSAGE_SIZE = uint32(64 * 1024)
+	MAX_RECORD_SIZE  = uint32(HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE)
+)
+
+func SetMaxMessageSize(size uint32) {
+	MAX_MESSAGE_SIZE = size
+	MAX_RECORD_SIZE = uint32(HEADER_FRAMING_SIZE + MAX_HEADER_SIZE + MAX_MESSAGE_SIZE)
+}
 
 type MessageSigningConfig struct {
 	Name    string `toml:"name"`
 	Hash    string `toml:"hmac_hash"`
 	Key     string `toml:"hmac_key"`
 	Version uint32 `toml:"version"`
+}
+
+// Decodes provided byte slice into a Heka protocol header object.
+func DecodeHeader(buf []byte, header *Header) (bool, error) {
+	if buf[len(buf)-1] != UNIT_SEPARATOR {
+		return false, nil
+	}
+	err := proto.Unmarshal(buf[0:len(buf)-1], header)
+	if err != nil {
+		return false, fmt.Errorf("error unmarshaling header: ", err)
+	}
+	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
+		err = fmt.Errorf("message exceeds the maximum length [%d bytes] len: %d",
+			MAX_MESSAGE_SIZE, header.GetMessageLength())
+		header.Reset()
+		return false, err
+	}
+	return true, nil
 }
 
 func (h *Header) SetMessageLength(v uint32) {

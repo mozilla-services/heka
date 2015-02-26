@@ -1,6 +1,9 @@
+.. _config_statsd_input:
 
-StatsdInput
-===========
+Statsd Input
+============
+
+Plugin Name: **StatsdInput**
 
 Listens for `statsd protocol <https://github.com/b/statsd_spec>`_ `counter`,
 `timer`, or `gauge` messages on a UDP port, and generates `Stat` objects that

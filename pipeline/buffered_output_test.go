@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -47,9 +47,12 @@ func BufferedOutputSpec(c gs.Context) {
 		or := NewMockOutputRunner(ctrl)
 		h := NewMockPluginHelper(ctrl)
 		h.EXPECT().PipelineConfig().Return(pConfig)
+		or.EXPECT().Name().Return("FooOutput")
 
-		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h)
-		c.Expect(err, gs.IsNil)
+		err := pConfig.RegisterDefault("HekaFramingSplitter")
+		c.Assume(err, gs.IsNil)
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))
+		c.Assume(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 
 		c.Specify("fileExists", func() {
@@ -179,7 +182,7 @@ func BufferedOutputSpec(c gs.Context) {
 				f, err := os.Open(fName)
 				c.Expect(err, gs.IsNil)
 
-				n, record, err := bufferedOutput.parser.Parse(f)
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
 				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
@@ -206,7 +209,7 @@ func BufferedOutputSpec(c gs.Context) {
 				f, err := os.Open(fName)
 				c.Expect(err, gs.IsNil)
 
-				n, record, err := bufferedOutput.parser.Parse(f)
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
 				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
@@ -217,6 +220,53 @@ func BufferedOutputSpec(c gs.Context) {
 				c.Expect(outMsg.GetPayload(), gs.Equals, payload)
 			})
 
+			c.Specify("when queue has limit", func() {
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				or.EXPECT().UsesFraming().Return(false)
+
+				bufferedOutput.maxQueueSize = uint64(200)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+
+				err = bufferedOutput.RollQueue()
+				c.Expect(err, gs.IsNil)
+
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(115))
+			})
+
+			c.Specify("when queue has limit and is full", func() {
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				bufferedOutput.maxQueueSize = uint64(50)
+
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+				err = bufferedOutput.RollQueue()
+				c.Expect(err, gs.IsNil)
+
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.Equals, QueueIsFull)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+			})
+
+		})
+
+		c.Specify("getQueueBufferSize", func() {
+			c.Expect(getQueueBufferSize(tmpDir), gs.Equals, uint64(0))
+
+			fd, _ := os.Create(filepath.Join(tmpDir, "4.log"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			fd, _ = os.Create(filepath.Join(tmpDir, "5.log"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			// Only size of *.log files should be taken in calculations.
+			fd, _ = os.Create(filepath.Join(tmpDir, "random_file"))
+			fd.WriteString("0123456789")
+			fd.Close()
+
+			c.Expect(getQueueBufferSize(tmpDir), gs.Equals, uint64(20))
 		})
 	})
 }

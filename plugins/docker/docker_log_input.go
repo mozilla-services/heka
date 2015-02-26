@@ -21,15 +21,13 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
-	"os"
 	"time"
 )
 
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
 	Endpoint string `toml:"endpoint"`
-	// Name of configured decoder to receive the input.
-	Decoder string `toml:"decoder"`
+	CertPath string `toml:"cert_path"`
 }
 
 type DockerLogInput struct {
@@ -44,6 +42,7 @@ type DockerLogInput struct {
 func (di *DockerLogInput) ConfigStruct() interface{} {
 	return &DockerLogInputConfig{
 		Endpoint: "unix:///var/run/docker.sock",
+		CertPath: "",
 	}
 }
 
@@ -54,7 +53,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan error)
 
-	m, err := NewAttachManager(di.conf.Endpoint, di.attachErrors)
+	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
@@ -65,30 +64,19 @@ func (di *DockerLogInput) Init(config interface{}) error {
 
 func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
 	var (
-		pack    *pipeline.PipelinePack
-		dRunner pipeline.DecoderRunner
-		ok      bool
+		pack *pipeline.PipelinePack
+		ok   bool
 	)
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-		err = nil
-	}
+	hostname := h.Hostname()
 
 	go di.attachMgr.Listen(di.logstream, di.closer)
 
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
 
-	if di.conf.Decoder != "" {
-		if dRunner, ok = h.DecoderRunner(di.conf.Decoder,
-			fmt.Sprintf("%s-%s", ir.Name(), di.conf.Decoder)); !ok {
-			return fmt.Errorf("Decoder not found: %s", di.conf.Decoder)
-		}
-	}
-
 	ok = true
+	var err error
 	for ok {
 		select {
 		case logline := <-di.logstream:
@@ -102,12 +90,7 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 			pack.Message.SetUuid(uuid.NewRandom())
 			message.NewStringField(pack.Message, "ContainerID", logline.ID)
 			message.NewStringField(pack.Message, "ContainerName", logline.Name)
-
-			if dRunner == nil {
-				ir.Inject(pack)
-			} else {
-				dRunner.InChan() <- pack
-			}
+			ir.Deliver(pack)
 
 		case err, ok = <-di.attachErrors:
 			if !ok {

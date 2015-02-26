@@ -39,7 +39,7 @@ func FilterSpec(c gs.Context) {
 		sbFilter := new(SandboxFilter)
 		sbFilter.SetPipelineConfig(pConfig)
 		config := sbFilter.ConfigStruct().(*sandbox.SandboxConfig)
-		config.MemoryLimit = 32000
+		config.MemoryLimit = 64000
 		config.InstructionLimit = 1000
 		config.OutputLimit = 1024
 
@@ -62,6 +62,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(2)
 
 			config.ScriptFilename = "../lua/testsupport/processinject.lua"
+			config.ModuleDirectory = "../lua/modules"
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
 			inChan <- pack
@@ -81,6 +82,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(11)
 
 			config.ScriptFilename = "../lua/testsupport/timerinject.lua"
+			config.ModuleDirectory = "../lua/modules"
 			err := sbFilter.Init(config)
 			c.Assume(err, gs.IsNil)
 			go func() {
@@ -98,6 +100,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 
 			config.ScriptFilename = "../lua/testsupport/serialize.lua"
+			config.ModuleDirectory = "../lua/modules"
 			config.PreserveData = true
 			sbFilter.SetName("serialize")
 			err := sbFilter.Init(config)
@@ -109,6 +112,23 @@ func FilterSpec(c gs.Context) {
 			c.Expect(err, gs.IsNil)
 			err = os.Remove("sandbox_preservation/serialize.data")
 			c.Expect(err, gs.IsNil)
+		})
+
+		c.Specify("process_message error string", func() {
+			var timer <-chan time.Time
+			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("script provided error message"))
+
+			config.ScriptFilename = "../lua/testsupport/process_message_error_string.lua"
+			config.ModuleDirectory = "../lua/modules"
+			err := sbFilter.Init(config)
+			c.Assume(err, gs.IsNil)
+			inChan <- pack
+			close(inChan)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err, gs.IsNil)
+
 		})
 	})
 
@@ -188,10 +208,9 @@ func FilterSpec(c gs.Context) {
 			sbxName := "SandboxFilter"
 			sbxMgrName := "SandboxManagerFilter"
 			code := `
-			require("cjson")
 
 			function process_message()
-			    inject_payload(cjson.encode({a = "b"}))
+			    inject_payload('{a = "b"}')
 			    return 0
 			end
 			`

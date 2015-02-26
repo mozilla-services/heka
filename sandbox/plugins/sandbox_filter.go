@@ -17,6 +17,7 @@ package plugins
 
 import (
 	"code.google.com/p/gogoprotobuf/proto"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -86,6 +87,7 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 	this.sbc = config.(*SandboxConfig)
 	globals := this.pConfig.Globals
 	this.sbc.ScriptFilename = globals.PrependShareDir(this.sbc.ScriptFilename)
+	this.sbc.PluginType = "filter"
 	this.sampleDenominator = globals.SampleDenominator
 
 	data_dir := globals.PrependBaseDir(DATA_DIR)
@@ -108,9 +110,9 @@ func (this *SandboxFilter) Init(config interface{}) (err error) {
 
 	this.preservationFile = filepath.Join(data_dir, this.name+DATA_EXT)
 	if this.sbc.PreserveData && fileExists(this.preservationFile) {
-		err = this.sb.Init(this.preservationFile, "filter")
+		err = this.sb.Init(this.preservationFile)
 	} else {
-		err = this.sb.Init("", "filter")
+		err = this.sb.Init("")
 	}
 
 	return
@@ -186,14 +188,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if injectionCount == 0 {
 			err = pipeline.TerminatedError("exceeded InjectMessage count")
-			return 1
+			return 2
 		}
 		injectionCount--
 		pack := h.PipelinePack(msgLoopCount)
 		if pack == nil {
 			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
 				this.pConfig.Globals.MaxMsgLoops))
-			return 1
+			return 3
 		}
 		if len(payload_type) == 0 { // heka protobuf message
 			hostname := pack.Message.GetHostname()
@@ -216,7 +218,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			pack.Message.AddField(pname)
 		}
 		if !fr.Inject(pack) {
-			return 1
+			return 4
 		}
 		atomic.AddInt64(&this.injectMessageCount, 1)
 		return 0
@@ -278,6 +280,10 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				}
 				if retval < 0 {
 					atomic.AddInt64(&this.processMessageFailures, 1)
+					em := this.sb.LastError()
+					if len(em) > 0 {
+						fr.LogError(errors.New(em))
+					}
 				}
 				sample = 0 == rand.Intn(this.sampleDenominator)
 			} else {

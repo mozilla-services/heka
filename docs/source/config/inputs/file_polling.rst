@@ -1,8 +1,11 @@
+.. _config_file_polling_input:
 
-FilePollingInput
-================
+File Polling Input
+==================
 
 .. versionadded:: 0.7
+
+Plugin Name: **FilePollingInput**
 
 FilePollingInputs periodically read (unbuffered) the contents of a file
 specified, and creates a Heka message with the contents of the file as the
@@ -15,9 +18,6 @@ Config:
 
 - ticker_interval (unit):
     How often, in seconds to input should read the contents of the file.
-
-- decoder (string):
-    The name of the decoder used to process the payload of the input.
 
 Example:
 

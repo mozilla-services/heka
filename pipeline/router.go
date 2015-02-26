@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"math/rand"
 	"runtime"
 	"strings"
@@ -189,9 +188,9 @@ func (self *messageRouter) Start() {
 		for _, matcher = range self.oMatchers {
 			close(matcher.inChan)
 		}
-		log.Println("MessageRouter stopped.")
+		LogInfo.Println("MessageRouter stopped.")
 	}()
-	log.Println("MessageRouter started.")
+	LogInfo.Println("MessageRouter started.")
 }
 
 // Encapsulates the mechanics of testing messages against a specific plugin's

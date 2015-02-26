@@ -61,8 +61,14 @@ func (p *ProtobufEncoder) EncodeMessageStream(msg *message.Message,
 func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 	msc *message.MessageSigningConfig) error {
 
+	msgSize := uint32(len(msgBytes))
+	if msgSize > message.MAX_MESSAGE_SIZE {
+		return fmt.Errorf("Message too big, requires %d (MAX_MESSAGE_SIZE = %d)",
+			len(msgBytes), message.MAX_MESSAGE_SIZE)
+	}
+
 	h := &message.Header{}
-	h.SetMessageLength(uint32(len(msgBytes)))
+	h.SetMessageLength(msgSize)
 	if msc != nil {
 		h.SetHmacSigner(msc.Name)
 		h.SetHmacKeyVersion(msc.Version)
@@ -79,11 +85,12 @@ func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 		h.SetHmac(hm.Sum(nil))
 	}
 	headerSize := proto.Size(h)
-	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
-	if requiredSize > message.MAX_RECORD_SIZE {
-		return fmt.Errorf("Message too big, requires %d (MAX_RECORD_SIZE = %d)",
-			requiredSize, message.MAX_RECORD_SIZE)
+	if headerSize > message.MAX_HEADER_SIZE {
+		return fmt.Errorf("Message header too big, requires %d (MAX_HEADER_SIZE = %d)",
+			headerSize, message.MAX_HEADER_SIZE)
 	}
+
+	requiredSize := message.HEADER_FRAMING_SIZE + headerSize + len(msgBytes)
 	if cap(*outBytes) < requiredSize {
 		*outBytes = make([]byte, requiredSize)
 	} else {

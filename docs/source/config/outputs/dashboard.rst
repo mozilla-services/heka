@@ -1,6 +1,9 @@
+.. _config_dashboard_output:
 
-DashboardOutput
-===============
+Dashboard Output
+================
+
+Plugin Name: **DashboardOutput**
 
 Specialized output plugin that listens for certain Heka reporting message
 types and generates JSON data which is made available via HTTP for use in web

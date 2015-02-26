@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
-	"log"
 	"math/rand"
 	"sort"
 	"sync"
@@ -143,11 +142,11 @@ func (mdr *mDRunner) Decoder() Decoder {
 }
 
 func (mdr *mDRunner) LogError(err error) {
-	log.Printf("SubDecoder '%s' error: %s", mdr.name, err)
+	LogError.Printf("SubDecoder '%s' error: %s", mdr.name, err)
 }
 
 func (mdr *mDRunner) LogMessage(msg string) {
-	log.Printf("SubDecoder '%s': %s", mdr.name, msg)
+	LogInfo.Printf("SubDecoder '%s': %s", mdr.name, msg)
 }
 
 type MultiDecoder struct {

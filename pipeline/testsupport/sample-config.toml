@@ -31,11 +31,13 @@ delimiter = "\n"
 message_matcher = "Type != 'heka.counter-output'"
 ticker_interval = 1
 
+[PayloadEncoder]
+
 [StatsdFileOutput]
 message_matcher = "Type == 'heka.statmetric'"
 type = "FileOutput"
 path = "log/statsdonly.log"
-format = "json"
+encoder = "PayloadEncoder"
 
 [CounterFileOutput]
 type = "FileOutput"
@@ -45,12 +47,3 @@ message_matcher = "Type == 'heka.counter-output'"
 [LogOutput]
 message_matcher = "Type == 'heka.counter-output'"
 payload_only = true
-
-[WhisperOutput]
-message_matcher = "Type == 'heka.statmetric'"
-default_agg_method = 1
-default_archive_info = [ [0, 30, 1440], [0, 900, 192], [0, 3600, 168], [0, 43200, 1456] ]
-
-[DashboardOutput]
-ticker_interval = 5
-static_directory = "/usr/share/heka/dasher"

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	_ "github.com/mozilla-services/heka/plugins"
 	_ "github.com/mozilla-services/heka/plugins/amqp"
@@ -32,6 +33,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/graphite"
 	_ "github.com/mozilla-services/heka/plugins/http"
 	_ "github.com/mozilla-services/heka/plugins/irc"
+	_ "github.com/mozilla-services/heka/plugins/kafka"
 	_ "github.com/mozilla-services/heka/plugins/logstreamer"
 	_ "github.com/mozilla-services/heka/plugins/nagios"
 	_ "github.com/mozilla-services/heka/plugins/payload"
@@ -41,7 +43,6 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/tcp"
 	_ "github.com/mozilla-services/heka/plugins/udp"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -52,7 +53,7 @@ import (
 )
 
 const (
-	VERSION = "0.8.3"
+	VERSION = "0.9.0"
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
@@ -81,6 +82,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.BaseDir = config.BaseDir
 	globals.ShareDir = config.ShareDir
 	globals.SampleDenominator = config.SampleDenominator
+	globals.Hostname = config.Hostname
 
 	return globals, cpuProfName, memProfName
 }
@@ -97,11 +99,6 @@ func main() {
 	var cpuProfName string
 	var memProfName string
 
-	if flag.NFlag() == 0 {
-		flag.PrintDefaults()
-		os.Exit(0)
-	}
-
 	if *version {
 		fmt.Println(VERSION)
 		os.Exit(0)
@@ -109,23 +106,29 @@ func main() {
 
 	config, err = LoadHekadConfig(*configPath)
 	if err != nil {
-		log.Fatal("Error reading config: ", err)
+		pipeline.LogError.Fatal("Error reading config: ", err)
 	}
 	if config.SampleDenominator <= 0 {
-		log.Fatalln("'sample_denominator' value must be greater than 0.")
+		pipeline.LogError.Fatalln("'sample_denominator' value must be greater than 0.")
 	}
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
-		log.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
+		pipeline.LogError.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
 	}
 
+	if config.MaxMessageSize > 1024 {
+		message.SetMaxMessageSize(config.MaxMessageSize)
+	} else if config.MaxMessageSize > 0 {
+		pipeline.LogError.Fatalln("Error: 'max_message_size' setting must be greater than 1024.")
+	}
 	if config.PidFile != "" {
 		contents, err := ioutil.ReadFile(config.PidFile)
 		if err == nil {
 			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
 			if err != nil {
-				log.Fatalf("Error reading proccess id from pidfile '%s': %s", config.PidFile, err)
+				pipeline.LogError.Fatalf("Error reading proccess id from pidfile '%s': %s",
+					config.PidFile, err)
 			}
 
 			process, err := os.FindProcess(pid)
@@ -133,25 +136,25 @@ func main() {
 			// on Windows, err != nil if the process cannot be found
 			if runtime.GOOS == "windows" {
 				if err == nil {
-					log.Fatalf("Process %d is already running.", pid)
+					pipeline.LogError.Fatalf("Process %d is already running.", pid)
 				}
 			} else if process != nil {
 				// err is always nil on POSIX, so we have to send the process
 				// a signal to check whether it exists
 				if err = process.Signal(syscall.Signal(0)); err == nil {
-					log.Fatalf("Process %d is already running.", pid)
+					pipeline.LogError.Fatalf("Process %d is already running.", pid)
 				}
 			}
 		}
 		if err = ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())),
 			0644); err != nil {
 
-			log.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
+			pipeline.LogError.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
 		}
-		log.Printf("Wrote pid to pidfile '%s'", config.PidFile)
+		pipeline.LogInfo.Printf("Wrote pid to pidfile '%s'", config.PidFile)
 		defer func() {
 			if err = os.Remove(config.PidFile); err != nil {
-				log.Printf("Unable to remove pidfile '%s': %s", config.PidFile, err)
+				pipeline.LogError.Printf("Unable to remove pidfile '%s': %s", config.PidFile, err)
 			}
 		}()
 	}
@@ -159,7 +162,7 @@ func main() {
 	if cpuProfName != "" {
 		profFile, err := os.Create(cpuProfName)
 		if err != nil {
-			log.Fatalln(err)
+			pipeline.LogError.Fatalln(err)
 		}
 
 		pprof.StartCPUProfile(profFile)
@@ -173,7 +176,7 @@ func main() {
 		defer func() {
 			profFile, err := os.Create(memProfName)
 			if err != nil {
-				log.Fatalln(err)
+				pipeline.LogError.Fatalln(err)
 			}
 			pprof.WriteHeapProfile(profFile)
 			profFile.Close()
@@ -183,7 +186,7 @@ func main() {
 	// Set up and load the pipeline configuration and start the daemon.
 	pipeconf := pipeline.NewPipelineConfig(globals)
 	if err = loadFullConfig(pipeconf, configPath); err != nil {
-		log.Fatal("Error reading config: ", err)
+		pipeline.LogError.Fatal("Error reading config: ", err)
 	}
 	pipeline.Run(pipeconf)
 }
@@ -206,13 +209,16 @@ func loadFullConfig(pipeconf *pipeline.PipelineConfig, configPath *string) (err 
 				// Skip non *.toml files in a config dir.
 				continue
 			}
-			err = pipeconf.LoadFromConfigFile(filepath.Join(*configPath, fName))
+			err = pipeconf.PreloadFromConfigFile(filepath.Join(*configPath, fName))
 			if err != nil {
 				break
 			}
 		}
 	} else {
-		err = pipeconf.LoadFromConfigFile(*configPath)
+		err = pipeconf.PreloadFromConfigFile(*configPath)
 	}
-	return
+	if err == nil {
+		err = pipeconf.LoadConfig()
+	}
+	return err
 }

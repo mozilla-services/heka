@@ -1,8 +1,11 @@
+.. _config_http_listen_input:
 
-HttpListenInput
-===============
+HTTP Listen Input
+=================
 
 .. versionadded:: 0.5
+
+Plugin Name: **HttpListenInput**
 
 HttpListenInput plugins start a webserver listening on the specified address
 and port. If no decoder is specified data in the request body will be populated
@@ -20,14 +23,17 @@ as the message payload. Messages will be populated as follows:
 - Fields["Protocol"] (string): HTTP protocol used for the request (e.g.
                                "HTTP/1.0")
 
+.. versionadded:: 0.6
+
+All query parameters are added as fields. For example, a request to
+"127.0.0.1:8325?user=bob" will create a field "user" with the value
+"bob".
+
 Config:
 
 - address (string):
     An IP address:port on which this plugin will expose a HTTP server.
     Defaults to "127.0.0.1:8325".
-- decoder (string):
-    The name of the decoder used to further transform the request body text
-    into a structured hekad message. No default decoder is specified.
 
 .. versionadded:: 0.7
 
@@ -36,6 +42,10 @@ Config:
     by adding a TOML subsection entitled "headers" to you HttpOutput config
     section. All entries in the subsection must be a list of string values.
 
+.. versionadded:: 0.9
+
+- request_headers ([]string):
+    Add additional request headers as message fields. Defaults to empty list.
 
 Example:
 

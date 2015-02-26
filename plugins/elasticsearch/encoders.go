@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -27,6 +27,7 @@ import (
 )
 
 const lowerhex = "0123456789abcdef"
+const NEWLINE byte = 10
 
 func writeUTF16Escape(b *bytes.Buffer, c rune) {
 	b.WriteString(`\u`)
@@ -102,7 +103,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 				} else {
 					writeQuotedString(b, value)
 				}
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -124,7 +125,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 				} else {
 					writeQuotedString(b, base64.StdEncoding.EncodeToString(value))
 				}
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -142,7 +143,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatInt(value, 10))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -156,7 +157,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatFloat(value, 'g', -1, 64))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -170,7 +171,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
 			b.WriteString(`[`)
 			for i, value := range values {
 				b.WriteString(strconv.FormatBool(value))
-				if i < len(values) - 1 {
+				if i < len(values)-1 {
 					b.WriteString(`,`)
 				}
 			}
@@ -306,7 +307,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					}
 				}
 				writeField(first, &buf, field, raw)
-		 		first = false
+				first = false
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
@@ -325,8 +326,9 @@ type ESLogstashV0Encoder struct {
 	rawBytesFields []string
 	coord          *ElasticSearchCoordinates
 	// Field names to include in ElasticSearch document for "clean" format.
-	fields         []string
-	useMessageType bool
+	fields          []string
+	timestampFormat string
+	useMessageType  bool
 }
 
 type ESLogstashV0EncoderConfig struct {
@@ -339,6 +341,8 @@ type ESLogstashV0EncoderConfig struct {
 	UseMessageType bool `toml:"use_message_type"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
+	// Timestamp format. Defaults to "2006-01-02T15:04:05.000Z"
+	Timestamp string
 	// When formating the Index use the Timestamp from the Message instead of
 	// time of processing. Defaults to false.
 	ESIndexFromTimestamp bool `toml:"es_index_from_timestamp"`
@@ -352,6 +356,7 @@ func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 	config := &ESLogstashV0EncoderConfig{
 		Index:                "logstash-%{2006.01.02}",
 		TypeName:             "message",
+		Timestamp:            "2006-01-02T15:04:05.000Z",
 		UseMessageType:       false,
 		ESIndexFromTimestamp: false,
 		Id:                   "",
@@ -377,6 +382,7 @@ func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 	conf := config.(*ESLogstashV0EncoderConfig)
 	e.rawBytesFields = conf.RawBytesFields
 	e.fields = conf.Fields
+	e.timestampFormat = conf.Timestamp
 	e.useMessageType = conf.UseMessageType
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
@@ -401,7 +407,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			writeStringField(first, &buf, `@uuid`, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeStringField(first, &buf, `@timestamp`, t.Format("2006-01-02T15:04:05.000Z"))
+			writeStringField(first, &buf, `@timestamp`, t.Format(e.timestampFormat))
 		case "type":
 			if e.useMessageType || len(e.coord.Type) < 1 {
 				writeStringField(first, &buf, `@type`, m.GetType())

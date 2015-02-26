@@ -4,7 +4,7 @@
 
 --[[
 API
----
+^^^
 **add(name, ns, col, stext, text)**
     Create an annotation in the global *_ANNOTATIONS* table.
 

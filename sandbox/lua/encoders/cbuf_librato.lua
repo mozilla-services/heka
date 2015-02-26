@@ -27,7 +27,7 @@ Config:
 
     [cbuf_librato_encoder]
     type = "SandboxEncoder"
-    filename = "lua_encoders/cbuf_librato"
+    filename = "lua_encoders/cbuf_librato.lua"
     preserve_data = true
 
     [librato]

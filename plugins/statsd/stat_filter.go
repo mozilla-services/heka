@@ -119,7 +119,7 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			stat.Value = InterpolateString(met.Value, values)
 			stat.Sampling = 1.0
 			if !statAccum.DropStat(stat) {
-				fr.LogError(fmt.Errorf("Undelivered stat: %s", stat))
+				fr.LogError(fmt.Errorf("Undelivered stat: %v", stat))
 			}
 		}
 		pack.Recycle()

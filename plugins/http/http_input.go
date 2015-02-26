@@ -4,13 +4,14 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   David Delassus (david.jose.delassus@gmail.com)
 #   Victor Ng (vng@mozilla.com)
 #   Christian Vozar (christian@bellycard.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -21,31 +22,31 @@ import (
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type HttpInput struct {
-	name     string
-	urls     []string
-	respChan chan *MonitorResponse
-	errChan  chan *MonitorResponse
-	stopChan chan bool
-	Monitor  *HttpInputMonitor
-	conf     *HttpInputConfig
+type ResponseData struct {
+	Time       float64
+	Size       int
+	StatusCode int
+	Status     string
+	Proto      string
+	Url        string
 }
 
-type MonitorResponse struct {
-	ResponseData []byte
-	ResponseSize int
-	ResponseTime float64
-	StatusCode   int
-	Status       string
-	Proto        string
-	Url          string
+type HttpInput struct {
+	name       string
+	urls       []string
+	stopChan   chan bool
+	conf       *HttpInputConfig
+	ir         InputRunner
+	sRunners   []SplitterRunner
+	hostname   string
+	packSupply chan *PipelinePack
 }
 
 // Http Input config struct
@@ -65,8 +66,6 @@ type HttpInputConfig struct {
 	Password string
 	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
-	// Configured decoder instance used to decode http.Get payload.
-	DecoderName string `toml:"decoder"`
 	// Severity level of successful requests. Default is 6 (information)
 	SuccessSeverity int32 `toml:"success_severity"`
 	// Severity level of errors and unsuccessful requests. Default is 1 (alert)
@@ -88,209 +87,147 @@ func (hi *HttpInput) ConfigStruct() interface{} {
 
 func (hi *HttpInput) Init(config interface{}) error {
 	hi.conf = config.(*HttpInputConfig)
-
 	if (hi.conf.Urls == nil) && (hi.conf.Url == "") {
 		return fmt.Errorf("Url or Urls must contain at least one URL")
 	}
-
 	if hi.conf.Urls != nil {
 		hi.urls = hi.conf.Urls
 	} else {
 		hi.urls = []string{hi.conf.Url}
 	}
-
-	hi.respChan = make(chan *MonitorResponse)
-	hi.errChan = make(chan *MonitorResponse)
 	hi.stopChan = make(chan bool)
-	hi.Monitor = new(HttpInputMonitor)
-	hi.Monitor.Init(hi.urls, hi.conf, hi.respChan, hi.errChan, hi.stopChan)
-
 	return nil
 }
 
-func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+func (hi *HttpInput) addField(pack *PipelinePack, name string, value interface{},
+	representation string) {
+
+	if field, err := message.NewField(name, value, representation); err == nil {
+		pack.Message.AddField(field)
+	} else {
+		hi.ir.LogError(fmt.Errorf("can't add '%s' field: %s", name, err.Error()))
+	}
+}
+
+func (hi *HttpInput) makePackDecorator(respData ResponseData) func(*PipelinePack) {
+	packDecorator := func(pack *PipelinePack) {
+		pack.Message.SetType("heka.httpinput.data")
+		pack.Message.SetHostname(hi.hostname)
+		if respData.StatusCode != 200 {
+			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
+		} else {
+			pack.Message.SetSeverity(hi.conf.SuccessSeverity)
+		}
+		pack.Message.SetLogger(respData.Url)
+		hi.addField(pack, "StatusCode", respData.StatusCode, "")
+		hi.addField(pack, "Status", respData.Status, "")
+		hi.addField(pack, "ResponseSize", respData.Size, "B")
+		hi.addField(pack, "ResponseTime", respData.Time, "s")
+		hi.addField(pack, "Protocol", respData.Proto, "")
+	}
+	return packDecorator
+}
+
+func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
+	responseTimeStart := time.Now()
+	httpClient := &http.Client{}
+	req, err := http.NewRequest(hi.conf.Method, url, strings.NewReader(hi.conf.Body))
+	if err != nil {
+		hi.ir.LogError(fmt.Errorf("can't create HTTP request for %s: %s", url, err.Error()))
+		return
+	}
+	// HTTP Basic Auth
+	if hi.conf.User != "" {
+		req.SetBasicAuth(hi.conf.User, hi.conf.Password)
+	}
+	// Request headers
+	req.Header.Add("User-Agent", "Heka")
+	for key, value := range hi.conf.Headers {
+		req.Header.Add(key, value)
+	}
+	resp, err := httpClient.Do(req)
+	responseTime := time.Since(responseTimeStart)
+	if err != nil {
+		pack := <-hi.ir.InChan()
+		pack.Message.SetUuid(uuid.NewRandom())
+		pack.Message.SetTimestamp(time.Now().UnixNano())
+		pack.Message.SetType("heka.httpinput.error")
+		pack.Message.SetPayload(err.Error())
+		pack.Message.SetSeverity(hi.conf.ErrorSeverity)
+		pack.Message.SetLogger(url)
+		hi.ir.Deliver(pack)
+		return
+	}
+	contentLength, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
+	respData := ResponseData{
+		Size:       contentLength,
+		Time:       responseTime.Seconds(),
+		StatusCode: resp.StatusCode,
+		Status:     resp.Status,
+		Proto:      resp.Proto,
+		Url:        url,
+	}
+
 	var (
-		pack                *PipelinePack
-		dRunner             DecoderRunner
-		ok                  bool
-		router_shortcircuit bool
+		record  []byte
+		deliver bool
 	)
 
-	ir.LogMessage(fmt.Sprintf("[HttpInput (%s)] Running...",
-		hi.Monitor.urls))
-
-	go hi.Monitor.Monitor(ir)
-
-	pConfig := h.PipelineConfig()
-	hostname := pConfig.Hostname()
-	packSupply := ir.InChan()
-
-	if hi.conf.DecoderName == "" {
-		router_shortcircuit = true
-	} else if dRunner, ok = h.DecoderRunner(hi.conf.DecoderName, fmt.Sprintf("%s-%s", ir.Name(), hi.conf.DecoderName)); !ok {
-		return fmt.Errorf("Decoder not found: %s", hi.conf.DecoderName)
-	}
-
-	for {
-		select {
-		case data := <-hi.respChan:
-			pack = <-packSupply
-			pack.Message.SetUuid(uuid.NewRandom())
-			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.httpinput.data")
-			pack.Message.SetHostname(hostname)
-			pack.Message.SetPayload(string(data.ResponseData))
-			if data.StatusCode != 200 {
-				pack.Message.SetSeverity(hi.conf.ErrorSeverity)
+	for err == nil {
+		deliver = true
+		_, record, err = sRunner.GetRecordFromStream(resp.Body)
+		if err == io.ErrShortBuffer {
+			if sRunner.KeepTruncated() {
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated",
+					message.MAX_RECORD_SIZE)
 			} else {
-				pack.Message.SetSeverity(hi.conf.SuccessSeverity)
+				deliver = false
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped",
+					message.MAX_RECORD_SIZE)
 			}
-			pack.Message.SetLogger(data.Url)
-			if field, err := message.NewField("StatusCode", data.StatusCode, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
+			hi.ir.LogError(err)
+			err = nil // non-fatal, keep going
+		}
+		if len(record) > 0 && deliver {
+			if !sRunner.UseMsgBytes() {
+				sRunner.SetPackDecorator(hi.makePackDecorator(respData))
 			}
-			if field, err := message.NewField("Status", data.Status, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
-			if field, err := message.NewField("ResponseSize", data.ResponseSize, "B"); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
-			if field, err := message.NewField("ResponseTime", data.ResponseTime, "s"); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
-			if field, err := message.NewField("Protocol", data.Proto, ""); err == nil {
-				pack.Message.AddField(field)
-			} else {
-				ir.LogError(fmt.Errorf("can't add field: %s", err))
-			}
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
-				dRunner.InChan() <- pack
-			}
-		case data := <-hi.errChan:
-			pack = <-packSupply
-			pack.Message.SetUuid(uuid.NewRandom())
-			pack.Message.SetTimestamp(time.Now().UnixNano())
-			pack.Message.SetType("heka.httpinput.error")
-			pack.Message.SetPayload(string(data.ResponseData))
-			pack.Message.SetSeverity(hi.conf.ErrorSeverity)
-			pack.Message.SetLogger(data.Url)
-			if router_shortcircuit {
-				pConfig.Router().InChan() <- pack
-			} else {
-				dRunner.InChan() <- pack
-			}
-		case <-hi.stopChan:
-			return
+			sRunner.DeliverRecord(record, nil)
 		}
 	}
+	resp.Body.Close()
+	if err != io.EOF {
+		hi.ir.LogError(fmt.Errorf("fetching %s response input: %s", url, err.Error()))
+	}
+}
 
+func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	hi.ir = ir
+	hi.sRunners = make([]SplitterRunner, len(hi.urls))
+	hi.hostname = h.Hostname()
+
+	for i, _ := range hi.urls {
+		token := strconv.Itoa(i)
+		hi.sRunners[i] = ir.NewSplitterRunner(token)
+	}
+
+	ticker := ir.Ticker()
+	for {
+		select {
+		case <-ticker:
+			for i, url := range hi.urls {
+				sRunner := hi.sRunners[i]
+				hi.fetchUrl(url, sRunner)
+			}
+		case <-hi.stopChan:
+			return nil
+		}
+	}
 	return nil
 }
 
 func (hi *HttpInput) Stop() {
 	close(hi.stopChan)
-}
-
-type HttpInputMonitor struct {
-	urls     []string
-	method   string
-	headers  map[string]string
-	body     string
-	user     string
-	password string
-	respChan chan *MonitorResponse
-	errChan  chan *MonitorResponse
-	stopChan chan bool
-
-	ir       InputRunner
-	tickChan <-chan time.Time
-}
-
-func (hm *HttpInputMonitor) Init(urls []string, config *HttpInputConfig, respChan, errChan chan *MonitorResponse, stopChan chan bool) {
-	hm.urls = urls
-	hm.method = config.Method
-	hm.headers = config.Headers
-	hm.body = config.Body
-	hm.user = config.User
-	hm.password = config.Password
-	hm.respChan = respChan
-	hm.errChan = errChan
-	hm.stopChan = stopChan
-}
-
-func (hm *HttpInputMonitor) Monitor(ir InputRunner) {
-	ir.LogMessage("[HttpInputMonitor] Monitoring...")
-
-	hm.ir = ir
-	hm.tickChan = ir.Ticker()
-
-	for {
-		select {
-		case <-hm.tickChan:
-			for _, url := range hm.urls {
-				responsePayload := []byte{}
-				responseTimeStart := time.Now()
-				// Request URL(s)
-				httpClient := &http.Client{}
-				req, err := http.NewRequest(hm.method, url, strings.NewReader(hm.body))
-
-				// HTTP Basic Authentication
-				if hm.user != "" {
-					req.SetBasicAuth(hm.user, hm.password)
-				}
-
-				// Request headers
-				req.Header.Add("User-Agent", "Heka")
-				for key, value := range hm.headers {
-					req.Header.Add(key, value)
-				}
-
-				resp, err := httpClient.Do(req)
-
-				responseTime := time.Since(responseTimeStart)
-				if err != nil {
-					responsePayload = []byte(err.Error())
-					response := &MonitorResponse{ResponseData: responsePayload, Url: url}
-					hm.errChan <- response
-					continue
-				}
-
-				// Consume HTTP response body
-				body, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					ir.LogError(fmt.Errorf("[HttpInputMonitor] [%s]", err.Error()))
-					continue
-				}
-				resp.Body.Close()
-
-				contentLength, _ := strconv.Atoi(resp.Header.Get("Content-Length"))
-
-				response := &MonitorResponse{
-					ResponseData: body,
-					ResponseSize: contentLength,
-					ResponseTime: responseTime.Seconds(),
-					StatusCode:   resp.StatusCode,
-					Status:       resp.Status,
-					Proto:        resp.Proto,
-					Url:          url,
-				}
-				hm.respChan <- response
-			}
-		case <-hm.stopChan:
-			ir.LogMessage(fmt.Sprintf("[HttpInputMonitor (%s)] Stop", hm.urls))
-			return
-		}
-	}
 }
 
 func init() {

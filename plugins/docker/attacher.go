@@ -25,10 +25,11 @@ package docker
 import (
 	"bufio"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/rafrombrc/go-dockerclient"
+	"github.com/carlanton/go-dockerclient"
 )
 
 type AttachEvent struct {
@@ -66,8 +67,19 @@ type AttachManager struct {
 	sentinel   struct{}
 }
 
-func NewAttachManager(endpoint string, attachErrors chan<- error) (*AttachManager, error) {
-	client, err := docker.NewClient(endpoint)
+func NewAttachManager(endpoint, certPath string, attachErrors chan<- error) (*AttachManager, error) {
+	var client DockerClient
+	var err error
+
+	if certPath == "" {
+		client, err = docker.NewClient(endpoint)
+	} else {
+		key := filepath.Join(certPath, "key.pem")
+		ca := filepath.Join(certPath, "ca.pem")
+		cert := filepath.Join(certPath, "cert.pem")
+		client, err = docker.NewTLSClient(endpoint, cert, key, ca)
+	}
+
 	if err != nil {
 		return nil, err
 	}

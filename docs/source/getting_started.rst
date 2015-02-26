@@ -67,7 +67,7 @@ regular expression that uniquely matches the filename. Note the single quotes
 (`'auth\\.log'`) around the regular expression; this is TOML's way of
 specifying a raw string, which means we don't need to escape the regular
 expression's backslashes like we would with a regular string enclosed by
-double quotes (`"auth\\\\.log"`).
+double quotes (`"auth\\\.log"`).
 
 In most real world cases a LogstreamerInput would include a `decoder` setting,
 which would parse the contents of the file to extract data from the text
@@ -549,18 +549,19 @@ correctly handles the above case::
 
 	[nginx_access_logs]
 	type = "LogstreamerInput"
-	parser_type = "token"
+	splitter = "TokenSplitter"
 	decoder = "nginx_access_decoder"
 	log_directory = "/var/log/nginx"
 	file_match = 'access\.log\.?(?P<Index>\d+)?(.gz)?'
 	priority = ["^Index"]
 
-The `parser_type` option above tells Heka that each record will be delimited
-by a one character token, in this case the default token `\n`. If our files
-were delimited by a different character we could use a `delimiter` option to
-specify an alternate. (For log files where a single record spans multiple
-lines, we can use `parser_type = "regexp"` and then provide a regular
-expression that describes the record boundary.) The `log_directory` option
+The `splitter` option above tells Heka that each record will be delimited by a
+one character token, in this case the default token `\n`. If our records were
+delimited by a different character we could add a :ref:`config_token_splitter`
+section specifying an alternate. If a single character isn't sufficient for
+finding our record boundaries, such as in cases where a record spans multiple
+lines, we can use a :ref:`config_regex_splitter` to provide a regular
+expression that describes the record boundary. The `log_directory` option
 tells where the files we're interested in live. The `file_match` is a regular
 expression that matches all of the files comprising the log stream. In this
 case, they all must start with `access.log`, after which they can (optionally)
@@ -944,7 +945,7 @@ file::
 
 	[nginx_access_logs]
 	type = "LogstreamerInput"
-	parser_type = "token"
+	splitter = "TokenSplitter"
 	decoder = "nginx_access_decoder"
 	log_directory = "/var/log/nginx"
 	file_match = 'access\.log\.?(?P<Index>\d+)?(.gz)?'

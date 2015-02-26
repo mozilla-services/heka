@@ -4,8 +4,13 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Rob Miller (rmiller@mozilla.com)
+#   Chance Zibolski (chance.zibolski@gmail.com)
+#   Anton Lindstrom (carlantonlindstrom@gmail.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -18,9 +23,13 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
+	"strings"
 )
 
 func HttpListenInputSpec(c gs.Context) {
@@ -28,35 +37,27 @@ func HttpListenInputSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	pConfig := NewPipelineConfig(nil)
+	ith := new(plugins_ts.InputTestHelper)
+	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
 	httpListenInput := HttpListenInput{}
-	ith := new(plugins_ts.InputTestHelper)
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
+	splitter := &TokenSplitter{} // Not actually used.
 
+	errChan := make(chan error, 1)
 	startInput := func() {
 		go func() {
-			httpListenInput.Run(ith.MockInputRunner, ith.MockHelper)
+			err := httpListenInput.Run(ith.MockInputRunner, ith.MockHelper)
+			errChan <- err
 		}()
 	}
 
-	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
-	ith.PackSupply = make(chan *PipelinePack, 1)
-
 	config := httpListenInput.ConfigStruct().(*HttpListenInputConfig)
-	config.Decoder = "PayloadJsonDecoder"
-
-	mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
-
-	dRunnerInChan := make(chan *PipelinePack, 1)
+	config.Address = "127.0.0.1:58325"
 
 	c.Specify("A HttpListenInput", func() {
-		mockDecoderRunner.EXPECT().InChan().Return(dRunnerInChan)
-		ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-		ith.MockInputRunner.EXPECT().Name().Return("HttpListenInput").Times(2)
-		ith.MockHelper.EXPECT().DecoderRunner("PayloadJsonDecoder", "HttpListenInput-PayloadJsonDecoder").Return(mockDecoderRunner, true)
-		ith.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
-
 		startedChan := make(chan bool, 1)
 		defer close(startedChan)
 		ts := httptest.NewUnstartedServer(nil)
@@ -67,21 +68,48 @@ func HttpListenInputSpec(c gs.Context) {
 			return nil
 		}
 
+		// These EXPECTs imply that every spec below will send exactly one
+		// HTTP request to the input.
+		ith.MockInputRunner.EXPECT().NewSplitterRunner(gomock.Any()).Return(
+			ith.MockSplitterRunner)
+		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
+
+		decChan := make(chan func(*PipelinePack), 1)
+		feedDecorator := func(decorator func(*PipelinePack)) {
+			decChan <- decorator
+		}
+		setDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+		setDecCall.Do(feedDecorator)
+
+		streamChan := make(chan io.Reader, 1)
+		feedStream := func(r io.Reader) {
+			streamChan <- r
+		}
+		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(
+			gomock.Any()).Do(feedStream)
+
+		bytesChan := make(chan []byte, 1)
+		deliver := func(msgBytes []byte, del Deliverer) {
+			bytesChan <- msgBytes
+		}
+
 		c.Specify("Adds query parameters to the message pack as fields", func() {
 			err := httpListenInput.Init(config)
-			ts.Config = httpListenInput.server
 			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
 
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
 			startInput()
-			ith.PackSupply <- ith.Pack
 			<-startedChan
 			resp, err := http.Get(ts.URL + "/?test=Hello%20World")
-			c.Assume(err, gs.IsNil)
 			resp.Body.Close()
+			c.Assume(err, gs.IsNil)
 			c.Assume(resp.StatusCode, gs.Equals, 200)
 
-			pack := <-dRunnerInChan
-			fieldValue, ok := pack.Message.GetFieldValue("test")
+			packDec := <-decChan
+			packDec(ith.Pack)
+			fieldValue, ok := ith.Pack.Message.GetFieldValue("test")
 			c.Assume(ok, gs.IsTrue)
 			c.Expect(fieldValue, gs.Equals, "Hello World")
 		})
@@ -92,27 +120,124 @@ func HttpListenInputSpec(c gs.Context) {
 				"Four": []string{"five", "six", "seven"},
 			}
 			err := httpListenInput.Init(config)
-			ts.Config = httpListenInput.server
 			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
 
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
 			startInput()
-			ith.PackSupply <- ith.Pack
 			<-startedChan
 			resp, err := http.Get(ts.URL)
 			c.Assume(err, gs.IsNil)
 			resp.Body.Close()
 			c.Assume(resp.StatusCode, gs.Equals, 200)
-			<-dRunnerInChan
 
+			packDec := <-decChan
+			packDec(ith.Pack)
 			// Verify headers are there
 			eq := reflect.DeepEqual(resp.Header["One"], config.Headers["One"])
 			c.Expect(eq, gs.IsTrue)
 			eq = reflect.DeepEqual(resp.Header["Four"], config.Headers["Four"])
 			c.Expect(eq, gs.IsTrue)
+		})
 
+		c.Specify("Request body is sent as record", func() {
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			body := "1+2"
+			getRecCall.Return(0, []byte(body), io.EOF)
+			startInput()
+			<-startedChan
+			deliverCall := ith.MockSplitterRunner.EXPECT().DeliverRecord(gomock.Any(),
+				nil)
+			deliverCall.Do(deliver)
+			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader(body))
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+
+			msgBytes := <-bytesChan
+			c.Expect(string(msgBytes), gs.Equals, "1+2")
+		})
+
+		c.Specify("Add request headers as fields", func() {
+			config.RequestHeaders = []string{
+				"X-REQUEST-ID",
+			}
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			startInput()
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			req.Header.Add("X-REQUEST-ID", "12345")
+			resp, err := client.Do(req)
+
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+
+			packDec := <-decChan
+			packDec(ith.Pack)
+			fieldValue, ok := ith.Pack.Message.GetFieldValue("X-REQUEST-ID")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, "12345")
+		})
+
+		c.Specify("Add other request properties as fields", func() {
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			startInput()
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL+"/foo/bar?baz=2", nil)
+			c.Assume(err, gs.IsNil)
+			req.Host = "incoming.example.com:8080"
+			resp, err := client.Do(req)
+			resp.Body.Close()
+			c.Assume(err, gs.IsNil)
+			c.Assume(resp.StatusCode, gs.Equals, 200)
+
+			packDec := <-decChan
+			packDec(ith.Pack)
+
+			fieldValue, ok := ith.Pack.Message.GetFieldValue("Host")
+			c.Assume(ok, gs.IsTrue)
+			// Host should not include port number.
+			c.Expect(fieldValue, gs.Equals, "incoming.example.com")
+			fieldValue, ok = ith.Pack.Message.GetFieldValue("Path")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue, gs.Equals, "/foo/bar")
+
+			hostname, err := os.Hostname()
+			c.Assume(err, gs.IsNil)
+			c.Expect(*ith.Pack.Message.Hostname, gs.Equals, hostname)
+			c.Expect(*ith.Pack.Message.EnvVersion, gs.Equals, "1")
+
+			fieldValue, ok = ith.Pack.Message.GetFieldValue("RemoteAddr")
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(fieldValue != nil, gs.IsTrue)
+			fieldValueStr, ok := fieldValue.(string)
+			c.Assume(ok, gs.IsTrue)
+			c.Expect(len(fieldValueStr) > 0, gs.IsTrue)
+			// Per the `Request` docs, this should be an IP address:
+			// http://golang.org/pkg/net/http/#Request
+			ip := net.ParseIP(fieldValueStr)
+			c.Expect(ip != nil, gs.IsTrue)
 		})
 
 		ts.Close()
 		httpListenInput.Stop()
+		err := <-errChan
+		c.Expect(err, gs.IsNil)
 	})
 }

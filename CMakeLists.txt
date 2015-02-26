@@ -6,17 +6,11 @@ cmake_minimum_required(VERSION 2.8.7 FATAL_ERROR)
 project(heka C)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High performance data gathering, analysis, monitoring, and reporting.")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
-set(CPACK_PACKAGE_VERSION_MINOR 8)
-set(CPACK_PACKAGE_VERSION_PATCH 3)
+set(CPACK_PACKAGE_VERSION_MINOR 9)
+set(CPACK_PACKAGE_VERSION_PATCH 0)
 set(CPACK_PACKAGE_VENDOR "Mozilla")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
 set(CPACK_PACKAGE_CONTACT "heka@mozilla.org")
-set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
-    /usr
-    /usr/bin
-    /usr/share
-    /usr/share/man
-)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -67,19 +61,27 @@ if (NOT SPHINX_BUILD_EXECUTABLE)
     set(INCLUDE_DOCUMENTATION false)
 endif()
 
+set(LUA_SHARED_LIBRARY_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX})
 if (MINGW)
     set(ADDRESS_MODEL 64)
     if (GO_ARCH STREQUAL "386")
         set(ADDRESS_MODEL 32)
     endif()
     set(LDFLAGS "-ldflags=\"-s\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -lluasandbox -llua -lm")
     set(CPACK_GENERATOR "ZIP")
 elseif(APPLE)
     set(CPACK_GENERATOR "PackageMaker")
     set(LDFLAGS "-ldflags=\"-linkmode=external\"")
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -lluasandbox -llua -ldl -lm")
+    set(LUA_SHARED_LIBRARY_SUFFIX ".so")
 elseif(UNIX)
     set(CPACK_GENERATOR "TGZ")
     set(LDFLAGS "-ldflags=\"-s\"")
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+        set(LINK_DL "-ldl")
+    endif()
+    set(CGO_LDFLAGS "cgo LDFLAGS: -L${LUA_LIB_PATH} -Wl,-rpath,$ORIGIN/../lib -lluasandbox -llua ${LINK_DL} -lm")
 
     find_program(DPKG_EXECUTABLE dpkg PATH_SUFFIXES bin)
 
@@ -87,6 +89,9 @@ elseif(UNIX)
     if (RPMBUILD_EXECUTABLE)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "RPM")
         set(CPACK_RPM_PACKAGE_LICENSE "MPLv2.0")
+		# todo we should pull lua_sandbox out of the heka/build and packaging
+		set(CPACK_RPM_PACKAGE_PROVIDES "liblua.so()(64bit), libluasandbox.so()(64bit)")
+		set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
     endif()
 endif()
 
@@ -168,11 +173,6 @@ if (INCLUDE_DOCUMENTATION)
 endif()
 
 if (MINGW AND INCLUDE_SANDBOX)
-    set(LUA_DLL_PATH "${PROJECT_PATH}/lib/liblua.dll")
-    set(LPEG_DLL_PATH "${PROJECT_PATH}/lib/liblpeg.dll")
-    set(CJSON_DLL_PATH "${PROJECT_PATH}/lib/libcjson.dll")
-    set(LUASANDBOX_DLL_PATH "${PROJECT_PATH}/lib/libluasandbox.dll")
-    install(FILES ${LUA_DLL_PATH} ${LPEG_DLL_PATH} ${CJSON_DLL_PATH} ${LUASANDBOX_DLL_PATH} DESTINATION bin)
     add_custom_command(TARGET heka_source POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
@@ -181,6 +181,9 @@ if (MINGW AND INCLUDE_SANDBOX)
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
     COMMENT "Install dll's for the mock generation and unit tests")
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION bin PATTERN "*.dll")
+else()
+    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib PATTERN "*${CMAKE_SHARED_LIBRARY_SUFFIX}")
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
@@ -238,7 +241,6 @@ if (UNIX AND DPKG_EXECUTABLE)
     DEPENDS hekad
     COMMENT "Custom deb target")
 endif()
-
 add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/pipeline)
@@ -253,6 +255,7 @@ endif()
 add_test(plugins/graphite ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/graphite)
 add_test(plugins/http ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/http)
 add_test(plugins/irc ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/irc)
+add_test(plugins/kafka ${GO_EXECUTABLE} test -timeout 15s  ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/kafka)
 add_test(plugins/logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/logstreamer)
 add_test(plugins/nagios ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/nagios)
 add_test(plugins/payload ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/payload)
@@ -262,9 +265,11 @@ add_test(plugins/statsd ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} githu
 add_test(plugins/tcp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/tcp)
 add_test(plugins/udp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/plugins/udp)
 add_test(logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/logstreamer)
+add_test(client ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/client)
 if(INCLUDE_SANDBOX)
-	add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
-	add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)
+    add_test(sandbox_move_modules cmake -E copy_directory ${CMAKE_BINARY_DIR}/heka/modules ${CMAKE_BINARY_DIR}/heka/src/github.com/mozilla-services/heka/sandbox/lua/modules)
+    add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
+    add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)
 endif()
 if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)

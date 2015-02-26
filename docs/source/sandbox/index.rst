@@ -25,11 +25,13 @@ Features
 - isolated - failures are contained and malfunctioning sandboxes are terminated
 
 .. include:: lua.rst
-.. include:: manager.rst
+.. include:: input.rst
 .. include:: decoder.rst
-.. include:: module.rst
-.. include:: lpeg.rst
 .. include:: filter.rst
 .. include:: encoder.rst
+.. include:: output.rst
+.. include:: module.rst
+.. include:: lpeg.rst
+.. include:: manager.rst
 .. include:: development.rst
 .. include:: cookbook.rst

@@ -1,5 +1,9 @@
-ProcessInput
-============
+.. _config_process_input:
+
+Process Input
+=============
+
+Plugin Name: **ProcessInput**
 
 Executes one or more external programs on an interval, creating messages from
 the output.  Supports a chain of commands, where stdout from each process will
@@ -20,8 +24,12 @@ Config:
     15. A ticker_interval of 0 indicates that the command is run only once,
     and should only be used for long running processes that do not exit. If
     ticker_interval is set to 0 and the process exits, then the ProcessInput
-    will exit, invoking the restart behavior (see
-    :ref:`configuring_restarting`).
+    will exit, invoking the restart behavior (see :ref:`configuring_restarting`).
+    Ignored when used in conjunction with :ref:`config_process_directory_input`,
+    where ticker_interval value is instead parsed from the directory path.
+- immediate_start (bool):
+    If true, heka starts process immediately instead of waiting for first
+    interval defined by ticker_interval to pass. Defaults to false.
 - stdout (bool):
     If true, for each run of the process chain a message will be generated
     with the last command in the chain's stdout as the payload. Defaults to
@@ -30,28 +38,9 @@ Config:
     If true, for each run of the process chain a message will be generated
     with the last command in the chain's stderr as the payload. Defaults to
     false.
-- decoder (string):
-    Name of the decoder instance to send messages to. If omitted messages will
-    be injected directly into Heka's message router.
-- parser_type (string):
-    - token - splits the log on a byte delimiter (default).
-    - regexp - splits the log on a regexp delimiter.
-- delimiter (string): Only used for token or regexp parsers.
-    Character or regexp delimiter used by the parser (default "\\n").  For the
-    regexp delimiter a single capture group can be specified to preserve the
-    delimiter (or part of the delimiter). The capture will be added to the
-    start or end of the log line depending on the delimiter_location
-    configuration. Note: when a start delimiter is used the last line in the
-    file will not be processed (since the next record defines its end) until
-    the log is rolled.
-- delimiter_location (string): Only used for regexp parsers.
-    - start - the regexp delimiter occurs at the start of a log line.
-    - end - the regexp delimiter occurs at the end of the log line (default).
 - timeout (uint):
     Timeout in seconds before any one of the commands in the chain is
     terminated.
-- trim (bool) :
-    Trim a single trailing newline character if one exists. Default is true.
 - retries (RetryOptions, optional):
     A sub-section that specifies the settings to be used for restart behavior.
     See :ref:`configuring_restarting`
@@ -75,14 +64,16 @@ Example:
 
 .. code-block:: ini
 
+    [on_space]
+    type = "TokenSplitter"
+    delimiter = " "
+
     [DemoProcessInput]
     type = "ProcessInput"
     ticker_interval = 2
-    parser_type = "token"
-    delimiter = " "
+    splitter = "on_space"
     stdout = true
     stderr = false
-    trim = true
 
         [DemoProcessInput.command.0]
         bin = "/bin/cat"

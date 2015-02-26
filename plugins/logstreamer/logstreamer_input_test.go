@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -23,6 +23,7 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -38,6 +39,21 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(LogstreamerInputSpec)
 
 	gs.MainGoTest(r, t)
+}
+
+type deliverer struct {
+	deliver DeliverFunc
+}
+
+func (d *deliverer) Deliver(pack *PipelinePack) {
+	d.deliver(pack)
+}
+
+func (d *deliverer) DeliverFunc() DeliverFunc {
+	return d.deliver
+}
+
+func (d *deliverer) Done() {
 }
 
 func LogstreamerInputSpec(c gs.Context) {
@@ -62,16 +78,16 @@ func LogstreamerInputSpec(c gs.Context) {
 	ith.Msg = pipeline_ts.GetTestMessage()
 	ith.Pack = NewPipelinePack(pConfig.InputRecycleChan())
 
-	// Specify localhost, but we're not really going to use the network
+	// Specify localhost, but we're not really going to use the network.
 	ith.AddrStr = "localhost:55565"
 	ith.ResolvedAddrStr = "127.0.0.1:55565"
 
-	// set up mock helper, decoder set, and packSupply channel
+	// Set up mock helper, runner, and pack supply channel.
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
-	ith.Decoder = pipelinemock.NewMockDecoderRunner(ctrl)
+	ith.MockDeliverer = pipelinemock.NewMockDeliverer(ctrl)
+	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
 	ith.PackSupply = make(chan *PipelinePack, 1)
-	ith.DecodeChan = make(chan *PipelinePack)
 
 	c.Specify("A LogstreamerInput", func() {
 		lsInput := &LogstreamerInput{pConfig: pConfig}
@@ -80,15 +96,11 @@ func LogstreamerInputSpec(c gs.Context) {
 		lsiConfig.FileMatch = `file.log(\.?)(?P<Seq>\d+)?`
 		lsiConfig.Differentiator = []string{"logfile"}
 		lsiConfig.Priority = []string{"^Seq"}
-		lsiConfig.Decoder = "decoder-name"
-		// Fool the input into thinking the decoder really exists.
-		pConfig.DecoderWrappers[lsiConfig.Decoder] = nil
 
 		c.Specify("w/ no translation map", func() {
 			err := lsInput.Init(lsiConfig)
 			c.Expect(err, gs.IsNil)
 			c.Expect(len(lsInput.plugins), gs.Equals, 1)
-			mockDecoderRunner := pipelinemock.NewMockDecoderRunner(ctrl)
 
 			// Create pool of packs.
 			numLines := 5 // # of lines in the log file we're parsing.
@@ -100,20 +112,30 @@ func LogstreamerInputSpec(c gs.Context) {
 			}
 
 			c.Specify("reads a log file", func() {
-				// Expect InputRunner calls to get InChan and inject outgoing msgs
+				// Expect InputRunner calls to get InChan and inject outgoing msgs.
 				ith.MockInputRunner.EXPECT().LogError(gomock.Any()).AnyTimes()
 				ith.MockInputRunner.EXPECT().LogMessage(gomock.Any()).AnyTimes()
-				ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply).Times(numLines)
-				// Expect calls to get decoder and decode each message. Since the
-				// decoding is a no-op, the message payload will be the log file
-				// line, unchanged.
-				pbcall := ith.MockHelper.EXPECT().DecoderRunner(lsiConfig.Decoder,
-					"-"+lsiConfig.Decoder+"-1")
-				pbcall.Return(mockDecoderRunner, true)
+				ith.MockInputRunner.EXPECT().NewDeliverer("1").Return(ith.MockDeliverer)
+				ith.MockInputRunner.EXPECT().NewSplitterRunner("1").Return(
+					ith.MockSplitterRunner)
+				ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+				ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 
-				inChanCall := mockDecoderRunner.EXPECT().InChan()
-				inChanCall.Return(ith.DecodeChan)
-				ith.MockHelper.EXPECT().StopDecoderRunner(mockDecoderRunner)
+				getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(
+					gomock.Any()).Times(numLines)
+				line := "boo hoo foo foo"
+				getRecCall.Return(len(line), []byte(line), nil)
+				getRecCall = ith.MockSplitterRunner.EXPECT().GetRecordFromStream(gomock.Any())
+				getRecCall.Return(0, make([]byte, 0), io.EOF)
+
+				deliverChan := make(chan []byte, 1)
+				deliverCall := ith.MockSplitterRunner.EXPECT().DeliverRecord(gomock.Any(),
+					ith.MockDeliverer).Times(numLines)
+				deliverCall.Do(func(record []byte, del Deliverer) {
+					deliverChan <- record
+				})
+
+				ith.MockDeliverer.EXPECT().Done()
 
 				runOutChan := make(chan error, 1)
 				go func() {
@@ -121,12 +143,13 @@ func LogstreamerInputSpec(c gs.Context) {
 					runOutChan <- err
 				}()
 
-				d, _ := time.ParseDuration("5s")
-				timeout := time.After(d)
+				dur, _ := time.ParseDuration("5s")
+				timeout := time.After(dur)
 				timed := false
 				for x := 0; x < numLines; x++ {
 					select {
-					case <-ith.DecodeChan:
+					case record := <-deliverChan:
+						c.Expect(string(record), gs.Equals, line)
 					case <-timeout:
 						timed = true
 						x += numLines

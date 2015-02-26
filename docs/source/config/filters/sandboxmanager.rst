@@ -1,6 +1,9 @@
+.. _config_sandbox_manager_filter:
 
-SandboxManagerFilter
-====================
+Sandbox Manager Filter
+======================
+
+Plugin Name: **SandboxManagerFilter**
 
 The SandboxManagerFilter provides dynamic control (start/stop) of sandbox
 filters in a secure manner without stopping the Heka daemon. Commands are sent

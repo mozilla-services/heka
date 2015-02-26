@@ -15,11 +15,11 @@ set_property(DIRECTORY PROPERTY EP_BASE "${CMAKE_BINARY_DIR}/ep_base")
 if(INCLUDE_SANDBOX)
     set(PLUGIN_LOADER ${PLUGIN_LOADER} "github.com/mozilla-services/heka/sandbox/plugins")
     set(SANDBOX_PACKAGE "lua_sandbox")
-    set(SANDBOX_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DADDRESS_MODEL=${ADDRESS_MODEL} -DLUA_JIT=off --no-warn-unused-cli)
+    set(SANDBOX_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH} -DLUA_JIT=off --no-warn-unused-cli)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG 6eb7a907d8f4777418463dc5b56d237f1c845a67
+        GIT_TAG 5a594412c51d9c24b7e3c6cacd6f125fb51e343f
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -154,27 +154,22 @@ git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
 
+hg_clone(https://code.google.com/p/snappy-go default)
+git_clone(https://github.com/Shopify/sarama ab8518c05fd3775bdbf06c97d97389fe8af2dfef)
+add_dependencies(sarama snappy-go)
+
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
 endif()
 
 if (INCLUDE_DOCKER_PLUGINS)
-    git_clone(https://github.com/rafrombrc/go-dockerclient 253de7054ca5defe718269e17732e24cdadc3d21)
+    git_clone(https://github.com/carlanton/go-dockerclient d408f209d5946d86da69382b3eb0a6faac7b3885)
 endif()
 
 if (INCLUDE_MOZSVC)
     add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 91278658b5d52bd45b0b74d54e478a230c0ef0c4)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
     add_dependencies(heka-mozsvc-plugins raven-go)
-endif()
-
-if (INCLUDE_DOCUMENTATION)
-    git_clone(https://github.com/mozilla-services/heka-docs cb4a1610579c02bb25a8c0aaf835b05c3214d532)
-
-    add_custom_command(TARGET docs POST_BUILD
-    COMMAND ${SPHINX_BUILD_EXECUTABLE} -b html -d build/doctrees source build/html
-    WORKING_DIRECTORY "${HEKA_PATH}/../heka-docs"
-    COMMENT "Built Heka architecture documentation")
 endif()
 
 hg_clone(https://code.google.com/p/go-uuid default)

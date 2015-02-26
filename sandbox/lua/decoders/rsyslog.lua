@@ -7,6 +7,8 @@ Parses the rsyslog output using the string based configuration template.
 
 Config:
 
+- hostname_keep (boolean, defaults to false)
+    Always preserve the original 'Hostname' field set by Logstreamer's 'hostname' configuration setting.
 - template (string)
     The 'template' configuration string from rsyslog.conf.
     http://rsyslog-5-8-6-doc.neocities.org/rsyslog_conf_templates.html
@@ -50,6 +52,7 @@ local syslog = require "syslog"
 
 local template = read_config("template")
 local msg_type = read_config("type")
+local hostname_keep = read_config("hostname_keep")
 
 local msg = {
 Timestamp   = nil,
@@ -93,14 +96,16 @@ function process_message ()
         fields.syslogtag = nil
     end
 
-    msg.Hostname = fields.hostname or fields.source
-    fields.hostname = nil
-    fields.source = nil
+    if not hostname_keep then
+        msg.Hostname = fields.hostname or fields.source
+        fields.hostname = nil
+        fields.source = nil
+    end
 
     msg.Payload = fields.msg
     fields.msg = nil
 
     msg.Fields = fields
-    inject_message(msg)
+    if not pcall(inject_message, msg) then return -1 end
     return 0
 end

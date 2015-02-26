@@ -1,76 +1,25 @@
-.. versionadded:: 0.6
-
 .. _config_encoders:
 
 ========
 Encoders
 ========
 
-.. _config_alert_encoder:
+.. versionadded:: 0.6
 
-Alert Encoder
-=============
+Available Encoder Plugins
+=========================
 
-.. include:: /../../sandbox/lua/encoders/alert.lua
-   :start-after: --[[
-   :end-before: --]]
+.. toctree::
+   :maxdepth: 1
 
-.. _config_cbuf_librato_encoder:
-
-CBUF Librato Encoder
-====================
-
-.. versionadded:: 0.8
-
-.. include:: /../../sandbox/lua/encoders/cbuf_librato.lua
-   :start-after: --[[
-   :end-before: --]]
-
-.. _config_esjsonencoder:
-.. include:: /config/encoders/esjson.rst
-
-.. _config_eslogstashv0encoder:
-.. include:: /config/encoders/eslogstashv0.rst
-
-.. _config_espayload:
-
-ESPayloadEncoder
-================
-
-.. include:: /../../sandbox/lua/encoders/es_payload.lua
-   :start-after: --[[
-   :end-before: --]]
-
-.. _config_payloadencoder:
-.. include:: /config/encoders/payload.rst
-
-.. _config_protobufencoder:
-.. include:: /config/encoders/protobuf.rst
-
-.. _config_rstencoder:
-.. include:: /config/encoders/rst.rst
-
-.. _config_sandboxencoder:
-.. include:: /config/encoders/sandbox.rst
-
-.. _config_schema_influx_encoder:
-
-Schema InfluxDB Encoder
-=======================
-
-.. versionadded:: 0.8
-
-.. include:: /../../sandbox/lua/encoders/schema_influx.lua
-	:start-after: --[=[
-	:end-before: --]=]
-
-.. _config_statmetric_influx:
-
-StatMetric InfluxDB Encoder
-===========================
-
-.. versionadded:: 0.7
-
-.. include:: /../../sandbox/lua/encoders/statmetric_influx.lua
-	:start-after: --[=[
-	:end-before: --]=]
+   alert
+   cbuf_librato
+   esjson
+   eslogstashv0
+   espayload
+   payload
+   protobuf
+   rst
+   sandbox
+   schema_influx
+   statmetric_influx

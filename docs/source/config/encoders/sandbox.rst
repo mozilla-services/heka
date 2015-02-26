@@ -1,6 +1,9 @@
+.. _config_sandboxencoder:
 
-SandboxEncoder
-==============
+Sandbox Encoder
+===============
+
+Plugin Name: **SandboxEncoder**
 
 The SandboxEncoder provides an isolated execution environment for converting
 messages into binary data without the need to recompile Heka. See

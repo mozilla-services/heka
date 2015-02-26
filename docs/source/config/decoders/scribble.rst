@@ -1,8 +1,11 @@
+.. _config_scribbledecoder:
 
-ScribbleDecoder
-===============
+Scribble Decoder
+================
 
 .. versionadded:: 0.5
+
+Plugin Name: **ScribbleDecoder**
 
 The ScribbleDecoder is a trivial decoder that makes it possible to set one or
 more static field values on every decoded message. It is often used in

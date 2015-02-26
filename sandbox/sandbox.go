@@ -35,7 +35,8 @@ const (
 
 type Sandbox interface {
 	// Sandbox control
-	Init(dataFile, pluginType string) error
+	Init(dataFile string) error
+	Stop()
 	Destroy(dataFile string) error
 
 	// Sandbox state
@@ -63,6 +64,7 @@ type SandboxConfig struct {
 	Profile          bool
 	Config           map[string]interface{}
 	Globals          *pipeline.GlobalConfigStruct
+	PluginType       string
 }
 
 func NewSandboxConfig(globals *pipeline.GlobalConfigStruct) interface{} {

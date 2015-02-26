@@ -9,7 +9,7 @@
 #define lua_sandbox_interface_
 
 #include "lua.h"
-#include "lua_sandbox.h"
+#include "lsb.h"
 
 // LMW_ERR_*: Lua Message Write errors
 extern const int LMW_ERR_NO_SANDBOX_PACK;
@@ -89,6 +89,14 @@ int inject_message(lua_State* lua);
  * @return int 0 on success
  */
 int sandbox_init(lua_sandbox* lsb, const char* data_file, const char* plugin_type);
+
+/**
+ * Sends a shutdown message to the sandbox.
+ *
+ * @param lsb Pointer to the sandbox.
+ *
+ */
+void sandbox_stop(lua_sandbox* lsb);
 
 #endif
 

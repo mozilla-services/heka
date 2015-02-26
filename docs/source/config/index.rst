@@ -6,11 +6,11 @@ Configuring hekad
 
 .. start-hekad-config
 
-A hekad configuration file specifies what inputs, decoders, filters, encoders,
-and outputs will be loaded. The configuration file is in `TOML
-<https://github.com/mojombo/toml>`_ format. TOML looks very similar to INI
-configuration formats, but with slightly more rich data structures and nesting
-support.
+A hekad configuration file specifies what inputs, splitters, decoders,
+filters, encoders, and outputs will be loaded. The configuration file is in
+`TOML <https://github.com/mojombo/toml>`_ format. TOML looks very similar to
+INI configuration formats, but with slightly more rich data structures and
+nesting support.
 
 If hekad's config file is specified to be a directory, all contained files
 with a filename ending in ".toml" will be loaded and merged into a single
@@ -29,7 +29,7 @@ instance of Heka's plugin type "TcpInput":
 
     [tcp:5565]
     type = "TcpInput"
-    parser_type = "message.proto"
+    splitter = "HekaFramingSplitter"
     decoder = "ProtobufDecoder"
     address = ":5565"
 
@@ -42,7 +42,7 @@ be used as the type. Thus, the following section describes a plugin named
 
     [TcpInput]
     address = ":5566"
-    parser_type = "message.proto"
+    splitter = "HekaFramingSplitter"
     decoder = "ProtobufDecoder"
 
 Note that it's fine to have more than one instance of the same plugin type, as
@@ -116,13 +116,11 @@ Config:
     Enable memory profiling; output is logged to the `output_file`.
 
 - poolsize (int):
-    Specify the pool size of maximum messages that can exist; default is 100
-    which is usually sufficient and of optimal performance.
+    Specify the pool size of maximum messages that can exist. Default is 100.
 
 - plugin_chansize (int):
     Specify the buffer size for the input channel for the various Heka
-    plugins. Defaults to 50, which is usually sufficient and of optimal
-    performance.
+    plugins. Defaults to 30.
 
 - base_dir (string):
     Base working directory Heka will use for persistent storage through
@@ -154,6 +152,16 @@ Config:
     created). On a successful exit the pidfile will be removed. If the path
     already exists the contained pid will be checked for a running process.
     If one is found, the current process will exit with an error.
+
+.. versionadded:: 0.9
+
+- hostname (string):
+    Specifies the hostname to use whenever Heka is asked to provide the local
+    host's hostname. Defaults to whatever is provided by Go's `os.Hostname()`
+    call.
+
+- max_message_size (uint32):
+    The maximum size (in bytes) of message can be sent during processing.
 
 Example hekad.toml file
 =======================
@@ -249,9 +257,9 @@ restart is handled. If preferred, the plugin can be configured to not restart
 at which point hekad will exit, or it could be restarted only 100 times, or
 restart attempts can proceed forever.
 
-Adding the restarting configuration is done by adding a config section to the
-plugins' config called `retries`. A small amount of jitter will be added to
-the delay between restart attempts.
+Adding the restarting configuration is done by adding a config section to a
+plugin's configuration called `retries`. A small amount of jitter will be
+added to the delay between restart attempts.
 
 Config:
 

@@ -4,7 +4,7 @@
 
 --[[
 API
----
+^^^
 **parse_config(anomaly_config)**
     Parses the anomaly_config into a Lua table. If the configuration is invalid
     an error is thrown.

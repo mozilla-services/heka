@@ -1,7 +1,11 @@
-GeoIpDecoder
-============
+.. _config_geoip_decoder:
+
+Geo IP Decoder
+==============
 
 .. versionadded:: 0.6
+
+Plugin Name: **GeoIpDecoder**
 
 Decoder plugin that generates GeoIP data based on the IP address of a
 specified field. It uses the `GeoIP Go project
