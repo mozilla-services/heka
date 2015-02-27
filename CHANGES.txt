@@ -6,6 +6,9 @@ Features
 
 * Added configurable max_message_size to heka-cat.
 
+* Added `count` setting to TokenSplitter to allow splitting on every Nth
+  instance of the given delimiter.
+
 Bug Handling
 ------------
 

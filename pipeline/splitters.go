@@ -52,15 +52,18 @@ func (n *NullSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 
 type TokenSplitter struct {
 	delimiter byte
+	count     uint
 }
 
 type TokenSplitterConfig struct {
 	Delimiter string
+	Count     uint
 }
 
 func (t *TokenSplitter) ConfigStruct() interface{} {
 	return &TokenSplitterConfig{
 		Delimiter: "\n",
+		Count:     uint(1),
 	}
 }
 
@@ -70,6 +73,7 @@ func (t *TokenSplitter) Init(config interface{}) error {
 		return errors.New("TokenSplitter delimiter must be a single character.")
 	}
 	t.delimiter = byte(conf.Delimiter[0])
+	t.count = conf.Count
 	return nil
 }
 
@@ -79,6 +83,17 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 		return 0, nil
 	}
 	bytesRead = n + 1 // Include the delimiter in what's been read.
+
+	if t.count > 1 {
+		for i := uint(1); i < t.count; i++ {
+			n = bytes.IndexByte(buf[bytesRead:], t.delimiter)
+			if n == -1 {
+				return 0, nil
+			}
+			bytesRead += n + 1
+		}
+	}
+
 	return bytesRead, buf[:bytesRead]
 }
 
