@@ -1,6 +1,11 @@
 0.9.1 (2015-??-??)
 ==================
 
+Features
+--------
+
+* Added configurable max_message_size to heka-cat.
+
 Bug Handling
 ------------
 
