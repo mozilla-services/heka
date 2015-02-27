@@ -187,6 +187,8 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 			}
 			hi.ir.LogError(err)
 			err = nil // non-fatal, keep going
+		} else if sRunner.IncompleteFinal() && err == io.EOF && len(record) == 0 {
+			record = sRunner.GetRemainingData()
 		}
 		if len(record) > 0 && deliver {
 			if !sRunner.UseMsgBytes() {

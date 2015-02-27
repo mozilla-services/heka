@@ -69,6 +69,7 @@ func HttpInputSpec(c gs.Context) {
 			decChan <- dec
 		})
 		ith.MockSplitterRunner.EXPECT().DeliverRecord([]byte(json_post), nil)
+		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
 
 		c.Specify("honors time ticker to flush", func() {
 			// Spin up a http server.

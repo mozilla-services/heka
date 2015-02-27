@@ -184,6 +184,11 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 			} else {
 				sRunner.DeliverRecord(record, nil)
 			}
+		} else if len(record) == 0 && sRunner.IncompleteFinal() && err == io.EOF {
+			record = sRunner.GetRemainingData()
+			if len(record) > 0 {
+				sRunner.DeliverRecord(record, nil)
+			}
 		}
 	}
 	req.Body.Close()

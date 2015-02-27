@@ -253,13 +253,14 @@ func SplitterRunnerSpec(c gs.Context) {
 	c.Specify("A SplitterRunner w/ TokenSplitter", func() {
 		splitter := &TokenSplitter{}
 		config := splitter.ConfigStruct().(*TokenSplitterConfig)
-		sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
-
-		config.Delimiter = "\t"
-		err := splitter.Init(config)
-		c.Assume(err, gs.IsNil)
 
 		c.Specify("sets readPos to 0 when read returns ErrShortBuffer", func() {
+			config.Delimiter = "\t"
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
+
 			b := make([]byte, message.MAX_RECORD_SIZE+1)
 			reader := bytes.NewReader(b)
 
@@ -273,6 +274,51 @@ func SplitterRunnerSpec(c gs.Context) {
 			c.Expect(err, gs.Equals, io.ErrShortBuffer)
 			c.Expect(sr.readPos, gs.Equals, 0)
 			c.Expect(sr.scanPos, gs.Equals, 0)
+		})
+
+		c.Specify("honors 'deliver_incomplete_final' setting", func() {
+			config.Count = 4
+			numRecs := 10
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			packSupply := make(chan *PipelinePack, 1)
+			pack := NewPipelinePack(packSupply)
+			packSupply <- pack
+			ir := NewMockInputRunner(ctrl)
+			// ir.EXPECT().InChan().Return(packSupply).Times(numRecs)
+			// ir.EXPECT().Name().Return("foo").Times(numRecs)
+			ir.EXPECT().InChan().Return(packSupply).AnyTimes()
+			ir.EXPECT().Name().Return("foo").AnyTimes()
+
+			incompleteFinal := true
+			srConfig.IncompleteFinal = &incompleteFinal
+			sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
+			sr.ir = ir
+
+			rExpected := []byte("test1\ntest12\ntest123\npartial\n")
+			buf := bytes.Repeat(rExpected, numRecs)
+			buf = buf[:len(buf)-1] // 40 lines separated by 39 newlines
+
+			reader := bytes.NewReader(buf)
+			mockDel := NewMockDeliverer(ctrl)
+			delCall := mockDel.EXPECT().Deliver(gomock.Any()).AnyTimes()
+			i := 0
+			delCall.Do(func(pack *PipelinePack) {
+				i++
+				if i < numRecs {
+					c.Expect(pack.Message.GetPayload(), gs.Equals, string(rExpected))
+				} else {
+					c.Expect(pack.Message.GetPayload(), gs.Equals,
+						string(rExpected[:len(rExpected)-1]))
+				}
+				pack.Recycle()
+			})
+
+			for err == nil {
+				err = sr.SplitStream(reader, mockDel)
+			}
+			c.Expect(err, gs.Equals, io.EOF)
 		})
 	})
 }

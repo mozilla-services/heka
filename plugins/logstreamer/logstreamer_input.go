@@ -367,6 +367,12 @@ func (lsi *LogstreamInput) deliverRecords() (err error) {
 					lsi.countRecord()
 				}
 			}
+		} else if err == io.EOF && lsi.sRunner.IncompleteFinal() {
+			record = lsi.sRunner.GetRemainingData()
+			if len(record) > 0 {
+				lsi.sRunner.DeliverRecord(record, lsi.deliverer)
+				lsi.countRecord()
+			}
 		}
 		lsi.prevMsgWasTruncated = isMessageTruncated
 	}
