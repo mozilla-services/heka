@@ -85,6 +85,9 @@ func NewSplitterRunner(name string, splitter Splitter,
 	// message. Ignoring the ok is safe here, it just means sr.unframer might
 	// be nil, which we test for later.
 	sr.unframer, _ = splitter.(UnframingSplitter)
+	if wantsSplitterRunner, ok := splitter.(WantsSplitterRunner); ok {
+		wantsSplitterRunner.SetSplitterRunner(sr)
+	}
 	return sr
 }
 
