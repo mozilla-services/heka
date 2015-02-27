@@ -361,7 +361,7 @@ func (lsi *LogstreamInput) deliverRecords() (err error) {
 		}
 		if len(record) > 0 {
 			if lsi.prevMsgWasTruncated == false {
-				// pack message only if previous record had normal size
+				// Send the message only if previous record had normal size.
 				if !isMessageTruncated || lsi.sRunner.KeepTruncated() {
 					lsi.sRunner.DeliverRecord(record, lsi.deliverer)
 					lsi.countRecord()

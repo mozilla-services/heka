@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* Fixed SplitterRunner buffer readPos so it only increments when a read call
+  doesn't return an error (#1367).
 
 0.9.0 (2015-02-25)
 ==================
