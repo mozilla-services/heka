@@ -25,8 +25,6 @@ function process_message ()
         write_message("Fields[bogus]", 0, "count", 0, -1)
     elseif msg == "nil field" then
         write_message(nil, 0)
-    elseif msg == "nil value" then
-        write_message("Severity", nil)
     elseif msg == "empty uuid" then
         write_message("Uuid", "")
     elseif msg == "invalid uuid" then
