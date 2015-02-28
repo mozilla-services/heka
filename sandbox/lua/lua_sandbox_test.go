@@ -556,6 +556,9 @@ func TestWriteMessage(t *testing.T) {
 	if pack.Message.GetUuidString() != "550d19b9-58c7-49d8-b0dd-b48cd1c5b305" {
 		t.Errorf("Uuid not set: %s", pack.Message.GetUuidString())
 	}
+	if f = pack.Message.FindAllFields("delete"); len(f) != 0 {
+		t.Error("'delete' field not deleted")
+	}
 }
 
 func TestRestore(t *testing.T) {

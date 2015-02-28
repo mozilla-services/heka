@@ -508,7 +508,7 @@ func go_lua_delete_message_field(ptr unsafe.Pointer, c *C.char, fi, ai int, has_
 		lsb.globals.LogMessage("go_lua_delete_message_field", "No sandbox pack.")
 		return 1
 	}
-	if !lsb.messageCopied && lsb.pluginType == "encoder" {
+	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
 	}

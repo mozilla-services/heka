@@ -20,5 +20,8 @@ function process_message ()
 	write_message("Fields[Bool]", false, "", 1, 0)
 	write_message("Fields[]", "bad idea")
 	write_message("Uuid", "550d19b9-58c7-49d8-b0dd-b48cd1c5b305")
+	-- Added and removed, tests verify deletion.
+	write_message("Fields[delete]", "foo")
+	write_message("Fields[delete]", nil)
 	return 0
 end

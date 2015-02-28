@@ -1,6 +1,11 @@
 0.10.0 (2015-??-??)
 ===================
 
+Features
+--------
+
+* Added support for `write_message` to delete fields when passed nil values.
+
 Bug Handling
 ------------
 

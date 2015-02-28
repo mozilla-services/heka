@@ -264,7 +264,7 @@ int write_message(lua_State* lua)
         break;
     }
     default:
-        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values");
+        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values, or nil to delete");
     }
 
     if (result != 0) {
