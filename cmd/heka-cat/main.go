@@ -29,6 +29,7 @@ import (
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"io"
+	"math"
 	"os"
 	"time"
 )
@@ -51,11 +52,20 @@ func main() {
 	flagOutput := flag.String("output", "", "output filename, defaults to stdout")
 	flagTail := flag.Bool("tail", false, "don't exit on EOF")
 	flagOffset := flag.Int64("offset", 0, "starting offset for the input file in bytes")
+	flagMaxMessageSize := flag.Uint64("max-message-size", 4*1024*1024, "maximum message size in bytes")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
 		flag.PrintDefaults()
 		os.Exit(1)
+	}
+
+	if *flagMaxMessageSize < math.MaxUint32 {
+		maxSize := uint32(*flagMaxMessageSize)
+		message.SetMaxMessageSize(maxSize)
+	} else {
+		fmt.Printf("Message size is too large: %d\n", flagMaxMessageSize)
+		os.Exit(8)
 	}
 
 	var err error

@@ -138,7 +138,7 @@ func (sr *sRunner) read(r io.Reader) (n int, err error) {
 	if bufCap-sr.readPos <= bufCap/2 {
 		if sr.scanPos == 0 { // Line won't fit in the current buffer.
 			newSize := bufCap * 2
-			if newSize > int(message.MAX_MESSAGE_SIZE) {
+			if newSize > int(message.MAX_RECORD_SIZE) {
 				if bufCap == int(message.MAX_RECORD_SIZE) {
 					if sr.readPos == bufCap {
 						sr.scanPos = 0
@@ -167,7 +167,6 @@ func (sr *sRunner) read(r io.Reader) (n int, err error) {
 func (sr *sRunner) GetRecordFromStream(r io.Reader) (bytesRead int, record []byte, err error) {
 	if sr.needData && !sr.reachedEOF {
 		bytesRead, err = sr.read(r)
-		sr.readPos += bytesRead
 
 		// We could still have one or more records at the end of the stream.
 		// Hang on to the EOF error until all the records have been used up.
@@ -192,6 +191,7 @@ func (sr *sRunner) GetRecordFromStream(r io.Reader) (bytesRead int, record []byt
 		}
 	}
 
+	sr.readPos += bytesRead
 	bytesRead, record = sr.splitter.FindRecord(sr.buf[sr.scanPos:sr.readPos])
 	sr.scanPos += bytesRead
 	if len(record) == 0 {
