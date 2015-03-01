@@ -857,9 +857,6 @@ func (m *pluginMaker) makeSplitterRunner(name string, splitter Splitter) (*sRunn
 		return nil, err
 	}
 	sr := NewSplitterRunner(name, splitter, commonSplitter)
-	if wantsSplitterRunner, ok := splitter.(WantsSplitterRunner); ok {
-		wantsSplitterRunner.SetSplitterRunner(sr)
-	}
 	return sr, nil
 }
 

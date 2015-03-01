@@ -9,6 +9,10 @@ Features
 Bug Handling
 ------------
 
+* Moved `SetSplitterRunner` out of the config's MakeRunner and into the
+  `NewSplitterRunner` function to make sure a splitter always has access to a
+  SplitterRunner if needed.
+
 * Fixed SplitterRunner buffer readPos so it only increments when a read call
   doesn't return an error (#1367).
 
