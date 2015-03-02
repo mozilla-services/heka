@@ -168,37 +168,12 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		Url:        url,
 	}
 
-	var (
-		record  []byte
-		deliver bool
-	)
-
-	for err == nil {
-		deliver = true
-		_, record, err = sRunner.GetRecordFromStream(resp.Body)
-		if err == io.ErrShortBuffer {
-			if sRunner.KeepTruncated() {
-				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated",
-					message.MAX_RECORD_SIZE)
-			} else {
-				deliver = false
-				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped",
-					message.MAX_RECORD_SIZE)
-			}
-			hi.ir.LogError(err)
-			err = nil // non-fatal, keep going
-		} else if sRunner.IncompleteFinal() && err == io.EOF && len(record) == 0 {
-			record = sRunner.GetRemainingData()
-		}
-		if len(record) > 0 && deliver {
-			if !sRunner.UseMsgBytes() {
-				sRunner.SetPackDecorator(hi.makePackDecorator(respData))
-			}
-			sRunner.DeliverRecord(record, nil)
-		}
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(hi.makePackDecorator(respData))
 	}
-	resp.Body.Close()
-	if err != io.EOF {
+
+	err = splitStream(hi.ir, sRunner, resp.Body)
+	if err != nil && err != io.EOF {
 		hi.ir.LogError(fmt.Errorf("fetching %s response input: %s", url, err.Error()))
 	}
 }

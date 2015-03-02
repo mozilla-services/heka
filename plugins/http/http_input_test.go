@@ -70,6 +70,8 @@ func HttpInputSpec(c gs.Context) {
 		})
 		ith.MockSplitterRunner.EXPECT().DeliverRecord([]byte(json_post), nil)
 		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
+		splitter := &TokenSplitter{} // not actually used
+		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
 
 		c.Specify("honors time ticker to flush", func() {
 			// Spin up a http server.

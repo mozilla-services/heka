@@ -145,57 +145,9 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 	if !sRunner.UseMsgBytes() {
 		sRunner.SetPackDecorator(hli.makePackDecorator(req))
 	}
-	var (
-		record       []byte
-		longRecord   []byte
-		err          error
-		deliver      bool
-		nullSplitter bool
-	)
-	// If we're using a NullSplitter we want to make sure we capture the
-	// entire HTTP response body and not be subject to what we get from a
-	// single Read() call.
-	if _, ok := sRunner.Splitter().(*NullSplitter); ok {
-		nullSplitter = true
-	}
-	for err == nil {
-		deliver = true
-		_, record, err = sRunner.GetRecordFromStream(req.Body)
-		if err == io.ErrShortBuffer {
-			if sRunner.KeepTruncated() {
-				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated",
-					message.MAX_RECORD_SIZE)
-			} else {
-				deliver = false
-				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped",
-					message.MAX_RECORD_SIZE)
-			}
-			hli.ir.LogError(err)
-			err = nil // non-fatal, keep going
-		}
-		if len(record) > 0 && deliver {
-			if nullSplitter {
-				// Concatenate all the records until EOF. This should be safe
-				// b/c NullSplitter means FindRecord will always return the
-				// full buffer contents, we don't have to worry about
-				// GetRecordFromStream trying to append multiple reads to a
-				// single record and triggering an io.ErrShortBuffer error.
-				longRecord = append(longRecord, record...)
-			} else {
-				sRunner.DeliverRecord(record, nil)
-			}
-		} else if len(record) == 0 && sRunner.IncompleteFinal() && err == io.EOF {
-			record = sRunner.GetRemainingData()
-			if len(record) > 0 {
-				sRunner.DeliverRecord(record, nil)
-			}
-		}
-	}
-	req.Body.Close()
-	if err != io.EOF {
+	err := splitStream(hli.ir, sRunner, req.Body)
+	if err != nil && err != io.EOF {
 		hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
-	} else if nullSplitter && len(longRecord) > 0 {
-		sRunner.DeliverRecord(longRecord, nil)
 	}
 }
 
