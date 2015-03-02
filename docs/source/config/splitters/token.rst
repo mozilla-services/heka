@@ -17,7 +17,7 @@ Config:
 
 - delimiter (string, optional):
 	String representation of the byte token to be used as message delimiter.
-	Defaults to "\n".
+	Defaults to `"\\n"`.
 
 Example:
 
