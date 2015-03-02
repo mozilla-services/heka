@@ -39,22 +39,24 @@ type SplitterRunner interface {
 	DeliverRecord(record []byte, del Deliverer)
 	KeepTruncated() bool
 	UseMsgBytes() bool
+	IncompleteFinal() bool
 	SetPackDecorator(decorator func(*PipelinePack))
 }
 
 type sRunner struct {
 	pRunnerBase
-	splitter      Splitter
-	buf           []byte
-	readPos       int
-	scanPos       int
-	needData      bool
-	keepTruncated bool
-	useMsgBytes   bool
-	reachedEOF    bool
-	unframer      UnframingSplitter
-	ir            InputRunner
-	packDecorator func(*PipelinePack)
+	splitter        Splitter
+	buf             []byte
+	readPos         int
+	scanPos         int
+	needData        bool
+	keepTruncated   bool
+	useMsgBytes     bool
+	reachedEOF      bool
+	incompleteFinal bool
+	unframer        UnframingSplitter
+	ir              InputRunner
+	packDecorator   func(*PipelinePack)
 }
 
 func NewSplitterRunner(name string, splitter Splitter,
@@ -81,6 +83,9 @@ func NewSplitterRunner(name string, splitter Splitter,
 	if config.UseMsgBytes != nil {
 		sr.useMsgBytes = *config.UseMsgBytes
 	}
+	if config.IncompleteFinal != nil {
+		sr.incompleteFinal = *config.IncompleteFinal
+	}
 	// Cache our unframer so we don't need to do type coersion for every
 	// message. Ignoring the ok is safe here, it just means sr.unframer might
 	// be nil, which we test for later.
@@ -105,6 +110,10 @@ func (sr *sRunner) KeepTruncated() bool {
 
 func (sr *sRunner) UseMsgBytes() bool {
 	return sr.useMsgBytes
+}
+
+func (sr *sRunner) IncompleteFinal() bool {
+	return sr.incompleteFinal
 }
 
 func (sr *sRunner) SetInputRunner(ir InputRunner) {
@@ -313,6 +322,12 @@ func (sr *sRunner) SplitStream(r io.Reader, del Deliverer) error {
 			}
 		}
 		if len(record) == 0 {
+			if sr.incompleteFinal && err == io.EOF {
+				record = sr.GetRemainingData()
+				if len(record) > 0 {
+					sr.DeliverRecord(record, del)
+				}
+			}
 			break
 		}
 		sr.DeliverRecord(record, del)

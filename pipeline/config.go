@@ -536,9 +536,10 @@ type CommonFOConfig struct {
 }
 
 type CommonSplitterConfig struct {
-	KeepTruncated *bool `toml:"keep_truncated"`
-	UseMsgBytes   *bool `toml:"use_message_bytes"`
-	BufferSize    uint  `toml:"min_buffer_size"`
+	KeepTruncated   *bool `toml:"keep_truncated"`
+	UseMsgBytes     *bool `toml:"use_message_bytes"`
+	BufferSize      uint  `toml:"min_buffer_size"`
+	IncompleteFinal *bool `toml:"deliver_incomplete_final"`
 }
 
 func getDefaultRetryOptions() RetryOptions {
@@ -855,6 +856,12 @@ func (m *pluginMaker) makeSplitterRunner(name string, splitter Splitter) (*sRunn
 		err = fmt.Errorf("'min_buffer_size' (%d) can't be larger than MAX_RECORD_SIZE (%d)",
 			commonSplitter.BufferSize, message.MAX_RECORD_SIZE)
 		return nil, err
+	}
+	if commonSplitter.IncompleteFinal == nil {
+		commonSplitter.IncompleteFinal, err = m.getDefaultBool("IncompleteFinal")
+		if err != nil {
+			return nil, err
+		}
 	}
 	sr := NewSplitterRunner(name, splitter, commonSplitter)
 	return sr, nil
