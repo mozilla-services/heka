@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package lua_test
@@ -365,6 +366,9 @@ func TestWriteMessageErrors(t *testing.T) {
 		"invalid timestamp",
 		"bool severity",
 		"double hostname",
+		"invalid field type",
+		"out of range field index deletion",
+		"out of range field array index deletion",
 	}
 	msgs := []string{
 		"process_message() ./testsupport/write_message_errors.lua:11: write_message() incorrect number of arguments",
@@ -382,6 +386,9 @@ func TestWriteMessageErrors(t *testing.T) {
 		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:41: write_message() only accepts numeric, string, or boolean field values, or nil to delete",
+		"process_message() ./testsupport/write_message_errors.lua:43: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:45: write_message() failed",
 	}
 
 	var sbc SandboxConfig
