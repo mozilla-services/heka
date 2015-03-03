@@ -23,5 +23,7 @@ function process_message ()
 	-- Added and removed, tests verify deletion.
 	write_message("Fields[delete]", "foo")
 	write_message("Fields[delete]", nil)
+	-- Deleting a non-existent field doesn't cause an error.
+	write_message("Fields[nonexistent]", nil)
 	return 0
 end

@@ -37,6 +37,12 @@ function process_message ()
         write_message("Severity", true)
     elseif msg == "double hostname" then
         write_message("Hostname", 99)
+    elseif msg == "invalid field type" then
+        write_message("Fields[bogus]", {a = 1})
+    elseif msg == "out of range field index deletion" then
+        write_message("Fields[foo]", nil, "", 2)
+    elseif msg == "out of range field array index deletion" then
+        write_message("Fields[int]", nil, "", 0, 2)
     end
 
     return 0
