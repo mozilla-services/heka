@@ -18,8 +18,17 @@ Features
 
 * Added configurable max_message_size to heka-cat.
 
+* Added `count` setting to TokenSplitter to allow splitting on every Nth
+  instance of the given delimiter.
+
+* Added `deliver_incomplete_final` setting to SplitterRunner.
+
 Bug Handling
 ------------
+
+* Moved `SetSplitterRunner` out of the config's MakeRunner and into the
+  `NewSplitterRunner` function to make sure a splitter always has access to a
+  SplitterRunner if needed.
 
 * Fixed SplitterRunner buffer readPos so it only increments when a read call
   doesn't return an error (#1367).

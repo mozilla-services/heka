@@ -130,6 +130,28 @@ func TokenSpec(c gs.Context) {
 			c.Expect(len(record), gs.Equals, int(message.MAX_RECORD_SIZE))
 			c.Expect(err, gs.Equals, io.ErrShortBuffer)
 		})
+
+		c.Specify("using count", func() {
+			rExpected := append(buf, '\n')
+			buf = bytes.Repeat(rExpected, 10)
+			buf = buf[:len(buf)-1] // 40 lines separated by 39 newlines
+
+			config.Count = 4
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			for i := 0; i < 9; i++ {
+				n, r := splitter.FindRecord(buf)
+				c.Expect(n, gs.Equals, len(rExpected))
+				c.Expect(string(r), gs.Equals, string(rExpected))
+				buf = buf[n:]
+			}
+
+			// Last record is incomplete b/c it only has 3 newlines.
+			n, r := splitter.FindRecord(buf)
+			c.Expect(n, gs.Equals, 0)
+			c.Expect(len(r), gs.Equals, 0)
+		})
 	})
 }
 
