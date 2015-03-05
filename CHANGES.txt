@@ -21,6 +21,8 @@ Bug Handling
 * Fixed SplitterRunner buffer readPos so it only increments when a read call
   doesn't return an error (#1367).
 
+* Ensured plugin list file is closed after writing to it in Dashboard plugin.
+
 0.9.0 (2015-02-25)
 ==================
 
