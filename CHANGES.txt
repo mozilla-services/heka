@@ -1,6 +1,11 @@
 0.10.0 (2015-??-??)
 ===================
 
+Backwards Incompatibilities
+---------------------------
+
+* Removed unused PipelinePack.Decoded attribute.
+
 Features
 --------
 

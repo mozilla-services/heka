@@ -162,7 +162,6 @@ func BufferedOutputSpec(c gs.Context) {
 			bufferedOutput.queue = tmpDir
 			newpack := NewPipelinePack(nil)
 			newpack.Message = msg
-			newpack.Decoded = true
 			payload := "Write me out to the network"
 			newpack.Message.SetPayload(payload)
 			protoBytes, err := encoder.Encode(newpack)
