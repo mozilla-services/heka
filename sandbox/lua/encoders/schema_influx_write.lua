@@ -50,6 +50,13 @@ Config:
     to tags, respectively.  If those magic values aren't used, then only those
     fields defined will map to tags of the points sent to InfluxDB.
 
+- timestamp_precision (string, optional, default "n")
+    Specify the timestamp precision that you want the event sent with.  The
+    default is to use nanoseconds by dividing the Heka message timestamp
+    by 1000000, but this math can be altered by specifying one of the precision
+    values supported by the InfluxDB write API (n, u, ms, s, m, h).  The default
+    of nanoseconds is used to match the precision of Timestamp in Heka messages.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -83,6 +90,7 @@ Config:
 -- END TODO --
 
 require "cjson"
+require "math"
 require "string"
 
 local name_prefix_orig  = read_config("name_prefix") or "name"
@@ -100,6 +108,9 @@ local retention_policy = read_config("retention_policy") or ""
 
 -- Default this option to ""
 local tag_fields = read_config("tag_fields") or ""
+
+-- Default this option to "ms"
+local timestamp_precision = read_config("timestamp_precision") or "ms"
 
 local base_fields_map = {
     Type = true,
@@ -172,7 +183,21 @@ end
 function process_message()
     local columns = {}
     local values = {}
-    local message_timestamp = read_message("Timestamp") / 1e6
+
+    -- Determine the precision of the timestamp and do the math
+    local timestamp_divisor = 1
+    if timestamp_precision == "u" then
+        timestamp_divisor = 1e3
+    elseif timestamp_precision == "ms" then
+        timestamp_divisor = 1e6
+    elseif timestamp_precision == "s" then
+        timestamp_divisor = 1e9
+    elseif timestamp_precision == "m" then
+        timestamp_divisor = 1e9 * 60
+    elseif timestamp_precision == "h" then
+        timestamp_divisor = 1e9 * 60 * 60
+    end
+    local message_timestamp = math.floor(read_message("Timestamp") / timestamp_divisor)
 
     columns[1] = "time" -- InfluxDB's default
     values[1] = message_timestamp
@@ -225,7 +250,8 @@ function process_message()
             -- Structure the table to match the expected Influxdb structure
             output[output_index] = {
                 name = field_name,
-                points = {field_columns[place] = field_points[place]}
+                fields = {value = field_points[place]}
+                -- fields = {field_columns[place] = field_points[place]}
             }
 
             -- Increment the index to the table so the next iteration will
