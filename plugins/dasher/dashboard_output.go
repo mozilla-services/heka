@@ -61,7 +61,6 @@ func (self *DashboardOutput) ConfigStruct() interface{} {
 		WorkingDirectory: "dashboard",
 		TickerInterval:   uint(5),
 		MessageMatcher:   "Type == 'heka.all-report' || Type == 'heka.sandbox-terminated' || Type == 'heka.sandbox-output'",
-		Headers:          make(http.Header),
 	}
 }
 
