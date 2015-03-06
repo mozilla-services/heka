@@ -214,7 +214,6 @@ func AMQPPluginSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		c.Specify("publishes a plain message", func() {
 			encoder := new(plugins.PayloadEncoder)

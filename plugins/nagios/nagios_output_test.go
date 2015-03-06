@@ -66,7 +66,6 @@ func NagiosOutputSpec(c gs.Context) {
 		pack := pipeline.NewPipelinePack(recycleChan)
 		msg := pipeline_ts.GetTestMessage()
 		pack.Message = msg
-		pack.Decoded = true
 
 		var req *http.Request
 		var outputWg, reqWg sync.WaitGroup

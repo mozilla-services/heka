@@ -140,8 +140,6 @@ type PipelinePack struct {
 	// Specific channel on which this pack should be recycled when all
 	// processing has completed for a given message.
 	RecycleChan chan *PipelinePack
-	// Indicates whether or not this pack's Message object has been populated.
-	Decoded bool
 	// Reference count used to determine when it is safe to recycle a pack for
 	// reuse by the system.
 	RefCount int32
@@ -166,7 +164,6 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 		MsgBytes:     msgBytes,
 		Message:      message,
 		RecycleChan:  recycleChan,
-		Decoded:      false,
 		RefCount:     int32(1),
 		MsgLoopCount: uint(0),
 		diagnostics:  NewPacketTracking(),
@@ -176,7 +173,6 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 // Reset a pack to its zero state.
 func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
-	p.Decoded = false
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""

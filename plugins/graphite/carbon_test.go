@@ -65,7 +65,6 @@ func CarbonOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 		pack.Message.SetPayload(submit_data)
 		return pack
 	}
