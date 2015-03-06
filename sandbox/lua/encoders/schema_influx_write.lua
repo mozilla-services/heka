@@ -33,7 +33,7 @@ Config:
     The InfluxDB retentionPoilcy value for the database in which the
     metrics are being sent to.  Only relevant when post_v09_api is true.
 
-- skip_fields (string, optional, default "")
+- skip_fields (string, optional, default nil)
     Space delimited set of fields that should *not* be included in the
     InfluxDB records being generated. Any fieldname values of "Type",
     "Payload", "Hostname", "Pid", "Logger", "Severity", or "EnvVersion" will
@@ -106,9 +106,6 @@ local influxdb_db = read_config("database") or "mydb"
 -- Default this option to ""
 local retention_policy = read_config("retention_policy") or ""
 
--- Default this option to ""
-local tag_fields = read_config("tag_fields") or ""
-
 -- Default this option to "ms"
 local timestamp_precision = read_config("timestamp_precision") or "ms"
 
@@ -132,11 +129,11 @@ local base_fields_list = {
     "EnvVersion"
 }
 
-local base_fields_tag_list = {
-    "Type",
-    "Hostname",
-    "Severity",
-    "Logger"
+local base_fields_tag_map = {
+    Type = true,
+    Hostname = true,
+    Severity = true,
+    Logger = true
 }
 
 -- Used for interpolating message fields into name_prefix.
@@ -161,8 +158,11 @@ if skip_fields_str then
     for field in string.gmatch(skip_fields_str, "[%S]+") do
         skip_fields[field] = true
     end
+
     for _, base_field in ipairs(base_fields_list) do
-        if not skip_fields[base_field] then
+        if skip_fields["**all_base**"] then
+            skip_fields[base_field] = true
+        elseif not skip_fields[base_field] then
             used_base_fields[#used_base_fields+1] = base_field
         else
             skip_fields[base_field] = nil
@@ -172,12 +172,12 @@ else
     used_base_fields = base_fields_list
 end
 
-local function get_array_value(field, field_idx, count)
-    local value = {}
-    for i = 1,count do
-        value[i] = read_message("Fields["..field.."]",field_idx,i-1)
+local tag_fields_str = read_config("tag_fields") or "**all_base**"
+local used_tag_fields = {}
+if tag_fields_str then
+    for field in string.gmatch(tag_fields_str, "[%S]+") do
+        used_tag_fields[field] = true
     end
-    return value
 end
 
 function process_message()
@@ -199,19 +199,14 @@ function process_message()
     end
     local message_timestamp = math.floor(read_message("Timestamp") / timestamp_divisor)
 
-    columns[1] = "time" -- InfluxDB's default
-    values[1] = message_timestamp
-
-    local place = 2
-    if not exclude_base_fields then
-        for _, field in ipairs(used_base_fields) do
-            columns[place] = field
-            values[place] = read_message(field)
-            place = place + 1
-        end
+    local place = 1
+    for _, field in ipairs(used_base_fields) do
+        columns[place] = field
+        values[place] = read_message(field)
+        place = place + 1
     end
 
-    local output_index = 1
+    local points_index = 1
 
     if use_subs then
         name_prefix = string.gsub(name_prefix_orig, "%%{([%w%p]-)}", sub_func)
@@ -219,7 +214,17 @@ function process_message()
         name_prefix = name_prefix_orig
     end
 
-    local output = {}
+    local points = {}
+    local message_tags = {}
+    for _, field in ipairs(base_fields_list) do
+        if (used_tag_fields["**all_base**"] or used_tag_fields["**all_base**"])
+            and base_fields_tag_map[field] then
+            message_tags[field] = read_message(field)
+        elseif used_tag_fields[field] and base_fields_tag_map[field] then
+            message_tags[field] = read_message(field)
+        end
+    end
+
     while true do
         -- Iterate through Fields array in the message
         local typ, name, value, representation, count = read_next_field()
@@ -228,36 +233,27 @@ function process_message()
 
         -- Only process fields that are not requested to be skipped
         if not skip_fields_str or not skip_fields[name] then
-            local field_name = ""
-            local field_columns = {}
-            local field_points = {}
-
-            -- Instantiate a table in the output table for this iteration
-            output[output_index] = {}
-
             -- Set the name attribute of this table by concatenating name_prefix
             -- with the name of this particular field
-            field_name = name_prefix.."."..name
-
-            -- Create new tables built from local columns, values in this table
-            for k,v in pairs(columns) do field_columns[k] = v end
-            for k,v in pairs(values) do field_points[k] = v end
-
-            -- Merge added values to each table for the field in this iteration
-            field_columns[place] = "value"
-            field_points[place] = value
+            local field_name = name_prefix.."."..name
+            local fields = {}
+            for k,v in pairs(columns) do fields[v] = values[k] end
 
             -- Structure the table to match the expected Influxdb structure
-            output[output_index] = {
+            fields["value"] = value
+            points[points_index] = {
                 name = field_name,
-                fields = {value = field_points[place]}
-                -- fields = {field_columns[place] = field_points[place]}
+                fields = fields
             }
 
             -- Increment the index to the table so the next iteration will
             -- append another entry to the array. This allows us to send a
             -- bunch of metrics to InfluxDB with a single HTTP request
-            output_index = output_index + 1
+            points_index = points_index + 1
+        end
+
+        if used_tag_fields[name] or used_tag_fields["**all**"] then
+            message_tags[name] = value
         end
     end
 
@@ -266,7 +262,7 @@ function process_message()
         retentionPolicy = retention_policy,
         tags = message_tags,
         timestamp = message_timestamp,
-        points = output
+        points = points
     }
 
     inject_payload("json", "influx_message", cjson.encode(api_message))
