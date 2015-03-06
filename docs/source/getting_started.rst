@@ -67,7 +67,7 @@ regular expression that uniquely matches the filename. Note the single quotes
 (`'auth\\.log'`) around the regular expression; this is TOML's way of
 specifying a raw string, which means we don't need to escape the regular
 expression's backslashes like we would with a regular string enclosed by
-double quotes (`"auth\\\.log"`).
+double quotes (`"auth\\\\.log"`).
 
 In most real world cases a LogstreamerInput would include a `decoder` setting,
 which would parse the contents of the file to extract data from the text
@@ -556,7 +556,7 @@ correctly handles the above case::
 	priority = ["^Index"]
 
 The `splitter` option above tells Heka that each record will be delimited by a
-one character token, in this case the default token `\n`. If our records were
+one character token, in this case the default token `\\n`. If our records were
 delimited by a different character we could add a :ref:`config_token_splitter`
 section specifying an alternate. If a single character isn't sufficient for
 finding our record boundaries, such as in cases where a record spans multiple
