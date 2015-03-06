@@ -333,6 +333,7 @@ func overwritePluginListFile(dir string, sbxs map[string]*DashPluginListItem) (e
 	if file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC+os.O_CREATE, 0644); err == nil {
 		enc := json.NewEncoder(file)
 		err = enc.Encode(output)
+		file.Close()
 	}
 	return
 }
