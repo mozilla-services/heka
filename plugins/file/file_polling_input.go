@@ -102,8 +102,6 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 			}
 		}
 	}
-
-	return nil
 }
 
 func init() {
