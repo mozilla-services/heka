@@ -23,6 +23,9 @@ Bug Handling
 
 * Ensured plugin list file is closed after writing to it in Dashboard plugin.
 
+* Fixed exiting / restart behavior for ProcessInput to match documentation
+  (#1395).
+
 0.9.0 (2015-02-25)
 ==================
 
