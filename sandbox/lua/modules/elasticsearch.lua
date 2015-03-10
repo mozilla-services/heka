@@ -31,26 +31,18 @@ API
 
     *Field interpolation*
 
-        Data from the current message can be interpolated into any of the
-        string arguments listed above. A `%{}` enclosed field name will be
-        replaced by the field value from the current message. Supported
-        default field names are "Type", "Hostname", "Pid", "UUID", "Logger",
-        "EnvVersion", and "Severity". Any other values will be checked against
-        the defined dynamic message fields. If no field matches, then a `C
-        strftime <http://man7.org/linux/man-pages/man3/strftime.3.html>`_ (on
-        non-Windows platforms) or `C89 strftime <http://msdn.microsoft.com/en-
-        us/library/fe06s4ak.aspx>`_ (on Windows) time substitution will be
-        attempted, using the nanosecond timestamp (if provided) or the system
-        clock (if not).
+    All of the string arguments listed above support :ref:`message field
+    interpolation<sandbox_msg_interpolate_module>`.
 
     *Return*
         - JSON string suitable for use as ElasticSearch BulkAPI index
           directive.
 --]]
 
+local cjson = require "cjson"
+local interp = require "msg_interpolate"
 local os = require "os"
 local string = require "string"
-local cjson = require "cjson"
 local read_message = read_message
 local tostring = tostring
 local type = type
@@ -58,45 +50,11 @@ local type = type
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module.
 
-local secs
-local pattern = "%%{(.-)}"
-
-local interp_fields = {
-    Type = "Type",
-    Hostname = "Hostname",
-    Pid = "Pid",
-    UUID = "Uuid",
-    Logger = "Logger",
-    EnvVersion = "EnvVersion",
-    Severity = "Severity"
-}
-
 local result_inner = {
     _index = nil,
     _type = nil,
     _id = nil
 }
-
-local function interpolate_match(match)
-    -- First see if it's a primary message schema field.
-    local fname = interp_fields[match]
-    if fname then
-        return read_message(fname)
-    end
-    -- Second check for a dynamic field.
-    fname = string.format("Fields[%s]", match)
-    local fval = read_message(fname)
-    if type(fval) == "boolean" then
-        return tostring(fval)
-    elseif fval then
-        return fval
-    end
-    -- Finally try to use it as a strftime format string.
-    fval = os.date(match, secs)
-    if fval ~= match then  -- Only return it if a substitution happened.
-        return fval
-    end
-end
 
 --[[ Public Interface --]]
 
@@ -107,17 +65,17 @@ function bulkapi_index_json(index, type_name, id, ns)
         secs = nil
     end
     if index then
-        result_inner._index = string.gsub(index, pattern, interpolate_match)
+        result_inner._index = interp.interpolate_from_msg(index, secs)
     else
         result_inner._index = nil
     end
     if type_name then
-        result_inner._type = string.gsub(type_name, pattern, interpolate_match)
+        result_inner._type = interp.interpolate_from_msg(type_name, secs)
     else
         result_inner._type = nil
     end
     if id then
-        result_inner._id = string.gsub(id, pattern, interpolate_match)
+        result_inner._id = interp.interpolate_from_msg(id, secs)
     else
         result_inner._id = nil
     end
