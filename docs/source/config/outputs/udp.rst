@@ -27,6 +27,10 @@ Config:
 - encoder (string):
 	Name of registered encoder plugin that will extract and/or serialized data
 	from the Heka message.
+- max_message_size (int):
+	Maximum size of message that is allowed to be sent via UdpOutput. Messages
+	which exceeds this limit will be dropped. Defaults to 65507 (the limit
+	for UDP packets in IPv4).
 
 Example:
 

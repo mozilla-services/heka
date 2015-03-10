@@ -15,6 +15,7 @@
 package udp
 
 import (
+	"fmt"
 	"github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
@@ -25,6 +26,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -32,16 +34,19 @@ func UdpOutputSpec(c gs.Context) {
 	t := new(pipeline_ts.SimpleT)
 	ctrl := gomock.NewController(t)
 
+	udpOutput := new(UdpOutput)
+	config := udpOutput.ConfigStruct().(*UdpOutputConfig)
+
+	oth := plugins_ts.NewOutputTestHelper(ctrl)
+	encoder := new(plugins.PayloadEncoder)
+	encoder.Init(new(plugins.PayloadEncoderConfig))
+
+	inChan := make(chan *pipeline.PipelinePack, 1)
+	rChan := make(chan *pipeline.PipelinePack, 1)
+	var wg sync.WaitGroup
+	var rAddr net.Addr
+
 	c.Specify("A UdpOutput", func() {
-		udpOutput := new(UdpOutput)
-		config := udpOutput.ConfigStruct().(*UdpOutputConfig)
-
-		oth := plugins_ts.NewOutputTestHelper(ctrl)
-		encoder := new(plugins.PayloadEncoder)
-		encoder.Init(new(plugins.PayloadEncoderConfig))
-
-		inChan := make(chan *pipeline.PipelinePack, 1)
-		rChan := make(chan *pipeline.PipelinePack, 1)
 		msg := pipeline_ts.GetTestMessage()
 		payload := "Write me out to the network."
 		msg.SetPayload(payload)
@@ -56,8 +61,6 @@ func UdpOutputSpec(c gs.Context) {
 			addr := "127.0.0.1:45678"
 			config.Address = addr
 			ch := make(chan string, 1)
-			var wg sync.WaitGroup
-			var rAddr net.Addr
 
 			collectData := func() {
 				conn, err := net.ListenPacket("udp", addr)
@@ -207,6 +210,46 @@ func UdpOutputSpec(c gs.Context) {
 				close(inChan)
 				wg.Wait()
 			})
+
 		})
+	})
+	c.Specify("drop message contents if their size is bigger than allowed UDP datagram size", func() {
+		huge_msg := pipeline_ts.GetTestMessage()
+		payload := strings.Repeat("2", 131014)
+
+		huge_msg.SetPayload(payload)
+
+		huge_pack := pipeline.NewPipelinePack(rChan)
+		huge_pack.Message = huge_msg
+
+		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
+		oth.MockOutputRunner.EXPECT().Encode(huge_pack).Return(encoder.Encode(huge_pack))
+		oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("Message has exceeded allowed UDP data size: 131014 > 65507"))
+
+		config.Address = "localhost:12345"
+		err := udpOutput.Init(config)
+
+		c.Assume(err, gs.IsNil)
+		wg.Add(1)
+		go func() {
+			err = udpOutput.Run(oth.MockOutputRunner, oth.MockHelper)
+			c.Expect(err, gs.IsNil)
+			wg.Done()
+		}()
+		inChan <- huge_pack
+
+		close(inChan)
+		wg.Wait()
+	})
+
+	c.Specify("checks validation of of Maximum message size limit", func() {
+
+		config.Address = "localhost:12345"
+		config.MaxMessageSize = 100
+
+		err := udpOutput.Init(config)
+
+		c.Assume(err.Error(), gs.Equals, "Maximum message size can't be smaller than 512 bytes.")
 	})
 }
