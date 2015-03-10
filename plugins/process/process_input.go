@@ -17,6 +17,7 @@
 package process
 
 import (
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -168,6 +169,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	pi.immediateStart = conf.ImmediateStart
 	pi.parseStdout = conf.ParseStdout
 	pi.parseStderr = conf.ParseStderr
+	pi.once = sync.Once{}
 
 	if len(conf.Command) < 1 {
 		return fmt.Errorf("No Command Configured")
@@ -221,6 +223,12 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	// Wait for stop signal.
 	<-pi.stopChan
+
+	// tickInterval == 0 => we're a long running process, exiting before
+	// shutdown represents an error condition.
+	if pi.tickInterval == 0 && !h.PipelineConfig().Globals.IsShuttingDown() {
+		return errors.New("long running process exited")
+	}
 
 	return nil
 }
