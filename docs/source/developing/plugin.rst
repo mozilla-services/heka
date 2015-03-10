@@ -607,8 +607,8 @@ with inputs and splitters, the ``Decoder`` interface is quite simple::
         Decode(pack *PipelinePack) (packs []*PipelinePack, err error)
     }
 
-There are two additional optional interfaces a decoder might decide to
-implement.  The first provides the decoder access to its DecoderRunner object
+There are three additional optional interfaces a decoder might decide to
+implement. The first provides the decoder access to its DecoderRunner object
 when it is started::
 
     type WantsDecoderRunner interface {
@@ -621,6 +621,30 @@ exiting::
     type WantsDecoderRunnerShutdown interface {
         Shutdown()
     }
+
+Understanding the third optional interface requires a bit of context. Heka's
+PipelinePack structs contain a Message attribute, which points to the actual
+instantiated Message struct, and a MsgBytes attribute, which is generally used
+to hold the protocol buffer encoding of the Message struct. Whenever a message
+is injected into the message router, Heka will protobuf encode that message
+and store the result in the MsgBytes attribute, also setting the pack's
+``TrustMsgBytes`` attribute flag to ``true``.
+
+In some cases, however, a protobuf encoding of the message is already
+available. For instance, when a message is received in protobuf format and is
+not further mutated, as in the case when an input is using a single
+ProtobufDecoder, then the original incoming data is already a valid protobuf
+encoding. Any decoder that might already have access to or generate a valid
+protobuf encoding for the resulting message should implement the
+``MightEncodeMsgBytes`` interface::
+
+    type MightEncodeMsgBytes interface {
+        EncodesMsgBytes() bool
+    }
+
+Heka will call this method at startup and, if ``true`` is returned, it will
+assume that the decoder plugin will populate the MsgBytes data with the
+encoded message data and set pack.TrustMsgBytes to true.
 
 A decoder's ``Decode`` method should extract raw message data from the
 provided pack. Depending on the nature of the decoder, this might be found
@@ -642,6 +666,24 @@ cause Heka to log an error message about the decoding failure. Additionally,
 if the associated input plugin's configuration set the ``send_decode_failure``
 value to true, the message will be tagged with ``decode_failure`` and
 ``decode_error`` fields and delivered to the router.
+
+.. _no_mutate_post_router_warning:
+
+About Message Mutation
+======================
+
+All of the above plugin types (i.e. inputs, splitters, and decoders) come
+*before* the router in Heka's pipeline, and therefore they may safely mutate
+the message struct. Once a pack hits the router, however, it is no longer safe
+to mutate the message, because a) it might be concurrently processed by more
+that one filter and/or output plugin, leading to race conditions, and b) a
+protobuf encoding of the message will be stored in the pack.MsgBytes
+attribute, and mutating the message will cause this encoding to become out of
+sync with the actual message.
+
+**Filter, encoder, and output plugins should never mutate Heka messages.**
+Sandbox plugins will prevent you from doing so, but if you implement your own
+plugins in Go you must take care to honor this requirement yourself.
 
 .. _filters:
 

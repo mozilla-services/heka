@@ -11,6 +11,12 @@ Features
 
 * Added support for `write_message` to delete fields when passed nil values.
 
+* A protobuf encoding of the current message is now always stored in
+  pack.MsgBytes prior to injection into the message router (#265).
+
+* ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
+  returns that.
+
 Bug Handling
 ------------
 

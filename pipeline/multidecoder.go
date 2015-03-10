@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -387,6 +387,14 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		}
 	}
 	return
+}
+
+func (md *MultiDecoder) EncodesMsgBytes() bool {
+	lastDecoder := md.Decoders[len(md.Decoders)-1]
+	if mightEncode, ok := lastDecoder.(MightEncodeMsgBytes); ok {
+		return mightEncode.EncodesMsgBytes()
+	}
+	return false
 }
 
 func (md *MultiDecoder) ReportMsg(msg *message.Message) error {
