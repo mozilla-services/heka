@@ -11,6 +11,8 @@ Features
 
 * Added support for `write_message` to delete fields when passed nil values.
 
+* Added `replace_dot` setting to StatFilter.
+
 Bug Handling
 ------------
 
