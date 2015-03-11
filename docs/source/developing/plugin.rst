@@ -682,8 +682,12 @@ attribute, and mutating the message will cause this encoding to become out of
 sync with the actual message.
 
 **Filter, encoder, and output plugins should never mutate Heka messages.**
-Sandbox plugins will prevent you from doing so, but if you implement your own
-plugins in Go you must take care to honor this requirement yourself.
+Sandbox plugins will prevent you from doing so. SandboxEncoders, in
+particular, expose the ``write_message`` API that appears to mutate a message,
+but it actually creates a new message struct rather than modifying the
+existing one (i.e. copy-on-write). If you implement your own filter, encoder,
+or output plugins in Go, you must take care to honor this requirement and not
+modify the message.
 
 .. _filters:
 
