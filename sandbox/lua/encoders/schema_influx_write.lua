@@ -172,6 +172,7 @@ else
     used_base_fields = base_fields_list
 end
 
+-- Create and populate a table of fields to be used as tags
 local tag_fields_str = read_config("tag_fields") or "**all_base**"
 local used_tag_fields = {}
 if tag_fields_str then
@@ -199,6 +200,9 @@ function process_message()
     end
     local message_timestamp = math.floor(read_message("Timestamp") / timestamp_divisor)
 
+    -- Create a counter for the table indexes for columns and values
+    -- then populate those tables with the used base fields previously
+    -- determined
     local place = 1
     for _, field in ipairs(used_base_fields) do
         columns[place] = field
@@ -206,15 +210,16 @@ function process_message()
         place = place + 1
     end
 
-    local points_index = 1
-
+    -- If the %{field} substitutions are defined in the name_prefix,
+    -- replace them with the actual values from the message here
     if use_subs then
         name_prefix = string.gsub(name_prefix_orig, "%%{([%w%p]-)}", sub_func)
     else
         name_prefix = name_prefix_orig
     end
 
-    local points = {}
+    -- Initialize and populate the table of tags to include in the 
+    -- InfluxDB write API message
     local message_tags = {}
     for _, field in ipairs(base_fields_list) do
         if (used_tag_fields["**all_base**"] or used_tag_fields["**all_base**"])
@@ -225,6 +230,18 @@ function process_message()
         end
     end
 
+    -- Initialize a counter for the InfluxDB write API message data points
+    local points_index = 1
+
+    -- Initialize the table of data points and populate it with data
+    -- from the Heka message.  When skip_fields includes "**all_base**",
+    -- Only dynamic fields are included as InfluxDB data points, while
+    -- the base fields serve as tags for them. If skip_fields does not
+    -- define any base fields, they are added to the fields of each data
+    -- point and each dynamic field value is set as the "value" field.
+    -- Adding "**all_base**" is recommended to avoid redundant data being
+    -- stored in each data point (the base fields as fields and as tags).
+    local points = {}
     while true do
         -- Iterate through Fields array in the message
         local typ, name, value, representation, count = read_next_field()
@@ -236,6 +253,8 @@ function process_message()
             -- Set the name attribute of this table by concatenating name_prefix
             -- with the name of this particular field
             local field_name = name_prefix.."."..name
+
+            -- Merge existing base fields with field in this iteration
             local fields = {}
             for k,v in pairs(columns) do fields[v] = values[k] end
 
@@ -252,6 +271,8 @@ function process_message()
             points_index = points_index + 1
         end
 
+        -- Include the dynamic fields as tags if they are defined in
+        -- configuration or the magic value "**all**" is defined.
         if used_tag_fields[name] or used_tag_fields["**all**"] then
             message_tags[name] = value
         end
@@ -259,13 +280,15 @@ function process_message()
 
     api_message = {
         database = influxdb_db,
+        points = points,
+        precision = timestamp_precision,
         retentionPolicy = retention_policy,
-        tags = message_tags,
         timestamp = message_timestamp,
-        points = points
+        tags = message_tags
     }
 
     inject_payload("json", "influx_message", cjson.encode(api_message))
 
     return 0
 end
+
