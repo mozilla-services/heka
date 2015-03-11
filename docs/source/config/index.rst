@@ -162,6 +162,7 @@ Config:
 
 - max_message_size (uint32):
     The maximum size (in bytes) of message can be sent during processing.
+    Defaults to 64KiB.
 
 Example hekad.toml file
 =======================
