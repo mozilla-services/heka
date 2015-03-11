@@ -71,7 +71,9 @@ func TcpOutputSpec(c gs.Context) {
 		newpack.Message = msg
 		newpack.Message.SetPayload(outStr)
 		matchBytes, err := proto.Marshal(newpack.Message)
-		c.Expect(err, gs.IsNil)
+		c.Assume(err, gs.IsNil)
+		pack.MsgBytes = matchBytes
+		newpack.MsgBytes = matchBytes
 
 		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 		inChanCall.Return(inChan)

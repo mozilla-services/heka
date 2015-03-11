@@ -40,9 +40,7 @@ func BufferedOutputSpec(c gs.Context) {
 	defer ctrl.Finish()
 
 	c.Specify("BufferedOutput Internals", func() {
-		encoder := new(ProtobufEncoder)
-		encoder.sample = false
-		encoder.sampleDenominator = 1000
+		encoder := client.NewProtobufEncoder(nil)
 		pConfig := NewPipelineConfig(nil)
 		or := NewMockOutputRunner(ctrl)
 		h := NewMockPluginHelper(ctrl)
@@ -164,7 +162,7 @@ func BufferedOutputSpec(c gs.Context) {
 			newpack.Message = msg
 			payload := "Write me out to the network"
 			newpack.Message.SetPayload(payload)
-			protoBytes, err := encoder.Encode(newpack)
+			protoBytes, err := encoder.EncodeMessage(newpack.Message)
 			expectedLen := 115
 
 			c.Specify("adds framing when necessary", func() {
