@@ -636,15 +636,15 @@ not further mutated, as in the case when an input is using a single
 ProtobufDecoder, then the original incoming data is already a valid protobuf
 encoding. Any decoder that might already have access to or generate a valid
 protobuf encoding for the resulting message should implement the
-``MightEncodeMsgBytes`` interface::
+``EncodesMsgBytes`` interface::
 
-    type MightEncodeMsgBytes interface {
+    type EncodesMsgBytes interface {
         EncodesMsgBytes() bool
     }
 
-Heka will call this method at startup and, if ``true`` is returned, it will
-assume that the decoder plugin will populate the MsgBytes data with the
-encoded message data and set pack.TrustMsgBytes to true.
+Heka will check for this method at startup and, if it exists, it will assume
+that the decoder plugin may populate the MsgBytes data with the encoded
+message data, and that it will set pack.TrustMsgBytes to true if it does.
 
 A decoder's ``Decode`` method should extract raw message data from the
 provided pack. Depending on the nature of the decoder, this might be found

@@ -31,16 +31,15 @@ type WantsPipelineConfig interface {
 	SetPipelineConfig(pConfig *PipelineConfig)
 }
 
-// MightEncodeMsgBytes is implemented by some decoder plugins to indicate that
+// EncodesMsgBytes is implemented by some decoder plugins to indicate that
 // they might set pack.MsgBytes to a valid protobuf encoding of the current
 // message struct. If a decoder provides this method, the DecoderRunner will
-// call it at startup time. If the decoder returns true, the runner will
 // assume that the decoder will set the pack.TrustMsgBytes attribute
 // appropriately for every processed message. If a decoder does not provide
-// this method, or if the method returns false. the DecoderRunner will assume
-// that the MsgBytes can't be trusted and will encode the message and store it
-// in the MsgBytes.
-type MightEncodeMsgBytes interface {
+// this method, the DecoderRunner will assume that the MsgBytes can't be
+// trusted and will encode the message and store it in the MsgBytes before
+// delivering it to the router.
+type EncodesMsgBytes interface {
 	EncodesMsgBytes() bool
 }
 

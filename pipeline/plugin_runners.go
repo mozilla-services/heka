@@ -404,13 +404,8 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 		ir.shutdownWanters = append(ir.shutdownWanters, wanter)
 		ir.shutdownLock.Unlock()
 	}
-	// See if we the decoder might set MsgBytes for us.
-	var trustMsgBytes bool
-	if mightEncode, ok := decoder.(MightEncodeMsgBytes); ok {
-		if mightEncode.EncodesMsgBytes() {
-			trustMsgBytes = true
-		}
-	}
+	// See if the decoder sets TrustMsgBytes for us.
+	_, trustMsgBytes := decoder.(EncodesMsgBytes)
 	deliver = func(pack *PipelinePack) {
 		packs, err := decoder.Decode(pack)
 		if err != nil {
@@ -504,7 +499,7 @@ type dRunner struct {
 	router      *messageRouter
 	h           PluginHelper
 	sendFailure bool
-	mightEncode bool
+	encodes     bool
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -518,9 +513,7 @@ func NewDecoderRunner(name string, decoder Decoder, chanSize int) DecoderRunner 
 		decoder: decoder,
 		inChan:  make(chan *PipelinePack, chanSize),
 	}
-	if mightEncode, ok := decoder.(MightEncodeMsgBytes); ok {
-		dr.mightEncode = mightEncode.EncodesMsgBytes()
-	}
+	_, dr.encodes = decoder.(EncodesMsgBytes)
 	return dr
 }
 
@@ -572,7 +565,7 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 }
 
 func (dr *dRunner) deliver(pack *PipelinePack) {
-	if !dr.mightEncode || !pack.TrustMsgBytes {
+	if !dr.encodes || !pack.TrustMsgBytes {
 		err := pack.EncodeMsgBytes()
 		if err != nil {
 			dr.LogError(fmt.Errorf("encoding message: %s", err.Error()))
