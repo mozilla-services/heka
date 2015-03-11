@@ -620,13 +620,8 @@ func TestRestoreMissingData(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	err = sb.Init("./testsupport/missing.data")
-	if err == nil {
-		t.Errorf("Init should fail on data load error")
-	} else {
-		expect := "Init() lsb_restore_global_data cannot open ./testsupport/missing.data: No such file or directory"
-		if err.Error() != expect {
-			t.Errorf("expected '%s' got '%s'", expect, err)
-		}
+	if err != nil {
+		t.Errorf("%s", err)
 	}
 	sb.Destroy("")
 }
