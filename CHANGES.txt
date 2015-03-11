@@ -18,6 +18,8 @@ Bug Handling
   `NewSplitterRunner` function to make sure a splitter always has access to a
   SplitterRunner if needed.
 
+* Protect read_message("raw") from reading an empty pack.MsgBytes (#1405).
+
 * Fixed SplitterRunner buffer readPos so it only increments when a read call
   doesn't return an error (#1367).
 
