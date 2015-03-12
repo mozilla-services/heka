@@ -307,7 +307,6 @@ func TestSendMessage(t *testing.T) {
 	msg := pipeline_ts.GetTestMessage()
 	pack := NewPipelinePack(pConfig.InputRecycleChan())
 	pack.Message = msg
-	pack.Decoded = true
 
 	outStr := "Write me out to the network"
 	newpack := NewPipelinePack(nil)

@@ -193,6 +193,54 @@ func DecoderSpec(c gs.Context) {
 				c.Expect(values[0], gs.Equals, "first")
 				c.Expect(values[1], gs.Equals, "second")
 			})
+
+			c.Specify("deletes a field from message", func() {
+				data := "delete field scribble"
+				pack.Message.SetPayload(data)
+				f, _ := message.NewField("scribble", "asdf", "")
+				pack.Message.AddField(f)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("scribble")
+				c.Expect(len(fields), gs.Equals, 0)
+				_, ok := pack.Message.GetFieldValue("scribble")
+				c.Expect(ok, gs.IsFalse)
+			})
+
+			c.Specify("deletes one of multiple field values", func() {
+				data := "delete second field of multi"
+				pack.Message.SetPayload(data)
+				f1, _ := message.NewField("multi", "first", "")
+				f2, _ := message.NewField("multi", "second", "")
+				f3, _ := message.NewField("multi", "third", "")
+				pack.Message.AddField(f1)
+				pack.Message.AddField(f2)
+				pack.Message.AddField(f3)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("multi")
+				c.Expect(len(fields), gs.Equals, 2)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "first")
+				values = fields[1].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "third")
+				_, ok := pack.Message.GetFieldValue("multi")
+				c.Expect(ok, gs.IsTrue)
+			})
+
+			c.Specify("deletes one of multiple array values", func() {
+				data := "delete second value of array"
+				pack.Message.SetPayload(data)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("array")
+				c.Expect(len(fields), gs.Equals, 1)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 2)
+				c.Expect(values[0], gs.Equals, "first")
+				c.Expect(values[1], gs.Equals, "third")
+				_, ok := pack.Message.GetFieldValue("array")
+				c.Expect(ok, gs.IsTrue)
+			})
 		})
 	})
 

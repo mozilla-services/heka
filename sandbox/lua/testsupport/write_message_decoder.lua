@@ -29,5 +29,17 @@ function process_message ()
 		write_message("Fields[array]", "first", "", 0, 0)
 		write_message("Fields[array]", "second", "", 0, 1)
 	end
+	if msg == "delete field scribble" then
+		write_message("Fields[scribble]", nil)
+	end
+	if msg == "delete second field of multi" then
+		write_message("Fields[multi]", nil, "", 1)
+	end
+	if msg == "delete second value of array" then
+		write_message("Fields[array]", "first", "", 0, 0)
+		write_message("Fields[array]", "second", "", 0, 1)
+		write_message("Fields[array]", "third", "", 0, 2)
+		write_message("Fields[array]", nil, "", 0, 1)
+	end
 	return 0
 end

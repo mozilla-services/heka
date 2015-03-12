@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package lua_test
@@ -359,13 +360,15 @@ func TestWriteMessageErrors(t *testing.T) {
 		"Negative field index",
 		"Negative array index",
 		"nil field",
-		"nil value",
 		"empty uuid",
 		"invalid uuid",
 		"empty timestamp",
 		"invalid timestamp",
 		"bool severity",
 		"double hostname",
+		"invalid field type",
+		"out of range field index deletion",
+		"out of range field array index deletion",
 	}
 	msgs := []string{
 		"process_message() ./testsupport/write_message_errors.lua:11: write_message() incorrect number of arguments",
@@ -377,13 +380,15 @@ func TestWriteMessageErrors(t *testing.T) {
 		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
-		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean field values",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
-		"process_message() ./testsupport/write_message_errors.lua:41: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:41: write_message() only accepts numeric, string, or boolean field values, or nil to delete",
+		"process_message() ./testsupport/write_message_errors.lua:43: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:45: write_message() failed",
 	}
 
 	var sbc SandboxConfig
@@ -579,6 +584,9 @@ func TestWriteMessage(t *testing.T) {
 	}
 	if pack.Message.GetUuidString() != "550d19b9-58c7-49d8-b0dd-b48cd1c5b305" {
 		t.Errorf("Uuid not set: %s", pack.Message.GetUuidString())
+	}
+	if f = pack.Message.FindAllFields("delete"); len(f) != 0 {
+		t.Error("'delete' field not deleted")
 	}
 }
 

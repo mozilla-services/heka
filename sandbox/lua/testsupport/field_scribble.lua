@@ -20,5 +20,10 @@ function process_message ()
 	write_message("Fields[Bool]", false, "", 1, 0)
 	write_message("Fields[]", "bad idea")
 	write_message("Uuid", "550d19b9-58c7-49d8-b0dd-b48cd1c5b305")
+	-- Added and removed, tests verify deletion.
+	write_message("Fields[delete]", "foo")
+	write_message("Fields[delete]", nil)
+	-- Deleting a non-existent field doesn't cause an error.
+	write_message("Fields[nonexistent]", nil)
 	return 0
 end

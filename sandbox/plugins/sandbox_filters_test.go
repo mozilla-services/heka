@@ -46,7 +46,6 @@ func FilterSpec(c gs.Context) {
 		msg := getTestMessage()
 		pack := pipeline.NewPipelinePack(pConfig.InjectRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		c.Specify("Uninitialized", func() {
 			err := sbFilter.ReportMsg(msg)
@@ -148,7 +147,6 @@ func FilterSpec(c gs.Context) {
 		msg := getTestMessage()
 		pack := pipeline.NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		c.Specify("Control message in the past", func() {
 			sbmFilter.Init(config)

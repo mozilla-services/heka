@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -182,11 +182,21 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			original = nil // processing a new message, clear the old message
 		}
 		if len(payload_type) == 0 { // heka protobuf message
+			// write protobuf encoding to MsgBytes
+			needed := len(payload)
+			if cap(s.pack.MsgBytes) < needed {
+				s.pack.MsgBytes = make([]byte, len(payload))
+			} else {
+				s.pack.MsgBytes = s.pack.MsgBytes[:len(payload)]
+			}
+			copy(s.pack.MsgBytes, payload)
+			s.pack.TrustMsgBytes = true
+
 			if original == nil {
 				original = new(message.Message)
 				copyMessageHeaders(original, s.pack.Message) // save off the header values since unmarshal will wipe them out
 			}
-			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
+			if nil != proto.Unmarshal(s.pack.MsgBytes, s.pack.Message) {
 				return 1
 			}
 			if s.tz != time.UTC {
@@ -252,7 +262,9 @@ func (s *SandboxDecoder) Shutdown() {
 	}
 }
 
-func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack, err error) {
+func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack,
+	err error) {
+
 	if s.sb == nil {
 		err = fmt.Errorf("SandboxDecoder has been terminated")
 		return
@@ -303,6 +315,10 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.packs = nil
 	return
+}
+
+func (s *SandboxDecoder) EncodesMsgBytes() bool {
+	return true
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

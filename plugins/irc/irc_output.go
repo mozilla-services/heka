@@ -306,7 +306,6 @@ func sendFromOutQueue(output *IrcOutput, ircMsg *IrcMsg) bool {
 		}
 		return false
 	}
-	return false
 }
 
 // sendFromBacklogQueue attempts to send a message from the first backlog queue

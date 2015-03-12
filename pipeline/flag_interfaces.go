@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -29,6 +29,18 @@ type WantsName interface {
 // will involve small breaking changes to the core plugin APIs.
 type WantsPipelineConfig interface {
 	SetPipelineConfig(pConfig *PipelineConfig)
+}
+
+// EncodesMsgBytes is implemented by some decoder plugins to indicate that
+// they might set pack.MsgBytes to a valid protobuf encoding of the current
+// message struct. If a decoder provides this method, the DecoderRunner will
+// assume that the decoder will set the pack.TrustMsgBytes attribute
+// appropriately for every processed message. If a decoder does not provide
+// this method, the DecoderRunner will assume that the MsgBytes can't be
+// trusted and will encode the message and store it in the MsgBytes before
+// delivering it to the router.
+type EncodesMsgBytes interface {
+	EncodesMsgBytes() bool
 }
 
 // Restarting indicates a plug-in can handle being restart should it exit
