@@ -212,8 +212,8 @@ func (p *PipelinePack) EncodeMsgBytes() error {
 		if cap(p.MsgBytes) < len(msgBytes) {
 			p.MsgBytes = msgBytes
 		} else {
-			copy(p.MsgBytes, msgBytes)
 			p.MsgBytes = p.MsgBytes[:len(msgBytes)]
+			copy(p.MsgBytes, msgBytes)
 		}
 		p.TrustMsgBytes = true
 	}
