@@ -19,9 +19,13 @@ Features
 * ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
   returns that.
 
+* Added support for `can_exit` to inputs (defaults to false, except on
+  ProcessDirectoryInput spawned processes where it defaults to true)
+
 Bug Handling
 ------------
 
+* More ProcessInput/ProcessDirectoryInput retry logic fixes (#1412 & #1418)
 
 0.9.1 (2015-??-??)
 ==================

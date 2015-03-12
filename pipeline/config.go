@@ -522,6 +522,7 @@ type CommonInputConfig struct {
 	Splitter           string
 	SyncDecode         *bool `toml:"synchronous_decode"`
 	SendDecodeFailures *bool `toml:"send_decode_failures"`
+	CanExit            *bool `toml:"can_exit"`
 	Retries            RetryOptions
 }
 
@@ -881,8 +882,12 @@ func (m *pluginMaker) makeInputRunner(name string, input Input, defaultTick uint
 		}
 	}
 	if commonInput.SendDecodeFailures == nil {
-		commonInput.SendDecodeFailures, err = m.getDefaultBool("SendDecodeFailures")
-		if err != nil {
+		if commonInput.SendDecodeFailures, err = m.getDefaultBool("SendDecodeFailures"); err != nil {
+			return nil, err
+		}
+	}
+	if commonInput.CanExit == nil {
+		if commonInput.CanExit, err = m.getDefaultBool("CanExit"); err != nil {
 			return nil, err
 		}
 	}
