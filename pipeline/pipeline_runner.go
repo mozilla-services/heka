@@ -179,7 +179,7 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 
 // Zero resets a pack to its zero state.
 func (p *PipelinePack) Zero() {
-	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
+	p.MsgBytes = p.MsgBytes[:0]
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""
@@ -212,8 +212,8 @@ func (p *PipelinePack) EncodeMsgBytes() error {
 		if cap(p.MsgBytes) < len(msgBytes) {
 			p.MsgBytes = msgBytes
 		} else {
-			copy(p.MsgBytes, msgBytes)
 			p.MsgBytes = p.MsgBytes[:len(msgBytes)]
+			copy(p.MsgBytes, msgBytes)
 		}
 		p.TrustMsgBytes = true
 	}
