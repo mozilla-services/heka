@@ -335,6 +335,11 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 }
 
 func (ir *iRunner) Inject(pack *PipelinePack) {
+	if err := pack.EncodeMsgBytes(); err != nil {
+		ir.LogError(fmt.Errorf("encoding message: %s", err.Error()))
+		pack.Recycle()
+		return
+	}
 	ir.pConfig.router.InChan() <- pack
 }
 
@@ -399,6 +404,8 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 		ir.shutdownWanters = append(ir.shutdownWanters, wanter)
 		ir.shutdownLock.Unlock()
 	}
+	// See if the decoder sets TrustMsgBytes for us.
+	_, trustMsgBytes := decoder.(EncodesMsgBytes)
 	deliver = func(pack *PipelinePack) {
 		packs, err := decoder.Decode(pack)
 		if err != nil {
@@ -411,10 +418,14 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 			if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
 				ir.LogError(err)
 			}
+			pack.TrustMsgBytes = false
 			ir.Inject(pack)
 			return
 		}
 		for _, p := range packs {
+			if !trustMsgBytes {
+				p.TrustMsgBytes = false
+			}
 			ir.Inject(p)
 		}
 	}
@@ -483,31 +494,39 @@ type DecoderRunner interface {
 
 type dRunner struct {
 	pRunnerBase
+	decoder     Decoder
 	inChan      chan *PipelinePack
 	router      *messageRouter
 	h           PluginHelper
 	sendFailure bool
+	encodes     bool
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
 // provided Decoder plugin.
 func NewDecoderRunner(name string, decoder Decoder, chanSize int) DecoderRunner {
-	return &dRunner{
+	dr := &dRunner{
 		pRunnerBase: pRunnerBase{
 			name:   name,
 			plugin: decoder.(Plugin),
 		},
-		inChan: make(chan *PipelinePack, chanSize),
+		decoder: decoder,
+		inChan:  make(chan *PipelinePack, chanSize),
 	}
+	_, dr.encodes = decoder.(EncodesMsgBytes)
+	return dr
 }
 
 func (dr *dRunner) Decoder() Decoder {
-	return dr.plugin.(Decoder)
+	return dr.decoder
 }
 
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	dr.h = h
 	dr.router = h.PipelineConfig().router
+	if wanter, ok := dr.decoder.(WantsDecoderRunner); ok {
+		wanter.SetDecoderRunner(dr)
+	}
 	go dr.start(h, wg)
 }
 
@@ -517,13 +536,10 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 		packs []*PipelinePack
 		err   error
 	)
-	if wanter, ok := dr.Decoder().(WantsDecoderRunner); ok {
-		wanter.SetDecoderRunner(dr)
-	}
 	for pack = range dr.inChan {
-		if packs, err = dr.Decoder().Decode(pack); packs != nil {
+		if packs, err = dr.decoder.Decode(pack); packs != nil {
 			for _, p := range packs {
-				dr.router.InChan() <- p
+				dr.deliver(p)
 			}
 		} else {
 			if err != nil {
@@ -532,7 +548,8 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 					if err = AddDecodeFailureFields(pack.Message, err.Error()); err != nil {
 						dr.LogError(err)
 					}
-					dr.router.InChan() <- pack
+					pack.TrustMsgBytes = false
+					dr.deliver(pack)
 					continue
 				}
 			}
@@ -540,11 +557,23 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 			continue
 		}
 	}
-	if wanter, ok := dr.Decoder().(WantsDecoderRunnerShutdown); ok {
+	if wanter, ok := dr.decoder.(WantsDecoderRunnerShutdown); ok {
 		wanter.Shutdown()
 	}
 	dr.LogMessage("stopped")
 	wg.Done()
+}
+
+func (dr *dRunner) deliver(pack *PipelinePack) {
+	if !dr.encodes || !pack.TrustMsgBytes {
+		err := pack.EncodeMsgBytes()
+		if err != nil {
+			dr.LogError(fmt.Errorf("encoding message: %s", err.Error()))
+			pack.Recycle()
+			return
+		}
+	}
+	dr.router.inChan <- pack
 }
 
 func (dr *dRunner) InChan() chan *PipelinePack {
@@ -846,6 +875,7 @@ func (foRunner *foRunner) exit() {
 	// Do not call the Inject method b/c we might get burned by the explicit
 	// message matcher check in cases where it looks like we'd be injecting a
 	// message to ourself.
+	pack.EncodeMsgBytes()
 	foRunner.pConfig.router.inChan <- pack
 }
 
@@ -930,11 +960,19 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 }
 
 func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
+	// Make sure we're not creating an obvious infinite routing loop.
 	spec := foRunner.MatchRunner().MatcherSpecification()
 	match := spec.Match(pack.Message)
 	if match {
 		pack.Recycle()
 		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
+		return false
+	}
+	// Make sure the pack's MsgBytes is populated.
+	err := pack.EncodeMsgBytes()
+	if err != nil {
+		foRunner.LogError(fmt.Errorf("encoding message: %s", err.Error()))
+		pack.Recycle()
 		return false
 	}
 	// Do the actual injection in a separate goroutine so we free up the

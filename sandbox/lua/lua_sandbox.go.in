@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -220,6 +220,60 @@ func write_to_field(msg *message.Message, fn string, value interface{}, rep *C.c
 	return nil
 }
 
+// Enforces field and array index limits.
+func delete_field(msg *message.Message, fn string, fi, ai int, has_ai bool) error {
+
+	var field *message.Field
+	fields := msg.FindAllFields(fn)
+
+	// If the field doesn't exist consider it a no-op.
+	if len(fields) == 0 {
+		return nil
+	}
+	if fi > len(fields) - 1 {
+		return errors.New("bad field index")
+	}
+
+	field = fields[fi]
+	if has_ai {
+		switch field.GetValueType() {
+		case message.Field_STRING:
+			if ai > len(field.ValueString) - 1 {
+				return errors.New("bad array index")
+			} else {
+				field.ValueString = append(field.ValueString[:ai], field.ValueString[ai+1:]...)
+			}
+		case message.Field_BYTES:
+			if ai > len(field.ValueBytes) - 1{
+				return errors.New("bad array index")
+			} else {
+				field.ValueBytes = append(field.ValueBytes[:ai], field.ValueBytes[ai+1:]...)
+			}
+		case message.Field_INTEGER:
+			if ai > len(field.ValueInteger) - 1 {
+				return errors.New("bad array index")
+			} else {
+				field.ValueInteger = append(field.ValueInteger[:ai], field.ValueInteger[ai+1:]...)
+			}
+		case message.Field_DOUBLE:
+			if ai > len(field.ValueDouble) - 1 {
+				return errors.New("bad array index")
+			} else {
+				field.ValueDouble = append(field.ValueDouble[:ai], field.ValueDouble[ai+1:]...)
+			}
+		case message.Field_BOOL:
+			if ai > len(field.ValueBool) - 1 {
+				return errors.New("bad array index")
+			} else {
+				field.ValueBool = append(field.ValueBool[:ai], field.ValueBool[ai+1:]...)
+			}
+		}
+	} else {
+		msg.DeleteField(field)
+	}
+	return nil
+}
+
 //export go_lua_read_message
 func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe.Pointer,
 	int) {
@@ -267,8 +321,11 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 			return int(message.Field_INTEGER),
 				unsafe.Pointer(lsb.pack.Message.Pid), 0
 		case "raw":
-			return int(message.Field_BYTES),
-				unsafe.Pointer(&lsb.pack.MsgBytes[0]), len(lsb.pack.MsgBytes)
+			if len(lsb.pack.MsgBytes) > 0 {
+				return int(message.Field_BYTES),
+					unsafe.Pointer(&lsb.pack.MsgBytes[0]),
+					len(lsb.pack.MsgBytes)
+			}
 		default:
 			if fn, found := extractLuaFieldName(fieldName); found {
 				return lookup_field(lsb.pack.Message, fn, fi, ai)
@@ -442,6 +499,31 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 		return 0
 	}
 	lsb.globals.LogMessage("go_lua_write_message_bool", "Bad field name.")
+	return 1
+}
+
+//export go_lua_delete_message_field
+func go_lua_delete_message_field(ptr unsafe.Pointer, c *C.char, fi, ai int, has_ai bool) int {
+
+	fieldName := C.GoString(c)
+	var lsb *LuaSandbox = (*LuaSandbox)(ptr)
+	if lsb.pack == nil {
+		lsb.globals.LogMessage("go_lua_delete_message_field", "No sandbox pack.")
+		return 1
+	}
+	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
+		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
+		lsb.messageCopied = true
+	}
+
+	if fn, found := extractLuaFieldName(fieldName); found {
+		if err := delete_field(lsb.pack.Message, fn, fi, ai, has_ai); err != nil {
+			lsb.globals.LogMessage("go_lua_delete_message_field", err.Error())
+			return 1
+		}
+		return 0
+	}
+	lsb.globals.LogMessage("go_lua_delete_message_field", "Bad field name.")
 	return 1
 }
 

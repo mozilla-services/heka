@@ -286,7 +286,6 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 			return
 		}
 	}
-	return
 }
 
 func (k *KafkaInput) Stop() {

@@ -73,7 +73,6 @@ func SmtpOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 		inChanCall.Return(inChan)
 		runnerName := oth.MockOutputRunner.EXPECT().Name().AnyTimes()

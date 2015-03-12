@@ -194,7 +194,6 @@ func (r *randomDataMaker) Read(p []byte) (n int, err error) {
 			valStash >>= 8
 		}
 	}
-	panic("unreachable")
 }
 
 func makePayload(size uint64, rdm *randomDataMaker) (payload string) {

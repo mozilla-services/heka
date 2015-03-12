@@ -17,6 +17,7 @@
 package pipeline
 
 import (
+	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	"github.com/rafrombrc/go-notify"
 	"os"
@@ -140,8 +141,6 @@ type PipelinePack struct {
 	// Specific channel on which this pack should be recycled when all
 	// processing has completed for a given message.
 	RecycleChan chan *PipelinePack
-	// Indicates whether or not this pack's Message object has been populated.
-	Decoded bool
 	// Reference count used to determine when it is safe to recycle a pack for
 	// reuse by the system.
 	RefCount int32
@@ -151,50 +150,74 @@ type PipelinePack struct {
 	// Number of times the current message chain has generated new messages
 	// and inserted them into the pipeline.
 	MsgLoopCount uint
-	// Used internally to stamp diagnostic information onto a packet
+	// Used internally to stamp diagnostic information onto a packet.
 	diagnostics *PacketTracking
+	// Used to track whether or not a pack's MsgBytes needs to be re-encoded
+	// before being injected into the router. Should be set to true by any
+	// decoder that leaves the pack with a valid protobuf encoding of the
+	// message stored in pack.MsgBytes.
+	TrustMsgBytes bool
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the
 // provided channel when a message has completed processing.
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
-	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
+	msgBytes := make([]byte, 0, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
 	message.SetSeverity(7)
 
 	return &PipelinePack{
-		MsgBytes:     msgBytes,
-		Message:      message,
-		RecycleChan:  recycleChan,
-		Decoded:      false,
-		RefCount:     int32(1),
-		MsgLoopCount: uint(0),
-		diagnostics:  NewPacketTracking(),
+		MsgBytes:      msgBytes,
+		Message:       message,
+		RecycleChan:   recycleChan,
+		RefCount:      int32(1),
+		MsgLoopCount:  uint(0),
+		diagnostics:   NewPacketTracking(),
+		TrustMsgBytes: false,
 	}
 }
 
-// Reset a pack to its zero state.
+// Zero resets a pack to its zero state.
 func (p *PipelinePack) Zero() {
-	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
-	p.Decoded = false
+	p.MsgBytes = p.MsgBytes[:0]
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""
 	p.diagnostics.Reset()
+	p.TrustMsgBytes = false
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	p.Message = new(message.Message)
 }
 
-// Decrement the ref count and, if ref count == zero, zero the pack and put it
-// on the appropriate recycle channel.
+// Recycle decrements the ref count and, if ref count == zero, zeroes the pack
+// and put it on the appropriate recycle channel.
 func (p *PipelinePack) Recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
 		p.RecycleChan <- p
 	}
+}
+
+// EncodeMsgBytes protobuf encodes the pack's message struct and copies the
+// result into the pack's MsgBytes attribute.
+func (p *PipelinePack) EncodeMsgBytes() error {
+	if p.TrustMsgBytes {
+		return nil
+	}
+	msgBytes, err := proto.Marshal(p.Message)
+	if err == nil {
+		if cap(p.MsgBytes) < len(msgBytes) {
+			p.MsgBytes = msgBytes
+		} else {
+			p.MsgBytes = p.MsgBytes[:len(msgBytes)]
+			copy(p.MsgBytes, msgBytes)
+		}
+		p.TrustMsgBytes = true
+	}
+	return err
 }
 
 // Main function driving Heka execution. Loads config, initializes

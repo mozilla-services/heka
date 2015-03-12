@@ -62,7 +62,7 @@ func DecodeHeader(buf []byte, header *Header) (bool, error) {
 	}
 	err := proto.Unmarshal(buf[0:len(buf)-1], header)
 	if err != nil {
-		return false, fmt.Errorf("error unmarshaling header: ", err)
+		return false, fmt.Errorf("error unmarshaling header: %s", err)
 	}
 	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
 		err = fmt.Errorf("message exceeds the maximum length [%d bytes] len: %d",
@@ -284,6 +284,19 @@ func (m *Message) AddField(f *Field) {
 		m.Fields = m.Fields[0 : l+1]
 	}
 	m.Fields[l] = f
+}
+
+// Deletes a Field from the message
+func (m *Message) DeleteField(f *Field) {
+	if m == nil {
+		return
+	}
+	for i, v := range m.Fields {
+		if v == f {
+			m.Fields = append(m.Fields[:i], m.Fields[i+1:]...)
+			break
+		}
+	}
 }
 
 // Field constructor

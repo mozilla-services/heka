@@ -65,15 +65,15 @@ func TcpOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		outStr := "Write me out to the network"
 		newpack := NewPipelinePack(nil)
 		newpack.Message = msg
-		newpack.Decoded = true
 		newpack.Message.SetPayload(outStr)
 		matchBytes, err := proto.Marshal(newpack.Message)
-		c.Expect(err, gs.IsNil)
+		c.Assume(err, gs.IsNil)
+		pack.MsgBytes = matchBytes
+		newpack.MsgBytes = matchBytes
 
 		inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 		inChanCall.Return(inChan)
