@@ -233,6 +233,13 @@ func (m *MatcherSpecificationParser) Lex(yylval *yySymType) int {
 	var c, tmp rune
 	var i int
 
+	yylval.tokenId = 0
+	yylval.token = ""
+	yylval.double = 0
+	yylval.fieldIndex = 0
+	yylval.arrayIndex = 0
+	yylval.regexp = nil
+
 	c = m.peekrune
 	m.peekrune = ' '
 
