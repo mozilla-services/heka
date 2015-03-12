@@ -17,6 +17,8 @@ Bug Handling
 * Fix the message matcher parser to clear the yySymType structure on each call
   (#1409).
 
+* Protect read_message("raw") from reading an empty pack.MsgBytes (#1405).
+
 * Moved `SetSplitterRunner` out of the config's MakeRunner and into the
   `NewSplitterRunner` function to make sure a splitter always has access to a
   SplitterRunner if needed.
