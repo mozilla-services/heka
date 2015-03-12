@@ -17,7 +17,6 @@
 package process
 
 import (
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -138,7 +137,8 @@ type ProcessInput struct {
 	stderrDeliverer Deliverer
 	stderrSRunner   SplitterRunner
 
-	stopChan chan bool
+	stopChan  chan bool
+	exitError error
 
 	hostname       string
 	hekaPid        int32
@@ -224,10 +224,10 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// Wait for stop signal.
 	<-pi.stopChan
 
-	// tickInterval == 0 => we're a long running process, exiting before
-	// shutdown represents an error condition.
-	if pi.tickInterval == 0 && !h.PipelineConfig().Globals.IsShuttingDown() {
-		return errors.New("long running process exited")
+	// If RunCmd exited with an error, and we're not in shutdown, pass back
+	// up (to trigger any configured retry behaviour)
+	if pi.exitError != nil && !h.PipelineConfig().Globals.IsShuttingDown() {
+		return pi.exitError
 	}
 
 	return nil
@@ -302,8 +302,10 @@ func (pi *ProcessInput) runOnce() {
 	var err error
 
 	if err = pi.cc.Start(); err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]",
-			pi.ProcessName, err.Error()))
+		pi.exitError = fmt.Errorf("%s CommandChain::Start() error: [%s]",
+			pi.ProcessName, err.Error())
+		pi.Stop()
+		return
 	}
 
 	// We don't get EOF on the pipe readers unless we drain both the stdout
@@ -318,7 +320,9 @@ func (pi *ProcessInput) runOnce() {
 
 	var stdoutReader io.Reader
 	if stdoutReader, err = pi.cc.Stdout_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stdout reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stdout reader: %s", err)
+		pi.Stop()
+		return
 	} else if pi.parseStdout {
 		go pi.ParseOutput(stdoutReader, pi.stdoutDeliverer, pi.stdoutSRunner)
 	} else {
@@ -327,7 +331,9 @@ func (pi *ProcessInput) runOnce() {
 
 	var stderrReader io.Reader
 	if stderrReader, err = pi.cc.Stderr_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stderr reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stderr reader: %s", err)
+		pi.Stop()
+		return
 	} else if pi.parseStderr {
 		go pi.ParseOutput(stderrReader, pi.stderrDeliverer, pi.stderrSRunner)
 	} else {
@@ -336,8 +342,9 @@ func (pi *ProcessInput) runOnce() {
 
 	err = pi.cc.Wait()
 	if err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]",
-			pi.ProcessName, err.Error()))
+		pi.exitError = fmt.Errorf("%s CommandChain::Wait() error: [%s]",
+			pi.ProcessName, err.Error())
+		pi.Stop()
 	}
 }
 
