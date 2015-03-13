@@ -119,6 +119,7 @@ func LogstreamerInputSpec(c gs.Context) {
 				ith.MockInputRunner.EXPECT().NewSplitterRunner("1").Return(
 					ith.MockSplitterRunner)
 				ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+				ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false)
 				ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 
 				getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(

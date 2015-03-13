@@ -36,6 +36,14 @@ initialization code.
 	will use for buffering data streams. Must not be greater than the globally
 	configured max_message_size. Defaults to 8KiB, although certain splitters
 	may specify a different default.
+- deliver_incomplete_final (bool, optional):
+	When a splitter is used to split a stream, that stream can end part way
+	through a record. It's sometimes appropriate to drop that data, but in
+	other cases the incomplete data can still be useful. If
+	'deliver_incomplete_final' is set to true, then when the SplitterRunner's
+	SplitStream method is used a delivery attempt will be made with any
+	partial record data that may come through immediately before an EOF.
+	Defaults to false.
 
 Available Splitter Plugins
 ==========================

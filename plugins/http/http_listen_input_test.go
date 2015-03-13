@@ -94,6 +94,8 @@ func HttpListenInputSpec(c gs.Context) {
 			bytesChan <- msgBytes
 		}
 
+		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
+
 		c.Specify("Adds query parameters to the message pack as fields", func() {
 			err := httpListenInput.Init(config)
 			c.Assume(err, gs.IsNil)
