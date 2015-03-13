@@ -162,7 +162,7 @@ type PipelinePack struct {
 // Returns a new PipelinePack pointer that will recycle itself onto the
 // provided channel when a message has completed processing.
 func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
-	msgBytes := make([]byte, message.MAX_MESSAGE_SIZE)
+	msgBytes := make([]byte, 0, message.MAX_MESSAGE_SIZE)
 	message := &message.Message{}
 	message.SetSeverity(7)
 
@@ -179,7 +179,7 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 
 // Zero resets a pack to its zero state.
 func (p *PipelinePack) Zero() {
-	p.MsgBytes = p.MsgBytes[:cap(p.MsgBytes)]
+	p.MsgBytes = p.MsgBytes[:0]
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""

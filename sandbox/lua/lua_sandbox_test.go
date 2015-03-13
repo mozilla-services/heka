@@ -472,6 +472,28 @@ func TestReadMessage(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestReadRaw(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/read_raw.lua"
+	sbc.MemoryLimit = 32767
+	sbc.InstructionLimit = 1000
+	pack := getTestPack()
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+	r := sb.ProcessMessage(pack)
+	if r != 0 {
+		t.Errorf("ProcessMessage should return 0, received %d last error: %s", r,
+			sb.LastError())
+	}
+	sb.Destroy("")
+}
+
 func TestWriteMessage(t *testing.T) {
 	pipeline.NewPipelineConfig(nil) // Set up globals.
 	var sbc SandboxConfig
@@ -606,13 +628,8 @@ func TestRestoreMissingData(t *testing.T) {
 		t.Errorf("%s", err)
 	}
 	err = sb.Init("./testsupport/missing.data")
-	if err == nil {
-		t.Errorf("Init should fail on data load error")
-	} else {
-		expect := "Init() lsb_restore_global_data cannot open ./testsupport/missing.data: No such file or directory"
-		if err.Error() != expect {
-			t.Errorf("expected '%s' got '%s'", expect, err)
-		}
+	if err != nil {
+		t.Errorf("%s", err)
 	}
 	sb.Destroy("")
 }
