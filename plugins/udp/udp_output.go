@@ -38,18 +38,28 @@ type UdpOutputConfig struct {
 	Address string
 	// Optional address to use as the local address for the connection.
 	LocalAddress string `toml:"local_address"`
+
+	// Maximum size of message, plugin drops the data if it exceeds this limit.
+	MaxMessageSize int `toml:"max_message_size"`
 }
 
 // Provides pipeline.HasConfigStruct interface.
 func (o *UdpOutput) ConfigStruct() interface{} {
 	return &UdpOutputConfig{
 		Net: "udp",
+
+		// Defines maximum size of udp data for IPv4
+		MaxMessageSize: 65507,
 	}
 }
 
 // Initialize UDP connection
 func (o *UdpOutput) Init(config interface{}) (err error) {
 	o.UdpOutputConfig = config.(*UdpOutputConfig) // assert we have the right config type
+
+	if o.UdpOutputConfig.MaxMessageSize < 512 {
+		return fmt.Errorf("Maximum message size can't be smaller than 512 bytes.")
+	}
 
 	if o.Net == "unixgram" {
 		if runtime.GOOS == "windows" {
@@ -98,15 +108,22 @@ func (o *UdpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err 
 	if or.Encoder() == nil {
 		return errors.New("Encoder required.")
 	}
+
 	var (
 		outBytes []byte
 		e        error
 	)
+
 	for pack := range or.InChan() {
 		if outBytes, e = or.Encode(pack); e != nil {
 			or.LogError(fmt.Errorf("Error encoding message: %s", e.Error()))
 		} else if outBytes != nil {
-			o.conn.Write(outBytes)
+			msgSize := len(outBytes)
+			if msgSize > o.UdpOutputConfig.MaxMessageSize {
+				or.LogError(fmt.Errorf("Message has exceeded allowed UDP data size: %d > %d", msgSize, o.UdpOutputConfig.MaxMessageSize))
+			} else {
+				o.conn.Write(outBytes)
+			}
 		}
 		pack.Recycle()
 	}

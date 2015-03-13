@@ -11,6 +11,8 @@ Features
 
 * Added `deliver_incomplete_final` setting to SplitterRunner.
 
+* Added `max_message_size` setting to UdpOutput.
+
 Bug Handling
 ------------
 
@@ -30,6 +32,8 @@ Bug Handling
 
 * Fixed exiting / restart behavior for ProcessInput to match documentation
   (#1395).
+
+* UdpOutput drops message if its size exceeds allowed UDP data size (#1393).
 
 0.9.0 (2015-02-25)
 ==================
