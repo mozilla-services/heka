@@ -3,12 +3,16 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[=[
-Converts full Heka message contents to JSON for InfluxDB HTTP write API 
-(changed in InfluxDB v0.9.0).  Includes all standard message fields and
-iterates through all of the dynamically specified fields, skipping any
-bytes fields or any fields explicitly omitted using the `skip_fields`
-config option.  It can also map Heka message fields as tags in the request
-sent to the InfluxDB API.
+Converts full Heka message contents to JSON for InfluxDB HTTP write API
+(new in InfluxDB v0.9.0).  Optionally includes all standard message fields
+as tags or fields and iterates through all of the dynamic fields to add as
+points (series), skipping any fields explicitly omitted using the `skip_fields`
+config option.  It can also map any Heka message fields as tags in the
+request sent to the InfluxDB API, using the `tag_fields` config option.
+Tags, timestamp/precision, database, and retention policy are defined once
+for all points submitted in the API call.  All dynamic fields in the Heka
+message are converted to separate series in the `points` array that is
+submitted to InfluxDB.
 
 Config:
 
@@ -26,8 +30,7 @@ Config:
     values will be interpreted as referring to dynamic message fields.
 
 - database (string, required, default "mydb")
-    The InfluxDB database to store the metrics in.  Only relevant when
-    post_v09_api is true.
+    The InfluxDB database to store the metrics in.
 
 - retention_policy (string, optional, default "")
     The InfluxDB retentionPoilcy value for the database in which the
@@ -40,7 +43,7 @@ Config:
     be assumed to refer to the corresponding field from the base message
     schema. Any other values will be assumed to refer to a dynamic message
     field. The magic value "**all_base**" can be used to exclude base fields
-    from being mapped to the event altogether (useful if you don't want to 
+    from being mapped to the event altogether (useful if you don't want to
     use tags and embed them in the name_prefix instead).
 
 - tag_fields (string, optional, default "**all_base**")
@@ -61,33 +64,53 @@ Config:
 
 .. code-block:: ini
 
-    [influxdb]
-    type = "SandboxEncoder"
-    filename = "lua_encoders/schema_influx_write.lua"
-        [influxdb.config]
-        name_prefix = "heka.%{Logger}"
-        database = "mydb"
-        retention_policy = "mypolicy"
-        skip_fields = "Pid EnvVersion"
-        tag_fields = "Hostname Type"
+    [LoadAvgPoller]
+    type = "FilePollingInput"
+    ticker_interval = 5
+    file_path = "/proc/loadavg"
+    decoder = "LinuxStatsDecoder"
 
-    [InfluxOutput]
-    message_matcher = "Type == 'influxdb'"
-    encoder = "influxdb"
+    [LoadAvgDecoder]
+    type = "SandboxDecoder"
+    filename = "lua_decoders/linux_loadavg.lua"
+
+    [LinuxStatsDecoder]
+    type = "MultiDecoder"
+    subs = ["LoadAvgDecoder", "AddStaticFields"]
+    cascade_strategy = "all"
+    log_sub_errors = false
+
+    [AddStaticFields]
+    type = "ScribbleDecoder"
+
+        [AddStaticFields.message_fields]
+        Environment = "DEV"
+
+    [InfluxdbOutput]
     type = "HttpOutput"
+    message_matcher = "Type =~ /stats.*/"
+    encoder = "InfluxdbEncoder"
     address = "http://influxdbserver.example.com:8086/write"
     username = "influx_username"
     password = "influx_password"
 
--- TODO --
+    [InfluxdbEncoder]
+    type = "SandboxEncoder"
+    filename = "lua_encoders/schema_influx_write.lua"
+
+        [InfluxdbEncoder.config]
+        name_prefix = "%{Hostname}.%{Type}"
+        skip_fields = "**all_base** FilePath NumProcesses Environment"
+        tag_fields = "Hostname Environment"
+        timestamp_precision= "s"
+
 *Example Output*
 
 .. code-block:: json
 
-    [{"points":[[1.409378221e+21,"log","test","systemName","TcpInput",5,1,"test"]],"name":"heka.MyLogger","columns":["Time","Type","Payload","Hostname","Logger","Severity","syslogfacility","programname"]}]
+    {"database":"mydb","retentionPolicy":"","tags":{"Environment":"DEV","Hostname":"my_hostname"}, "points":[{"name":"my_hostname.stats.loadavg.5MinAvg","fields":{"value":0.03}},{"name":"my_hostname.stats.loadavg.15MinAvg","fields":{"value":0.05}},{"name":"my_hostname.stats.loadavg.1MinAvg","fields":{"value":0.01}}],"timestamp":1426439735,"precision":"s"}
 
 --]=]
--- END TODO --
 
 require "cjson"
 require "math"
@@ -218,7 +241,7 @@ function process_message()
         name_prefix = name_prefix_orig
     end
 
-    -- Initialize and populate the table of tags to include in the 
+    -- Initialize and populate the table of tags to include in the
     -- InfluxDB write API message
     -- Convert value to a string as this is required by the API
     local message_tags = {}
