@@ -200,7 +200,6 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			return nil
 		}
 	}
-	return nil
 }
 
 func (hi *HttpInput) Stop() {

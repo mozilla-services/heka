@@ -27,6 +27,10 @@ Config:
     - value (string):
         Expression representing the (possibly dynamic) value that the
         `StatFilter` should emit for each received message.
+    - replace_dot (boolean):
+        Replace all dots `.` per an underscore `_` during the string
+        interpolation. It's useful if you output this result in a graphite
+        instance.
 
 - stat_accum_name (string):
     Name of a StatAccumInput instance that this StatFilter will use as its

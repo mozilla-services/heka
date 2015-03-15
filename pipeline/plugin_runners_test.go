@@ -18,6 +18,7 @@ package pipeline
 
 import (
 	"bytes"
+	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -118,6 +119,9 @@ func InputRunnerSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			pack := NewPipelinePack(pConfig.inputRecycleChan)
 			pack.Message = ts.GetTestMessage()
+			c.Assume(pack.TrustMsgBytes, gs.IsFalse)
+			msgEncoding, err := proto.Marshal(pack.Message)
+			c.Assume(err, gs.IsNil)
 
 			c.Specify("when there's no decoder", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
@@ -125,8 +129,13 @@ func InputRunnerSpec(c gs.Context) {
 				runner.pConfig = pConfig
 				startRunner(runner)
 				runner.Deliver(pack)
-				recd := <-pConfig.router.inChan // It was delivered to the router.
+				// It was delivered to the router.
+				recd := <-pConfig.router.inChan
 				c.Expect(recd, gs.Equals, pack)
+				// And MsgBytes was populated w/ protobuf encoding.
+				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+
 				pack.Recycle() // Put it back so input.Flush() can use it again.
 				input.Stop()
 				wg.Wait()
@@ -141,8 +150,23 @@ func InputRunnerSpec(c gs.Context) {
 				runner.deliver = d.deliver
 				startRunner(runner)
 				go runner.Deliver(pack)
-				recd := <-d.dRunner.InChan() // It was delivered to the DecoderRunner.
+
+				dWg := new(sync.WaitGroup)
+				dWg.Add(1)
+				d.dRunner.Start(pConfig, dWg)
+
+				// Make sure it was passed all the way through to the router.
+				recd := <-pConfig.router.inChan
 				c.Expect(recd, gs.Equals, pack)
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO")
+
+				// Check that DecoderRunner stored protobuf encoding on MsgBytes.
+				msgEncoding, err = proto.Marshal(pack.Message)
+				c.Expect(err, gs.IsNil)
+				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+				close(d.dRunner.InChan())
+
 				pack.Recycle()
 				input.Stop()
 				wg.Wait()
@@ -165,6 +189,13 @@ func InputRunnerSpec(c gs.Context) {
 					recd := <-pConfig.router.inChan // It was delivered to the router.
 					c.Expect(recd, gs.Equals, pack)
 					c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO") // And decoded.
+
+					// Make sure deliverFunc stored protobuf encoding on MsgBytes
+					msgEncoding, err = proto.Marshal(pack.Message)
+					c.Expect(err, gs.IsNil)
+					c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+					c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+
 					pack.Recycle()
 					input.Stop()
 					wg.Wait()
@@ -204,6 +235,37 @@ func InputRunnerSpec(c gs.Context) {
 					wg.Wait()
 				})
 			})
+		})
+	})
+}
+
+func FilterRunnerSpec(c gs.Context) {
+	c.Specify("A filterrunner", func() {
+		pConfig := NewPipelineConfig(nil)
+		filter := &CounterFilter{}
+		commonFO := CommonFOConfig{
+			Matcher: "Type == 'bogus'",
+		}
+		chanSize := 10
+		fRunner, err := NewFORunner("counterFilter", filter, commonFO, "CounterFilter",
+			chanSize)
+		fRunner.h = pConfig
+		c.Assume(err, gs.IsNil)
+
+		pack := NewPipelinePack(pConfig.injectRecycleChan)
+		pConfig.injectRecycleChan <- pack
+		pack.Message = ts.GetTestMessage()
+		c.Assume(pack.TrustMsgBytes, gs.IsFalse)
+		msgEncoding, err := proto.Marshal(pack.Message)
+		c.Assume(err, gs.IsNil)
+
+		c.Specify("puts protobuf encoding into MsgBytes before delivery", func() {
+			result := fRunner.Inject(pack)
+			c.Expect(result, gs.IsTrue)
+			recd := <-pConfig.router.inChan
+			c.Expect(recd, gs.Equals, pack)
+			c.Expect(recd.TrustMsgBytes, gs.IsTrue)
+			c.Expect(bytes.Equal(msgEncoding, recd.MsgBytes), gs.IsTrue)
 		})
 	})
 }

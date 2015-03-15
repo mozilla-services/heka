@@ -62,7 +62,7 @@ func DecodeHeader(buf []byte, header *Header) (bool, error) {
 	}
 	err := proto.Unmarshal(buf[0:len(buf)-1], header)
 	if err != nil {
-		return false, fmt.Errorf("error unmarshaling header: ", err)
+		return false, fmt.Errorf("error unmarshaling header: %s", err)
 	}
 	if header.GetMessageLength() > MAX_MESSAGE_SIZE {
 		err = fmt.Errorf("message exceeds the maximum length [%d bytes] len: %d",

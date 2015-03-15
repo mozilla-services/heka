@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -321,8 +321,11 @@ func go_lua_read_message(ptr unsafe.Pointer, c *C.char, fi, ai int) (int, unsafe
 			return int(message.Field_INTEGER),
 				unsafe.Pointer(lsb.pack.Message.Pid), 0
 		case "raw":
-			return int(message.Field_BYTES),
-				unsafe.Pointer(&lsb.pack.MsgBytes[0]), len(lsb.pack.MsgBytes)
+			if len(lsb.pack.MsgBytes) > 0 {
+				return int(message.Field_BYTES),
+					unsafe.Pointer(&lsb.pack.MsgBytes[0]),
+					len(lsb.pack.MsgBytes)
+			}
 		default:
 			if fn, found := extractLuaFieldName(fieldName); found {
 				return lookup_field(lsb.pack.Message, fn, fi, ai)

@@ -63,7 +63,6 @@ func IrcOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pipelineConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		c.Specify("requires an encoder", func() {
 			err := ircOutput.Init(config)
@@ -72,7 +71,6 @@ func IrcOutputSpec(c gs.Context) {
 			outTestHelper.MockOutputRunner.EXPECT().Encoder().Return(nil)
 			err = ircOutput.Run(outTestHelper.MockOutputRunner, outTestHelper.MockHelper)
 			c.Expect(err, gs.Not(gs.IsNil))
-
 		})
 
 		c.Specify("that is started", func() {

@@ -115,6 +115,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type =~ /st$/",
 			"Type !~ /^TE/",
 			"Type !~ /ST$/",
+			"Logger =~ /./ && Type =~ /^anything/",
 		}
 
 		positive := []string{

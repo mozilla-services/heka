@@ -1,16 +1,31 @@
 0.10.0 (2015-??-??)
 ===================
 
+Backwards Incompatibilities
+---------------------------
+
+* Removed unused PipelinePack.Decoded attribute.
+
 Features
 --------
 
 * Added support for `write_message` to delete fields when passed nil values.
 
+* Added `replace_dot` setting to StatFilter.
+
+* A protobuf encoding of the current message is now always stored in
+  pack.MsgBytes prior to injection into the message router (#265).
+
+* ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
+  returns that.
+
 Bug Handling
 ------------
 
+0.9.2 (2015-??-??)
+==================
 
-0.9.1 (2015-??-??)
+0.9.1 (2015-03-13)
 ==================
 
 Features
@@ -23,8 +38,15 @@ Features
 
 * Added `deliver_incomplete_final` setting to SplitterRunner.
 
+* Added `max_message_size` setting to UdpOutput.
+
 Bug Handling
 ------------
+
+* Fix the message matcher parser to clear the yySymType structure on each call
+  (#1409).
+
+* Protect read_message("raw") from reading an empty pack.MsgBytes (#1405).
 
 * Moved `SetSplitterRunner` out of the config's MakeRunner and into the
   `NewSplitterRunner` function to make sure a splitter always has access to a
@@ -32,6 +54,13 @@ Bug Handling
 
 * Fixed SplitterRunner buffer readPos so it only increments when a read call
   doesn't return an error (#1367).
+
+* Ensured plugin list file is closed after writing to it in Dashboard plugin.
+
+* Fixed exiting / restart behavior for ProcessInput to match documentation
+  (#1395).
+
+* UdpOutput drops message if its size exceeds allowed UDP data size (#1393).
 
 0.9.0 (2015-02-25)
 ==================

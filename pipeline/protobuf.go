@@ -17,7 +17,6 @@ package pipeline
 
 import (
 	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"math/rand"
 	"sync"
@@ -61,6 +60,7 @@ func (p *ProtobufDecoder) Decode(pack *PipelinePack) (
 
 	if err = proto.Unmarshal(pack.MsgBytes, pack.Message); err == nil {
 		packs = []*PipelinePack{pack}
+		pack.TrustMsgBytes = true
 	} else {
 		atomic.AddInt64(&p.processMessageFailures, 1)
 	}
@@ -74,6 +74,10 @@ func (p *ProtobufDecoder) Decode(pack *PipelinePack) (
 	}
 	p.sample = 0 == rand.Intn(p.sampleDenominator)
 	return
+}
+
+func (p *ProtobufDecoder) EncodesMsgBytes() bool {
+	return true
 }
 
 func (p *ProtobufDecoder) ReportMsg(msg *message.Message) error {
@@ -103,7 +107,6 @@ type ProtobufEncoder struct {
 	processMessageSamples  int64
 	processMessageDuration int64
 	pConfig                *PipelineConfig
-	cEncoder               *client.ProtobufEncoder
 	reportLock             sync.Mutex
 	sample                 bool
 	sampleDenominator      int
@@ -116,7 +119,6 @@ func (p *ProtobufEncoder) SetPipelineConfig(pConfig *PipelineConfig) {
 }
 
 func (p *ProtobufEncoder) Init(config interface{}) error {
-	p.cEncoder = client.NewProtobufEncoder(nil)
 	p.sample = true
 	p.sampleDenominator = p.pConfig.Globals.SampleDenominator
 	return nil
@@ -129,9 +131,12 @@ func (p *ProtobufEncoder) Encode(pack *PipelinePack) (output []byte, err error) 
 		startTime = time.Now()
 	}
 
-	if output, err = p.cEncoder.EncodeMessage(pack.Message); err != nil {
-		atomic.AddInt64(&p.processMessageFailures, 1)
-	}
+	// Once the reimplementation of the output API is finished we should be
+	// able to just return pack.MsgBytes directly, but for now we need to copy
+	// the data to prevent problems in case the pack is zeroed and/or reused
+	// (overwriting the pack.MsgBytes memory) before we're done with it.
+	output = make([]byte, len(pack.MsgBytes))
+	copy(output, pack.MsgBytes)
 
 	if p.sample {
 		duration := time.Since(startTime).Nanoseconds()
@@ -141,7 +146,7 @@ func (p *ProtobufEncoder) Encode(pack *PipelinePack) (output []byte, err error) 
 		p.reportLock.Unlock()
 	}
 	p.sample = 0 == rand.Intn(p.sampleDenominator)
-	return
+	return output, nil
 }
 
 func (p *ProtobufEncoder) Stop() {

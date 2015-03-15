@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -167,6 +167,7 @@ type MultiDecoder struct {
 	Decoders               []Decoder
 	dRunner                DecoderRunner
 	CascStrat              int
+	neverTrustEncodes      bool
 }
 
 type MultiDecoderConfig struct {
@@ -223,6 +224,25 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 			return fmt.Errorf("Non-existent subdecoder: %s", name)
 		}
 		md.Decoders[i] = decoder
+	}
+
+	// We can trust the embedded decoders to leave the pack.MsgBytes and
+	// pack.TrustMsgBytes values in the right state in all cases except when
+	// cascade_strategy == "all", an earlier decoder sets the encoding, but
+	// the last one in the list does not. We check for this case and, if so,
+	// explicitly set pack.TrustMsgBytes to false for all packs on every
+	// successful decode.
+	if md.CascStrat == CASC_ALL {
+		lastDecoder := md.Decoders[len(md.Decoders)-1]
+		_, ok = lastDecoder.(EncodesMsgBytes)
+		if !ok {
+			for _, d := range md.Decoders {
+				if _, ok = d.(EncodesMsgBytes); ok {
+					md.neverTrustEncodes = true
+					break
+				}
+			}
+		}
 	}
 
 	md.processMessageCount = make([]int64, numSubs)
@@ -376,7 +396,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 		err = errors.New("All subdecoders failed.")
 		packs = nil
 	} else {
-		// If we get here we know cascade_strategy == "all.
+		// If we get here we know cascade_strategy == "all".
 		var anyMatch bool
 		md.idx = 0
 		packs, anyMatch = md.getDecodedPacks(md.Decoders, []*PipelinePack{pack})
@@ -384,9 +404,17 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 			atomic.AddInt64(&md.totalMessageFailures, 1)
 			err = errors.New("All subdecoders failed.")
 			packs = nil
+		} else if md.neverTrustEncodes {
+			for _, p := range packs {
+				p.TrustMsgBytes = false
+			}
 		}
 	}
 	return
+}
+
+func (md *MultiDecoder) EncodesMsgBytes() bool {
+	return true
 }
 
 func (md *MultiDecoder) ReportMsg(msg *message.Message) error {
