@@ -220,13 +220,14 @@ function process_message()
 
     -- Initialize and populate the table of tags to include in the 
     -- InfluxDB write API message
+    -- Convert value to a string as this is required by the API
     local message_tags = {}
     for _, field in ipairs(base_fields_list) do
         if (used_tag_fields["**all_base**"] or used_tag_fields["**all_base**"])
             and base_fields_tag_map[field] then
-            message_tags[field] = read_message(field)
+            message_tags[field] = tostring(read_message(field))
         elseif used_tag_fields[field] and base_fields_tag_map[field] then
-            message_tags[field] = read_message(field)
+            message_tags[field] = tostring(read_message(field))
         end
     end
 
@@ -273,8 +274,9 @@ function process_message()
 
         -- Include the dynamic fields as tags if they are defined in
         -- configuration or the magic value "**all**" is defined.
+        -- Convert value to a string as this is required by the API
         if used_tag_fields[name] or used_tag_fields["**all**"] then
-            message_tags[name] = value
+            message_tags[name] = tostring(value)
         end
     end
 
