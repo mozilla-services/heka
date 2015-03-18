@@ -33,7 +33,7 @@ Config:
     filename = "lua_encoders/cbuf_librato.lua"
     preserve_data = true
       [cbuf_librato_encoder.config]
-      message_key = "%{Logger}:&{Hostname}:%{payload_name}"
+      message_key = "%{Logger}:%{Hostname}:%{payload_name}"
 
     [librato]
     type = "HttpOutput"
