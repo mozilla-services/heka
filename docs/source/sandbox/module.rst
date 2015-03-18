@@ -27,6 +27,17 @@ Anomaly Detection Module
    :start-after: --[[
    :end-before: --]]
 
+.. _sandbox_msg_interpolate_module:
+
+Message Interpolation Module
+----------------------------
+
+.. versionadded:: 0.9
+
+.. include:: ../../../sandbox/lua/modules/msg_interpolate.lua
+	:start-after: --[[
+	:end-before: --]]
+
 .. _sandbox_elasticsearch_module:
 
 ElasticSearch Module
