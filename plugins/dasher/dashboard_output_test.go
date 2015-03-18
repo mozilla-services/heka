@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -15,12 +15,6 @@
 package dasher
 
 import (
-	"github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +23,13 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -93,9 +94,11 @@ func DashboardOutputSpec(c gs.Context) {
 				recycleChan := make(chan *pipeline.PipelinePack, 1)
 				pack := pipeline.NewPipelinePack(recycleChan)
 				pack.Message = pipeline_ts.GetTestMessage()
+				pack.QueueCursor = "queuecursor"
 
 				oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
 				oth.MockOutputRunner.EXPECT().Ticker().Return(ticker)
+				oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 				err := os.MkdirAll(tmpdir, 0700)
 				c.Assume(err, gs.IsNil)

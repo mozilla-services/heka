@@ -286,7 +286,8 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				delete(sandboxes, filterName)
 				sbxsLock.Unlock()
 			}
-			pack.Recycle()
+			or.UpdateCursor(pack.QueueCursor)
+			pack.NewRecycle(nil)
 		case <-ticker:
 			go h.PipelineConfig().AllReportsMsg()
 		}

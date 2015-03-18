@@ -72,9 +72,11 @@ func (t *CarbonOutput) ProcessPack(pack *PipelinePack, or OutputRunner) {
 	var e error
 
 	payload := strings.Trim(pack.Message.GetPayload(), " \t\n")
-	pack.Recycle() // Once we've copied the payload we're done w/ the pack.
-	lines := strings.Split(payload, "\n")
+	// Once we've copied the payload we're done w/ the pack.
+	or.UpdateCursor(pack.QueueCursor)
+	pack.NewRecycle(nil)
 
+	lines := strings.Split(payload, "\n")
 	clean_statmetrics := make([]string, len(lines))
 	index := 0
 	for _, line := range lines {

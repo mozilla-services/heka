@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,12 +19,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins/tcp"
-	"github.com/streadway/amqp"
 	"strings"
 	"sync"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/streadway/amqp"
 )
 
 // AMQP Output config struct
@@ -165,10 +166,12 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			}
 			if outBytes, err = or.Encode(pack); err != nil {
 				or.LogError(fmt.Errorf("Error encoding message: %s", err))
-				pack.Recycle()
+				or.UpdateCursor(pack.QueueCursor)
+				pack.NewRecycle(nil)
 				continue
 			} else if outBytes == nil {
-				pack.Recycle()
+				or.UpdateCursor(pack.QueueCursor)
+				pack.NewRecycle(nil)
 				continue
 			}
 			pack.Recycle()
@@ -182,7 +185,10 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				false, false, amqpMsg)
 			if err != nil {
 				ok = false
+			} else {
+				or.UpdateCursor(pack.QueueCursor)
 			}
+			pack.NewRecycle(err)
 		}
 	}
 	ao.usageWg.Done()

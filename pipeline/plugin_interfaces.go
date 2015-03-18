@@ -69,6 +69,15 @@ type Filter interface {
 	Run(r FilterRunner, h PluginHelper) (err error)
 }
 
+type MessageProcessor interface {
+	ProcessMessage(pack *PipelinePack) (err error)
+}
+
+type NewFilter interface {
+	Prepare(r FilterRunner, h PluginHelper) (err error)
+	CleanUp()
+}
+
 // Heka Encoder plugin interface.
 type Encoder interface {
 	// Extract data from the provided pack / message and use it to generate a
@@ -85,4 +94,13 @@ type NeedsStopping interface {
 // Heka Output plugin type.
 type Output interface {
 	Run(or OutputRunner, h PluginHelper) (err error)
+}
+
+type NewOutput interface {
+	Prepare(r OutputRunner, h PluginHelper) (err error)
+	CleanUp()
+}
+
+type TickerPlugin interface {
+	TimerEvent() (err error)
 }

@@ -19,10 +19,12 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
-	"sync"
-	"time"
 )
 
 var ErrUnknownPluginType = errors.New("Unable to assert this is an Output or Filter")
@@ -392,7 +394,8 @@ func (ir *iRunner) Unregister(pConfig *PipelineConfig) error {
 
 func (ir *iRunner) Inject(pack *PipelinePack) {
 	if err := pack.EncodeMsgBytes(); err != nil {
-		ir.LogError(fmt.Errorf("encoding message: %s", err.Error()))
+		err = fmt.Errorf("encoding message: %s", err.Error())
+		ir.LogError(err)
 		pack.Recycle()
 		return
 	}
@@ -472,7 +475,8 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Dec
 		packs, err := decoder.Decode(pack)
 		if err != nil {
 			errMsg := err.Error()
-			ir.LogError(fmt.Errorf("decoding: %s", errMsg))
+			e := fmt.Errorf("decoding: %s", errMsg)
+			ir.LogError(e)
 			if !ir.sendDecodeFailures {
 				pack.Recycle()
 				return
@@ -638,7 +642,8 @@ func (dr *dRunner) deliver(pack *PipelinePack) {
 	if !dr.encodes || !pack.TrustMsgBytes {
 		err := pack.EncodeMsgBytes()
 		if err != nil {
-			dr.LogError(fmt.Errorf("encoding message: %s", err.Error()))
+			err = fmt.Errorf("encoding message: %s", err.Error())
+			dr.LogError(err)
 			pack.Recycle()
 			return
 		}
@@ -688,6 +693,10 @@ type FilterRunner interface {
 	// Input channel on which the Filter should listen for incoming messages
 	// to be processed. Closure of the channel signals shutdown to the filter.
 	InChan() chan *PipelinePack
+	// Channel that will be closed when the Filter is exiting, should be used
+	// by Filter plugins in situations that might block to ensure that shutdown
+	// messages are received.
+	StopChan() chan bool
 	// Associated Filter plugin object.
 	Filter() Filter
 	// Starts the Filter (so it's listening on the input channel for messages
@@ -709,6 +718,12 @@ type FilterRunner interface {
 	// shut down and wants to retain the pack for the next time its running
 	// properly.
 	RetainPack(pack *PipelinePack)
+	// Returns whether or not use_buffering was set in the filter's
+	// configuration
+	UsesBuffering() bool
+	// Updates the queue buffer cursor to indicate that a given message has
+	// been delivered and can be safely removed from the queue.
+	UpdateCursor(queueCursor string)
 }
 
 // Heka PluginRunner for Output plugins.
@@ -716,6 +731,10 @@ type OutputRunner interface {
 	PluginRunner
 	// Input channel where Output should be listening for incoming messages.
 	InChan() chan *PipelinePack
+	// Channel that will be closed when the Output is exiting, should be used
+	// by Output plugins in situations that might block to ensure that shutdown
+	// messages are received.
+	StopChan() chan bool
 	// Associated Output plugin instance.
 	Output() Output
 	// Starts the Output plugin listening on the input channel in a separate
@@ -745,6 +764,12 @@ type OutputRunner interface {
 	UsesFraming() bool
 	// Allows an output to specify whether or not it's using framing.
 	SetUseFraming(useFraming bool)
+	// Returns whether or not use_buffering was set in the output's
+	// configuration
+	UsesBuffering() bool
+	// Updates the queue buffer cursor to indicate that a given message has
+	// been delivered and can be safely removed from the queue.
+	UpdateCursor(queueCursor string)
 }
 
 type foRunnerKind int
@@ -769,21 +794,30 @@ func (kind foRunnerKind) String() string {
 // OutputRunner interfaces.
 type foRunner struct {
 	pRunnerBase
-	pluginType string
-	config     CommonFOConfig
-	matcher    *MatchRunner
-	ticker     <-chan time.Time
-	inChan     chan *PipelinePack
-	h          PluginHelper
-	retainPack *PipelinePack
-	leakCount  int
-	encoder    Encoder // output only
-	useFraming bool    // output only
-	canExit    bool
-	kind       foRunnerKind
-	pConfig    *PipelineConfig
-	lastErr    error
+	pluginType          string
+	config              CommonFOConfig
+	matcher             *MatchRunner
+	ticker              <-chan time.Time
+	inChan              chan *PipelinePack
+	backChan            chan *PipelinePack
+	h                   PluginHelper
+	retainPack          *PipelinePack
+	leakCount           int
+	encoder             Encoder // output only
+	useFraming          bool    // output only
+	canExit             bool
+	useBuffering        bool
+	kind                foRunnerKind
+	pConfig             *PipelineConfig
+	lastErr             error
+	bufReader           *BufferReader
+	stopChan            chan bool
+	processMessageCount int64
+	dropMessageCount    int64
 }
+
+// const pluginPoolSize = 30
+const pluginPoolSize = 2
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
 // OutputRunner.
@@ -798,13 +832,41 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 		pluginType: pluginType,
 		config:     config,
 	}
-	runner.inChan = make(chan *PipelinePack, chanSize)
 
 	if config.Matcher == "" {
 		return nil, fmt.Errorf("'%s' missing message matcher", name)
 	}
 
-	matcher, err := NewMatchRunner(config.Matcher, config.Signer, runner, chanSize)
+	if config.UseBuffering != nil && *config.UseBuffering {
+		runner.useBuffering = true
+		if config.BufferConfig.FullAction == "" {
+			config.BufferConfig.FullAction = "shutdown"
+		}
+		switch config.BufferConfig.FullAction {
+		case "shutdown", "drop", "block":
+		default:
+			msg := "buffer full_action must be 'shutdown', 'drop', or 'block', got '%s'"
+			return nil, fmt.Errorf(msg, config.BufferConfig.FullAction)
+		}
+	}
+
+	var matchChan chan *PipelinePack
+	if runner.useBuffering {
+		runner.inChan = make(chan *PipelinePack, pluginPoolSize)
+		runner.backChan = make(chan *PipelinePack, pluginPoolSize)
+		for i := 0; i < pluginPoolSize; i++ {
+			pack := NewPipelinePack(runner.backChan)
+			pack.bufferedPack = true
+			pack.delivErrChan = make(chan error, 1)
+			runner.backChan <- pack
+		}
+	} else {
+		runner.inChan = make(chan *PipelinePack, chanSize)
+		matchChan = runner.inChan
+	}
+	// matchChan is nil if buffering is used, this is intentional.
+	matcher, err := NewMatchRunner(config.Matcher, config.Signer, runner, chanSize,
+		matchChan)
 	if err != nil {
 		return nil, fmt.Errorf("Can't create message matcher for '%s': %s", name, err)
 	}
@@ -821,6 +883,10 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	if _, ok := plugin.(Filter); ok {
 		runner.kind = foFilter
 	} else if _, ok := plugin.(Output); ok {
+		runner.kind = foOutput
+	} else if _, ok := plugin.(NewFilter); ok {
+		runner.kind = foFilter
+	} else if _, ok := plugin.(NewOutput); ok {
 		runner.kind = foOutput
 	} else {
 		err := fmt.Errorf("FORunner plugin must be filter or output, %s is neither",
@@ -860,7 +926,21 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		foRunner.encoder = encoder
 	}
 
+	var bufFeeder *BufferFeeder
+	if foRunner.useBuffering {
+		bufFeeder, foRunner.bufReader, err = NewBufferSet("output_queue", foRunner.name,
+			foRunner.config.BufferConfig, foRunner, foRunner.pConfig)
+		if err != nil {
+			return fmt.Errorf("can't initialize buffer: %s", err)
+		}
+	}
+
+	foRunner.stopChan = make(chan bool)
+
 	if foRunner.matcher != nil {
+		foRunner.matcher.bufFeeder = bufFeeder
+		foRunner.matcher.globals = foRunner.pConfig.Globals
+		foRunner.matcher.stopChan = foRunner.stopChan
 		switch foRunner.kind {
 		case foFilter:
 			foRunner.pConfig.router.fMatcherMap[foRunner.name] = foRunner.matcher
@@ -869,8 +949,194 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		}
 	}
 
-	go foRunner.Starter(h, wg)
+	newStyleAPI := false
+	switch foRunner.kind {
+	case foFilter:
+		if f, ok := foRunner.plugin.(NewFilter); ok {
+			f.Prepare(foRunner, h)
+			newStyleAPI = true
+		}
+	case foOutput:
+		if o, ok := foRunner.plugin.(NewOutput); ok {
+			o.Prepare(foRunner, h)
+			newStyleAPI = true
+		}
+	}
+
+	if newStyleAPI {
+		plugin, ok := foRunner.plugin.(MessageProcessor)
+		if !ok {
+			return errors.New("Not a new-style plugin.")
+		}
+		go foRunner.NewStarter(plugin, h, wg)
+	} else {
+		go foRunner.Starter(h, wg)
+	}
 	return
+}
+
+func (foRunner *foRunner) bufferLoop(plugin MessageProcessor, h PluginHelper,
+	tickReceiver TickerPlugin) error {
+
+	err := foRunner.bufReader.NewStreamOutput(plugin, foRunner.backChan, tickReceiver,
+		foRunner.ticker, foRunner.stopChan)
+	if err != nil {
+		foRunner.LogError(fmt.Errorf("StreamOutput stopped: %s", err.Error()))
+	}
+	return err
+}
+
+func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
+	tickReceiver TickerPlugin) error {
+
+	ok := true
+	var pack *PipelinePack
+	for ok {
+		select {
+		case pack, ok = <-foRunner.inChan:
+			if !ok {
+				break
+			}
+			err := plugin.ProcessMessage(pack)
+			pack.Recycle()
+			if _, isFatal := err.(PluginExitError); isFatal {
+				return err
+			}
+		case <-foRunner.ticker:
+			if tickReceiver == nil {
+				// Again, this shouldn't happen.
+				panic(fmt.Sprintf("Not a TickerPlugin: %s", foRunner.name))
+			}
+			err := tickReceiver.TimerEvent()
+			if err != nil {
+				// TODO: check for exit conditions.
+				err = fmt.Errorf("Error running TimerEvent for %s: %s",
+					foRunner.name, err.Error())
+				if _, isFatal := err.(PluginExitError); isFatal {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (foRunner *foRunner) NewStarter(plugin MessageProcessor, h PluginHelper,
+	wg *sync.WaitGroup) {
+
+	defer wg.Done()
+
+	globals := foRunner.pConfig.Globals
+	if foRunner.matcher != nil {
+		foRunner.matcher.Start(globals.SampleDenominator)
+	}
+
+	var (
+		tickReceiver TickerPlugin
+		ok           bool
+		err          error
+	)
+
+	if foRunner.ticker != nil {
+		tickReceiver, ok = plugin.(TickerPlugin)
+		if !ok {
+			// This shouldn't happen, config validation should prevent a non-
+			// ticker plugin w/o a TimerEvent method from getting this far.
+			panic(fmt.Sprintf("Not a TickerPlugin: %s", foRunner.name))
+		}
+	}
+
+	rh, err := NewRetryHelper(foRunner.config.Retries)
+	if err != nil {
+		foRunner.LogError(err)
+		if !foRunner.IsStoppable() {
+			globals.ShutDown()
+		}
+		return
+	}
+
+	defer foRunner.exit()
+
+	for !globals.IsShuttingDown() {
+		if foRunner.useBuffering {
+			err = foRunner.bufferLoop(plugin, h, tickReceiver)
+		} else {
+			err = foRunner.channelLoop(plugin, h, tickReceiver)
+		}
+
+		switch foRunner.kind {
+		case foFilter:
+			f := foRunner.plugin.(NewFilter)
+			f.CleanUp()
+		case foOutput:
+			o := foRunner.plugin.(NewOutput)
+			o.CleanUp()
+		}
+
+		if err == nil {
+			rh.Reset()
+		} else {
+			// Keep track of all the errors for later.
+			foRunner.lastErr = err
+			foRunner.LogError(err)
+		}
+
+		foRunner.LogMessage("stopped")
+
+		// Are we shutting down? Save ourselves some time by exiting now.
+		if globals.IsShuttingDown() {
+			break
+		}
+
+		// We stop and let this quit if its not a restarting plugin.
+		recon, ok := foRunner.plugin.(Restarting)
+		if !ok {
+			break
+		}
+		recon.CleanupForRestart()
+		if foRunner.maker == nil {
+			var makers map[string]PluginMaker
+			foRunner.pConfig.makersLock.RLock()
+			switch foRunner.kind {
+			case foFilter:
+				makers = foRunner.pConfig.makers["Filter"]
+			case foOutput:
+				makers = foRunner.pConfig.makers["Output"]
+			}
+			foRunner.maker = makers[foRunner.name]
+			foRunner.pConfig.makersLock.RUnlock()
+		}
+
+	initLoop:
+		if err = rh.Wait(); err != nil {
+			// An error means we've used up our retry attempts, so we
+			// exit.
+			foRunner.lastErr = err
+			foRunner.LogError(err)
+			break
+		}
+		if globals.IsShuttingDown() {
+			break
+		}
+		foRunner.LogMessage("now restarting")
+		if err = foRunner.plugin.Init(foRunner.maker.Config()); err != nil {
+			foRunner.LogError(err)
+			goto initLoop
+		}
+		switch foRunner.kind {
+		case foFilter:
+			f := foRunner.plugin.(NewFilter)
+			err = f.Prepare(foRunner, foRunner.h)
+		case foOutput:
+			o := foRunner.plugin.(NewOutput)
+			err = o.Prepare(foRunner, foRunner.h)
+		}
+		if err != nil {
+			foRunner.LogError(err)
+			goto initLoop
+		}
+	}
 }
 
 func (foRunner *foRunner) IsStoppable() bool {
@@ -888,19 +1154,21 @@ func (foRunner *foRunner) Unregister(pConfig *PipelineConfig) error {
 }
 
 func (foRunner *foRunner) exit() {
-	defer func() {
-		var orphaned int
-		for pack := range foRunner.inChan {
-			// drain and recycle the orphaned packs
-			orphaned++
-			pack.Recycle()
-		}
-		if orphaned == 1 {
-			foRunner.LogError(fmt.Errorf("Lost/Dropped 1 message"))
-		} else if orphaned > 1 {
-			foRunner.LogError(fmt.Errorf("Lost/Dropped %d messages", orphaned))
-		}
-	}()
+	if !foRunner.useBuffering {
+		defer func() {
+			var orphaned int
+			for pack := range foRunner.inChan {
+				// drain and recycle the orphaned packs
+				orphaned++
+				pack.Recycle()
+			}
+			if orphaned == 1 {
+				foRunner.LogError(fmt.Errorf("Lost/Dropped 1 message"))
+			} else if orphaned > 1 {
+				foRunner.LogError(fmt.Errorf("Lost/Dropped %d messages", orphaned))
+			}
+		}()
+	}
 	// Just exit if we're stopping.
 	if foRunner.pConfig.Globals.IsShuttingDown() {
 		return
@@ -951,6 +1219,64 @@ func (foRunner *foRunner) exit() {
 	foRunner.pConfig.router.inChan <- pack
 }
 
+// Manages lifespan and return codes for both the plugin's Run method and the
+// BufferReader's streamOutput method.
+func (foRunner *foRunner) runBoth(h PluginHelper) error {
+	pluginErrChan := make(chan error, 1)
+	bufErrChan := make(chan error, 1)
+
+	// Start plugin.
+	go func() {
+		var err error
+		switch foRunner.kind {
+		case foFilter:
+			filter := foRunner.Filter()
+			err = filter.Run(foRunner, h)
+		case foOutput:
+			output := foRunner.Output()
+			err = output.Run(foRunner, h)
+		}
+		pluginErrChan <- err
+	}()
+
+	// Start buffer reader.
+	go func() {
+		err := foRunner.bufReader.StreamOutput(foRunner, foRunner.backChan,
+			foRunner.stopChan)
+		bufErrChan <- err
+	}()
+
+	var pluginErr, bufErr error
+	select {
+	case pluginErr = <-pluginErrChan:
+	case bufErr = <-bufErrChan:
+	}
+
+	shuttingDown := foRunner.pConfig.Globals.IsShuttingDown()
+	if pluginErr == nil {
+		close(foRunner.inChan) // Triggers plugin exit.
+		pluginErr = <-pluginErrChan
+		foRunner.inChan = make(chan *PipelinePack, pluginPoolSize)
+	} else {
+		if !shuttingDown {
+			close(foRunner.stopChan) // Triggers bufReader exit.
+		}
+		bufErr = <-bufErrChan
+		foRunner.stopChan = make(chan bool)
+	}
+
+	var err error
+	if pluginErr != nil && bufErr != nil {
+		err = fmt.Errorf("plugin error: %s\nbuffer reader error: %s", pluginErr,
+			bufErr)
+	} else if pluginErr != nil {
+		err = fmt.Errorf("plugin error: %s", pluginErr)
+	} else if bufErr != nil {
+		err = fmt.Errorf("buffer reader error: %s", bufErr)
+	}
+	return err
+}
+
 func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -967,23 +1293,26 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	}
 
 	if foRunner.matcher != nil {
-		sampleDenom := globals.SampleDenominator
-		foRunner.matcher.Start(foRunner.inChan, sampleDenom)
+		foRunner.matcher.Start(globals.SampleDenominator)
 	}
 
 	// Handle the cleanup
 	defer foRunner.exit()
 
 	for !globals.IsShuttingDown() {
-		// `Run` method only returns if there's an error or we're shutting
-		// down.
-		switch foRunner.kind {
-		case foFilter:
-			filter := foRunner.Filter()
-			err = filter.Run(foRunner, helper)
-		case foOutput:
-			output := foRunner.Output()
-			err = output.Run(foRunner, helper)
+		if foRunner.useBuffering {
+			// Only returns if there's an error or we're shutting down.
+			err = foRunner.runBoth(helper)
+		} else {
+			// Run only returns if there's an error or we're shutting down.
+			switch foRunner.kind {
+			case foFilter:
+				filter := foRunner.Filter()
+				err = filter.Run(foRunner, helper)
+			case foOutput:
+				output := foRunner.Output()
+				err = output.Run(foRunner, helper)
+			}
 		}
 
 		if err == nil {
@@ -1038,13 +1367,56 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	}
 }
 
+// Message sending function for buffered plugins using the old-style API.
+func (foRunner foRunner) SendRecord(pack *PipelinePack) error {
+	select {
+	case foRunner.inChan <- pack:
+		// Wait until pack is delivered.
+		select {
+		case err := <-pack.delivErrChan:
+			if err != nil {
+				if _, ok := err.(RetryMessageError); !ok {
+					foRunner.LogError(fmt.Errorf("can't send record: %s", err))
+					atomic.AddInt64(&foRunner.dropMessageCount, 1)
+					pack.Recycle()
+					err = nil // Swallow the error so there's no retry.
+				}
+			} else {
+				atomic.AddInt64(&foRunner.processMessageCount, 1)
+				pack.Recycle()
+			}
+			return err
+		case <-foRunner.stopChan:
+			pack.Recycle()
+			return ErrStopping
+		}
+	case <-foRunner.stopChan:
+		pack.Recycle()
+		return ErrStopping
+	}
+}
+
+func (foRunner *foRunner) UpdateCursor(queueCursor string) {
+	if foRunner.bufReader == nil {
+		return
+	}
+	err := foRunner.bufReader.updateCursor(queueCursor)
+	if err != nil {
+		foRunner.LogError(fmt.Errorf("updating buffer cursor: %s", err))
+	}
+}
+
 func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
+	if pack.bufferedPack {
+		foRunner.LogError(errors.New("can't inject buffered plugin pack"))
+		return false
+	}
 	// Make sure we're not creating an obvious infinite routing loop.
 	spec := foRunner.MatchRunner().MatcherSpecification()
 	match := spec.Match(pack.Message)
 	if match {
+		foRunner.LogError(errors.New("attempted to Inject a message to itself"))
 		pack.Recycle()
-		foRunner.LogError(fmt.Errorf("attempted to Inject a message to itself"))
 		return false
 	}
 	// Make sure the pack's MsgBytes is populated.
@@ -1069,6 +1441,10 @@ func (foRunner *foRunner) LogError(err error) {
 
 func (foRunner *foRunner) LogMessage(msg string) {
 	LogInfo.Printf("Plugin '%s': %s", foRunner.name, msg)
+}
+
+func (foRunner *foRunner) StopChan() chan bool {
+	return foRunner.stopChan
 }
 
 func (foRunner *foRunner) Ticker() (ticker <-chan time.Time) {
@@ -1133,4 +1509,38 @@ func (foRunner *foRunner) UsesFraming() bool {
 
 func (foRunner *foRunner) SetUseFraming(useFraming bool) {
 	foRunner.useFraming = useFraming
+}
+
+func (foRunner *foRunner) UsesBuffering() bool {
+	return foRunner.useBuffering
+}
+
+type PluginExitError struct {
+	msg string
+}
+
+func NewPluginExitError(msg string, subs ...interface{}) PluginExitError {
+	if len(subs) > 0 {
+		msg = fmt.Sprintf(msg, subs...)
+	}
+	return PluginExitError{msg}
+}
+
+func (err PluginExitError) Error() string {
+	return err.msg
+}
+
+type RetryMessageError struct {
+	msg string
+}
+
+func NewRetryMessageError(msg string, subs ...interface{}) RetryMessageError {
+	if len(subs) > 0 {
+		msg = fmt.Sprintf(msg, subs...)
+	}
+	return RetryMessageError{msg}
+}
+
+func (err RetryMessageError) Error() string {
+	return err.msg
 }

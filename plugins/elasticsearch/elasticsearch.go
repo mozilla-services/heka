@@ -21,42 +21,43 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins/tcp"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
-	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
 )
 
 type ESBatch struct {
-	count int64
-	batch []byte
+	queueCursor string
+	count       int64
+	batch       []byte
 }
 
 // Output plugin that index messages to an elasticsearch cluster.
 // Largely based on FileOutput plugin.
 type ElasticSearchOutput struct {
-	backChan            chan []byte
-	batchChan           chan ESBatch    // Chan to pass completed batches
-	bufferedOut         *BufferedOutput // The output buffering object
-	bulkIndexer         BulkIndexer     // The BulkIndexer used to index documents
-	conf                *ElasticSearchOutputConfig
-	processMessageCount int64
-	dropMessageCount    int64
-	or                  OutputRunner
-	outputBlock         *RetryHelper
-	pConfig             *PipelineConfig
-	reportLock          sync.Mutex
-	outputExit          chan error
-	outputError         chan error
+	sentMessageCount int64
+	dropMessageCount int64
+	count            int64
+	backChan         chan []byte
+	batchChan        chan ESBatch // Chan to pass completed batches
+	outBatch         []byte
+	queueCursor      string
+	bulkIndexer      BulkIndexer // The BulkIndexer used to index documents
+	conf             *ElasticSearchOutputConfig
+	or               OutputRunner
+	outputBlock      *RetryHelper
+	pConfig          *PipelineConfig
+	reportLock       sync.Mutex
+	stopChan         chan bool
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -124,12 +125,8 @@ func (o *ElasticSearchOutput) SetName(name string) {
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	o.conf = config.(*ElasticSearchOutputConfig)
 
-	if !o.conf.UseBuffering {
-		o.batchChan = make(chan ESBatch)
-		o.backChan = make(chan []byte, 2)
-	}
-
-	o.outputExit = make(chan error)
+	o.batchChan = make(chan ESBatch)
+	o.backChan = make(chan []byte, 2)
 
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
@@ -163,56 +160,16 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 	return
 }
 
-func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch []byte) {
-	if o.conf.UseBuffering {
-		err := o.bufferedOut.QueueBytes(outBatch)
-		if err == nil {
-			atomic.AddInt64(&o.processMessageCount, count)
-		} else if err == QueueIsFull {
-			o.or.LogError(err)
-			if !o.queueFull(outBatch, count) {
-				return nil // Signals we're shutting down.
-			}
-		} else if err != nil {
-			o.or.LogError(err)
-			atomic.AddInt64(&o.dropMessageCount, count)
-		}
-		nextBatch = outBatch[:0]
-	} else {
-		// This will block until the other side is ready to accept
-		// this batch, so we can't get too far ahead.
-		b := ESBatch{
-			count: count,
-			batch: outBatch,
-		}
-		o.batchChan <- b
-		nextBatch = <-o.backChan
-	}
-	return nextBatch
-}
-
-func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	var (
-		ok       = true
-		pack     *PipelinePack
-		inChan   = or.InChan()
-		count    int64
-		e        error
-		outBytes []byte
-		stopChan = make(chan bool, 1)
-		outBatch = make([]byte, 0, 10000)
-		ticker   = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
-	)
-
-	o.outputError = make(chan error, 5)
-
+func (o *ElasticSearchOutput) Prepare(or OutputRunner, h PluginHelper) error {
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
 	}
 
-	re := regexp.MustCompile("\\W")
-	name := re.ReplaceAllString(or.Name(), "_")
+	o.or = or
+	o.pConfig = h.PipelineConfig()
+	o.stopChan = or.StopChan()
 
+	var err error
 	o.outputBlock, err = NewRetryHelper(RetryOptions{
 		MaxDelay:   "5s",
 		MaxRetries: -1,
@@ -221,154 +178,119 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		return fmt.Errorf("can't create retry helper: %s", err.Error())
 	}
 
-	o.pConfig = h.PipelineConfig()
-	o.or = or
+	o.outBatch = make([]byte, 0, 10000)
+	go o.committer()
+	return nil
+}
 
-	if o.conf.UseBuffering {
-		o.bufferedOut, err = NewBufferedOutput("output_queue", name, or, h,
-			o.conf.QueueMaxBufferSize)
-		if err != nil {
-			if err == QueueIsFull {
-				or.LogMessage("Queue capacity is already reached.")
-			} else {
-				return
-			}
-		}
-		o.bufferedOut.Start(o, o.outputError, o.outputExit, stopChan)
-	} else {
-		go o.committer()
+func (o *ElasticSearchOutput) ProcessMessage(pack *PipelinePack) error {
+	outBytes, err := o.or.Encode(pack)
+	if err != nil {
+		return fmt.Errorf("can't encode: %s", err)
 	}
 
-	for ok {
-		select {
-		case e := <-o.outputError:
-			or.LogError(e)
-		case pack, ok = <-inChan:
-			// Closed inChan => we're shutting down, flush data.
-			if !ok {
-				if len(outBatch) > 0 {
-					o.sendBatch(outBatch, count)
-				}
-				if !o.conf.UseBuffering {
-					close(o.batchChan)
-				}
-				stopChan <- true
-				// Make sure buffer isn't blocked on sending to outputError
-				select {
-				case e := <-o.outputError:
-					or.LogError(e)
-				default:
-				}
-				<-o.outputExit
-				break
-			}
-
-			outBytes, e = or.Encode(pack)
-			pack.Recycle()
-			if e != nil {
-				or.LogError(e)
-				atomic.AddInt64(&o.dropMessageCount, 1)
-				continue
-			}
-
-			if outBytes != nil {
-				outBatch = append(outBatch, outBytes...)
-				if count++; o.bulkIndexer.CheckFlush(int(count), len(outBatch)) {
-					if len(outBatch) > 0 {
-						outBatch = o.sendBatch(outBatch, count)
-						if outBatch == nil {
-							ok = false
-							break
-						}
-					}
-					count = 0
-				}
-			}
-		case <-ticker:
-			if len(outBatch) > 0 {
-				if o.conf.UseBuffering {
-					if err = o.bufferedOut.RollQueue(); err != nil {
-						or.LogError(err)
-						return
-					}
-				}
-				outBatch = o.sendBatch(outBatch, count)
-				if outBatch == nil {
-					ok = false
-					break
-				}
-			}
-			count = 0
-		case err = <-o.outputExit:
-			ok = false
+	if outBytes != nil {
+		o.outBatch = append(o.outBatch, outBytes...)
+		o.queueCursor = pack.QueueCursor
+		o.count++
+		if len(o.outBatch) > 0 && o.bulkIndexer.CheckFlush(int(o.count), len(o.outBatch)) {
+			o.sendBatch()
 		}
 	}
-	return
+	return nil
+}
+
+func (o *ElasticSearchOutput) TimerEvent() error {
+	if len(o.outBatch) > 0 {
+		o.sendBatch()
+	}
+	return nil
+}
+
+func (o *ElasticSearchOutput) sendBatch() {
+	b := ESBatch{
+		queueCursor: o.queueCursor,
+		count:       o.count,
+		batch:       o.outBatch,
+	}
+	o.count = 0
+	select {
+	case <-o.stopChan:
+		return
+	case o.batchChan <- b:
+	}
+	select {
+	case <-o.stopChan:
+	case o.outBatch = <-o.backChan:
+	}
 }
 
 // Waits for batched data on the committer channel and sends it out to the
 // elasticsearch cluster, putting now empty buffer on the return channel for
-// reuse. Only used if we're *not* using disk buffering, in which case the
-// BufferedOutput handles this for us.
+// reuse.
 func (o *ElasticSearchOutput) committer() {
 	o.backChan <- make([]byte, 0, 10000)
 
-	for b := range o.batchChan {
-		if err := o.SendRecord(b.batch); err != nil {
+	var b ESBatch
+	ok := true
+	for ok {
+		select {
+		case <-o.stopChan:
+			ok = false
+			continue
+		case b, ok = <-o.batchChan:
+			if !ok {
+				continue
+			}
+		}
+		if err := o.sendRecord(b.batch); err != nil {
 			atomic.AddInt64(&o.dropMessageCount, b.count)
 			o.or.LogError(err)
 		} else {
-			atomic.AddInt64(&o.processMessageCount, b.count)
+			atomic.AddInt64(&o.sentMessageCount, b.count)
 		}
+		o.or.UpdateCursor(b.queueCursor)
 		b.batch = b.batch[:0]
 		o.backChan <- b.batch
 	}
-	o.outputExit <- nil
 }
 
-func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
-	switch o.conf.QueueFullAction {
-	// Tries to queue message until its possible to send it to output.
-	case "block":
-		for o.outputBlock.Wait() == nil {
-			if o.pConfig.Globals.IsShuttingDown() {
-				return false
-			}
-			blockErr := o.bufferedOut.QueueBytes(buffer)
-			if blockErr == nil {
-				atomic.AddInt64(&o.processMessageCount, count)
-				o.outputBlock.Reset()
-				break
-			}
-			select {
-			case e := <-o.outputError:
-				o.or.LogError(e)
-			default:
-			}
-			runtime.Gosched()
-		}
-	// Terminate Heka activity.
-	case "shutdown":
-		o.pConfig.Globals.ShutDown()
-		return false
-
-	// Drop packets
-	case "drop":
-		atomic.AddInt64(&o.dropMessageCount, count)
+// sendRecord invokes the indexer to send a batch of data to
+// ElasticSearch. Blocks until the send goes through, only returns an error if
+// the sending is abandoned.
+func (o *ElasticSearchOutput) sendRecord(buffer []byte) error {
+	err, retry := o.bulkIndexer.Index(buffer)
+	if err == nil {
+		return nil
 	}
-	return true
-}
+	if !retry {
+		return err
+	}
 
-func (o *ElasticSearchOutput) SendRecord(buffer []byte) (err error) {
-	var retry bool
-	err, retry = o.bulkIndexer.Index(buffer)
-	if err != nil {
-		if retry {
+	defer o.outputBlock.Reset()
+	for {
+		select {
+		case <-o.stopChan:
 			return err
+		default:
+		}
+		e := o.outputBlock.Wait()
+		if e != nil {
+			break
+		}
+		err, retry = o.bulkIndexer.Index(buffer)
+		if err == nil {
+			break
+		}
+		if !retry {
+			break
 		}
 		o.or.LogError(fmt.Errorf("can't index: %s", err))
 	}
-	return nil
+	return err
+}
+
+func (o *ElasticSearchOutput) CleanUp() {
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
@@ -377,14 +299,10 @@ func (o *ElasticSearchOutput) ReportMsg(msg *message.Message) error {
 	o.reportLock.Lock()
 	defer o.reportLock.Unlock()
 
-	message.NewInt64Field(msg, "ProcessMessageCount",
-		atomic.LoadInt64(&o.processMessageCount), "count")
+	message.NewInt64Field(msg, "SentMessageCount",
+		atomic.LoadInt64(&o.sentMessageCount), "count")
 	message.NewInt64Field(msg, "DropMessageCount",
 		atomic.LoadInt64(&o.dropMessageCount), "count")
-
-	if o.conf.UseBuffering {
-		o.bufferedOut.ReportMsg(msg)
-	}
 	return nil
 }
 
