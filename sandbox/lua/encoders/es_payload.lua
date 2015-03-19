@@ -23,16 +23,8 @@ Config:
 
 Field interpolation:
 
-    Data from the current message can be interpolated into any of the string
-    arguments listed above. A `%{}` enclosed field name will be replaced by
-    the field value from the current message. Supported default field names
-    are "Type", "Hostname", "Pid", "UUID", "Logger", "EnvVersion", and
-    "Severity". Any other values will be checked against the defined dynamic
-    message fields. If no field matches, then a `C strftime
-    <http://man7.org/linux/man-pages/man3/strftime.3.html>`_ (on non-Windows
-    platforms) or `C89 strftime <http://msdn.microsoft.com/en-
-    us/library/fe06s4ak.aspx>`_ (on Windows) time substitution will be
-    attempted.
+    All of the string config settings listed above support :ref:`message field
+    interpolation<sandbox_msg_interpolate_module>`.
 
 *Example Heka Configuration*
 

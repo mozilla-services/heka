@@ -19,7 +19,10 @@ multiple times.
 
 Config:
 
-<none>
+- message_key (string, optional, default "%{Logger}:%{payload_name}")
+    String to use as the key to differentiate separate cbuf messages from each
+    other. Supports :ref:`message field
+    interpolation<sandbox_msg_interpolate_module>`.
 
 *Example Heka Configuration*
 
@@ -29,6 +32,8 @@ Config:
     type = "SandboxEncoder"
     filename = "lua_encoders/cbuf_librato.lua"
     preserve_data = true
+      [cbuf_librato_encoder.config]
+      message_key = "%{Logger}:%{Hostname}:%{payload_name}"
 
     [librato]
     type = "HttpOutput"
@@ -50,8 +55,11 @@ Config:
 
 require "cjson"
 require "string"
+local interp = require "msg_interpolate"
 
 last_times = {}
+
+local msg_key_template = read_config("message_key") or "%{Logger}:%{payload_name}"
 
 -- Returns the gauges table, ready to be serialized into JSON. No valid
 -- numeric data returns an empty table. Any error returns nil.
@@ -142,9 +150,7 @@ function process_message()
     -- Extract more message data, including message key, and look up last time
     -- for the key.
     local hostname = read_message("Hostname")
-    local logger = read_message("Logger")
-    local payload_name = read_message("Fields[payload_name]") or ""
-    local msg_key = string.format("%s:%s", logger, payload_name)
+    local msg_key = interp.interpolate_from_msg(msg_key_template)
     local last_time = last_times[msg_key]
     local start_idx
     if not last_time then
