@@ -29,12 +29,14 @@ Config:
     "Timestamp" or the "Uuid" message fields into the name, those
     values will be interpreted as referring to dynamic message fields.
 
-- database (string, required, default "mydb")
+- database (string, required)
     The InfluxDB database to store the metrics in.
 
 - retention_policy (string, optional, default "")
-    The InfluxDB retentionPoilcy value for the database in which the
-    metrics are being sent to.  Only relevant when post_v09_api is true.
+    The InfluxDB retentionPolicy value for the database in which the
+    metrics are being sent to. When an empty value for retentionPolicy is
+    sent to InfluxDB, the default policy is used.  The default policy uses
+    infinite retention.  See InfluxDB 0.9.0 docs for more information.
 
 - skip_fields (string, optional, default nil)
     Space delimited set of fields that should *not* be included in the
@@ -49,14 +51,18 @@ Config:
 - tag_fields (string, optional, default "**all_base**")
     Take fields defined and adds them as tags of the point(s) sent to
     InfluxDB for the message.  The magic values "**all**" and "**all_base**"
-    are used to map all fields (including base) to tags and only base fields
-    to tags, respectively.  If those magic values aren't used, then only those
-    fields defined will map to tags of the points sent to InfluxDB.
+    are used to map all non-numeric fields (including base) to tags and only
+    base fields to tags, respectively.  If those magic values aren't used,
+    then only those fields defined will map to tags of the points sent to InfluxDB.
+    The tag_fields values are independent of the skip_fields values and have
+    no affect on each other.  You can skip fields from being sent to InfluxDB
+    as points (metrics), but still include them as tags, as long as they are not
+    numbers (those are filtered out automatically).
 
 - timestamp_precision (string, optional, default "n")
     Specify the timestamp precision that you want the event sent with.  The
     default is to use nanoseconds by dividing the Heka message timestamp
-    by 1000000, but this math can be altered by specifying one of the precision
+    by 1, but this math can be altered by specifying one of the precision
     values supported by the InfluxDB write API (n, u, ms, s, m, h).  The default
     of nanoseconds is used to match the precision of Timestamp in Heka messages.
 
@@ -115,6 +121,7 @@ Config:
 require "cjson"
 require "math"
 require "string"
+local interp = require "msg_interpolate"
 
 local name_prefix_orig  = read_config("name_prefix") or "name"
 local name_prefix = name_prefix_orig
@@ -123,14 +130,14 @@ if string.find(name_prefix, "%%{[%w%p]-}") then
     use_subs = true
 end
 
--- Default this option to "mydb"
-local influxdb_db = read_config("database") or "mydb"
+-- Required field that errors when not defined
+local influxdb_db = read_config("database") or error("`database` setting required")
 
 -- Default this option to ""
 local retention_policy = read_config("retention_policy") or ""
 
--- Default this option to "ms"
-local timestamp_precision = read_config("timestamp_precision") or "ms"
+-- Default this option to "n"
+local timestamp_precision = read_config("timestamp_precision") or "n"
 
 local base_fields_map = {
     Type = true,
@@ -159,31 +166,22 @@ local base_fields_tag_map = {
     Logger = true
 }
 
--- Used for interpolating message fields into name_prefix.
-local function sub_func(key)
-    if base_fields_map[key] then
-        return read_message(key)
-    else
-        local val = read_message("Fields["..key.."]")
-        if val then
-            return val
-        end
-        return "%{"..key.."}"
-    end
-end
-
 -- Remove blacklisted fields from the set of base fields that we use, and
 -- create a table of dynamic fields to skip.
 local used_base_fields = {}
 local skip_fields_str = read_config("skip_fields")
 local skip_fields = {}
+local skip_fields_all_base = false
 if skip_fields_str then
     for field in string.gmatch(skip_fields_str, "[%S]+") do
         skip_fields[field] = true
+        if field == "**all_base**" then
+            skip_fields_all_base = true
+        end
     end
 
     for _, base_field in ipairs(base_fields_list) do
-        if skip_fields["**all_base**"] then
+        if skip_fields_all_base then
             skip_fields[base_field] = true
         elseif not skip_fields[base_field] then
             used_base_fields[#used_base_fields+1] = base_field
@@ -198,45 +196,55 @@ end
 -- Create and populate a table of fields to be used as tags
 local tag_fields_str = read_config("tag_fields") or "**all_base**"
 local used_tag_fields = {}
+local tag_fields_all_base = false
+local tag_fields_all = false
 if tag_fields_str then
     for field in string.gmatch(tag_fields_str, "[%S]+") do
         used_tag_fields[field] = true
+        if field == "**all_base**" then
+            tag_fields_all_base = true
+        end
+        if field == "**all**" then
+            tag_fields_all = true
+        end
     end
+end
+
+-- Determine the precision of the timestamp and do the math
+local timestamp_divisor = 1
+if timestamp_precision == "u" then
+    timestamp_divisor = 1e3
+elseif timestamp_precision == "ms" then
+    timestamp_divisor = 1e6
+elseif timestamp_precision == "s" then
+    timestamp_divisor = 1e9
+elseif timestamp_precision == "m" then
+    timestamp_divisor = 1e9 * 60
+elseif timestamp_precision == "h" then
+    timestamp_divisor = 1e9 * 60 * 60
 end
 
 function process_message()
     local columns = {}
     local values = {}
 
-    -- Determine the precision of the timestamp and do the math
-    local timestamp_divisor = 1
-    if timestamp_precision == "u" then
-        timestamp_divisor = 1e3
-    elseif timestamp_precision == "ms" then
-        timestamp_divisor = 1e6
-    elseif timestamp_precision == "s" then
-        timestamp_divisor = 1e9
-    elseif timestamp_precision == "m" then
-        timestamp_divisor = 1e9 * 60
-    elseif timestamp_precision == "h" then
-        timestamp_divisor = 1e9 * 60 * 60
+    local message_timestamp = read_message("Timestamp")
+    if timestamp_precision ~= "n" then
+        message_timestamp = math.floor(message_timestamp / timestamp_divisor)
     end
-    local message_timestamp = math.floor(read_message("Timestamp") / timestamp_divisor)
 
     -- Create a counter for the table indexes for columns and values
     -- then populate those tables with the used base fields previously
     -- determined
-    local place = 1
-    for _, field in ipairs(used_base_fields) do
+    for place, field in ipairs(used_base_fields) do
         columns[place] = field
         values[place] = read_message(field)
-        place = place + 1
     end
 
     -- If the %{field} substitutions are defined in the name_prefix,
     -- replace them with the actual values from the message here
     if use_subs then
-        name_prefix = string.gsub(name_prefix_orig, "%%{([%w%p]-)}", sub_func)
+        name_prefix = interp.interpolate_from_msg(name_prefix_orig, nil)
     else
         name_prefix = name_prefix_orig
     end
@@ -246,11 +254,13 @@ function process_message()
     -- Convert value to a string as this is required by the API
     local message_tags = {}
     for _, field in ipairs(base_fields_list) do
-        if (used_tag_fields["**all_base**"] or used_tag_fields["**all_base**"])
-            and base_fields_tag_map[field] then
-            message_tags[field] = tostring(read_message(field))
-        elseif used_tag_fields[field] and base_fields_tag_map[field] then
-            message_tags[field] = tostring(read_message(field))
+        local base_field_value = read_message(field)
+        if (tag_fields_all or tag_fields_all_base)
+            and base_fields_tag_map[field] and type(base_field_value) ~= "number" then
+            message_tags[field] = tostring(base_field_value)
+        elseif used_tag_fields[field] and base_fields_tag_map[field]
+            and type(base_field_value) ~= "number" then
+            message_tags[field] = tostring(base_field_value)
         end
     end
 
@@ -298,7 +308,8 @@ function process_message()
         -- Include the dynamic fields as tags if they are defined in
         -- configuration or the magic value "**all**" is defined.
         -- Convert value to a string as this is required by the API
-        if used_tag_fields[name] or used_tag_fields["**all**"] then
+        if (used_tag_fields[name] or tag_fields_all)
+            and type(value) ~= "number" then
             message_tags[name] = tostring(value)
         end
     end
