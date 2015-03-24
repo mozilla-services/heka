@@ -140,6 +140,36 @@ func UdpInputSpec(c gs.Context) {
 				})
 			})
 		}
+
+		if runtime.GOOS == "linux" {
+			c.Specify("using an abstract unix domain socket", func() {
+				unixPath := "@unixgram-socket"
+				ith.AddrStr = unixPath
+				config.Net = "unixgram"
+				config.Address = ith.AddrStr
+
+				err := udpInput.Init(config)
+				c.Assume(err, gs.IsNil)
+				realListener := (udpInput.listener).(*net.UnixConn)
+				c.Expect(realListener.LocalAddr().String(), gs.Equals, unixPath)
+
+				c.Specify("passes the socket to SplitStream", func() {
+					go udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+
+					unixAddr, err := net.ResolveUnixAddr("unixgram", unixPath)
+					c.Assume(err, gs.IsNil)
+					conn, err := net.DialUnix("unixgram", nil, unixAddr)
+					c.Assume(err, gs.IsNil)
+					_, err = conn.Write(buf)
+					c.Assume(err, gs.IsNil)
+					conn.Close()
+
+					recd := <-bytesChan
+					c.Expect(string(recd), gs.Equals, string(buf))
+					udpInput.Stop()
+				})
+			})
+		}
 	})
 }
 

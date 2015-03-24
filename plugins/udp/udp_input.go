@@ -59,6 +59,10 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 			return errors.New(
 				"Can't use Unix datagram sockets on Windows.")
 		}
+		if runtime.GOOS != "linux" && strings.HasPrefix(u.config.Address, "@") {
+			return errors.New(
+				"Abstract sockets are linux-specific.")
+		}
 		unixAddr, err := net.ResolveUnixAddr(u.config.Net, u.config.Address)
 		if err != nil {
 			return fmt.Errorf("Error resolving unixgram address: %s", err)
@@ -67,9 +71,12 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		if err != nil {
 			return fmt.Errorf("Error listening on unixgram: %s", err)
 		}
-		// Make sure socket file is world writable.
-		if err = os.Chmod(u.config.Address, 0666); err != nil {
-			return fmt.Errorf("Error changing unixgram socket permissions: %s", err)
+		// Ensure socket file is world writable, unless socket is abstract.
+		if !strings.HasPrefix(u.config.Address, "@") {
+			if err = os.Chmod(u.config.Address, 0666); err != nil {
+				return fmt.Errorf(
+					"Error changing unixgram socket permissions: %s", err)
+			}
 		}
 
 	} else if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
@@ -128,8 +135,11 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 		}
 	}
 	if u.config.Net == "unixgram" {
-		if err = os.Remove(u.config.Address); err != nil {
-			ir.LogError(errors.New("Error cleaning up unix datagram socket"))
+		if !strings.HasPrefix(u.config.Address, "@") {
+			err = os.Remove(u.config.Address)
+			if err != nil {
+				ir.LogError(errors.New("Error cleaning up unix datagram socket"))
+			}
 		}
 	}
 	return nil
