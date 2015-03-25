@@ -119,6 +119,41 @@ func InputRunnerSpec(c gs.Context) {
 			pack := NewPipelinePack(pConfig.inputRecycleChan)
 			pack.Message = ts.GetTestMessage()
 
+			c.Specify("when decoding is synchronous", func() {
+				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+				syncDecode := true
+				commonInput.SyncDecode = &syncDecode
+				commonInput.Decoder = "FooDecoder"
+				runner := NewInputRunner("syncdec", input, commonInput).(*iRunner)
+				runner.pConfig = pConfig
+				d := runner.NewDeliverer("").(*deliverer)
+				runner.deliver = d.deliver
+
+				startRunner(runner)
+
+				runner.Deliver(pack)
+				recd := <-pConfig.router.inChan
+
+				c.Expect(recd, gs.Equals, pack)
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO")
+				c.Expect(err, gs.IsNil)
+
+				// Checking if decoder was added to global list of synchronous decoders
+				c.Expect(len(pConfig.allSyncDecoders), gs.Equals, 1)
+				c.Expect(pConfig.allSyncDecoders[0].decoder, gs.Equals, d.decoder)
+				c.Expect(pConfig.allSyncDecoders[0].name, gs.Equals, "syncdec-FooDecoder")
+
+				d.Done()
+
+				// Tests if decoder was removed safely
+				c.Expect(len(pConfig.allSyncDecoders), gs.Equals, 0)
+
+				pack.Recycle()
+				input.Stop()
+				wg.Wait()
+			})
+
 			c.Specify("when there's no decoder", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 				runner := NewInputRunner("accum", input, commonInput).(*iRunner)
