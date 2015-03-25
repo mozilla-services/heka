@@ -121,6 +121,7 @@ type Deliverer interface {
 type deliverer struct {
 	deliver DeliverFunc
 	dRunner DecoderRunner
+	decoder Decoder
 	pConfig *PipelineConfig
 }
 
@@ -135,6 +136,17 @@ func (d *deliverer) DeliverFunc() DeliverFunc {
 func (d *deliverer) Done() {
 	if d.dRunner != nil {
 		d.pConfig.StopDecoderRunner(d.dRunner)
+	}
+
+	if d.decoder != nil {
+		d.pConfig.allSyncDecodersLock.Lock()
+		for i, reporting := range d.pConfig.allSyncDecoders {
+			if d.decoder == reporting.decoder {
+				d.pConfig.allSyncDecoders = append(d.pConfig.allSyncDecoders[:i], d.pConfig.allSyncDecoders[i+1:]...)
+				break
+			}
+		}
+		d.pConfig.allSyncDecodersLock.Unlock()
 	}
 }
 
@@ -179,6 +191,8 @@ type InputRunner interface {
 	// DeliverTo.
 	Deliver(pack *PipelinePack)
 	NewSplitterRunner(token string) SplitterRunner
+	// Tells if synchrounous decode is enabled
+	SynchronousDecode() bool
 }
 
 type iRunner struct {
@@ -351,16 +365,15 @@ func (ir *iRunner) LogMessage(msg string) {
 	LogInfo.Printf("Input '%s': %s", ir.name, msg)
 }
 
-func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
+func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Decoder) {
 	var deliver DeliverFunc
 	decoderName := ir.config.Decoder
-
 	// If no decoder is specified we just inject into the router.
 	if decoderName == "" {
 		deliver = func(pack *PipelinePack) {
 			ir.Inject(pack)
 		}
-		return deliver, nil
+		return deliver, nil, nil
 	}
 
 	ir.pConfig.makersLock.RLock()
@@ -368,7 +381,7 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 	ir.pConfig.makersLock.RUnlock()
 	if !ok {
 		ir.LogError(fmt.Errorf("decoder '%s' not registered", decoderName))
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var fullName string
@@ -387,7 +400,7 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 		deliver = func(pack *PipelinePack) {
 			inChan <- pack
 		}
-		return deliver, dr
+		return deliver, dr, nil
 	}
 
 	// Synchronous decode means create a decoder instance and call Decode
@@ -404,6 +417,13 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 		ir.shutdownWanters = append(ir.shutdownWanters, wanter)
 		ir.shutdownLock.Unlock()
 	}
+
+	ir.pConfig.allSyncDecodersLock.Lock()
+	ir.pConfig.allSyncDecoders = append(ir.pConfig.allSyncDecoders, ReportingDecoder{
+		name:    fullName,
+		decoder: decoder,
+	})
+	ir.pConfig.allSyncDecodersLock.Unlock()
 	// See if the decoder sets TrustMsgBytes for us.
 	_, trustMsgBytes := decoder.(EncodesMsgBytes)
 	deliver = func(pack *PipelinePack) {
@@ -429,14 +449,15 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner) {
 			ir.Inject(p)
 		}
 	}
-	return deliver, nil
+	return deliver, nil, decoder
 }
 
 func (ir *iRunner) NewDeliverer(token string) Deliverer {
-	deliver, dRunner := ir.getDeliverFunc(token)
+	deliver, dRunner, decoder := ir.getDeliverFunc(token)
 	d := &deliverer{
 		deliver: deliver,
 		dRunner: dRunner,
+		decoder: decoder,
 		pConfig: ir.pConfig,
 	}
 	return d
@@ -444,9 +465,13 @@ func (ir *iRunner) NewDeliverer(token string) Deliverer {
 
 func (ir *iRunner) Deliver(pack *PipelinePack) {
 	if ir.deliver == nil {
-		ir.deliver, _ = ir.getDeliverFunc("")
+		ir.deliver, _, _ = ir.getDeliverFunc("")
 	}
 	ir.deliver(pack)
+}
+
+func (ir *iRunner) SynchronousDecode() bool {
+	return ir.syncDecode
 }
 
 func (ir *iRunner) NewSplitterRunner(token string) SplitterRunner {
