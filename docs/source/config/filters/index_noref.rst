@@ -16,6 +16,9 @@ Filters
 .. include:: /config/filters/counter.rst
    :start-line: 1
 
+.. include:: /config/filters/cpu_stats.rst
+   :start-line: 1
+
 .. include:: /config/filters/disk_stats.rst
    :start-line: 1
 

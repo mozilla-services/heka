@@ -20,6 +20,12 @@ Circular Buffer Delta Aggregator (by hostname)
    :start-after: --[[
    :end-before: --]]
 
+CPU Stats Filter
+^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/filters/procstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Disk Stats Filter
 ^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/filters/diskstats.lua

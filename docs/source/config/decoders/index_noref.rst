@@ -15,6 +15,9 @@ Decoders
 .. include:: /config/decoders/multi.rst
    :start-line: 1
 
+.. include:: /config/decoders/linux_cpu_stats.rst
+  :start-line: 1
+
 .. include:: /config/decoders/linux_disk_stats.rst
   :start-line: 1
 
