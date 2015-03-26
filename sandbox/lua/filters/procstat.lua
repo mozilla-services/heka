@@ -4,20 +4,20 @@
 
 --[[
 
-Calculates deltas in /proc/stat data.
-Also emits CPU percentage utilization information.
+Calculates deltas in /proc/stat data. Also emits CPU percentage utilization
+information.
 
 Config:
 
-- whitelist (string, optional, default nil)
-    Only proccess fields that fit the pattern, defaults to match all
-    see: http://lua-users.org/wiki/PatternsTutorial
+- whitelist (string, optional, default "")
+    Only process fields that fit the `pattern <http://lua-
+    users.org/wiki/PatternsTutorial>`_, defaults to match all.
 
-- extras (boolen, optional, default false)
-    Proccess extra fields like ctxt, softirq, cpu fields
+- extras (boolean, optional, default false)
+    Process extra fields like ctxt, softirq, cpu fields.
 
-- percent_integer (boolen, optional, default true)
-    Proccess percentage as whole number.
+- percent_integer (boolean, optional, default true)
+    Process percentage as whole number.
 
 
 *Example Heka Configuration*
@@ -62,30 +62,28 @@ Cpu fields:
     guestnice: running a niced guest
 
 intr
-    This line shows counts of interrupts serviced since
-    boot time, for each of the possible system interrupts.
-    The first column is the total of all interrupts
-    serviced including unnumbered architecture specific
-    interrupts; each subsequent column is the total for
-    that particular numbered interrupt.  Unnumbered
-    interrupts are not shown, only summed into the total.
+    This line shows counts of interrupts serviced since boot time, for each of
+    the possible system interrupts. The first column is the total of all
+    interrupts serviced including unnumbered architecture specific interrupts;
+    each subsequent column is the total for that particular numbered
+    interrupt.  Unnumbered interrupts are not shown, only summed into the
+    total.
 
 ctxt 115315
-    The number of context switches that the system
-    underwent.
+    The number of context switches that the system underwent.
 
 btime 769041601
-    boot time, in seconds since the Epoch, 1970-01-01
-    00:00:00 +0000 (UTC).
+    Boot time, in seconds since the Epoch, 1970-01-01 00:00:00 +0000 (UTC).
 
 processes 86031
     Number of forks since boot.
 
 procs_running 6
-    Number of proccess in runnable state.  (Linux 2.5.45 onward.)
+    Number of process in runnable state. (Linux 2.5.45 onward.)
 
 procs_blocked 2
-    Number of proccess blocked waiting for I/O to complete.  (Linux 2.5.45 onward.)
+    Number of process blocked waiting for I/O to complete. (Linux 2.5.45
+    onward.)
 
 softirq 288977 23 101952 19 13046 19217 7 19125 92077 389 43122
     Time spent servicing soft-interrupts.

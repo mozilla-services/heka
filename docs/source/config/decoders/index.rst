@@ -13,6 +13,7 @@ Available Decoder Plugins
    apache_access
    geoip
    graylog_extended
+   linux_cpu_stats
    linux_disk_stats
    linux_load_avg
    linux_mem_stats

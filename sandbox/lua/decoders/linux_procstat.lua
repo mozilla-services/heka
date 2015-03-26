@@ -50,16 +50,16 @@ Config:
     Cpu fields:
         1    2    3      4    5        6     7         8       9       10
         user nice system idle [iowait] [irq] [softirq] [steal] [guest] [guestnice]
-        Note: systems provide user, nice, system, idle. Other fields depend on kernel.
+        Note: systems provide user, nice, system, idle. Other fields depend on
+        kernel.
 
     intr
-        This line shows counts of interrupts serviced since
-        boot time, for each of the possible system interrupts.
-        The first column is the total of all interrupts
-        serviced including unnumbered architecture specific
-        interrupts; each subsequent column is the total for
-        that particular numbered interrupt.  Unnumbered
-        interrupts are not shown, only summed into the total.
+        This line shows counts of interrupts serviced since boot time, for
+        each of the possible system interrupts. The first column is the total
+        of all interrupts serviced including unnumbered architecture specific
+        interrupts; each subsequent column is the total for that particular
+        numbered interrupt. Unnumbered interrupts are not shown, only summed
+        into the total.
 
 --]]
 

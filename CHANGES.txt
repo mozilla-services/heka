@@ -19,6 +19,8 @@ Features
 * ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
   returns that.
 
+* Added Linux CPU Stats Decoder and CPU Stats Filter.
+
 Bug Handling
 ------------
 
