@@ -206,6 +206,7 @@ type iRunner struct {
 	syncDecode         bool
 	sendDecodeFailures bool
 	deliver            DeliverFunc
+	canExit            bool
 	shutdownWanters    []WantsDecoderRunnerShutdown
 	shutdownLock       sync.Mutex
 }
@@ -220,6 +221,10 @@ func (ir *iRunner) Transient() bool {
 
 func (ir *iRunner) SetTransient(transient bool) {
 	ir.transient = transient
+}
+
+func (ir *iRunner) IsStoppable() bool {
+	return ir.canExit
 }
 
 // Creates and returns a new (not yet started) InputRunner associated w/ the
@@ -241,6 +246,10 @@ func NewInputRunner(name string, input Input, config CommonInputConfig) (ir Inpu
 	if config.SendDecodeFailures != nil {
 		runner.sendDecodeFailures = *config.SendDecodeFailures
 	}
+	if config.CanExit != nil && *config.CanExit {
+		runner.canExit = true
+	}
+
 	return runner
 }
 
@@ -293,59 +302,77 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	}
 
 	for !globals.IsShuttingDown() {
+
 		// ir.Input().Run() shouldn't return unless error or shutdown.
 		err := ir.input.Run(ir, h)
-		if err != nil {
-			ir.LogError(err)
-		} else if !ir.transient {
-			rh.Reset()
-			ir.LogMessage("stopped")
-		}
+		registered, ok := ir.pConfig.InputRunners[ir.name]
 
-		// Send shutdown signal to any decoders that need it.
-		if len(ir.shutdownWanters) > 0 {
-			ir.shutdownLock.Lock()
-			for _, wanter := range ir.shutdownWanters {
-				wanter.Shutdown()
+		if !ok || registered != ir || globals.IsShuttingDown() {
+			// Plugin was removed deliberately from the list of InputRunners or
+			// has been superseded by another instance, or we're in shutdown.
+			// In this case, avoid triggering a Heka shutdown ourselves.
+			ir.Unregister(ir.pConfig)
+			return
+		} else if err == nil {
+			// Plugin exited cleanly.
+			break
+		} else {
+			// Plugin exited by returning an error.
+			ir.LogError(err)
+
+			// If we don't support restart, just stop here.
+			recon, ok := ir.plugin.(Restarting)
+			if !ok {
+				break
 			}
-			ir.shutdownLock.Unlock()
-		}
 
-		// Are we supposed to stop? Save ourselves some time by exiting now.
-		if globals.IsShuttingDown() {
-			break
-		}
+			// Otherwise we'll execute the Retry config
+			recon.CleanupForRestart()
+			if ir.maker == nil {
+				ir.maker = ir.pConfig.makers["Input"][ir.name]
+			}
 
-		// If we're transient we just exit.
-		if ir.transient {
-			break
-		}
-		// We're not transient, we either try to restart or we shut down
-		// altogether.
-		recon, ok := ir.plugin.(Restarting)
-		if !ok {
-			ir.LogMessage("has stopped, shutting down.")
-			globals.ShutDown()
-			break
-		}
+		initLoop:
+			if err = rh.Wait(); err != nil {
+				// We've used up our retry attempts, exit.
+				ir.LogError(err)
+				break
+			}
+			ir.LogMessage(fmt.Sprintf("Restarting (attempt %d/%d)\n",
+				rh.times, rh.retries))
 
-		recon.CleanupForRestart()
-		if ir.maker == nil {
-			ir.maker = ir.pConfig.makers["Input"][ir.name]
-		}
-	initLoop:
-		if err = rh.Wait(); err != nil {
-			// We've used up our retry attempts, exit.
-			ir.LogError(err)
-			globals.ShutDown()
-			break
-		}
-		ir.LogMessage("exited, now restarting.")
-		if err = ir.plugin.Init(ir.maker.Config()); err != nil {
-			ir.LogError(err)
-			goto initLoop
+			// If we've not been created elsewhere, call the plugin's Init()
+			if !ir.transient {
+				if err = ir.plugin.Init(ir.maker.Config()); err != nil {
+					// We couldn't reInit the plugin, do a mini-retry loop
+					ir.LogError(err)
+					goto initLoop
+				}
+			}
+
 		}
 	}
+
+	ir.Unregister(ir.pConfig)
+
+	// If we're not a stoppable input, trigger Heka shutdown.
+	if !ir.IsStoppable() {
+		globals.ShutDown()
+	}
+}
+
+func (ir *iRunner) Unregister(pConfig *PipelineConfig) error {
+
+	// Send shutdown signal to any decoders that need it.
+	if len(ir.shutdownWanters) > 0 {
+		ir.shutdownLock.Lock()
+		for _, wanter := range ir.shutdownWanters {
+			wanter.Shutdown()
+		}
+		ir.shutdownLock.Unlock()
+	}
+
+	return nil
 }
 
 func (ir *iRunner) Inject(pack *PipelinePack) {

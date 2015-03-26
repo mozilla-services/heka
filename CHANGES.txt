@@ -28,10 +28,15 @@ Features
 
 * Added support for abstract Unix domain sockets to the UdpInput.
 
+* Added support for `can_exit` to inputs (defaults to false, except on
+  ProcessDirectoryInput spawned processes where it defaults to true)
+
 Bug Handling
 ------------
 
 * Fixed visibility of synchronous decoders in reports (#1312).
+
+* More ProcessInput/ProcessDirectoryInput retry logic fixes (#1412 & #1418)
 
 0.9.2 (2015-??-??)
 ==================

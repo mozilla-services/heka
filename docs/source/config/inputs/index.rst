@@ -35,6 +35,10 @@ initialization code.
 	logging an error message, decode failure will cause the original,
 	undecoded message to be tagged with a `decode_failure` field (set to true)
 	and delivered to the router for possible further processing.
+- can_exit (bool, optional):
+        If false, the input plugin exiting will trigger a Heka shutdown.  If
+        set to true, Heka will continue processing other plugins.  Defaults to
+        false on most inputs.
 - splitter (string, optional)
 	Splitter to be used by the input. This should refer to the name of a
 	registered splitter plugin configuration. It specifies how the input

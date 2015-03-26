@@ -147,19 +147,16 @@ generally route messages to specific outputs using the
 Restarting Plugins
 ==================
 
-In the event that your plugin fails to initialize properly at startup, hekad
-will exit. However, once hekad is running, if the plugin should fail (perhaps
-because a network connection dropped, a file became unavailable, etc) then the
-plugin will exit. If the plugin supports being restarted then Heka will
-attempt to reset, reinitialize, and restart the plugin. If this fails, Heka
-will try again up until the specified max_retries value. If the failure
-continues beyond the maximum number of retries, or if the plugin didn't
-support restarting in the first place, then Heka will either shut down or, if
-the plugin is a filter or an output with the ``can_exit`` setting set to true,
-the plugin will be removed from operation and Heka will continue to run.
+If your plugin supports being restarted and either fails to initialize properly
+at startup, or fails during Run with an error (perhaps because a network
+connection dropped, a file became unavailable, etc) then Heka will attempt to
+reinitialize and restart it up until the specified max_retries value.
 
-If the reinitialization and restarting is successful, then the retry count
-will be reset to zero and everything will continue to function as normal.
+If the failure continues beyond the maximum number of retries, or if the plugin
+didn't support restarting in the first place, then Heka will either shut down
+or, if the plugin is an input, filter or an output with the ``can_exit``
+setting set to true, the plugin will be removed from operation and Heka will
+continue to run.
 
 To add restart support to your plugin, you must implement the ``Restarting``
 interface defined in the `config.go <https://github.com/mozilla-
