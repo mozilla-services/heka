@@ -18,7 +18,7 @@ Config:
 
 - name_prefix (string, optional, default "name")
     String to use as the `name` key's prefix value in the generated JSON.
-    Supports interpolation of field values from the processed message, using
+    Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
     `%{fieldname}`. Any `fieldname` values of "Type", "Payload", "Hostname",
     "Pid", "Logger", "Severity", or "EnvVersion" will be extracted from the
     the base message schema, any other values will be assumed to refer to a
@@ -59,12 +59,12 @@ Config:
     as points (metrics), but still include them as tags, as long as they are not
     numbers (those are filtered out automatically).
 
-- timestamp_precision (string, optional, default "n")
+- timestamp_precision (string, optional, default "ms")
     Specify the timestamp precision that you want the event sent with.  The
-    default is to use nanoseconds by dividing the Heka message timestamp
-    by 1, but this math can be altered by specifying one of the precision
-    values supported by the InfluxDB write API (n, u, ms, s, m, h).  The default
-    of nanoseconds is used to match the precision of Timestamp in Heka messages.
+    default is to use milliseconds by dividing the Heka message timestamp
+    by 1e6, but this math can be altered by specifying one of the precision
+    values supported by the InfluxDB write API (ms, s, m, h). Other precisions
+    supported by InfluxDB of n and u are not yet supported.
 
 *Example Heka Configuration*
 
@@ -137,7 +137,7 @@ local influxdb_db = read_config("database") or error("`database` setting require
 local retention_policy = read_config("retention_policy") or ""
 
 -- Default this option to "n"
-local timestamp_precision = read_config("timestamp_precision") or "n"
+local timestamp_precision = read_config("timestamp_precision") or "ms"
 
 local base_fields_map = {
     Type = true,
@@ -211,12 +211,8 @@ if tag_fields_str then
 end
 
 -- Determine the precision of the timestamp and do the math
-local timestamp_divisor = 1
-if timestamp_precision == "u" then
-    timestamp_divisor = 1e3
-elseif timestamp_precision == "ms" then
-    timestamp_divisor = 1e6
-elseif timestamp_precision == "s" then
+local timestamp_divisor = 1e6
+if timestamp_precision == "s" then
     timestamp_divisor = 1e9
 elseif timestamp_precision == "m" then
     timestamp_divisor = 1e9 * 60
@@ -229,9 +225,7 @@ function process_message()
     local values = {}
 
     local message_timestamp = read_message("Timestamp")
-    if timestamp_precision ~= "n" then
-        message_timestamp = math.floor(message_timestamp / timestamp_divisor)
-    end
+    message_timestamp = math.floor(message_timestamp / timestamp_divisor)
 
     -- Create a counter for the table indexes for columns and values
     -- then populate those tables with the used base fields previously
@@ -308,7 +302,7 @@ function process_message()
         -- Include the dynamic fields as tags if they are defined in
         -- configuration or the magic value "**all**" is defined.
         -- Convert value to a string as this is required by the API
-        if (used_tag_fields[name] or tag_fields_all)
+        if (tag_fields_all or used_tag_fields[name])
             and type(value) ~= "number" then
             message_tags[name] = tostring(value)
         end
