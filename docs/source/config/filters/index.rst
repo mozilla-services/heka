@@ -38,6 +38,7 @@ Available Filter Plugins
    cbuf_delta
    cbuf_delta_by_host
    counter
+   cpu_stats
    disk_stats
    frequent_items
    heka_memstat
