@@ -17,7 +17,6 @@
 package process
 
 import (
-	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -138,7 +137,8 @@ type ProcessInput struct {
 	stderrDeliverer Deliverer
 	stderrSRunner   SplitterRunner
 
-	stopChan chan bool
+	stopChan  chan bool
+	exitError error
 
 	hostname       string
 	hekaPid        int32
@@ -163,13 +163,10 @@ func (pi *ProcessInput) ConfigStruct() interface{} {
 func (pi *ProcessInput) Init(config interface{}) (err error) {
 	conf := config.(*ProcessInputConfig)
 
-	pi.stopChan = make(chan bool)
-
 	pi.tickInterval = conf.TickerInterval
 	pi.immediateStart = conf.ImmediateStart
 	pi.parseStdout = conf.ParseStdout
 	pi.parseStderr = conf.ParseStderr
-	pi.once = sync.Once{}
 
 	if len(conf.Command) < 1 {
 		return fmt.Errorf("No Command Configured")
@@ -197,7 +194,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	}
 
 	pi.hekaPid = int32(os.Getpid())
-
 	return nil
 }
 
@@ -209,6 +205,9 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
 	pi.hostname = h.Hostname()
+	pi.stopChan = make(chan bool)
+	pi.once = sync.Once{}
+	pi.exitError = nil
 
 	if pi.parseStdout {
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
@@ -224,10 +223,10 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// Wait for stop signal.
 	<-pi.stopChan
 
-	// tickInterval == 0 => we're a long running process, exiting before
-	// shutdown represents an error condition.
-	if pi.tickInterval == 0 && !h.PipelineConfig().Globals.IsShuttingDown() {
-		return errors.New("long running process exited")
+	// If RunCmd exited with an error, and we're not in shutdown, pass back
+	// up (to trigger any configured retry behaviour)
+	if pi.exitError != nil {
+		return pi.exitError
 	}
 
 	return nil
@@ -291,6 +290,9 @@ func (pi *ProcessInput) RunCmd() {
 			// detached from the main thread.
 			pi.cc = pi.cc.clone()
 			pi.runOnce()
+			if pi.exitError != nil {
+				return
+			}
 		case <-pi.stopChan:
 			return
 		}
@@ -302,8 +304,8 @@ func (pi *ProcessInput) runOnce() {
 	var err error
 
 	if err = pi.cc.Start(); err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]",
-			pi.ProcessName, err.Error()))
+		pi.exitError = fmt.Errorf("CommandChain::Start() error: [%s]", err)
+		return
 	}
 
 	// We don't get EOF on the pipe readers unless we drain both the stdout
@@ -318,7 +320,8 @@ func (pi *ProcessInput) runOnce() {
 
 	var stdoutReader io.Reader
 	if stdoutReader, err = pi.cc.Stdout_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stdout reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stdout reader: %s", err)
+		return
 	} else if pi.parseStdout {
 		go pi.ParseOutput(stdoutReader, pi.stdoutDeliverer, pi.stdoutSRunner)
 	} else {
@@ -327,7 +330,8 @@ func (pi *ProcessInput) runOnce() {
 
 	var stderrReader io.Reader
 	if stderrReader, err = pi.cc.Stderr_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stderr reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stderr reader: %s", err)
+		return
 	} else if pi.parseStderr {
 		go pi.ParseOutput(stderrReader, pi.stderrDeliverer, pi.stderrSRunner)
 	} else {
@@ -336,8 +340,7 @@ func (pi *ProcessInput) runOnce() {
 
 	err = pi.cc.Wait()
 	if err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]",
-			pi.ProcessName, err.Error()))
+		pi.exitError = fmt.Errorf("CommandChain::Wait() error: [%s]", err)
 	}
 }
 
@@ -359,6 +362,8 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 
 // CleanupForRestart implements the Restarting interface.
 func (pi *ProcessInput) CleanupForRestart() {
+	// Reset the CommandChain (and therefore os.exec status)
+	pi.cc = pi.cc.clone()
 	pi.Stop()
 }
 

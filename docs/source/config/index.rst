@@ -253,10 +253,13 @@ Example:
 Configuring Restarting Behavior
 ===============================
 
-Plugins that support being restarted have a set of options that govern how the
-restart is handled. If preferred, the plugin can be configured to not restart
-at which point hekad will exit, or it could be restarted only 100 times, or
-restart attempts can proceed forever.
+Plugins that support being restarted have a set of options that govern how a
+restart is handled if they exit with an error.  If preferred, the plugin can be
+configured to not restart, or it could be restarted only 100 times, or restart
+attempts can proceed forever.
+Once the `max_retries` have been exceeded the plugin will be unregistered,
+potentially triggering hekad to shutdown (depending on the plugin's `can_exit`
+configuration).
 
 Adding the restarting configuration is done by adding a config section to a
 plugin's configuration called `retries`. A small amount of jitter will be

@@ -110,7 +110,7 @@ func (mc *ManagedCmd) kill() (err error) {
 	}
 	// killing process will make Wait() return
 	<-mc.done
-	return fmt.Errorf("subprocess was killed: [%s %s]", mc.Path, strings.Join(mc.Args, " "))
+	return fmt.Errorf("subprocess was killed: [%s]", strings.Join(mc.Args, " "))
 }
 
 // This resets a command so that we can run the command again. Usually so that
@@ -184,8 +184,7 @@ func (cc *CommandChain) Start() (err error) {
 		}
 
 		if err != nil {
-			return fmt.Errorf("Command [%s %s] triggered an error: [%s]",
-				cmd.Path,
+			return fmt.Errorf("Command [%s] triggered an error: [%s]",
 				strings.Join(cmd.Args, " "),
 				err.Error())
 		}

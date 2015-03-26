@@ -39,6 +39,7 @@ func (s *StoppingInput) Init(config interface{}) (err error) {
 }
 
 func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	err = errors.New("Unclean Exit")
 	return
 }
 
@@ -88,6 +89,7 @@ func InputRunnerSpec(c gs.Context) {
 		var wg sync.WaitGroup
 
 		startRunner := func(runner InputRunner) {
+			pConfig.InputRunners[runner.Name()] = runner
 			wg.Add(1)
 			err := runner.Start(mockHelper, &wg)
 			if err != nil {

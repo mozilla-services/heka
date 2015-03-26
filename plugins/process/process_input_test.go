@@ -16,7 +16,6 @@
 package process
 
 import (
-	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
@@ -159,10 +158,6 @@ func ProcessInputSpec(c gs.Context) {
 				err := pInput.Init(config)
 				c.Assume(err, gs.IsNil)
 
-				expectedErr := fmt.Errorf(
-					"BadArgs CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
-				ith.MockInputRunner.EXPECT().LogError(expectedErr)
-
 				go func() {
 					errChan <- pInput.Run(ith.MockInputRunner, ith.MockHelper)
 				}()
@@ -174,7 +169,7 @@ func ProcessInputSpec(c gs.Context) {
 
 				pInput.Stop()
 				err = <-errChan
-				c.Expect(err, gs.IsNil)
+				c.Expect(err.Error(), gs.Equals, "CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
 			})
 		})
 	})
