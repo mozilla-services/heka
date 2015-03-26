@@ -19,6 +19,8 @@ Features
 * ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
   returns that.
 
+* Added Linux CPU Stats Decoder and CPU Stats Filter.
+
 * Added a new sandbox encoder, Schema InfluxDB Write Encoder, which updates
   compatibility of sending data in Heka message fields to InfluxDB 0.9.0+
   write API.  It is required to use this encoder when integrating Heka with
