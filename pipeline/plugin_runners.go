@@ -275,8 +275,10 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 		ir.config.Splitter = "NullSplitter"
 	}
 
+	ir.pConfig.makersLock.RLock()
 	splitters := ir.pConfig.makers["Splitter"]
 	splitterMaker, ok := splitters[ir.config.Splitter]
+	ir.pConfig.makersLock.RUnlock()
 	if !ok {
 		return fmt.Errorf("%s specifies undefined splitter %s", ir.name,
 			ir.config.Splitter)
@@ -329,13 +331,18 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			// Otherwise we'll execute the Retry config
 			recon.CleanupForRestart()
 			if ir.maker == nil {
+				ir.pConfig.makersLock.RLock()
 				ir.maker = ir.pConfig.makers["Input"][ir.name]
+				ir.pConfig.makersLock.RUnlock()
 			}
 
 		initLoop:
 			if err = rh.Wait(); err != nil {
 				// We've used up our retry attempts, exit.
 				ir.LogError(err)
+				break
+			}
+			if globals.IsShuttingDown() {
 				break
 			}
 			ir.LogMessage(fmt.Sprintf("Restarting (attempt %d/%d)\n",
@@ -819,7 +826,9 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 
 	if foRunner.pluginType == "SandboxFilter" {
 		// No maker means we're a dynamic filter and we can exit.
+		foRunner.pConfig.makersLock.RLock()
 		maker := foRunner.pConfig.makers["Filter"][foRunner.name]
+		foRunner.pConfig.makersLock.RUnlock()
 		if maker == nil {
 			foRunner.canExit = true
 		}
@@ -987,6 +996,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 		recon.CleanupForRestart()
 		if foRunner.maker == nil {
 			var makers map[string]PluginMaker
+			foRunner.pConfig.makersLock.RLock()
 			switch foRunner.kind {
 			case foFilter:
 				makers = foRunner.pConfig.makers["Filter"]
@@ -994,6 +1004,7 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 				makers = foRunner.pConfig.makers["Output"]
 			}
 			foRunner.maker = makers[foRunner.name]
+			foRunner.pConfig.makersLock.RUnlock()
 		}
 	initLoop:
 		if err = rh.Wait(); err != nil {
@@ -1001,6 +1012,9 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 			// exit.
 			foRunner.lastErr = err
 			foRunner.LogError(err)
+			break
+		}
+		if globals.IsShuttingDown() {
 			break
 		}
 		foRunner.LogMessage("now restarting")
