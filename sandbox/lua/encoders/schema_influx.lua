@@ -8,6 +8,11 @@ all standard message fields and iterates through all of the dynamically
 specified fields, skipping any bytes fields or any fields explicitly omitted
 using the `skip_fields` config option.
 
+.. note::
+    This encoder is intended for use with InfluxDB versions *prior* to 0.9. If
+    you're working with InfluxDB v0.9 or greater, you'll want to use the
+    :ref:`config_schema_influx_write_encoder` instead.
+
 Config:
 
 - series (string, optional, default "series")

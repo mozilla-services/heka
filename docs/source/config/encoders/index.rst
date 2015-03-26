@@ -22,4 +22,5 @@ Available Encoder Plugins
    rst
    sandbox
    schema_influx
+   schema_influx_write
    statmetric_influx

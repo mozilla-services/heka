@@ -3,16 +3,21 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[=[
-Converts full Heka message contents to JSON for InfluxDB HTTP write API
-(new in InfluxDB v0.9.0).  Optionally includes all standard message fields
-as tags or fields and iterates through all of the dynamic fields to add as
-points (series), skipping any fields explicitly omitted using the `skip_fields`
-config option.  It can also map any Heka message fields as tags in the
-request sent to the InfluxDB API, using the `tag_fields` config option.
-Tags, timestamp/precision, database, and retention policy are defined once
-for all points submitted in the API call.  All dynamic fields in the Heka
-message are converted to separate series in the `points` array that is
-submitted to InfluxDB.
+Converts full Heka message contents to JSON for InfluxDB HTTP write API (new
+in InfluxDB v0.9.0). Optionally includes all standard message fields as tags
+or fields and iterates through all of the dynamic fields to add as points
+(series), skipping any fields explicitly omitted using the `skip_fields`
+config option.  It can also map any Heka message fields as tags in the request
+sent to the InfluxDB API, using the `tag_fields` config option. Tags,
+timestamp/precision, database, and retention policy are defined once for all
+points submitted in the API call.  All dynamic fields in the Heka message are
+converted to separate series in the `points` array that is submitted to
+InfluxDB.
+
+.. note::
+    This encoder is intended for use with InfluxDB versions 0.9 or greater. If
+    you're working with InfluxDB versions prior to 0.9, you'll want to use the
+    :ref:`config_schema_influx_encoder` instead.
 
 Config:
 
