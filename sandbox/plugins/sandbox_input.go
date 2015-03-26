@@ -161,7 +161,11 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 }
 
 func (s *SandboxInput) Stop() {
-	s.sb.Stop()
+	s.reportLock.Lock()
+	if s.sb != nil {
+		s.sb.Stop()
+	}
+	s.reportLock.Unlock()
 	close(s.stopChan)
 }
 
