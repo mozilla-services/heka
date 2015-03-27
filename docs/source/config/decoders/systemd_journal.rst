@@ -1,7 +1,7 @@
 .. _config_systemd_journal_decoder:
 
-Graylog Extended Log Format Decoder
-===================================
+Systemd Journal Decoder
+=======================
 
 .. versionadded:: 0.10.0
 
