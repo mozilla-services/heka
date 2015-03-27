@@ -148,6 +148,12 @@ type PipelineConfig struct {
 	allDecoders []DecoderRunner
 	// Mutex protecting allDecoders.
 	allDecodersLock sync.RWMutex
+
+	// Slice providing access to all Decoders called synchronously by InputRunner
+	allSyncDecoders []ReportingDecoder
+	// Mutex protecting allSyncDecoders
+	allSyncDecodersLock sync.RWMutex
+
 	// Slice providing access to all instantiated Encoders.
 	allEncoders map[string]Encoder
 	// Mutex protecting allEncoders.
@@ -205,6 +211,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.LogMsgs = make([]string, 0, 4)
 	config.allDecoders = make([]DecoderRunner, 0, 10)
+	config.allSyncDecoders = make([]ReportingDecoder, 0, 10)
 	config.hostname = globals.Hostname
 	config.pid = int32(os.Getpid())
 	config.reportRecycleChan = make(chan *PipelinePack, 1)

@@ -36,6 +36,11 @@ type ReportingPlugin interface {
 	ReportMsg(msg *message.Message) (err error)
 }
 
+type ReportingDecoder struct {
+	name    string
+	decoder Decoder
+}
+
 // Given a PluginRunner and a Message struct, this function will populate the
 // Message struct's field values with the plugin's input channel length and
 // capacity, plus any additional data that the plugin might provide through
@@ -132,6 +137,9 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", name)
 		message.NewStringField(pack.Message, "key", "inputs")
+		if runner.SynchronousDecode() {
+			message.NewStringField(pack.Message, "SynchronousDecode", "true")
+		}
 		reportChan <- pack
 	}
 	pc.inputsLock.Unlock()
@@ -140,6 +148,15 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", runner.Name())
 		message.NewStringField(pack.Message, "key", "decoders")
+		reportChan <- pack
+	}
+
+	for _, reportingDecoder := range pc.allSyncDecoders {
+		pack = <-pc.reportRecycleChan
+		message.NewStringField(pack.Message, "name", reportingDecoder.name)
+		message.NewStringField(pack.Message, "key", "decoders")
+		pack.Message.SetLogger(HEKA_DAEMON)
+		pack.Message.SetType("heka.plugin-report")
 		reportChan <- pack
 	}
 
@@ -269,7 +286,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 		"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength",
 		"MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory",
 		"MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration",
-		"TimerEventAvgDuration",
+		"TimerEventAvgDuration", "SynchronousDecode",
 	}
 
 	///////////
