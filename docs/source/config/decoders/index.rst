@@ -28,3 +28,4 @@ Available Decoder Plugins
    sandbox
    scribble
    stats_to_fields
+   systemd_journal
