@@ -48,23 +48,23 @@ Config:
 
 .. code-block:: ini
 
-  [JournalInput]
+  [SystemdJournalInput]
   type = "ProcessInput"
   ticker_interval = 0
   splitter = "TokenSplitter"
-  decoder = "JournalDecoder"
+  decoder = "SystemdJournalDecoder"
   stdout = true
   stderr = false
 
-    [JournalInput.command.0]
+    [SystemdJournalInput.command.0]
     bin = "/usr/bin/journalctl"
     args = ["-b", "-l", "-o", "json", "-f"]
 
-  [JournalDecoder]
+  [SystemdJournalDecoder]
   type = "SandboxDecoder"
   filename = "lua_decoders/systemd_journal.lua"
 
-    [JournalDecoder.config]
+    [SystemdJournalDecoder.config]
     type = "systemd_journal"
     payload_keep = false
 
