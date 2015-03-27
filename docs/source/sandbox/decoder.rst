@@ -68,6 +68,12 @@ Rsyslog Decoder
    :start-after: --[[
    :end-before: --]]
 
+Systemd Journal Decoder
+^^^^^^^^^^^^^^^^^^^^^^^
+.. include:: ../../../sandbox/lua/decoders/systemd_journal.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Externally Available Sandbox Decoders
 -------------------------------------
 

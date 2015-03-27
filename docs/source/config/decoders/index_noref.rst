@@ -56,3 +56,6 @@ Decoders
 
 .. include:: /config/decoders/stats_to_fields.rst
    :start-line: 1
+
+.. include:: /config/decoders/systemd_journal.rst
+   :start-line: 1
