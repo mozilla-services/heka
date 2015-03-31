@@ -190,6 +190,12 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 	if ok {
 		// 1. NO - Try and find our location
+
+		// First make sure our file list is current. Ignore errors, since we
+		// can't do anything about them here anyway, scanning errors should be
+		// reported during the next ticker interval rescan.
+		l.set.ScanForLogstreams()
+
 		fd, _, err := l.LocatePriorLocation(false)
 
 		if err != nil && IsFileError(err) {
@@ -200,9 +206,9 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 			fd.Close()
 		}
 
-		// Unable to locate prior position in our file-stream, are there
-		// any logfiles?
 		if err != nil {
+			// Unable to locate prior position in our file-stream, are there
+			// any logfiles?
 			l.lfMutex.RLock()
 			defer l.lfMutex.RUnlock()
 			if len(l.logfiles) > 0 {
