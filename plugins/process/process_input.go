@@ -211,10 +211,12 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 
 	if pi.parseStdout {
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
+		defer pi.stdoutDeliverer.Done()
 	}
 
 	if pi.parseStderr {
 		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
+		defer pi.stderrDeliverer.Done()
 	}
 
 	// Start the output parser and start running commands.
@@ -255,8 +257,10 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 }
 
 func (pi *ProcessInput) Stop() {
-	// This will shutdown the ProcessInput::RunCmd goroutine
+	// This will also shutdown the ProcessInput::RunCmd goroutine and
+	// spawned CmdChain processes
 	pi.once.Do(func() {
+		pi.cc.Stopchan <- true
 		close(pi.stopChan)
 	})
 }
@@ -264,14 +268,6 @@ func (pi *ProcessInput) Stop() {
 // RunCmd pipes multiple commands together, runs them per the configured
 // msInterval, and passes the output to the appropriate splitter.
 func (pi *ProcessInput) RunCmd() {
-	defer func() {
-		if pi.parseStdout {
-			pi.stdoutDeliverer.Done()
-		}
-		if pi.parseStderr {
-			pi.stderrDeliverer.Done()
-		}
-	}()
 
 	if pi.tickInterval == 0 {
 		pi.runOnce()
