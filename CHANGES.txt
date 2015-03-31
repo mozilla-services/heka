@@ -6,6 +6,11 @@ Bug Handling
 
 * Fix a gziped file seeking in logstreamer may cause an OOM exception.
 
+* Always check for decoder existence when a decoder is specified for an input
+  plugin (#1439).
+
+* Check `IsStoppable()` on all input, filter, output plugins if they error at
+  startup time, only shut down Heka if false.
 
 0.9.1 (2015-03-13)
 ==================

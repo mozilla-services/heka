@@ -213,6 +213,9 @@ func Run(config *PipelineConfig) {
 		if err = output.Start(config, &outputsWg); err != nil {
 			LogError.Printf("Output '%s' failed to start: %s", name, err)
 			outputsWg.Done()
+			if !output.IsStoppable() {
+				globals.ShutDown()
+			}
 			continue
 		}
 		LogInfo.Println("Output started:", name)
@@ -223,6 +226,9 @@ func Run(config *PipelineConfig) {
 		if err = filter.Start(config, &config.filtersWg); err != nil {
 			LogError.Printf("Filter '%s' failed to start: %s", name, err)
 			config.filtersWg.Done()
+			if !filter.IsStoppable() {
+				globals.ShutDown()
+			}
 			continue
 		}
 		LogInfo.Println("Filter started:", name)
@@ -258,6 +264,9 @@ func Run(config *PipelineConfig) {
 		if err = input.Start(config, &config.inputsWg); err != nil {
 			LogError.Printf("Input '%s' failed to start: %s", name, err)
 			config.inputsWg.Done()
+			if !input.IsStoppable() {
+				globals.ShutDown()
+			}
 			continue
 		}
 		LogInfo.Println("Input started:", name)
