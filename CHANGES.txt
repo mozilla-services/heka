@@ -8,7 +8,13 @@ Bug Handling
 
 * Fixed LogstreamerInput file rotation missing newly created files with new
   names by always triggering LogstreamSet rescan before checking location in
-  stream.
+  stream (#1452).
+
+* Always check for decoder existence when a decoder is specified for an input
+  plugin (#1439).
+
+* Check `IsStoppable()` on all input, filter, output plugins if they error at
+  startup time, only shut down Heka if false.
 
 0.9.1 (2015-03-13)
 ==================
