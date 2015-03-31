@@ -5,15 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /// @brief Sandboxed Lua execution @file
-#include <stdlib.h>
-#include <stdio.h>
 #include <ctype.h>
-#include <string.h>
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
-#include <time.h>
 #include <lsb.h>
+#include <lsb/lauxlib.h>
+#include <lsb/lua.h>
+#include <lsb/lualib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 #include "_cgo_export.h"
 
 ////////////////////////////////////////////////////////////////////////////////
