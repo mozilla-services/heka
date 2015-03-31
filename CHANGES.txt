@@ -6,6 +6,7 @@ Bug Handling
 
 * Fix a gziped file seeking in logstreamer may cause an OOM exception.
 
+* Fixed config parsing typo bug in heka-logstreamer command (#1436).
 
 0.9.1 (2015-03-13)
 ==================
