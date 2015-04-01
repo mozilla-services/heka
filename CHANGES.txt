@@ -15,6 +15,8 @@ Bug Handling
 * Fixed typo causing panic in AMQPInput when splitter returns an error
   (#1453).
 
+* Handle chunked error responses in http_output.
+
 0.9.1 (2015-03-13)
 ==================
 
