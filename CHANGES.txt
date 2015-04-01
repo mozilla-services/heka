@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* ElasticSearch payload encoder will ensure there is a newline in the
+  end of the payload in order for the bulk API to work correctly (#1457).
+
 * Fix a gziped file seeking in logstreamer may cause an OOM exception.
 
 * Always check for decoder existence when a decoder is specified for an input
