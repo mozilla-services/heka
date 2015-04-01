@@ -12,6 +12,9 @@ Bug Handling
 * Check `IsStoppable()` on all input, filter, output plugins if they error at
   startup time, only shut down Heka if false.
 
+* Fixed typo causing panic in AMQPInput when splitter returns an error
+  (#1453).
+
 0.9.1 (2015-03-13)
 ==================
 

@@ -191,7 +191,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 
 		n, e = sRunner.SplitBytes(msg.Body, nil)
 		if e != nil {
-			ir.LogError(fmt.Errorf("processing message of type %s: %s", msg.Type, err.Error()))
+			ir.LogError(fmt.Errorf("processing message of type %s: %s", msg.Type, e.Error()))
 		}
 		if n > 0 && n != len(msg.Body) {
 			ir.LogError(fmt.Errorf("extra data in message of type %s dropped", msg.Type))
