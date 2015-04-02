@@ -266,11 +266,13 @@ func (l *Logstream) FileHashMismatch() bool {
 	return false
 }
 
-// Locate and return a file handle seeked to the appropriate location. An error will be
-// returned if the prior location cannot be located.
-// If the logfile this location for has changed names, the position will be updated to
-// reflect the move.
-func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader, err error) {
+// Locate and return a file handle seeked to the appropriate location. An
+// error will be returned if the prior location cannot be located. If the
+// logfile this location for has changed names, the position will be updated
+// to reflect the move.
+func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader,
+	err error) {
+
 	var info os.FileInfo
 	l.lfMutex.RLock()
 	defer l.lfMutex.RUnlock()
@@ -290,12 +292,13 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 		}
 	}
 
-	// Unable to locate the file, or the position wasn't where we thought it should be.
-	// Start systematically searching all the files for this location to see if it was
-	// shuffled around.
-	// TODO: Would be more efficient to start searching backwards from where we are
-	//       in the logstream at the moment.
-	for _, logfile := range l.logfiles {
+	// Unable to locate the file, or the position wasn't where we thought it
+	// should be. Start systematically searching all the files for this
+	// location to see if it was shuffled around. We start at the end and work
+	// backwards under the assumption that we're probably much closer to the
+	// end of the stream than the beginning.
+	for i := len(l.logfiles) - 1; i >= 0; i-- {
+		logfile := l.logfiles[i]
 		// Check that the file is large enough for our seek position
 		info, err = os.Stat(logfile.FileName)
 		if err != nil {
@@ -318,6 +321,9 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 			return
 		}
 		err = nil // Reset our error to nil
+		if fd != nil {
+			fd.Close()
+		}
 	}
 	// Set our default error since we were unable to locate the position
 	err = errors.New("Unable to locate position in the stream")
