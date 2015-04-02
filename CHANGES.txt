@@ -10,11 +10,18 @@ Bug Handling
   names by always triggering LogstreamSet rescan before checking location in
   stream (#1452).
 
+* Fixed config parsing typo bug in heka-logstreamer command (#1436).
+
 * Always check for decoder existence when a decoder is specified for an input
   plugin (#1439).
 
 * Check `IsStoppable()` on all input, filter, output plugins if they error at
   startup time, only shut down Heka if false.
+
+* Fixed typo causing panic in AMQPInput when splitter returns an error
+  (#1453).
+
+* Handle chunked error responses in http_output.
 
 0.9.1 (2015-03-13)
 ==================

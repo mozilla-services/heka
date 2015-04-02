@@ -143,10 +143,9 @@ func (o *HttpOutput) request(or pipeline.OutputRunner, outBytes []byte) (err err
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		var body []byte
-		if resp.ContentLength > 0 {
-			body = make([]byte, resp.ContentLength)
-			resp.Body.Read(body)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("Error reading HTTP response: %s", err.Error())
 		}
 		return fmt.Errorf("HTTP Error code returned: %d %s - %s",
 			resp.StatusCode, resp.Status, string(body))
