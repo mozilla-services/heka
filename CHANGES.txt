@@ -11,6 +11,9 @@ Features
 
 * Added support for `write_message` to delete fields when passed nil values.
 
+* Added a timer_event_on_shutdown configuration option for Filter/Output
+  sandboxes (#1460).
+
 * Added `replace_dot` setting to StatFilter.
 
 * A protobuf encoding of the current message is now always stored in

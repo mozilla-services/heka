@@ -127,7 +127,24 @@ func FilterSpec(c gs.Context) {
 			close(inChan)
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
 			c.Expect(err, gs.IsNil)
+		})
 
+		c.Specify("Over inject messages from the shutdown TimerEvent", func() {
+			var timer <-chan time.Time
+			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
+			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(10)
+			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(10)
+			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(10)
+
+			config.ScriptFilename = "../lua/testsupport/timerinject.lua"
+			config.ModuleDirectory = "../lua/modules"
+			config.TimerEventOnShutdown = true
+			err := sbFilter.Init(config)
+			c.Assume(err, gs.IsNil)
+			close(inChan)
+			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
+			c.Expect(err.Error(), gs.Equals, "FATAL: timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
 		})
 	})
 

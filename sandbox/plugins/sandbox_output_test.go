@@ -48,13 +48,13 @@ func OutputSpec(c gs.Context) {
 		pack := pipeline.NewPipelinePack(supply)
 		data := "1376389920 debug id=2321 url=example.com item=1"
 		pack.Message.SetPayload(data)
-		err := output.Init(conf)
-		c.Expect(err, gs.IsNil)
 
 		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
 		oth.MockOutputRunner.EXPECT().Ticker().Return(timer)
 
 		c.Specify("writes a payload to file", func() {
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
 			inChan <- pack
 			close(inChan)
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -73,6 +73,8 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("failure processing data", func() {
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
 			oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("failure message"))
 			pack.Message.SetPayload("FAILURE")
 			inChan <- pack
@@ -83,6 +85,8 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("user abort processing data", func() {
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
 			e := errors.New("FATAL: user abort")
 			pack.Message.SetPayload("USERABORT")
 			inChan <- pack
@@ -91,6 +95,8 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("fatal error processing data", func() {
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
 			pack.Message.SetPayload("FATAL")
 			inChan <- pack
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
@@ -98,7 +104,18 @@ func OutputSpec(c gs.Context) {
 		})
 
 		c.Specify("fatal error in timer_event", func() {
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
 			timer <- time.Now()
+			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
+			c.Expect(err, gs.Not(gs.IsNil))
+		})
+
+		c.Specify("fatal error in shutdown timer_event", func() {
+			conf.TimerEventOnShutdown = true
+			err := output.Init(conf)
+			c.Expect(err, gs.IsNil)
+			close(inChan)
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
 			c.Expect(err, gs.Not(gs.IsNil))
 		})
