@@ -78,7 +78,7 @@ function process_message()
 
     -- bulk api expects newline in the end of the payload
     if not string.match(payload, "\n$") then
-	      payload = payload .. "\n"
+        add_to_payload("\n")
     end
 
     add_to_payload(idx_json, "\n", payload)
