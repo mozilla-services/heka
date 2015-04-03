@@ -348,7 +348,9 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		destroyErr = this.sb.Destroy("")
 	}
 	if destroyErr != nil {
-		fr.LogError(err)
+		if err != nil {
+			fr.LogError(err)
+		}
 		err = destroyErr
 	}
 

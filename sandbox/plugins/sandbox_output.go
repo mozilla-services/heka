@@ -168,7 +168,9 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		destroyErr = s.sb.Destroy("")
 	}
 	if destroyErr != nil {
-		or.LogError(err)
+		if err != nil {
+			or.LogError(err)
+		}
 		err = destroyErr
 	}
 
