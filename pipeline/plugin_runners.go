@@ -524,6 +524,9 @@ func (ir *iRunner) NewSplitterRunner(token string) SplitterRunner {
 	srInterface, _ := maker.MakeRunner(name)
 	sr := srInterface.(*sRunner)
 	sr.ir = ir
+	ir.pConfig.allSplittersLock.Lock()
+	ir.pConfig.allSplitters = append(ir.pConfig.allSplitters, sr)
+	ir.pConfig.allSplittersLock.Unlock()
 	return sr
 }
 

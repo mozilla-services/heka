@@ -157,6 +157,25 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		message.NewStringField(pack.Message, "key", "decoders")
 		pack.Message.SetLogger(HEKA_DAEMON)
 		pack.Message.SetType("heka.plugin-report")
+
+		reportChan <- pack
+	}
+
+	for _, runner := range pc.allSplitters {
+		pack = <-pc.reportRecycleChan
+		message.NewStringField(pack.Message, "name", runner.Name())
+		message.NewStringField(pack.Message, "key", "splitters")
+		pack.Message.SetLogger(HEKA_DAEMON)
+		pack.Message.SetType("heka.plugin-report")
+
+		if reporter, hasReports := runner.Splitter().(ReportingPlugin); hasReports {
+			if err = reporter.ReportMsg(msg); err != nil {
+				if f, e = message.NewField("Error", err.Error(), ""); e == nil {
+					msg.AddField(f)
+				}
+			}
+		}
+
 		reportChan <- pack
 	}
 
@@ -295,7 +314,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	json.Unmarshal([]byte(payload), &m)
 
 	fullReport := make([]string, 0)
-	categories := []string{"globals", "inputs", "decoders", "filters", "outputs", "encoders"}
+	categories := []string{"globals", "inputs", "splitters", "decoders", "filters", "outputs", "encoders"}
 	for _, cat := range categories {
 		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
 		catReports, ok := m[cat]

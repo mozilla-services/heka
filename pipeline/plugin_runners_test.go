@@ -125,6 +125,18 @@ func InputRunnerSpec(c gs.Context) {
 			msgEncoding, err := proto.Marshal(pack.Message)
 			c.Assume(err, gs.IsNil)
 
+			c.Specify("if splitters should be visible in reports", func() {
+				runner := NewInputRunner("splitinput", input, commonInput).(*iRunner)
+				runner.pConfig = pConfig
+				c.Expect(len(pConfig.allSplitters), gs.Equals, 0)
+
+				sr := runner.NewSplitterRunner("split")
+
+				c.Expect(len(pConfig.allSplitters), gs.Equals, 1)
+				c.Expect(pConfig.allSplitters[0], gs.Equals, sr)
+				c.Expect(pConfig.allSplitters[0].Name(), gs.Equals, "splitinput-NullSplitter-split")
+			})
+
 			c.Specify("when decoding is synchronous", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
