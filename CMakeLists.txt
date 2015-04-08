@@ -267,7 +267,7 @@ add_test(plugins/udp ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.c
 add_test(logstreamer ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/logstreamer)
 add_test(client ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/client)
 if(INCLUDE_SANDBOX)
-    add_test(sandbox_move_modules cmake -E copy_directory ${CMAKE_BINARY_DIR}/heka/modules ${CMAKE_BINARY_DIR}/heka/src/github.com/mozilla-services/heka/sandbox/lua/modules)
+    add_test(sandbox_move_modules cmake -E copy_directory ${CMAKE_BINARY_DIR}/heka/lib/luasandbox/modules ${CMAKE_BINARY_DIR}/heka/src/github.com/mozilla-services/heka/sandbox/lua/modules)
     add_test(sandbox ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/lua)
     add_test(sandbox_plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} github.com/mozilla-services/heka/sandbox/plugins)
 endif()
