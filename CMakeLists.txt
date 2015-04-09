@@ -90,7 +90,7 @@ elseif(UNIX)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "RPM")
         set(CPACK_RPM_PACKAGE_LICENSE "MPLv2.0")
 		# todo we should pull lua_sandbox out of the heka/build and packaging
-		set(CPACK_RPM_PACKAGE_PROVIDES "libluasb.so()(64bit), libluasandbox.so()(64bit)")
+		set(CPACK_RPM_PACKAGE_PROVIDES "libluasb.so.0()(64bit), libluasandbox.so.0()(64bit)")
 		set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
     endif()
 endif()
