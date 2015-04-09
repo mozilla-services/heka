@@ -6,10 +6,10 @@
 
 /// @brief Sandboxed Lua execution @file
 #include <ctype.h>
-#include <lsb.h>
-#include <lsb/lauxlib.h>
-#include <lsb/lua.h>
-#include <lsb/lualib.h>
+#include <luasandbox.h>
+#include <luasandbox/lauxlib.h>
+#include <luasandbox/lua.h>
+#include <luasandbox/lualib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
