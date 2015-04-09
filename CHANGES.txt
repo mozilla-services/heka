@@ -34,6 +34,9 @@ Features
 * Added `field_mappings` setting to the ESJsonEncoder allowing custom names for
   Heka message fields in ElasticSearch.
 
+* Termination messages are now generated for SandboxFilters that fail
+  initialization by a SandboxManagerFilter.
+
 Bug Handling
 ------------
 

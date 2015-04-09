@@ -302,6 +302,12 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
 				if current < this.maxFilters {
 					err := this.loadSandbox(fr, h, this.workingDirectory, pack.Message)
 					if err != nil {
+						p := h.PipelinePack(0)
+						p.Message.SetType("heka.sandbox-terminated")
+						p.Message.SetLogger(pipeline.HEKA_DAEMON)
+						message.NewStringField(p.Message, "plugin", fr.Name())
+						p.Message.SetPayload(err.Error())
+						fr.Inject(p)
 						fr.LogError(err)
 					}
 				} else {
