@@ -178,6 +178,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	}
 	cowpack := new(pipeline.PipelinePack)
 	cowpack.Message = pack.Message
+	cowpack.MsgBytes = pack.MsgBytes // don't need to copy it since we don't change it
 	retval := s.sb.ProcessMessage(cowpack)
 	if retval == 0 && !s.injected {
 		// `inject_message` was never called, protobuf encode the copy on write
