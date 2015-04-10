@@ -48,6 +48,14 @@ func StatAccumInputSpec(c gs.Context) {
 		pConfig := NewPipelineConfig(nil)
 		statAccumInput.pConfig = pConfig
 
+		c.Specify("ticker interval is zero", func() {
+			config.TickerInterval = 0
+			err := statAccumInput.Init(config)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := "TickerInterval must be greater than 0."
+			c.Expect(err.Error(), gs.Equals, expected)
+		})
+
 		c.Specify("validates that data is emitted", func() {
 			config.EmitInPayload = false
 			err := statAccumInput.Init(config)

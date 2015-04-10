@@ -115,7 +115,8 @@ func InputRunnerSpec(c gs.Context) {
 				pConfig: pConfig,
 			}
 			iConfig := &StatAccumInputConfig{
-				EmitInPayload: true,
+				EmitInPayload:  true,
+				TickerInterval: 10,
 			}
 			err := input.Init(iConfig)
 			c.Assume(err, gs.IsNil)
