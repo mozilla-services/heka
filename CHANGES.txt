@@ -19,6 +19,10 @@ Bug Handling
 
 * Handle chunked error responses in http_output.
 
+* ElasticSearchOutput buffering now only retries messages when it's clear that
+  the problem related to failed communication with the ElasticSearch server
+  (#1401).
+
 0.9.1 (2015-03-13)
 ==================
 
