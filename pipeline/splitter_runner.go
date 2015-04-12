@@ -282,11 +282,19 @@ func (sr *sRunner) SplitBytes(data []byte, del Deliverer) (int, error) {
 		n, record = sr.Splitter().FindRecord(data[seekPos:])
 		recordLen := uint32(len(record))
 		if recordLen == 0 {
-			if seekPos == 0 {
-				return 0, errors.New("no records")
+			// Checks if there is remaining unsplitted data
+			remainingDataSize := uint32(len(data[seekPos+n:]))
+			if sr.incompleteFinal && remainingDataSize > 0 {
+				record = data[seekPos+n:]
+				recordLen = remainingDataSize
+				n += int(remainingDataSize)
+			} else {
+				if seekPos == 0 {
+					return 0, errors.New("no records")
+				}
+				// Exit w/ no error.
+				break
 			}
-			// Exit w/ no error.
-			break
 		}
 		seekPos += n
 		if recordLen > message.MAX_RECORD_SIZE {

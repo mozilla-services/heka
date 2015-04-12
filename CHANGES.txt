@@ -20,7 +20,12 @@ Bug Handling
 * Fixed typo causing panic in AMQPInput when splitter returns an error
   (#1453).
 
+0.9.2 (2015-??-??)
+==================
+
 * Handle chunked error responses in http_output.
+
+* Added handling of incomplete/trailing data for SplitBytes() method in SplitterRunner (#1455)
 
 0.9.1 (2015-03-13)
 ==================
