@@ -47,6 +47,8 @@ Bug Handling
 * ProcessInput fixed to no longer leak decoder goroutines when reconfigured
   via ProcessDirectoryInput-driven config changes (#1444).
 
+* Added handling of incomplete/trailing data for SplitBytes() method in SplitterRunner (#1455)
+
 0.9.2 (2015-??-??)
 ==================
 
