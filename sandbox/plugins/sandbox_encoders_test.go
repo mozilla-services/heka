@@ -39,6 +39,18 @@ func EncoderSpec(c gs.Context) {
 			err    error
 		)
 
+		c.Specify("emits raw correctly", func() {
+			conf.ScriptFilename = "../lua/testsupport/encoder_raw.lua"
+			conf.ModuleDirectory = "../lua/modules"
+			err = encoder.Init(conf)
+			c.Expect(err, gs.IsNil)
+			pack.MsgBytes = []byte("foo")
+
+			result, err = encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(pack.MsgBytes), gs.Equals, string(result))
+		})
+
 		c.Specify("emits JSON correctly", func() {
 			conf.ScriptFilename = "../lua/testsupport/encoder_json.lua"
 			conf.ModuleDirectory = "../lua/modules"
