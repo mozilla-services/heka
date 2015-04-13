@@ -125,6 +125,11 @@ func (sm *StatAccumInput) Init(config interface{}) error {
 	sm.stopChan = make(chan bool, 1)
 
 	sm.config = config.(*StatAccumInputConfig)
+	if sm.config.TickerInterval == 0 {
+		return errors.New(
+			"TickerInterval must be greater than 0.",
+		)
+	}
 	if !sm.config.EmitInPayload && !sm.config.EmitInFields {
 		return errors.New(
 			"One of either `EmitInPayload` or `EmitInFields` must be set to true.",
