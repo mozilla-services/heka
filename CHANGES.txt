@@ -40,6 +40,8 @@ Features
 * Termination messages are now generated for SandboxFilters that fail
   initialization by a SandboxManagerFilter.
 
+* Added alert_throttle setting to HTTP status graph filter.
+
 Bug Handling
 ------------
 
