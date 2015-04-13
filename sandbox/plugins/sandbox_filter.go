@@ -329,6 +329,13 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 	}
 
+	if !terminated && this.sbc.TimerEventOnShutdown {
+		injectionCount = this.pConfig.Globals.MaxMsgTimerInject
+		if retval = this.sb.TimerEvent(time.Now().UnixNano()); retval != 0 {
+			err = fmt.Errorf("FATAL: %s", this.sb.LastError())
+		}
+	}
+
 	if this.manager != nil {
 		this.manager.PluginExited()
 	}
@@ -341,6 +348,9 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		destroyErr = this.sb.Destroy("")
 	}
 	if destroyErr != nil {
+		if err != nil {
+			fr.LogError(err)
+		}
 		err = destroyErr
 	}
 

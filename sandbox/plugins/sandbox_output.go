@@ -154,6 +154,12 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		}
 	}
 
+	if err == nil && s.sbc.TimerEventOnShutdown {
+		if retval = s.sb.TimerEvent(time.Now().UnixNano()); retval != 0 {
+			err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+		}
+	}
+
 	s.reportLock.Lock()
 	var destroyErr error
 	if s.sbc.PreserveData {
@@ -162,6 +168,9 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		destroyErr = s.sb.Destroy("")
 	}
 	if destroyErr != nil {
+		if err != nil {
+			or.LogError(err)
+		}
 		err = destroyErr
 	}
 

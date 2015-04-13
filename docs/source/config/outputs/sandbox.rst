@@ -14,9 +14,11 @@ and transmission without the need to recompile Heka. See :ref:`sandbox`.
 
 Config:
 
-- The common output configuration paramater 'encoder' is ignored since all data
+- The common output configuration parameter 'encoder' is ignored since all data
   transformation should happen in the plugin.
 - :ref:`config_common_sandbox_parameters`
+- timer_event_on_shutdown (bool):
+    True if the sandbox should have its timer_event function called on shutdown.
 
 Example
 
