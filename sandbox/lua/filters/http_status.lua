@@ -19,6 +19,9 @@ Config:
 - anomaly_config (string, optional)
     See :ref:`sandbox_anomaly_module`.
 
+- alert_throttle (uint, optional, default 3600)
+    Sets the throttle for the anomaly alert, in seconds.
+
 - preservation_version (uint, optional, default 0)
     If `preserve_data = true` is set in the SandboxFilter configuration, then
     this value should be incremented every time the `sec_per_row` or `rows`
@@ -40,6 +43,7 @@ Config:
     sec_per_row = 60
     rows = 1440
     anomaly_config = 'roc("HTTP Status", 2, 15, 0, 1.5, true, false) roc("HTTP Status", 4, 15, 0, 1.5, true, false) mww_nonparametric("HTTP Status", 5, 15, 10, 0.8)'
+    alert_throttle = 300
     preservation_version = 0
 --]]
 _PRESERVATION_VERSION = read_config("preservation_version") or 0
@@ -55,6 +59,9 @@ local title             = "HTTP Status"
 local rows              = read_config("rows") or 1440
 local sec_per_row       = read_config("sec_per_row") or 60
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
+local alert_throttle    = read_config("alert_throttle") or 3600
+alert.set_throttle(alert_throttle * 1e9)
+
 annotation.set_prune(title, rows * sec_per_row * 1e9)
 
 status = circular_buffer.new(rows, 6, sec_per_row)
