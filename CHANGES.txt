@@ -4,7 +4,10 @@
 Bug Handling
 ------------
 
-* Fix a gziped file seeking in logstreamer may cause an OOM exception.
+* ElasticSearch payload encoder will ensure there is a newline in the
+  end of the payload in order for the bulk API to work correctly (#1457).
+
+* Fix a gzipped file seeking in logstreamer may cause an OOM exception.
 
 * Fixed config parsing typo bug in heka-logstreamer command (#1436).
 
@@ -22,6 +25,9 @@ Bug Handling
 * ElasticSearchOutput buffering now only retries messages when it's clear that
   the problem related to failed communication with the ElasticSearch server
   (#1401).
+
+* Added handling of incomplete/trailing data for SplitBytes() method in
+  SplitterRunner (#1455)
 
 0.9.1 (2015-03-13)
 ==================
