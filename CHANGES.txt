@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed bug where LogstreamerInput wasn't honoring `oldest_duration` setting
+  (#1437).
+
 * ElasticSearch payload encoder will ensure there is a newline in the
   end of the payload in order for the bulk API to work correctly (#1457).
 
