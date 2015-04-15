@@ -55,6 +55,9 @@ Bug Handling
 * Check configuration, ticker_interval in Stat Accumulator Input  must be
   greater than 0 (#1474).
 
+* Switch from unmaintained `crowdmob` fork of GoAMZ dependency to `AdRoll`
+  (#1458).
+
 0.9.2 (2015-??-??)
 ==================
 
