@@ -46,6 +46,8 @@ Features
 
 * Added splitters to the reports displayed by Heka after SIGUSR1 signal.
 
+* Added `graphite` module with helpers allowing to generate graphite metrics for counters and timeseries (#1461).
+
 Bug Handling
 ------------
 
