@@ -288,6 +288,12 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 			ir.config.Splitter, err.Error())
 	}
 
+	if ir.config.Decoder != "" {
+		_, ok := ir.pConfig.Decoder(ir.config.Decoder)
+		if !ok {
+			return fmt.Errorf("no registered '%s' decoder", ir.config.Decoder)
+		}
+	}
 	go ir.Starter(h, wg)
 	return
 }
@@ -299,7 +305,9 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	rh, err := NewRetryHelper(ir.config.Retries)
 	if err != nil {
 		ir.LogError(err)
-		globals.ShutDown()
+		if !ir.IsStoppable() {
+			globals.ShutDown()
+		}
 		return
 	}
 
@@ -949,7 +957,9 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	rh, err := NewRetryHelper(foRunner.config.Retries)
 	if err != nil {
 		foRunner.LogError(err)
-		globals.ShutDown()
+		if !foRunner.IsStoppable() {
+			globals.ShutDown()
+		}
 		return
 	}
 

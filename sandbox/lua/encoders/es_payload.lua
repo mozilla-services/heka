@@ -64,8 +64,16 @@ function process_message()
     if ts_from_message then
         ns = read_message("Timestamp")
     end
+
     local idx_json = elasticsearch.bulkapi_index_json(index, type_name, id, ns)
-    add_to_payload(idx_json, "\n", read_message("Payload"))
+    local payload  = read_message("Payload")
+
+    add_to_payload(idx_json, "\n", payload)
+    -- ES bulk api expects newline at the end of the payload.
+    if not string.match(payload, "\n$") then
+        add_to_payload("\n")
+    end
+
     inject_payload()
     return 0
 end

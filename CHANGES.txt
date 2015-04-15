@@ -61,6 +61,33 @@ Bug Handling
 0.9.2 (2015-??-??)
 ==================
 
+Bug Handling
+------------
+
+* ElasticSearch payload encoder will ensure there is a newline in the
+  end of the payload in order for the bulk API to work correctly (#1457).
+
+* Fix a gzipped file seeking in logstreamer may cause an OOM exception.
+
+* Fixed config parsing typo bug in heka-logstreamer command (#1436).
+
+* Always check for decoder existence when a decoder is specified for an input
+  plugin (#1439).
+
+* Check `IsStoppable()` on all input, filter, output plugins if they error at
+  startup time, only shut down Heka if false.
+
+* Fixed typo causing panic in AMQPInput when splitter returns an error
+  (#1453).
+
+* Handle chunked error responses in http_output.
+
+* ElasticSearchOutput buffering now only retries messages when it's clear that
+  the problem related to failed communication with the ElasticSearch server
+  (#1401).
+
+* Added handling of incomplete/trailing data for SplitBytes() method in
+  SplitterRunner (#1455)
 
 0.9.1 (2015-03-13)
 ==================
