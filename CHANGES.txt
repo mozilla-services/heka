@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed TcpOutput recovery after full queue when `queue_full_action` is set to
+  "drop" or "block" (#1484).
+
 * Fixed bug where LogstreamerInput wasn't honoring `oldest_duration` setting
   (#1437).
 
