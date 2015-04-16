@@ -44,6 +44,8 @@ type LogstreamerInputConfig struct {
 	Differentiator []string
 	// Oldest logfiles to parse, as a duration parseable
 	OldestDuration string `toml:"oldest_duration"`
+	// Start at the end of the stream if no previous file position cursor
+	InitialTail bool `toml:"initial_tail"`
 	// Translation map for sorting substitutions
 	Translation ls.SubmatchTranslationMap
 	// Rescan interval declares how often the full directory scanner
@@ -51,8 +53,6 @@ type LogstreamerInputConfig struct {
 	RescanInterval string `toml:"rescan_interval"`
 	// So we can default to TokenSplitter.
 	Splitter string
-	// Start at the end of the stream if no previous file position cursor
-	InitialTail bool
 }
 
 type LogstreamerInput struct {
