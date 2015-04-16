@@ -372,6 +372,7 @@ type LogstreamSet struct {
 	logRoot        string        // Base path to walk for logfiles (ie, /var/log)
 	journalRoot    string        // Base path for journal files (ie, /etc/journals)
 	fileMatch      *regexp.Regexp
+	initialTail    bool
 }
 
 // append a path separator if needed and escape regexp meta characters
@@ -384,7 +385,7 @@ func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
 }
 
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
-	logRoot, journalRoot string) (*LogstreamSet, error) {
+	logRoot, journalRoot string, initialTail bool) (*LogstreamSet, error) {
 	// Lowercase the actual matching keys.
 	newTranslation := make(SubmatchTranslationMap)
 	for key, val := range sortPattern.Translation {
@@ -408,6 +409,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
 		fileMatch:      fileMatchRegexp(realLogRoot, sortPattern.FileMatch),
+		initialTail:    initialTail,
 	}
 	return ls, nil
 }
@@ -437,7 +439,8 @@ func (ls *LogstreamSet) GetLogstreamNames() []string {
 func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleError) {
 	var (
 		logstream *Logstream
-		ok        bool
+
+		ok bool
 	)
 	result = make([]string, 0, 0)
 	errors = NewMultipleError()
@@ -462,6 +465,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 
 	for name, newLogfiles := range mfs {
 		logstream, ok = ls.logstreams[name]
+		initialTail := false
 
 		// New logstream files found, attempt journal path load and setup
 		// the new logstream in the map, recording its newness in result
@@ -471,7 +475,11 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 			if err != nil {
 				errors.AddMessage(err.Error())
 				position.Reset()
+				initialTail = ls.initialTail
+			} else if position.SeekPosition == 0 {
+				initialTail = ls.initialTail
 			}
+
 			logstream = NewLogstream(nil, position)
 		}
 
@@ -495,6 +503,15 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		// If this is a new logstream, its now safe to add it
 		if !ok {
 			result = append(result, name)
+			if initialTail {
+				pos, err := InitialTailPos(newLogfiles[0])
+				if err != nil {
+					errors.AddMessage(err.Error())
+				} else {
+					logstream.position.SeekPosition = pos
+					logstream.SavePosition()
+				}
+			}
 			ls.logstreams[name] = logstream
 		}
 
@@ -529,6 +546,22 @@ func ResolveDifferentiatedName(l *Logfile, differentiator []string) (name string
 		}
 	}
 	return
+}
+
+func InitialTailPos(l *Logfile) (int64, error) {
+
+	f, err := os.Open(l.FileName)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	pos, err := f.Seek(0, 2)
+	if err != nil {
+		return 0, err
+	}
+
+	return pos, err
 }
 
 // Match translation map for a matched section that maps the string value to the integer to
