@@ -504,12 +504,11 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		if !ok {
 			result = append(result, name)
 			if initialTail {
-				pos, err := InitialTailPos(newLogfiles[0])
+				err := InitialTailPos(newLogfiles[0], logstream)
 				if err != nil {
 					errors.AddMessage(err.Error())
 				} else {
-					logstream.position.SeekPosition = pos
-					logstream.SavePosition()
+					logstream.position.Save()
 				}
 			}
 			ls.logstreams[name] = logstream
@@ -548,20 +547,40 @@ func ResolveDifferentiatedName(l *Logfile, differentiator []string) (name string
 	return
 }
 
-func InitialTailPos(l *Logfile) (int64, error) {
+func InitialTailPos(l *Logfile, ls *Logstream) error {
 
 	f, err := os.Open(l.FileName)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer f.Close()
 
-	pos, err := f.Seek(0, 2)
+	end, err := f.Seek(0, 2)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return pos, err
+	pos := end - int64(LINEBUFFERLEN)
+	if pos < 0 {
+		pos = 0
+	}
+
+	b := make([]byte, LINEBUFFERLEN)
+	_, err = f.Seek(pos, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Read(b)
+	if err != nil {
+		return err
+	}
+
+	ls.position.Filename = l.FileName
+	ls.position.SeekPosition = end
+	ls.position.lastLine.Write(b)
+
+	return err
 }
 
 // Match translation map for a matched section that maps the string value to the integer to
