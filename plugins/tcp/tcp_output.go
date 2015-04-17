@@ -131,7 +131,7 @@ func (t *TcpOutput) connect() (err error) {
 	} else {
 		t.connection, err = dialer.Dial("tcp", t.address)
 	}
-	if t.conf.KeepAlive {
+	if t.connection != nil && t.conf.KeepAlive {
 		tcpConn, ok := t.connection.(*net.TCPConn)
 		if !ok {
 			t.or.LogError(fmt.Errorf("KeepAlive only supported for TCP Connections."))
@@ -223,6 +223,7 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	}
 	t.bufferedOut.Start(t, outputError, outputExit, stopChan)
 
+	dupFullMsg := false // Prevents log from overflowing w/ dup queue full msgs
 	for ok {
 		select {
 		case e := <-outputError:
@@ -236,12 +237,19 @@ func (t *TcpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				break
 			}
 			if err := t.bufferedOut.QueueRecord(pack); err != nil {
-				or.LogError(err)
 				if err == QueueIsFull {
+					if !dupFullMsg {
+						or.LogError(err)
+						dupFullMsg = true
+					}
 					ok = t.queueFull(pack)
+				} else {
+					or.LogError(err)
+					dupFullMsg = false
 				}
 			} else {
 				atomic.AddInt64(&t.processMessageCount, 1)
+				dupFullMsg = false
 			}
 			pack.Recycle()
 
@@ -265,8 +273,12 @@ func (t *TcpOutput) queueFull(pack *PipelinePack) bool {
 	switch t.conf.QueueFullAction {
 	// Tries to queue message until its possible to send it to output.
 	case "block":
-		for t.outputBlock.Wait() == nil && !t.pConfig.Globals.IsShuttingDown() {
-			if blockErr := t.bufferedOut.QueueRecord(pack); blockErr == nil {
+		for t.outputBlock.Wait() == nil {
+			if t.pConfig.Globals.IsShuttingDown() {
+				return false
+			}
+			blockErr := t.bufferedOut.QueueRecord(pack)
+			if blockErr == nil {
 				atomic.AddInt64(&t.processMessageCount, 1)
 				break
 			}
