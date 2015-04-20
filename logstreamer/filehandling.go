@@ -439,8 +439,7 @@ func (ls *LogstreamSet) GetLogstreamNames() []string {
 func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleError) {
 	var (
 		logstream *Logstream
-
-		ok bool
+		ok        bool
 	)
 	result = make([]string, 0, 0)
 	errors = NewMultipleError()
@@ -475,8 +474,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 			if err != nil {
 				errors.AddMessage(err.Error())
 				position.Reset()
-				initialTail = ls.initialTail
-			} else if position.SeekPosition == 0 {
+			} else if position.IsZero() {
 				initialTail = ls.initialTail
 			}
 
@@ -504,7 +502,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		if !ok {
 			result = append(result, name)
 			if initialTail {
-				err := InitialTailPos(newLogfiles[0], logstream)
+				err := InitialTailSetPos(newLogfiles[0], logstream)
 				if err != nil {
 					errors.AddMessage(err.Error())
 				} else {
@@ -547,7 +545,8 @@ func ResolveDifferentiatedName(l *Logfile, differentiator []string) (name string
 	return
 }
 
-func InitialTailPos(l *Logfile, ls *Logstream) error {
+// Sets the position of the passed Logstream to the end of the Logfile.
+func InitialTailSetPos(l *Logfile, ls *Logstream) error {
 
 	f, err := os.Open(l.FileName)
 	if err != nil {
