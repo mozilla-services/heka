@@ -42,6 +42,9 @@ Features
 
 * Added alert_throttle setting to HTTP status graph filter.
 
+* Added `initial_tail` setting to the LogstreamerInput that skips to the end of
+  a file if no previous position is found.
+
 Bug Handling
 ------------
 
