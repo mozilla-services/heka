@@ -1,7 +1,7 @@
 .. _config_docker_event_input:
 
-Docker Log Input
-================
+Docker Event Input
+=================
 
 .. versionadded:: 0.10.0
 
