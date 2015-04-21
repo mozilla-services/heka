@@ -56,7 +56,7 @@ func IsFileError(err error) (fileError bool) {
 
 // Loads a logstreamlocation from a file or returns an empty one if no journal
 // record was found.
-func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
+func LogstreamLocationFromFile(path string, initialTail bool) (l *LogstreamLocation, err error) {
 	l = new(LogstreamLocation)
 	l.JournalPath = path
 	l.lastLine = ringbuf.New(LINEBUFFERLEN)
@@ -68,6 +68,12 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 		if os.IsNotExist(err) {
 			// File doesn't exist, but that's ok, not a real error.
 			err = nil
+			if initialTail {
+				err := InitialTailSetPos(path, l)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 		return
 	}
@@ -89,6 +95,42 @@ func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
 	}
 	err = json.Unmarshal(cBytes, l)
 	return
+}
+
+// Sets the position of the passed Logstream to the end of the Logfile.
+func InitialTailSetPos(path string, l *LogstreamLocation) error {
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	end, err := f.Seek(0, 2)
+	if err != nil {
+		return err
+	}
+
+	pos := end - int64(LINEBUFFERLEN)
+	if pos < 0 {
+		pos = 0
+	}
+
+	b := make([]byte, LINEBUFFERLEN)
+	_, err = f.Seek(pos, 0)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Read(b)
+	if err != nil {
+		return err
+	}
+
+	l.SeekPosition = end
+	l.lastLine.Write(b)
+
+	return err
 }
 
 func (l *LogstreamLocation) Debug() string {

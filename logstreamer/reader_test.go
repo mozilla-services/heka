@@ -32,7 +32,7 @@ func ReaderSpec(c gs.Context) {
 	testDirPath := filepath.Join(here, "testdir", "filehandling")
 
 	c.Specify("A journal file can be read", func() {
-		l, err := LogstreamLocationFromFile(filepath.Join(dirPath, "location.json"))
+		l, err := LogstreamLocationFromFile(filepath.Join(dirPath, "location.json"), false)
 
 		// Restore the oldest position
 		l.Filename = filepath.Join(testDirPath, "2010", "07", "error.log.2")
@@ -220,6 +220,7 @@ func ReaderSpec(c gs.Context) {
 
 		for _, lp := range ls.logstreams {
 			c.Expect(lp.position.SeekPosition, gs.Equals, int64(1160))
+			c.Expect(lp.position.Filename[len(lp.position.Filename)-len("2010/07/error.log.2"):], gs.Equals, "2010/07/error.log.2")
 		}
 	})
 
