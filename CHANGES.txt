@@ -44,6 +44,9 @@ Features
 
 * Added DockerEventInput.
 
+* Added `initial_tail` setting to the LogstreamerInput that skips to the end of
+  a file if no previous position is found.
+
 Bug Handling
 ------------
 
