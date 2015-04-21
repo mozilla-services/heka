@@ -464,18 +464,15 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 
 	for name, newLogfiles := range mfs {
 		logstream, ok = ls.logstreams[name]
-		initialTail := false
 
 		// New logstream files found, attempt journal path load and setup
 		// the new logstream in the map, recording its newness in result
 		if !ok {
 			journalPath := filepath.Join(ls.journalRoot, name)
-			position, err := LogstreamLocationFromFile(journalPath)
+			position, err := LogstreamLocationFromFile(journalPath, ls.initialTail)
 			if err != nil {
 				errors.AddMessage(err.Error())
 				position.Reset()
-			} else if position.IsZero() {
-				initialTail = ls.initialTail
 			}
 
 			logstream = NewLogstream(nil, position)
@@ -501,14 +498,6 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		// If this is a new logstream, its now safe to add it
 		if !ok {
 			result = append(result, name)
-			if initialTail {
-				err := InitialTailSetPos(newLogfiles[0], logstream)
-				if err != nil {
-					errors.AddMessage(err.Error())
-				} else {
-					logstream.position.Save()
-				}
-			}
 			ls.logstreams[name] = logstream
 		}
 
@@ -543,43 +532,6 @@ func ResolveDifferentiatedName(l *Logfile, differentiator []string) (name string
 		}
 	}
 	return
-}
-
-// Sets the position of the passed Logstream to the end of the Logfile.
-func InitialTailSetPos(l *Logfile, ls *Logstream) error {
-
-	f, err := os.Open(l.FileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	end, err := f.Seek(0, 2)
-	if err != nil {
-		return err
-	}
-
-	pos := end - int64(LINEBUFFERLEN)
-	if pos < 0 {
-		pos = 0
-	}
-
-	b := make([]byte, LINEBUFFERLEN)
-	_, err = f.Seek(pos, 0)
-	if err != nil {
-		return err
-	}
-
-	_, err = f.Read(b)
-	if err != nil {
-		return err
-	}
-
-	ls.position.Filename = l.FileName
-	ls.position.SeekPosition = end
-	ls.position.lastLine.Write(b)
-
-	return err
 }
 
 // Match translation map for a matched section that maps the string value to the integer to
