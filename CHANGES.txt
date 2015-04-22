@@ -42,6 +42,8 @@ Features
 
 * Added alert_throttle setting to HTTP status graph filter.
 
+* Added DockerEventInput.
+
 Bug Handling
 ------------
 
