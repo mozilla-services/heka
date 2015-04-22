@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed ElasticSearch recovery after full queue when `queue_full_action` is
+  set to "drop" or "block".
+
 * Fixed TcpOutput recovery after full queue when `queue_full_action` is set to
   "drop" or "block" (#1484).
 
