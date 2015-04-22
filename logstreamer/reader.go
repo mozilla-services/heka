@@ -55,7 +55,8 @@ func IsFileError(err error) (fileError bool) {
 }
 
 // Loads a logstreamlocation from a file or returns an empty one if no journal
-// record was found.
+// record was found. With the initialTail option, if no journal record was
+// found the returned LogstreamLocation is at the end of the file.
 func LogstreamLocationFromFile(path string, initialTail bool) (l *LogstreamLocation, err error) {
 	l = new(LogstreamLocation)
 	l.JournalPath = path
@@ -97,7 +98,7 @@ func LogstreamLocationFromFile(path string, initialTail bool) (l *LogstreamLocat
 	return
 }
 
-// Sets the position of the passed Logstream to the end of the Logfile.
+// Sets the position of the passed Logstream to the end of the file.
 func InitialTailSetPos(path string, l *LogstreamLocation) error {
 
 	f, err := os.Open(path)

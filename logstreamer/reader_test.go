@@ -218,10 +218,10 @@ func ReaderSpec(c gs.Context) {
 		names, err := ls.ScanForLogstreams()
 		c.Expect(len(names), gs.Equals, 1)
 
-		for _, lp := range ls.logstreams {
-			c.Expect(lp.position.SeekPosition, gs.Equals, int64(1160))
-			c.Expect(lp.position.Filename[len(lp.position.Filename)-len("2010/07/error.log.2"):], gs.Equals, "2010/07/error.log.2")
-		}
+		lp := ls.logstreams[names[0]]
+		c.Expect(lp.position.SeekPosition, gs.Equals, int64(1160))
+		c.Expect(lp.position.Hash, gs.Equals, "51f982eb996a8951e3cb942810e387b637c0bf2c")
+		c.Expect(lp.position.Filename[len(lp.position.Filename)-len("2010/07/error.log.2"):], gs.Equals, "2010/07/error.log.2")
 	})
 
 }
