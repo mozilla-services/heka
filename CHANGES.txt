@@ -4,6 +4,8 @@
 Bug Handling
 ------------
 
+* Added bounds check for truncated inputs lines to StatsdInput.
+
 * Fixed ElasticSearch recovery after full queue when `queue_full_action` is
   set to "drop" or "block".
 
