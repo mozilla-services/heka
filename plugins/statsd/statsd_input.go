@@ -166,7 +166,7 @@ func parseMessage(message []byte) ([]Stat, [][]byte) {
 		}
 
 		pipePos := bytes.IndexByte(line[colonPos+1:], '|') + colonPos + 1
-		if pipePos == -1 || len(line) < pipePos+2 {
+		if pipePos == -1 || pipePos == colonPos || len(line) < pipePos+2 {
 			badLines = append(badLines, line)
 			continue
 		}

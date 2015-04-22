@@ -120,7 +120,7 @@ func parseConfig(name string, prim toml.Primitive) {
 		return
 	}
 
-	if len(config.FileMatch) > 0 && config.FileMatch[len(config.FileMatch)-2:] != "$" {
+	if len(config.FileMatch) > 0 && config.FileMatch[len(config.FileMatch)-1:] != "$" {
 		config.FileMatch += "$"
 	}
 

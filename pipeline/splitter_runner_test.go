@@ -276,7 +276,8 @@ func SplitterRunnerSpec(c gs.Context) {
 			c.Expect(sr.scanPos, gs.Equals, 0)
 		})
 
-		c.Specify("honors 'deliver_incomplete_final' setting", func() {
+		c.Specify("checks if splitter honors 'deliver_incomplete_final' setting", func() {
+
 			config.Count = 4
 			numRecs := 10
 			err := splitter.Init(config)
@@ -314,11 +315,20 @@ func SplitterRunnerSpec(c gs.Context) {
 				}
 				pack.Recycle()
 			})
-
-			for err == nil {
-				err = sr.SplitStream(reader, mockDel)
-			}
-			c.Expect(err, gs.Equals, io.EOF)
+			c.Specify("via SplitStream", func() {
+				for err == nil {
+					err = sr.SplitStream(reader, mockDel)
+				}
+				c.Expect(err, gs.Equals, io.EOF)
+				c.Expect(i, gs.Equals, numRecs)
+			})
+			c.Specify("via SplitBytes", func() {
+				seekPos, err := sr.SplitBytes(buf, mockDel)
+				c.Assume(err, gs.IsNil)
+				c.Expect(seekPos, gs.Equals, len(buf))
+				c.Expect(i, gs.Equals, numRecs)
+			})
 		})
+
 	})
 }

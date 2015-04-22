@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/mozilla-services/heka/ringbuf"
@@ -380,12 +381,11 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 			return nil, nil, err
 		}
 		if seekPos > 0 {
-			garbage := make([]byte, seekPos)
-			n, err := reader.Read(garbage)
+			n, err := io.CopyN(ioutil.Discard, reader, seekPos)
 			if err != nil {
 				return nil, nil, err
 			}
-			if int64(n) != seekPos {
+			if n != seekPos {
 				return nil, nil, ErrorCantGzipToPosition
 			}
 		}

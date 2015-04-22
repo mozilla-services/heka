@@ -236,16 +236,48 @@ func BufferedOutputSpec(c gs.Context) {
 			})
 
 			c.Specify("when queue has limit and is full", func() {
-				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				or.EXPECT().Encode(newpack).Return(protoBytes, err).Times(4)
 				bufferedOutput.maxQueueSize = uint64(50)
 
 				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
 				err = bufferedOutput.RollQueue()
 				c.Expect(err, gs.IsNil)
+				queueFiles, err := ioutil.ReadDir(bufferedOutput.queue)
+				c.Expect(err, gs.IsNil)
+				numFiles := len(queueFiles)
 
 				err = bufferedOutput.QueueRecord(newpack)
 				c.Expect(err, gs.Equals, QueueIsFull)
 				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+
+				// Queue should have rolled again.
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
+
+				// Try again.
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.Equals, QueueIsFull)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+
+				// Ensure queue didn't roll twice.
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
+
+				or.EXPECT().UsesFraming().Return(false)
+				// Bump the max queue size so it will accept a record.
+				bufferedOutput.maxQueueSize = uint64(120)
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+
+				// Try to queue one last time, it should fail and trigger
+				// another queue roll.
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.Equals, QueueIsFull)
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, numFiles+2)
 			})
 
 		})
