@@ -54,6 +54,7 @@ Available Input Plugins
    :maxdepth: 1
 
    amqp
+   docker_event
    docker_log
    file_polling
    http

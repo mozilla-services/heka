@@ -10,6 +10,9 @@ Inputs
 .. include:: /config/inputs/amqp.rst
    :start-line: 1
 
+.. include:: /config/inputs/docker_event.rst
+   :start-line: 1
+
 .. include:: /config/inputs/docker_log.rst
    :start-line: 1
 
