@@ -17,15 +17,16 @@ package logstreamer
 import (
 	"errors"
 	"fmt"
-	ls "github.com/mozilla-services/heka/logstreamer"
-	"github.com/mozilla-services/heka/message"
-	p "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	ls "github.com/mozilla-services/heka/logstreamer"
+	"github.com/mozilla-services/heka/message"
+	p "github.com/mozilla-services/heka/pipeline"
 )
 
 type LogstreamerInputConfig struct {
@@ -43,6 +44,8 @@ type LogstreamerInputConfig struct {
 	Differentiator []string
 	// Oldest logfiles to parse, as a duration parseable
 	OldestDuration string `toml:"oldest_duration"`
+	// Start at the end of the stream if no previous file position cursor
+	InitialTail bool `toml:"initial_tail"`
 	// Translation map for sorting substitutions
 	Translation ls.SubmatchTranslationMap
 	// Rescan interval declares how often the full directory scanner
@@ -65,6 +68,7 @@ type LogstreamerInput struct {
 	delimiterLocation  string
 	hostName           string
 	pluginName         string
+	initialTail        bool
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -145,7 +149,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
 	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
-		conf.JournalDirectory)
+		conf.JournalDirectory, conf.InitialTail)
 	if err != nil {
 		return
 	}

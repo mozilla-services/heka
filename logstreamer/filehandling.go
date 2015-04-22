@@ -372,6 +372,7 @@ type LogstreamSet struct {
 	logRoot        string        // Base path to walk for logfiles (ie, /var/log)
 	journalRoot    string        // Base path for journal files (ie, /etc/journals)
 	fileMatch      *regexp.Regexp
+	initialTail    bool
 }
 
 // append a path separator if needed and escape regexp meta characters
@@ -384,7 +385,7 @@ func fileMatchRegexp(logRoot, fileMatch string) *regexp.Regexp {
 }
 
 func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
-	logRoot, journalRoot string) (*LogstreamSet, error) {
+	logRoot, journalRoot string, initialTail bool) (*LogstreamSet, error) {
 	// Lowercase the actual matching keys.
 	newTranslation := make(SubmatchTranslationMap)
 	for key, val := range sortPattern.Translation {
@@ -408,6 +409,7 @@ func NewLogstreamSet(sortPattern *SortPattern, oldest time.Duration,
 		journalRoot:    journalRoot,
 		logstreamMutex: new(sync.RWMutex),
 		fileMatch:      fileMatchRegexp(realLogRoot, sortPattern.FileMatch),
+		initialTail:    initialTail,
 	}
 	return ls, nil
 }
@@ -467,11 +469,12 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 		// the new logstream in the map, recording its newness in result
 		if !ok {
 			journalPath := filepath.Join(ls.journalRoot, name)
-			position, err := LogstreamLocationFromFile(journalPath)
+			position, err := LogstreamLocationFromFile(journalPath, ls.initialTail)
 			if err != nil {
 				errors.AddMessage(err.Error())
 				position.Reset()
 			}
+
 			logstream = NewLogstream(nil, position)
 		}
 

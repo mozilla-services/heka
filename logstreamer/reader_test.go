@@ -16,12 +16,13 @@
 package logstreamer
 
 import (
-	"github.com/mozilla-services/heka/ringbuf"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/mozilla-services/heka/ringbuf"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func ReaderSpec(c gs.Context) {
@@ -31,7 +32,7 @@ func ReaderSpec(c gs.Context) {
 	testDirPath := filepath.Join(here, "testdir", "filehandling")
 
 	c.Specify("A journal file can be read", func() {
-		l, err := LogstreamLocationFromFile(filepath.Join(dirPath, "location.json"))
+		l, err := LogstreamLocationFromFile(filepath.Join(dirPath, "location.json"), false)
 
 		// Restore the oldest position
 		l.Filename = filepath.Join(testDirPath, "2010", "07", "error.log.2")
@@ -49,7 +50,7 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"errorlog"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, false)
 		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
@@ -110,7 +111,7 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"Type", "-log"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, false)
 		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
@@ -192,4 +193,35 @@ func ReaderSpec(c gs.Context) {
 		// prepended by 0 bytes to fill out a length of 500.
 		c.Expect(l.Hash, gs.Equals, "4a9ab34da77c10e87cb6566bbf061d9715985551")
 	})
+
+	c.Specify("InitialTail option seeks to the end of a file", func() {
+
+		l := &LogstreamLocation{}
+
+		l.Filename = filepath.Join(testDirPath, "2010", "07", "error.log.2")
+		l.SeekPosition = 0
+
+		regex := `/(?P<Year>\d+)/(?P<Month>\d+)/error\.log(\.(?P<Seq>\d+))?`
+		if runtime.GOOS == "windows" {
+			regex = `\\(?P<Year>\d+)\\(?P<Month>\d+)\\error\.log(\.(?P<Seq>\d+))?`
+		}
+		sp := &SortPattern{
+			FileMatch:      regex,
+			Translation:    make(SubmatchTranslationMap),
+			Priority:       []string{"Year", "Month", "^Seq"},
+			Differentiator: []string{"errorlog"},
+		}
+		fivey, _ := time.ParseDuration("5y")
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, true)
+		c.Expect(err, gs.IsNil)
+
+		names, err := ls.ScanForLogstreams()
+		c.Expect(len(names), gs.Equals, 1)
+
+		lp := ls.logstreams[names[0]]
+		c.Expect(lp.position.SeekPosition, gs.Equals, int64(1160))
+		c.Expect(lp.position.Hash, gs.Equals, "51f982eb996a8951e3cb942810e387b637c0bf2c")
+		c.Expect(lp.position.Filename[len(lp.position.Filename)-len("2010/07/error.log.2"):], gs.Equals, "2010/07/error.log.2")
+	})
+
 }
