@@ -174,10 +174,6 @@ func (l *LogstreamLocation) Reset() {
 	l.lastLine = ringbuf.New(LINEBUFFERLEN)
 }
 
-func (l *LogstreamLocation) IsZero() bool {
-	return l.SeekPosition == 0 && l.Filename == "" && l.Hash == ""
-}
-
 func (l *LogstreamLocation) Save() error {
 	// If we don't have a JournalPath, ignore
 	if l.JournalPath == "" {
