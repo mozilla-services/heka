@@ -56,6 +56,7 @@ type ElasticSearchOutput struct {
 	pConfig             *PipelineConfig
 	reportLock          sync.Mutex
 	outputExit          chan error
+	outputError         chan error
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -167,8 +168,11 @@ func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch
 		err := o.bufferedOut.QueueBytes(outBatch)
 		if err == nil {
 			atomic.AddInt64(&o.processMessageCount, count)
-		} else if err == QueueIsFull && !o.queueFull(outBatch, count) {
-			o.outputExit <- err
+		} else if err == QueueIsFull {
+			o.or.LogError(err)
+			if !o.queueFull(outBatch, count) {
+				return nil // Signals we're shutting down.
+			}
 		} else if err != nil {
 			o.or.LogError(err)
 			atomic.AddInt64(&o.dropMessageCount, count)
@@ -189,17 +193,18 @@ func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch
 
 func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
-		ok          = true
-		pack        *PipelinePack
-		inChan      = or.InChan()
-		count       int64
-		e           error
-		outBytes    []byte
-		outputError = make(chan error, 5)
-		stopChan    = make(chan bool, 1)
-		outBatch    = make([]byte, 0, 10000)
-		ticker      = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
+		ok       = true
+		pack     *PipelinePack
+		inChan   = or.InChan()
+		count    int64
+		e        error
+		outBytes []byte
+		stopChan = make(chan bool, 1)
+		outBatch = make([]byte, 0, 10000)
+		ticker   = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
 	)
+
+	o.outputError = make(chan error, 5)
 
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
@@ -229,14 +234,14 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				return
 			}
 		}
-		o.bufferedOut.Start(o, outputError, o.outputExit, stopChan)
+		o.bufferedOut.Start(o, o.outputError, o.outputExit, stopChan)
 	} else {
 		go o.committer()
 	}
 
 	for ok {
 		select {
-		case e := <-outputError:
+		case e := <-o.outputError:
 			or.LogError(e)
 		case pack, ok = <-inChan:
 			// Closed inChan => we're shutting down, flush data.
@@ -248,6 +253,12 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					close(o.batchChan)
 				}
 				stopChan <- true
+				// Make sure buffer isn't blocked on sending to outputError
+				select {
+				case e := <-o.outputError:
+					or.LogError(e)
+				default:
+				}
 				<-o.outputExit
 				break
 			}
@@ -265,6 +276,10 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				if count++; o.bulkIndexer.CheckFlush(int(count), len(outBatch)) {
 					if len(outBatch) > 0 {
 						outBatch = o.sendBatch(outBatch, count)
+						if outBatch == nil {
+							ok = false
+							break
+						}
 					}
 					count = 0
 				}
@@ -278,6 +293,10 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					}
 				}
 				outBatch = o.sendBatch(outBatch, count)
+				if outBatch == nil {
+					ok = false
+					break
+				}
 			}
 			count = 0
 		case err = <-o.outputExit:
@@ -311,10 +330,20 @@ func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
 	switch o.conf.QueueFullAction {
 	// Tries to queue message until its possible to send it to output.
 	case "block":
-		for o.outputBlock.Wait() == nil && !o.pConfig.Globals.IsShuttingDown() {
-			if blockErr := o.bufferedOut.QueueBytes(buffer); blockErr == nil {
+		for o.outputBlock.Wait() == nil {
+			if o.pConfig.Globals.IsShuttingDown() {
+				return false
+			}
+			blockErr := o.bufferedOut.QueueBytes(buffer)
+			if blockErr == nil {
 				atomic.AddInt64(&o.processMessageCount, count)
+				o.outputBlock.Reset()
 				break
+			}
+			select {
+			case e := <-o.outputError:
+				o.or.LogError(e)
+			default:
 			}
 			runtime.Gosched()
 		}

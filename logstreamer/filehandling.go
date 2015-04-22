@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -447,7 +447,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 
 	// Filter out old logfiles
 	if ls.oldestDuration != time.Duration(0) {
-		logfiles.FilterOld(time.Now().Add(-ls.oldestDuration))
+		logfiles = logfiles.FilterOld(time.Now().Add(-ls.oldestDuration))
 	}
 
 	// Setup all the sorting ints in every logfile
