@@ -44,6 +44,8 @@ Features
 
 * Added DockerEventInput.
 
+* Added splitters to the reports displayed by Heka after SIGUSR1 signal.
+
 Bug Handling
 ------------
 
