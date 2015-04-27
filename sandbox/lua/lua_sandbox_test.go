@@ -945,6 +945,77 @@ func TestCJson(t *testing.T) {
 	sb.Destroy("")
 }
 
+func TestGraphiteHelpers(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/graphite.lua"
+	sbc.ModuleDirectory = "./modules"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	sbc.Config = make(map[string]interface{})
+
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	for i := 0; i < 4; i++ {
+		pack := getTestPack()
+		pack.Message.SetHostname("localhost")
+		pack.Message.SetLogger("GoSpec")
+
+		message.NewIntField(pack.Message, "status", 200, "status")
+
+		message.NewIntField(pack.Message, "request_time", 15*i, "request_time")
+		r := sb.ProcessMessage(pack)
+		if r != 0 {
+			t.Errorf("Graphite returned %s", r)
+		}
+	}
+
+	injectCount := 0
+	sb.InjectMessage(func(payload, payload_type, payload_name string) int {
+		graphite_payload := `stats.counters.localhost.nginx.GoSpec.http_200.count 4 0
+stats.counters.localhost.nginx.GoSpec.http_200.rate 0.400000 0
+stats.timers.localhost.nginx.GoSpec.request_time.count 4 0
+stats.timers.localhost.nginx.GoSpec.request_time.count_ps 0.400000 0
+stats.timers.localhost.nginx.GoSpec.request_time.lower 0.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.upper 45.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.sum 90.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.mean 22.500000 0
+stats.timers.localhost.nginx.GoSpec.request_time.mean_90 22.500000 0
+stats.timers.localhost.nginx.GoSpec.request_time.upper_90 45.000000 0
+stats.statsd.numStats 2 0
+`
+		if payload_type != "txt" {
+			t.Errorf("Received payload type: %s", payload_type)
+		}
+
+		if payload_name != "statmetric" {
+			t.Errorf("Received payload name: %s", payload_name)
+		}
+
+		if graphite_payload != payload {
+			t.Errorf("Received payload: %s", payload)
+		}
+		injectCount += 1
+		return 0
+	})
+
+	sb.TimerEvent(200)
+
+	if injectCount > 0 {
+		t.Errorf("Looks there was an error during timer_event")
+	}
+
+	sb.Destroy("")
+}
+
 func TestReadNilConfig(t *testing.T) {
 	var sbc SandboxConfig
 	sbc.ScriptFilename = "./testsupport/read_config_nil.lua"

@@ -46,3 +46,13 @@ ElasticSearch Module
    :start-after: --[[
    :end-before: --]]
 
+.. _sandbox_elasticsearch_module:
+
+Graphite Module
+--------------------
+
+.. versionadded:: 0.10
+
+.. include:: ../../../sandbox/lua/modules/graphite.lua
+   :start-after: --[[
+   :end-before: --]]
