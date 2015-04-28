@@ -29,6 +29,7 @@ Config:
     filename = "lua_filters/diskstats.lua"
     preserve_data = true
     message_matcher = "Type == 'stats.diskstats'"
+    ticker_interval = 10
 
 --]]
 
