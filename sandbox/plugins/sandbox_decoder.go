@@ -218,24 +218,31 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			// from the original message.
 			if s.pack.Message.Uuid == nil {
 				s.pack.Message.SetUuid(uuid.NewRandom()) // UUID should always be unique
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Timestamp == nil {
 				s.pack.Message.SetTimestamp(original.GetTimestamp())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Type == nil {
 				s.pack.Message.SetType(original.GetType())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Hostname == nil {
 				s.pack.Message.SetHostname(original.GetHostname())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Logger == nil {
 				s.pack.Message.SetLogger(original.GetLogger())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Severity == nil {
 				s.pack.Message.SetSeverity(original.GetSeverity())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Pid == nil {
 				s.pack.Message.SetPid(original.GetPid())
+				s.pack.TrustMsgBytes = false
 			}
 		}
 		s.packs = append(s.packs, s.pack)

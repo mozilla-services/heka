@@ -263,6 +263,7 @@ func (sr *sRunner) DeliverRecord(record []byte, del Deliverer) {
 	// Give the input one last chance to mutate the pack.
 	if sr.packDecorator != nil {
 		sr.packDecorator(pack)
+		pack.TrustMsgBytes = false
 	}
 	if del == nil {
 		sr.ir.Deliver(pack)
