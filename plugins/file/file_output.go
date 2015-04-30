@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/jehiah/go-strftime"
 	"github.com/mozilla-services/heka/plugins"
 	"github.com/rafrombrc/go-notify"
 	"os"
@@ -149,6 +150,7 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 
 	o.batchChan = make(chan []byte)
 	o.backChan = make(chan []byte, 2) // Never block on the hand-back
+	o.rotateChan = make(chan time.Time)
 	return nil
 }
 
@@ -160,8 +162,7 @@ func (o *FileOutput) startRotateNotifier() {
 	until := next.Sub(now)
 	after := time.After(until)
 
-	o.path = last.Format(o.Path)
-	o.rotateChan = make(chan time.Time)
+	o.path = strftime.Format(o.FileOutputConfig.Path, now)
 
 	go func() {
 		ok := true
@@ -333,7 +334,7 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 			}
 		case rotateTime := <-o.rotateChan:
 			o.file.Close()
-			o.path = rotateTime.Format(o.Path)
+			o.path = strftime.Format(o.FileOutputConfig.Path, rotateTime)
 			if err = o.openFile(); err != nil {
 				close(o.closing)
 				err = fmt.Errorf("unable to open rotated file '%s': %s", o.path, err)

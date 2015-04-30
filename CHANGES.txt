@@ -6,6 +6,8 @@ Backwards Incompatibilities
 
 * Removed unused PipelinePack.Decoded attribute.
 
+* Using stftime literals for filenames during rotation in FileOutput plugin (#1469).
+
 Features
 --------
 
