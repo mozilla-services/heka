@@ -89,6 +89,19 @@ func DecoderSpec(c gs.Context) {
 				err = os.Remove("sandbox_preservation/serialize.data")
 				c.Expect(err, gs.IsNil)
 			})
+
+			c.Specify("Propagates headers and invalidates MsgBytes when doing so", func() {
+				data := "1376389920 debug id=2321 url=example.com item=1"
+				decoder.SetDecoderRunner(dRunner)
+				pack.Message.SetPayload(data)
+				logger := "Test Logger Value"
+				pack.Message.SetLogger(logger)
+				_, err = decoder.Decode(pack)
+				c.Assume(err, gs.IsNil)
+
+				c.Expect(pack.Message.GetLogger(), gs.Equals, logger)
+				c.Expect(pack.TrustMsgBytes, gs.IsFalse)
+			})
 		})
 
 		c.Specify("that only uses write_message", func() {
