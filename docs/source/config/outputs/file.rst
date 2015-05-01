@@ -11,8 +11,8 @@ Config:
 
 - path (string):
     Full path to the output file. If date rotation is in use, then the output
-    file path can support Go's time.Format syntax to embed timestamps in the
-    file path: http://golang.org/pkg/time/#Time.Format
+    file path can support strftime syntax to embed timestamps in the
+    file path: http://strftime.org
 - perm (string, optional):
     File permission for writing. A string of the octal digit representation.
     Defaults to "644".

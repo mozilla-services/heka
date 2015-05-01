@@ -105,6 +105,36 @@ func FileOutputSpec(c gs.Context) {
 			})
 		})
 
+		c.Specify("tests rotation of files", func () {
+			config.Path = "%Y-%m-%d"
+			rotateChan := make(chan time.Time)
+			closingChan := make(chan struct{})
+
+			err := fileOutput.Init(config)
+			defer fileOutput.file.Close()
+
+			c.Assume(err, gs.IsNil)
+
+			fileOutput.rotateChan = rotateChan
+			fileOutput.closing = closingChan
+
+			fileOutput.startRotateNotifier()
+
+			go fileOutput.committer(oth.MockOutputRunner, errChan)
+
+			c.Assume(fileOutput.path, gs.Equals, time.Now().Format("2006-01-02"))
+
+			futureDuration, _ := time.ParseDuration("24h")
+			futureNow := time.Now().Add(futureDuration)
+
+			rotateChan <- futureNow
+
+			c.Assume(fileOutput.path, gs.Equals, futureNow.Format("2006-01-02"))
+
+			close(inChan)
+			close(fileOutput.batchChan)
+		})
+
 		c.Specify("processes incoming messages", func() {
 			err := fileOutput.Init(config)
 			c.Assume(err, gs.IsNil)
