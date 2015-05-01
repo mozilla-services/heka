@@ -33,6 +33,7 @@ Config:
     name. Note that it is not possible to interpolate either the
     "Timestamp" or the "Uuid" message fields into the name, those
     values will be interpreted as referring to dynamic message fields.
+    You can disable the name prefix by setting its value to "**none**".
 
 - database (string, required)
     The InfluxDB database to store the metrics in.
@@ -129,10 +130,15 @@ require "string"
 local interp = require "msg_interpolate"
 
 local name_prefix_orig  = read_config("name_prefix") or "name"
-local name_prefix = name_prefix_orig
 local use_subs
-if string.find(name_prefix, "%%{[%w%p]-}") then
+if string.find(name_prefix_orig, "%%{[%w%p]-}") then
     use_subs = true
+end
+
+if name_prefix_orig == "**none**" then
+    name_prefix_orig = ""
+else
+    name_prefix_orig = name_prefix_orig.."."
 end
 
 -- Required field that errors when not defined
@@ -285,7 +291,7 @@ function process_message()
         if not skip_fields_str or not skip_fields[name] then
             -- Set the name attribute of this table by concatenating name_prefix
             -- with the name of this particular field
-            local field_name = name_prefix.."."..name
+            local field_name = name_prefix..name
 
             -- Merge existing base fields with field in this iteration
             local fields = {}
