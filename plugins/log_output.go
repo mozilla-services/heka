@@ -19,8 +19,11 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/mozilla-services/heka/pipeline"
+	"os"
 	"log"
 )
+
+var logOut = log.New(os.Stdout, "", log.LstdFlags)
 
 // Output plugin that writes message contents out using Go standard library's
 // `log` package.
@@ -46,7 +49,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		if outBytes, e = or.Encode(pack); e != nil {
 			or.LogError(fmt.Errorf("Error encoding message: %s", e))
 		} else if outBytes != nil {
-			log.Print(string(outBytes))
+			logOut.Print(string(outBytes))
 		}
 		pack.Recycle()
 	}
