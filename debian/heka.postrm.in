@@ -1,0 +1,16 @@
+#!/bin/sh
+
+USER="heka"
+GROUP="$USER"
+
+set -e
+
+#DEBHELPER#
+
+if [ "$1" = "purge" ]
+then
+	update-rc.d heka remove
+	deluser $USER
+	rm -rf /var/cache/hekad
+    rm -rf /etc/heka
+fi
