@@ -287,6 +287,7 @@ func (pi *ProcessInput) RunCmd() {
 			pi.cc = pi.cc.clone()
 			pi.runOnce()
 			if pi.exitError != nil {
+				pi.stopChan <- true
 				return
 			}
 		case <-pi.stopChan:
