@@ -15,7 +15,7 @@ as the message payload. Messages will be populated as follows:
 - Timestamp: Time HTTP request is handled.
 - Type: `heka.httpdata.request`
 - Hostname: The remote network address of requester.
-- Payload: Entire contents of the HTTP response body.
+- Payload: Entire contents of the HTTP request body.
 - Severity: 6
 - Logger: HttpListenInput
 - Fields["UserAgent"] (string): Request User-Agent header (e.g. "GitHub Hookshot dd0772a").
