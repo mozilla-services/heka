@@ -232,7 +232,7 @@ Configuration for this case:
     [accesslogs]
     type = "LogstreamerInput"
     log_directory = "/var/log/nginx"
-    file_match = '(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    file_match = '(?P<DomainName>[^/]+)/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
     differentiator = ["nginx-", "DomainName", "-access"]
 
@@ -284,7 +284,7 @@ Using the default mappings would provide us a simple configuration:
     [accesslogs]
     type = "LogstreamerInput"
     log_directory = "/var/log/nginx"
-    file_match = '(?P<Domain>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
+    file_match = '(?P<Domain>[^/]+)/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "MonthName", "^Seq"]
     differentiator = ["nginx-", "Domain", "-access"]
 
