@@ -18,11 +18,13 @@ package http
 
 import (
 	. "github.com/mozilla-services/heka/pipeline"
+        . "github.com/mozilla-services/heka/plugins/tcp"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -63,7 +65,12 @@ func HttpListenInputSpec(c gs.Context) {
 		ts := httptest.NewUnstartedServer(nil)
 
 		httpListenInput.starterFunc = func(hli *HttpListenInput) error {
-			ts.Start()
+			if hli.conf.UseTls {
+				ts.StartTLS()
+			} else {
+				ts.Start()
+			}
+			
 			startedChan <- true
 			return nil
 		}
@@ -237,9 +244,48 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Expect(ip != nil, gs.IsTrue)
 		})
 
-		ts.Close()
-		httpListenInput.Stop()
-		err := <-errChan
-		c.Expect(err, gs.IsNil)
+		c.Specify("Test TLS", func() {
+                        config.UseTls = true
+
+                        c.Specify("fails to init w/ missing key or cert file", func() {
+                                config.Tls = TlsConfig{}
+
+                                err := httpListenInput.setupTls(&config.Tls);
+                                c.Expect(err, gs.Not(gs.IsNil))
+                                c.Expect(err.Error(), gs.Equals,
+                                        "TLS config requires both cert_file and key_file value.")
+                        })
+
+                        config.Tls = TlsConfig{
+                                CertFile: "./testsupport/cert.pem",
+                                KeyFile:  "./testsupport/key.pem",
+                        }
+
+                        err := httpListenInput.Init(config)
+                        c.Assume(err, gs.IsNil)
+                        ts.Config = httpListenInput.server
+
+			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			startInput()
+			<-startedChan
+
+			tr := &http.Transport{
+     				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			resp, err := client.Do(req)
+			c.Assume(err, gs.IsNil)
+			c.Expect(resp.TLS, gs.Not(gs.IsNil))
+			c.Expect(resp.StatusCode, gs.Equals, 200)
+			resp.Body.Close()
+
+                })
+               ts.Close()
+               httpListenInput.Stop()
+               err := <-errChan
+               c.Expect(err, gs.IsNil)
+
+
 	})
 }

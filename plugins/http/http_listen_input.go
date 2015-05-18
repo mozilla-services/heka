@@ -17,9 +17,12 @@
 package http
 
 import (
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"net"
 	"net/http"
@@ -44,14 +47,21 @@ type HttpListenInputConfig struct {
 	Address        string
 	Headers        http.Header
 	RequestHeaders []string `toml:"request_headers"`
+	// Set to true if the TCP connection should be tunneled through TLS.
+	// Requires additional Tls config section.
+	UseTls bool `toml:"use_tls"`
+	// Subsection for TLS configuration.
+	Tls TlsConfig
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
-	return &HttpListenInputConfig{
+	config := &HttpListenInputConfig{
 		Address:        "127.0.0.1:8325",
 		Headers:        make(http.Header),
 		RequestHeaders: []string{},
 	}
+	config.Tls = TlsConfig{PreferServerCiphers: true}
+	return config
 }
 
 func defaultStarter(hli *HttpListenInput) (err error) {
@@ -64,12 +74,29 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 			hli.conf.Address))
 	}
 
+	if hli.conf.UseTls {
+		if err = hli.setupTls(&hli.conf.Tls); err != nil {
+		return err
+		}
+	}
+
 	err = hli.server.Serve(hli.listener)
 	if err != nil {
 		return fmt.Errorf("Serve fail: %s", err.Error())
 	}
 
 	return nil
+}
+
+func (hli *HttpListenInput) setupTls(tomlConf *TlsConfig) (err error) {
+	if tomlConf.CertFile == "" || tomlConf.KeyFile == "" {
+		return errors.New("TLS config requires both cert_file and key_file value.")
+	}
+	var goConf *tls.Config
+	if goConf, err = CreateGoTlsConfig(tomlConf); err == nil {
+		hli.listener = tls.NewListener(hli.listener, goConf)
+	}
+	return
 }
 
 func (hli *HttpListenInput) makeField(name string, value string) (field *message.Field, err error) {
