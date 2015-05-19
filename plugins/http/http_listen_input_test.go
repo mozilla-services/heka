@@ -237,6 +237,49 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Expect(ip != nil, gs.IsTrue)
 		})
 
+        c.Specify("Test API Authentication", func() {
+            config.AuthType = "API"
+            config.Key = "123"
+
+            err := httpListenInput.Init(config)
+            c.Assume(err, gs.IsNil)
+            ts.Config = httpListenInput.server
+
+            getRecCall.Return(0, make([]byte, 0), io.EOF)
+            startInput()
+            <-startedChan
+
+            client := &http.Client{}
+            req, err := http.NewRequest("GET", ts.URL, nil)
+            req.Header.Add("X-API-KEY", "123")
+            resp, err := client.Do(req)
+            c.Assume(err, gs.IsNil)
+            resp.Body.Close()
+            c.Expect(resp.StatusCode, gs.Equals, 200)
+        })
+
+        c.Specify("Test Basic Auth", func() {
+            config.AuthType = "Basic"
+            config.Username = "foo"
+            config.Password = "bar"
+            
+            err := httpListenInput.Init(config)
+            c.Assume(err, gs.IsNil)
+            ts.Config = httpListenInput.server
+
+            getRecCall.Return(0, make([]byte, 0), io.EOF)
+            startInput()
+            <-startedChan
+
+            client := &http.Client{}
+            req, err := http.NewRequest("GET", ts.URL, nil)
+            req.SetBasicAuth("foo", "bar")
+            resp, err := client.Do(req)
+            c.Assume(err, gs.IsNil)
+            resp.Body.Close()
+            c.Expect(resp.StatusCode, gs.Equals, 200)
+        })
+
 		ts.Close()
 		httpListenInput.Stop()
 		err := <-errChan

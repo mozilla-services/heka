@@ -57,6 +57,8 @@ Features
 
 * Added `graphite` module with helpers allowing to generate graphite metrics for counters and timeseries (#1461).
 
+* Added Basic Auth and API key authentication to HttpListenInput (#1533).
+
 Bug Handling
 ------------
 

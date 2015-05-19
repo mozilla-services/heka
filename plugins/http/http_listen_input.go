@@ -44,6 +44,10 @@ type HttpListenInputConfig struct {
 	Address        string
 	Headers        http.Header
 	RequestHeaders []string `toml:"request_headers"`
+	AuthType       string `toml:"auth_type"`
+	Username       string `toml:"username"`
+	Password       string `toml:"password"`
+	Key            string `toml:"api_key"`
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
@@ -141,13 +145,35 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 }
 
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
-	sRunner := hli.ir.NewSplitterRunner(req.RemoteAddr)
-	if !sRunner.UseMsgBytes() {
-		sRunner.SetPackDecorator(hli.makePackDecorator(req))
+	var err error
+
+	if hli.conf.AuthType == "Basic" {
+		if hli.conf.Username != "" && hli.conf.Password != "" {
+			user, pass, ok := req.BasicAuth()
+			if !ok || user != hli.conf.Username || pass != hli.conf.Password {
+				err = fmt.Errorf("Basic Auth Failed")
+				hli.ir.LogError(err)
+			}
+		}
 	}
-	err := splitStream(hli.ir, sRunner, req.Body)
-	if err != nil && err != io.EOF {
-		hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
+	if hli.conf.AuthType == "API" {
+		if hli.conf.Key != "" {
+			api_key := req.Header.Get("X-API-Key")
+			if api_key != hli.conf.Key {
+				err = fmt.Errorf("API Auth Failed")
+				hli.ir.LogError(err)
+			}
+		}
+	}
+	if err == nil {
+		sRunner := hli.ir.NewSplitterRunner(req.RemoteAddr)
+		if !sRunner.UseMsgBytes() {
+			sRunner.SetPackDecorator(hli.makePackDecorator(req))
+		}
+		err = splitStream(hli.ir, sRunner, req.Body)
+		if err != nil && err != io.EOF {
+			hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
+		}
 	}
 }
 

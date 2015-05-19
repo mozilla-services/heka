@@ -47,9 +47,45 @@ Config:
 - request_headers ([]string):
     Add additional request headers as message fields. Defaults to empty list.
 
+.. versionadded:: 0.10
+
+- auth_type (string):
+    If requiring Authentication specify "Basic" or "API"
+    To use "API" you must set a header called "X-API-KEY" with the value of the "api_key" config.
+
+- username (string):
+    Username to check against if auth_type = "Basic".
+
+- password (string):
+    Password to check against if auth_type = "Basic".
+
+- api_key (string):
+    String to validate the "X-API-KEY" header against when using auth_type = "API"
+
 Example:
 
 .. code-block:: ini
 
     [HttpListenInput]
     address = "0.0.0.0:8325"
+
+
+With Basic Auth:
+
+.. code-block:: ini
+
+    [HttpListenInput]
+    address = "0.0.0.0:8325"
+    auth_type = "Basic"
+    username = "foo"
+    password = "bar"
+
+
+With API Key Auth:
+
+.. code-block:: ini
+
+    [HttpListenInput]
+    address = "0.0.0.0:8325"
+    auth_type = "API"
+    api_key = "1234567"
