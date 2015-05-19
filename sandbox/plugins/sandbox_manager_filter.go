@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,10 +17,6 @@ package plugins
 
 import (
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
 	"io/ioutil"
 	"math"
 	"os"
@@ -29,6 +25,11 @@ import (
 	"regexp"
 	"sync/atomic"
 	"time"
+
+	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
 )
 
 // Heka Filter plugin that listens for (signed) control messages and
@@ -129,22 +130,24 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 			maker.Type())
 	}
 
-	// First load the config that the user specified into the filter's config
-	// struct.
-	if err = maker.PrepConfig(); err != nil {
-		return nil, fmt.Errorf("Error prepping config: %s", err.Error())
-	}
-	// Then override some of the user provided settings with the manager
-	// settings.
+	// Customize the PrepConfig method so we can override any specified
+	// settings with the manager's settings.
 	mutMaker := maker.(pipeline.MutableMaker)
-	conf := mutMaker.Config().(*SandboxConfig)
-	conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", name, conf.ScriptType))
-	conf.ModuleDirectory = this.moduleDirectory
-	conf.MemoryLimit = this.memoryLimit
-	conf.InstructionLimit = this.instructionLimit
-	conf.OutputLimit = this.outputLimit
-	conf.PluginType = "filter"
-	mutMaker.SetConfig(conf)
+	prepConfig := func() (interface{}, error) {
+		config, err := mutMaker.OrigPrepConfig()
+		if err != nil {
+			return nil, err
+		}
+		conf := config.(*SandboxConfig)
+		conf.ScriptFilename = filepath.Join(dir, fmt.Sprintf("%s.%s", name, conf.ScriptType))
+		conf.ModuleDirectory = this.moduleDirectory
+		conf.MemoryLimit = this.memoryLimit
+		conf.InstructionLimit = this.instructionLimit
+		conf.OutputLimit = this.outputLimit
+		conf.PluginType = "filter"
+		return conf, nil
+	}
+	mutMaker.SetPrepConfig(prepConfig)
 
 	// Finally call MakeRunner() to initialize the plugin and create the
 	// runner.

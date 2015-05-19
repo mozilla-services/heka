@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,9 +17,6 @@
 package pipeline
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,6 +25,10 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	proto "code.google.com/p/gogoprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	notify "github.com/rafrombrc/go-notify"
 )
 
 const (
@@ -325,11 +326,14 @@ func Run(config *PipelineConfig) {
 	config.inputsLock.Unlock()
 	config.inputsWg.Wait()
 
+	config.allDecodersLock.Lock()
 	LogInfo.Println("Waiting for decoders shutdown")
 	for _, decoder := range config.allDecoders {
 		close(decoder.InChan())
-		LogError.Printf("Stop message sent to decoder '%s'", decoder.Name())
+		LogInfo.Printf("Stop message sent to decoder '%s'", decoder.Name())
 	}
+	config.allDecoders = config.allDecoders[:0]
+	config.allDecodersLock.Unlock()
 	config.decodersWg.Wait()
 	LogInfo.Println("Decoders shutdown complete")
 

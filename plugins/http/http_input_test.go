@@ -16,14 +16,15 @@
 package http
 
 import (
+	"io"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"time"
 )
 
 func HttpInputSpec(c gs.Context) {
@@ -142,13 +143,18 @@ func HttpInputSpec(c gs.Context) {
 
 		c.Specify("supports configuring HTTP headers", func() {
 			// Spin up a http server which expects requests with method "POST"
-			server, err := plugins_ts.NewHttpHeadersServer(map[string]string{"Accept": "text/plain"}, "localhost", 9873)
+			headers := map[string]string{
+				"Accept":     "text/plain",
+				"user-agent": "CustomUserAgent",
+			}
+
+			server, err := plugins_ts.NewHttpHeadersServer(headers, "localhost", 9873)
 			c.Expect(err, gs.IsNil)
 			go server.Start("/HeadersTest")
 			time.Sleep(10 * time.Millisecond)
 
 			config.Url = "http://localhost:9873/HeadersTest"
-			config.Headers = map[string]string{"Accept": "text/plain"}
+			config.Headers = headers
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)

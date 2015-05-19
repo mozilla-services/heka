@@ -86,6 +86,13 @@ Bug Handling
 Bug Handling
 ------------
 
+* Correctly honor "user-agent" heading config in HttpInput (#1520).
+
+* Removed state from PluginMaker to remove race conditions during plugin
+  construction (#1532).
+
+* Get decoder lock before cleaning up decoders during pipeline shutdown to
+  avoid race condition panics during exit (#1531).
 
 0.9.2 (2015-04-22)
 ==================

@@ -19,20 +19,19 @@ package pipeline
 import (
 	"bufio"
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/message"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/bbangert/toml"
 )
 
 const (
@@ -286,7 +285,7 @@ func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 		return
 	}
 
-	plugin, err := maker.Make()
+	plugin, _, err := maker.Make()
 	if err != nil {
 		return nil, false
 	}
@@ -345,7 +344,7 @@ func (self *PipelineConfig) Encoder(baseName, fullName string) (Encoder, bool) {
 		return nil, false
 	}
 
-	plugin, err := maker.Make()
+	plugin, _, err := maker.Make()
 	self.makersLock.RUnlock()
 	if err != nil {
 		msg := fmt.Sprintf("Error creating encoder '%s': %s", fullName, err.Error())
@@ -491,10 +490,10 @@ type RetryOptions struct {
 
 var unknownOptionRegex = regexp.MustCompile("^Configuration contains key \\[(?P<key>\\S+)\\]")
 
-// Uses reflection to extract an attribute value from an arbitrary struct type
-// that may or may not actually have the attribute, returning a provided
-// default if the provided object is not a struct or if the attribute doesn't
-// exist.
+// getAttr uses reflection to extract an attribute value from an arbitrary
+// struct type that may or may not actually have the attribute, returning a
+// provided default if the provided object is not a struct or if the attribute
+// doesn't exist.
 func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}) {
 	ret = default_
 	obVal := reflect.ValueOf(ob)
@@ -508,6 +507,25 @@ func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}
 		return
 	}
 	return attrVal.Interface()
+}
+
+// getDefaultBool expects the name of a boolean setting and will extract and
+// return the struct's default value for the setting, as a boolean pointer.
+func getDefaultBool(ob interface{}, name string) (*bool, error) {
+	defaultValue := getAttr(ob, name, false)
+	switch defaultValue := defaultValue.(type) {
+	case bool:
+		return &defaultValue, nil
+	case *bool:
+		if defaultValue == nil {
+			b := false
+			defaultValue = &b
+		}
+		return defaultValue, nil
+	}
+	// If you hit this then a non-boolean config setting is conflicting
+	// with one of Heka's defined boolean settings.
+	return nil, fmt.Errorf("%s config setting must be boolean", name)
 }
 
 // Used internally to log and record plugin config loading errors.
@@ -565,439 +583,6 @@ func getDefaultRetryOptions() RetryOptions {
 	}
 }
 
-type PluginMaker interface {
-	Name() string
-	Type() string
-	Category() string
-	Config() interface{}
-	PrepConfig() error
-	Make() (Plugin, error)
-	MakeRunner(name string) (PluginRunner, error)
-}
-
-// MutableMaker is for consumers that want to customize the behavior of the
-// PluginMaker in "bad touch" ways, use at your own risk. Both interfaces are
-// implemented by the same struct, so a PluginMaker can be turned into a
-// MutableMaker via type coersion.
-type MutableMaker interface {
-	PluginMaker
-	SetConfig(config interface{})
-	CommonTypedConfig() interface{}
-	SetCommonTypedConfig(config interface{})
-	SetName(name string)
-	SetType(typ string)
-	SetCategory(category string)
-}
-
-type pluginMaker struct {
-	name              string
-	category          string
-	tomlSection       toml.Primitive
-	commonConfig      CommonConfig
-	commonTypedConfig interface{}
-	pConfig           *PipelineConfig
-	constructor       func() interface{}
-	configStruct      interface{}
-	configPrepped     bool
-	plugin            Plugin
-}
-
-// NewPluginMaker creates and returns a PluginMaker that can generate running
-// plugins for the provided TOML configuration. It will load the plugin type
-// and extract any of the Heka-defined common config for the plugin before
-// returning.
-func NewPluginMaker(name string, pConfig *PipelineConfig, tomlSection toml.Primitive) (
-	PluginMaker, error) {
-
-	// Create the maker, extract plugin type, and make sure the plugin type
-	// exists.
-	maker := &pluginMaker{
-		name:         name,
-		tomlSection:  tomlSection,
-		commonConfig: CommonConfig{},
-		pConfig:      pConfig,
-	}
-
-	var err error
-	if err = toml.PrimitiveDecode(tomlSection, &maker.commonConfig); err != nil {
-		return nil, fmt.Errorf("can't decode common config for '%s': %s", name, err)
-	}
-	if maker.commonConfig.Typ == "" {
-		maker.commonConfig.Typ = name
-	}
-	constructor, ok := AvailablePlugins[maker.commonConfig.Typ]
-	if !ok {
-		return nil, fmt.Errorf("No registered plugin type: %s", maker.commonConfig.Typ)
-	}
-	maker.constructor = constructor
-
-	// Extract plugin category and any category-specific common (i.e. Heka
-	// defined) configuration.
-	maker.category = getPluginCategory(maker.commonConfig.Typ)
-	if maker.category == "" {
-		return nil, errors.New("Unrecognized plugin category")
-	}
-
-	switch maker.category {
-	case "Input":
-		commonInput := CommonInputConfig{
-			Retries: getDefaultRetryOptions(),
-		}
-		err = toml.PrimitiveDecode(tomlSection, &commonInput)
-		maker.commonTypedConfig = commonInput
-	case "Filter", "Output":
-		commonFO := CommonFOConfig{
-			Retries: getDefaultRetryOptions(),
-		}
-		err = toml.PrimitiveDecode(tomlSection, &commonFO)
-		maker.commonTypedConfig = commonFO
-	case "Splitter":
-		commonSplitter := CommonSplitterConfig{}
-		err = toml.PrimitiveDecode(tomlSection, &commonSplitter)
-		maker.commonTypedConfig = commonSplitter
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("can't decode common %s config for '%s': %s",
-			strings.ToLower(maker.category), name, err)
-	}
-	return maker, nil
-}
-
-func (m *pluginMaker) Name() string {
-	return m.name
-}
-
-func (m *pluginMaker) Type() string {
-	return m.commonConfig.Typ
-}
-
-func (m *pluginMaker) Category() string {
-	return m.category
-}
-
-func (m *pluginMaker) SetName(name string) {
-	m.name = name
-}
-
-func (m *pluginMaker) SetType(typ string) {
-	m.commonConfig.Typ = typ
-}
-
-func (m *pluginMaker) SetCategory(category string) {
-	m.category = category
-}
-
-// makePlugin instantiates a plugin instance, provides name and pConfig to the
-// plugin if necessary, and returns the plugin.
-func (m *pluginMaker) makePlugin() Plugin {
-	plugin := m.constructor().(Plugin)
-	if wantsPConfig, ok := plugin.(WantsPipelineConfig); ok {
-		wantsPConfig.SetPipelineConfig(m.pConfig)
-	}
-	if wantsName, ok := plugin.(WantsName); ok {
-		wantsName.SetName(m.name)
-	}
-	return plugin
-}
-
-// makeConfig calls makePlugin to create a plugin instance, uses that instance
-// to create a config object, and then stores the plugin and the created
-// config object as attributes on the pluginMaker struct.
-
-func (m *pluginMaker) makeConfig() {
-	if m.plugin == nil {
-		m.plugin = m.makePlugin()
-	}
-	hasConfigStruct, ok := m.plugin.(HasConfigStruct)
-	if ok {
-		m.configStruct = hasConfigStruct.ConfigStruct()
-	} else {
-		// If we don't have a config struct, fall back to a PluginConfig.
-		m.configStruct = PluginConfig{}
-	}
-}
-
-// Config returns the PluginMaker's config struct, creating it if necessary.
-func (m *pluginMaker) Config() interface{} {
-	if m.configStruct == nil {
-		m.makeConfig()
-	}
-	return m.configStruct
-}
-
-func (m *pluginMaker) CommonTypedConfig() interface{} {
-	return m.commonTypedConfig
-}
-
-func (m *pluginMaker) SetConfig(config interface{}) {
-	m.configStruct = config
-}
-
-func (m *pluginMaker) SetCommonTypedConfig(config interface{}) {
-	m.commonTypedConfig = config
-}
-
-// PrepConfig generates a config struct for the plugin (instantiating an
-// instance of the plugin to do so, if necessary) and decodes the TOML config
-// into the generated struct.
-func (m *pluginMaker) PrepConfig() error {
-	if m.configPrepped {
-		// Already done, just return.
-		return nil
-	}
-
-	if m.configStruct == nil {
-		m.makeConfig()
-	} else if m.plugin == nil {
-		m.plugin = m.makePlugin()
-	}
-
-	if _, ok := m.plugin.(HasConfigStruct); !ok {
-		// If plugin doesn't implement HasConfigStruct then we're decoding
-		// into an empty PluginConfig object.
-		if err := toml.PrimitiveDecode(m.tomlSection, m.configStruct); err != nil {
-			return fmt.Errorf("can't decode config for '%s': %s ", m.name, err.Error())
-		}
-		m.configPrepped = true
-		return nil
-	}
-
-	// Use reflection to extract the fields (or TOML tag names, if available)
-	// of the values that Heka has already extracted so we know they're not
-	// required to be specified in the config struct.
-	hekaParams := make(map[string]interface{})
-	commons := []interface{}{m.commonConfig, m.commonTypedConfig}
-	for _, common := range commons {
-		if common == nil {
-			continue
-		}
-		rt := reflect.ValueOf(common).Type()
-		for i := 0; i < rt.NumField(); i++ {
-			sft := rt.Field(i)
-			kname := sft.Tag.Get("toml")
-			if len(kname) == 0 {
-				kname = sft.Name
-			}
-			hekaParams[kname] = true
-		}
-	}
-
-	// Finally decode the TOML into the struct. Use of PrimitiveDecodeStrict
-	// means that an error will be raised for any config options in the TOML
-	// that don't have corresponding attributes on the struct, delta the
-	// hekaParams that can be safely excluded.
-	err := toml.PrimitiveDecodeStrict(m.tomlSection, m.configStruct, hekaParams)
-	if err != nil {
-		matches := unknownOptionRegex.FindStringSubmatch(err.Error())
-		if len(matches) == 2 {
-			// We've got an unrecognized config option.
-			return fmt.Errorf("unknown config setting for '%s': %s", m.name, matches[1])
-		}
-		return err
-	}
-
-	m.configPrepped = true
-	return nil
-}
-
-// Make initializes a plugin instance using the prepped config struct and
-// returns the initialized plugin. If the config hasn't been prepped the
-// PrepConfig will be called. A new plugin may be instantiated, or a cached
-// plugin may be used, but Make will always return a "fresh" instance, i.e. it
-// will never return the same plugin instance twice.
-func (m *pluginMaker) Make() (Plugin, error) {
-	if !m.configPrepped {
-		// Our config struct hasn't been prepped.
-		if err := m.PrepConfig(); err != nil {
-			return nil, err
-		}
-	}
-
-	var plugin Plugin
-	if m.plugin == nil {
-		plugin = m.makePlugin()
-	} else {
-		plugin = m.plugin
-		m.plugin = nil
-	}
-
-	if err := plugin.Init(m.configStruct); err != nil {
-		return nil, fmt.Errorf("Initialization failed for '%s': %s", m.name, err)
-	}
-
-	return plugin, nil
-}
-
-// getDefaultBool expects the name of a boolean setting and will extract and
-// return the plugin's default value for the setting, as a boolean pointer.
-func (m *pluginMaker) getDefaultBool(name string) (*bool, error) {
-	defaultValue := getAttr(m.configStruct, name, false)
-	switch defaultValue := defaultValue.(type) {
-	case bool:
-		return &defaultValue, nil
-	case *bool:
-		if defaultValue == nil {
-			b := false
-			defaultValue = &b
-		}
-		return defaultValue, nil
-	}
-	// If you hit this then a non-boolean config setting is conflicting
-	// with one of Heka's defined boolean settings.
-	return nil, fmt.Errorf("%s config setting must be boolean", name)
-}
-
-func (m *pluginMaker) makeSplitterRunner(name string, splitter Splitter) (*sRunner, error) {
-	var err error
-	commonSplitter := m.commonTypedConfig.(CommonSplitterConfig)
-	if commonSplitter.KeepTruncated == nil {
-		commonSplitter.KeepTruncated, err = m.getDefaultBool("KeepTruncated")
-		if err != nil {
-			return nil, err
-		}
-	}
-	if commonSplitter.UseMsgBytes == nil {
-		commonSplitter.UseMsgBytes, err = m.getDefaultBool("UseMsgBytes")
-		if err != nil {
-			return nil, err
-		}
-	}
-	if commonSplitter.BufferSize == 0 {
-		bufferSize := getAttr(m.configStruct, "BufferSize", uint(8*1024))
-		commonSplitter.BufferSize = bufferSize.(uint)
-	}
-	if uint32(commonSplitter.BufferSize) > message.MAX_RECORD_SIZE {
-		err = fmt.Errorf("'min_buffer_size' (%d) can't be larger than MAX_RECORD_SIZE (%d)",
-			commonSplitter.BufferSize, message.MAX_RECORD_SIZE)
-		return nil, err
-	}
-	if commonSplitter.IncompleteFinal == nil {
-		commonSplitter.IncompleteFinal, err = m.getDefaultBool("IncompleteFinal")
-		if err != nil {
-			return nil, err
-		}
-	}
-	sr := NewSplitterRunner(name, splitter, commonSplitter)
-	return sr, nil
-}
-
-func (m *pluginMaker) makeInputRunner(name string, input Input, defaultTick uint) (
-	InputRunner, error) {
-
-	var err error
-	commonInput := m.commonTypedConfig.(CommonInputConfig)
-	if commonInput.Ticker == 0 {
-		commonInput.Ticker = defaultTick
-	}
-	if commonInput.SyncDecode == nil {
-		if commonInput.SyncDecode, err = m.getDefaultBool("SyncDecode"); err != nil {
-			return nil, err
-		}
-	}
-	if commonInput.SendDecodeFailures == nil {
-		if commonInput.SendDecodeFailures, err = m.getDefaultBool("SendDecodeFailures"); err != nil {
-			return nil, err
-		}
-	}
-	if commonInput.CanExit == nil {
-		if commonInput.CanExit, err = m.getDefaultBool("CanExit"); err != nil {
-			return nil, err
-		}
-	}
-	if commonInput.Decoder == "" {
-		decoder := getAttr(m.configStruct, "Decoder", "")
-		commonInput.Decoder = decoder.(string)
-	}
-	if commonInput.Splitter == "" {
-		splitter := getAttr(m.configStruct, "Splitter", "")
-		commonInput.Splitter = splitter.(string)
-	}
-	runner := NewInputRunner(name, input, commonInput)
-	return runner, nil
-}
-
-// MakeRunner returns a new, unstarted PluginRunner wrapped around a new,
-// configured plugin instance. If name is provided, then the Runner will be
-// given the specified name; if name is an empty string, the plugin name will
-// be used.
-func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
-	if m.category == "Encoder" {
-		return nil, fmt.Errorf("%s plugins don't support PluginRunners", m.category)
-	}
-
-	plugin, err := m.Make()
-	if err != nil {
-		return nil, err
-	}
-
-	if name == "" {
-		name = m.name
-	}
-
-	var runner PluginRunner
-
-	if m.category == "Decoder" {
-		runner = NewDecoderRunner(name, plugin.(Decoder), m.pConfig.Globals.PluginChanSize)
-		return runner, nil
-	}
-
-	if m.category == "Splitter" {
-		return m.makeSplitterRunner(name, plugin.(Splitter))
-	}
-
-	// In some cases a plugin implementation will specify a default value for
-	// one or more common config settings by including values for those
-	// settings in the config struct. We extract them in this function's outer
-	// scope, but we only need to use them if the common config hasn't already
-	// been populated by values from the TOML.
-	defaultTickerInterval := getAttr(m.configStruct, "TickerInterval", uint(0))
-	defaultTick := defaultTickerInterval.(uint)
-
-	if m.category == "Input" {
-		return m.makeInputRunner(name, plugin.(Input), defaultTick)
-	}
-
-	// We're a filter or an output.
-	commonFO := m.commonTypedConfig.(CommonFOConfig)
-
-	// More checks for plugin-specified default values of common config
-	// settings.
-	if commonFO.Matcher == "" {
-		matcherVal := getAttr(m.configStruct, "MessageMatcher", "")
-		commonFO.Matcher = matcherVal.(string)
-	}
-
-	if commonFO.Ticker == 0 {
-		commonFO.Ticker = defaultTick
-	}
-
-	// Boolean types are tricky, we use pointer types to distinguish btn false
-	// and not set, but a plugin's config struct might not be so smart, so we
-	// have to account for both cases.
-	if commonFO.CanExit == nil {
-		if commonFO.CanExit, err = m.getDefaultBool("CanExit"); err != nil {
-			return nil, err
-		}
-	}
-
-	if m.category == "Output" {
-		if commonFO.UseFraming == nil {
-			if commonFO.UseFraming, err = m.getDefaultBool("UseFraming"); err != nil {
-				return nil, err
-			}
-		}
-
-		if commonFO.Encoder == "" {
-			encoder := getAttr(m.configStruct, "Encoder", "")
-			commonFO.Encoder = encoder.(string)
-		}
-	}
-
-	return NewFORunner(name, plugin, commonFO, m.commonConfig.Typ,
-		m.pConfig.Globals.PluginChanSize)
-}
-
 // Default configurations.
 func makeDefaultConfigs() map[string]bool {
 	return map[string]bool{
@@ -1020,7 +605,7 @@ func (self *PipelineConfig) RegisterDefault(name string) error {
 		return err
 	}
 	LogInfo.Printf("Loading: [%s]\n", maker.Name())
-	if err = maker.PrepConfig(); err != nil {
+	if _, err = maker.PrepConfig(); err != nil {
 		return err
 	}
 	category := maker.Category()
@@ -1136,7 +721,7 @@ func (self *PipelineConfig) LoadConfig() error {
 	for _, category := range order {
 		for _, maker := range makersByCategory[category] {
 			LogInfo.Printf("Loading: [%s]\n", maker.Name())
-			if err = maker.PrepConfig(); err != nil {
+			if _, err = maker.PrepConfig(); err != nil {
 				self.log(err.Error())
 				self.errcnt++
 			}

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,12 +18,13 @@ package process
 import (
 	"errors"
 	"fmt"
-	"github.com/bbangert/toml"
-	. "github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/bbangert/toml"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type ProcessEntry struct {
@@ -202,8 +203,25 @@ func (pdi *ProcessDirectoryInput) procDirWalkFunc(path string, info os.FileInfo,
 		pdi.ir.LogError(fmt.Errorf("loading process file '%s': %s", path, err))
 		return nil
 	}
-	// Override the ticker_interval, make the runner, and store the entry.
-	entry.config.TickerInterval = uint(tickInterval)
+
+	// Override the config settings we manage, make the runner, and store the
+	// entry.
+	prepConfig := func() (interface{}, error) {
+		config, err := entry.maker.OrigPrepConfig()
+		if err != nil {
+			return nil, err
+		}
+		processInputConfig := config.(*ProcessInputConfig)
+		processInputConfig.TickerInterval = uint(tickInterval)
+		return processInputConfig, nil
+	}
+	config, err := prepConfig()
+	if err != nil {
+		pdi.ir.LogError(fmt.Errorf("prepping config: %s", err.Error()))
+		return nil
+	}
+	entry.config = config.(*ProcessInputConfig)
+	entry.maker.SetPrepConfig(prepConfig)
 
 	runner, err := entry.maker.MakeRunner("")
 	if err != nil {
@@ -236,21 +254,28 @@ func (pdi *ProcessDirectoryInput) loadProcessFile(path string) (*ProcessEntry, e
 
 	mutMaker := maker.(MutableMaker)
 	mutMaker.SetName(path)
-	if err = mutMaker.PrepConfig(); err != nil {
-		return nil, fmt.Errorf("can't prep config: %s", err)
-	}
 
-	// CanExit is true by default on ProcessInput's we spawn
-	commonConfig := mutMaker.CommonTypedConfig().(CommonInputConfig)
-	if commonConfig.CanExit == nil {
-		b := true
-		commonConfig.CanExit = &b
-		mutMaker.SetCommonTypedConfig(commonConfig)
+	prepCommonTypedConfig := func() (interface{}, error) {
+		commonTypedConfig, err := mutMaker.OrigPrepCommonTypedConfig()
+		if err != nil {
+			return nil, err
+		}
+		commonInput := commonTypedConfig.(CommonInputConfig)
+		commonInput.Retries = RetryOptions{
+			MaxDelay:   "30s",
+			Delay:      "250ms",
+			MaxRetries: -1,
+		}
+		if commonInput.CanExit == nil {
+			b := true
+			commonInput.CanExit = &b
+		}
+		return commonInput, nil
 	}
+	mutMaker.SetPrepCommonTypedConfig(prepCommonTypedConfig)
 
 	entry := &ProcessEntry{
-		maker:  mutMaker,
-		config: mutMaker.Config().(*ProcessInputConfig),
+		maker: mutMaker,
 	}
 	return entry, nil
 }

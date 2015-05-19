@@ -2,6 +2,10 @@ package plugins
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -9,9 +13,6 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 type FilterTestHelper struct {
