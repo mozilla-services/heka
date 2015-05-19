@@ -247,7 +247,6 @@ func (this *SandboxManagerFilter) restoreSandboxes(fr pipeline.FilterRunner,
 	glob := fmt.Sprintf("%s-*.toml", getNormalizedName(fr.Name()))
 	if matches, err := filepath.Glob(filepath.Join(dir, glob)); err == nil {
 		for _, fn := range matches {
-			fmt.Println("match fn: ", fn)
 			var configFile pipeline.ConfigFile
 			if _, err = toml.DecodeFile(fn, &configFile); err != nil {
 				fr.LogError(fmt.Errorf("restoreSandboxes failed: %s\n", err))
