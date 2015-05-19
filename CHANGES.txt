@@ -62,6 +62,8 @@ Bug Handling
 
 * Fixed visibility of synchronous decoders in reports (#1312).
 
+* Fixed hang on SandboxFilter termination (#1509)
+
 * More ProcessInput/ProcessDirectoryInput retry logic fixes (#1412 & #1418).
 
 * ProcessInput fixed to no longer leak decoder goroutines when reconfigured
