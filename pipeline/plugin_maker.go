@@ -317,7 +317,6 @@ func (m *pluginMaker) makeSplitterRunner(name string, config interface{}, splitt
 func (m *pluginMaker) makeInputRunner(name string, config interface{}, input Input,
 	defaultTick uint) (InputRunner, error) {
 
-	fmt.Println("Before fetching")
 	commonConfig, err := m.prepCommonTypedConfig()
 	if err != nil {
 		return nil, fmt.Errorf("Can't prep common typed config: %s", err.Error())
