@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,11 +19,12 @@ package pipeline
 import (
 	"bytes"
 	"errors"
+	"sync"
+
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"sync"
 )
 
 var stopinputTimes int
@@ -64,13 +65,15 @@ func InputRunnerSpec(c gs.Context) {
 	decoder := &_fooDecoder{}
 
 	decoderMaker := &pluginMaker{
-		name:          "FooDecoder",
-		category:      "Decoder",
-		pConfig:       pConfig,
-		configPrepped: true,
+		name:     "FooDecoder",
+		category: "Decoder",
+		pConfig:  pConfig,
 	}
 	decoderMaker.constructor = func() interface{} {
 		return decoder
+	}
+	decoderMaker.prepConfig = func() (interface{}, error) {
+		return make(map[string]interface{}), nil
 	}
 	pConfig.DecoderMakers["FooDecoder"] = decoderMaker
 
@@ -99,7 +102,9 @@ func InputRunnerSpec(c gs.Context) {
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			input := &StoppingInput{}
 			maker := &pluginMaker{}
-			maker.configStruct = make(map[string]interface{})
+			maker.prepConfig = func() (interface{}, error) {
+				return make(map[string]interface{}), nil
+			}
 			runner := NewInputRunner("stopping", input, commonInput).(*iRunner)
 			runner.maker = maker
 			startRunner(runner)
@@ -317,7 +322,9 @@ func OutputRunnerSpec(c gs.Context) {
 		}
 		chanSize := 10
 		maker := &pluginMaker{}
-		maker.configStruct = make(map[string]interface{})
+		maker.prepConfig = func() (interface{}, error) {
+			return make(map[string]interface{}), nil
+		}
 		pConfig.makers["Output"]["stoppingOutput"] = maker
 
 		c.Specify("restarts a plugin on the first time only", func() {
