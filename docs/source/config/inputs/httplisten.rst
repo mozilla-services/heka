@@ -47,6 +47,16 @@ Config:
 - request_headers ([]string):
     Add additional request headers as message fields. Defaults to empty list.
 
+.. versionadded:: 0.10
+
+- use_tls (bool):
+    Specifies whether or not SSL/TLS encryption should be used for the TCP
+    connections. Defaults to false.
+- tls (TlsConfig):
+    A sub-section that specifies the settings to be used for any SSL/TLS
+    encryption. This will only have any impact if `use_tls` is set to true.
+    See :ref:`tls`.
+ 
 Example:
 
 .. code-block:: ini
