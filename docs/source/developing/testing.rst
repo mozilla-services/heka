@@ -84,6 +84,16 @@ Configuration Variables
 - max_message_size (uint32):
     The maximum size of the message that will be sent by heka-flood.
 
+.. versionadded:: 0.10
+
+- reconnect_on_error (bool):
+    Defines if `heka-flood` should try to reconnect with backend after connection error. Exits if reconnect_on_error is set to false.
+    Defaults to false.
+
+- reconnect_interval (int):
+    Specifies interval (in seconds) after which `heka-flood` will try to recreate connection with backend.
+    Defaults to 5s.
+
 Example
 
 .. code-block:: ini

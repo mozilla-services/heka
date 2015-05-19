@@ -75,6 +75,9 @@ Bug Handling
 * Switch from unmaintained `crowdmob` fork of GoAMZ dependency to `AdRoll`
   (#1458).
 
+* Added ability to reconnect after lost connection in `heka-flood` (#1536).
+
+
 0.9.3 (2015-??-??)
 ==================
 
