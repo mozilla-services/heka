@@ -22,9 +22,12 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
+	"os/exec"
+	//	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -139,6 +142,7 @@ type ProcessInput struct {
 
 	stopChan  chan bool
 	exitError error
+	ccStatus  CommandChainStatus
 
 	hostname       string
 	hekaPid        int32
@@ -242,6 +246,28 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 			pack.Message.SetType("ProcessInput")
 			pack.Message.SetPid(pi.hekaPid)
 			pack.Message.SetHostname(pi.hostname)
+			// Add restur code and error messages to pack.
+			var returnStatus int
+			if exiterr, ok := pi.ccStatus.ExitStatus.(*exec.ExitError); ok {
+				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+					returnStatus = status.ExitStatus()
+				}
+			}
+
+			cmdStatus, err := message.NewField("ReturnStatus", returnStatus, "")
+			if err == nil {
+				pack.Message.AddField(cmdStatus)
+			} else {
+				pi.ir.LogError(err)
+			}
+
+			subcmdStatus, err := message.NewField("SubcmdStatus", pi.ccStatus.SubcmdErrors.Error(), "")
+			if err == nil {
+				pack.Message.AddField(subcmdStatus)
+			} else {
+				pi.ir.LogError(err)
+			}
+
 			fPInputName, err := message.NewField("ProcessInputName",
 				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
 			if err == nil {
@@ -335,9 +361,10 @@ func (pi *ProcessInput) runOnce() {
 		go throwAway(stderrReader)
 	}
 
-	err = pi.cc.Wait()
+	pi.ccStatus = pi.cc.Wait()
+
 	if err != nil {
-		pi.exitError = fmt.Errorf("CommandChain::Wait() error: [%s]", err)
+		//		pi.exitError = fmt.Errorf("CommandChain::Wait() error: [%s]", err)
 	}
 }
 
