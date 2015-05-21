@@ -261,13 +261,14 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 				pi.ir.LogError(err)
 			}
 
-			subcmdStatus, err := message.NewField("SubcmdErrors", pi.ccStatus.SubcmdErrors.Error(), "")
-			if err == nil {
-				pack.Message.AddField(subcmdStatus)
-			} else {
-				pi.ir.LogError(err)
+			if pi.ccStatus.SubcmdErrors != nil {
+				subcmdStatus, err := message.NewField("SubcmdErrors", pi.ccStatus.SubcmdErrors.Error(), "")
+				if err == nil {
+					pack.Message.AddField(subcmdStatus)
+				} else {
+					pi.ir.LogError(err)
+				}
 			}
-
 			fPInputName, err := message.NewField("ProcessInputName",
 				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
 			if err == nil {
