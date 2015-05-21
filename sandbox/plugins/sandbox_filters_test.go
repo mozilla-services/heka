@@ -67,7 +67,7 @@ func FilterSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			termErr := pipeline.TerminatedError("process_message() ../lua/testsupport/processinject.lua:8: inject_payload() exceeded InjectMessage count")
 			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
@@ -89,7 +89,7 @@ func FilterSpec(c gs.Context) {
 				close(inChan)
 			}()
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			termErr := pipeline.TerminatedError("exceeded InjectMessage count")
+			termErr := pipeline.TerminatedError("timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
 			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 

@@ -59,10 +59,14 @@ Features
 
 * Added Basic Auth and API key authentication to HttpListenInput (#1533).
 
+* Added SSL/TLS support to HttpListenInput (#1534)
+
 Bug Handling
 ------------
 
 * Fixed visibility of synchronous decoders in reports (#1312).
+
+* Fixed hang on SandboxFilter termination (#1509)
 
 * More ProcessInput/ProcessDirectoryInput retry logic fixes (#1412 & #1418).
 
@@ -74,6 +78,9 @@ Bug Handling
 
 * Switch from unmaintained `crowdmob` fork of GoAMZ dependency to `AdRoll`
   (#1458).
+
+* Added ability to reconnect after lost connection in `heka-flood` (#1536).
+
 
 0.9.3 (2015-??-??)
 ==================

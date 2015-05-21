@@ -325,6 +325,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				pack.Message.SetPayload(this.sb.LastError())
 			}
 			fr.Inject(pack)
+			err = pipeline.TerminatedError(this.sb.LastError())
 			break
 		}
 	}
@@ -349,9 +350,10 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	}
 	if destroyErr != nil {
 		if err != nil {
-			fr.LogError(err)
+			fr.LogError(destroyErr)
+		} else {
+			err = destroyErr
 		}
-		err = destroyErr
 	}
 
 	this.sb = nil
