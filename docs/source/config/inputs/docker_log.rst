@@ -47,7 +47,7 @@ Config:
 .. versionadded:: 0.10
 
 - name_from_env_var(string):
-		Overwrite the ContainerName with this environmental variable on the Container
+		Overwrite the ContainerName with this environment variable on the Container
 		if exists.
 
 Example:
