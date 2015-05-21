@@ -57,9 +57,13 @@ Features
 
 * Added splitters to the reports displayed by Heka after SIGUSR1 signal.
 
-* Added `graphite` module with helpers allowing to generate graphite metrics for counters and timeseries (#1461).
+* Added `graphite` module with helpers allowing to generate graphite metrics
+  for counters and timeseries (#1461).
 
 * Added SSL/TLS support to HttpListenInput (#1534)
+
+* Allow to overwrite ContainerName using a Container environment variable from
+  within the Docker container for the DockerLogInput. (#1545)
 
 Bug Handling
 ------------

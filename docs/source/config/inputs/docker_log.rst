@@ -18,8 +18,8 @@ Messages will be populated as follows:
 - Hostname: Hostname of the machine on which Heka is running.
 - Payload: The log line received from a Docker container.
 - Logger: `stdout` or `stderr`, depending on source.
-- Fields["ContainerID"] (string): The container ID
-- Fields["ContainerName"] (string): The container name
+- Fields["ContainerID"] (string): The container ID.
+- Fields["ContainerName"] (string): The container name.
 
 .. note::
 
@@ -43,6 +43,12 @@ Config:
 - cert_path (string, optional):
     Path to directory containing client certificate and keys. This value works
     in the same way as `DOCKER_CERT_PATH <https://docs.docker.com/articles/https/#client-modes>`_.
+
+.. versionadded:: 0.10
+
+- name_from_env_var (string, optional):
+    Overwrite the ContainerName with this environment variable on the Container
+    if exists. If left empty the container name will still be used.
 
 Example:
 

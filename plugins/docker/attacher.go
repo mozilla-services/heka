@@ -58,16 +58,17 @@ func (s *Source) All() bool {
 
 type AttachManager struct {
 	sync.RWMutex
-	attached   map[string]*LogPump
-	channels   map[chan *AttachEvent]struct{}
-	client     DockerClient
-	errors     chan<- error
-	events     chan *docker.APIEvents
-	eventReset chan struct{}
-	sentinel   struct{}
+	attached    map[string]*LogPump
+	channels    map[chan *AttachEvent]struct{}
+	client      DockerClient
+	errors      chan<- error
+	events      chan *docker.APIEvents
+	eventReset  chan struct{}
+	sentinel    struct{}
+	nameFromEnv string
 }
 
-func NewAttachManager(endpoint, certPath string, attachErrors chan<- error) (*AttachManager, error) {
+func NewAttachManager(endpoint, certPath string, attachErrors chan<- error, nameFromEnv string) (*AttachManager, error) {
 	var client DockerClient
 	var err error
 
@@ -85,11 +86,12 @@ func NewAttachManager(endpoint, certPath string, attachErrors chan<- error) (*At
 	}
 
 	m := &AttachManager{
-		attached: make(map[string]*LogPump),
-		channels: make(map[chan *AttachEvent]struct{}),
-		client:   client,
-		errors:   attachErrors,
-		events:   make(chan *docker.APIEvents),
+		attached:    make(map[string]*LogPump),
+		channels:    make(map[chan *AttachEvent]struct{}),
+		client:      client,
+		errors:      attachErrors,
+		events:      make(chan *docker.APIEvents),
+		nameFromEnv: nameFromEnv,
 	}
 
 	// Attach to all currently running containers
@@ -124,6 +126,12 @@ func (m *AttachManager) attach(id string) {
 		m.errors <- err
 	}
 	name := container.Name[1:]
+	if m.nameFromEnv != "" {
+		alt_name := m.changeNameByEnv(container, m.nameFromEnv)
+		if alt_name != "" {
+			name = alt_name
+		}
+	}
 	success := make(chan struct{})
 	failure := make(chan error)
 	outrd, outwr := io.Pipe()
@@ -145,6 +153,7 @@ func (m *AttachManager) attach(id string) {
 			close(success)
 			failure <- err
 		}
+
 		m.send(&AttachEvent{Type: "detach", ID: id, Name: name})
 		m.Lock()
 		delete(m.attached, id)
@@ -159,6 +168,16 @@ func (m *AttachManager) attach(id string) {
 		m.send(&AttachEvent{ID: id, Name: name, Type: "attach"})
 		return
 	}
+}
+
+func (m *AttachManager) changeNameByEnv(container *docker.Container, envName string) string {
+	for _, value := range container.Config.Env {
+		valueParts := strings.SplitN(value, "=", 2)
+		if len(valueParts) == 2 && valueParts[0] == envName {
+			return valueParts[1]
+		}
+	}
+	return ""
 }
 
 func (m *AttachManager) send(event *AttachEvent) {
