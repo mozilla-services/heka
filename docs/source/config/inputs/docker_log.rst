@@ -44,6 +44,12 @@ Config:
     Path to directory containing client certificate and keys. This value works
     in the same way as `DOCKER_CERT_PATH <https://docs.docker.com/articles/https/#client-modes>`_.
 
+.. versionadded:: 0.10
+
+- name_from_env_var(string):
+		Overwrite the ContainerName with this environmental variable on the Container
+		if exists.
+
 Example:
 
 .. code-block:: ini

@@ -57,6 +57,8 @@ Features
 
 * Added `graphite` module with helpers allowing to generate graphite metrics for counters and timeseries (#1461).
 
+* Allow to overwrite ContainerName using a Container environment variable for the DockerLogInput. (#1545)
+
 Bug Handling
 ------------
 
