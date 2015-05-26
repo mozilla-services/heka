@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	//	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -363,10 +362,6 @@ func (pi *ProcessInput) runOnce() {
 	}
 
 	pi.ccStatus = pi.cc.Wait()
-	/*
-		if err != nil {
-			//		pi.exitError = fmt.Errorf("CommandChain::Wait() error: [%s]", err)
-		}*/
 }
 
 func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,

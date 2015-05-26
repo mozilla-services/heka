@@ -227,7 +227,6 @@ func (cc *CommandChain) Wait() (cc_status CommandChainStatus) {
 			}
 		}
 		if len(subcmd_errors) > 0 {
-			//cc.done <- fmt.Errorf(strings.Join(subcmd_errors, "\n"))
 			cc_status.SubcmdErrors = fmt.Errorf(strings.Join(subcmd_errors, "\n"))
 			cc.done <- cc_status
 		} else {
