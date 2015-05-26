@@ -169,7 +169,7 @@ func ProcessInputSpec(c gs.Context) {
 
 				pInput.Stop()
 				err = <-errChan
-				c.Expect(err.Error(), gs.Equals, "CommandChain::Wait() error: [Subcommand returned an error: [exit status 1]]")
+				c.Expect(err, gs.IsNil)
 			})
 		})
 	})

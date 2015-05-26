@@ -146,8 +146,8 @@ func ProcessChainSpec(c gs.Context) {
 			go readCommandOutput(stdoutReader, stdoutResult)
 			go readCommandOutput(stderrReader, stderrResult)
 
-			err = chain.Wait()
-			c.Expect(err, gs.IsNil)
+			cc := chain.Wait()
+			c.Expect(cc.SubcmdErrors, gs.IsNil)
 
 			c.Expect(<-stderrResult, gs.Equals, "")
 			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)
@@ -166,11 +166,11 @@ func ProcessChainSpec(c gs.Context) {
 			err = chain.Start()
 			start := time.Now()
 			c.Expect(err, gs.IsNil)
-			err = chain.Wait()
+			cc := chain.Wait()
 			end := time.Now()
 			actual_duration := end.Sub(start)
-			c.Expect(err, gs.Not(gs.IsNil))
-			c.Expect(strings.Contains(err.Error(), "was killed"), gs.Equals, true)
+			c.Expect(cc.SubcmdErrors, gs.Not(gs.IsNil))
+			c.Expect(strings.Contains(cc.SubcmdErrors.Error(), "was killed"), gs.Equals, true)
 			c.Expect(actual_duration < time.Second*10, gs.Equals, true)
 		})
 
@@ -188,10 +188,10 @@ func ProcessChainSpec(c gs.Context) {
 			time.Sleep(NONZERO_TIMEOUT)
 
 			chain.Stopchan <- true
-			err = chain.Wait()
+			cc := chain.Wait()
 			end := time.Now()
 			actual_duration := end.Sub(start)
-			c.Expect(err, gs.Not(gs.IsNil))
+			c.Expect(cc.SubcmdErrors, gs.Not(gs.IsNil))
 			c.Expect(actual_duration < timeout, gs.Equals, true)
 		})
 
@@ -217,8 +217,8 @@ func ProcessChainSpec(c gs.Context) {
 			go readCommandOutput(stdoutReader, stdoutResult)
 			go readCommandOutput(stderrReader, stderrResult)
 
-			err = chain.Wait()
-			c.Expect(err, gs.IsNil)
+			cc := chain.Wait()
+			c.Expect(cc.SubcmdErrors, gs.IsNil)
 
 			c.Expect(<-stderrResult, gs.Equals, "")
 			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)
@@ -238,8 +238,8 @@ func ProcessChainSpec(c gs.Context) {
 			go readCommandOutput(stdoutReader, stdoutResult)
 			go readCommandOutput(stderrReader, stderrResult)
 
-			err = chain.Wait()
-			c.Expect(err, gs.IsNil)
+			cc = chain.Wait()
+			c.Expect(cc.SubcmdErrors, gs.IsNil)
 
 			c.Expect(<-stderrResult, gs.Equals, "")
 			c.Expect(<-stdoutResult, gs.Equals, PIPE_CMD_OUTPUT)

@@ -133,18 +133,27 @@ type CommandChain struct {
 	// pipeline should run for before the Wait() returns a timeout error.
 	timeout_duration time.Duration
 
-	done     chan error
+	done     chan CommandChainStatus
 	Stopchan chan bool
+}
+
+// A CommandChainStatus records the return execution result of a command chain.
+// ReturnStatus stores the return status of the command chain, which is the
+// return status of the last successfully executed command.
+// SubcmdErrors sttors the erros of each subcommand.
+type CommandChainStatus struct {
+	ExitStatus   error
+	SubcmdErrors error
 }
 
 func NewCommandChain(timeout time.Duration) (cc *CommandChain) {
 	cc = &CommandChain{timeout_duration: timeout}
-	cc.done = make(chan error)
+	cc.done = make(chan CommandChainStatus)
 	cc.Stopchan = make(chan bool, 1)
 	return cc
 }
 
-// Add a single command to our command chain, piping stdout to stdin for each
+// Add A single command to our command chain, piping stdout to stdin for each
 // stage.
 func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 	cmd = NewManagedCmd(Path, Args, cc.timeout_duration)
@@ -192,19 +201,22 @@ func (cc *CommandChain) Start() (err error) {
 	return nil
 }
 
-func (cc *CommandChain) Wait() (err error) {
+func (cc *CommandChain) Wait() (cc_status CommandChainStatus) {
 	/* You need to Wait and close the stdout for each
 	   stage in order, except that you do *not* want to close the last
 	   output pipe as we need to use that to get the final results.  */
 	go func() {
 		var subcmd_err error
+		var cc_status CommandChainStatus
 		subcmd_errors := make([]string, 0)
 
 		for i, cmd := range cc.Cmds {
 			subcmd_err = cmd.Wait()
+			cc_status.ExitStatus = subcmd_err
+
 			if subcmd_err != nil {
 				subcmd_errors = append(subcmd_errors,
-					fmt.Sprintf("Subcommand returned an error: [%s]", subcmd_err.Error()))
+					fmt.Sprintf("Subcommand[%d] returned an error: [%s]", i, subcmd_err.Error()))
 			}
 			if i < (len(cc.Cmds) - 1) {
 				subcmd_err = cmd.Stdout.(*io.PipeWriter).Close()
@@ -215,16 +227,17 @@ func (cc *CommandChain) Wait() (err error) {
 			}
 		}
 		if len(subcmd_errors) > 0 {
-			cc.done <- fmt.Errorf(strings.Join(subcmd_errors, "\n"))
+			cc_status.SubcmdErrors = fmt.Errorf(strings.Join(subcmd_errors, "\n"))
+			cc.done <- cc_status
 		} else {
-			cc.done <- nil
+			cc.done <- cc_status
 		}
 	}()
 
 	done := false
 	for !done {
 		select {
-		case err = <-cc.done:
+		case cc_status = <-cc.done:
 			done = true
 		case <-cc.Stopchan:
 			for i := 0; i < len(cc.Cmds); i++ {
@@ -233,7 +246,7 @@ func (cc *CommandChain) Wait() (err error) {
 			}
 		}
 	}
-	return err
+	return cc_status
 }
 
 // This resets a command so that we can run the command again.
