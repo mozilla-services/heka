@@ -64,20 +64,20 @@ func main() {
 		maxSize := uint32(*flagMaxMessageSize)
 		message.SetMaxMessageSize(maxSize)
 	} else {
-		fmt.Printf("Message size is too large: %d\n", flagMaxMessageSize)
+		fmt.Fprintf(os.Stderr, "Message size is too large: %d\n", flagMaxMessageSize)
 		os.Exit(8)
 	}
 
 	var err error
 	var match *message.MatcherSpecification
 	if match, err = message.CreateMatcherSpecification(*flagMatch); err != nil {
-		fmt.Printf("Match specification - %s\n", err)
+		fmt.Fprintf(os.Stderr, "Match specification - %s\n", err)
 		os.Exit(2)
 	}
 
 	var file *os.File
 	if file, err = os.Open(flag.Arg(0)); err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(3)
 	}
 	defer file.Close()
@@ -87,7 +87,7 @@ func main() {
 		out = os.Stdout
 	} else {
 		if out, err = os.OpenFile(*flagOutput, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
-			fmt.Printf("%s\n", err)
+			fmt.Fprintf(os.Stderr, "%s\n", err)
 			os.Exit(4)
 		}
 		defer out.Close()
@@ -95,7 +95,7 @@ func main() {
 
 	var offset int64
 	if offset, err = file.Seek(*flagOffset, 0); err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(5)
 	}
 
@@ -107,12 +107,12 @@ func main() {
 	msg := new(message.Message)
 	var processed, matched int64
 
-	fmt.Printf("Input:%s  Offset:%d  Match:%s  Format:%s  Tail:%t  Output:%s\n",
+	fmt.Fprintf(os.Stderr, "Input:%s  Offset:%d  Match:%s  Format:%s  Tail:%t  Output:%s\n",
 		flag.Arg(0), *flagOffset, *flagMatch, *flagFormat, *flagTail, *flagOutput)
 	for true {
 		n, record, err := sRunner.GetRecordFromStream(file)
 		if n > 0 && n != len(record) {
-			fmt.Printf("Corruption detected at offset: %d bytes: %d\n", offset, n-len(record))
+			fmt.Fprintf(os.Stderr, "Corruption detected at offset: %d bytes: %d\n", offset, n-len(record))
 		}
 		if err != nil {
 			if err == io.EOF {
@@ -128,7 +128,7 @@ func main() {
 				processed += 1
 				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
 				if err = proto.Unmarshal(record[headerLen:], msg); err != nil {
-					fmt.Printf("Error unmarshalling message at offset: %d error: %s\n", offset, err)
+					fmt.Fprintf(os.Stderr, "Error unmarshalling message at offset: %d error: %s\n", offset, err)
 					continue
 				}
 
@@ -165,9 +165,9 @@ func main() {
 		}
 		offset += int64(n)
 	}
-	fmt.Printf("Processed: %d, matched: %d messages\n", processed, matched)
+	fmt.Fprintf(os.Stderr, "Processed: %d, matched: %d messages\n", processed, matched)
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(6)
 	}
 }
