@@ -285,7 +285,7 @@ contains a string attribute called `MessageMatcher`, that will be used as the
 default message routing rule if none is specified in the configuration file.
 
 There is an optional configuration interface called `WantsName`.  It provides
-a a plugin access to its configured name before the runner has started. The
+a plugin access to its configured name before the runner has started. The
 SandboxFilter plugin uses the name to locate/load any preserved state before
 being run::
 
