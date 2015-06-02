@@ -16,16 +16,16 @@ package plugins
 
 import (
 	"errors"
-	"fmt"
+	"io/ioutil"
+	"os"
+	"time"
+
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io/ioutil"
-	"os"
-	"time"
 )
 
 func OutputSpec(c gs.Context) {
@@ -50,6 +50,7 @@ func OutputSpec(c gs.Context) {
 		pack.Message.SetPayload(data)
 
 		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+		oth.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 		oth.MockOutputRunner.EXPECT().Ticker().Return(timer)
 
 		c.Specify("writes a payload to file", func() {
@@ -75,13 +76,16 @@ func OutputSpec(c gs.Context) {
 		c.Specify("failure processing data", func() {
 			err := output.Init(conf)
 			c.Expect(err, gs.IsNil)
-			oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("failure message"))
 			pack.Message.SetPayload("FAILURE")
+			pack.BufferedPack = true
+			pack.DelivErrChan = make(chan error, 1)
 			inChan <- pack
 			close(inChan)
 			err = output.Run(oth.MockOutputRunner, oth.MockHelper)
 			c.Assume(err, gs.IsNil)
 			c.Expect(output.processMessageFailures, gs.Equals, int64(1))
+			err = <-pack.DelivErrChan
+			c.Expect(err.Error(), gs.Equals, "failure message")
 		})
 
 		c.Specify("user abort processing data", func() {

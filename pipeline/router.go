@@ -180,7 +180,7 @@ func (self *messageRouter) Start() {
 						matcher.inChan <- pack
 					}
 				}
-				pack.Recycle()
+				pack.recycle()
 			}
 		}
 		for _, matcher = range self.fMatchers {
@@ -293,7 +293,7 @@ func (mr *MatchRunner) run(sampleDenom int) {
 	var capacity int64 = int64(cap(mr.inChan))
 	for pack := range mr.inChan {
 		if len(mr.signer) != 0 && mr.signer != pack.Signer {
-			pack.Recycle()
+			pack.recycle()
 			continue
 		}
 		// We may want to keep separate samples for match/nomatch conditions.
@@ -328,7 +328,7 @@ func (mr *MatchRunner) run(sampleDenom int) {
 					err))
 			}
 		} else {
-			pack.Recycle()
+			pack.recycle()
 		}
 	}
 	if mr.matchChan != nil {
@@ -370,7 +370,7 @@ func (mr *MatchRunner) deliver(pack *PipelinePack) error {
 			case "drop":
 			}
 		}
-		pack.Recycle()
+		pack.recycle()
 		return err
 	}
 	if mr.matchChan != nil {

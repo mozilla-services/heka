@@ -264,13 +264,16 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 				break
 			}
 			if outBytes, e = or.Encode(pack); e != nil {
-				or.LogError(e)
-			} else if outBytes != nil {
+				e = fmt.Errorf("can't encode: %s", e)
+				pack.Recycle(e) // Don't try to resend.
+				continue
+			}
+			if outBytes != nil {
 				out.data = append(out.data, outBytes...)
 				out.cursor = pack.QueueCursor
 				msgCounter++
 			}
-			pack.NewRecycle(nil) // Don't try to resend encoder errors.
+			pack.Recycle(nil)
 
 			// Trigger immediately when the message count threshold has been
 			// reached if a) the "OR" operator is in effect or b) the

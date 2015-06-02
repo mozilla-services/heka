@@ -165,16 +165,15 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				break
 			}
 			if outBytes, err = or.Encode(pack); err != nil {
-				or.LogError(fmt.Errorf("Error encoding message: %s", err))
 				or.UpdateCursor(pack.QueueCursor)
-				pack.NewRecycle(nil)
+				err = fmt.Errorf("Error encoding message: %s", err)
+				pack.Recycle(err)
 				continue
 			} else if outBytes == nil {
 				or.UpdateCursor(pack.QueueCursor)
-				pack.NewRecycle(nil)
+				pack.Recycle(nil)
 				continue
 			}
-			pack.Recycle()
 			amqpMsg = amqp.Publishing{
 				DeliveryMode: persist,
 				Timestamp:    time.Now(),
@@ -184,11 +183,12 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 				false, false, amqpMsg)
 			if err != nil {
+				err = NewRetryMessageError(err.Error())
 				ok = false
 			} else {
 				or.UpdateCursor(pack.QueueCursor)
 			}
-			pack.NewRecycle(err)
+			pack.Recycle(err)
 		}
 	}
 	ao.usageWg.Done()

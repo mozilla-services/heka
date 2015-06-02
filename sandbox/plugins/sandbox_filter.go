@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,13 +16,8 @@
 package plugins
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -30,6 +25,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 func fileExists(path string) bool {
@@ -180,9 +181,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		startTime      time.Time
 		slowDuration   int64 = int64(this.pConfig.Globals.MaxMsgProcessDuration)
 		duration       int64
-		capacity       = cap(inChan) - 1
+		samplesNeeded  int64
 	)
 
+	if fr.UsesBuffering() {
+		samplesNeeded = 29
+	} else {
+		samplesNeeded = int64(cap(inChan)) - 1
+	}
 	// We assign to the return value of Run() for errors in the closure so that
 	// the plugin runner can determine what caused the SandboxFilter to return.
 	this.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -235,18 +241,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			msgLoopCount = pack.MsgLoopCount
 
 			if this.manager != nil { // only check for backpressure on dynamic plugins
-				// reading a channel length is generally fast ~1ns
-				// we need to check the entire chain back to the router
-				backpressure = len(inChan) >= capacity ||
-					fr.MatchRunner().InChanLen() >= capacity ||
-					len(h.PipelineConfig().Router().InChan()) >= capacity
+				backpressure = fr.BackPressured()
 			}
 
 			// performing the timing is expensive ~40ns but if we are
 			// backpressured we need a decent sample set before triggering
 			// termination
 			if sample ||
-				(backpressure && this.processMessageSamples < int64(capacity)) ||
+				(backpressure && this.processMessageSamples < samplesNeeded) ||
 				this.sbc.Profile {
 				startTime = time.Now()
 				sample = true
@@ -260,7 +262,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				if this.sbc.Profile {
 					this.profileMessageDuration = this.processMessageDuration
 					this.profileMessageSamples = this.processMessageSamples
-					if this.profileMessageSamples == int64(capacity)*10 {
+					if this.profileMessageSamples == samplesNeeded*10 {
 						this.sbc.Profile = false
 						// reset the normal sampling so it isn't heavily skewed by the profile values
 						// i.e. process messages fast during profiling and then switch to malicious code
@@ -271,7 +273,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				this.reportLock.Unlock()
 			}
 			if retval <= 0 {
-				if backpressure && this.processMessageSamples >= int64(capacity) {
+				if backpressure && this.processMessageSamples >= samplesNeeded {
 					if this.processMessageDuration/this.processMessageSamples > slowDuration ||
 						fr.MatchRunner().GetAvgDuration() > slowDuration/5 {
 						terminated = true
@@ -289,7 +291,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			} else {
 				terminated = true
 			}
-			pack.Recycle()
+			pack.Recycle(nil)
 
 		case t := <-ticker:
 			injectionCount = this.pConfig.Globals.MaxMsgTimerInject

@@ -396,7 +396,7 @@ func (ir *iRunner) Inject(pack *PipelinePack) {
 	if err := pack.EncodeMsgBytes(); err != nil {
 		err = fmt.Errorf("encoding message: %s", err.Error())
 		ir.LogError(err)
-		pack.Recycle()
+		pack.recycle()
 		return
 	}
 	ir.pConfig.router.InChan() <- pack
@@ -478,7 +478,7 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Dec
 			e := fmt.Errorf("decoding: %s", errMsg)
 			ir.LogError(e)
 			if !ir.sendDecodeFailures {
-				pack.Recycle()
+				pack.recycle()
 				return
 			}
 			if err = AddDecodeFailureFields(pack.Message, errMsg); err != nil {
@@ -627,7 +627,7 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 					continue
 				}
 			}
-			pack.Recycle()
+			pack.recycle()
 			continue
 		}
 	}
@@ -644,7 +644,7 @@ func (dr *dRunner) deliver(pack *PipelinePack) {
 		if err != nil {
 			err = fmt.Errorf("encoding message: %s", err.Error())
 			dr.LogError(err)
-			pack.Recycle()
+			pack.recycle()
 			return
 		}
 	}
@@ -724,6 +724,10 @@ type FilterRunner interface {
 	// Updates the queue buffer cursor to indicate that a given message has
 	// been delivered and can be safely removed from the queue.
 	UpdateCursor(queueCursor string)
+	// Returns whether or not the filter is currently generating back-pressure,
+	// either through the input channels being full or through the disk buffer
+	// up to 90% of the configured max.
+	BackPressured() bool
 }
 
 // Heka PluginRunner for Output plugins.
@@ -770,6 +774,10 @@ type OutputRunner interface {
 	// Updates the queue buffer cursor to indicate that a given message has
 	// been delivered and can be safely removed from the queue.
 	UpdateCursor(queueCursor string)
+	// Returns whether or not the output is currently generating back-pressure,
+	// either through the input channels being full or through the disk buffer
+	// up to 90% of the configured max.
+	BackPressured() bool
 }
 
 type foRunnerKind int
@@ -793,30 +801,30 @@ func (kind foRunnerKind) String() string {
 // This one struct provides the implementation of both FilterRunner and
 // OutputRunner interfaces.
 type foRunner struct {
-	pRunnerBase
-	pluginType          string
-	config              CommonFOConfig
-	matcher             *MatchRunner
-	ticker              <-chan time.Time
-	inChan              chan *PipelinePack
-	backChan            chan *PipelinePack
-	h                   PluginHelper
-	retainPack          *PipelinePack
-	leakCount           int
-	encoder             Encoder // output only
-	useFraming          bool    // output only
-	canExit             bool
-	useBuffering        bool
-	kind                foRunnerKind
-	pConfig             *PipelineConfig
-	lastErr             error
-	bufReader           *BufferReader
-	stopChan            chan bool
 	processMessageCount int64
 	dropMessageCount    int64
+	capacity            int
+	pRunnerBase
+	pluginType   string
+	config       CommonFOConfig
+	matcher      *MatchRunner
+	ticker       <-chan time.Time
+	inChan       chan *PipelinePack
+	backChan     chan *PipelinePack
+	h            PluginHelper
+	retainPack   *PipelinePack
+	leakCount    int
+	encoder      Encoder // output only
+	useFraming   bool    // output only
+	canExit      bool
+	useBuffering bool
+	kind         foRunnerKind
+	pConfig      *PipelineConfig
+	lastErr      error
+	bufReader    *BufferReader
+	stopChan     chan bool
 }
 
-// const pluginPoolSize = 30
 const pluginPoolSize = 2
 
 // Creates and returns foRunner pointer for use as either a FilterRunner or an
@@ -848,6 +856,7 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 			msg := "buffer full_action must be 'shutdown', 'drop', or 'block', got '%s'"
 			return nil, fmt.Errorf(msg, config.BufferConfig.FullAction)
 		}
+		runner.capacity = int(config.BufferConfig.MaxBufferSize) * 90 / 100
 	}
 
 	var matchChan chan *PipelinePack
@@ -856,13 +865,14 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 		runner.backChan = make(chan *PipelinePack, pluginPoolSize)
 		for i := 0; i < pluginPoolSize; i++ {
 			pack := NewPipelinePack(runner.backChan)
-			pack.bufferedPack = true
-			pack.delivErrChan = make(chan error, 1)
+			pack.BufferedPack = true
+			pack.DelivErrChan = make(chan error, 1)
 			runner.backChan <- pack
 		}
 	} else {
 		runner.inChan = make(chan *PipelinePack, chanSize)
 		matchChan = runner.inChan
+		runner.capacity = chanSize
 	}
 	// matchChan is nil if buffering is used, this is intentional.
 	matcher, err := NewMatchRunner(config.Matcher, config.Signer, runner, chanSize,
@@ -895,6 +905,17 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	}
 
 	return runner, nil
+}
+
+func (foRunner *foRunner) BackPressured() bool {
+	if !foRunner.useBuffering {
+		// reading a channel length is generally fast ~1ns
+		// we need to check the entire chain back to the router
+		return len(foRunner.inChan) >= foRunner.capacity ||
+			foRunner.matcher.InChanLen() >= foRunner.capacity
+	}
+
+	return foRunner.capacity > 0 && foRunner.bufReader.queueSize.Get() >= uint64(foRunner.capacity)
 }
 
 func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
@@ -975,6 +996,8 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	return
 }
 
+// bufferLoop is invoked for plugins that support the newer API when buffering
+// is turned on.
 func (foRunner *foRunner) bufferLoop(plugin MessageProcessor, h PluginHelper,
 	tickReceiver TickerPlugin) error {
 
@@ -986,6 +1009,8 @@ func (foRunner *foRunner) bufferLoop(plugin MessageProcessor, h PluginHelper,
 	return err
 }
 
+// channelLoop is invoked for plugins that support the newer API when buffering
+// is not turned on.
 func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 	tickReceiver TickerPlugin) error {
 
@@ -998,7 +1023,7 @@ func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 				break
 			}
 			err := plugin.ProcessMessage(pack)
-			pack.Recycle()
+			pack.recycle()
 			if _, isFatal := err.(PluginExitError); isFatal {
 				return err
 			}
@@ -1022,6 +1047,8 @@ func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 	return nil
 }
 
+// NewStarter is the main goroutine launched for plugins that support the newer
+// API.
 func (foRunner *foRunner) NewStarter(plugin MessageProcessor, h PluginHelper,
 	wg *sync.WaitGroup) {
 
@@ -1160,7 +1187,7 @@ func (foRunner *foRunner) exit() {
 			for pack := range foRunner.inChan {
 				// drain and recycle the orphaned packs
 				orphaned++
-				pack.Recycle()
+				pack.recycle()
 			}
 			if orphaned == 1 {
 				foRunner.LogError(fmt.Errorf("Lost/Dropped 1 message"))
@@ -1219,8 +1246,9 @@ func (foRunner *foRunner) exit() {
 	foRunner.pConfig.router.inChan <- pack
 }
 
-// Manages lifespan and return codes for both the plugin's Run method and the
-// BufferReader's streamOutput method.
+// runBoth manages lifespan and return codes for both the plugin's Run method
+// and the BufferReader's streamOutput method for plugins that use the older
+// API.
 func (foRunner *foRunner) runBoth(h PluginHelper) error {
 	pluginErrChan := make(chan error, 1)
 	bufErrChan := make(chan error, 1)
@@ -1277,6 +1305,7 @@ func (foRunner *foRunner) runBoth(h PluginHelper) error {
 	return err
 }
 
+// Starter is the main goroutine driving plugins that support the older API.
 func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -1373,25 +1402,25 @@ func (foRunner foRunner) SendRecord(pack *PipelinePack) error {
 	case foRunner.inChan <- pack:
 		// Wait until pack is delivered.
 		select {
-		case err := <-pack.delivErrChan:
-			if err != nil {
+		case err := <-pack.DelivErrChan:
+			if err == nil {
+				atomic.AddInt64(&foRunner.processMessageCount, 1)
+				pack.recycle()
+			} else {
 				if _, ok := err.(RetryMessageError); !ok {
 					foRunner.LogError(fmt.Errorf("can't send record: %s", err))
 					atomic.AddInt64(&foRunner.dropMessageCount, 1)
-					pack.Recycle()
+					pack.recycle()
 					err = nil // Swallow the error so there's no retry.
 				}
-			} else {
-				atomic.AddInt64(&foRunner.processMessageCount, 1)
-				pack.Recycle()
 			}
 			return err
 		case <-foRunner.stopChan:
-			pack.Recycle()
+			pack.recycle()
 			return ErrStopping
 		}
 	case <-foRunner.stopChan:
-		pack.Recycle()
+		pack.recycle()
 		return ErrStopping
 	}
 }
@@ -1407,7 +1436,7 @@ func (foRunner *foRunner) UpdateCursor(queueCursor string) {
 }
 
 func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
-	if pack.bufferedPack {
+	if pack.BufferedPack {
 		foRunner.LogError(errors.New("can't inject buffered plugin pack"))
 		return false
 	}
@@ -1416,14 +1445,14 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 	match := spec.Match(pack.Message)
 	if match {
 		foRunner.LogError(errors.New("attempted to Inject a message to itself"))
-		pack.Recycle()
+		pack.recycle()
 		return false
 	}
 	// Make sure the pack's MsgBytes is populated.
 	err := pack.EncodeMsgBytes()
 	if err != nil {
 		foRunner.LogError(fmt.Errorf("encoding message: %s", err.Error()))
-		pack.Recycle()
+		pack.recycle()
 		return false
 	}
 	// Do the actual injection in a separate goroutine so we free up the

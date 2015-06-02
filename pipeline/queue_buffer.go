@@ -494,30 +494,30 @@ func (br *BufferReader) NewStreamOutput(sender MessageProcessor, packSupply chan
 				switch err.(type) {
 				case PluginExitError:
 					atomic.AddInt64(&br.runner.dropMessageCount, 1)
-					pack.Recycle()
+					pack.recycle()
 					return err
 				case RetryMessageError:
 					br.runner.LogError(fmt.Errorf("can't send record: %s", err))
 					// Falls through to a retry wait below.
 				default:
 					atomic.AddInt64(&br.runner.dropMessageCount, 1)
-					pack.Recycle()
+					pack.recycle()
 					break sendLoop
 				}
 			} else {
 				atomic.AddInt64(&br.runner.processMessageCount, 1)
-				pack.Recycle()
+				pack.recycle()
 				break sendLoop
 			}
 			select {
 			case <-stopChan:
 				atomic.AddInt64(&br.runner.dropMessageCount, 1)
-				pack.Recycle()
+				pack.recycle()
 				return nil
 			case <-tickChan:
 				if e := br.runTimerEvent(tickerPlugin); e != nil {
 					atomic.AddInt64(&br.runner.dropMessageCount, 1)
-					pack.Recycle()
+					pack.recycle()
 					return e
 				}
 			default:
@@ -623,7 +623,7 @@ func (br *BufferReader) StreamOutput(sender BufferSender,
 			}
 			select {
 			case <-stopChan:
-				pack.Recycle()
+				pack.recycle()
 				return nil
 			default:
 				resetNeeded = true

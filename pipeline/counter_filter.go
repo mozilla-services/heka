@@ -71,7 +71,7 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			msgLoopCount = pack.MsgLoopCount
 			this.count++
 			fr.UpdateCursor(pack.QueueCursor)
-			pack.NewRecycle(nil)
+			pack.Recycle(nil)
 		case <-ticker:
 			this.tally(fr, h, msgLoopCount)
 		}

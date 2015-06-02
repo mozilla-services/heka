@@ -163,9 +163,9 @@ type PipelinePack struct {
 	QueueCursor string
 	// Used internally to differentiate packs that are owned by a buffered
 	// plugin from those that are in circulation for the router.
-	bufferedPack bool
+	BufferedPack bool
 	// Used to send delivery result error back to the buffered plugin.
-	delivErrChan chan error
+	DelivErrChan chan error
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the
@@ -194,7 +194,7 @@ func (p *PipelinePack) Zero() {
 	p.Signer = ""
 	p.diagnostics.Reset()
 	p.TrustMsgBytes = false
-	if p.bufferedPack {
+	if p.BufferedPack {
 		p.QueueCursor = ""
 	}
 
@@ -203,7 +203,7 @@ func (p *PipelinePack) Zero() {
 	p.Message = new(message.Message)
 }
 
-func (p *PipelinePack) Recycle() {
+func (p *PipelinePack) recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
@@ -211,14 +211,15 @@ func (p *PipelinePack) Recycle() {
 	}
 }
 
-// Recycle decrements the ref count and, if ref count == zero, zeroes the pack
-// and put it on the appropriate recycle channel.
-func (p *PipelinePack) NewRecycle(delivErr error) {
-	// p.Recycle()
-	if p.bufferedPack {
-		p.delivErrChan <- delivErr
+// Recycle checks if the pack is buffered and, if so, drops the returned error
+// on the delivery error channel. If not, it decrements the ref count and, if
+// ref count == zero, zeroes the pack and put it on the appropriate recycle
+// channel.
+func (p *PipelinePack) Recycle(delivErr error) {
+	if p.BufferedPack {
+		p.DelivErrChan <- delivErr
 	} else {
-		p.Recycle()
+		p.recycle()
 	}
 }
 

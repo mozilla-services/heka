@@ -18,9 +18,10 @@ package plugins
 import (
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"os"
 	"log"
+	"os"
+
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 var logOut = log.New(os.Stdout, "", log.LstdFlags)
@@ -53,7 +54,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			logOut.Print(string(outBytes))
 		}
 		or.UpdateCursor(pack.QueueCursor)
-		pack.NewRecycle(nil)
+		pack.Recycle(nil)
 	}
 	return
 }

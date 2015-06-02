@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,15 +18,16 @@ package nagios
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins/process"
-	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/process"
+	"github.com/mozilla-services/heka/plugins/tcp"
 )
 
 // NagiosOutput can be configured to use the http client to submit the passive
@@ -144,10 +145,12 @@ func (n *NagiosOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		err = n.submitter(host, service_description, state, payload)
 		if err != nil {
-			or.LogError(err)
+			err = NewRetryMessageError(err.Error())
+			pack.Recycle(err)
+			continue
 		}
-
-		pack.Recycle()
+		or.UpdateCursor(pack.QueueCursor)
+		pack.Recycle(nil)
 	}
 	return
 }

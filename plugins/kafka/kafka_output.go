@@ -340,13 +340,13 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			or.LogError(err)
 			// Don't retry encoding errors.
 			or.UpdateCursor(pack.QueueCursor)
-			pack.NewRecycle(nil)
+			pack.Recycle(nil)
 			continue
 		}
 		if msgBytes == nil {
 			atomic.AddInt64(&k.processMessageDiscards, 1)
 			or.UpdateCursor(pack.QueueCursor)
-			pack.NewRecycle(nil)
+			pack.Recycle(nil)
 			continue
 		}
 		err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
@@ -356,7 +356,7 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			}
 			or.LogError(err)
 		}
-		pack.NewRecycle(err)
+		pack.Recycle(err)
 	}
 
 	errChan <- Shutdown

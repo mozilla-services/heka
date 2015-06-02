@@ -21,11 +21,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"net/smtp"
 	"strings"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 const BASE64_ENCODING_LINE_LENGTH = 76
@@ -127,9 +128,9 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		contents, err = or.Encode(pack)
 		if contents == nil || err != nil {
 			if err != nil {
-				or.LogError(fmt.Errorf("encoding error: %s", err.Error()))
+				err = fmt.Errorf("encoding error: %s", err.Error())
 			}
-			pack.Recycle()
+			pack.Recycle(err)
 			continue
 		}
 
@@ -137,12 +138,14 @@ func (s *SmtpOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		if s.conf.SendInterval == 0 {
 			err = s.sendMail(contents)
 			if err != nil {
-				or.LogError(fmt.Errorf("sending error: %s", err.Error()))
+				e := NewRetryMessageError("sending error: %s", err.Error())
+				pack.Recycle(e)
+				continue
 			}
 		} else {
 			s.inMessage <- contents
 		}
-		pack.Recycle()
+		pack.Recycle(nil)
 	}
 	return nil
 }
