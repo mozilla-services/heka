@@ -143,7 +143,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 				}
 			}
 
-			o.bulkIndexer = NewHttpBulkIndexer(scheme, serverUrl.Host,
+			o.bulkIndexer = NewHttpBulkIndexer(scheme, serverUrl.Host, serverUrl.Path,
 				o.conf.FlushCount, o.conf.Username, o.conf.Password, o.conf.HTTPTimeout,
 				o.conf.HTTPDisableKeepalives, o.conf.ConnectTimeout, tlsConf)
 		case "udp":
@@ -403,6 +403,8 @@ type HttpBulkIndexer struct {
 	Protocol string
 	// Host name and port number (default to "localhost:9200").
 	Domain string
+	// Path (default to "")
+	Path string
 	// Maximum number of documents.
 	MaxCount int
 	// Internal HTTP Client.
@@ -413,7 +415,7 @@ type HttpBulkIndexer struct {
 	password string
 }
 
-func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
+func NewHttpBulkIndexer(protocol string, domain string, path string, maxCount int,
 	username string, password string, httpTimeout uint32, httpDisableKeepalives bool,
 	connectTimeout uint32, tlsConf *tls.Config) *HttpBulkIndexer {
 
@@ -432,6 +434,7 @@ func NewHttpBulkIndexer(protocol string, domain string, maxCount int,
 	return &HttpBulkIndexer{
 		Protocol: protocol,
 		Domain:   domain,
+		Path:     path,
 		MaxCount: maxCount,
 		client:   client,
 		username: username,
@@ -450,7 +453,7 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 	var response_body []byte
 	var response_body_json map[string]interface{}
 
-	url := fmt.Sprintf("%s://%s%s", h.Protocol, h.Domain, "/_bulk")
+	url := fmt.Sprintf("%s://%s%s%s", h.Protocol, h.Domain, h.Path, "/_bulk")
 
 	// Creating ElasticSearch Bulk HTTP request
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
