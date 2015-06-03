@@ -214,13 +214,13 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	pi.exitError = nil
 	pi.ccDone = make(map[string]chan bool)
 	if pi.parseStdout {
-		pi.ccDone["stdout"] = make(chan bool)
+		pi.ccDone["stdout"] = make(chan bool, 1)
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
 		defer pi.stdoutDeliverer.Done()
 	}
 
 	if pi.parseStderr {
-		pi.ccDone["stderr"] = make(chan bool)
+		pi.ccDone["stderr"] = make(chan bool, 1)
 		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
 		defer pi.stderrDeliverer.Done()
 	}
