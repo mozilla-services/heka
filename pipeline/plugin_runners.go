@@ -845,6 +845,21 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 		return nil, fmt.Errorf("'%s' missing message matcher", name)
 	}
 
+	if config.Ticker != 0 {
+		canTick := false
+		// Check to make sure we know what to do with the ticker interval.
+		if _, ok := plugin.(Filter); ok {
+			canTick = true
+		} else if _, ok := plugin.(Output); ok {
+			canTick = true
+		} else if _, ok := plugin.(TickerPlugin); ok {
+			canTick = true
+		}
+		if !canTick {
+			return nil, fmt.Errorf("'%s' can't support a ticker_interval setting", name)
+		}
+	}
+
 	if config.UseBuffering != nil && *config.UseBuffering {
 		runner.useBuffering = true
 		if config.BufferConfig.FullAction == "" {
@@ -1034,7 +1049,6 @@ func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 			}
 			err := tickReceiver.TimerEvent()
 			if err != nil {
-				// TODO: check for exit conditions.
 				err = fmt.Errorf("Error running TimerEvent for %s: %s",
 					foRunner.name, err.Error())
 				if _, isFatal := err.(PluginExitError); isFatal {
