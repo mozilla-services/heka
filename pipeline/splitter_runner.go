@@ -331,6 +331,9 @@ func (sr *sRunner) SplitStream(r io.Reader, del Deliverer) error {
 			}
 		}
 		if len(record) == 0 {
+			if err == nil && sr.needData && !sr.reachedEOF {
+				continue
+			}
 			if sr.incompleteFinal && err == io.EOF {
 				record = sr.GetRemainingData()
 				if len(record) > 0 {
