@@ -17,6 +17,8 @@ Backwards Incompatibilities
 
 * The 'make deb' target requires fakeroot and debhelper to be installed.
 
+* Switched delete_idle_stats setting default from false to true so unused metrice are not continuously sent forever.
+
 Features
 --------
 

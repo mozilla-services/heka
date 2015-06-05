@@ -91,7 +91,7 @@ type StatAccumInputConfig struct {
 	StatsdPrefix     string `toml:"statsd_prefix"`
 
 	// Don't emit values for inactive stats instead of sending 0 or in the case
-	// of gauges, sending the previous value. Defaults to false
+	// of gauges, sending the previous value. Defaults to true
 	DeleteIdleStats bool `toml:"delete_idle_stats"`
 }
 
@@ -107,7 +107,7 @@ func (sm *StatAccumInput) ConfigStruct() interface{} {
 		CounterPrefix:    "counters",
 		TimerPrefix:      "timers",
 		GaugePrefix:      "gauges",
-		DeleteIdleStats:  false,
+		DeleteIdleStats:  true,
 	}
 }
 
