@@ -67,6 +67,8 @@ Features
 * Allow to overwrite ContainerName using a Container environment variable from
   within the Docker container for the DockerLogInput. (#1545)
 
+* Added parsing of RFC3339 timestamps for Timestamp field in message matcher. (#1549)
+
 Bug Handling
 ------------
 

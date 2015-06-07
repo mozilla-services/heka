@@ -14,7 +14,9 @@
 
 package message
 
+import "fmt"
 import "strings"
+import "time"
 
 // MatcherSpecification used by the message router to distribute messages
 type MatcherSpecification struct {
@@ -88,12 +90,30 @@ func getStringValue(msg *Message, stmt *Statement) string {
 
 func getNumericValue(msg *Message, stmt *Statement) float64 {
 	switch stmt.field.tokenId {
-	case VAR_TIMESTAMP:
-		return float64(msg.GetTimestamp())
 	case VAR_SEVERITY:
 		return float64(msg.GetSeverity())
 	case VAR_PID:
 		return float64(msg.GetPid())
+	}
+	return 0
+}
+
+func getTimestampValue(msg *Message, stmt *Statement) float64 {
+	switch stmt.field.tokenId {
+	case VAR_TIMESTAMP:
+		if stmt.value.tokenId == NUMERIC_VALUE {
+			return float64(msg.GetTimestamp())
+		}
+
+		t := time.Unix(0, int64(msg.GetTimestamp()))
+		switch stmt.value.tokenId {
+		case DATETIME_VALUE:
+			t = t.Round(time.Second)
+		case DATE_VALUE:
+			// Strip round timestamp to date
+			t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+		}
+		return float64(t.UnixNano())
 	}
 	return 0
 }
@@ -142,7 +162,7 @@ func stringTest(s string, stmt *Statement) bool {
 }
 
 func numericTest(f float64, stmt *Statement) bool {
-	if !(stmt.value.tokenId == NUMERIC_VALUE || stmt.value.tokenId == NIL_VALUE) {
+	if !(stmt.value.tokenId == NUMERIC_VALUE || stmt.value.tokenId == NIL_VALUE || stmt.value.tokenId == DATETIME_VALUE || stmt.value.tokenId == DATE_VALUE) {
 		return false
 	}
 	switch stmt.op.tokenId {
@@ -183,7 +203,9 @@ func testExpr(msg *Message, stmt *Statement) bool {
 		case VAR_UUID, VAR_TYPE, VAR_LOGGER, VAR_PAYLOAD,
 			VAR_ENVVERSION, VAR_HOSTNAME:
 			return stringTest(getStringValue(msg, stmt), stmt)
-		case VAR_TIMESTAMP, VAR_SEVERITY, VAR_PID:
+		case VAR_TIMESTAMP:
+			return numericTest(getTimestampValue(msg, stmt), stmt)
+		case VAR_SEVERITY, VAR_PID:
 			return numericTest(getNumericValue(msg, stmt), stmt)
 		case VAR_FIELDS:
 			fi := stmt.field.fieldIndex
@@ -242,4 +264,41 @@ func testExpr(msg *Message, stmt *Statement) bool {
 		}
 	}
 	return false
+}
+
+func parseFullDateTime(timestamp string) (tdata time.Time, tokenId int, err error) {
+	tokenId = DATETIME_VALUE
+	if len(timestamp) == 0 {
+		err = fmt.Errorf("Empty string")
+		return
+	}
+	utimestamp := strings.ToUpper(timestamp)
+
+	zoneindex := strings.IndexByte(utimestamp, 'Z')
+	if zoneindex != -1 {
+		zonedata := utimestamp[zoneindex+1:]
+
+		if len(zonedata) > 0 {
+			tdata, err = time.ParseInLocation("2006-01-02T15:04:05Z07:00", utimestamp, time.UTC)
+			return
+		} else {
+			utimestamp = utimestamp[:zoneindex]
+		}
+	}
+
+	timeindex := strings.IndexByte(utimestamp, 'T')
+	if timeindex != -1 {
+		timedata := utimestamp[timeindex+1:]
+		if len(timedata) > 0 {
+			tdata, err = time.ParseInLocation("2006-01-02T15:04:05", utimestamp, time.UTC)
+			return
+		} else {
+			utimestamp = utimestamp[:timeindex]
+		}
+	}
+
+	tokenId = DATE_VALUE
+	// so it its probably date
+	tdata, err = time.ParseInLocation("2006-01-02", utimestamp, time.UTC)
+	return
 }
