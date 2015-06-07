@@ -14,7 +14,9 @@
 
 package message
 
+import "fmt"
 import "strings"
+import "time"
 
 // MatcherSpecification used by the message router to distribute messages
 type MatcherSpecification struct {
@@ -242,4 +244,14 @@ func testExpr(msg *Message, stmt *Statement) bool {
 		}
 	}
 	return false
+}
+
+func parseFullDateTime(timestamp string) (tdata time.Time, err error) {
+	if len(timestamp) == 0 {
+		err = fmt.Errorf("Empty string")
+		return
+	}
+	// so it its probably date
+	tdata, err = time.ParseInLocation(time.RFC3339, timestamp, time.UTC)
+	return
 }

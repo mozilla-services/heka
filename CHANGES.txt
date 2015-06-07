@@ -77,6 +77,8 @@ Features
 * Allow extracting environment variables from a Docker container to use as
   fields for the DockerLogInput. (#1569)
 
+* Added parsing of RFC3339 timestamps for Timestamp field in message matcher. (#1549)
+
 Bug Handling
 ------------
 

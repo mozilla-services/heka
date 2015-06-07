@@ -67,6 +67,9 @@ Message Variables
     - **Timestamp**
     - **Severity**
     - **Pid**
+- DateTime
+    - **Timestamp**
+    - Message matcher supports matching of dates in RFC3339 format, e.g. '2014-02-03T14:02:03Z'
 - Fields
     - **Fields[_field_name_]** (shorthand for Field[_field_name_][0][0])
     - **Fields[_field_name_][_field_index_]** (shorthand for Field[_field_name_][_field_index_][0])

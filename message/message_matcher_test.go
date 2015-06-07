@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"time"
 	"testing"
 )
 
@@ -32,7 +33,8 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	msg := getTestMessage()
 	uuidStr := msg.GetUuidString()
 	data := []byte("data")
-	date := "Mon Jan 02 15:04:05 -0700 2006"
+	date := "Mon Jan 02 15:04:05 2006"
+	timestamp, _ := time.Parse(date, date)
 	field1, _ := NewField("bytes", data, "")
 	field2, _ := NewField("int", int64(999), "")
 	field2.AddValue(int64(1024))
@@ -52,6 +54,7 @@ func MatcherSpecificationSpec(c gospec.Context) {
 	msg.AddField(field7)
 	msg.AddField(field8)
 	msg.AddField(field9)
+	msg.SetTimestamp(timestamp.UnixNano())
 
 	c.Specify("A MatcherSpecification", func() {
 		malformed := []string{
@@ -79,6 +82,12 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"NIL",                                                         // invalid use of constant
 			"Type == NIL",                                                 // existence check only works on fields
 			"Fields[test] > NIL",                                          // existence check only works with equals and not equals
+			// Series of invalid timestamps
+			"Timestamp >= '2006-AA-01'",
+			"Timestamp ~= '2006-AA-01T'",
+			"Timestamp > '2006-02-ZZT15:AA:05'",
+			"Timestamp > '2006-02-01T15:04:AZ'",
+			"Timestamp > '2006-TZZ-01T15:04:05Z07:00'",
 		}
 
 		negative := []string{
@@ -116,6 +125,16 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type !~ /^TE/",
 			"Type !~ /ST$/",
 			"Logger =~ /./ && Type =~ /^anything/",
+			"Timestamp != 1136214245000000000",
+			"Timestamp > 2136073605000000000",
+			"Timestamp < 136073605000000000",
+			"Timestamp == 36214245000000000",
+			"Timestamp == '2006-01-05T15:04:05Z'",
+			"Timestamp > '2006-02-01T15:04:05Z'",
+			"Timestamp >= '2006-02-01T15:04:05Z'",
+			"Timestamp < '2003-01-04T15:04:05Z'",
+			"Timestamp <= '2003-01-04T15:04:05Z'",
+			"Timestamp != '2006-01-02T15:04:05Z'",
 		}
 
 		positive := []string{
@@ -169,6 +188,16 @@ func MatcherSpecificationSpec(c gospec.Context) {
 			"Type =~ /ST$/",
 			"Type !~ /^te/",
 			"Type !~ /st$/",
+			"Timestamp == 1136214245000000000",
+			"Timestamp < 2136073605000000000",
+			"Timestamp > 136073605000000000",
+			"Timestamp != 2136214245000000000",
+			"Timestamp == '2006-01-02T15:04:05Z'",
+			"Timestamp > '2006-01-01T15:04:05Z'",
+			"Timestamp >= '2006-01-01T15:04:05Z'",
+			"Timestamp < '2006-01-04T15:04:05Z'",
+			"Timestamp <= '2006-01-04T15:04:05Z'",
+			"Timestamp != '2006-03-04T15:04:05Z'",
 		}
 
 		c.Specify("malformed matcher tests", func() {
@@ -183,6 +212,9 @@ func MatcherSpecificationSpec(c gospec.Context) {
 				ms, err := CreateMatcherSpecification(v)
 				c.Expect(err, gs.IsNil)
 				match := ms.Match(msg)
+				if match {
+					fmt.Printf("Negative matching test failed: %s\n", v)
+				}
 				c.Expect(match, gs.IsFalse)
 			}
 		})
@@ -192,6 +224,9 @@ func MatcherSpecificationSpec(c gospec.Context) {
 				ms, err := CreateMatcherSpecification(v)
 				c.Expect(err, gs.IsNil)
 				match := ms.Match(msg)
+				if !match {
+					fmt.Printf("Positive matching test failed: %s\n", v)
+				}
 				c.Expect(match, gs.IsTrue)
 			}
 		})
