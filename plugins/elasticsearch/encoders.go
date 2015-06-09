@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/cactus/gostrftime"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"strconv"
@@ -232,7 +233,7 @@ type ESJsonEncoderConfig struct {
 	TypeName string `toml:"type_name"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
-	// Timestamp format. Defaults to "2006-01-02T15:04:05.000Z"
+	// Timestamp format. Defaults to "2006-01-02T15:04:05"
 	Timestamp string
 	// When formating the Index use the Timestamp from the Message instead of
 	// time of processing. Defaults to false.
@@ -247,9 +248,9 @@ type ESJsonEncoderConfig struct {
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
 	config := &ESJsonEncoderConfig{
-		Index:                "heka-%{2006.01.02}",
+		Index:                "heka-%{%Y.%m.%d}",
 		TypeName:             "message",
-		Timestamp:            "2006-01-02T15:04:05.000Z",
+		Timestamp:            "%Y-%m-%dT%H:%M:%S",
 		ESIndexFromTimestamp: false,
 		Id:                   "",
 		FieldMappings: &ESFieldMappings{
@@ -309,7 +310,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 			writeStringField(first, &buf, e.fieldMappings.Uuid, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeStringField(first, &buf, e.fieldMappings.Timestamp, t.Format(e.timestampFormat))
+			writeStringField(first, &buf, e.fieldMappings.Timestamp, gostrftime.Strftime(e.timestampFormat, t))
 		case "type":
 			writeStringField(first, &buf, e.fieldMappings.Type, m.GetType())
 		case "logger":
@@ -361,7 +362,7 @@ type ESLogstashV0Encoder struct {
 
 type ESLogstashV0EncoderConfig struct {
 	// Name of the index in which the messages will be indexed. Defaults
-	// to "logstash-%{2006.01.02}".
+	// to "logstash-%{%Y.%m.%d}".
 	Index string
 	// Name of the document type of the messages. Defaults to "message".
 	TypeName string `toml:"type_name"`
@@ -369,7 +370,7 @@ type ESLogstashV0EncoderConfig struct {
 	UseMessageType bool `toml:"use_message_type"`
 	// Field names to include in ElasticSearch document.
 	Fields []string
-	// Timestamp format. Defaults to "2006-01-02T15:04:05.000Z"
+	// Timestamp format. Defaults to "%Y-%m-%dT%H:%M:%S"
 	Timestamp string
 	// When formating the Index use the Timestamp from the Message instead of
 	// time of processing. Defaults to false.
@@ -379,12 +380,12 @@ type ESLogstashV0EncoderConfig struct {
 	// Fields to which formatting will not be applied.
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 }
-
 func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
+
 	config := &ESLogstashV0EncoderConfig{
-		Index:                "logstash-%{2006.01.02}",
+		Index:                "logstash-%{%Y.%m.%d}",
 		TypeName:             "message",
-		Timestamp:            "2006-01-02T15:04:05.000Z",
+		Timestamp:            "%Y-%m-%dT%H:%M:%S",
 		UseMessageType:       false,
 		ESIndexFromTimestamp: false,
 		Id:                   "",
@@ -435,7 +436,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			writeStringField(first, &buf, `@uuid`, m.GetUuidString())
 		case "timestamp":
 			t := time.Unix(0, m.GetTimestamp()).UTC()
-			writeStringField(first, &buf, `@timestamp`, t.Format(e.timestampFormat))
+			writeStringField(first, &buf, `@timestamp`, gostrftime.Strftime(e.timestampFormat, t))
 		case "type":
 			if e.useMessageType || len(e.coord.Type) < 1 {
 				writeStringField(first, &buf, `@type`, m.GetType())

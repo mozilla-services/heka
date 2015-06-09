@@ -15,6 +15,7 @@
 package elasticsearch
 
 import (
+	"fmt"
 	"bytes"
 	"code.google.com/p/go-uuid/uuid"
 	"encoding/base64"
@@ -76,8 +77,9 @@ func getTestMessageWithFunnyFields() *message.Message {
 	msg := &message.Message{}
 	msg.SetType("TEST")
 	loc, _ := time.LoadLocation("UTC")
-	t, _ := time.ParseInLocation("2006-01-02T15:04:05.000Z", "2013-07-16T15:49:05.070Z",
+	t, _ := time.ParseInLocation("2006-01-02T15:04:05", "2013-07-16T15:49:05",
 		loc)
+	fmt.Printf("%s %v \n", t)
 	msg.SetTimestamp(t.UnixNano())
 	msg.SetUuid(uuid.Parse("87cf1ac2-e810-4ddf-a02d-a5ce44d13a85"))
 	msg.SetLogger("GoSpec")
@@ -123,7 +125,7 @@ func ESEncodersSpec(c gs.Context) {
 	c.Specify("interpolateFlag", func() {
 		c.Specify("should interpolate for index and type names", func() {
 			interpolatedIndex, err := interpolateFlag(&ElasticSearchCoordinates{},
-				pack.Message, "heka-%{Pid}-%{\"foo}-%{2006.01.02}")
+				pack.Message, "heka-%{Pid}-%{\"foo}-%{%Y.%m.%d}")
 			c.Expect(err, gs.IsNil)
 			t := time.Now().UTC()
 			c.Expect(interpolatedIndex, gs.Equals, "heka-14098-bar\n-"+t.Format("2006.01.02"))
@@ -188,7 +190,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["@fields"].(map[string]interface{})["\xEF\xBF\xBD"], gs.Equals,
 				"\xEF\xBF\xBD")
 			c.Expect(decoded["@uuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
-			c.Expect(decoded["@timestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
+			c.Expect(decoded["@timestamp"], gs.Equals, "2013-07-16T15:49:05")
 			c.Expect(decoded["@type"], gs.Equals, "message")
 			c.Expect(decoded["@logger"], gs.Equals, "GoSpec")
 			c.Expect(decoded["@severity"], gs.Equals, 6.0)
@@ -237,7 +239,7 @@ func ESEncodersSpec(c gs.Context) {
 		})
 
 		c.Specify("encodes w/ a different timestamp format", func() {
-			config.Timestamp = "2006/01/02 15:04:05.000 -0700"
+			config.Timestamp = "%Y/%m/%d %H:%M:%S %z"
 			err := encoder.Init(config)
 			c.Expect(err, gs.IsNil)
 			b, err := encoder.Encode(pack)
@@ -249,7 +251,7 @@ func ESEncodersSpec(c gs.Context) {
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
 			c.Assume(err, gs.IsNil)
 
-			c.Expect(decoded["@timestamp"], gs.Equals, "2013/07/16 15:49:05.070 +0000")
+			c.Expect(decoded["@timestamp"], gs.Equals, "2013/07/16 15:49:05 +0000")
 		})
 	})
 
@@ -287,7 +289,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded[`"number`], gs.Equals, 64.0)
 			c.Expect(decoded["\xEF\xBF\xBD"], gs.Equals, "\xEF\xBF\xBD")
 			c.Expect(decoded["Uuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
-			c.Expect(decoded["Timestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
+			c.Expect(decoded["Timestamp"], gs.Equals, "2013-07-16T15:49:05")
 			c.Expect(decoded["Type"], gs.Equals, "TEST")
 			c.Expect(decoded["Logger"], gs.Equals, "GoSpec")
 			c.Expect(decoded["Severity"], gs.Equals, 6.0)
@@ -359,7 +361,7 @@ func ESEncodersSpec(c gs.Context) {
 			decoded := make(map[string]interface{})
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
 			c.Assume(err, gs.IsNil)
-			c.Expect(decoded["XTimestamp"], gs.Equals, "2013-07-16T15:49:05.070Z")
+			c.Expect(decoded["XTimestamp"], gs.Equals, "2013-07-16T15:49:05")
 			c.Expect(decoded["XUuid"], gs.Equals, "87cf1ac2-e810-4ddf-a02d-a5ce44d13a85")
 			c.Expect(decoded["XType"], gs.Equals, "TEST")
 			c.Expect(decoded["XLogger"], gs.Equals, "GoSpec")
@@ -371,7 +373,7 @@ func ESEncodersSpec(c gs.Context) {
 		})
 
 		c.Specify("encodes w/ a different timestamp format", func() {
-			config.Timestamp = "2006/01/02 15:04:05.000 -0700"
+			config.Timestamp = "%Y/%m/%d %H:%M:%S %z"
 			err := encoder.Init(config)
 			c.Expect(err, gs.IsNil)
 			b, err := encoder.Encode(pack)
@@ -383,7 +385,7 @@ func ESEncodersSpec(c gs.Context) {
 			err = json.Unmarshal([]byte(lines[1]), &decoded)
 			c.Assume(err, gs.IsNil)
 
-			c.Expect(decoded["Timestamp"], gs.Equals, "2013/07/16 15:49:05.070 +0000")
+			c.Expect(decoded["Timestamp"], gs.Equals, "2013/07/16 15:49:05 +0000")
 		})
 	})
 }
