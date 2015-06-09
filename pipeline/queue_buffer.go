@@ -113,7 +113,7 @@ func NewBufferFeeder(queue string, config *QueueBufferConfig, queueSize *BufferS
 	*BufferFeeder, error) {
 
 	if config.MaxFileSize == 0 {
-		config.MaxFileSize = 1024 * 1024
+		config.MaxFileSize = 128 * 1024 * 1024
 	}
 	bf := &BufferFeeder{
 		queue:     queue,

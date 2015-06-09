@@ -699,6 +699,8 @@ type FilterRunner interface {
 	StopChan() chan bool
 	// Associated Filter plugin object.
 	Filter() Filter
+	// Associated Filter plugin object using the deprecated API.
+	OldFilter() OldFilter
 	// Starts the Filter (so it's listening on the input channel for messages
 	// to be processed) in a separate goroutine and returns. Should decrement
 	// the wait group when the Filter has stopped and the goroutine has
@@ -741,6 +743,8 @@ type OutputRunner interface {
 	StopChan() chan bool
 	// Associated Output plugin instance.
 	Output() Output
+	// Associated Output plugin instance using the deprecated API.
+	OldOutput() OldOutput
 	// Starts the Output plugin listening on the input channel in a separate
 	// goroutine and returns. Wait group should be released when the Output
 	// plugin shuts down cleanly and the goroutine has completed.
@@ -848,9 +852,9 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	if config.Ticker != 0 {
 		canTick := false
 		// Check to make sure we know what to do with the ticker interval.
-		if _, ok := plugin.(Filter); ok {
+		if _, ok := plugin.(OldFilter); ok {
 			canTick = true
-		} else if _, ok := plugin.(Output); ok {
+		} else if _, ok := plugin.(OldOutput); ok {
 			canTick = true
 		} else if _, ok := plugin.(TickerPlugin); ok {
 			canTick = true
@@ -905,13 +909,13 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 		runner.useFraming = true
 	}
 
-	if _, ok := plugin.(Filter); ok {
+	if _, ok := plugin.(OldFilter); ok {
+		runner.kind = foFilter
+	} else if _, ok := plugin.(OldOutput); ok {
+		runner.kind = foOutput
+	} else if _, ok := plugin.(Filter); ok {
 		runner.kind = foFilter
 	} else if _, ok := plugin.(Output); ok {
-		runner.kind = foOutput
-	} else if _, ok := plugin.(NewFilter); ok {
-		runner.kind = foFilter
-	} else if _, ok := plugin.(NewOutput); ok {
 		runner.kind = foOutput
 	} else {
 		err := fmt.Errorf("FORunner plugin must be filter or output, %s is neither",
@@ -988,12 +992,12 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	newStyleAPI := false
 	switch foRunner.kind {
 	case foFilter:
-		if f, ok := foRunner.plugin.(NewFilter); ok {
+		if f, ok := foRunner.plugin.(Filter); ok {
 			f.Prepare(foRunner, h)
 			newStyleAPI = true
 		}
 	case foOutput:
-		if o, ok := foRunner.plugin.(NewOutput); ok {
+		if o, ok := foRunner.plugin.(Output); ok {
 			o.Prepare(foRunner, h)
 			newStyleAPI = true
 		}
@@ -1004,9 +1008,9 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 		if !ok {
 			return errors.New("Not a new-style plugin.")
 		}
-		go foRunner.NewStarter(plugin, h, wg)
+		go foRunner.Starter(plugin, h, wg)
 	} else {
-		go foRunner.Starter(h, wg)
+		go foRunner.OldStarter(h, wg)
 	}
 	return
 }
@@ -1029,18 +1033,45 @@ func (foRunner *foRunner) bufferLoop(plugin MessageProcessor, h PluginHelper,
 func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 	tickReceiver TickerPlugin) error {
 
+	rh, _ := NewRetryHelper(RetryOptions{
+		MaxDelay:   "1s",
+		Delay:      "10ms",
+		MaxRetries: -1,
+	})
+
+	resetNeeded := false
 	ok := true
 	var pack *PipelinePack
 	for ok {
+		if resetNeeded {
+			rh.Reset()
+		}
 		select {
 		case pack, ok = <-foRunner.inChan:
 			if !ok {
 				break
 			}
-			err := plugin.ProcessMessage(pack)
-			pack.recycle()
-			if _, isFatal := err.(PluginExitError); isFatal {
-				return err
+		RetryLoop:
+			for !foRunner.pConfig.Globals.IsShuttingDown() {
+				err := plugin.ProcessMessage(pack)
+				if err == nil {
+					pack.recycle()
+					break RetryLoop // Bumps us back to the outer loop.
+				}
+				switch err.(type) {
+				case PluginExitError:
+					pack.recycle()
+					return err
+				case RetryMessageError:
+					foRunner.LogError(err)
+					rh.Wait()
+					resetNeeded = true
+					continue // Try the same one again.
+				default:
+					foRunner.LogError(err)
+					pack.recycle()
+					break RetryLoop
+				}
 			}
 		case <-foRunner.ticker:
 			if tickReceiver == nil {
@@ -1061,9 +1092,9 @@ func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 	return nil
 }
 
-// NewStarter is the main goroutine launched for plugins that support the newer
+// Starter is the main goroutine launched for plugins that support the newer
 // API.
-func (foRunner *foRunner) NewStarter(plugin MessageProcessor, h PluginHelper,
+func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 	wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -1108,10 +1139,10 @@ func (foRunner *foRunner) NewStarter(plugin MessageProcessor, h PluginHelper,
 
 		switch foRunner.kind {
 		case foFilter:
-			f := foRunner.plugin.(NewFilter)
+			f := foRunner.plugin.(Filter)
 			f.CleanUp()
 		case foOutput:
-			o := foRunner.plugin.(NewOutput)
+			o := foRunner.plugin.(Output)
 			o.CleanUp()
 		}
 
@@ -1167,10 +1198,10 @@ func (foRunner *foRunner) NewStarter(plugin MessageProcessor, h PluginHelper,
 		}
 		switch foRunner.kind {
 		case foFilter:
-			f := foRunner.plugin.(NewFilter)
+			f := foRunner.plugin.(Filter)
 			err = f.Prepare(foRunner, foRunner.h)
 		case foOutput:
-			o := foRunner.plugin.(NewOutput)
+			o := foRunner.plugin.(Output)
 			err = o.Prepare(foRunner, foRunner.h)
 		}
 		if err != nil {
@@ -1272,10 +1303,10 @@ func (foRunner *foRunner) runBoth(h PluginHelper) error {
 		var err error
 		switch foRunner.kind {
 		case foFilter:
-			filter := foRunner.Filter()
+			filter := foRunner.OldFilter()
 			err = filter.Run(foRunner, h)
 		case foOutput:
-			output := foRunner.Output()
+			output := foRunner.OldOutput()
 			err = output.Run(foRunner, h)
 		}
 		pluginErrChan <- err
@@ -1319,8 +1350,8 @@ func (foRunner *foRunner) runBoth(h PluginHelper) error {
 	return err
 }
 
-// Starter is the main goroutine driving plugins that support the older API.
-func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
+// OldStarter is the main goroutine driving plugins that support the older API.
+func (foRunner *foRunner) OldStarter(helper PluginHelper, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var err error
@@ -1350,10 +1381,10 @@ func (foRunner *foRunner) Starter(helper PluginHelper, wg *sync.WaitGroup) {
 			// Run only returns if there's an error or we're shutting down.
 			switch foRunner.kind {
 			case foFilter:
-				filter := foRunner.Filter()
+				filter := foRunner.OldFilter()
 				err = filter.Run(foRunner, helper)
 			case foOutput:
-				output := foRunner.Output()
+				output := foRunner.OldOutput()
 				err = output.Run(foRunner, helper)
 			}
 		}
@@ -1521,12 +1552,20 @@ func (foRunner *foRunner) SetMatchRunner(mr *MatchRunner) {
 	foRunner.matcher = mr
 }
 
+func (foRunner *foRunner) Filter() Filter {
+	return foRunner.plugin.(Filter)
+}
+
 func (foRunner *foRunner) Output() Output {
 	return foRunner.plugin.(Output)
 }
 
-func (foRunner *foRunner) Filter() Filter {
-	return foRunner.plugin.(Filter)
+func (foRunner *foRunner) OldFilter() OldFilter {
+	return foRunner.plugin.(OldFilter)
+}
+
+func (foRunner *foRunner) OldOutput() OldOutput {
+	return foRunner.plugin.(OldOutput)
 }
 
 func (foRunner *foRunner) Encoder() Encoder {

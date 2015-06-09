@@ -340,16 +340,15 @@ func (mr *MatchRunner) run(sampleDenom int) {
 }
 
 // Starts the runner listening for messages on its input channel. Any message
-// that is a match will be placed on the provided matchChan (usually the input
-// channel for a specific Filter or Output plugin). Any messages that are not a
-// match will be immediately recycled.
+// that is a match will be placed on the provided matchChan, or written out to
+// the disk queue if buffering is in play. Any messages that are not a match
+// will be immediately recycled.
 func (mr *MatchRunner) Start(sampleDenom int) {
 	go mr.run(sampleDenom)
 }
 
 func (mr *MatchRunner) deliver(pack *PipelinePack) error {
 	if mr.bufFeeder != nil {
-		// TODO: Handle queue error cases.
 		err := mr.bufFeeder.QueueRecord(pack)
 		if err == QueueIsFull {
 			switch mr.bufFeeder.Config.FullAction {

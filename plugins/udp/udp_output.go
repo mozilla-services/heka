@@ -49,7 +49,7 @@ func (o *UdpOutput) ConfigStruct() interface{} {
 	return &UdpOutputConfig{
 		Net: "udp",
 
-		// Defines maximum size of udp data for IPv4
+		// Defines maximum size of udp data for IPv4.
 		MaxMessageSize: 65507,
 	}
 }

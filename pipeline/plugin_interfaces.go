@@ -59,7 +59,7 @@ type Decoder interface {
 }
 
 // Heka Filter plugin type.
-type Filter interface {
+type OldFilter interface {
 	// Starts the filter listening on the FilterRunner's provided input
 	// channel. Should not return until shutdown, signaled to the Filter by
 	// the closure of the input channel. Should return a non-nil error value
@@ -73,7 +73,7 @@ type MessageProcessor interface {
 	ProcessMessage(pack *PipelinePack) (err error)
 }
 
-type NewFilter interface {
+type Filter interface {
 	Prepare(r FilterRunner, h PluginHelper) (err error)
 	CleanUp()
 }
@@ -92,11 +92,11 @@ type NeedsStopping interface {
 }
 
 // Heka Output plugin type.
-type Output interface {
+type OldOutput interface {
 	Run(or OutputRunner, h PluginHelper) (err error)
 }
 
-type NewOutput interface {
+type Output interface {
 	Prepare(r OutputRunner, h PluginHelper) (err error)
 	CleanUp()
 }
