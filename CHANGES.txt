@@ -87,6 +87,7 @@ Bug Handling
 
 * Added ability to reconnect after lost connection in `heka-flood` (#1536).
 
+* Respect ElasticSearch URL path (#1558).
 
 0.9.3 (2015-??-??)
 ==================
