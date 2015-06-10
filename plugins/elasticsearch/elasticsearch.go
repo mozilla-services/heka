@@ -95,15 +95,17 @@ type ElasticSearchOutputConfig struct {
 	ConnectTimeout uint32 `toml:"connect_timeout"`
 	// Whether or not to buffer records to disk before sending to ElasticSearch.
 	UseBuffering bool `toml:"use_buffering"`
-	// Specifies size of queue buffer for output. 0 means that buffer is
-	// unlimited.
-	QueueMaxBufferSize uint64 `toml:"queue_max_buffer_size"`
-	// Specifies action which should be executed if queue is full. Possible
-	// values are "shutdown", "drop", or "block".
-	QueueFullAction string `toml:"queue_full_action"`
+	// Default buffering settings.
+	Buffering QueueBufferConfig
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
+	queueConfig := QueueBufferConfig{
+		CursorUpdateCount: 1,
+		MaxBufferSize:     0,
+		MaxFileSize:       128 * 1024 * 1024,
+		FullAction:        "shutdown",
+	}
 	return &ElasticSearchOutputConfig{
 		FlushInterval:         1000,
 		FlushCount:            10,
@@ -114,8 +116,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		HTTPDisableKeepalives: false,
 		ConnectTimeout:        0,
 		UseBuffering:          true,
-		QueueMaxBufferSize:    0,
-		QueueFullAction:       "shutdown",
+		Buffering:             queueConfig,
 	}
 }
 
@@ -150,12 +151,6 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 		}
 	} else {
 		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", o.conf.Server, err)
-	}
-	switch o.conf.QueueFullAction {
-	case "shutdown", "drop", "block":
-	default:
-		return fmt.Errorf("`queue_full_action` must be 'shutdown', 'drop', or 'block', got %s",
-			o.conf.QueueFullAction)
 	}
 	return
 }

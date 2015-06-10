@@ -46,6 +46,15 @@ Config:
     Time duration in seconds that a TCP connection will be maintained before
     keepalive probes start being sent. Defaults to 7200 (i.e. 2 hours).
 
+.. versionadded:: 0.10
+
+- use_buffering (bool, optional):
+    Buffer records to a disk-backed buffer on the Heka server before sending
+    them out over the TCP connection. Defaults to true.
+- buffering (QueueBufferConfig, optional):
+    All of the :ref:`buffering <buffering>` config options are set to the
+    standard default options.
+
 Example:
 
 .. code-block:: ini
