@@ -67,6 +67,9 @@ Features
 * Allow to overwrite ContainerName using a Container environment variable from
   within the Docker container for the DockerLogInput. (#1545)
 
+* Allow extracting environment variables from a Docker container to use as
+  fields for the DockerLogInput. (#1569)
+
 Bug Handling
 ------------
 

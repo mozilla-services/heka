@@ -27,9 +27,10 @@ import (
 
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
-	Endpoint    string `toml:"endpoint"`
-	CertPath    string `toml:"cert_path"`
-	NameFromEnv string `toml:"name_from_env_var"`
+	Endpoint      string   `toml:"endpoint"`
+	CertPath      string   `toml:"cert_path"`
+	NameFromEnv   string   `toml:"name_from_env_var"`
+	FieldsFromEnv []string `toml:"fields_from_env"`
 }
 
 type DockerLogInput struct {
@@ -55,7 +56,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.logstream = make(chan *Log)
 	di.attachErrors = make(chan error)
 
-	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors, di.conf.NameFromEnv)
+	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors, di.conf.NameFromEnv, di.conf.FieldsFromEnv)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
@@ -90,8 +91,9 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 			pack.Message.SetPayload(logline.Data)
 			pack.Message.SetTimestamp(time.Now().UnixNano())
 			pack.Message.SetUuid(uuid.NewRandom())
-			message.NewStringField(pack.Message, "ContainerID", logline.ID)
-			message.NewStringField(pack.Message, "ContainerName", logline.Name)
+			for k, v := range logline.Fields {
+				message.NewStringField(pack.Message, k, v)
+			}
 
 			ir.Deliver(pack)
 
