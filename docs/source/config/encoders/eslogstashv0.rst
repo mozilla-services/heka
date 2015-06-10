@@ -49,8 +49,8 @@ Config:
     supported message fields. The "Payload" field is sent to ElasticSearch as
     "@message".
 - timestamp (string):
-    Format to use for timestamps in generated ES documents. Defaults to
-    "2006-01-02T15:04:05.000Z".
+    Format to use for timestamps in generated ES documents. Allows to use
+    strftime format codes. Defaults to "%Y-%m-%dT%H:%M:%S".
 - es_index_from_timestamp (bool):
     When generating the index name use the timestamp from the message instead
     of the current time. Defaults to false.

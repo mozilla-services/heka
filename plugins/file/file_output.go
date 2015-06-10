@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jehiah/go-strftime"
+	"github.com/cactus/gostrftime"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins"
 	"github.com/rafrombrc/go-notify"
@@ -181,7 +181,7 @@ func (o *FileOutput) startRotateNotifier() {
 	until := next.Sub(now)
 	after := time.After(until)
 
-	o.path = strftime.Format(o.FileOutputConfig.Path, now)
+	o.path = gostrftime.Strftime(o.FileOutputConfig.Path, now)
 
 	go func() {
 		ok := true
@@ -359,7 +359,7 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 			}
 		case rotateTime := <-o.rotateChan:
 			o.file.Close()
-			o.path = strftime.Format(o.FileOutputConfig.Path, rotateTime)
+			o.path = gostrftime.Strftime(o.FileOutputConfig.Path, rotateTime)
 			if err = o.openFile(); err != nil {
 				close(o.closing)
 				err = fmt.Errorf("unable to open rotated file '%s': %s", o.path, err)
