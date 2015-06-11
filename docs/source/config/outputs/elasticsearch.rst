@@ -55,9 +55,7 @@ Config:
     them to ElasticSearch.  Defaults to true.
 - buffering (QueueBufferConfig, optional):
     All of the :ref:`buffering <buffering>` config options are set to the
-    standard default options except `cursor_update_count`, which defaults to 1
-    (i.e. the cursor is written out every time it is updated) since we only
-    update the cursor after every batch is delivered.
+    standard default options.
 
 Example:
 

@@ -53,7 +53,8 @@ Config:
     them out over the TCP connection. Defaults to true.
 - buffering (QueueBufferConfig, optional):
     All of the :ref:`buffering <buffering>` config options are set to the
-    standard default options.
+    standard default options, except for `cursor_update_count`, which is set to
+    50 instead of the standard default of 1.
 
 Example:
 

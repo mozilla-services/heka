@@ -866,16 +866,16 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 
 	if config.UseBuffering != nil && *config.UseBuffering {
 		runner.useBuffering = true
-		if config.BufferConfig.FullAction == "" {
-			config.BufferConfig.FullAction = "shutdown"
+		if config.Buffering.FullAction == "" {
+			config.Buffering.FullAction = "shutdown"
 		}
-		switch config.BufferConfig.FullAction {
+		switch config.Buffering.FullAction {
 		case "shutdown", "drop", "block":
 		default:
 			msg := "buffer full_action must be 'shutdown', 'drop', or 'block', got '%s'"
-			return nil, fmt.Errorf(msg, config.BufferConfig.FullAction)
+			return nil, fmt.Errorf(msg, config.Buffering.FullAction)
 		}
-		runner.capacity = int(config.BufferConfig.MaxBufferSize) * 90 / 100
+		runner.capacity = int(config.Buffering.MaxBufferSize) * 90 / 100
 	}
 
 	var matchChan chan *PipelinePack
@@ -969,7 +969,7 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	var bufFeeder *BufferFeeder
 	if foRunner.useBuffering {
 		bufFeeder, foRunner.bufReader, err = NewBufferSet("output_queue", foRunner.name,
-			foRunner.config.BufferConfig, foRunner, foRunner.pConfig)
+			foRunner.config.Buffering, foRunner, foRunner.pConfig)
 		if err != nil {
 			return fmt.Errorf("can't initialize buffer: %s", err)
 		}

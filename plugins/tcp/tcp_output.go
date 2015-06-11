@@ -67,14 +67,22 @@ type TcpOutputConfig struct {
 	UseFraming *bool `toml:"use_framing"`
 	// Defaults to true for TcpOutput.
 	UseBuffering *bool `toml:"use_buffering"`
+	Buffering    QueueBufferConfig
 }
 
 func (t *TcpOutput) ConfigStruct() interface{} {
 	b := true
+	queueConfig := QueueBufferConfig{
+		CursorUpdateCount: 50,
+		MaxBufferSize:     0,
+		MaxFileSize:       128 * 1024 * 1024,
+		FullAction:        "shutdown",
+	}
 	return &TcpOutputConfig{
 		Address:      "localhost:9125",
 		Encoder:      "ProtobufEncoder",
 		UseBuffering: &b,
+		Buffering:    queueConfig,
 	}
 }
 

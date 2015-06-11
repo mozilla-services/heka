@@ -552,7 +552,7 @@ type CommonFOConfig struct {
 	Encoder      string             // Output only.
 	UseFraming   *bool              `toml:"use_framing"` // Output only.
 	UseBuffering *bool              `toml:"use_buffering"`
-	BufferConfig *QueueBufferConfig `toml:"buffering"`
+	Buffering    *QueueBufferConfig `toml:"buffering"`
 }
 
 type CommonSplitterConfig struct {

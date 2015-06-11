@@ -84,7 +84,7 @@ func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 	}
 
 	if config.CursorUpdateCount == 0 {
-		config.CursorUpdateCount = 50
+		config.CursorUpdateCount = 1
 	}
 
 	bf, err := NewBufferFeeder(queue, config, queueSize)

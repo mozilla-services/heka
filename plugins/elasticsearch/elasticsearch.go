@@ -58,6 +58,8 @@ type ElasticSearchOutput struct {
 	pConfig          *PipelineConfig
 	reportLock       sync.Mutex
 	stopChan         chan bool
+	flushTicker      *time.Ticker
+	flushManual      chan struct{}
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -95,17 +97,9 @@ type ElasticSearchOutputConfig struct {
 	ConnectTimeout uint32 `toml:"connect_timeout"`
 	// Whether or not to buffer records to disk before sending to ElasticSearch.
 	UseBuffering bool `toml:"use_buffering"`
-	// Default buffering settings.
-	Buffering QueueBufferConfig
 }
 
 func (o *ElasticSearchOutput) ConfigStruct() interface{} {
-	queueConfig := QueueBufferConfig{
-		CursorUpdateCount: 1,
-		MaxBufferSize:     0,
-		MaxFileSize:       128 * 1024 * 1024,
-		FullAction:        "shutdown",
-	}
 	return &ElasticSearchOutputConfig{
 		FlushInterval:         1000,
 		FlushCount:            10,
@@ -116,11 +110,7 @@ func (o *ElasticSearchOutput) ConfigStruct() interface{} {
 		HTTPDisableKeepalives: false,
 		ConnectTimeout:        0,
 		UseBuffering:          true,
-		Buffering:             queueConfig,
 	}
-}
-
-func (o *ElasticSearchOutput) SetName(name string) {
 }
 
 func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
@@ -128,6 +118,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 
 	o.batchChan = make(chan ESBatch)
 	o.backChan = make(chan []byte, 2)
+	o.flushManual = make(chan struct{})
 
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
@@ -175,6 +166,15 @@ func (o *ElasticSearchOutput) Prepare(or OutputRunner, h PluginHelper) error {
 
 	o.outBatch = make([]byte, 0, 10000)
 	go o.committer()
+
+	if o.conf.FlushInterval > 0 {
+		d, err := time.ParseDuration(fmt.Sprintf("%dms", o.conf.FlushInterval))
+		if err != nil {
+			return fmt.Errorf("can't create flush ticker: %s", err.Error())
+		}
+		o.flushTicker = time.NewTicker(d)
+	}
+	go o.batchSender()
 	return nil
 }
 
@@ -189,17 +189,27 @@ func (o *ElasticSearchOutput) ProcessMessage(pack *PipelinePack) error {
 		o.queueCursor = pack.QueueCursor
 		o.count++
 		if len(o.outBatch) > 0 && o.bulkIndexer.CheckFlush(int(o.count), len(o.outBatch)) {
-			o.sendBatch()
+			o.flushManual <- struct{}{}
 		}
 	}
 	return nil
 }
 
-func (o *ElasticSearchOutput) TimerEvent() error {
-	if len(o.outBatch) > 0 {
-		o.sendBatch()
+func (o *ElasticSearchOutput) batchSender() {
+	ok := true
+	for ok {
+		select {
+		case <-o.stopChan:
+			ok = false
+			continue
+		case <-o.flushManual:
+			o.sendBatch()
+		case <-o.flushTicker.C:
+			if len(o.outBatch) > 0 {
+				o.sendBatch()
+			}
+		}
 	}
-	return nil
 }
 
 func (o *ElasticSearchOutput) sendBatch() {
@@ -286,6 +296,9 @@ func (o *ElasticSearchOutput) sendRecord(buffer []byte) error {
 }
 
 func (o *ElasticSearchOutput) CleanUp() {
+	if o.flushTicker != nil {
+		o.flushTicker.Stop()
+	}
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state

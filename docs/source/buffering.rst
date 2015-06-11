@@ -52,11 +52,21 @@ Buffering configuration settings
   PluginRunner. Some plugins call this for every message, while others call it
   only periodically after processing a large batch of messages. This setting
   specifies how many ``UpdateCursor`` calls must be made before the cursor
-  location is flushed to disk. Defaults to 50, although specific plugins might
+  location is flushed to disk. Defaults to 1, although specific plugins might
   override this default with a default of their own. Value cannot be zero, if
   zero is specified the default will be used instead.
 
-Sample buffering configuration
+Buffering Default Values
+========================
+
+Please note that if you provide a `buffering` subsection for your plugin
+configuration, it is best to specify *all* of the available settings. In cases
+where the plugin specifies a non-standard default for one or more of these
+values, that default will only be applied if you omit the `buffering`
+subsection altogether. If you specify any of the values, it is expected that
+you will specify all of the values.
+
+Sample Buffering Configuration
 ==============================
 
 The following is a sample TcpOutput configuration showing the use of buffering.
@@ -69,7 +79,7 @@ The following is a sample TcpOutput configuration showing the use of buffering.
     keep_alive = true
     use_buffering = true
 
-        [TcpOutput.buffer]
+        [TcpOutput.buffering]
         max_file_size = 268435456  # 256MiB
         max_buffer_size = 1073741824  # 1GiB
         full_action = "block"

@@ -426,15 +426,18 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 			return nil, err
 		}
 	}
-	if commonFO.BufferConfig == nil {
-		bufConfig := getAttr(config, "BufferConfig", &QueueBufferConfig{})
+	if m.name == "ElasticSearchOutput" {
+		fmt.Println("commonFO.Buffering: ", commonFO.Buffering)
+	}
+	if commonFO.Buffering == nil {
+		bufConfig := getAttr(config, "Buffering", &QueueBufferConfig{})
 		switch c := bufConfig.(type) {
 		case *QueueBufferConfig:
-			commonFO.BufferConfig = c
+			commonFO.Buffering = c
 		case QueueBufferConfig:
-			commonFO.BufferConfig = &c
+			commonFO.Buffering = &c
 		default:
-			msg := "'BufferConfig' attribute must be of type QueueBufferConfig or *QueueBufferConfig"
+			msg := "'Buffering' attribute must be of type QueueBufferConfig or *QueueBufferConfig"
 			return nil, errors.New(msg)
 		}
 	}
