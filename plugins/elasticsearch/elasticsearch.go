@@ -190,6 +190,7 @@ func (o *ElasticSearchOutput) ProcessMessage(pack *PipelinePack) error {
 		o.count++
 		if len(o.outBatch) > 0 && o.bulkIndexer.CheckFlush(int(o.count), len(o.outBatch)) {
 			o.flushManual <- struct{}{}
+			<-o.flushManual // block until the batch is sent.
 		}
 	}
 	return nil
@@ -204,6 +205,7 @@ func (o *ElasticSearchOutput) batchSender() {
 			continue
 		case <-o.flushManual:
 			o.sendBatch()
+			o.flushManual <- struct{}{}
 		case <-o.flushTicker.C:
 			if len(o.outBatch) > 0 {
 				o.sendBatch()
