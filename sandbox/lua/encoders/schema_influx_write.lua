@@ -3,16 +3,14 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[=[
-Converts full Heka message contents to JSON for InfluxDB HTTP write API (new
-in InfluxDB v0.9.0). Optionally includes all standard message fields as tags
-or fields and iterates through all of the dynamic fields to add as points
-(series), skipping any fields explicitly omitted using the `skip_fields`
-config option.  It can also map any Heka message fields as tags in the request
-sent to the InfluxDB API, using the `tag_fields` config option. Tags,
-timestamp/precision, database, and retention policy are defined once for all
-points submitted in the API call.  All dynamic fields in the Heka message are
-converted to separate series in the `points` array that is submitted to
-InfluxDB.
+Converts full Heka message contents to line protocol for InfluxDB HTTP write API
+(new in InfluxDB v0.9.0).  Optionally includes all standard message fields
+as tags or fields and iterates through all of the dynamic fields to add as
+points (series), skipping any fields explicitly omitted using the `skip_fields`
+config option.  It can also map any Heka message fields as tags in the
+request sent to the InfluxDB write API, using the `tag_fields` config option.
+All dynamic fields in the Heka message are converted to separate points
+separated by newlines that are submitted to InfluxDB.
 
 .. note::
     This encoder is intended for use with InfluxDB versions 0.9 or greater. If
@@ -21,8 +19,8 @@ InfluxDB.
 
 Config:
 
-- name_prefix (string, optional, default "name")
-    String to use as the `name` key's prefix value in the generated JSON.
+- name_prefix (string, optional, default "")
+    String to use as the `name` key's prefix value in the generated line.
     Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
     `%{fieldname}`. Any `fieldname` values of "Type", "Payload", "Hostname",
     "Pid", "Logger", "Severity", or "EnvVersion" will be extracted from the
@@ -34,14 +32,10 @@ Config:
     "Timestamp" or the "Uuid" message fields into the name, those
     values will be interpreted as referring to dynamic message fields.
 
-- database (string, required)
-    The InfluxDB database to store the metrics in.
-
-- retention_policy (string, optional, default "")
-    The InfluxDB retentionPolicy value for the database in which the
-    metrics are being sent to. When an empty value for retentionPolicy is
-    sent to InfluxDB, the default policy is used.  The default policy uses
-    infinite retention.  See InfluxDB 0.9.0 docs for more information.
+- name_prefix_delimiter (string, optional, default "")
+    String to use as the delimiter between the name_prefix and the field
+    name.  This defaults to a blank string but can be anything else
+    instead (such as "." to use Graphite-like naming).
 
 - skip_fields (string, optional, default nil)
     Space delimited set of fields that should *not* be included in the
@@ -71,6 +65,11 @@ Config:
     values supported by the InfluxDB write API (ms, s, m, h). Other precisions
     supported by InfluxDB of n and u are not yet supported.
 
+- value_field_name (string, optional, default "value")
+    This defines the name of the measurement.  We default this to "value"
+    to match the examples in the InfluxDB documentation, but can be overrided
+    to anything else that you prefer.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -97,49 +96,48 @@ Config:
         [AddStaticFields.message_fields]
         Environment = "DEV"
 
-    [InfluxdbOutput]
-    type = "HttpOutput"
-    message_matcher = "Type =~ /stats.*/"
-    encoder = "InfluxdbEncoder"
-    address = "http://influxdbserver.example.com:8086/write"
-    username = "influx_username"
-    password = "influx_password"
-
-    [InfluxdbEncoder]
+    [InfluxDBWriteEncoder]
     type = "SandboxEncoder"
     filename = "lua_encoders/schema_influx_write.lua"
 
-        [InfluxdbEncoder.config]
+        [InfluxDBWriteEncoder.config]
         name_prefix = "%{Hostname}.%{Type}"
         skip_fields = "**all_base** FilePath NumProcesses Environment"
         tag_fields = "Hostname Environment"
         timestamp_precision= "s"
 
+    [InfluxdbOutput]
+    type = "HttpOutput"
+    message_matcher = "Type =~ /stats.*/"
+    encoder = "InfluxDBWriteEncoder"
+    address = "http://influxdbserver.example.com:8086/write?db=mydb&rp=mypolicy&precision=s"
+    username = "influx_username"
+    password = "influx_password"
+
 *Example Output*
 
-.. code-block:: json
+.. code-block:: none
 
-    {"database":"mydb","retentionPolicy":"","tags":{"Environment":"DEV","Hostname":"my_hostname"}, "points":[{"name":"my_hostname.stats.loadavg.5MinAvg","fields":{"value":0.03}},{"name":"my_hostname.stats.loadavg.15MinAvg","fields":{"value":0.05}},{"name":"my_hostname.stats.loadavg.1MinAvg","fields":{"value":0.01}}],"timestamp":1426439735,"precision":"s"}
+    host1.stats.loadavg.15MinAvg,Hostname=host1,Environment=DEV value=0.05 1434543747
+    host1.stats.loadavg.5MinAvg,Hostname=host1,Environment=DEV value=0.01 1434543747
+    host1.stats.loadavg.1MinAvg,Hostname=host1,Environment=DEV value=0.0 1434543747
 
 --]=]
 
-require "cjson"
 require "math"
 require "string"
+require "table"
 local interp = require "msg_interpolate"
 
-local name_prefix_orig  = read_config("name_prefix") or "name"
+local name_prefix_orig  = read_config("name_prefix") or ""
 local name_prefix = name_prefix_orig
+local name_prefix_delimiter  = read_config("name_prefix_delimiter") or ""
 local use_subs
 if string.find(name_prefix, "%%{[%w%p]-}") then
     use_subs = true
 end
 
--- Required field that errors when not defined
-local influxdb_db = read_config("database") or error("`database` setting required")
-
--- Default this option to ""
-local retention_policy = read_config("retention_policy") or ""
+local value_field_name  = read_config("value_field_name") or "value"
 
 -- Default this option to "ms"
 local timestamp_precision = read_config("timestamp_precision") or "ms"
@@ -254,17 +252,15 @@ function process_message()
     local message_tags = {}
     for _, field in ipairs(base_fields_list) do
         local base_field_value = read_message(field)
+        field = field:gsub("([ ,])", "\\%1")
         if (tag_fields_all or tag_fields_all_base)
             and base_fields_tag_map[field] and type(base_field_value) ~= "number" then
-            message_tags[field] = tostring(base_field_value)
+            table.insert(message_tags, field.."="..tostring(base_field_value))
         elseif used_tag_fields[field] and base_fields_tag_map[field]
             and type(base_field_value) ~= "number" then
-            message_tags[field] = tostring(base_field_value)
+            table.insert(message_tags, field.."="..tostring(base_field_value))
         end
     end
-
-    -- Initialize a counter for the InfluxDB write API message data points
-    local points_index = 1
 
     -- Initialize the table of data points and populate it with data
     -- from the Heka message.  When skip_fields includes "**all_base**",
@@ -281,27 +277,11 @@ function process_message()
         -- Exit the perpetual loop when the iteration is complete
         if not typ then break end
 
-        -- Only process fields that are not requested to be skipped
-        if not skip_fields_str or not skip_fields[name] then
-            -- Set the name attribute of this table by concatenating name_prefix
-            -- with the name of this particular field
-            local field_name = name_prefix.."."..name
-
-            -- Merge existing base fields with field in this iteration
-            local fields = {}
-            for k,v in pairs(columns) do fields[v] = values[k] end
-
-            -- Structure the table to match the expected Influxdb structure
-            fields["value"] = value
-            points[points_index] = {
-                name = field_name,
-                fields = fields
-            }
-
-            -- Increment the index to the table so the next iteration will
-            -- append another entry to the array. This allows us to send a
-            -- bunch of metrics to InfluxDB with a single HTTP request
-            points_index = points_index + 1
+        -- Force to remain as a true float if value is 0; otherwise
+        -- InfluxDB will reject the point if previous values were
+        -- actual floats
+        if value == 0 and typ == 3 then
+            value = "0.0"
         end
 
         -- Include the dynamic fields as tags if they are defined in
@@ -309,20 +289,49 @@ function process_message()
         -- Convert value to a string as this is required by the API
         if (tag_fields_all or used_tag_fields[name])
             and type(value) ~= "number" then
-            message_tags[name] = tostring(value)
+            table.insert(message_tags, name:gsub("([ ,])", "\\%1").."="..tostring(value:gsub("([ ,])", "\\%1")))
+        end
+
+        -- Only process fields that are not requested to be skipped
+        if not skip_fields_str or not skip_fields[name] then
+            -- Set the name attribute of this table by concatenating name_prefix
+            -- with the name of this particular field
+            local field_name = name_prefix..name_prefix_delimiter..name
+
+            -- Structure the table to match the expected Influxdb structure
+            points[field_name] = value
         end
     end
 
-    api_message = {
-        database = influxdb_db,
-        points = points,
-        precision = timestamp_precision,
-        retentionPolicy = retention_policy,
-        timestamp = message_timestamp,
-        tags = message_tags
-    }
+    -- Build a table of data points that we will eventually convert
+    -- to a newline delimited list of InfluxDB write API line protocol
+    -- formatted values that are then injected back into the pipeline
+    api_message = {}
+    for name, value in pairs(points) do
+        -- Wrap in double quotes and escape embedded double quotes
+        -- as defined by the protocol
+        if type(value) == "string" then
+            value = '"'..value:gsub('"', '\\"')..'"'
+        end
+        -- Escape spaces and commas as defined by the protocol
+        name = name:gsub("([ ,])", "\\%1")
+        point_entry = ""
+        -- Formate the line differently based on the presence of tags
+        -- i.e. length of the message_tags table is > 0
+        if #message_tags > 0 then
+            point_entry = name..","..table.concat(message_tags, ",").." ".."value="..value.." "..message_timestamp
+        else
+            point_entry = name.." ".."value="..value.." "..message_timestamp
+        end
+        table.insert(api_message, point_entry)
+    end
 
-    inject_payload("json", "influx_message", cjson.encode(api_message))
+    -- Inject a new message with the payload populated with the newline
+    -- delimited data points; remove the quotes wrapped around 0.0 to
+    -- maintain its format as a float, required by InfluxDB to keep points
+    -- in series that were initially added as floats.  Finally append a
+    -- newline so the last metric is accepted by InfluxDB
+    inject_payload("txt", "influxdb_write_line", table.concat(api_message, "\n"):gsub('"0.0"', "0.0").."\n")
 
     return 0
 end
