@@ -61,6 +61,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().Name().Return("processinject").Times(2)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(2)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(2)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 			config.ScriptFilename = "../lua/testsupport/processinject.lua"
 			config.ModuleDirectory = "../lua/modules"
@@ -82,6 +83,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(11)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(11)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(11)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 			config.ScriptFilename = "../lua/testsupport/timerinject.lua"
 			config.ModuleDirectory = "../lua/modules"
@@ -101,6 +103,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().UsesBuffering().Return(true)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 			config.ScriptFilename = "../lua/testsupport/serialize.lua"
 			config.ModuleDirectory = "../lua/modules"
@@ -123,6 +126,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 			fth.MockFilterRunner.EXPECT().UsesBuffering().Return(true)
 			fth.MockFilterRunner.EXPECT().LogError(fmt.Errorf("script provided error message"))
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 			config.ScriptFilename = "../lua/testsupport/process_message_error_string.lua"
 			config.ModuleDirectory = "../lua/modules"
@@ -142,6 +146,7 @@ func FilterSpec(c gs.Context) {
 			fth.MockFilterRunner.EXPECT().Name().Return("timerinject").Times(10)
 			fth.MockFilterRunner.EXPECT().Inject(pack).Return(true).Times(10)
 			fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack).Times(10)
+			fth.MockHelper.EXPECT().PipelineConfig().Return(pConfig)
 
 			config.ScriptFilename = "../lua/testsupport/timerinject.lua"
 			config.ModuleDirectory = "../lua/modules"
