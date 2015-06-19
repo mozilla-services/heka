@@ -126,7 +126,6 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 				s.reportLock.Unlock()
 			}
 			s.sample = 0 == rand.Intn(s.sampleDenominator)
-			// pack.Recycle(nil)
 
 			or.UpdateCursor(pack.QueueCursor) // TODO: support retries?
 			if retval == 0 {

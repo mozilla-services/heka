@@ -275,9 +275,7 @@ func QueueBufferSpec(c gs.Context) {
 				queueFiles, err = ioutil.ReadDir(feeder.queue)
 				c.Expect(err, gs.IsNil)
 				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
-
 			})
-
 		})
 
 		c.Specify("getQueueBufferSize", func() {

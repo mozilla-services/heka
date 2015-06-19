@@ -185,7 +185,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	)
 
 	if fr.UsesBuffering() {
-		samplesNeeded = 29
+		samplesNeeded = int64(h.PipelineConfig().Globals.PluginChanSize) - 1
 	} else {
 		samplesNeeded = int64(cap(inChan)) - 1
 	}
