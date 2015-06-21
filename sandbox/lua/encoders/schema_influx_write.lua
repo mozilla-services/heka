@@ -19,6 +19,10 @@ separated by newlines that are submitted to InfluxDB.
 
 Config:
 
+- carbon_line_format (boolean, optional, default false)
+    Skip tags and kev/value metric naming for lines so they can be sent
+    to carbon-cache instead.
+
 - name_prefix (string, optional, default "")
     String to use as the `name` key's prefix value in the generated line.
     Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
@@ -128,6 +132,8 @@ require "math"
 require "string"
 require "table"
 local interp = require "msg_interpolate"
+
+local carbon_line_format  = read_config("carbon_line_format") or false
 
 local name_prefix_orig  = read_config("name_prefix") or ""
 local name_prefix = name_prefix_orig
@@ -250,15 +256,17 @@ function process_message()
     -- InfluxDB write API message
     -- Convert value to a string as this is required by the API
     local message_tags = {}
-    for _, field in ipairs(base_fields_list) do
-        local base_field_value = read_message(field)
-        field = field:gsub("([ ,])", "\\%1")
-        if (tag_fields_all or tag_fields_all_base)
-            and base_fields_tag_map[field] and type(base_field_value) ~= "number" then
-            table.insert(message_tags, field.."="..tostring(base_field_value))
-        elseif used_tag_fields[field] and base_fields_tag_map[field]
-            and type(base_field_value) ~= "number" then
-            table.insert(message_tags, field.."="..tostring(base_field_value))
+    if not carbon_line_format then
+        for _, field in ipairs(base_fields_list) do
+            local base_field_value = read_message(field)
+            field = field:gsub("([ ,])", "\\%1")
+            if (tag_fields_all or tag_fields_all_base)
+                and base_fields_tag_map[field] and type(base_field_value) ~= "number" then
+                table.insert(message_tags, field.."="..tostring(base_field_value))
+            elseif used_tag_fields[field] and base_fields_tag_map[field]
+                and type(base_field_value) ~= "number" then
+                table.insert(message_tags, field.."="..tostring(base_field_value))
+            end
         end
     end
 
@@ -287,7 +295,8 @@ function process_message()
         -- Include the dynamic fields as tags if they are defined in
         -- configuration or the magic value "**all**" is defined.
         -- Convert value to a string as this is required by the API
-        if (tag_fields_all or used_tag_fields[name])
+        if not carbon_line_format and
+            (tag_fields_all or used_tag_fields[name])
             and type(value) ~= "number" then
             table.insert(message_tags, name:gsub("([ ,])", "\\%1").."="..tostring(value:gsub("([ ,])", "\\%1")))
         end
@@ -310,18 +319,24 @@ function process_message()
     for name, value in pairs(points) do
         -- Wrap in double quotes and escape embedded double quotes
         -- as defined by the protocol
-        if type(value) == "string" then
+        if not carbon_line_format and type(value) == "string" then
             value = '"'..value:gsub('"', '\\"')..'"'
+        end
+        -- Force value to be a float if sending to carbon
+        if carbon_line_format then
+            value = value .. ".0"
         end
         -- Escape spaces and commas as defined by the protocol
         name = name:gsub("([ ,])", "\\%1")
         point_entry = ""
         -- Formate the line differently based on the presence of tags
         -- i.e. length of the message_tags table is > 0
-        if #message_tags > 0 then
+        if not carbon_line_format and #message_tags > 0 then
             point_entry = name..","..table.concat(message_tags, ",").." ".."value="..value.." "..message_timestamp
-        else
+        elseif not carbon_line_format then
             point_entry = name.." ".."value="..value.." "..message_timestamp
+        else
+            point_entry = name.." "..value.." "..message_timestamp
         end
         table.insert(api_message, point_entry)
     end
