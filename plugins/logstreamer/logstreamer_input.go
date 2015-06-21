@@ -330,6 +330,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	}
 	close(lsi.stopped)
 	deliverer.Done()
+	sRunner.Done()
 }
 
 func (lsi *LogstreamInput) deliverRecords() (err error) {

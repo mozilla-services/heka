@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,11 +19,10 @@ package graphite
 import (
 	"bytes"
 	"fmt"
+	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"strconv"
 	"strings"
-
-	. "github.com/mozilla-services/heka/pipeline"
 )
 
 // Output plugin that sends statmetric messages via TCP
@@ -73,11 +72,9 @@ func (t *CarbonOutput) ProcessPack(pack *PipelinePack, or OutputRunner) {
 	var e error
 
 	payload := strings.Trim(pack.Message.GetPayload(), " \t\n")
-	// Once we've copied the payload we're done w/ the pack.
-	or.UpdateCursor(pack.QueueCursor)
-	pack.Recycle(nil)
-
+	pack.Recycle() // Once we've copied the payload we're done w/ the pack.
 	lines := strings.Split(payload, "\n")
+
 	clean_statmetrics := make([]string, len(lines))
 	index := 0
 	for _, line := range lines {

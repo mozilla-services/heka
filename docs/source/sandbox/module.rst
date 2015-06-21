@@ -46,10 +46,10 @@ ElasticSearch Module
    :start-after: --[[
    :end-before: --]]
 
-.. _sandbox_graphite_module:
+.. _sandbox_elasticsearch_module:
 
 Graphite Module
----------------
+--------------------
 
 .. versionadded:: 0.10
 

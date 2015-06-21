@@ -293,9 +293,9 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
 			atomic.AddInt64(&this.processMessageCount, 1)
 			delta = time.Now().UnixNano() - pack.Message.GetTimestamp()
 			if math.Abs(float64(delta)) >= 5e9 {
-				fr.UpdateCursor(pack.QueueCursor)
-				pack.Recycle(fmt.Errorf("Discarded control message: %d seconds skew",
+				fr.LogError(fmt.Errorf("Discarded control message: %d seconds skew",
 					delta/1e9))
+				pack.Recycle()
 				break
 			}
 			action, _ := pack.Message.GetFieldValue("action")
@@ -326,7 +326,7 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
 					}
 				}
 			}
-			pack.Recycle(nil)
+			pack.Recycle()
 		}
 	}
 	return

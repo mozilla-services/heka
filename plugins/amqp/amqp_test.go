@@ -122,6 +122,7 @@ func AMQPPluginSpec(c gs.Context) {
 			})
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			ith.MockSplitterRunner.EXPECT().Done()
 			go func() {
 				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				errChan <- err
@@ -172,6 +173,7 @@ func AMQPPluginSpec(c gs.Context) {
 				bytesChan <- recd
 			})
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(true)
+			ith.MockSplitterRunner.EXPECT().Done()
 			go func() {
 				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				errChan <- err
@@ -215,8 +217,6 @@ func AMQPPluginSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.QueueCursor = "queuecursor"
-		oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 		c.Specify("publishes a plain message", func() {
 			encoder := new(plugins.PayloadEncoder)

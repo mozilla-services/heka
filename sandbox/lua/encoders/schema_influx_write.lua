@@ -105,6 +105,7 @@ Config:
     filename = "lua_encoders/schema_influx_write.lua"
 
         [InfluxDBWriteEncoder.config]
+        database = "mydb"
         name_prefix = "%{Hostname}.%{Type}"
         skip_fields = "**all_base** FilePath NumProcesses Environment"
         tag_fields = "Hostname Environment"

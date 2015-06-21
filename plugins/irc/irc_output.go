@@ -4,12 +4,11 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014-2015
+# Portions created by the Initial Developer are Copyright (C) 2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Chance Zibolski (chance.zibolski@gmail.com)
-#   Rob Miller (rmiller@mozilla.com)
 #
 #***** END LICENSE BLOCK *****/
 
@@ -18,14 +17,13 @@ package irc
 import (
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/thoj/go-ircevent"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins/tcp"
-	"github.com/thoj/go-ircevent"
 )
 
 func init() {
@@ -170,31 +168,20 @@ func (output *IrcOutput) Run(runner pipeline.OutputRunner,
 		}
 		outgoing, err = runner.Encode(pack)
 		if err != nil {
-			output.runner.UpdateCursor(pack.QueueCursor)
-			err = fmt.Errorf("can't encode: %s", err.Error())
-			pack.Recycle(err)
-			continue
+			output.runner.LogError(err)
 		} else if outgoing != nil {
 			// Send the message to each irc channel. If the out queue is full,
 			// then we need to drop the message and log an error.
-			sentAny := false
 			for i, ircChannel := range output.Channels {
 				ircMsg := IrcMsg{outgoing, ircChannel, i}
 				select {
 				case output.OutQueue <- ircMsg:
-					sentAny = true
 				default:
 					output.runner.LogError(ErrOutQueueFull)
 				}
 			}
-			if !sentAny {
-				err = pipeline.NewRetryMessageError("IRC delivery failed")
-				pack.Recycle(err)
-				continue
-			}
 		}
-		output.runner.UpdateCursor(pack.QueueCursor)
-		pack.Recycle(nil)
+		pack.Recycle()
 	}
 	output.cleanup()
 	return nil

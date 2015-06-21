@@ -168,7 +168,7 @@ if (INCLUDE_DOCKER_PLUGINS)
 endif()
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 848fc1f3aa858472150c7af5463661393d3c4f3b)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins f310f1589afca54ddf6c9f4de826b43acbc1f228)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
     add_dependencies(heka-mozsvc-plugins raven-go)
 endif()

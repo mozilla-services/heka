@@ -16,33 +16,19 @@
 package pipeline
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-
 	"code.google.com/p/gogoprotobuf/proto"
-
-	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
-type FooOutput struct{}
-
-func (f *FooOutput) Init(config interface{}) error {
-	return nil
-}
-
-func (f *FooOutput) Run(or OutputRunner, h PluginHelper) error {
-	return nil
-}
-
-func QueueBufferSpec(c gs.Context) {
-	tmpDir, tmpErr := ioutil.TempDir("", "queuebuffer-tests")
+func BufferedOutputSpec(c gs.Context) {
+	tmpDir, tmpErr := ioutil.TempDir("", "bufferedout-tests")
 
 	defer func() {
 		tmpErr = os.RemoveAll(tmpDir)
@@ -53,40 +39,17 @@ func QueueBufferSpec(c gs.Context) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	c.Specify("QueueBuffer Internals", func() {
+	c.Specify("BufferedOutput Internals", func() {
+		encoder := client.NewProtobufEncoder(nil)
 		pConfig := NewPipelineConfig(nil)
+		or := NewMockOutputRunner(ctrl)
+		h := NewMockPluginHelper(ctrl)
+		h.EXPECT().PipelineConfig().Return(pConfig)
+		or.EXPECT().Name().Return("FooOutput")
 
 		err := pConfig.RegisterDefault("HekaFramingSplitter")
 		c.Assume(err, gs.IsNil)
-		RegisterPlugin("FooOutput", func() interface{} {
-			return &FooOutput{}
-		})
-
-		outputToml := `[FooOutput]
-        message_matcher = "TRUE"
-        `
-
-		var configFile ConfigFile
-		_, err = toml.Decode(outputToml, &configFile)
-		c.Assume(err, gs.IsNil)
-		section, ok := configFile["FooOutput"]
-		c.Assume(ok, gs.IsTrue)
-		maker, err := NewPluginMaker("FooOutput", pConfig, section)
-		c.Assume(err, gs.IsNil)
-
-		orTmp, err := maker.MakeRunner("FooOutput")
-		c.Assume(err, gs.IsNil)
-		or := orTmp.(*foRunner)
-
-		// h := NewMockPluginHelper(ctrl)
-		// h.EXPECT().PipelineConfig().Return(pConfig)
-
-		qConfig := &QueueBufferConfig{
-			FullAction:        "block",
-			CursorUpdateCount: 1,
-		}
-		feeder, reader, err := NewBufferSet(tmpDir, "test", qConfig, or, pConfig)
-		// bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))
+		bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))
 		c.Assume(err, gs.IsNil)
 		msg := ts.GetTestMessage()
 
@@ -122,23 +85,23 @@ func QueueBufferSpec(c gs.Context) {
 		})
 
 		c.Specify("writeCheckpoint", func() {
-			reader.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
-			err := reader.writeCheckpoint("43 99999")
+			bufferedOutput.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
+			err := bufferedOutput.writeCheckpoint(43, 99999)
 			c.Expect(err, gs.IsNil)
-			c.Expect(fileExists(reader.checkpointFilename), gs.IsTrue)
+			c.Expect(fileExists(bufferedOutput.checkpointFilename), gs.IsTrue)
 
-			id, offset, err := readCheckpoint(reader.checkpointFilename)
+			id, offset, err := readCheckpoint(bufferedOutput.checkpointFilename)
 			c.Expect(err, gs.IsNil)
 			c.Expect(id, gs.Equals, uint(43))
 			c.Expect(offset, gs.Equals, int64(99999))
 
-			err = reader.writeCheckpoint("43 1")
+			err = bufferedOutput.writeCheckpoint(43, 1)
 			c.Expect(err, gs.IsNil)
-			id, offset, err = readCheckpoint(reader.checkpointFilename)
+			id, offset, err = readCheckpoint(bufferedOutput.checkpointFilename)
 			c.Expect(err, gs.IsNil)
 			c.Expect(id, gs.Equals, uint(43))
 			c.Expect(offset, gs.Equals, int64(1))
-			reader.checkpointFile.Close()
+			bufferedOutput.checkpointFile.Close()
 		})
 
 		c.Specify("readCheckpoint", func() {
@@ -173,53 +136,77 @@ func QueueBufferSpec(c gs.Context) {
 		})
 
 		c.Specify("RollQueue", func() {
-			feeder.queue = tmpDir
-			err := feeder.RollQueue()
+			bufferedOutput.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
+			bufferedOutput.queue = tmpDir
+			err := bufferedOutput.RollQueue()
 			c.Expect(err, gs.IsNil)
-			c.Expect(fileExists(getQueueFilename(feeder.queue,
-				feeder.writeId)), gs.IsTrue)
-			feeder.writeFile.WriteString("this is a test item")
-			feeder.writeFile.Close()
-
-			reader.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
-			reader.queue = tmpDir
-			reader.writeCheckpoint(fmt.Sprintf("%d 10", feeder.writeId))
-			reader.checkpointFile.Close()
-			err = reader.initReadFile()
-			c.Assume(err, gs.IsNil)
+			c.Expect(fileExists(getQueueFilename(bufferedOutput.queue,
+				bufferedOutput.writeId)), gs.IsTrue)
+			bufferedOutput.writeFile.WriteString("this is a test item")
+			bufferedOutput.writeFile.Close()
+			bufferedOutput.writeCheckpoint(bufferedOutput.writeId, 10)
+			bufferedOutput.checkpointFile.Close()
+			err = bufferedOutput.readFromNextFile()
 			buf := make([]byte, 4)
-			n, err := reader.readFile.Read(buf)
+			n, err := bufferedOutput.readFile.Read(buf)
 			c.Expect(n, gs.Equals, 4)
-			c.Expect(string(buf), gs.Equals, "test")
-			feeder.writeFile.Close()
-			reader.readFile.Close()
+			c.Expect("test", gs.Equals, string(buf))
+			bufferedOutput.writeFile.Close()
+			bufferedOutput.readFile.Close()
 		})
 
 		c.Specify("QueueRecord", func() {
-			reader.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
-			reader.queue = tmpDir
+			bufferedOutput.checkpointFilename = filepath.Join(tmpDir, "cp.txt")
+			bufferedOutput.queue = tmpDir
 			newpack := NewPipelinePack(nil)
 			newpack.Message = msg
 			payload := "Write me out to the network"
 			newpack.Message.SetPayload(payload)
-			encoder := client.NewProtobufEncoder(nil)
 			protoBytes, err := encoder.EncodeMessage(newpack.Message)
-			newpack.MsgBytes = protoBytes
 			expectedLen := 115
 
-			c.Specify("adds framing", func() {
-				err = feeder.RollQueue()
+			c.Specify("adds framing when necessary", func() {
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				or.EXPECT().UsesFraming().Return(false)
+				err = bufferedOutput.RollQueue()
 				c.Expect(err, gs.IsNil)
-				err = feeder.QueueRecord(newpack)
-				fName := getQueueFilename(feeder.queue, feeder.writeId)
+				err = bufferedOutput.QueueRecord(newpack)
+				fName := getQueueFilename(bufferedOutput.queue, bufferedOutput.writeId)
 				c.Expect(fileExists(fName), gs.IsTrue)
 				c.Expect(err, gs.IsNil)
-				feeder.writeFile.Close()
+				bufferedOutput.writeFile.Close()
 
 				f, err := os.Open(fName)
 				c.Expect(err, gs.IsNil)
 
-				n, record, err := reader.sRunner.GetRecordFromStream(f)
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
+				f.Close()
+				c.Expect(n, gs.Equals, expectedLen)
+				c.Expect(err, gs.IsNil)
+				headerLen := int(record[1]) + message.HEADER_FRAMING_SIZE
+				record = record[headerLen:]
+				outMsg := new(message.Message)
+				proto.Unmarshal(record, outMsg)
+				c.Expect(outMsg.GetPayload(), gs.Equals, payload)
+			})
+
+			c.Specify("doesn't add framing if it's already there", func() {
+				var framed []byte
+				client.CreateHekaStream(protoBytes, &framed, nil)
+				or.EXPECT().Encode(newpack).Return(framed, err)
+				or.EXPECT().UsesFraming().Return(true)
+				err = bufferedOutput.RollQueue()
+				c.Expect(err, gs.IsNil)
+				err = bufferedOutput.QueueRecord(newpack)
+				fName := getQueueFilename(bufferedOutput.queue, bufferedOutput.writeId)
+				c.Expect(fileExists(fName), gs.IsTrue)
+				c.Expect(err, gs.IsNil)
+				bufferedOutput.writeFile.Close()
+
+				f, err := os.Open(fName)
+				c.Expect(err, gs.IsNil)
+
+				n, record, err := bufferedOutput.sRunner.GetRecordFromStream(f)
 				f.Close()
 				c.Expect(n, gs.Equals, expectedLen)
 				c.Expect(err, gs.IsNil)
@@ -231,51 +218,65 @@ func QueueBufferSpec(c gs.Context) {
 			})
 
 			c.Specify("when queue has limit", func() {
-				feeder.Config.MaxBufferSize = uint64(200)
-				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(0))
+				or.EXPECT().Encode(newpack).Return(protoBytes, err)
+				or.EXPECT().UsesFraming().Return(false)
 
-				err = feeder.RollQueue()
+				bufferedOutput.maxQueueSize = uint64(200)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+
+				err = bufferedOutput.RollQueue()
 				c.Expect(err, gs.IsNil)
 
-				err = feeder.QueueRecord(newpack)
+				err = bufferedOutput.QueueRecord(newpack)
 				c.Expect(err, gs.IsNil)
-				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(115))
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(115))
 			})
 
 			c.Specify("when queue has limit and is full", func() {
-				feeder.Config.MaxBufferSize = uint64(50)
-				feeder.Config.MaxFileSize = uint64(50)
+				or.EXPECT().Encode(newpack).Return(protoBytes, err).Times(4)
+				bufferedOutput.maxQueueSize = uint64(50)
 
-				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(0))
-				err = feeder.RollQueue()
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
+				err = bufferedOutput.RollQueue()
 				c.Expect(err, gs.IsNil)
-				queueFiles, err := ioutil.ReadDir(feeder.queue)
+				queueFiles, err := ioutil.ReadDir(bufferedOutput.queue)
 				c.Expect(err, gs.IsNil)
 				numFiles := len(queueFiles)
 
-				err = feeder.QueueRecord(newpack)
+				err = bufferedOutput.QueueRecord(newpack)
 				c.Expect(err, gs.Equals, QueueIsFull)
-				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(0))
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
 
-				// Bump the max queue size so it will accept a record.
-				feeder.Config.MaxBufferSize = uint64(120)
-				err = feeder.QueueRecord(newpack)
-				c.Expect(err, gs.IsNil)
-
-				// Queue should have rolled.
-				queueFiles, err = ioutil.ReadDir(feeder.queue)
+				// Queue should have rolled again.
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
 				c.Expect(err, gs.IsNil)
 				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
 
-				// Try to queue one last time, it should fail.
-				err = feeder.QueueRecord(newpack)
+				// Try again.
+				err = bufferedOutput.QueueRecord(newpack)
 				c.Expect(err, gs.Equals, QueueIsFull)
+				c.Expect(bufferedOutput.queueSize, gs.Equals, uint64(0))
 
 				// Ensure queue didn't roll twice.
-				queueFiles, err = ioutil.ReadDir(feeder.queue)
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
 				c.Expect(err, gs.IsNil)
 				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
+
+				or.EXPECT().UsesFraming().Return(false)
+				// Bump the max queue size so it will accept a record.
+				bufferedOutput.maxQueueSize = uint64(120)
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+
+				// Try to queue one last time, it should fail and trigger
+				// another queue roll.
+				err = bufferedOutput.QueueRecord(newpack)
+				c.Expect(err, gs.Equals, QueueIsFull)
+				queueFiles, err = ioutil.ReadDir(bufferedOutput.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, numFiles+2)
 			})
+
 		})
 
 		c.Specify("getQueueBufferSize", func() {

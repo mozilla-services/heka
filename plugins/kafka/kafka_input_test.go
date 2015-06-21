@@ -16,15 +16,16 @@
 package kafka
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/Shopify/sarama"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestEmptyInputAddress(t *testing.T) {
@@ -110,6 +111,7 @@ func TestReceivePayloadMessage(t *testing.T) {
 
 	ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 	ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
+	ith.MockSplitterRunner.EXPECT().Done()
 
 	decChan := make(chan func(*PipelinePack), 1)
 	decCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
@@ -214,6 +216,7 @@ func TestReceiveProtobufMessage(t *testing.T) {
 
 	ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 	ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(true)
+	ith.MockSplitterRunner.EXPECT().Done()
 
 	bytesChan := make(chan []byte, 1)
 	splitCall := ith.MockSplitterRunner.EXPECT().SplitBytes(gomock.Any(), nil)

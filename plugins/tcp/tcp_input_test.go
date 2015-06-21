@@ -17,16 +17,17 @@ package tcp
 
 import (
 	"crypto/tls"
+	"io"
+	"io/ioutil"
+	"net"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"io/ioutil"
-	"net"
-	"time"
 )
 
 type address struct {
@@ -79,6 +80,7 @@ func TcpInputSpec(c gs.Context) {
 				ith.MockSplitterRunner)
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			ith.MockSplitterRunner.EXPECT().Done()
 
 			// splitCall gets called twice. The first time it returns nil, the
 			// second time it returns io.EOF.

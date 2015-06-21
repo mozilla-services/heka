@@ -311,6 +311,7 @@ func (m *pluginMaker) makeSplitterRunner(name string, config interface{}, splitt
 		}
 	}
 	sr := NewSplitterRunner(name, splitter, commonSplitter)
+	sr.h = m.pConfig
 	return sr, nil
 }
 
@@ -418,24 +419,6 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 	if commonFO.CanExit == nil {
 		if commonFO.CanExit, err = getDefaultBool(config, "CanExit"); err != nil {
 			return nil, err
-		}
-	}
-
-	if commonFO.UseBuffering == nil {
-		if commonFO.UseBuffering, err = getDefaultBool(config, "UseBuffering"); err != nil {
-			return nil, err
-		}
-	}
-	if commonFO.Buffering == nil {
-		bufConfig := getAttr(config, "Buffering", &QueueBufferConfig{})
-		switch c := bufConfig.(type) {
-		case *QueueBufferConfig:
-			commonFO.Buffering = c
-		case QueueBufferConfig:
-			commonFO.Buffering = &c
-		default:
-			msg := "'Buffering' attribute must be of type QueueBufferConfig or *QueueBufferConfig"
-			return nil, errors.New(msg)
 		}
 	}
 

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,6 +18,9 @@ package dasher
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	httpPlugin "github.com/mozilla-services/heka/plugins/http"
 	"io"
 	"net/http"
 	"os"
@@ -26,10 +29,6 @@ import (
 	"regexp"
 	"sync"
 	"time"
-
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
-	httpPlugin "github.com/mozilla-services/heka/plugins/http"
 )
 
 type DashboardOutputConfig struct {
@@ -287,8 +286,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				delete(sandboxes, filterName)
 				sbxsLock.Unlock()
 			}
-			or.UpdateCursor(pack.QueueCursor)
-			pack.Recycle(nil)
+			pack.Recycle()
 		case <-ticker:
 			go h.PipelineConfig().AllReportsMsg()
 		}

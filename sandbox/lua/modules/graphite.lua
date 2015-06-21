@@ -28,8 +28,7 @@ API
     Generates a multiline graphite count metric with their rates.
 
     *Arguments*
-        - counts - table, indices will be mapped to buckets and values to their
-                   specific counts e.g {'bucket1': 1, 'bucket2':2}
+        - counts - table, indices will be mapped to buckets and values to their specific counts e.g {'bucket1': 1, 'bucket2':2}
         - ticker_interval - base interval for calculation of rate.
         - now_sec - timestamp (float) for metric.
 
@@ -47,7 +46,8 @@ API
         - now_sec - timestamp (float) for metric.
 
     *Return*
-        Returns multiline graphite string with following metrics:
+        Calculates metrics like:
+        And returns multine graphite string with following metrics:
              - stats.timers.<bucket>.count
              - stats.timers.<bucket>.rate
              - stats.timers.<bucket>.min
