@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,14 +18,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
 )
 
 type HttpOutput struct {
@@ -99,16 +100,22 @@ func (o *HttpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err
 
 	for pack := range inChan {
 		outBytes, e = or.Encode(pack)
-		pack.Recycle()
 		if e != nil {
-			or.LogError(e)
+			or.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(fmt.Errorf("can't encode: %s", e))
 			continue
 		}
 		if outBytes == nil {
+			or.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(nil)
 			continue
 		}
 		if e = o.request(or, outBytes); e != nil {
-			or.LogError(e)
+			e = pipeline.NewRetryMessageError(e.Error())
+			pack.Recycle(e)
+		} else {
+			or.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(nil)
 		}
 	}
 

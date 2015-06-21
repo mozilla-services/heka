@@ -19,19 +19,19 @@ RPM based distributions.
 From Source
 ===========
 
-`hekad` requires a Go work environment to be setup for the binary to be
-built; this task is automated by the build process. The build script will
-override the Go environment for the shell window it is executed in. This creates
-an isolated environment that is intended specifically for building and 
-developing Heka.  The build script should be be run every time a new shell is 
-opened for Heka development to ensure the correct dependencies are found and 
-being used. To create a working `hekad` binary for your platform you'll need to
-install some prerequisites. Many of these are standard on modern Unix 
-distributions and all are available for installation on Windows systems.
+`hekad` requires a Go work environment to be setup for the binary to be built;
+this task is automated by the build process. The build script will override the
+Go environment for the shell window it is executed in. This creates an isolated
+environment that is intended specifically for building and developing Heka.
+The build script should be be sourced every time a new shell is opened for Heka
+development to ensure the correct dependencies are found and being used. To
+create a working `hekad` binary for your platform you'll need to install some
+prerequisites. Many of these are standard on modern Unix distributions and all
+are available for installation on Windows systems.
 
 Prerequisites (all systems):
 
-- CMake 2.8.7 or greater http://www.cmake.org/cmake/resources/software.html
+- CMake 3.0.0 or greater http://www.cmake.org/cmake/resources/software.html
 - Git http://git-scm.com/download
 - Go 1.4 or greater http://golang.org/dl/
 - Mercurial http://mercurial.selenic.com/wiki/Download
@@ -63,7 +63,7 @@ Build Instructions
 
         git clone https://github.com/mozilla-services/heka
 
-2. Run `build` in the heka directory
+2. Source (Unix-y) or run (Windows) the build script in the heka directory:
 
     .. code-block:: bash
 
@@ -71,9 +71,9 @@ Build Instructions
         source build.sh # Unix (or `. build.sh`; must be sourced to properly setup the environment)
         build.bat  # Windows
 
-You will now have a `hekad` binary in the `build/heka/bin` directory.
+You will now have a ``hekad`` binary in the ``build/heka/bin`` directory.
 
-3. (Optional) Run the tests to ensure a functioning `hekad`.
+3. (Optional) Run the tests to ensure a functioning `hekad`:
 
     .. code-block:: bash
 
@@ -88,6 +88,32 @@ You will now have a `hekad` binary in the `build/heka/bin` directory.
     providing much greater control over the tests being run and the generated
     output (see ctest --help). i.e., 'ctest -R pi' will only run the pipeline
     unit test.
+
+4. Run ``make install`` to install libs and modules into a usable location:
+
+   .. code-block:: bash
+
+       make install         # Unix
+       mingw32-make install # Windows
+
+   This will install all of Heka's required support libraries, modules, and
+   other files into a usable ``share_dir``, at the following path:
+
+   .. code-block:: bash
+
+       /path/to/heka/repo/heka/share/heka
+
+5. Specify Heka configuration:
+
+   When setting up your Heka configuration, you'll want to make sure you
+   set the global ``share_dir`` setting to point to the path above. The
+   ``[hekad]`` section might look like this:
+
+   .. code-block:: ini
+
+       [hekad]
+       maxprocs = 4
+       share_dir = "/path/to/heka/repo/heka/share/heka"
 
 .. _build_clean:
 

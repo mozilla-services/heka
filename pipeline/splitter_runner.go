@@ -16,12 +16,13 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"io"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/mozilla-services/heka/message"
 )
 
 type WantsSplitterRunner interface {
@@ -241,7 +242,7 @@ func (sr *sRunner) DeliverRecord(record []byte, del Deliverer) {
 	if sr.unframer != nil {
 		unframed = sr.unframer.UnframeRecord(record, pack)
 		if unframed == nil {
-			pack.Recycle()
+			pack.recycle()
 			return
 		}
 	}
@@ -331,6 +332,9 @@ func (sr *sRunner) SplitStream(r io.Reader, del Deliverer) error {
 			}
 		}
 		if len(record) == 0 {
+			if err == nil && sr.needData && !sr.reachedEOF {
+				continue
+			}
 			if sr.incompleteFinal && err == io.EOF {
 				record = sr.GetRemainingData()
 				if len(record) > 0 {

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,18 +16,19 @@ package udp
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/plugins"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/plugins"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func UdpOutputSpec(c gs.Context) {
@@ -54,6 +55,7 @@ func UdpOutputSpec(c gs.Context) {
 		pack.Message = msg
 
 		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+		oth.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 		oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
 
@@ -223,6 +225,7 @@ func UdpOutputSpec(c gs.Context) {
 		huge_pack.Message = huge_msg
 
 		oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+		oth.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 		oth.MockOutputRunner.EXPECT().Encode(huge_pack).Return(encoder.Encode(huge_pack))
 		oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("Message has exceeded allowed UDP data size: 131014 > 65507"))

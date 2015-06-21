@@ -122,9 +122,7 @@ Config:
 
 .. code-block:: none
 
-    host1.stats.loadavg.15MinAvg,Hostname=host1,Environment=DEV value=0.05 1434543747
-    host1.stats.loadavg.5MinAvg,Hostname=host1,Environment=DEV value=0.01 1434543747
-    host1.stats.loadavg.1MinAvg,Hostname=host1,Environment=DEV value=0.0 1434543747
+    {"database":"mydb","retentionPolicy":"","tags":{"Environment":"DEV","Hostname":"my_hostname"}, "points":[{"measurement":"my_hostname.stats.loadavg.5MinAvg","fields":{"value":0.03}},{"measurement":"my_hostname.stats.loadavg.15MinAvg","fields":{"value":0.05}},{"measurement":"my_hostname.stats.loadavg.1MinAvg","fields":{"value":0.01}}],"timestamp":1426439735,"precision":"s"}
 
 --]=]
 

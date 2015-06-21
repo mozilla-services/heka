@@ -16,13 +16,7 @@
 package plugins
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -30,6 +24,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 // Decoder for converting structured/unstructured data into Heka messages.
@@ -307,7 +308,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		}
 		if len(s.packs) > 1 {
 			for _, p := range s.packs[1:] {
-				p.Recycle()
+				p.Recycle(nil)
 			}
 		}
 		s.packs = nil

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,17 +16,18 @@ package http
 
 import (
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
 	ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"sync"
-	"time"
 )
 
 type _test_handler struct {
@@ -108,6 +109,7 @@ func HttpOutputSpec(c gs.Context) {
 
 			oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			oth.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 			payload := "this is the payload"
 			pack.Message.SetPayload(payload)
 			oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(
@@ -203,11 +205,8 @@ func HttpOutputSpec(c gs.Context) {
 				err := httpOutput.Init(config)
 				c.Expect(err, gs.IsNil)
 
-				var errMsg string
-				oth.MockOutputRunner.EXPECT().LogError(gomock.Any()).Do(
-					func(err error) {
-						errMsg = err.Error()
-					})
+				pack.BufferedPack = true
+				pack.DelivErrChan = make(chan error, 1)
 				runWg.Add(1)
 				go runOutput()
 				handleWg.Add(1)
@@ -215,7 +214,8 @@ func HttpOutputSpec(c gs.Context) {
 				close(inChan)
 				handleWg.Wait()
 				runWg.Wait()
-				c.Expect(strings.HasPrefix(errMsg,
+				e := <-pack.DelivErrChan
+				c.Expect(strings.HasPrefix(e.Error(),
 					"HTTP Error code returned: 500"), gs.IsTrue)
 			})
 
@@ -224,11 +224,8 @@ func HttpOutputSpec(c gs.Context) {
 				err := httpOutput.Init(config)
 				c.Expect(err, gs.IsNil)
 
-				var errMsg string
-				oth.MockOutputRunner.EXPECT().LogError(gomock.Any()).Do(
-					func(err error) {
-						errMsg = err.Error()
-					})
+				pack.BufferedPack = true
+				pack.DelivErrChan = make(chan error, 1)
 				delay = true
 				runWg.Add(1)
 				go runOutput()
@@ -237,7 +234,8 @@ func HttpOutputSpec(c gs.Context) {
 				close(inChan)
 				handleWg.Wait()
 				runWg.Wait()
-				c.Expect(strings.Contains(errMsg, "use of closed network connection"),
+				e := <-pack.DelivErrChan
+				c.Expect(strings.Contains(e.Error(), "use of closed network connection"),
 					gs.IsTrue)
 			})
 		})

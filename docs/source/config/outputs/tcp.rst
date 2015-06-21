@@ -22,11 +22,8 @@ Config:
 
 - tls (TlsConfig, optional):
     A sub-section that specifies the settings to be used for any SSL/TLS
-    encryption. This will only have any impact if `use_tls` is set to true.
+    encryption. This will only have any impact if ``use_tls`` is set to true.
     See :ref:`tls`.
-- ticker_interval (uint, optional):
-    Specifies how often, in seconds, the output queue files are rolled.
-    Defaults to 300.
 
 .. versionadded:: 0.6
 
@@ -49,22 +46,15 @@ Config:
     Time duration in seconds that a TCP connection will be maintained before
     keepalive probes start being sent. Defaults to 7200 (i.e. 2 hours).
 
-.. versionadded:: 0.9
+.. versionadded:: 0.10
 
-- queue_max_buffer_size (uint64):
-    Defines maximum queue buffer size, in bytes. Defaults to 0, which means no
-    max.
-- queue_full_action (string, optional):
-    Specifies how Heka should behave when the queue reaches the specified
-    maximum capacity. There are currently three possible actions:
-
-      - `shutdown`: Shutdowns heka.
-      - `drop`: Messages are dropped until queue is available again. Already queued
-                messages are unaffected.
-      - `block`: Blocks processing of messages, tries to push last message
-                 until its possible.
-
-    Defaults to `shutdown`.
+- use_buffering (bool, optional):
+    Buffer records to a disk-backed buffer on the Heka server before sending
+    them out over the TCP connection. Defaults to true.
+- buffering (QueueBufferConfig, optional):
+    All of the :ref:`buffering <buffering>` config options are set to the
+    standard default options, except for `cursor_update_count`, which is set to
+    50 instead of the standard default of 1.
 
 Example:
 
@@ -74,4 +64,4 @@ Example:
     type = "TcpOutput"
     address = "heka-aggregator.mydomain.com:55"
     local_address = "127.0.0.1"
-    message_matcher = "Type != 'logfile' && Type != 'heka.counter-output' && Type != 'heka.all-report'"
+    message_matcher = "Type != 'logfile' && Type !~ /^heka\./'"

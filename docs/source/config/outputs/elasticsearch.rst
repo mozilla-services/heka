@@ -50,23 +50,12 @@ Config:
     An optional sub-section that specifies the settings to be used for any
     SSL/TLS encryption. This will only have any impact if `URL` uses the
     `HTTPS` URI scheme. See :ref:`tls`.
-- use_buffering: (bool, optional):
-    Buffer records to a disk-backed buffer on the Heka server before writing them to ElasticSearch.
-    Defaults to true.
-- queue_max_buffer_size (uint64, optional):
-    Defines maximum queue buffer size, in bytes. Defaults to 0, which means no
-    max.
-- queue_full_action (string, optional):
-    Specifies how Heka should behave when the queue reaches the specified
-    maximum capacity. There are currently three possible actions:
-
-        - `shutdown` - Shuts down Heka.
-        - `drop` - New messages are dropped until queue is available again.
-          Already queued messages are unaffected.
-        - `block` - Blocks processing of messages, tries to push last message
-          until its possible.
-
-    Defaults to `shutdown`.
+- use_buffering (bool, optional):
+    Buffer records to a disk-backed buffer on the Heka server before writing
+    them to ElasticSearch.  Defaults to true.
+- buffering (QueueBufferConfig, optional):
+    All of the :ref:`buffering <buffering>` config options are set to the
+    standard default options.
 
 Example:
 

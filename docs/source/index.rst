@@ -161,7 +161,9 @@ Contents:
 .. toctree::
    :hidden:
 
+   buffering
    changelog
+   developing/old_apis
    glossary
    sandbox/graph_annotation
    sandbox/json_payload_transform

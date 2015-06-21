@@ -7,3 +7,4 @@ pipeline/mock_*.go
 var/
 *.sw?
 externals
+*~
