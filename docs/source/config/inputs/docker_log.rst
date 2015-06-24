@@ -49,6 +49,8 @@ Config:
 - name_from_env_var (string, optional):
     Overwrite the ContainerName with this environment variable on the Container
     if exists. If left empty the container name will still be used.
+- fields_from_env (array[string], optional):
+    A list of environment variables to extract from the container and add as fields.
 
 Example:
 
@@ -65,3 +67,4 @@ Example:
 
    [DockerLogInput]
    decoder = "nginx_log_decoder"
+   fields_from_env = [ "MESOS_TASK_ID" ]
