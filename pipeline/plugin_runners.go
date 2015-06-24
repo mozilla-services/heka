@@ -992,13 +992,11 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	newStyleAPI := false
 	switch foRunner.kind {
 	case foFilter:
-		if f, ok := foRunner.plugin.(Filter); ok {
-			f.Prepare(foRunner, h)
+		if _, ok := foRunner.plugin.(Filter); ok {
 			newStyleAPI = true
 		}
 	case foOutput:
-		if o, ok := foRunner.plugin.(Output); ok {
-			o.Prepare(foRunner, h)
+		if _, ok := foRunner.plugin.(Output); ok {
 			newStyleAPI = true
 		}
 	}
@@ -1129,6 +1127,38 @@ func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 	}
 
 	defer foRunner.exit()
+
+	// Initial Prepare loop.
+	resetNeeded := false
+	for {
+		switch foRunner.kind {
+		case foFilter:
+			f := foRunner.plugin.(Filter)
+			err = f.Prepare(foRunner, h)
+		case foOutput:
+			o := foRunner.plugin.(Output)
+			err = o.Prepare(foRunner, h)
+		}
+
+		if err == nil {
+			if resetNeeded {
+				rh.Reset()
+			}
+			break
+		}
+
+		// Prepare returned an error. Log the error and try again.
+		foRunner.LogError(err)
+		resetNeeded = true
+		if e := rh.Wait(); e != nil {
+			// No more retries.
+			foRunner.lastErr = err
+			if !foRunner.IsStoppable() {
+				globals.ShutDown()
+			}
+			return
+		}
+	}
 
 	for !globals.IsShuttingDown() {
 		if foRunner.useBuffering {

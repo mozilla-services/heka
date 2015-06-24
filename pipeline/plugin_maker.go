@@ -426,9 +426,6 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 			return nil, err
 		}
 	}
-	if m.name == "ElasticSearchOutput" {
-		fmt.Println("commonFO.Buffering: ", commonFO.Buffering)
-	}
 	if commonFO.Buffering == nil {
 		bufConfig := getAttr(config, "Buffering", &QueueBufferConfig{})
 		switch c := bufConfig.(type) {
