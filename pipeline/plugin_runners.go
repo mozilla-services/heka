@@ -1149,6 +1149,11 @@ func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 
 		// Prepare returned an error. Log the error and try again.
 		foRunner.LogError(err)
+		if globals.IsShuttingDown() {
+			foRunner.lastErr = err
+			return
+		}
+
 		resetNeeded = true
 		if e := rh.Wait(); e != nil {
 			// No more retries.
