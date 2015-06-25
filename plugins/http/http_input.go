@@ -18,15 +18,16 @@
 package http
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type ResponseData struct {
@@ -39,14 +40,15 @@ type ResponseData struct {
 }
 
 type HttpInput struct {
-	name       string
-	urls       []string
-	stopChan   chan bool
-	conf       *HttpInputConfig
-	ir         InputRunner
-	sRunners   []SplitterRunner
-	hostname   string
-	packSupply chan *PipelinePack
+	name            string
+	urls            []string
+	stopChan        chan bool
+	conf            *HttpInputConfig
+	ir              InputRunner
+	sRunners        []SplitterRunner
+	hostname        string
+	packSupply      chan *PipelinePack
+	customUserAgent bool
 }
 
 // Http Input config struct
@@ -96,6 +98,16 @@ func (hi *HttpInput) Init(config interface{}) error {
 		hi.urls = []string{hi.conf.Url}
 	}
 	hi.stopChan = make(chan bool)
+
+	// Check to see if a custom user-agent is in use.
+	h := make(http.Header)
+	for key, value := range hi.conf.Headers {
+		h.Add(key, value)
+	}
+	if h.Get("User-Agent") != "" {
+		hi.customUserAgent = true
+	}
+
 	return nil
 }
 
@@ -141,9 +153,11 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		req.SetBasicAuth(hi.conf.User, hi.conf.Password)
 	}
 	// Request headers
-	req.Header.Add("User-Agent", "Heka")
 	for key, value := range hi.conf.Headers {
 		req.Header.Add(key, value)
+	}
+	if !hi.customUserAgent {
+		req.Header.Add("User-Agent", "Heka")
 	}
 	resp, err := httpClient.Do(req)
 	responseTime := time.Since(responseTimeStart)

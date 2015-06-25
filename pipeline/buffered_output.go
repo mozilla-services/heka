@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -46,6 +47,8 @@ type BufferedOutput struct {
 	outBytes           []byte
 	maxQueueSize       uint64
 	queueSize          uint64
+	queueWasFull       bool
+	queueFullRollGuard sync.Once
 }
 
 type BufferedOutputSender interface {
@@ -98,7 +101,19 @@ func (b *BufferedOutput) QueueBytes(msgBytes []byte) (err error) {
 
 	if b.maxQueueSize > 0 && (b.queueSize+uint64(len(msgBytes))) > b.maxQueueSize {
 		err = QueueIsFull
+		b.queueWasFull = true
+		b.queueFullRollGuard.Do(func() {
+			e := b.RollQueue()
+			if e != nil {
+				b.or.LogError(fmt.Errorf("queue full, can't roll queue: %s", e))
+			}
+		})
 		return
+	}
+
+	if b.queueWasFull {
+		b.queueWasFull = false
+		b.queueFullRollGuard = sync.Once{}
 	}
 
 	// If framing isn't already in place then we need to add it.
@@ -215,8 +230,8 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 	}
 
 	rh, _ := NewRetryHelper(RetryOptions{
-		MaxDelay:   "10s",
-		Delay:      "1s",
+		MaxDelay:   "2s",
+		Delay:      "250ms",
 		MaxRetries: -1,
 	})
 
@@ -256,7 +271,7 @@ func (b *BufferedOutput) streamOutput(sender BufferedOutputSender, outputError,
 						break
 					}
 				} else {
-					time.Sleep(time.Duration(500) * time.Millisecond)
+					time.Sleep(time.Duration(250) * time.Millisecond)
 				}
 			} else {
 				break

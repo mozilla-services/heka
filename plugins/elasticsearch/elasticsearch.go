@@ -56,6 +56,7 @@ type ElasticSearchOutput struct {
 	pConfig             *PipelineConfig
 	reportLock          sync.Mutex
 	outputExit          chan error
+	outputError         chan error
 }
 
 // ConfigStruct for ElasticSearchOutput plugin.
@@ -167,8 +168,11 @@ func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch
 		err := o.bufferedOut.QueueBytes(outBatch)
 		if err == nil {
 			atomic.AddInt64(&o.processMessageCount, count)
-		} else if err == QueueIsFull && !o.queueFull(outBatch, count) {
-			o.outputExit <- err
+		} else if err == QueueIsFull {
+			o.or.LogError(err)
+			if !o.queueFull(outBatch, count) {
+				return nil // Signals we're shutting down.
+			}
 		} else if err != nil {
 			o.or.LogError(err)
 			atomic.AddInt64(&o.dropMessageCount, count)
@@ -189,17 +193,18 @@ func (o *ElasticSearchOutput) sendBatch(outBatch []byte, count int64) (nextBatch
 
 func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
-		ok          = true
-		pack        *PipelinePack
-		inChan      = or.InChan()
-		count       int64
-		e           error
-		outBytes    []byte
-		outputError = make(chan error, 5)
-		stopChan    = make(chan bool, 1)
-		outBatch    = make([]byte, 0, 10000)
-		ticker      = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
+		ok       = true
+		pack     *PipelinePack
+		inChan   = or.InChan()
+		count    int64
+		e        error
+		outBytes []byte
+		stopChan = make(chan bool, 1)
+		outBatch = make([]byte, 0, 10000)
+		ticker   = time.Tick(time.Duration(o.conf.FlushInterval) * time.Millisecond)
 	)
+
+	o.outputError = make(chan error, 5)
 
 	if or.Encoder() == nil {
 		return errors.New("Encoder must be specified.")
@@ -229,14 +234,14 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				return
 			}
 		}
-		o.bufferedOut.Start(o, outputError, o.outputExit, stopChan)
+		o.bufferedOut.Start(o, o.outputError, o.outputExit, stopChan)
 	} else {
 		go o.committer()
 	}
 
 	for ok {
 		select {
-		case e := <-outputError:
+		case e := <-o.outputError:
 			or.LogError(e)
 		case pack, ok = <-inChan:
 			// Closed inChan => we're shutting down, flush data.
@@ -248,6 +253,12 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					close(o.batchChan)
 				}
 				stopChan <- true
+				// Make sure buffer isn't blocked on sending to outputError
+				select {
+				case e := <-o.outputError:
+					or.LogError(e)
+				default:
+				}
 				<-o.outputExit
 				break
 			}
@@ -265,6 +276,10 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				if count++; o.bulkIndexer.CheckFlush(int(count), len(outBatch)) {
 					if len(outBatch) > 0 {
 						outBatch = o.sendBatch(outBatch, count)
+						if outBatch == nil {
+							ok = false
+							break
+						}
 					}
 					count = 0
 				}
@@ -278,6 +293,10 @@ func (o *ElasticSearchOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 					}
 				}
 				outBatch = o.sendBatch(outBatch, count)
+				if outBatch == nil {
+					ok = false
+					break
+				}
 			}
 			count = 0
 		case err = <-o.outputExit:
@@ -311,10 +330,20 @@ func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
 	switch o.conf.QueueFullAction {
 	// Tries to queue message until its possible to send it to output.
 	case "block":
-		for o.outputBlock.Wait() == nil && !o.pConfig.Globals.IsShuttingDown() {
-			if blockErr := o.bufferedOut.QueueBytes(buffer); blockErr == nil {
+		for o.outputBlock.Wait() == nil {
+			if o.pConfig.Globals.IsShuttingDown() {
+				return false
+			}
+			blockErr := o.bufferedOut.QueueBytes(buffer)
+			if blockErr == nil {
 				atomic.AddInt64(&o.processMessageCount, count)
+				o.outputBlock.Reset()
 				break
+			}
+			select {
+			case e := <-o.outputError:
+				o.or.LogError(e)
+			default:
 			}
 			runtime.Gosched()
 		}
@@ -331,7 +360,15 @@ func (o *ElasticSearchOutput) queueFull(buffer []byte, count int64) bool {
 }
 
 func (o *ElasticSearchOutput) SendRecord(buffer []byte) (err error) {
-	return o.bulkIndexer.Index(buffer)
+	var retry bool
+	err, retry = o.bulkIndexer.Index(buffer)
+	if err != nil {
+		if retry {
+			return err
+		}
+		o.or.LogError(fmt.Errorf("can't index: %s", err))
+	}
+	return nil
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide plugin state
@@ -354,7 +391,7 @@ func (o *ElasticSearchOutput) ReportMsg(msg *message.Message) error {
 // A BulkIndexer is used to index documents in ElasticSearch
 type BulkIndexer interface {
 	// Index documents
-	Index(body []byte) error
+	Index(body []byte) (err error, retry bool)
 	// Check if a flush is needed
 	CheckFlush(count int, length int) bool
 }
@@ -409,7 +446,7 @@ func (h *HttpBulkIndexer) CheckFlush(count int, length int) bool {
 	return false
 }
 
-func (h *HttpBulkIndexer) Index(body []byte) error {
+func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 	var response_body []byte
 	var response_body_json map[string]interface{}
 
@@ -418,7 +455,7 @@ func (h *HttpBulkIndexer) Index(body []byte) error {
 	// Creating ElasticSearch Bulk HTTP request
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("Can't create bulk request: %s", err.Error())
+		return fmt.Errorf("Can't create bulk request: %s", err.Error()), true
 	}
 	request.Header.Add("Accept", "application/json")
 	if h.username != "" && h.password != "" {
@@ -433,31 +470,31 @@ func (h *HttpBulkIndexer) Index(body []byte) error {
 			(strings.Contains(err.Error(), "use of closed network connection")) {
 
 			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s",
-				request_time.String())
+				request_time.String()), true
 		} else {
-			return fmt.Errorf("HTTP request failed: %s", err.Error())
+			return fmt.Errorf("HTTP request failed: %s", err.Error()), true
 		}
 	}
 	if response != nil {
 		defer response.Body.Close()
 		if response.StatusCode > 304 {
-			return fmt.Errorf("HTTP response error status: %s", response.Status)
+			return fmt.Errorf("HTTP response error status: %s", response.Status), false
 		}
 		if response_body, err = ioutil.ReadAll(response.Body); err != nil {
-			return fmt.Errorf("Can't read HTTP response body: %s", err.Error())
+			return fmt.Errorf("Can't read HTTP response body: %s", err.Error()), true
 		}
 		err = json.Unmarshal(response_body, &response_body_json)
 		if err != nil {
 			return fmt.Errorf("HTTP response didn't contain valid JSON. Body: %s",
-				string(response_body))
+				string(response_body)), true
 		}
 		json_errors, ok := response_body_json["errors"].(bool)
 		if ok && json_errors {
 			return fmt.Errorf("ElasticSearch server reported error within JSON: %s",
-				string(response_body))
+				string(response_body)), false
 		}
 	}
-	return nil
+	return nil, false
 }
 
 // A UDPBulkIndexer uses the Bulk UDP Api of ElasticSearch
@@ -488,26 +525,25 @@ func (u *UDPBulkIndexer) CheckFlush(count int, length int) bool {
 	return false
 }
 
-func (u *UDPBulkIndexer) Index(body []byte) error {
-	var err error
+func (u *UDPBulkIndexer) Index(body []byte) (err error, retry bool) {
 	if u.address == nil {
 		if u.address, err = net.ResolveUDPAddr("udp", u.Domain); err != nil {
-			return fmt.Errorf("Error resolving UDP address [%s]: %s", u.Domain, err)
+			return fmt.Errorf("Error resolving UDP address [%s]: %s", u.Domain, err), true
 		}
 	}
 	if u.client == nil {
 		if u.client, err = net.DialUDP("udp", nil, u.address); err != nil {
-			return fmt.Errorf("Error creating UDP client: %s", err)
+			return fmt.Errorf("Error creating UDP client: %s", err), true
 		}
 	}
 	if u.address != nil {
 		if _, err = u.client.Write(body[:]); err != nil {
-			return fmt.Errorf("Error writing data to UDP server: %s", err)
+			return fmt.Errorf("Error writing data to UDP server: %s", err), true
 		}
 	} else {
-		return fmt.Errorf("Error writing data to UDP server, address not found")
+		return fmt.Errorf("Error writing data to UDP server, address not found"), true
 	}
-	return nil
+	return nil, false
 }
 
 func init() {
