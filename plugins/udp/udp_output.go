@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,9 +17,10 @@ package udp
 import (
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/pipeline"
 	"net"
 	"runtime"
+
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 // This is our plugin struct.
@@ -48,7 +49,7 @@ func (o *UdpOutput) ConfigStruct() interface{} {
 	return &UdpOutputConfig{
 		Net: "udp",
 
-		// Defines maximum size of udp data for IPv4
+		// Defines maximum size of udp data for IPv4.
 		MaxMessageSize: 65507,
 	}
 }
@@ -116,16 +117,24 @@ func (o *UdpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err 
 
 	for pack := range or.InChan() {
 		if outBytes, e = or.Encode(pack); e != nil {
-			or.LogError(fmt.Errorf("Error encoding message: %s", e.Error()))
+			or.UpdateCursor(pack.QueueCursor)
+			e = fmt.Errorf("Error encoding message: %s", e.Error())
+			pack.Recycle(e)
+			continue
 		} else if outBytes != nil {
 			msgSize := len(outBytes)
 			if msgSize > o.UdpOutputConfig.MaxMessageSize {
-				or.LogError(fmt.Errorf("Message has exceeded allowed UDP data size: %d > %d", msgSize, o.UdpOutputConfig.MaxMessageSize))
+				or.UpdateCursor(pack.QueueCursor)
+				e = fmt.Errorf("Message has exceeded allowed UDP data size: %d > %d",
+					msgSize, o.UdpOutputConfig.MaxMessageSize)
+				pack.Recycle(e)
+				continue
 			} else {
 				o.conn.Write(outBytes)
 			}
 		}
-		pack.Recycle()
+		or.UpdateCursor(pack.QueueCursor)
+		pack.Recycle(nil)
 	}
 	return
 }

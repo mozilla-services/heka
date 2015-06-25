@@ -18,9 +18,10 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"sync"
+
+	"code.google.com/p/gogoprotobuf/proto"
 
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -177,7 +178,7 @@ func InputRunnerSpec(c gs.Context) {
 				// Tests if decoder was removed safely
 				c.Expect(len(pConfig.allSyncDecoders), gs.Equals, 0)
 
-				pack.Recycle()
+				pack.Recycle(nil)
 				input.Stop()
 				wg.Wait()
 			})
@@ -195,7 +196,7 @@ func InputRunnerSpec(c gs.Context) {
 				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
 				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
 
-				pack.Recycle() // Put it back so input.Flush() can use it again.
+				pack.Recycle(nil) // Put it back so input.Flush() can use it again.
 				input.Stop()
 				wg.Wait()
 			})
@@ -226,7 +227,7 @@ func InputRunnerSpec(c gs.Context) {
 				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
 				close(d.dRunner.InChan())
 
-				pack.Recycle()
+				pack.Recycle(nil)
 				input.Stop()
 				wg.Wait()
 			})
@@ -255,7 +256,7 @@ func InputRunnerSpec(c gs.Context) {
 					c.Expect(pack.TrustMsgBytes, gs.IsTrue)
 					c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
 
-					pack.Recycle()
+					pack.Recycle(nil)
 					input.Stop()
 					wg.Wait()
 				})
@@ -269,7 +270,7 @@ func InputRunnerSpec(c gs.Context) {
 					f := pack.Message.FindFirstField("decode_failure")
 					c.Expect(f, gs.Not(gs.IsNil))
 					c.Expect(f.GetValue().(bool), gs.IsTrue)
-					pack.Recycle()
+					pack.Recycle(nil)
 					input.Stop()
 					wg.Wait()
 				})

@@ -16,6 +16,10 @@
 package amqp
 
 import (
+	"sync"
+	"testing"
+	"time"
+
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -27,9 +31,6 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -214,6 +215,8 @@ func AMQPPluginSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
+		pack.QueueCursor = "queuecursor"
+		oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 		c.Specify("publishes a plain message", func() {
 			encoder := new(plugins.PayloadEncoder)

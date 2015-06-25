@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,15 +16,16 @@ package graphite
 
 import (
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins"
-	"github.com/rafrombrc/whisper-go/whisper"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins"
+	"github.com/rafrombrc/whisper-go/whisper"
 )
 
 // WhisperRunners listen for *whisper.Point data values to come in on an input
@@ -212,7 +213,8 @@ func (o *WhisperOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	for pack = range or.InChan() {
 		lines := strings.Split(strings.Trim(pack.Message.GetPayload(), " \n"), "\n")
-		pack.Recycle() // Once we've copied the payload we're done w/ the pack.
+		or.UpdateCursor(pack.QueueCursor)
+		pack.Recycle(nil) // Once we've copied the payload we're done w/ the pack.
 		for _, line := range lines {
 			// `fields` should be "<name> <value> <timestamp>"
 			fields = strings.Fields(line)

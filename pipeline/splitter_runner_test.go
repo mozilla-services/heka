@@ -18,13 +18,14 @@ package pipeline
 
 import (
 	"bytes"
+	"io"
+	"io/ioutil"
+	"path/filepath"
+
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"io/ioutil"
-	"path/filepath"
 )
 
 // Dummy reader that will return some data along with the EOF error.
@@ -136,7 +137,7 @@ func SplitterRunnerSpec(c gs.Context) {
 			ir.EXPECT().InChan().Times(numRecs).Return(recycleChan)
 			delCall := ir.EXPECT().Deliver(pack).Times(numRecs)
 			delCall.Do(func(pack *PipelinePack) {
-				pack.Recycle()
+				pack.Recycle(nil)
 			})
 
 			for err == nil {
@@ -313,7 +314,7 @@ func SplitterRunnerSpec(c gs.Context) {
 					c.Expect(pack.Message.GetPayload(), gs.Equals,
 						string(rExpected[:len(rExpected)-1]))
 				}
-				pack.Recycle()
+				pack.Recycle(nil)
 			})
 			c.Specify("via SplitStream", func() {
 				for err == nil {
