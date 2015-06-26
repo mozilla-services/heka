@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,6 +17,11 @@ package nagios
 import (
 	"bufio"
 	"fmt"
+	"github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 	"net"
 	"net/http"
 	"os"
@@ -25,12 +30,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -73,7 +72,6 @@ func NagiosOutputSpec(c gs.Context) {
 
 		run := func() {
 			mockOutputRunner.EXPECT().InChan().Return(inChan)
-			mockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 			output.Run(mockOutputRunner, mockHelper)
 			outputWg.Done()
 		}

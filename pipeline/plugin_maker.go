@@ -421,24 +421,6 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 		}
 	}
 
-	if commonFO.UseBuffering == nil {
-		if commonFO.UseBuffering, err = getDefaultBool(config, "UseBuffering"); err != nil {
-			return nil, err
-		}
-	}
-	if commonFO.Buffering == nil {
-		bufConfig := getAttr(config, "Buffering", &QueueBufferConfig{})
-		switch c := bufConfig.(type) {
-		case *QueueBufferConfig:
-			commonFO.Buffering = c
-		case QueueBufferConfig:
-			commonFO.Buffering = &c
-		default:
-			msg := "'Buffering' attribute must be of type QueueBufferConfig or *QueueBufferConfig"
-			return nil, errors.New(msg)
-		}
-	}
-
 	if m.category == "Output" {
 		if commonFO.UseFraming == nil {
 			if commonFO.UseFraming, err = getDefaultBool(config, "UseFraming"); err != nil {

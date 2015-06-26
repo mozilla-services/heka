@@ -16,13 +16,12 @@
 package pipeline
 
 import (
+	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"io"
 	"time"
-
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/mozilla-services/heka/message"
 )
 
 type WantsSplitterRunner interface {
@@ -242,7 +241,7 @@ func (sr *sRunner) DeliverRecord(record []byte, del Deliverer) {
 	if sr.unframer != nil {
 		unframed = sr.unframer.UnframeRecord(record, pack)
 		if unframed == nil {
-			pack.recycle()
+			pack.Recycle()
 			return
 		}
 	}

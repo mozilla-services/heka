@@ -17,16 +17,15 @@ package logstreamer
 import (
 	"errors"
 	"fmt"
+	ls "github.com/mozilla-services/heka/logstreamer"
+	"github.com/mozilla-services/heka/message"
+	p "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
-
-	ls "github.com/mozilla-services/heka/logstreamer"
-	"github.com/mozilla-services/heka/message"
-	p "github.com/mozilla-services/heka/pipeline"
 )
 
 type LogstreamerInputConfig struct {

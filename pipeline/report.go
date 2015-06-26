@@ -18,11 +18,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
 	"runtime"
 	"strings"
 	"sync/atomic"
-
-	"github.com/mozilla-services/heka/message"
 )
 
 // Interface for Heka plugins that will provide reporting data. Plugins can
@@ -259,7 +258,7 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 		}
 
 		data[key] = append(data[key], pData)
-		pack.recycle()
+		pack.Recycle()
 	}
 	buffer := new(bytes.Buffer)
 	enc := json.NewEncoder(buffer)

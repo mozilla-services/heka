@@ -158,14 +158,6 @@ type PipelinePack struct {
 	// decoder that leaves the pack with a valid protobuf encoding of the
 	// message stored in pack.MsgBytes.
 	TrustMsgBytes bool
-	// Used to store the queue buffer cursor position that a given queue
-	// should be set to after the successful consumption of this message.
-	QueueCursor string
-	// Used internally to differentiate packs that are owned by a buffered
-	// plugin from those that are in circulation for the router.
-	BufferedPack bool
-	// Used to send delivery result error back to the buffered plugin.
-	DelivErrChan chan error
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the
@@ -194,32 +186,19 @@ func (p *PipelinePack) Zero() {
 	p.Signer = ""
 	p.diagnostics.Reset()
 	p.TrustMsgBytes = false
-	if p.BufferedPack {
-		p.QueueCursor = ""
-	}
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	p.Message = new(message.Message)
 }
 
-func (p *PipelinePack) recycle() {
+// Recycle decrements the ref count and, if ref count == zero, zeroes the pack
+// and put it on the appropriate recycle channel.
+func (p *PipelinePack) Recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
 		p.RecycleChan <- p
-	}
-}
-
-// Recycle checks if the pack is buffered and, if so, drops the returned error
-// on the delivery error channel. If not, it decrements the ref count and, if
-// ref count == zero, zeroes the pack and put it on the appropriate recycle
-// channel.
-func (p *PipelinePack) Recycle(delivErr error) {
-	if p.BufferedPack {
-		p.DelivErrChan <- delivErr
-	} else {
-		p.recycle()
 	}
 }
 

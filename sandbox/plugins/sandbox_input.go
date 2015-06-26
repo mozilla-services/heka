@@ -15,20 +15,19 @@
 package plugins
 
 import (
+	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 // Heka Input plugin that acts as a wrapper for sandboxed input scripts.
@@ -105,7 +104,7 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		pack := <-ir.InChan()
 		if err := proto.Unmarshal([]byte(payload), pack.Message); err != nil {
-			pack.Recycle(nil)
+			pack.Recycle()
 			return 1
 		}
 		if s.tz != time.UTC {
