@@ -370,13 +370,15 @@ SplitterRunner interface has a number of methods::
         KeepTruncated() bool
         UseMsgBytes() bool
         SetPackDecorator(decorator func(*PipelinePack))
+        Done()
     }
 
 Don't let this scare you, however. SplitterRunner's expose some internal
 workings to be able to support advanced uses, but in most cases you only need
 to deal with a few of the exposed methods. Specifically, you care about either
-``SplitStream`` or ``SplitBytes``, and possibly about ``SetPackDecorator`` and
-``UseMsgBytes``.
+``SplitStream`` or ``SplitBytes``, possibly about ``SetPackDecorator`` and
+``UseMsgBytes``, and you need to call ``Done`` when the Splitter is no longer
+needed.
 
 First we'll examine the "Split" methods. As mentioned above, you'll typically
 only want to use one or the other. Deciding which you want is straightforward.
@@ -395,12 +397,15 @@ goroutine to have its own Decoder, so decoding can happen in parallel,
 delegated to multiple cores on a single machine.
 
 Like SplitterRunners, Deliverers are obtained from the InputRunner, using the
-``NewDeliverer`` method. And, like SplitterRunners, NewDeliverer takes a
-single string identifier argument, which should be unique for each requested
+``NewDeliverer`` method. And, like SplitterRunners, NewDeliverer takes a single
+string identifier argument, which should be unique for each requested
 deliverer. Usually a single SplitterRunner will be using a single Deliverer,
 and the same token identifier will be used for each. You can see an example of
 this in the TcpInput's `handleConnection` code snippet a bit further down this
-page.
+page. It's also important to keep in mind that both SplitterRunners and
+Deliverers expose a ``Done`` method that should be called by the input plugin's
+code whenever the resource is no longer being used so Heka can free it up
+appropriately.
 
 If you're using SplitBytes, then you'll want to call it each time you have a
 new payload of data to process. It will return the number of bytes
@@ -447,6 +452,7 @@ uses this feature looks like so::
             conn.Close()
             t.wg.Done()
             deliverer.Done()
+            sr.Done()
         }()
 
         if !sr.UseMsgBytes() {

@@ -17,15 +17,16 @@ package logstreamer
 import (
 	"errors"
 	"fmt"
-	ls "github.com/mozilla-services/heka/logstreamer"
-	"github.com/mozilla-services/heka/message"
-	p "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	ls "github.com/mozilla-services/heka/logstreamer"
+	"github.com/mozilla-services/heka/message"
+	p "github.com/mozilla-services/heka/pipeline"
 )
 
 type LogstreamerInputConfig struct {
@@ -329,6 +330,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	}
 	close(lsi.stopped)
 	deliverer.Done()
+	sRunner.Done()
 }
 
 func (lsi *LogstreamInput) deliverRecords() (err error) {

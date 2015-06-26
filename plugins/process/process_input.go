@@ -18,8 +18,6 @@ package process
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
 	"os/exec"
@@ -28,6 +26,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type cmdConfig struct {
@@ -216,13 +217,19 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	if pi.parseStdout {
 		pi.ccDone["stdout"] = make(chan bool, 1)
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
-		defer pi.stdoutDeliverer.Done()
+		defer func() {
+			pi.stdoutDeliverer.Done()
+			pi.stdoutSRunner.Done()
+		}()
 	}
 
 	if pi.parseStderr {
 		pi.ccDone["stderr"] = make(chan bool, 1)
 		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
-		defer pi.stderrDeliverer.Done()
+		defer func() {
+			pi.stderrDeliverer.Done()
+			pi.stderrSRunner.Done()
+		}()
 	}
 
 	// Start the output parser and start running commands.

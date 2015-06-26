@@ -13,10 +13,13 @@ Backwards Incompatibilities
 * Implemented stftime format codes in: filenames in FileOutput plugin,
   ESJsonEncoder, ESLogstashV0Encoder, Payload encoder (#1469, #1508).
 
-* The package created by 'make deb' creates an "heka" user and ships an init script
-  and a systemd unit.
+* The package created by 'make deb' creates an "heka" user and ships an init
+  script and a systemd unit.
 
 * The 'make deb' target requires fakeroot and debhelper to be installed.
+
+* SplitterRunner interface now provides a `Done` method that should be called
+  whenever the splitter is no longer needed.
 
 Features
 --------
