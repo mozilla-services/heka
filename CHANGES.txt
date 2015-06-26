@@ -24,6 +24,9 @@ Backwards Incompatibilities
 
 * The 'make deb' target requires fakeroot and debhelper to be installed.
 
+* SplitterRunner interface now provides a `Done` method that should be called
+  whenever the splitter is no longer needed.
+
 Features
 --------
 

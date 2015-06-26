@@ -17,13 +17,14 @@ package udp
 import (
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+
+	. "github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 // Input plugin implementation that listens for Heka protocol messages on a
@@ -110,6 +111,7 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 
 func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 	sr := ir.NewSplitterRunner("")
+	defer sr.Done()
 	ok := true
 	var err error
 

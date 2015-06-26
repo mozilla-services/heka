@@ -16,6 +16,11 @@
 package udp
 
 import (
+	"io/ioutil"
+	"net"
+	"path/filepath"
+	"runtime"
+
 	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -24,10 +29,6 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io/ioutil"
-	"net"
-	"path/filepath"
-	"runtime"
 )
 
 func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
@@ -70,6 +71,7 @@ func UdpInputSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().Name().Return("mock_name")
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+		ith.MockSplitterRunner.EXPECT().Done().AnyTimes()
 		ith.MockSplitterRunner.EXPECT().GetRemainingData().AnyTimes()
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 		ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())

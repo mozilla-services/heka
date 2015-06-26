@@ -17,18 +17,19 @@ package file
 
 import (
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func FilePollingInputSpec(c gs.Context) {
@@ -82,6 +83,7 @@ func FilePollingInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			ith.MockSplitterRunner.EXPECT().Done()
 			splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
 				nil).Return(io.EOF).Times(2)
 			splitCall.Do(func(f *os.File, del Deliverer) {
