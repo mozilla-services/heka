@@ -16,13 +16,6 @@
 package logstreamer
 
 import (
-	ls "github.com/mozilla-services/heka/logstreamer"
-	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
 	"io/ioutil"
 	"os"
@@ -30,6 +23,14 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	ls "github.com/mozilla-services/heka/logstreamer"
+	. "github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -121,6 +122,7 @@ func LogstreamerInputSpec(c gs.Context) {
 				ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 				ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false)
 				ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+				ith.MockSplitterRunner.EXPECT().Done()
 
 				getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(
 					gomock.Any()).Times(numLines)

@@ -16,6 +16,10 @@
 package amqp
 
 import (
+	"sync"
+	"testing"
+	"time"
+
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -27,9 +31,6 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -121,6 +122,7 @@ func AMQPPluginSpec(c gs.Context) {
 			})
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			ith.MockSplitterRunner.EXPECT().Done()
 			go func() {
 				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				errChan <- err
@@ -171,6 +173,7 @@ func AMQPPluginSpec(c gs.Context) {
 				bytesChan <- recd
 			})
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(true)
+			ith.MockSplitterRunner.EXPECT().Done()
 			go func() {
 				err := amqpInput.Run(ith.MockInputRunner, ith.MockHelper)
 				errChan <- err

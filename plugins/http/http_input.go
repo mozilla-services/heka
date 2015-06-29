@@ -202,6 +202,12 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		hi.sRunners[i] = ir.NewSplitterRunner(token)
 	}
 
+	defer func() {
+		for _, sRunner := range hi.sRunners {
+			sRunner.Done()
+		}
+	}()
+
 	ticker := ir.Ticker()
 	for {
 		select {

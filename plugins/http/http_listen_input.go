@@ -20,13 +20,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"net"
 	"net/http"
 	"os"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/plugins/tcp"
 )
 
 type HttpListenInput struct {
@@ -47,10 +48,10 @@ type HttpListenInputConfig struct {
 	Address        string
 	Headers        http.Header
 	RequestHeaders []string `toml:"request_headers"`
-	AuthType       string `toml:"auth_type"`
-	Username       string `toml:"username"`
-	Password       string `toml:"password"`
-	Key            string `toml:"api_key"`
+	AuthType       string   `toml:"auth_type"`
+	Username       string   `toml:"username"`
+	Password       string   `toml:"password"`
+	Key            string   `toml:"api_key"`
 	// Set to true if the TCP connection should be tunneled through TLS.
 	// Requires additional Tls config section.
 	UseTls bool `toml:"use_tls"`
@@ -80,7 +81,7 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 
 	if hli.conf.UseTls {
 		if err = hli.setupTls(&hli.conf.Tls); err != nil {
-		return err
+			return err
 		}
 	}
 
@@ -201,6 +202,7 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		if err != nil && err != io.EOF {
 			hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
 		}
+		sRunner.Done()
 	}
 }
 
