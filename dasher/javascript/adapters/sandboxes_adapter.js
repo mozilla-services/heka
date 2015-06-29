@@ -5,9 +5,10 @@ define(
     "backbone",
     "adapters/base_adapter",
     "models/sandbox",
-    "models/sandbox_output"
+    "models/sandbox_output",
+    "collections/plugins"
   ],
-  function($, _, Backbone, BaseAdapter, Sandbox, SandboxOutput) {
+  function($, _, Backbone, BaseAdapter, Sandbox, Sandboxes, SandboxOutput) {
     "use strict";
 
     /**
@@ -26,7 +27,7 @@ define(
       *
       * @property {Backbone.Collection} sandboxes
       */
-      this.sandboxes = new Backbone.Collection();
+      this.sandboxes = new Sandboxes();
     };
 
     /**
