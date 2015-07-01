@@ -46,6 +46,10 @@ define(
       */
       getInjectRecycleChan: function() {
         return this.findWhere({ id: "injectRecycleChan" });
+      },
+
+      comparator: function(collection) {
+        return(collection.get('Name'));
       }
     });
 
