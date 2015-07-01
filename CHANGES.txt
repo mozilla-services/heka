@@ -74,6 +74,8 @@ Features
 * Allow extracting environment variables from a Docker container to use as
   fields for the DockerLogInput. (#1569)
 
+* Dashboard now shows sandbox plugins in alphabetical order.
+
 Bug Handling
 ------------
 
