@@ -373,24 +373,8 @@ func (mr *MatchRunner) deliver(pack *PipelinePack) error {
 		return err
 	}
 	if mr.matchChan != nil {
-		select {
-		case mr.matchChan <- pack:
-			return nil
-		default:
-		}
-		for {
-			closing := atomic.LoadInt32(&mr.closing)
-			if closing != 0 {
-				return ErrStopping
-			}
-			mr.retry.Wait()
-			select {
-			case mr.matchChan <- pack:
-				mr.retry.Reset()
-				return nil
-			default:
-			}
-		}
+		mr.matchChan <- pack
+		return nil
 	}
 	return errors.New("no queue buffer or match chan for delivery")
 }
