@@ -18,8 +18,6 @@ package process
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
 	"os/exec"
@@ -28,6 +26,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type cmdConfig struct {
@@ -138,6 +139,7 @@ type ProcessInput struct {
 	stdoutSRunner   SplitterRunner
 	stderrDeliverer Deliverer
 	stderrSRunner   SplitterRunner
+	ccDone          map[string]chan bool
 
 	stopChan  chan bool
 	exitError error
@@ -211,15 +213,23 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	pi.stopChan = make(chan bool)
 	pi.once = sync.Once{}
 	pi.exitError = nil
-
+	pi.ccDone = make(map[string]chan bool)
 	if pi.parseStdout {
+		pi.ccDone["stdout"] = make(chan bool, 1)
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
-		defer pi.stdoutDeliverer.Done()
+		defer func() {
+			pi.stdoutDeliverer.Done()
+			pi.stdoutSRunner.Done()
+		}()
 	}
 
 	if pi.parseStderr {
+		pi.ccDone["stderr"] = make(chan bool, 1)
 		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
-		defer pi.stderrDeliverer.Done()
+		defer func() {
+			pi.stderrDeliverer.Done()
+			pi.stderrSRunner.Done()
+		}()
 	}
 
 	// Start the output parser and start running commands.
@@ -245,7 +255,16 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 			pack.Message.SetType("ProcessInput")
 			pack.Message.SetPid(pi.hekaPid)
 			pack.Message.SetHostname(pi.hostname)
-
+			// Add ProcessInputName
+			fPInputName, err := message.NewField("ProcessInputName",
+				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
+			if err == nil {
+				pack.Message.AddField(fPInputName)
+			} else {
+				pi.ir.LogError(err)
+			}
+			// Wait for the result for subcommands.
+			<-pi.ccDone[streamName]
 			// Add exit status and subcommand error messages to pack.
 			var r int
 			if exiterr, ok := pi.ccStatus.ExitStatus.(*exec.ExitError); ok {
@@ -253,6 +272,7 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 					r = status.ExitStatus()
 				}
 			}
+
 			exitStatus, err := message.NewField("ExitStatus", r, "")
 			if err == nil {
 				pack.Message.AddField(exitStatus)
@@ -267,13 +287,6 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 				} else {
 					pi.ir.LogError(err)
 				}
-			}
-			fPInputName, err := message.NewField("ProcessInputName",
-				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
-			if err == nil {
-				pack.Message.AddField(fPInputName)
-			} else {
-				pi.ir.LogError(err)
 			}
 		}
 		sRunner.SetPackDecorator(packDecorator)
@@ -360,13 +373,19 @@ func (pi *ProcessInput) runOnce() {
 	} else {
 		go throwAway(stderrReader)
 	}
-
 	pi.ccStatus = pi.cc.Wait()
+	// Notify decorators.
+	for key, _ := range pi.ccDone {
+		select { // non-blocking it's a notification.
+		case pi.ccDone[key] <- true:
+		default:
+
+		}
+	}
 }
 
 func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	sRunner SplitterRunner) {
-
 	err := sRunner.SplitStream(r, deliverer)
 	// Go doesn't seem to have a good solution to streaming output
 	// between subprocesses.  It seems like you have to read *all* the

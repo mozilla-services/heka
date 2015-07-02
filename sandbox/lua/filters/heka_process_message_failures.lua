@@ -29,7 +29,7 @@ local anomaly    = require "anomaly"
 require "circular_buffer"
 require "cjson"
 
-local sections       = {"decoders", "filters", "encoders"} -- inputs/outputs lack instrumentation
+local sections       = {"inputs", "decoders", "filters", "encoders", "outputs"}
 local anomaly_config = anomaly.parse_config(read_config("anomaly_config") or 'mww_nonparametric("DEFAULT", 1, 5, 10, 0.7)')
 local plugins        = {}
 local last_report    = 0
@@ -56,8 +56,9 @@ function process_message ()
     for n,section in ipairs(sections) do
         local t = json[section] or {}
         for i,v in ipairs(t) do
+            if type(v) ~= "table" then return -1, "invalid entry in section " .. section end
             if type(v.ProcessMessageFailures) == "table" then -- confirm this plugin has instrumentation
-                if not v.Name then return -1 end
+                if not v.Name then return -1, "missing plugin Name" end
                 local p = find_plugin(v.Name)
                 p.last_report = last_report
                 local n = v.ProcessMessageFailures.value

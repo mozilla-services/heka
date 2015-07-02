@@ -19,10 +19,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
 	"net"
 	"sync"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 // Input plugin implementation that listens for Heka protocol messages on a
@@ -126,6 +127,7 @@ func (t *TcpInput) handleConnection(conn net.Conn) {
 		conn.Close()
 		t.wg.Done()
 		deliverer.Done()
+		sr.Done()
 	}()
 
 	if !sr.UseMsgBytes() {

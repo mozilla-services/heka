@@ -18,11 +18,12 @@ package amqp
 import (
 	"crypto/tls"
 	"fmt"
+	"strings"
+	"sync"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/streadway/amqp"
-	"strings"
-	"sync"
 )
 
 // AMQP Input config struct
@@ -170,7 +171,6 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		msg amqp.Delivery
 		ok  bool
 	)
-	defer ai.usageWg.Done()
 
 	stream, err := ai.ch.Consume(ai.config.Queue, "", false, ai.config.QueueExclusive,
 		false, false, nil)
@@ -182,6 +182,11 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	if !sRunner.UseMsgBytes() {
 		sRunner.SetPackDecorator(ai.packDecorator)
 	}
+
+	defer func() {
+		ai.usageWg.Done()
+		sRunner.Done()
+	}()
 
 	for {
 		e = nil

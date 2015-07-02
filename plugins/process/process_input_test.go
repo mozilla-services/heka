@@ -16,15 +16,16 @@
 package process
 
 import (
+	"io"
+	"io/ioutil"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"io/ioutil"
-	"time"
 )
 
 func ProcessInputSpec(c gs.Context) {
@@ -78,6 +79,7 @@ func ProcessInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().NewDeliverer("stdout").Return(ith.MockDeliverer)
 			ith.MockInputRunner.EXPECT().NewSplitterRunner("stdout").Return(
 				ith.MockSplitterRunner)
+			ith.MockSplitterRunner.EXPECT().Done()
 
 			c.Specify("reads a message from ProcessInput", func() {
 				pInput.SetName("SimpleTest")
@@ -99,9 +101,17 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_TEST1_OUTPUT+"\n")
 
 				dec := <-decChan
+				select {
+				case pInput.ccDone["stdout"] <- true:
+				default:
+				}
+
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "SimpleTest.stdout")
+
+				fPInputName = ith.Pack.Message.FindFirstField("ExitStatus")
+				c.Expect(fPInputName.ValueInteger[0], gs.Equals, int64(0))
 
 				pInput.Stop()
 				err = <-errChan
@@ -132,9 +142,16 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_PIPE_OUTPUT+"\n")
 
 				dec := <-decChan
+				select {
+				case pInput.ccDone["stdout"] <- true:
+				default:
+				}
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")
+
+				fPInputName = ith.Pack.Message.FindFirstField("ExitStatus")
+				c.Expect(fPInputName.ValueInteger[0], gs.Equals, int64(0))
 
 				pInput.Stop()
 				err = <-errChan
@@ -146,6 +163,7 @@ func ProcessInputSpec(c gs.Context) {
 			ith.MockInputRunner.EXPECT().NewDeliverer("stderr").Return(ith.MockDeliverer)
 			ith.MockInputRunner.EXPECT().NewSplitterRunner("stderr").Return(
 				ith.MockSplitterRunner)
+			ith.MockSplitterRunner.EXPECT().Done()
 
 			c.Specify("handles bad arguments", func() {
 				pInput.SetName("BadArgs")

@@ -61,6 +61,7 @@ func HttpInputSpec(c gs.Context) {
 
 		// These assume that every sub-spec makes exactly one HTTP request.
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("0").Return(ith.MockSplitterRunner)
+		ith.MockSplitterRunner.EXPECT().Done()
 		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(gomock.Any())
 		getRecCall.Return(len(json_post), []byte(json_post), io.EOF)
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)

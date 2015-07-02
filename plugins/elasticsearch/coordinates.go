@@ -18,6 +18,7 @@ package elasticsearch
 import (
 	"bytes"
 	"fmt"
+	"github.com/cactus/gostrftime"
 	"github.com/mozilla-services/heka/message"
 	"strconv"
 	"strings"
@@ -102,7 +103,7 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
 					} else {
 						t = time.Now().UTC()
 					}
-					iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
+					iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], gostrftime.Strftime(elVal, t), -1)
 				}
 			}
 			if iSlice[i] == elVal {

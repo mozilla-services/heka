@@ -16,12 +16,13 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"io"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/mozilla-services/heka/message"
 )
 
 type WantsSplitterRunner interface {
@@ -41,6 +42,7 @@ type SplitterRunner interface {
 	UseMsgBytes() bool
 	IncompleteFinal() bool
 	SetPackDecorator(decorator func(*PipelinePack))
+	Done()
 }
 
 type sRunner struct {
@@ -126,6 +128,18 @@ func (sr *sRunner) SetPackDecorator(decorator func(*PipelinePack)) {
 
 func (sr *sRunner) Splitter() Splitter {
 	return sr.splitter
+}
+
+func (sr *sRunner) Done() {
+	pConfig := sr.h.PipelineConfig()
+	pConfig.allSplittersLock.Lock()
+	for i, otherSr := range pConfig.allSplitters {
+		if sr == otherSr {
+			pConfig.allSplitters = append(pConfig.allSplitters[:i], pConfig.allSplitters[i+1:]...)
+			break
+		}
+	}
+	pConfig.allSplittersLock.Unlock()
 }
 
 func (sr *sRunner) GetRemainingData() (record []byte) {
@@ -331,6 +345,9 @@ func (sr *sRunner) SplitStream(r io.Reader, del Deliverer) error {
 			}
 		}
 		if len(record) == 0 {
+			if err == nil && sr.needData && !sr.reachedEOF {
+				continue
+			}
 			if sr.incompleteFinal && err == io.EOF {
 				record = sr.GetRemainingData()
 				if len(record) > 0 {

@@ -16,6 +16,7 @@ package plugins
 
 import (
 	"github.com/mozilla-services/heka/pipeline"
+	"github.com/cactus/gostrftime"
 	"strings"
 	"time"
 )
@@ -34,7 +35,7 @@ type PayloadEncoderConfig struct {
 func (pe *PayloadEncoder) ConfigStruct() interface{} {
 	return &PayloadEncoderConfig{
 		AppendNewlines: true,
-		TsFormat:       "[2006/Jan/02:15:04:05 -0700]",
+		TsFormat:       "[%Y/%b/%d:%H:%M:%S %z]",
 		TsFromMessage:  true,
 	}
 }
@@ -71,7 +72,7 @@ func (pe *PayloadEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, er
 	} else {
 		tm = time.Now()
 	}
-	ts := tm.Format(pe.config.TsFormat)
+	ts := gostrftime.Strftime(pe.config.TsFormat, tm)
 
 	// Timestamp + payload [+ optional newline].
 	l := len(ts) + len(payload)
