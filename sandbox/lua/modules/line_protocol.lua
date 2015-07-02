@@ -23,12 +23,12 @@ API
     dynamic fields can be used in the metric name portion of the message.
     Configuration is implemented in the encoders that utilize this module.
     This function takes no arguments.
-    
+
 **influxdb_line_msg()**
     Wrapper function that calls others within this module and the field_util
     module to generate a table of InfluxDB line protocol messages that are
     derived from the base or dynamic fields in a Heka message. Base fields or
-    dynamic fields can be used in the metric name portion of the message and 
+    dynamic fields can be used in the metric name portion of the message and
     included as tags if desired.  Configuration is implemented in the encoders
     that utilize this module.  This function takes no arguments.
 
@@ -138,7 +138,11 @@ local function points_tags_tables()
         if not skip_fields_str or not skip_fields[name] then
             -- Set the name attribute of this table by concatenating name_prefix
             -- with the name of this particular field
-            points[field_util.field_interp(name_prefix)..name_prefix_delimiter..name] = value
+            if exclude_name then
+                points[field_util.field_interp(name_prefix)] = value
+            else
+                points[field_util.field_interp(name_prefix)..name_prefix_delimiter..name] = value
+            end
         end
     end
     if carbon_format then
@@ -155,7 +159,8 @@ function carbon_line_msg()
     local message_timestamp = field_util.message_timestamp(timestamp_precision)
     local points = points_tags_tables()
     for name, value in pairs(points) do
-        if type(value) == "number" or value == "0.0" or value == "0" then
+        value = tostring(value)
+        if value:match("^[%d.]+$") then
             table.insert(api_message, name.." "..value.." "..message_timestamp)
         end
     end

@@ -11,6 +11,13 @@ by newlines that are submitted to Carbon.
 
 Config:
 
+- exclude_name (boolean, optional, default false)
+    Setting this to true will remove the name_prefix_delimiter and field
+    name from the metric name in the output of this encoder.  This is useful
+    if you have the metric name in a separate field from the value and would
+    rather use field interpolation to include the metric name in the
+    name_prefix config option to format the metric name.
+
 - name_prefix (string, optional, default "")
     String to use as the `name` key's prefix value in the generated line.
     Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
@@ -92,6 +99,7 @@ local line_protocol = require "line_protocol"
 -- Variables required by line_protocol module
 line_protocol.carbon_format = true
 line_protocol.timestamp_precision = "s"
+line_protocol.exclude_name = read_config("exclude_name") or false
 line_protocol.name_prefix = read_config("name_prefix") or ""
 line_protocol.name_prefix_delimiter = read_config("name_prefix_delimiter") or "."
 

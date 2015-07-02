@@ -24,8 +24,17 @@ Config:
     of digits printed after the decimal in number values.  The string formatting
     of numbers is forced to print with floating points because InfluxDB will
     reject values that change from integers to floats and vice-versa.  By
-    forcing all numbers to floats, we ensure that InfluxDB will always 
+    forcing all numbers to floats, we ensure that InfluxDB will always
     accept our numerical values, regardless of the initial format.
+
+- exclude_name (boolean, optional, default false)
+    Setting this to true will remove the name_prefix_delimiter and field
+    name from the metric name in the output of this encoder.  This is useful
+    if you have the metric name in a separate field from the value and would
+    rather use field interpolation to include the metric name in the
+    name_prefix config option to format the metric name. Be careful to not set
+    this to true and leave the defaults of name_prefix as that will result in
+    a blank name value.
 
 - name_prefix (string, optional, default "")
     String to use as the `name` key's prefix value in the generated line.
@@ -136,6 +145,7 @@ local line_protocol = require "line_protocol"
 -- Variables required by line_protocol module
 line_protocol.timestamp_precision = read_config("timestamp_precision") or "ms"
 line_protocol.decimal_precision = read_config("decimal_precision") or "6"
+line_protocol.exclude_name = read_config("exclude_name") or false
 line_protocol.name_prefix = read_config("name_prefix") or ""
 line_protocol.name_prefix_delimiter = read_config("name_prefix_delimiter") or ""
 line_protocol.tag_fields = read_config("tag_fields") or "**all_base**"
