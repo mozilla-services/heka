@@ -48,6 +48,14 @@ ElasticSearch Module
 
 .. _sandbox_elasticsearch_module:
 
+Field Utilities Module
+--------------------
+.. include:: ../../../sandbox/lua/modules/field_util.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _sandbox_field_util_module:
+
 Graphite Module
 --------------------
 
@@ -56,3 +64,12 @@ Graphite Module
 .. include:: ../../../sandbox/lua/modules/graphite.lua
    :start-after: --[[
    :end-before: --]]
+
+Line Protocol Module
+--------------------
+.. include:: ../../../sandbox/lua/modules/line_protocol.lua
+   :start-after: --[[
+   :end-before: --]]
+
+.. _sandbox_line_protocol_module:
+
