@@ -210,6 +210,8 @@ type ESJsonEncoder struct {
 	rawBytesFields  []string
 	coord           *ElasticSearchCoordinates
 	fieldMappings   *ESFieldMappings
+	dynamicFields   []string
+	dynamicRawBytesFields []string
 }
 
 // Heka fields to ElasticSearch mapping
@@ -244,6 +246,11 @@ type ESJsonEncoderConfig struct {
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 	// Overriding names for Heka fields
 	FieldMappings *ESFieldMappings `toml:"field_mappings"`
+	// Dynamic fields, if present, to be included
+	DynamicFields []string `toml:"dynamic_fields"`
+	// Dynamic fields, if present, to which formatting will not be applied.
+	DynamicRawBytesFields []string `toml:"dynamic_raw_bytes_fields"`
+
 }
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
@@ -279,6 +286,8 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 		"Fields",
 	}
 
+	config.DynamicFields = []string{}
+
 	return config
 }
 
@@ -294,6 +303,8 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 		Id:                   conf.Id,
 	}
 	e.fieldMappings = conf.FieldMappings
+	e.dynamicFields = conf.DynamicFields
+	e.dynamicRawBytesFields = conf.DynamicRawBytesFields
 	return
 }
 
@@ -304,6 +315,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 	first := true
+
 	for _, f := range e.fields {
 		switch strings.ToLower(f) {
 		case "uuid":
@@ -344,6 +356,32 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 		}
 		first = false
 	}
+
+	if len(e.dynamicFields) > 0 {
+		for _, field := range m.Fields {
+			dynamicFieldMatch := false
+			raw := false
+
+			for _, field_name := range e.dynamicFields {
+				if *field.Name == field_name {
+					dynamicFieldMatch = true
+				}
+			}
+
+			if dynamicFieldMatch {
+				if len(e.dynamicRawBytesFields) > 0 {
+					for _, raw_field_name := range e.dynamicRawBytesFields {
+						if *field.Name == raw_field_name {
+							raw = true
+						}
+					}
+				}
+				writeField(first, &buf, field, raw)
+				first = false
+			}
+		}
+	}
+
 	buf.WriteString(`}`)
 	buf.WriteByte(NEWLINE)
 	return buf.Bytes(), err
