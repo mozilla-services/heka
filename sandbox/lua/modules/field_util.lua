@@ -10,15 +10,28 @@ API
 ^^^
 
 **field_interp(field)**
+    Takes a field that may or may not include the special syntax
+    of %{FieldName} and interpolates the actual values of those
+    fields into the string and returns it.  The same string is
+    returned if it does not contain any of those special strings.
 
-**field_map(fields_str)**
+    *Arguments*
+        - field (string)
+            The field that you want variables values replaced in.
+
+    *Return*
+        - A string that has the special syntax fields replaced with
+        those variables' values.
+
+**field_map(fields_str or nil)**
     Returns a table of fields that match the space delimited
     input string of fields.  This can be used to provide input to
     other functions such as a list of fields to skip or use for tags.
 
     *Arguments*
-        - fields_str - space delimited list of fields. If this is empty
-        all base fields will be returned.
+        - fields_str (string or nil)
+            Space delimited list of fields. If this is empty or nil,
+            all base fields will be returned.
 
     *Return*
         Table with the fields found in the space delimited input string,
@@ -26,15 +39,18 @@ API
         indicating all fields are to be used.
 
 **message_timestamp(timestamp_precision)**
-
-**timestamp_divisor(timestamp_precision)**
-    Returns a number that can be used to divide the default heka
-    timestamp (in nanoseconds) to a smaller precision.
+    Returns the timestamp value after dividing it by a constant after
+    mapping it from a precision value to convert it from the heka default
+    precision of ns to a lower precision to work better with output
+    endpoints.
 
     *Arguments*
-        - timestamp_precision - string of "s", "m", "h"
+        - timestamp_precision (string or nil)
+            String that can have a value of "ms", "s", "m" or "h".
+
     *Return*
-        Number value that is to be used as a divisor for the Timestamp
+        The timestamp value after converting it from ns to the indicated
+        timestamp_precision.
 
 **used_base_fields(skip_fields)**
     Returns a table of base fields that are not found in the input table.
@@ -43,7 +59,8 @@ API
     a simple lookup against it.
 
     *Arguments*
-        - skip_fields - Table of fields to be skipped from use.
+        - skip_fields (table)
+            Table of fields to be skipped from use.
 
     *Return*
     A table of base fields that are not found in the input table.
@@ -112,7 +129,7 @@ function field_map(fields_str)
     local all_base_fields = false
     local all_fields = false
 
-    if fields_str then
+    if fields_str and fields_str ~= "" then
         for field in string.gmatch(fields_str, "[%S]+") do
             fields[field] = true
             if field == "**all_base**" then

@@ -16,7 +16,21 @@ separated by newlines that are submitted to InfluxDB.
 API
 ^^^
 
-**
+**carbon_line_msg()**
+    Wrapper function that calls others within this module and the field_util
+    module to generate a table of Carbon line protocol messages that are
+    derived from the dynamic fields in a Heka message. Base fields or
+    dynamic fields can be used in the metric name portion of the message.
+    Configuration is implemented in the encoders that utilize this module.
+    This function takes no arguments.
+    
+**influxdb_line_msg()**
+    Wrapper function that calls others within this module and the field_util
+    module to generate a table of InfluxDB line protocol messages that are
+    derived from the base or dynamic fields in a Heka message. Base fields or
+    dynamic fields can be used in the metric name portion of the message and 
+    included as tags if desired.  Configuration is implemented in the encoders
+    that utilize this module.  This function takes no arguments.
 
 --]=]
 
@@ -136,6 +150,18 @@ end
 
 --[[ Public Interface --]]
 
+function carbon_line_msg()
+    local api_message = {}
+    local message_timestamp = field_util.message_timestamp(timestamp_precision)
+    local points = points_tags_tables()
+    for name, value in pairs(points) do
+        if type(value) == "number" or value == "0.0" or value == "0" then
+            table.insert(api_message, name.." "..value.." "..message_timestamp)
+        end
+    end
+    return api_message
+end
+
 function influxdb_line_msg()
     local api_message = {}
     local message_timestamp = field_util.message_timestamp(timestamp_precision)
@@ -167,18 +193,6 @@ function influxdb_line_msg()
             table.insert(api_message, name..","..table.concat(tags, ",").." ".."value="..value.." "..message_timestamp)
         else
             table.insert(api_message, name.." "..value_field_name.."="..value.." "..message_timestamp)
-        end
-    end
-    return api_message
-end
-
-function carbon_line_msg()
-    local api_message = {}
-    local message_timestamp = field_util.message_timestamp(timestamp_precision)
-    local points = points_tags_tables()
-    for name, value in pairs(points) do
-        if type(value) == "number" or value == "0.0" or value == "0" then
-            table.insert(api_message, name.." "..value.." "..message_timestamp)
         end
     end
     return api_message
