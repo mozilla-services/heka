@@ -311,6 +311,7 @@ func (m *pluginMaker) makeSplitterRunner(name string, config interface{}, splitt
 		}
 	}
 	sr := NewSplitterRunner(name, splitter, commonSplitter)
+	sr.h = m.pConfig
 	return sr, nil
 }
 

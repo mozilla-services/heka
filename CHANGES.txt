@@ -24,6 +24,9 @@ Backwards Incompatibilities
 
 * The 'make deb' target requires fakeroot and debhelper to be installed.
 
+* SplitterRunner interface now provides a `Done` method that should be called
+  whenever the splitter is no longer needed.
+
 Features
 --------
 
@@ -76,6 +79,8 @@ Features
 
 * Allow extracting environment variables from a Docker container to use as
   fields for the DockerLogInput. (#1569)
+
+* Dashboard now shows sandbox plugins in alphabetical order.
 
 Bug Handling
 ------------

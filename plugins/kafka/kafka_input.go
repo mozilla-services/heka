@@ -19,13 +19,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 type KafkaInputConfig struct {
@@ -211,12 +212,15 @@ func (k *KafkaInput) addField(pack *pipeline.PipelinePack, name string,
 }
 
 func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
+	sRunner := ir.NewSplitterRunner("")
+
 	defer func() {
 		k.consumer.Close()
 		k.client.Close()
 		if k.checkpointFile != nil {
 			k.checkpointFile.Close()
 		}
+		sRunner.Done()
 	}()
 	k.ir = ir
 	k.stopChan = make(chan bool)
@@ -227,8 +231,6 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 		ok       bool
 		n        int
 	)
-
-	sRunner := ir.NewSplitterRunner("")
 
 	packDec := func(pack *pipeline.PipelinePack) {
 		pack.Message.SetType("heka.kafka")
