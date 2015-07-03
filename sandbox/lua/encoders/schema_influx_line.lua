@@ -124,7 +124,7 @@ Config:
     [InfluxdbOutput]
     type = "HttpOutput"
     message_matcher = "Type =~ /stats.*/"
-    encoder = "InfluxDBWriteEncoder"
+    encoder = "InfluxdbLineEncoder"
     address = "http://influxdbserver.example.com:8086/write?db=mydb&rp=mypolicy&precision=s"
     username = "influx_username"
     password = "influx_password"

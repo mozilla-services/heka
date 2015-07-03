@@ -6,12 +6,12 @@
 Provides functions to convert full Heka message contents to line protocol for
 InfluxDB HTTP write API (new in InfluxDB v0.9.0) or Graphite/Carbon.
 Optionally includes all standard message fields as tags or fields and
-iterates through all of the dynamic fields
-to add as points (series), skipping any fields explicitly omitted using the
-`skip_fields` config option.  It can also map any Heka message fields as tags
-in the request sent to the InfluxDB write API, using the `tag_fields` config
-option.  All dynamic fields in the Heka message are converted to separate points
-separated by newlines that are submitted to InfluxDB.
+iterates through all of the dynamic fields to add as measurements, skipping
+any fields explicitly omitted using the `skip_fields` config option.  It can
+also map any Heka message fields as tags in the request sent to the InfluxDB
+write API, using the `tag_fields` config option.  All dynamic fields in the
+Heka message are converted to separate points separated by newlines that are
+submitted to InfluxDB, unless source_value_field is defined.
 
 API
 ^^^
