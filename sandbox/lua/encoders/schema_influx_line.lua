@@ -27,16 +27,7 @@ Config:
     forcing all numbers to floats, we ensure that InfluxDB will always
     accept our numerical values, regardless of the initial format.
 
-- exclude_name (boolean, optional, default false)
-    Setting this to true will remove the name_prefix_delimiter and field
-    name from the metric name in the output of this encoder.  This is useful
-    if you have the metric name in a separate field from the value and would
-    rather use field interpolation to include the metric name in the
-    name_prefix config option to format the metric name. Be careful to not set
-    this to true and leave the defaults of name_prefix as that will result in
-    a blank name value.
-
-- name_prefix (string, optional, default "")
+- name_prefix (string, optional, default nil)
     String to use as the `name` key's prefix value in the generated line.
     Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
     `%{fieldname}`. Any `fieldname` values of "Type", "Payload", "Hostname",
@@ -49,14 +40,14 @@ Config:
     "Timestamp" or the "Uuid" message fields into the name, those
     values will be interpreted as referring to dynamic message fields.
 
-- name_prefix_delimiter (string, optional, default "")
+- name_prefix_delimiter (string, optional, default nil)
     String to use as the delimiter between the name_prefix and the field
     name.  This defaults to a blank string but can be anything else
     instead (such as "." to use Graphite-like naming).
 
-- skip_fields (string, optional, default "")
+- skip_fields (string, optional, default nil)
     Space delimited set of fields that should *not* be included in the
-    InfluxDB records being generated. Any fieldname values of "Type",
+    InfluxDB measurements being generated. Any `fieldname` values of "Type",
     "Payload", "Hostname", "Pid", "Logger", "Severity", or "EnvVersion" will
     be assumed to refer to the corresponding field from the base message
     schema. Any other values will be assumed to refer to a dynamic message
@@ -64,16 +55,24 @@ Config:
     from being mapped to the event altogether (useful if you don't want to
     use tags and embed them in the name_prefix instead).
 
+- source_value_field (string, optional, default nil)
+    If the desired behavior of this encoder is to extract one field from the
+    Heka message and feed it as a single line to InfluxDB, then use this option
+    to define which field to find the value from.  Be careful to set the
+    name_prefix field if this option is present or no measurement name
+    will be present when trying to send to InfluxDB.  When this option is
+    present, no other fields besides this one will be sent to InfluxDB as
+    a measurement whatsoever.
+
 - tag_fields (string, optional, default "**all_base**")
-    Take fields defined and adds them as tags of the point(s) sent to
+    Take fields defined and add them as tags of the measurement(s) sent to
     InfluxDB for the message.  The magic values "**all**" and "**all_base**"
-    are used to map all non-numeric fields (including base) to tags and only
+    are used to map all fields (including taggable base fields) to tags and only
     base fields to tags, respectively.  If those magic values aren't used,
-    then only those fields defined will map to tags of the points sent to InfluxDB.
-    The tag_fields values are independent of the skip_fields values and have
-    no affect on each other.  You can skip fields from being sent to InfluxDB
-    as points (metrics), but still include them as tags, as long as they are not
-    numbers (those are filtered out automatically).
+    then only those fields defined will map to tags of the measurement sent
+    to InfluxDB. The tag_fields values are independent of the skip_fields
+    values and have no affect on each other.  You can skip fields from being
+    sent to InfluxDB as measurements, but still include them as tags.
 
 - timestamp_precision (string, optional, default "ms")
     Specify the timestamp precision that you want the event sent with.  The
@@ -82,10 +81,10 @@ Config:
     values supported by the InfluxDB write API (ms, s, m, h). Other precisions
     supported by InfluxDB of n and u are not yet supported.
 
-- value_field_name (string, optional, default "value")
-    This defines the name of the measurement.  We default this to "value"
-    to match the examples in the InfluxDB documentation, but can be overrided
-    to anything else that you prefer.
+- value_field_key (string, optional, default "value")
+    This defines the name of the InfluxDB measurement.  We default this to "value"
+    to match the examples in the InfluxDB documentation, but you can replace
+    that with anything else that you prefer.
 
 *Example Heka Configuration*
 
@@ -142,18 +141,21 @@ Config:
 
 local line_protocol = require "line_protocol"
 
--- Variables required by line_protocol module
-line_protocol.timestamp_precision = read_config("timestamp_precision") or "ms"
-line_protocol.decimal_precision = read_config("decimal_precision") or "6"
-line_protocol.exclude_name = read_config("exclude_name") or false
-line_protocol.name_prefix = read_config("name_prefix") or ""
-line_protocol.name_prefix_delimiter = read_config("name_prefix_delimiter") or ""
-line_protocol.tag_fields = read_config("tag_fields") or "**all_base**"
-line_protocol.value_field_name = read_config("value_field_name") or "value"
+local decoder_config = {
+    decimal_precision = read_config("decimal_precision") or "6",
+    name_prefix = read_config("name_prefix") or nil,
+    name_prefix_delimiter = read_config("name_prefix_delimiter") or nil,
+    skip_fields_str = read_config("skip_fields") or nil,
+    source_value_field = read_config("source_value_field") or nil,
+    tag_fields_str = read_config("tag_fields") or "**all_base**",
+    timestamp_precision = read_config("timestamp_precision") or "ms",
+    value_field_key = read_config("value_field_key") or "value"
+}
+
+local config = line_protocol.set_config(decoder_config)
 
 function process_message()
-    local api_message = line_protocol.influxdb_line_msg()
-
+    local api_message = line_protocol.influxdb_line_msg(config)
     -- Inject a new message with the payload populated with the newline
     -- delimited data points, and append a newline at the end for the last line
     inject_payload("txt", "influx_line", table.concat(api_message, "\n").."\n")

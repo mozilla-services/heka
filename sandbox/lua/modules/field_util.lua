@@ -9,20 +9,6 @@ for various purposes.
 API
 ^^^
 
-**field_interp(field)**
-    Takes a field that may or may not include the special syntax
-    of %{FieldName} and interpolates the actual values of those
-    fields into the string and returns it.  The same string is
-    returned if it does not contain any of those special strings.
-
-    *Arguments*
-        - field (string)
-            The field that you want variables values replaced in.
-
-    *Return*
-        - A string that has the special syntax fields replaced with
-        those variables' values.
-
 **field_map(fields_str or nil)**
     Returns a table of fields that match the space delimited
     input string of fields.  This can be used to provide input to
@@ -71,26 +57,27 @@ local math = require "math"
 local pairs = pairs
 local read_message = read_message
 local require = require
+local type = type
 local string = require "string"
 
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module.
 
 base_fields_list = {
-    Type = true,
-    Payload = true,
+    EnvVersion = true,
     Hostname = true,
-    Pid = true,
     Logger = true,
+    Payload = true,
+    Pid = true,
     Severity = true,
-    EnvVersion = true
+    Type = true
 }
 
 base_fields_tag_list = {
-    Type = true,
     Hostname = true,
+    Logger = true,
     Severity = true,
-    Logger = true
+    Type = true
 }
 
 local function timestamp_divisor(timestamp_precision)
@@ -111,19 +98,6 @@ end
 
 --[[ Public Interface --]]
 
-function field_interp(field)
-    local interp = require "msg_interpolate"
-    local interp_field
-    -- If the %{field} substitutions are defined in the field,
-    -- replace them with the actual values from the message here
-    if string.find(field, "%%{[%w%p]-}") then
-        interp_field = interp.interpolate_from_msg(field, nil)
-    else
-        interp_field = field
-    end
-    return interp_field
-end
-
 function field_map(fields_str)
     local fields = {}
     local all_base_fields = false
@@ -140,8 +114,8 @@ function field_map(fields_str)
             end
         end
 
-        for field in pairs(base_fields_list) do
-            if all_base_fields or all_fields then
+        if all_base_fields or all_fields then
+            for field in pairs(base_fields_list) do
                 fields[field] = true
             end
         end
@@ -161,9 +135,11 @@ end
 
 function used_base_fields(skip_fields)
     local fields = {}
-    for field in pairs(base_fields_list) do
-        if not skip_fields[field] then
-            fields[field] = true
+    if skip_fields then
+        for field in pairs(base_fields_list) do
+            if skip_fields[field] then
+                fields[field] = true
+            end
         end
     end
     return fields

@@ -11,14 +11,7 @@ by newlines that are submitted to Carbon.
 
 Config:
 
-- exclude_name (boolean, optional, default false)
-    Setting this to true will remove the name_prefix_delimiter and field
-    name from the metric name in the output of this encoder.  This is useful
-    if you have the metric name in a separate field from the value and would
-    rather use field interpolation to include the metric name in the
-    name_prefix config option to format the metric name.
-
-- name_prefix (string, optional, default "")
+- name_prefix (string, optional, default nil)
     String to use as the `name` key's prefix value in the generated line.
     Supports :ref:`message field interpolation<sandbox_msg_interpolate_module>`.
     `%{fieldname}`. Any `fieldname` values of "Type", "Payload", "Hostname",
@@ -35,7 +28,7 @@ Config:
     String to use as the delimiter between the name_prefix and the field
     name.  This defaults to a "." to use Graphite naming convention.
 
-- skip_fields (string, optional, default "")
+- skip_fields (string, optional, default nil)
     Space delimited set of fields that should *not* be included in the
     Carbon records being generated. Any fieldname values of "Type",
     "Payload", "Hostname", "Pid", "Logger", "Severity", or "EnvVersion" will
@@ -43,6 +36,14 @@ Config:
     schema. Any other values will be assumed to refer to a dynamic message
     field. The magic value "**all_base**" can be used to exclude base fields
     from being mapped to the event altogether.
+
+- source_value_field (string, optional, default nil)
+    If the desired behavior of this encoder is to extract one field from the
+    Heka message and feed it as a single line to Carbon, then use this option
+    to define which field to find the value from.  Make sure to set the
+    name_prefix value to use fields from the message with field interpolation
+    so the full metric path in Graphite is populated.  When this option is
+    present, no other fields besides this one will be sent to Carbon whatsoever.
 
 *Example Heka Configuration*
 
@@ -96,15 +97,19 @@ Config:
 
 local line_protocol = require "line_protocol"
 
--- Variables required by line_protocol module
-line_protocol.carbon_format = true
-line_protocol.timestamp_precision = "s"
-line_protocol.exclude_name = read_config("exclude_name") or false
-line_protocol.name_prefix = read_config("name_prefix") or ""
-line_protocol.name_prefix_delimiter = read_config("name_prefix_delimiter") or "."
+local decoder_config = {
+    carbon_format = true,
+    timestamp_precision = "s",
+    name_prefix = read_config("name_prefix") or nil,
+    name_prefix_delimiter = read_config("name_prefix_delimiter") or ".",
+    skip_fields_str = read_config("skip_fields") or nil,
+    source_value_field = read_config("source_value_field") or nil
+}
+
+local config = line_protocol.set_config(decoder_config)
 
 function process_message()
-    local api_message = line_protocol.carbon_line_msg()
+    local api_message = line_protocol.carbon_line_msg(config)
 
     -- Inject a new message with the payload populated with the newline
     -- delimited data points, and append a newline at the end for the last line

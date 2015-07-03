@@ -82,7 +82,12 @@ end
 
 function interpolate_from_msg(value, secs)
     _secs = secs
-    return string.gsub(value, pattern, interpolate_match)
+
+    if string.find(value, "%%{[%w%p]-}") then
+        return string.gsub(value, pattern, interpolate_match)
+    else
+        return value
+    end
 end
 
 return M
