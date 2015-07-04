@@ -139,7 +139,7 @@ Config:
 
 --]=]
 
-local line_protocol = require "line_protocol"
+local ts_line_protocol = require "ts_line_protocol"
 
 local decoder_config = {
     decimal_precision = read_config("decimal_precision") or "6",
@@ -152,10 +152,10 @@ local decoder_config = {
     value_field_key = read_config("value_field_key") or "value"
 }
 
-local config = line_protocol.set_config(decoder_config)
+local config = ts_line_protocol.set_config(decoder_config)
 
 function process_message()
-    local api_message = line_protocol.influxdb_line_msg(config)
+    local api_message = ts_line_protocol.influxdb_line_msg(config)
     -- Inject a new message with the payload populated with the newline
     -- delimited data points, and append a newline at the end for the last line
     inject_payload("txt", "influx_line", table.concat(api_message, "\n").."\n")

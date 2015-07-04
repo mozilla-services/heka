@@ -4,7 +4,8 @@
 
 --[=[
 Provides functions to convert full Heka message contents to line protocol for
-InfluxDB HTTP write API (new in InfluxDB v0.9.0) or Graphite/Carbon.
+InfluxDB HTTP write API (new in InfluxDB v0.9.0) or Graphite/Carbon and
+any other time series data store that this functionality makes sense for.
 Optionally includes all standard message fields as tags or fields and
 iterates through all of the dynamic fields to add as measurements, skipping
 any fields explicitly omitted using the `skip_fields` config option.  It can
@@ -22,7 +23,6 @@ API
     derived from the dynamic fields in a Heka message. Base fields or
     dynamic fields can be used in the metric name portion of the message.
     Configuration is implemented in the encoders that utilize this module.
-    This function takes no arguments.
 
     *Arguments*
         - config (table or nil)
@@ -42,7 +42,7 @@ API
     derived from the base or dynamic fields in a Heka message. Base fields or
     dynamic fields can be used in the metric name portion of the message and
     included as tags if desired.  Configuration is implemented in the encoders
-    that utilize this module.  This function takes no arguments.
+    that utilize this module.
 
     *Arguments*
         - config (table or nil)
@@ -56,14 +56,35 @@ API
         an InfluxDB server after being looped through in an encoder
         implementing this API.
 
+**set_config(client_config)**
+    This function takes a table of configuration options as input that can
+    override the defaults that are set within it.  The table is then used to
+    compare with the default `module_config`, updates that table and then
+    returns it to the client calling this API. Calls are then made out to
+    public functions exposed by the field_util module to populate the tables
+    and variables related to base fields, tagging fields and skipping fields
+    kept within the module_config table. Clients utilizing this API
+    must call this function first to set the configuration for subsequent
+    calls to public functions that it exposes.
+
+    *Arguments*
+        - client_config (table or nil)
+            Table of configuration option overrides with the keys being
+            the option names and the values being the option values.
+
+    *Return*
+        A table of configuration options that can then be passed to other
+        public functions that this API exposes when calling them.
+
 --]=]
 
+local decode_message = decode_message
 local interp = require "msg_interpolate"
+local ipairs = ipairs
 local field_util = require "field_util"
 local math = require "math"
 local read_config = read_config
 local read_message = read_message
-local read_next_field = read_next_field
 local pairs = pairs
 local string = require "string"
 local table = require "table"
@@ -112,37 +133,42 @@ local function points_tags_tables(config)
     -- redundant data being stored in each data point (the base fields
     -- as fields and as tags).
     local points = {}
-    while true do
-        -- Iterate through Fields array in the message
-        local typ, name, value = read_next_field()
+    local msg = decode_message(read_message("raw"))
+    if msg.Fields then
+        for _, v in ipairs(msg.Fields) do
+            local field = v["name"]
+            local value
+            for _, field_value in ipairs(v["value"]) do
+                value = field_value
+            end
 
-        -- Exit the perpetual loop when the iteration is complete
-        if not typ then break end
+            -- Replace non-word characters with underscores for Carbon
+            -- to avoid periods resulting in extraneous directories
+            if config["carbon_format"] then
+                field = field:gsub("[^%w]", "_")
+            end
 
-        -- Replace non-word characters with underscores for Carbon
-        -- to avoid periods resulting in extraneous directories
-        if config["carbon_format"] then
-            name = name:gsub("[^%w]", "_")
+            -- Include the dynamic fields as tags if they are defined in
+            -- configuration or the magic value "**all**" is defined.
+            -- Convert value to a string as this is required by the API
+            if not config["carbon_format"]
+                and (config["tag_fields_all"]
+                or (config["used_tag_fields"] and used_tag_fields[name])) then
+                    table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
+            end
+
+            if config["source_value_field"] and field == config["source_value_field"] then
+                points[name_prefix] = value
+            -- Only add fields that are not requested to be skipped
+            elseif not config["skip_fields_str"]
+                or (config["skip_fields"] and not skip_fields[field]) then
+                    -- Set the name attribute of this table by concatenating name_prefix
+                    -- with the name of this particular field
+                    points[name_prefix..name_prefix_delimiter..field] = value
+            end
         end
-
-        -- Include the dynamic fields as tags if they are defined in
-        -- configuration or the magic value "**all**" is defined.
-        -- Convert value to a string as this is required by the API
-        if not config["carbon_format"]
-            and (config["tag_fields_all"]
-            or (config["used_tag_fields"] and used_tag_fields[name])) then
-                table.insert(tags, influxdb_kv_fmt(name).."="..tostring(influxdb_kv_fmt(value)))
-        end
-
-        if config["source_value_field"] and name == config["source_value_field"] then
-            points[name_prefix] = value
-        -- Only add fields that are not requested to be skipped
-        elseif not config["skip_fields_str"]
-            or (config["skip_fields"] and not skip_fields[name]) then
-                -- Set the name attribute of this table by concatenating name_prefix
-                -- with the name of this particular field
-                points[name_prefix..name_prefix_delimiter..name] = value
-        end
+    else
+        return 0
     end
 
     return points, tags
@@ -159,7 +185,7 @@ function carbon_line_msg(config)
         value = tostring(value)
         -- Only add metrics that are originally integers or floats, as that is
         -- what Carbon is limited to storing.
-        if value:match("^[%d.]+$") then
+        if string.match(value, "^[%d.]+$") then
             table.insert(api_message, name.." "..value.." "..message_timestamp)
         end
     end
@@ -187,7 +213,7 @@ function influxdb_line_msg(config)
         -- points in time.  Forcing them to always be floats avoids this.
         -- Use the decimal_precision config option to control the
         -- numbers after the decimal that are printed.
-        if type(value) == "number" or value:match("^[%d.]+$") then
+        if type(value) == "number" or string.match(value, "^[%d.]+$") then
             value = string.format("%."..config["decimal_precision"].."f", value)
         end
 
@@ -204,7 +230,7 @@ function influxdb_line_msg(config)
 end
 
 function set_config(client_config)
-    -- Initialize table with default values for line_protocol module
+    -- Initialize table with default values for ts_line_protocol module
     local module_config = {
         carbon_format = false,
         decimal_precision = "6",

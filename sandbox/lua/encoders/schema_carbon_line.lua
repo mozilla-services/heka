@@ -95,7 +95,7 @@ Config:
 
 --]=]
 
-local line_protocol = require "line_protocol"
+local ts_line_protocol = require "ts_line_protocol"
 
 local decoder_config = {
     carbon_format = true,
@@ -106,10 +106,10 @@ local decoder_config = {
     source_value_field = read_config("source_value_field") or nil
 }
 
-local config = line_protocol.set_config(decoder_config)
+local config = ts_line_protocol.set_config(decoder_config)
 
 function process_message()
-    local api_message = line_protocol.carbon_line_msg(config)
+    local api_message = ts_line_protocol.carbon_line_msg(config)
 
     -- Inject a new message with the payload populated with the newline
     -- delimited data points, and append a newline at the end for the last line
