@@ -40,7 +40,7 @@ Features
 * Added Linux CPU Stats Decoder and CPU Stats Filter.
 
 * Centralized common functions used by the Schema Carbon Line Encoder and
-  Schema InfluxDB Line Encoder into new line_protocol and field_util modules.
+  Schema InfluxDB Line Encoder into new ts_line_protocol and field_util modules.
 
 * Added a new sandbox encoder, Schema Carbon Line Encoder, which provides
   support for converting fields in a Heka message to metrics formatted to

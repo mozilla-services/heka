@@ -135,10 +135,10 @@ local function points_tags_tables(config)
     local points = {}
     local msg = decode_message(read_message("raw"))
     if msg.Fields then
-        for _, v in ipairs(msg.Fields) do
-            local field = v["name"]
+        for _, field_entry in ipairs(msg.Fields) do
+            local field = field_entry["name"]
             local value
-            for _, field_value in ipairs(v["value"]) do
+            for _, field_value in ipairs(field_entry["value"]) do
                 value = field_value
             end
 

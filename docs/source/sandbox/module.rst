@@ -65,11 +65,11 @@ Graphite Module
    :start-after: --[[
    :end-before: --]]
 
-Line Protocol Module
+Time Series Line Protocol Module
 --------------------
-.. include:: ../../../sandbox/lua/modules/line_protocol.lua
+.. include:: ../../../sandbox/lua/modules/ts_line_protocol.lua
    :start-after: --[[
    :end-before: --]]
 
-.. _sandbox_line_protocol_module:
+.. _sandbox_ts_line_protocol_module:
 
