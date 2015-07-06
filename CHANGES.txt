@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Stop zero-length records with no error ending the splitter if there's
+  more data to read (#1561)
+
 * Fixed gzipped file seeking in logstreamer may cause an OOM exception.
 
 * Fixed LogstreamerInput file rotation missing newly created files with new
