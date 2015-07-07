@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,9 +18,10 @@ package plugins
 import (
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"os"
 	"log"
+	"os"
+
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 var logOut = log.New(os.Stdout, "", log.LstdFlags)
@@ -28,6 +29,7 @@ var logOut = log.New(os.Stdout, "", log.LstdFlags)
 // Output plugin that writes message contents out using Go standard library's
 // `log` package.
 type LogOutput struct {
+	or OutputRunner
 }
 
 func (self *LogOutput) Init(config interface{}) (err error) {
@@ -51,7 +53,8 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		} else if outBytes != nil {
 			logOut.Print(string(outBytes))
 		}
-		pack.Recycle()
+		or.UpdateCursor(pack.QueueCursor)
+		pack.Recycle(nil)
 	}
 	return
 }

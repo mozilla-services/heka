@@ -473,21 +473,6 @@ func (self *PipelineConfig) RemoveOutputRunner(oRunner OutputRunner) {
 
 type ConfigFile PluginConfig
 
-// This struct provides a structure for the available retry options for
-// a plugin that supports being restarted
-type RetryOptions struct {
-	// Maximum time in seconds between restart attempts. Defaults to 30s.
-	MaxDelay string `toml:"max_delay"`
-	// Starting delay in milliseconds between restart attempts. Defaults to
-	// 250ms.
-	Delay string
-	// Maximum jitter added to every retry attempt. Defaults to 500ms.
-	MaxJitter string `toml:"max_jitter"`
-	// How many times to attempt starting the plugin before failing. Defaults
-	// to -1 (retry forever).
-	MaxRetries int `toml:"max_retries"`
-}
-
 var unknownOptionRegex = regexp.MustCompile("^Configuration contains key \\[(?P<key>\\S+)\\]")
 
 // getAttr uses reflection to extract an attribute value from an arbitrary
@@ -559,13 +544,15 @@ type CommonInputConfig struct {
 }
 
 type CommonFOConfig struct {
-	Ticker     uint   `toml:"ticker_interval"`
-	Matcher    string `toml:"message_matcher"`
-	Signer     string `toml:"message_signer"`
-	CanExit    *bool  `toml:"can_exit"`
-	Retries    RetryOptions
-	Encoder    string // Output only.
-	UseFraming *bool  `toml:"use_framing"` // Output only.
+	Ticker       uint   `toml:"ticker_interval"`
+	Matcher      string `toml:"message_matcher"`
+	Signer       string `toml:"message_signer"`
+	CanExit      *bool  `toml:"can_exit"`
+	Retries      RetryOptions
+	Encoder      string             // Output only.
+	UseFraming   *bool              `toml:"use_framing"` // Output only.
+	UseBuffering *bool              `toml:"use_buffering"`
+	Buffering    *QueueBufferConfig `toml:"buffering"`
 }
 
 type CommonSplitterConfig struct {
@@ -573,14 +560,6 @@ type CommonSplitterConfig struct {
 	UseMsgBytes     *bool `toml:"use_message_bytes"`
 	BufferSize      uint  `toml:"min_buffer_size"`
 	IncompleteFinal *bool `toml:"deliver_incomplete_final"`
-}
-
-func getDefaultRetryOptions() RetryOptions {
-	return RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
-	}
 }
 
 // Default configurations.

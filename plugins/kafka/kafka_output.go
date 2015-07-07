@@ -17,14 +17,15 @@ package kafka
 import (
 	"errors"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
 	"regexp"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 type KafkaOutputConfig struct {
@@ -311,6 +312,7 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	}
 
 	inChan := or.InChan()
+	useBuffering := or.UsesBuffering()
 	errChan := k.producer.Errors()
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -332,22 +334,31 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			key = sarama.StringEncoder(getMessageVariable(pack.Message, k.hashVariable))
 		}
 
-		if msgBytes, err := or.Encode(pack); err == nil {
-			if msgBytes != nil {
-				err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
-				if err != nil {
-					atomic.AddInt64(&k.processMessageFailures, 1)
-					or.LogError(err)
-				}
-			} else {
-				atomic.AddInt64(&k.processMessageDiscards, 1)
-			}
-		} else {
+		msgBytes, err := or.Encode(pack)
+		if err != nil {
 			atomic.AddInt64(&k.processMessageFailures, 1)
 			or.LogError(err)
+			// Don't retry encoding errors.
+			or.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(nil)
+			continue
 		}
-		pack.Recycle()
+		if msgBytes == nil {
+			atomic.AddInt64(&k.processMessageDiscards, 1)
+			or.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(nil)
+			continue
+		}
+		err = k.producer.QueueMessage(topic, key, sarama.ByteEncoder(msgBytes))
+		if err != nil {
+			if !useBuffering {
+				atomic.AddInt64(&k.processMessageFailures, 1)
+			}
+			or.LogError(err)
+		}
+		pack.Recycle(err)
 	}
+
 	errChan <- Shutdown
 	wg.Wait()
 	return

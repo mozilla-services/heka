@@ -255,7 +255,7 @@ func (sr *sRunner) DeliverRecord(record []byte, del Deliverer) {
 	if sr.unframer != nil {
 		unframed = sr.unframer.UnframeRecord(record, pack)
 		if unframed == nil {
-			pack.Recycle()
+			pack.recycle()
 			return
 		}
 	}

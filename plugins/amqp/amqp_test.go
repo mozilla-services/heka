@@ -217,6 +217,8 @@ func AMQPPluginSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
+		pack.QueueCursor = "queuecursor"
+		oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 		c.Specify("publishes a plain message", func() {
 			encoder := new(plugins.PayloadEncoder)
