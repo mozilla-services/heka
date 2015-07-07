@@ -23,6 +23,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"strings"
+	"syscall"
+
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	_ "github.com/mozilla-services/heka/plugins"
@@ -42,18 +51,10 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/statsd"
 	_ "github.com/mozilla-services/heka/plugins/tcp"
 	_ "github.com/mozilla-services/heka/plugins/udp"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"runtime"
-	"runtime/pprof"
-	"strconv"
-	"strings"
-	"syscall"
 )
 
 const (
-	VERSION = "0.10.0"
+	VERSION = "0.11.0"
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
