@@ -21,6 +21,9 @@ Backwards Incompatibilities
 
 * Go 1.4 now required for building.
 
+* Deprecated the read_next_field() sandbox API; it is targeted for removal in
+  0.11.0 (#1602).
+
 * Removed unused PipelinePack.Decoded attribute.
 
 * LogOutput will write data to stdout instead of stderr (#1515).
