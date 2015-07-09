@@ -10,7 +10,7 @@ the output.  Supports a chain of commands, where stdout from each process will
 be piped into the stdin for the next process in the chain. ProcessInput creates
 Fields[ExitStatus] and Fields[SubcmdErrors]. Fields[ExitStatus] represents the
 platform dependent exit status of the last command in the command chain.
-Fields[SubcmdErrors] represnets errors from each sub command, in the format
+Fields[SubcmdErrors] represents errors from each sub command, in the format
 of "Subcommand[<subcommand ID>] returned an error: <error message>".
 
 Config:
