@@ -85,6 +85,9 @@ Features
 
 * Dashboard now shows sandbox plugins in alphabetical order.
 
+* Added 'dynamic_fields' config to ESJsonEncoder for
+  selecting a subset of Fields values
+
 Bug Handling
 ------------
 
