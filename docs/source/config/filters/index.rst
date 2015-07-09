@@ -23,24 +23,11 @@ initialization code.
 - ticker_interval (uint, optional):
     Frequency (in seconds) that a timer event will be sent to the filter.
     Defaults to not sending timer events.
-
-.. versionadded:: 0.7
-
 - can_exit (bool, optional)
+    .. versionadded:: 0.7
+    
     Whether or not this plugin can exit without causing Heka to shutdown.
     Defaults to false for non-sandbox filters, and true for sandbox filters.
-
-.. versionadded:: 0.10
-
-- use_buffering (bool, optional)
-    If true, all messages delivered to this filter will be buffered to disk
-    before delivery, preventing back pressure and allowing retries in cases of
-    message processing failure. Defaults to false, unless otherwise specified
-    by the individual filter's documentation.
-- buffering (QueueBufferConfig, optional)
-    A sub-section that specifies the settings to be used for the buffering
-    behavior. This will only have any impact if `use_buffering` is set to
-    true. See :ref:`buffering`.
 
 Available Filter Plugins
 ========================

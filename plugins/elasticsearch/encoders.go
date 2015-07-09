@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Tanguy Leroux (tlrx.dev@gmail.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Xavier Lange (xavier.lange@viasat.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -210,6 +211,7 @@ type ESJsonEncoder struct {
 	rawBytesFields  []string
 	coord           *ElasticSearchCoordinates
 	fieldMappings   *ESFieldMappings
+	dynamicFields   []string
 }
 
 // Heka fields to ElasticSearch mapping
@@ -244,6 +246,9 @@ type ESJsonEncoderConfig struct {
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 	// Overriding names for Heka fields
 	FieldMappings *ESFieldMappings `toml:"field_mappings"`
+	// Dynamic fields, if present, to be included
+	// Will not be considered if 'Fields' is in Fields []string property
+	DynamicFields []string `toml:"dynamic_fields"`
 }
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
@@ -279,6 +284,8 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 		"Fields",
 	}
 
+	config.DynamicFields = []string{}
+
 	return config
 }
 
@@ -294,6 +301,22 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 		Id:                   conf.Id,
 	}
 	e.fieldMappings = conf.FieldMappings
+	e.dynamicFields = conf.DynamicFields
+
+	if len(e.dynamicFields) > 0 {
+		fieldsInFields := false
+
+		for _,f := range(e.fields) {
+			if strings.ToLower(f) == "fields" {
+				fieldsInFields = true
+			}
+		}
+
+		if !fieldsInFields {
+			err = fmt.Errorf("'Fields' must be in 'fields' list if using 'dynamic_fields'")
+			return
+		}
+	}
 	return
 }
 
@@ -304,6 +327,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 	first := true
+
 	for _, f := range e.fields {
 		switch strings.ToLower(f) {
 		case "uuid":
@@ -326,24 +350,52 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 		case "hostname":
 			writeStringField(first, &buf, e.fieldMappings.Hostname, m.GetHostname())
 		case "fields":
-			for _, field := range m.Fields {
-				raw := false
-				if len(e.rawBytesFields) > 0 {
-					for _, raw_field_name := range e.rawBytesFields {
-						if *field.Name == raw_field_name {
-							raw = true
+			if len(e.dynamicFields) > 0 {
+				fmt.Printf("has dynamic fields %s", e.dynamicFields)
+				for _, field := range m.Fields {
+					dynamicFieldMatch := false
+					raw := false
+
+					for _, field_name := range e.dynamicFields {
+						if *field.Name == field_name {
+							dynamicFieldMatch = true
 						}
 					}
+
+					if dynamicFieldMatch {
+						if len(e.rawBytesFields) > 0 {
+							for _, raw_field_name := range e.rawBytesFields {
+								if *field.Name == raw_field_name {
+									raw = true
+								}
+							}
+						}
+						writeField(first, &buf, field, raw)
+						first = false
+					}
 				}
-				writeField(first, &buf, field, raw)
-				first = false
+			} else {
+				for _, field := range m.Fields {
+					raw := false
+					if len(e.rawBytesFields) > 0 {
+						for _, raw_field_name := range e.rawBytesFields {
+							if *field.Name == raw_field_name {
+								raw = true
+							}
+						}
+					}
+					writeField(first, &buf, field, raw)
+					first = false
+				}
 			}
+
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
 			return
 		}
 		first = false
 	}
+
 	buf.WriteString(`}`)
 	buf.WriteByte(NEWLINE)
 	return buf.Bytes(), err

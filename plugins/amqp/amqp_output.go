@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,13 +19,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"strings"
-	"sync"
-	"time"
-
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
 	"github.com/streadway/amqp"
+	"strings"
+	"sync"
+	"time"
 )
 
 // AMQP Output config struct
@@ -165,15 +164,14 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				break
 			}
 			if outBytes, err = or.Encode(pack); err != nil {
-				or.UpdateCursor(pack.QueueCursor)
-				err = fmt.Errorf("Error encoding message: %s", err)
-				pack.Recycle(err)
+				or.LogError(fmt.Errorf("Error encoding message: %s", err))
+				pack.Recycle()
 				continue
 			} else if outBytes == nil {
-				or.UpdateCursor(pack.QueueCursor)
-				pack.Recycle(nil)
+				pack.Recycle()
 				continue
 			}
+			pack.Recycle()
 			amqpMsg = amqp.Publishing{
 				DeliveryMode: persist,
 				Timestamp:    time.Now(),
@@ -183,12 +181,8 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			err = ao.ch.Publish(conf.Exchange, conf.RoutingKey,
 				false, false, amqpMsg)
 			if err != nil {
-				err = NewRetryMessageError(err.Error())
 				ok = false
-			} else {
-				or.UpdateCursor(pack.QueueCursor)
 			}
-			pack.Recycle(err)
 		}
 	}
 	ao.usageWg.Done()

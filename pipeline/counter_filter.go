@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -70,8 +70,7 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			msgLoopCount = pack.MsgLoopCount
 			this.count++
-			fr.UpdateCursor(pack.QueueCursor)
-			pack.Recycle(nil)
+			pack.Recycle()
 		case <-ticker:
 			this.tally(fr, h, msgLoopCount)
 		}

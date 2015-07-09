@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2015
+# Portions created by the Initial Developer are Copyright (C) 2012-2014
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,12 +16,6 @@ package graphite
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync"
-	"time"
-
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
@@ -30,6 +24,11 @@ import (
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/rafrombrc/whisper-go/whisper"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 )
 
 func WhisperRunnerSpec(c gospec.Context) {
@@ -125,8 +124,8 @@ func WhisperOutputSpec(c gospec.Context) {
 		pack.Message.SetPayload(strings.Join(lines, "\n"))
 
 		c.Specify("turns statmetric lines into points", func() {
-			oth.MockOutputRunner.EXPECT().InChan().Return(inChan)
-			oth.MockOutputRunner.EXPECT().UpdateCursor("")
+			inChanCall := oth.MockOutputRunner.EXPECT().InChan()
+			inChanCall.Return(inChan)
 			wChanCall := mockWr.EXPECT().InChan().Times(count)
 			wChanCall.Return(wChan)
 

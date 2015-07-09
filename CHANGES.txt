@@ -4,9 +4,6 @@
 Backwards Incompatibilities
 ---------------------------
 
-* Major overhaul of filter and output plugin APIs to support disk buffering
-  (#1378).
-
 * Go 1.4 now required for building.
 
 * Deprecated the read_next_field() sandbox API; it is targeted for removal in
@@ -15,9 +12,6 @@ Backwards Incompatibilities
 * Removed unused PipelinePack.Decoded attribute.
 
 * LogOutput will write data to stdout instead of stderr (#1515).
-
-* Using stftime literals for filenames during rotation in FileOutput plugin
-  (#1469).
 
 * Implemented stftime format codes in: filenames in FileOutput plugin,
   ESJsonEncoder, ESLogstashV0Encoder, Payload encoder (#1469, #1508).
@@ -84,6 +78,9 @@ Features
   fields for the DockerLogInput. (#1569)
 
 * Dashboard now shows sandbox plugins in alphabetical order.
+
+* Added 'dynamic_fields' config to ESJsonEncoder for
+  selecting a subset of Fields values
 
 Bug Handling
 ------------
