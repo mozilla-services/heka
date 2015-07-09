@@ -303,14 +303,13 @@ func (mr *MatchRunner) Start(matchChan chan *PipelinePack, sampleDenom int) {
 				match = mr.spec.Match(pack.Message)
 				counter++
 			}
-
-			if match {
-				pack.diagnostics.AddStamp(mr.pluginRunner)
-				matchChan <- pack
-			} else {
-				pack.Recycle()
-			}
 		}
-		close(matchChan)
-	}()
+		pack.recycle()
+		return err
+	}
+	if mr.matchChan != nil {
+		mr.matchChan <- pack
+		return nil
+	}
+	return errors.New("no queue buffer or match chan for delivery")
 }
