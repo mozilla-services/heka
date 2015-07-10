@@ -19,13 +19,15 @@ package elasticsearch
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
-	"github.com/cactus/gostrftime"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cactus/gostrftime"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 const lowerhex = "0123456789abcdef"
@@ -203,15 +205,39 @@ func writeIntField(first bool, b *bytes.Buffer, name string, value int32) {
 	b.WriteString(strconv.Itoa(int(value)))
 }
 
+var fieldChoices = []string{
+	"Uuid",
+	"Timestamp",
+	"Type",
+	"Logger",
+	"Severity",
+	"Payload",
+	"EnvVersion",
+	"Pid",
+	"Hostname",
+	"DynamicFields",
+}
+
+// Assumes `field` has been lowercased.
+func inFieldChoices(field string) bool {
+	for _, val := range fieldChoices {
+		if field == strings.ToLower(val) {
+			return true
+		}
+	}
+	return false
+}
+
 // Manually encodes the Heka message into an ElasticSearch friendly way.
 type ESJsonEncoder struct {
 	// Field names to include in ElasticSearch document for "clean" format.
-	fields          []string
-	timestampFormat string
-	rawBytesFields  []string
-	coord           *ElasticSearchCoordinates
-	fieldMappings   *ESFieldMappings
-	dynamicFields   []string
+	fields            []string
+	timestampFormat   string
+	rawBytesFields    []string
+	coord             *ElasticSearchCoordinates
+	fieldMappings     *ESFieldMappings
+	dynamicFields     []string
+	usesDynamicFields bool
 }
 
 // Heka fields to ElasticSearch mapping
@@ -246,8 +272,8 @@ type ESJsonEncoderConfig struct {
 	RawBytesFields []string `toml:"raw_bytes_fields"`
 	// Overriding names for Heka fields
 	FieldMappings *ESFieldMappings `toml:"field_mappings"`
-	// Dynamic fields, if present, to be included
-	// Will not be considered if 'Fields' is in Fields []string property
+	// Dynamic fields to be included. Non-empty value raises an error if
+	// 'DynamicFields' is not in Fields []string property.
 	DynamicFields []string `toml:"dynamic_fields"`
 }
 
@@ -271,21 +297,8 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 		},
 	}
 
-	config.Fields = []string{
-		"Uuid",
-		"Timestamp",
-		"Type",
-		"Logger",
-		"Severity",
-		"Payload",
-		"EnvVersion",
-		"Pid",
-		"Hostname",
-		"Fields",
-	}
-
+	config.Fields = fieldChoices[:]
 	config.DynamicFields = []string{}
-
 	return config
 }
 
@@ -303,19 +316,24 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 	e.fieldMappings = conf.FieldMappings
 	e.dynamicFields = conf.DynamicFields
 
-	if len(e.dynamicFields) > 0 {
-		fieldsInFields := false
-
-		for _,f := range(e.fields) {
-			if strings.ToLower(f) == "fields" {
-				fieldsInFields = true
-			}
+	usesDynamicFields := false
+	for i, f := range e.fields {
+		lowF := strings.ToLower(f)
+		// Use of "fields" value is undocumented but left in for b/w compatibility.
+		if lowF == "fields" {
+			e.fields[i] = "dynamicfields"
+			usesDynamicFields = true
+		} else if lowF == "dynamicfields" {
+			usesDynamicFields = true
+		} else if !inFieldChoices(lowF) {
+			msg := "Unsupported value \"%s\" in 'fields' list, must be one of %s"
+			return fmt.Errorf(msg, f, strings.Join(fieldChoices, ", "))
 		}
+	}
 
-		if !fieldsInFields {
-			err = fmt.Errorf("'Fields' must be in 'fields' list if using 'dynamic_fields'")
-			return
-		}
+	if len(e.dynamicFields) > 0 && !usesDynamicFields {
+		msg := "\"DynamicFields\" must be in 'fields' list if using 'dynamic_fields'"
+		return errors.New(msg)
 	}
 	return
 }
@@ -349,33 +367,22 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 			writeIntField(first, &buf, e.fieldMappings.Pid, m.GetPid())
 		case "hostname":
 			writeStringField(first, &buf, e.fieldMappings.Hostname, m.GetHostname())
-		case "fields":
-			if len(e.dynamicFields) > 0 {
-				fmt.Printf("has dynamic fields %s", e.dynamicFields)
-				for _, field := range m.Fields {
-					dynamicFieldMatch := false
-					raw := false
+		case "dynamicfields":
+			listsDynamicFields := len(e.dynamicFields) > 0
 
-					for _, field_name := range e.dynamicFields {
-						if *field.Name == field_name {
+			for _, field := range m.Fields {
+				dynamicFieldMatch := false
+				if listsDynamicFields {
+					for _, fieldName := range e.dynamicFields {
+						if *field.Name == fieldName {
 							dynamicFieldMatch = true
 						}
 					}
-
-					if dynamicFieldMatch {
-						if len(e.rawBytesFields) > 0 {
-							for _, raw_field_name := range e.rawBytesFields {
-								if *field.Name == raw_field_name {
-									raw = true
-								}
-							}
-						}
-						writeField(first, &buf, field, raw)
-						first = false
-					}
+				} else {
+					dynamicFieldMatch = true
 				}
-			} else {
-				for _, field := range m.Fields {
+
+				if dynamicFieldMatch {
 					raw := false
 					if len(e.rawBytesFields) > 0 {
 						for _, raw_field_name := range e.rawBytesFields {
@@ -388,7 +395,6 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 					first = false
 				}
 			}
-
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
 			return
@@ -404,11 +410,12 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 // Manually encodes messages into JSON structure matching Logstash's "version
 // 1" schema, for compatibility with Kibana's out-of-box Logstash dashboards.
 type ESLogstashV0Encoder struct {
-	rawBytesFields []string
-	coord          *ElasticSearchCoordinates
 	// Field names to include in ElasticSearch document for "clean" format.
 	fields          []string
 	timestampFormat string
+	rawBytesFields  []string
+	coord           *ElasticSearchCoordinates
+	dynamicFields   []string
 	useMessageType  bool
 }
 
@@ -431,7 +438,11 @@ type ESLogstashV0EncoderConfig struct {
 	Id string
 	// Fields to which formatting will not be applied.
 	RawBytesFields []string `toml:"raw_bytes_fields"`
+	// Dynamic fields to be included. Non-empty value raises an error if
+	// 'DynamicFields' is not in Fields []string property.
+	DynamicFields []string `toml:"dynamic_fields"`
 }
+
 func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 
 	config := &ESLogstashV0EncoderConfig{
@@ -443,19 +454,8 @@ func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 		Id:                   "",
 	}
 
-	config.Fields = []string{
-		"Uuid",
-		"Timestamp",
-		"Type",
-		"Logger",
-		"Severity",
-		"Payload",
-		"EnvVersion",
-		"Pid",
-		"Hostname",
-		"Fields",
-	}
-
+	config.Fields = fieldChoices[:]
+	config.DynamicFields = []string{}
 	return config
 }
 
@@ -470,6 +470,27 @@ func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 		Type:                 conf.TypeName,
 		ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
 		Id:                   conf.Id,
+	}
+	e.dynamicFields = conf.DynamicFields
+
+	usesDynamicFields := false
+	for i, f := range e.fields {
+		lowF := strings.ToLower(f)
+		// Use of "fields" value is undocumented but left in for b/w compatibility.
+		if lowF == "fields" {
+			e.fields[i] = "dynamicfields"
+			usesDynamicFields = true
+		} else if lowF == "dynamicfields" {
+			usesDynamicFields = true
+		} else if !inFieldChoices(lowF) {
+			msg := "Unsupported value \"%s\" in 'fields' list, must be one of %s"
+			return fmt.Errorf(msg, lowF, strings.Join(fieldChoices, ", "))
+		}
+	}
+
+	if len(e.dynamicFields) > 0 && !usesDynamicFields {
+		msg := "\"DynamicFields\" must be in 'fields' list if using 'dynamic_fields'"
+		return errors.New(msg)
 	}
 	return
 }
@@ -514,23 +535,38 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			writeIntField(first, &buf, `@pid`, m.GetPid())
 		case "hostname":
 			writeStringField(first, &buf, `@source_host`, m.GetHostname())
-		case "fields":
+		case "dynamicfields":
 			if !first {
 				buf.WriteString(`,`)
 			}
 			buf.WriteString(`"@fields":{`)
 			firstfield := true
+
+			listsDynamicFields := len(e.dynamicFields) > 0
 			for _, field := range m.Fields {
-				raw := false
-				if len(e.rawBytesFields) > 0 {
-					for _, raw_field_name := range e.rawBytesFields {
-						if *field.Name == raw_field_name {
-							raw = true
+				dynamicFieldMatch := false
+				if listsDynamicFields {
+					for _, fieldName := range e.dynamicFields {
+						if *field.Name == fieldName {
+							dynamicFieldMatch = true
 						}
 					}
+				} else {
+					dynamicFieldMatch = true
 				}
-				writeField(firstfield, &buf, field, raw)
-				firstfield = false
+
+				if dynamicFieldMatch {
+					raw := false
+					if len(e.rawBytesFields) > 0 {
+						for _, raw_field_name := range e.rawBytesFields {
+							if *field.Name == raw_field_name {
+								raw = true
+							}
+						}
+					}
+					writeField(firstfield, &buf, field, raw)
+					firstfield = false
+				}
 			}
 			buf.WriteString(`}`) // end of fields
 		default:

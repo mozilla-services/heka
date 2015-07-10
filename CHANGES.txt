@@ -30,6 +30,9 @@ Backwards Incompatibilities
 * SplitterRunner interface now provides a `Done` method that should be called
   whenever the splitter is no longer needed.
 
+* `"Fields"` choice for the `fields` setting renamed to `"DynamicFields"` for
+  both ESJsonEncoder and ESLogstashV0Encoder.
+
 Features
 --------
 
@@ -85,8 +88,8 @@ Features
 
 * Dashboard now shows sandbox plugins in alphabetical order.
 
-* Added 'dynamic_fields' config to ESJsonEncoder for
-  selecting a subset of Fields values
+* Added 'dynamic_fields' config to ESJsonEncoder for selecting a subset of
+  Fields values
 
 Bug Handling
 ------------
