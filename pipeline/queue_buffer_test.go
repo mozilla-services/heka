@@ -21,9 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"code.google.com/p/gogoprotobuf/proto"
-
 	"github.com/bbangert/toml"
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"

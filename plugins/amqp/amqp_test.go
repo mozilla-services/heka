@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
@@ -28,6 +27,7 @@ import (
 	. "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/pborman/uuid"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/streadway/amqp"

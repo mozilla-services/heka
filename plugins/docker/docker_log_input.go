@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
+	"github.com/pborman/uuid"
 )
 
 type DockerLogInputConfig struct {

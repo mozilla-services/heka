@@ -27,15 +27,9 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/client"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"math"
 	"math/rand"
@@ -45,6 +39,13 @@ import (
 	"runtime/pprof"
 	"syscall"
 	"time"
+
+	"github.com/bbangert/toml"
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/pborman/uuid"
 )
 
 type FloodTest struct {
@@ -272,7 +273,7 @@ func makeFixedMessage(encoder client.StreamEncoder, size uint64,
 	return ma
 }
 
-func createSender(test FloodTest)(sender *client.NetworkSender, err error) {
+func createSender(test FloodTest) (sender *client.NetworkSender, err error) {
 	if test.UseTls {
 		var goTlsConfig *tls.Config
 		goTlsConfig, err = tcp.CreateGoTlsConfig(&test.Tls)
@@ -347,7 +348,7 @@ func main() {
 		message.SetMaxMessageSize(test.MaxMessageSize)
 	}
 	if test.ReconnectInterval < 1 {
-        	test.ReconnectInterval = 5
+		test.ReconnectInterval = 5
 	}
 
 	retryIntervalDuration := time.Duration(test.ReconnectInterval) * time.Second
@@ -369,7 +370,6 @@ func main() {
 			break
 		}
 	}
-
 
 	unsignedEncoder := client.NewProtobufEncoder(nil)
 	signedEncoder := client.NewProtobufEncoder(&test.Signer)
@@ -413,7 +413,6 @@ func main() {
 	test.CorruptPercentage /= 100.0
 	test.SignedPercentage /= 100.0
 	test.OversizedPercentage /= 100.0
-
 
 	var buf []byte
 	for gotsigint := false; !gotsigint; {

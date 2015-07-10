@@ -3,6 +3,6 @@ if(NOT PROTOBUF_EXECUTABLE)
 endif()
 
 execute_process(
-COMMAND ${PROTOBUF_EXECUTABLE} --gogo_out=. -I=.:../build/heka/src/code.google.com/p/gogoprotobuf/gogoproto:../build/heka/src/code.google.com/p/gogoprotobuf/protobuf message.proto
+COMMAND ${PROTOBUF_EXECUTABLE} --gogo_out=. -I=.:../build/heka/src/github.com/gogo/protobuf/gogoproto:../build/heka/src/github.com/gogo/protobuf/protobuf message.proto
 WORKING_DIRECTORY "${SRC_DIR}/message"
 )

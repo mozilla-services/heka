@@ -25,18 +25,19 @@ package lua
 import "C"
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/sandbox"
 	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/sandbox"
+	"github.com/pborman/uuid"
 )
 
 const SandboxIoTemplate = `{
@@ -230,7 +231,7 @@ func delete_field(msg *message.Message, fn string, fi, ai int, has_ai bool) erro
 	if len(fields) == 0 {
 		return nil
 	}
-	if fi > len(fields) - 1 {
+	if fi > len(fields)-1 {
 		return errors.New("bad field index")
 	}
 
@@ -238,31 +239,31 @@ func delete_field(msg *message.Message, fn string, fi, ai int, has_ai bool) erro
 	if has_ai {
 		switch field.GetValueType() {
 		case message.Field_STRING:
-			if ai > len(field.ValueString) - 1 {
+			if ai > len(field.ValueString)-1 {
 				return errors.New("bad array index")
 			} else {
 				field.ValueString = append(field.ValueString[:ai], field.ValueString[ai+1:]...)
 			}
 		case message.Field_BYTES:
-			if ai > len(field.ValueBytes) - 1{
+			if ai > len(field.ValueBytes)-1 {
 				return errors.New("bad array index")
 			} else {
 				field.ValueBytes = append(field.ValueBytes[:ai], field.ValueBytes[ai+1:]...)
 			}
 		case message.Field_INTEGER:
-			if ai > len(field.ValueInteger) - 1 {
+			if ai > len(field.ValueInteger)-1 {
 				return errors.New("bad array index")
 			} else {
 				field.ValueInteger = append(field.ValueInteger[:ai], field.ValueInteger[ai+1:]...)
 			}
 		case message.Field_DOUBLE:
-			if ai > len(field.ValueDouble) - 1 {
+			if ai > len(field.ValueDouble)-1 {
 				return errors.New("bad array index")
 			} else {
 				field.ValueDouble = append(field.ValueDouble[:ai], field.ValueDouble[ai+1:]...)
 			}
 		case message.Field_BOOL:
-			if ai > len(field.ValueBool) - 1 {
+			if ai > len(field.ValueBool)-1 {
 				return errors.New("bad array index")
 			} else {
 				field.ValueBool = append(field.ValueBool[:ai], field.ValueBool[ai+1:]...)

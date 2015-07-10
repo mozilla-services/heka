@@ -21,11 +21,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Shopify/sarama"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
+	"github.com/rafrombrc/sarama"
 )
 
 func TestEmptyInputAddress(t *testing.T) {
