@@ -15,17 +15,18 @@
 package elasticsearch
 
 import (
-	"fmt"
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
-	gs "github.com/rafrombrc/gospec/src/gospec"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -253,6 +254,47 @@ func ESEncodersSpec(c gs.Context) {
 
 			c.Expect(decoded["@timestamp"], gs.Equals, "2013/07/16 15:49:05 +0000")
 		})
+
+		c.Specify("validates dynamic_fields against fields list", func() {
+			// "DynamicFields" not listed fails init.
+			config.DynamicFields = []string{"asdf", "jkl;"}
+			config.Fields = []string{"Logger", "Hostname"}
+			err := encoder.Init(config)
+			c.Assume(err, gs.Not(gs.IsNil))
+			msg := "\"DynamicFields\" must be in 'fields' list if using 'dynamic_fields'"
+			c.Expect(err.Error(), gs.Equals, msg)
+
+			// "DynamicFields" listed passes init.
+			config.Fields = []string{"Logger", "Hostname", "DynamicFields"}
+			err = encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(encoder.dynamicFields), gs.Equals, 2)
+
+			// "Fields" works as an alias for "DynamicFields".
+			config.Fields = []string{"Logger", "Hostname", "Fields"}
+			err = encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(encoder.dynamicFields), gs.Equals, 2)
+		})
+
+		c.Specify("honors dynamic fields", func() {
+			c.Specify("when dynamic_fields is empty", func() {
+				err := encoder.Init(config)
+				c.Expect(err, gs.IsNil)
+				b, err := encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				output := string(b)
+				lines := strings.Split(output, string(NEWLINE))
+				decoded := make(map[string]interface{})
+				err = json.Unmarshal([]byte(lines[1]), &decoded)
+				c.Assume(err, gs.IsNil)
+				c.Expect(len(decoded), gs.Equals, 10)
+				fieldsValInterface := decoded["@fields"]
+				fieldsVal := fieldsValInterface.(map[string]interface{})
+				c.Expect(len(fieldsVal), gs.Equals, 13)
+			})
+		})
 	})
 
 	c.Specify("ESJsonEncoder", func() {
@@ -386,6 +428,68 @@ func ESEncodersSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 
 			c.Expect(decoded["Timestamp"], gs.Equals, "2013/07/16 15:49:05 +0000")
+		})
+
+		c.Specify("validates field list", func() {
+			config.Fields = []string{"severity", "Hogger", "Lostname"}
+			err := encoder.Init(config)
+			c.Assume(err, gs.Not(gs.IsNil))
+			msg := "Unsupported value \"Hogger\" in 'fields' list, must be one of"
+			c.Expect(err.Error()[:len(msg)], gs.Equals, msg)
+		})
+
+		c.Specify("validates dynamic_fields against fields list", func() {
+			// "DynamicFields" not listed fails init.
+			config.DynamicFields = []string{"asdf", "jkl;"}
+			config.Fields = []string{"Logger", "Hostname"}
+			err := encoder.Init(config)
+			c.Assume(err, gs.Not(gs.IsNil))
+			msg := "\"DynamicFields\" must be in 'fields' list if using 'dynamic_fields'"
+			c.Expect(err.Error(), gs.Equals, msg)
+
+			// "DynamicFields" listed passes init.
+			config.Fields = []string{"Logger", "Hostname", "DynamicFields"}
+			err = encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(encoder.dynamicFields), gs.Equals, 2)
+
+			// "Fields" works as an alias for "DynamicFields".
+			config.Fields = []string{"Logger", "Hostname", "Fields"}
+			err = encoder.Init(config)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(encoder.dynamicFields), gs.Equals, 2)
+		})
+
+		c.Specify("honors dynamic fields", func() {
+
+			c.Specify("when dynamic_fields is empty", func() {
+				err := encoder.Init(config)
+				c.Assume(err, gs.IsNil)
+				b, err := encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				output := string(b)
+				lines := strings.Split(output, string(NEWLINE))
+				decoded := make(map[string]interface{})
+				err = json.Unmarshal([]byte(lines[1]), &decoded)
+				c.Assume(err, gs.IsNil)
+				c.Expect(len(decoded), gs.Equals, 22) // 9 base fields and 13 dynamic fields.
+			})
+
+			c.Specify("when dynamic_fields is specified", func() {
+				config.DynamicFields = []string{"idField", "stringArray"}
+				err := encoder.Init(config)
+				c.Assume(err, gs.IsNil)
+				b, err := encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				output := string(b)
+				lines := strings.Split(output, string(NEWLINE))
+				decoded := make(map[string]interface{})
+				err = json.Unmarshal([]byte(lines[1]), &decoded)
+				c.Assume(err, gs.IsNil)
+				c.Expect(len(decoded), gs.Equals, 11) // 9 base fields and 2 dynamic fields.
+			})
 		})
 	})
 }

@@ -35,9 +35,9 @@ Config:
     The 'fields' parameter specifies that only specific message data should be
     indexed into ElasticSearch. Available fields to choose are "Uuid",
     "Timestamp", "Type", "Logger", "Severity", "Payload", "EnvVersion", "Pid",
-    "Hostname", and "Fields" (where "Fields" causes the inclusion of any and
-    all dynamically specified message fields. Defaults to including all of the
-    supported message fields.
+    "Hostname", and "DynamicFields" (where "DynamicFields" causes the inclusion
+    of dynamically specified message fields, see ``dynamic_fields``). Defaults
+    to including all of the supported message fields.
 - timestamp (string):
     Format to use for timestamps in generated ES documents. Allows to use
     strftime format codes. Defaults to "%Y-%m-%dT%H:%M:%S".
@@ -59,6 +59,11 @@ Config:
     Maps Heka message fields to custom ES keys. Can be used to implement a custom format
     in ES or implement Logstash V1. The available fields are "Timestamp", "Uuid",
     "Type", "Logger", "Severity", "Payload", "EnvVersion", "Pid" and "Hostname".
+- dynamic_fields ([]string):
+    This specifies which of the message's dynamic fields should be included in
+    the JSON output. Defaults to including all of the messages dynamic
+    fields. If ``dynamic_fields`` is non-empty, then the ``fields`` list *must*
+    contain "DynamicFields" or an error will be raised.
 
 Example
 
