@@ -16,12 +16,13 @@
 package pipeline
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/mozilla-services/heka/message"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
 )
 
 // Decoder for converting ProtocolBuffer data into Message objects.

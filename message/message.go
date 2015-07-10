@@ -24,9 +24,10 @@ package message
 
 import (
 	"bytes"
-	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
 	"reflect"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 const (

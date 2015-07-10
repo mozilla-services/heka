@@ -21,8 +21,7 @@ import (
 	"errors"
 	"sync"
 
-	"code.google.com/p/gogoprotobuf/proto"
-
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"

@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/pborman/uuid"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 

@@ -21,8 +21,8 @@ import (
 	"io"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
 )
 
 type WantsSplitterRunner interface {

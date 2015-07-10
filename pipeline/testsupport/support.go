@@ -20,13 +20,14 @@ Several support structures for use with gospec to ease test comparisons.
 package testsupport
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	. "github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"log"
 	"strings"
 	"time"
+
+	. "github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
+	"github.com/rafrombrc/gospec/src/gospec"
 )
 
 var (

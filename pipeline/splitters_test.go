@@ -17,14 +17,15 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/gogoprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
+	"io"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
 )
 
 func makeSplitterRunner(name string, splitter Splitter) SplitterRunner {

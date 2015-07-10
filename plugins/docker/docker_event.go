@@ -5,11 +5,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
-
 	"github.com/carlanton/go-dockerclient"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
+	"github.com/pborman/uuid"
 )
 
 type DockerEventInputConfig struct {

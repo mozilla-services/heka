@@ -16,13 +16,14 @@
 package client
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/sha1"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"hash"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
 )
 
 type Encoder interface {

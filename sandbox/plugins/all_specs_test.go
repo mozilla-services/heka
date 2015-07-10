@@ -16,12 +16,13 @@
 package plugins
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"github.com/mozilla-services/heka/message"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func TestAllSpecs(t *testing.T) {

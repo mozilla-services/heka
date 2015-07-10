@@ -22,16 +22,17 @@ protobuf logs.
 package main
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
 	"io"
 	"math"
 	"os"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 func makeSplitterRunner() (pipeline.SplitterRunner, error) {

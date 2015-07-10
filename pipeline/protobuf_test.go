@@ -17,12 +17,13 @@
 package pipeline
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
+	"testing"
+
+	"github.com/gogo/protobuf/proto"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"testing"
 )
 
 // Attach an `Init` method to MockDecoders so they'll work w/ PluginWrappers
