@@ -51,10 +51,19 @@ Features
 
 * Added Linux CPU Stats Decoder and CPU Stats Filter.
 
-* Added a new sandbox encoder, Schema InfluxDB Write Encoder, which updates
+* Centralized common functions used by the Schema Carbon Line Encoder and
+  Schema InfluxDB Line Encoder into new ts_line_protocol and field_util modules.
+
+* Added a new sandbox encoder, Schema Carbon Line Encoder, which provides
+  support for converting fields in a Heka message to metrics formatted to
+  send to Carbon/Graphite.
+
+* Added a new sandbox encoder, Schema InfluxDB Line Encoder, which updates
   compatibility of sending data in Heka message fields to InfluxDB 0.9.0+
   write API. It is required to use this encoder when integrating Heka with an
-  InfluxDB 0.9.0+ instance as the API to commit metrics has changed.
+  InfluxDB 0.9.0+ instance as the API to commit metrics has changed. This
+  encoder was also updated to use the line protocol which is now the default
+  series format for the write API.
 
 * Added support for abstract Unix domain sockets to the UdpInput.
 
