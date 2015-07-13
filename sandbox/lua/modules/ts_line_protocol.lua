@@ -99,24 +99,24 @@ local function influxdb_kv_fmt(string)
 end
 
 local function points_tags_tables(config)
-    local name_prefix = ""
-    if config["name_prefix"] then
-        name_prefix = interp.interpolate_from_msg(config["name_prefix"])
+    local name_prefix = config.name_prefix or ""
+    if config.interp_name_prefix then
+        name_prefix = interp.interpolate_from_msg(name_prefix)
     end
-    local name_prefix_delimiter = config["name_prefix_delimiter"] or ""
-    local used_tag_fields = config["used_tag_fields"]
-    local skip_fields = config["skip_fields"]
+    local name_prefix_delimiter = config.name_prefix_delimiter or ""
+    local used_tag_fields = config.used_tag_fields
+    local skip_fields = config.skip_fields
 
     -- Initialize the tags table, including base field tag values in
     -- list if the magic **all** or **all_base** config values are
     -- defined.
     local tags = {}
-    if not config["carbon_format"]
-        and (config["tag_fields_all"]
-        or config["tag_fields_all_base"]
-        or config["used_tag_fields"]) then
+    if not config.carbon_format
+        and (config.tag_fields_all
+        or config.tag_fields_all_base
+        or config.used_tag_fields) then
             for field in pairs(field_util.base_fields_tag_list) do
-                if config["tag_fields_all"] or config["tag_fields_all_base"] or used_tag_fields[field] then
+                if config.tag_fields_all or config.tag_fields_all_base or used_tag_fields[field] then
                     local value = read_message(field)
                     table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
                 end
@@ -174,11 +174,11 @@ local function points_tags_tables(config)
     return points, tags
 end
 
---[[ Public Interface --]]
+--[[ Public Interface]]
 
 function carbon_line_msg(config)
     local api_message = {}
-    local message_timestamp = field_util.message_timestamp(config["timestamp_precision"])
+    local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
     local points = points_tags_tables(config)
 
     for name, value in pairs(points) do
@@ -195,7 +195,7 @@ end
 
 function influxdb_line_msg(config)
     local api_message = {}
-    local message_timestamp = field_util.message_timestamp(config["timestamp_precision"])
+    local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
     local points, tags = points_tags_tables(config)
 
     -- Build a table of data points that we will eventually convert
@@ -214,15 +214,19 @@ function influxdb_line_msg(config)
         -- Use the decimal_precision config option to control the
         -- numbers after the decimal that are printed.
         if type(value) == "number" or string.match(value, "^[%d.]+$") then
-            value = string.format("%."..config["decimal_precision"].."f", value)
+            value = string.format("%."..config.decimal_precision.."f", value)
         end
 
         -- Format the line differently based on the presence of tags
         -- i.e. length of the tags table is > 0
         if tags and #tags > 0 then
-            table.insert(api_message, influxdb_kv_fmt(name)..","..table.concat(tags, ",").." "..config["value_field_key"].."="..value.." "..message_timestamp)
+            insert_value = string.format("%s,%s %s=%s %d", influxdb_kv_fmt(name), table.concat(tags, ","),
+                                         config.value_field_key, value, message_timestamp)
+            table.insert(api_message, insert_value)
         else
-            table.insert(api_message, influxdb_kv_fmt(name).." "..config["value_field_key"].."="..value.." "..message_timestamp)
+            insert_value = string.format("%s %s=%s %d", influxdb_kv_fmt(name), config.value_field_key, value,
+                                         message_timestamp)
+            table.insert(api_message, insert_value)
         end
     end
 
@@ -252,17 +256,23 @@ function set_config(client_config)
 
     -- Remove blacklisted fields from the set of base fields that we use, and
     -- create a table of dynamic fields to skip.
-    if module_config["skip_fields_str"] then
-        module_config["skip_fields"],
-        module_config["skip_fields_all_base"] = field_util.field_map(client_config["skip_fields_str"])
-        module_config["used_base_fields"] = field_util.used_base_fields(module_config["skip_fields"])
+    if module_config.skip_fields_strb then
+        module_config.skip_fields,
+        module_config.skip_fields_all_base = field_util.field_map(client_config.skip_fields_str)
+        module_config.used_base_fields = field_util.used_base_fields(module_config.skip_fields)
     end
 
     -- Create and populate a table of fields to be used as tags
-    if module_config["tag_fields_str"] then
-        module_config["used_tag_fields"],
-        module_config["tag_fields_all_base"],
-        module_config["tag_fields_all"] = field_util.field_map(client_config["tag_fields_str"])
+    if module_config.tag_fields_str then
+        module_config.used_tag_fields,
+        module_config.tag_fields_all_base,
+        module_config.tag_fields_all = field_util.field_map(client_config.tag_fields_str)
+    end
+
+    -- Cache whether or not name_prefix needs interpolation
+    module_config.interp_name_prefix = false
+    if module_config.name_prefix and string.find(module_config.name_prefix, "%%{[%w%p]-}") then
+        module_config.interp_name_prefix = true
     end
 
     return module_config
