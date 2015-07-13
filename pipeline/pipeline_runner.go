@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	proto "code.google.com/p/gogoprotobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	notify "github.com/rafrombrc/go-notify"
 )

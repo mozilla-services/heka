@@ -24,7 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	. "github.com/mozilla-services/heka/sandbox"

@@ -17,14 +17,15 @@ package pipeline
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"math"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
 )
 
 // Represents a single stat value in the format expected by the StatAccumInput.

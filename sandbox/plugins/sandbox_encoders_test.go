@@ -1,12 +1,13 @@
 package plugins
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
 	"encoding/json"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/pborman/uuid"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )

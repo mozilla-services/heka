@@ -30,8 +30,8 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/bbangert/toml"
+	"github.com/pborman/uuid"
 )
 
 const (

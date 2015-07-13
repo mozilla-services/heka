@@ -15,13 +15,14 @@
 package pipeline
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
 )
 
 // Populated by the init function, this regex matches the MessageFields values
