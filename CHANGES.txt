@@ -1,3 +1,11 @@
+0.10.0 (2015-??-??)
+===================
+
+Features
+--------
+
+* Allow multiple sandbox module directories to be specified (#1525).
+
 0.10.0b0 (2015-07-13)
 =====================
 

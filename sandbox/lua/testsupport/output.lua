@@ -1,5 +1,6 @@
 require "io"
 require "string"
+require "dummy"
 
 function process_message()
     local payload = read_message("Payload")
