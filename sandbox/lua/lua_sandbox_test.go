@@ -295,7 +295,7 @@ func TestAPIErrors(t *testing.T) {
 		"invalid error message",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '/unknown.lua'\n\tno file '/unknown.so'",
+		"process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file 'unknown.lua'\n\tno file 'unknown.so'",
 		"process_message() ./testsupport/errors.lua:13: bad argument #0 to 'add_to_payload' (must have at least one argument)",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",

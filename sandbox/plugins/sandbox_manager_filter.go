@@ -100,7 +100,7 @@ func (this *SandboxManagerFilter) Init(config interface{}) (err error) {
 	globals := this.pConfig.Globals
 	this.maxFilters = conf.MaxFilters
 	this.workingDirectory = globals.PrependBaseDir(conf.WorkingDirectory)
-	this.moduleDirectory = globals.PrependShareDir(conf.ModuleDirectory)
+	this.moduleDirectory = conf.ModuleDirectory
 	this.memoryLimit = conf.MemoryLimit
 	this.instructionLimit = conf.InstructionLimit
 	this.outputLimit = conf.OutputLimit

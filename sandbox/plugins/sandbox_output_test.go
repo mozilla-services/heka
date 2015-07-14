@@ -43,7 +43,7 @@ func OutputSpec(c gs.Context) {
 		output.SetPipelineConfig(pConfig)
 		conf := output.ConfigStruct().(*sandbox.SandboxConfig)
 		conf.ScriptFilename = "../lua/testsupport/output.lua"
-		conf.ModuleDirectory = "../lua/modules"
+		conf.ModuleDirectory = "../lua/modules;../lua/testsupport/modules"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		data := "1376389920 debug id=2321 url=example.com item=1"
