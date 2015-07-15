@@ -3,17 +3,22 @@
 Backwards Incompatibilities
 ---------------------------
 
+Bug Handling
+------------
+
+Features
+--------
+
+0.10.0 (2015-??-??)
+=====================
+
 Features
 --------
 
 * Allow multiple sandbox module directories to be specified (#1525).
 
-Bug Handling
-------------
-
-
-0.10.0 (2015-??-??)
-===================
+0.10.0b0 (2015-07-13)
+=====================
 
 Backwards Incompatibilities
 ---------------------------
