@@ -50,6 +50,19 @@ remove_entries = {
 [''] = { 'dofile', 'load', 'loadfile','loadstring', 'print'},
 os = {'exit', 'setlocale'}}}`
 
+const SandboxTemplate = `{
+memory_limit = %d,
+instruction_limit = %d,
+output_limit = %d,
+path = [[%s]],
+cpath = [[%s]],
+remove_entries = {
+[''] = {'collectgarbage','coroutine','dofile','load','loadfile','loadstring','newproxy','print'},
+os = {'getenv','execute','exit','remove','rename','setlocale','tmpname'}
+},
+disable_modules = {io = 1}
+}`
+
 func extractLuaFieldName(wrapped string) (fn string, found bool) {
 	if l := len(wrapped); l > 0 && wrapped[l-1] == ']' {
 		if strings.HasPrefix(wrapped, "Fields[") {
@@ -647,30 +660,37 @@ type LuaSandbox struct {
 }
 
 func CreateLuaSandbox(conf *sandbox.SandboxConfig) (sandbox.Sandbox, error) {
+	var (
+		lua_path, lua_cpath []string
+		template            string
+	)
 	lsb := new(LuaSandbox)
 	lsb.sbConfig = conf
 	cs := C.CString(conf.ScriptFilename)
 	defer C.free(unsafe.Pointer(cs))
-	if conf.PluginType == "output" || conf.PluginType == "input" {
-		cfg := fmt.Sprintf(SandboxIoTemplate,
-			conf.MemoryLimit,
-			conf.InstructionLimit,
-			conf.OutputLimit,
-			filepath.Join(conf.ModuleDirectory, "?.lua"),
-			filepath.Join(conf.ModuleDirectory, "?@LUA_SHARED_LIBRARY_SUFFIX@"))
-		ccfg := C.CString(cfg)
-		defer C.free(unsafe.Pointer(ccfg))
-		lsb.lsb = C.lsb_create_custom(unsafe.Pointer(lsb), cs, ccfg)
-	} else {
-		md := C.CString(conf.ModuleDirectory)
-		defer C.free(unsafe.Pointer(md))
-		lsb.lsb = C.lsb_create(unsafe.Pointer(lsb),
-			cs,
-			md,
-			C.uint(conf.MemoryLimit),
-			C.uint(conf.InstructionLimit),
-			C.uint(conf.OutputLimit))
+
+	paths := strings.Split(conf.ModuleDirectory, ";")
+	for _, p := range paths {
+		lua_path = append(lua_path, filepath.Join(p, "?.lua"))
+		lua_cpath = append(lua_cpath, filepath.Join(p, "?@LUA_SHARED_LIBRARY_SUFFIX@"))
 	}
+
+	if conf.PluginType == "output" || conf.PluginType == "input" {
+		template = SandboxIoTemplate
+	} else {
+		template = SandboxTemplate
+	}
+
+	cfg := fmt.Sprintf(template,
+		conf.MemoryLimit,
+		conf.InstructionLimit,
+		conf.OutputLimit,
+		strings.Join(lua_path, ";"),
+		strings.Join(lua_cpath, ";"))
+	ccfg := C.CString(cfg)
+	defer C.free(unsafe.Pointer(ccfg))
+
+	lsb.lsb = C.lsb_create_custom(unsafe.Pointer(lsb), cs, ccfg)
 
 	if lsb.lsb == nil {
 		return nil, fmt.Errorf("Sandbox creation failed")
