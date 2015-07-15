@@ -70,7 +70,7 @@ Example
 .. code-block:: ini
 
     [ESJsonEncoder]
-    index = "%{Type}-%{2006.01.02}"
+    index = "%{Type}-%{%Y.%m.%d}"
     es_index_from_timestamp = true
     type_name = "%{Type}"
         [ESJsonEncoder.field_mappings]
