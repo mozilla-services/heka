@@ -22,7 +22,7 @@ Config:
 - oldest_duration (string):
     A time duration string (e.x. "2s", "2m", "2h"). Logfiles with a
     last modified time older than ``oldest_duration`` ago will not be included
-    for parsing.
+    for parsing. Defaults to "720h" (720 hours, i.e. 30 days).
 - journal_directory (string):
     The directory to store the journal files in for tracking the location that
     has been read to thus far. By default this is stored under heka's base
