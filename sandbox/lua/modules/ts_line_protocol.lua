@@ -153,7 +153,7 @@ local function points_tags_tables(config)
             -- Convert value to a string as this is required by the API
             if not config["carbon_format"]
                 and (config["tag_fields_all"]
-                or (config["used_tag_fields"] and used_tag_fields[name])) then
+                or (config["used_tag_fields"] and used_tag_fields[field])) then
                     table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
             end
 
