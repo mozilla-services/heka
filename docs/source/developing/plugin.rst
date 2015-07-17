@@ -779,11 +779,13 @@ either case, the process is the same.
 To generate new messages, your filter must call
 ``PluginHelper.PipelinePack(msgLoopCount int)``. The ``msgloopCount`` value to
 be passed in should be obtained from the ``MsgLoopCount`` value on the pack
-that you're already holding, if called from within ProcessMessage, or zero if
-called from within TimerEvent. The PipelinePack method will either return a
-pack ready for you to populate or nil if the loop count is greater than the
-configured maximum value, as a safeguard against inadvertently creating
-infinite message loops.
+that you're already holding, or zero if called from within TimerEvent. The
+PipelinePack method returns two values, the first a ``*PipelinePack`` and the
+second an error.  If all goes well, you'll get a pack ready for you to populate
+and a nil error. If the loop count is greater than the configured maximum value
+(as a safeguard against inadvertently creating infinite message loops), or if a
+pack isn't available for some other reason, you'll get a nil pack and a non-nil
+error.
 
 Once a pack has been obtained, a filter plugin can populate its Message struct
 using any of its provided mutator methods. (Note that this is the *only* time

@@ -197,11 +197,14 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			return 2
 		}
 		injectionCount--
-		pack := h.PipelinePack(msgLoopCount)
-		if pack == nil {
-			err = pipeline.TerminatedError(fmt.Sprintf("exceeded MaxMsgLoops = %d",
-				this.pConfig.Globals.MaxMsgLoops))
-			return 3
+		pack, e := h.PipelinePack(msgLoopCount)
+		if e != nil {
+			err = pipeline.TerminatedError(e.Error())
+			if e == pipeline.AbortError {
+				return 5
+			} else {
+				return 3
+			}
 		}
 		if len(payload_type) == 0 { // heka protobuf message
 			hostname := pack.Message.GetHostname()
@@ -307,22 +310,32 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		}
 
 		if terminated {
-			pack := h.PipelinePack(0)
+			pack, e := h.PipelinePack(0)
+			if e != nil {
+				err = pipeline.TerminatedError(e.Error())
+				break
+			}
 			pack.Message.SetType("heka.sandbox-terminated")
 			pack.Message.SetLogger(pipeline.HEKA_DAEMON)
 			message.NewStringField(pack.Message, "plugin", fr.Name())
 			if blocking {
 				pack.Message.SetPayload("sandbox is running slowly and blocking the router")
 				// no lock on the ProcessMessage variables here because there are no active writers
-				message.NewInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount, "count")
-				message.NewInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures, "count")
-				message.NewInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples, "count")
+				message.NewInt64Field(pack.Message, "ProcessMessageCount", this.processMessageCount,
+					"count")
+				message.NewInt64Field(pack.Message, "ProcessMessageFailures", this.processMessageFailures,
+					"count")
+				message.NewInt64Field(pack.Message, "ProcessMessageSamples", this.processMessageSamples,
+					"count")
 				message.NewInt64Field(pack.Message, "ProcessMessageAvgDuration",
 					this.processMessageDuration/this.processMessageSamples, "ns")
-				message.NewInt64Field(pack.Message, "MatchAvgDuration", fr.MatchRunner().GetAvgDuration(), "ns")
+				message.NewInt64Field(pack.Message, "MatchAvgDuration", fr.MatchRunner().GetAvgDuration(),
+					"ns")
 				message.NewIntField(pack.Message, "FilterChanLength", len(inChan), "count")
-				message.NewIntField(pack.Message, "MatchChanLength", fr.MatchRunner().InChanLen(), "count")
-				message.NewIntField(pack.Message, "RouterChanLength", len(h.PipelineConfig().Router().InChan()), "count")
+				message.NewIntField(pack.Message, "MatchChanLength", fr.MatchRunner().InChanLen(),
+					"count")
+				message.NewIntField(pack.Message, "RouterChanLength",
+					len(this.pConfig.Router().InChan()), "count")
 			} else {
 				pack.Message.SetPayload(this.sb.LastError())
 			}
@@ -343,13 +356,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		this.manager.PluginExited()
 	}
 
-	this.reportLock.Lock()
-	var destroyErr error
-	if this.sbc.PreserveData {
-		destroyErr = this.sb.Destroy(this.preservationFile)
-	} else {
-		destroyErr = this.sb.Destroy("")
-	}
+	destroyErr := this.Destroy()
 	if destroyErr != nil {
 		if err != nil {
 			fr.LogError(destroyErr)
@@ -357,8 +364,30 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 			err = destroyErr
 		}
 	}
+	return err
+}
 
-	this.sb = nil
+func (this *SandboxFilter) Destroy() error {
+	this.reportLock.Lock()
+
+	var err error
+	if this.sb != nil {
+		if this.sbc.PreserveData {
+			err = this.sb.Destroy(this.preservationFile)
+		} else {
+			err = this.sb.Destroy("")
+		}
+
+		this.sb = nil
+	}
 	this.reportLock.Unlock()
-	return
+	return err
+}
+
+func (this *SandboxFilter) StopSB() {
+	this.reportLock.Lock()
+	if this.sb != nil {
+		this.sb.Stop()
+	}
+	this.reportLock.Unlock()
 }

@@ -17,17 +17,18 @@ package plugins
 import (
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/client"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 type SandboxEncoder struct {
@@ -151,17 +152,30 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxEncoder) Stop() {
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
+	s.Destroy()
+}
 
+func (s *SandboxEncoder) Destroy() error {
+	s.reportLock.Lock()
+	var err error
 	if s.sb != nil {
 		if s.sbc.PreserveData {
-			s.sb.Destroy(s.preservationFile)
+			err = s.sb.Destroy(s.preservationFile)
 		} else {
-			s.sb.Destroy("")
+			err = s.sb.Destroy("")
 		}
 		s.sb = nil
 	}
+	s.reportLock.Unlock()
+	return err
+}
+
+func (s *SandboxEncoder) StopSB() {
+	s.reportLock.Lock()
+	if s.sb != nil {
+		s.sb.Stop()
+	}
+	s.reportLock.Unlock()
 }
 
 func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err error) {
@@ -177,7 +191,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 		startTime = time.Now()
 	}
 	cowpack := new(pipeline.PipelinePack)
-	cowpack.Message = pack.Message // the actual copy will happen if write_message is called
+	cowpack.Message = pack.Message   // the actual copy will happen if write_message is called
 	cowpack.MsgBytes = pack.MsgBytes // no copying is necessary since we don't change it
 	retval := s.sb.ProcessMessage(cowpack)
 	if retval == 0 && !s.injected {

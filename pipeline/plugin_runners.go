@@ -168,7 +168,7 @@ type InputRunner interface {
 	Start(h PluginHelper, wg *sync.WaitGroup) (err error)
 	// Injects PipelinePack into the Heka Router's input channel for delivery
 	// to all Filter and Output plugins with corresponding message_matchers.
-	Inject(pack *PipelinePack)
+	Inject(pack *PipelinePack) error
 	// If Transient returns true, Heka won't try to keep the Input running,
 	// nor will it generate reporting data. Life span and reporting for a
 	// transient InputRunner must be managed by the code that creates the
@@ -392,14 +392,14 @@ func (ir *iRunner) Unregister(pConfig *PipelineConfig) error {
 	return nil
 }
 
-func (ir *iRunner) Inject(pack *PipelinePack) {
+func (ir *iRunner) Inject(pack *PipelinePack) error {
 	if err := pack.EncodeMsgBytes(); err != nil {
 		err = fmt.Errorf("encoding message: %s", err.Error())
 		ir.LogError(err)
 		pack.recycle()
-		return
+		return err
 	}
-	ir.pConfig.router.InChan() <- pack
+	return ir.pConfig.router.Inject(pack)
 }
 
 func (ir *iRunner) LogError(err error) {
@@ -574,6 +574,7 @@ type dRunner struct {
 	h           PluginHelper
 	sendFailure bool
 	encodes     bool
+	globals     *GlobalConfigStruct
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -597,7 +598,9 @@ func (dr *dRunner) Decoder() Decoder {
 
 func (dr *dRunner) Start(h PluginHelper, wg *sync.WaitGroup) {
 	dr.h = h
-	dr.router = h.PipelineConfig().router
+	pConfig := h.PipelineConfig()
+	dr.router = pConfig.router
+	dr.globals = pConfig.Globals
 	if wanter, ok := dr.decoder.(WantsDecoderRunner); ok {
 		wanter.SetDecoderRunner(dr)
 	}
@@ -648,7 +651,7 @@ func (dr *dRunner) deliver(pack *PipelinePack) {
 			return
 		}
 	}
-	dr.router.inChan <- pack
+	dr.router.Inject(pack)
 }
 
 func (dr *dRunner) InChan() chan *PipelinePack {
@@ -660,7 +663,12 @@ func (dr *dRunner) Router() MessageRouter {
 }
 
 func (dr *dRunner) NewPack() *PipelinePack {
-	return <-dr.h.PipelineConfig().inputRecycleChan
+	var pack *PipelinePack
+	select {
+	case pack = <-dr.h.PipelineConfig().inputRecycleChan:
+	case <-dr.globals.abortChan:
+	}
+	return pack // Might be nil if we're aborting.
 }
 
 func (dr *dRunner) LogError(err error) {
@@ -1299,7 +1307,11 @@ func (foRunner *foRunner) exit() {
 		return
 	}
 
-	pack := foRunner.pConfig.PipelinePack(0)
+	pack, e := foRunner.pConfig.PipelinePack(0)
+	if e != nil {
+		LogError.Printf("can't generate termination message: %s", e.Error())
+		return
+	}
 	pack.Message.SetType("heka.terminated")
 	pack.Message.SetLogger(HEKA_DAEMON)
 	message.NewStringField(pack.Message, "plugin", foRunner.name)
@@ -1539,7 +1551,7 @@ func (foRunner *foRunner) Inject(pack *PipelinePack) bool {
 	// caller; this prevents deadlocks when the caller's InChan is backed up,
 	// backing up the router, which would block us here.
 	go func() {
-		foRunner.h.PipelineConfig().router.InChan() <- pack
+		foRunner.h.PipelineConfig().router.Inject(pack)
 	}()
 	return true
 }

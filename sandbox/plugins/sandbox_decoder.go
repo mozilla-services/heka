@@ -176,6 +176,9 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if s.pack == nil {
 			s.pack = dr.NewPack()
+			if s.pack == nil {
+				return 1 // We're aborting, exit out.
+			}
 			if original == nil && len(s.packs) > 0 {
 				original = s.packs[0].Message // payload injections have the original header data in the first pack
 			}
@@ -253,21 +256,34 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 }
 
 func (s *SandboxDecoder) Shutdown() {
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
+	err := s.Destroy()
+	if err != nil {
+		s.dRunner.LogError(err)
+	}
+}
 
+func (s *SandboxDecoder) Destroy() error {
+	s.reportLock.Lock()
+
+	var err error
 	if s.sb != nil {
-		var err error
 		if s.sbc.PreserveData {
 			err = s.sb.Destroy(s.preservationFile)
 		} else {
 			err = s.sb.Destroy("")
 		}
 		s.sb = nil
-		if err != nil {
-			s.dRunner.LogError(err)
-		}
 	}
+	s.reportLock.Unlock()
+	return err
+}
+
+func (s *SandboxDecoder) StopSB() {
+	s.reportLock.Lock()
+	if s.sb != nil {
+		s.sb.Stop()
+	}
+	s.reportLock.Unlock()
 }
 
 func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack,
@@ -322,7 +338,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		packs = s.packs
 	}
 	s.packs = nil
-	return
+	return packs, err
 }
 
 func (s *SandboxDecoder) EncodesMsgBytes() bool {

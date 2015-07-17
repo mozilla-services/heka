@@ -17,6 +17,7 @@
 package pipeline
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -37,6 +38,8 @@ const (
 	STOP   = "stop"
 )
 
+var AbortError = errors.New("Aborting")
+
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
 	MaxMsgProcessDuration uint64
@@ -53,6 +56,7 @@ type GlobalConfigStruct struct {
 	SampleDenominator     int
 	sigChan               chan os.Signal
 	Hostname              string
+	abortChan             chan struct{}
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -70,6 +74,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
 		Hostname:              hostname,
+		abortChan:             make(chan struct{}),
 	}
 }
 
@@ -105,6 +110,10 @@ func (g *GlobalConfigStruct) stop() {
 // Log a message out
 func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 	LogInfo.Printf("%s: %s", src, msg)
+}
+
+func (g *GlobalConfigStruct) AbortChan() chan struct{} {
+	return g.abortChan
 }
 
 func isAbs(path string) bool {
@@ -318,7 +327,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
+		SIGUSR1, SIGUSR2)
 
 	for !globals.IsShuttingDown() {
 		select {
@@ -335,6 +345,9 @@ func Run(config *PipelineConfig) {
 			case SIGUSR1:
 				LogInfo.Println("Queue report initiated.")
 				go config.allReportsStdout()
+			case SIGUSR2:
+				LogInfo.Println("Sandbox save initiated.")
+				go sandboxSaveAndSigquit(config)
 			}
 		}
 	}
@@ -385,4 +398,124 @@ func Run(config *PipelineConfig) {
 	}
 
 	LogInfo.Println("Shutdown complete.")
+}
+
+func sandboxSaveAndSigquit(config *PipelineConfig) {
+	// This should only be run when the router isn't processing messages, so we
+	// try to inject a new message and exit if successful. Far from perfect,
+	// but protects in most cases.
+	var pack *PipelinePack
+	doSave := false
+
+	select {
+	case pack = <-config.injectRecycleChan:
+	case <-time.After(1 * time.Second):
+	}
+
+	if pack == nil {
+		select {
+		case pack = <-config.inputRecycleChan:
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	if pack == nil {
+		doSave = true
+	} else {
+		pack.Message.SetType("heka.router-test")
+		select {
+		case config.router.inChan <- pack:
+		case <-time.After(1 * time.Second):
+			doSave = true
+		}
+	}
+
+	if !doSave {
+		LogError.Println("Can't save sandboxes while router is processing messages.")
+		return
+	}
+
+	// Generate a report before exiting for debugging purposes.
+	config.allReportsStdout()
+
+	// If we got this far the router is presumably wedged and we'll perform the
+	// operation.  First we close the abort channel to allow any hung
+	// inject_message calls to return, then we go through and stop and destroy
+	// all of the sandboxes. Unfortunately the data structures we use to track
+	// the sandbox plugins of each type are just different enough that it's
+	// hard to write generic code, so we loop through each plugin type
+	// separately.
+	close(config.Globals.abortChan)
+	time.Sleep(1 * time.Second)
+
+	config.inputsLock.Lock()
+	for name, runner := range config.InputRunners {
+		input := runner.Input()
+		destroyable, ok := input.(Destroyable)
+		if ok {
+			if err := destroyable.Destroy(); err != nil {
+				LogError.Printf("Error destroying '%s' input: %s\n", name, err.Error())
+			}
+		}
+	}
+	config.inputsLock.Unlock()
+
+	config.allDecodersLock.Lock()
+	for _, runner := range config.allDecoders {
+		decoder := runner.Decoder()
+		destroyable, ok := decoder.(Destroyable)
+		if ok {
+			if err := destroyable.Destroy(); err != nil {
+				LogError.Printf("Error destroying '%s' decoder: %s\n", runner.Name(), err.Error())
+			}
+		}
+	}
+	config.allDecodersLock.Unlock()
+
+	config.filtersLock.Lock()
+	for name, runner := range config.FilterRunners {
+		filter := runner.Plugin() // Use Plugin due to Filter / OldFilter split.
+		destroyable, ok := filter.(Destroyable)
+		if ok {
+			if err := destroyable.Destroy(); err != nil {
+				LogError.Printf("Error destroying '%s' filter: %s\n", name, err.Error())
+			}
+		}
+	}
+	config.filtersLock.Unlock()
+
+	config.allEncodersLock.Lock()
+	for name, encoder := range config.allEncoders {
+		destroyable, ok := encoder.(Destroyable)
+		if ok {
+			if err := destroyable.Destroy(); err != nil {
+				LogError.Printf("Error destroying '%s' encoder: %s\n", name, err.Error())
+			}
+		}
+	}
+	config.allEncodersLock.Unlock()
+
+	config.outputsLock.Lock()
+	for name, runner := range config.OutputRunners {
+		output := runner.Plugin() // Use Plugin due to Output / OldOutput split.
+		destroyable, ok := output.(Destroyable)
+		if ok {
+			if err := destroyable.Destroy(); err != nil {
+				LogError.Printf("Error destroying '%s' output: %s\n", name, err.Error())
+			}
+		}
+	}
+	config.outputsLock.Unlock()
+
+	// Send a SIGQUIT signal to exit w/ stack traces since we're now in an
+	// unrecoverable state.
+	process, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		LogError.Printf("Error finding process: %s\n", err.Error())
+	} else {
+		err = process.Signal(syscall.SIGQUIT)
+		if err != nil {
+			LogError.Printf("Error sending SIGQUIT: %s\n", err.Error())
+		}
+	}
 }

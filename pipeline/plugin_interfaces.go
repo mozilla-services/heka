@@ -104,3 +104,9 @@ type Output interface {
 type TickerPlugin interface {
 	TimerEvent() (err error)
 }
+
+// Implemented by the sandbox plugins to allow out-of-band sandbox teardown.
+type Destroyable interface {
+	StopSB()
+	Destroy() error
+}

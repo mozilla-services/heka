@@ -274,13 +274,21 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 func (pc *PipelineConfig) AllReportsMsg() {
 	report_type, msg_payload := pc.allReportsData()
 
-	pack := pc.PipelinePack(0)
+	pack, e := pc.PipelinePack(0)
+	if e != nil {
+		LogError.Println(e.Error())
+		return
+	}
 	pack.Message.SetLogger(HEKA_DAEMON)
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
 	pc.router.InChan() <- pack
 
-	mempack := pc.PipelinePack(0)
+	mempack, e := pc.PipelinePack(0)
+	if e != nil {
+		LogError.Println(e.Error())
+		return
+	}
 	mempack.Message.SetLogger(HEKA_DAEMON)
 	mempack.Message.SetType("heka.memstat")
 
