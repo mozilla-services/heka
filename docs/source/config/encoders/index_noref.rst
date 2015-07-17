@@ -33,7 +33,7 @@ Encoders
 .. include:: /config/encoders/schema_influx.rst
    :start-line: 1
 
-.. include:: /config/encoders/schema_influx_write.rst
+.. include:: /config/encoders/schema_influx_line.rst
    :start-line: 1
 
 .. include:: /config/encoders/statmetric_influx.rst
