@@ -30,7 +30,7 @@ caching- and-other-options/>`_.
 
 .. note::
     If you are using this with the ES output you will likely need to specify
-    the raw_bytes_field option for the target_field specified. This is
+    the raw_bytes_fields option for the target_field specified. This is
     required to preserve the formatting of the JSON object.
 
 Config:
