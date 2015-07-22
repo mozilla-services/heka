@@ -5,10 +5,9 @@ define(
     "backbone",
     "adapters/base_adapter",
     "models/sandbox",
-    "models/sandbox_output",
-    "collections/plugins"
+    "models/sandbox_output"
   ],
-  function($, _, Backbone, BaseAdapter, Sandbox, Sandboxes, SandboxOutput) {
+  function($, _, Backbone, BaseAdapter, Sandbox, SandboxOutput) {
     "use strict";
 
     /**
@@ -21,6 +20,14 @@ define(
     *
     * @constructor
     */
+    var Sandboxes = Backbone.Collection.extend({
+      model: Sandbox,
+
+      comparator: function(collection) {
+        return(collection.get('Name'));
+      }
+    });
+
     var SandboxesAdapter = function() {
       /**
       * Sandboxes collection to be filled with data.
