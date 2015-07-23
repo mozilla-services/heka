@@ -10,6 +10,9 @@ Config:
 - tz (string, optional, defaults to UTC)
     The conversion actually happens on the Go side since there isn't good TZ support here.
 
+- type (string, optional, defaults to "nginx.error"):
+    Sets the message 'Type' header to the specified value
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -45,12 +48,14 @@ Config:
 
 local clf = require "common_log_format"
 
+local msg_type = read_config("type") or "nginx.error"
+
 function process_message ()
     local log = read_message("Payload")
     local msg = clf.nginx_error_grammar:match(log)
     if not msg then return -1 end
 
-    msg.Type = "nginx.error"
+    msg.Type = msg_type
     inject_message(msg)
     return 0
 end
