@@ -70,7 +70,7 @@ type StatAccumInputConfig struct {
 
 	// Percentage threshold to use for calculating "upper N%" type numerical
 	// statistics. Defaults to 90.
-	PercentThreshold int `toml:"percent_threshold"`
+	PercentThreshold []int `toml:"percent_threshold"`
 
 	// Type value to use for outgoing stat messages, defaults to
 	// `heka.statmetric`.
@@ -99,7 +99,7 @@ type StatAccumInputConfig struct {
 func (sm *StatAccumInput) ConfigStruct() interface{} {
 	return &StatAccumInputConfig{
 		EmitInPayload:    true,
-		PercentThreshold: 90,
+		PercentThreshold: []int{90},
 		MessageType:      "heka.statmetric",
 		TickerInterval:   uint(10),
 		LegacyNamespaces: false,
@@ -260,10 +260,16 @@ func (sm *StatAccumInput) Flush() {
 		}
 		numStats++
 	}
-
+	countPercentThreshold := len(sm.config.PercentThreshold)
 	for key, timings := range sm.timers {
 		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
-		var min, max, sum, mean, rate, meanPercentile, upperPercentile float64
+		var min, max, sum, mean, rate  float64
+		meanPercentile := make([]float64, countPercentThreshold)
+		upperPercentile := make([]float64, countPercentThreshold)
+		for i := 0; i < countPercentThreshold; i++ {
+			meanPercentile[i] = 0.
+			upperPercentile[i] = 0.
+		} 
 		count := len(timings)
 		if count > 0 {
 			sort.Float64s(timings)
@@ -280,20 +286,22 @@ func (sm *StatAccumInput) Flush() {
 			mean = min
 			thresholdBoundary := max
 
-			if count > 1 {
-				tmp := ((100.0 - float64(sm.config.PercentThreshold)) / 100.0) * float64(count)
-				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
+			if count > countPercentThreshold {
+				for i := 0; i < countPercentThreshold; i++{
+					tmp := ((100.0 - float64(sm.config.PercentThreshold[i])) / 100.0) * float64(count)
+					numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
 
-				if numInThreshold > 0 {
-					mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
-					thresholdBoundary = timings[numInThreshold-1]
-				} else {
-					mean = min
-					thresholdBoundary = max
+					if numInThreshold > 0 {
+						mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
+						thresholdBoundary = timings[numInThreshold-1]
+					} else {
+						mean = min
+						thresholdBoundary = max
+					}
+					meanPercentile[i] = mean
+					upperPercentile[i] = thresholdBoundary
 				}
 			}
-			meanPercentile = mean
-			upperPercentile = thresholdBoundary
 
 			sum = cumulativeValues[len(cumulativeValues)-1]
 			mean = sum / float64(count)
@@ -303,8 +311,6 @@ func (sm *StatAccumInput) Flush() {
 			max = 0.
 			sum = 0.
 			mean = 0.
-			meanPercentile = 0.
-			upperPercentile = 0.
 		}
 
 		timerNs.Emit("count", count)
@@ -313,8 +319,10 @@ func (sm *StatAccumInput) Flush() {
 		timerNs.Emit("upper", max)
 		timerNs.Emit("sum", sum)
 		timerNs.Emit("mean", mean)
-		timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold), meanPercentile)
-		timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold), upperPercentile)
+		for i := 0; i < countPercentThreshold; i++ {
+			timerNs.Emit(fmt.Sprintf("mean_%d", sm.config.PercentThreshold[i]), meanPercentile[i])
+			timerNs.Emit(fmt.Sprintf("upper_%d", sm.config.PercentThreshold[i]), upperPercentile[i])
+		}
 
 		if sm.config.DeleteIdleStats {
 			delete(sm.timers, key)
