@@ -3,7 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Parses a payload containing the output of nginx's stub status
+Parses a payload containing the output of nginx's stub status module:
+http://nginx.org/en/docs/http/ngx_http_stub_status_module.html
 
 Config:
 
@@ -43,12 +44,13 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"connections" value_type:DOUBLE value_double:"100"
-    | name:"accepts" value_type:DOUBLE value_double:"2800"
-    | name:"handled" value_type:DOUBLE value_double:"2800"
-    | name:"reading" value_type:DOUBLE value_double:"48"
-    | name:"writing" value_type:DOUBLE value_double:"32"
-    | name:"waiting" value_type:DOUBLE value_double:"0"
+    | name:"connections" value_type:DOUBLE value_double:"291"
+    | name:"accepts" value_type:DOUBLE value_double:"16630948"
+    | name:"handled" value_type:DOUBLE value_double:"16630948"
+    | name:"requests" value_type:DOUBLE value_double:"31070465"
+    | name:"reading" value_type:DOUBLE value_double:"6"
+    | name:"writing" value_type:DOUBLE value_double:"179"
+    | name:"waiting" value_type:DOUBLE value_double:"106"
 --]]
 
 local l = require 'lpeg'
