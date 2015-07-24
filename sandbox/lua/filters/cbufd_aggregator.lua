@@ -110,9 +110,9 @@ function timer_event(ns)
                     annotation.concat(k, annos)
                 end
             end
-            inject_payload("cbuf", k, annotation.prune(k, ns), v)
+            inject_payload("cbuf", k, annotation.prune(k, ns), v:format("cbuf"))
         else
-            inject_payload("cbuf", k, v)
+            inject_payload("cbuf", k, v:format("cbuf"))
         end
 
         if enable_delta then
