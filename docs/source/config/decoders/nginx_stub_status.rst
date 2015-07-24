@@ -3,7 +3,7 @@
 Nginx Stub Status Decoder
 ========================
 
-.. versionadded:: 0.11
+.. versionadded:: 0.10
 
 | Plugin Name: **SandboxDecoder**
 | File Name: **lua_decoders/nginx_stub_status.lua**
