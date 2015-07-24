@@ -36,6 +36,9 @@ Decoders
 .. include:: /config/decoders/nginx_error.rst
   :start-line: 1
 
+.. include:: /config/decoders/nginx_stub_status.rst
+  :start-line: 1
+
 .. include:: /config/decoders/payload_regex.rst
    :start-line: 1
 
