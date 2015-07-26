@@ -3,6 +3,8 @@
 Backwards Incompatibilities
 ---------------------------
 
+* StatAccumInput Input: percent_threshold param type convert to slice
+
 Bug Handling
 ------------
 
