@@ -44,13 +44,13 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"connections" value_type:DOUBLE value_double:"291"
-    | name:"accepts" value_type:DOUBLE value_double:"16630948"
-    | name:"handled" value_type:DOUBLE value_double:"16630948"
-    | name:"requests" value_type:DOUBLE value_double:"31070465"
-    | name:"reading" value_type:DOUBLE value_double:"6"
-    | name:"writing" value_type:DOUBLE value_double:"179"
-    | name:"waiting" value_type:DOUBLE value_double:"106"
+    | name:"connections" value_type:INTEGER value_integer:"291"
+    | name:"accepts" value_type:INTEGER value_integer:"16630948"
+    | name:"handled" value_type:INTEGER value_integer:"16630948"
+    | name:"requests" value_type:INTEGER value_integer:"31070465"
+    | name:"reading" value_type:INTEGER value_integer:"6"
+    | name:"writing" value_type:INTEGER value_integer:"179"
+    | name:"waiting" value_type:INTEGER value_integer:"106"
 --]]
 
 local l = require 'lpeg'
