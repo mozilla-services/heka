@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/mozilla-services/heka/message"
@@ -70,7 +71,12 @@ func FilterSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			termErr := pipeline.TerminatedError("process_message() ../lua/testsupport/processinject.lua:8: inject_payload() exceeded InjectMessage count")
+			var termErr pipeline.TerminatedError
+			if runtime.GOOS == "windows" {
+				termErr = pipeline.TerminatedError("process_message() ..\\lua\\testsupport\\processinject.lua:8: inject_payload() exceeded InjectMessage count")
+			} else {
+				termErr = pipeline.TerminatedError("process_message() ../lua/testsupport/processinject.lua:8: inject_payload() exceeded InjectMessage count")
+			}
 			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
@@ -94,7 +100,13 @@ func FilterSpec(c gs.Context) {
 				close(inChan)
 			}()
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			termErr := pipeline.TerminatedError("timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+
+			var termErr pipeline.TerminatedError
+			if runtime.GOOS == "windows" {
+				termErr = pipeline.TerminatedError("timer_event() ..\\lua\\testsupport\\timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+			} else {
+				termErr = pipeline.TerminatedError("timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+			}
 			c.Expect(err.Error(), gs.Equals, termErr.Error())
 		})
 
@@ -155,7 +167,11 @@ func FilterSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			close(inChan)
 			err = sbFilter.Run(fth.MockFilterRunner, fth.MockHelper)
-			c.Expect(err.Error(), gs.Equals, "FATAL: timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+			if runtime.GOOS == "windows" {
+				c.Expect(err.Error(), gs.Equals, "FATAL: timer_event() ..\\lua\\testsupport\\timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+			} else {
+				c.Expect(err.Error(), gs.Equals, "FATAL: timer_event() ../lua/testsupport/timerinject.lua:13: inject_payload() exceeded InjectMessage count")
+			}
 		})
 	})
 

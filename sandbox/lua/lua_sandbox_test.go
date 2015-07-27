@@ -314,7 +314,7 @@ func TestAPIErrors(t *testing.T) {
 	}
 
 	if runtime.GOOS == "windows" {
-		msgs[0] = "process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '\\unknown.lua'\n\tno file '\\unknown.dll'"
+		msgs[0] = "process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file 'unknown.lua'\n\tno file 'unknown.dll'"
 	}
 
 	var sbc SandboxConfig

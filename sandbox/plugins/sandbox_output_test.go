@@ -70,7 +70,6 @@ func OutputSpec(c gs.Context) {
 			c.Expect(output.processMessageCount, gs.Equals, int64(1))
 			c.Expect(output.processMessageSamples, gs.Equals, int64(1))
 			c.Expect(output.processMessageFailures, gs.Equals, int64(0))
-			c.Expect(output.processMessageDuration, gs.Not(gs.Equals), int64(0))
 		})
 
 		c.Specify("failure processing data", func() {
