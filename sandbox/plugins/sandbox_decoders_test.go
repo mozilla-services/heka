@@ -597,6 +597,62 @@ HugePages_Free:        0
 		})
 	})
 
+	c.Specify("Nginx stub status decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/nginx_stub_status.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decodes a message", func() {
+			payload := "Active connections: 291 \nserver accepts handled requests\n 16630948 16630948 31070465 \nReading: 6 Writing: 179 Waiting: 106 \n"
+			pack.Message.SetPayload(payload)
+
+			_, err := decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("connections")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 291)
+
+			value, ok = pack.Message.GetFieldValue("accepts")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 16630948)
+
+			value, ok = pack.Message.GetFieldValue("handled")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 16630948)
+
+			value, ok = pack.Message.GetFieldValue("requests")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 31070465)
+
+			value, ok = pack.Message.GetFieldValue("reading")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 6)
+
+			value, ok = pack.Message.GetFieldValue("writing")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 179)
+
+			value, ok = pack.Message.GetFieldValue("waiting")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, 106)
+		})
+	})
+
 	c.Specify("Apache access log decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
