@@ -5,6 +5,7 @@ Features
 --------
 
 * Allow multiple sandbox module directories to be specified (#1525).
+* Add Nginx stub status lua sandbox decoder
 
 Bug Fixes
 ---------
