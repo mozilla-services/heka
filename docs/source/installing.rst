@@ -199,4 +199,9 @@ The packages will be created in the build directory.
     `cpack` or `make package`, even on a Unix machine w/ dpkg installed.
     Instead, running `source build.sh` on such a machine will generate a
     Makefile with a separate 'deb' target, so you can run `make deb` to
-    generate the appropriate deb package.
+    generate the appropriate deb package. Additionnaly, you can add a suffix to
+    the package version, for example:
+
+    .. code-block:: bash
+
+        CPACK_DEBIAN_PACKAGE_VERSION_SUFFIX=+deb8 make deb
