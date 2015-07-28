@@ -395,7 +395,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
 	if err != nil && err != io.ErrShortBuffer && err != io.EOF &&
 		!strings.Contains(err.Error(), "read |0: bad file descriptor") {
-
+		pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
 	}
 }
 
