@@ -625,31 +625,31 @@ HugePages_Free:        0
 			var value interface{}
 			value, ok = pack.Message.GetFieldValue("connections")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 291)
+			c.Expect(value, gs.Equals, float64(291))
 
 			value, ok = pack.Message.GetFieldValue("accepts")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 16630948)
+			c.Expect(value, gs.Equals, float64(16630948))
 
 			value, ok = pack.Message.GetFieldValue("handled")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 16630948)
+			c.Expect(value, gs.Equals, float64(16630948))
 
 			value, ok = pack.Message.GetFieldValue("requests")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 31070465)
+			c.Expect(value, gs.Equals, float64(31070465))
 
 			value, ok = pack.Message.GetFieldValue("reading")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 6)
+			c.Expect(value, gs.Equals, float64(6))
 
 			value, ok = pack.Message.GetFieldValue("writing")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 179)
+			c.Expect(value, gs.Equals, float64(179))
 
 			value, ok = pack.Message.GetFieldValue("waiting")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, 106)
+			c.Expect(value, gs.Equals, float64(106))
 		})
 	})
 
