@@ -9,6 +9,7 @@ Config:
 
 - hostname_keep (boolean, defaults to false)
     Always preserve the original 'Hostname' field set by Logstreamer's 'hostname' configuration setting.
+
 - template (string)
     The 'template' configuration string from rsyslog.conf.
     http://rsyslog-5-8-6-doc.neocities.org/rsyslog_conf_templates.html
