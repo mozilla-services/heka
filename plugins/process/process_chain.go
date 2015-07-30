@@ -140,7 +140,7 @@ type CommandChain struct {
 // A CommandChainStatus records the return execution result of a command chain.
 // ReturnStatus stores the return status of the command chain, which is the
 // return status of the last successfully executed command.
-// SubcmdErrors sttors the erros of each subcommand.
+// SubcmdErrors stores the errors of each subcommand.
 type CommandChainStatus struct {
 	ExitStatus   error
 	SubcmdErrors error
