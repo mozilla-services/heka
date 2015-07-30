@@ -101,10 +101,6 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_TEST1_OUTPUT+"\n")
 
 				dec := <-decChan
-				select {
-				case pInput.ccDone["stdout"] <- true:
-				default:
-				}
 
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
@@ -142,10 +138,7 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_PIPE_OUTPUT+"\n")
 
 				dec := <-decChan
-				select {
-				case pInput.ccDone["stdout"] <- true:
-				default:
-				}
+
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")
