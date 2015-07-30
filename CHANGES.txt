@@ -16,6 +16,12 @@ Features
 --------
 
 * Allow multiple sandbox module directories to be specified (#1525).
+* Add Nginx stub status lua sandbox decoder
+
+Bug Fixes
+---------
+
+* Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
 
 0.10.0b0 (2015-07-13)
 =====================

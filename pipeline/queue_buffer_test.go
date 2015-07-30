@@ -83,6 +83,7 @@ func QueueBufferSpec(c gs.Context) {
 		qConfig := &QueueBufferConfig{
 			FullAction:        "block",
 			CursorUpdateCount: 1,
+			MaxFileSize:       66000,
 		}
 		feeder, reader, err := NewBufferSet(tmpDir, "test", qConfig, or, pConfig)
 		// bufferedOutput, err := NewBufferedOutput(tmpDir, "test", or, h, uint64(0))

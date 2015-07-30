@@ -153,7 +153,7 @@ local function points_tags_tables(config)
             -- Convert value to a string as this is required by the API
             if not config["carbon_format"]
                 and (config["tag_fields_all"]
-                or (config["used_tag_fields"] and used_tag_fields[name])) then
+                or (config["used_tag_fields"] and used_tag_fields[field])) then
                     table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
             end
 
@@ -256,7 +256,7 @@ function set_config(client_config)
 
     -- Remove blacklisted fields from the set of base fields that we use, and
     -- create a table of dynamic fields to skip.
-    if module_config.skip_fields_strb then
+    if module_config.skip_fields_str then
         module_config.skip_fields,
         module_config.skip_fields_all_base = field_util.field_map(client_config.skip_fields_str)
         module_config.used_base_fields = field_util.used_base_fields(module_config.skip_fields)
