@@ -21,6 +21,7 @@ Available Decoder Plugins
    mysql_slow_query
    nginx_access
    nginx_error
+   nginx_stub_status
    payload_regex
    payload_xml
    protobuf
