@@ -25,6 +25,10 @@ Bug Fixes
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
 
+Bug Handling
+------------
+Fixed ProcessInput hangs when splitter is defined (#1620, #1644).
+
 0.10.0b0 (2015-07-13)
 =====================
 
