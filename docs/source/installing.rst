@@ -41,10 +41,12 @@ Prerequisites (all systems):
 
 Prerequisites (Unix):
 
+- CA certificates (most probably already installed, via the ca-certificates package)
 - make
-- gcc
+- gcc and libc6 development headers (package glibc-devel or libc6-dev)
 - patch
-- dpkg (optional)
+- GeoIP development files (optional)
+- dpkg, debhelper and fakeroot (optional)
 - rpmbuild (optional)
 - packagemaker (optional)
 
