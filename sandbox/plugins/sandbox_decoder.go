@@ -278,14 +278,6 @@ func (s *SandboxDecoder) Destroy() error {
 	return err
 }
 
-func (s *SandboxDecoder) StopSB() {
-	s.reportLock.Lock()
-	if s.sb != nil {
-		s.sb.Stop()
-	}
-	s.reportLock.Unlock()
-}
-
 func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack,
 	err error) {
 

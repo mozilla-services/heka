@@ -190,14 +190,6 @@ func (s *SandboxOutput) Destroy() error {
 	return err
 }
 
-func (s *SandboxOutput) StopSB() {
-	s.reportLock.Lock()
-	if s.sb != nil {
-		s.sb.Stop()
-	}
-	s.reportLock.Unlock()
-}
-
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state
 // information to the Heka report and dashboard.
 func (s *SandboxOutput) ReportMsg(msg *message.Message) error {

@@ -170,14 +170,6 @@ func (s *SandboxEncoder) Destroy() error {
 	return err
 }
 
-func (s *SandboxEncoder) StopSB() {
-	s.reportLock.Lock()
-	if s.sb != nil {
-		s.sb.Stop()
-	}
-	s.reportLock.Unlock()
-}
-
 func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err error) {
 	if s.sb == nil {
 		err = errors.New("No sandbox.")

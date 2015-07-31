@@ -17,6 +17,9 @@ Features
 * Added support for SIGUSR2 signal for use when Heka is wedged, triggers a Heka
   pipeline report to the console, serialization of all sandboxes, and SIGQUIT.
 
+* InputRunner and router's `Inject` methods each now return an error that can
+  be checked to verify successful message injection.
+
 Bug Fixes
 ---------
 

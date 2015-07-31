@@ -180,14 +180,6 @@ func (s *SandboxInput) Destroy() error {
 	return err
 }
 
-func (s *SandboxInput) StopSB() {
-	s.reportLock.Lock()
-	if s.sb != nil {
-		s.sb.Stop()
-	}
-	s.reportLock.Unlock()
-}
-
 func (s *SandboxInput) Stop() {
 	s.reportLock.Lock()
 	if s.sb != nil {

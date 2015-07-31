@@ -383,11 +383,3 @@ func (this *SandboxFilter) Destroy() error {
 	this.reportLock.Unlock()
 	return err
 }
-
-func (this *SandboxFilter) StopSB() {
-	this.reportLock.Lock()
-	if this.sb != nil {
-		this.sb.Stop()
-	}
-	this.reportLock.Unlock()
-}
