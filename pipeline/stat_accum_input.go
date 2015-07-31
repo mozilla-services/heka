@@ -263,13 +263,9 @@ func (sm *StatAccumInput) Flush() {
 	countPercentThreshold := len(sm.config.PercentThreshold)
 	for key, timings := range sm.timers {
 		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
-		var min, max, sum, mean, rate  float64
+		var min, max, sum, mean, rate, thresholdBoundary  float64
 		meanPercentile := make([]float64, countPercentThreshold)
 		upperPercentile := make([]float64, countPercentThreshold)
-		for i := 0; i < countPercentThreshold; i++ {
-			meanPercentile[i] = 0.
-			upperPercentile[i] = 0.
-		} 
 		count := len(timings)
 		if count > 0 {
 			sort.Float64s(timings)
@@ -284,23 +280,20 @@ func (sm *StatAccumInput) Flush() {
 			min = timings[0]
 			max = timings[count-1]
 			mean = min
-			thresholdBoundary := max
 
-			if count > countPercentThreshold {
-				for i := 0; i < countPercentThreshold; i++{
-					tmp := ((100.0 - float64(sm.config.PercentThreshold[i])) / 100.0) * float64(count)
-					numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
+			for i := 0; i < countPercentThreshold; i++{
+				tmp := ((100.0 - float64(sm.config.PercentThreshold[i])) / 100.0) * float64(count)
+				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
 
-					if numInThreshold > 0 {
-						mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
-						thresholdBoundary = timings[numInThreshold-1]
-					} else {
-						mean = min
-						thresholdBoundary = max
-					}
-					meanPercentile[i] = mean
-					upperPercentile[i] = thresholdBoundary
+				if numInThreshold > 0 {
+					mean = cumulativeValues[numInThreshold-1] / float64(numInThreshold)
+					thresholdBoundary = timings[numInThreshold-1]
+				} else {
+					mean = min
+					thresholdBoundary = max
 				}
+				meanPercentile[i] = mean
+				upperPercentile[i] = thresholdBoundary
 			}
 
 			sum = cumulativeValues[len(cumulativeValues)-1]
