@@ -7,10 +7,12 @@ Features
 * Allow multiple sandbox module directories to be specified (#1525).
 * Add Nginx stub status lua sandbox decoder
 
-Bug Fixes
----------
+Bug Handling
+------------
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
+
+* Fixed ProcessInput hangs when splitter is defined (#1620, #1644).
 
 0.10.0b0 (2015-07-13)
 =====================
