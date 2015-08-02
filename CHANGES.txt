@@ -6,6 +6,8 @@ Backwards Incompatibilities
 Features
 --------
 
+Added Sandbox decoders for Microsoft iis and sharepoint uls logs 
+
 Bug Handling
 ------------
 
