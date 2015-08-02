@@ -13,6 +13,7 @@ Available Decoder Plugins
    apache_access
    geoip
    graylog_extended
+   iis
    json
    linux_cpu_stats
    linux_disk_stats
@@ -31,4 +32,6 @@ Available Decoder Plugins
    rsyslog
    sandbox
    scribble
+   sharepoint_uls
    stats_to_fields
+

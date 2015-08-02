@@ -12,6 +12,9 @@ Decoders
 .. include:: /config/decoders/geoip.rst
    :start-line: 1
 
+.. include:: /config/decoders/iis.rst
+   :start-line: 1
+
 .. include:: /config/decoders/json.rst
    :start-line: 1
 
@@ -64,6 +67,9 @@ Decoders
    :start-line: 1
 
 .. include:: /config/decoders/scribble.rst
+   :start-line: 1
+
+.. include:: /config/decoders/sharepoint_uls.rst
    :start-line: 1
 
 .. include:: /config/decoders/stats_to_fields.rst
