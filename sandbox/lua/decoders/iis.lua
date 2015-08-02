@@ -2,28 +2,29 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
---[[[hekad]
-
+--[[
 Parses the iis logs based on the Microsoft iis log formats. This decoder is tested for iis verions 7 and 8. 
-
 
 Config:
 
-iis_version_7 = true
+- payload_keep (bool, optional, default false)
+    Always preserve the original log line in the message payload.
+
+- iis_version_7 (bool, optional, default flase)
      Default configuration asssumes iis log format for version 8. 
-     For version 7 and similar formats, set the decoder config variable  iis_version_7 to true
+     For version 7 and similar formats, set this to true
 
 *Example Heka Configuration*
 
 .. code-block:: ini
 
-
-share_dir="C:\\heka-agent\\heka\\share\\heka"
-base_dir = "C:\\var\\cache\\hekad"
+[hekad]
+share_dir = 'C:\heka-agent\heka\share\heka'
+base_dir = 'C:\var\cache\hekad'
 
 [IISLogs]
 type = "LogstreamerInput"
-log_directory = "F:\\Web_Logs"
+log_directory = 'F:\Web_Logs'
 file_match = '(?P<dir>\w+)(?P<s>\S+)u_ex(?P<Index>\d+)\.log'
 differentiator = ["dir"]
 priority = ["Index"]
@@ -32,7 +33,7 @@ decoder = "IISDecoder"
 [IISDecoder]
 type = "SandboxDecoder"
 script_type = "lua"
-filename = "lua_decoders\\iis.lua"
+filename = 'lua_decoders\iis.lua'
 
 [IISDecoder.config]
 payload_keep = true
@@ -41,6 +42,31 @@ tz = "UTC"
 
 *Example Heka Message*
 
+2015/08/02 00:34:43
+:Timestamp: 2014-09-22 06:32:29 +0000 UTC
+:Type: iis
+:Hostname: iis-host
+:Pid: 0
+:Uuid: 2dd1d363-02e2-4d61-ade8-e4ed6657fcd6
+:Logger: W3SVC1368505715
+:Payload: 2014-09-22 06:32:29 101.181.48.45 GET / - 6005 - 10.181.72.190 Mozilla/4.0+(compatible;+MSIE+8.0;+Windows+NT+5.1;+Trident/4.0) 401 0 64 46
+
+:EnvVersion:
+:Severity: 7
+:Fields:
+    | name:"substatus" type:string value:"0"
+    | name:"client_ip" type:string value:"101.181.72.190"
+    | name:"cs_method" type:string value:"GET"
+    | name:"cs_username" type:string value:""
+    | name:"cs_user_agent" type:string value:"Mozilla/4.0+(compatible;+MSIE+8.0;+Windows+NT+5.1;+Trident/4.0)"
+    | name:"time_taken" type:double value:46
+    | name:"port" type:string value:"6005"
+    | name:"win32_status" type:string value:"64"
+    | name:"status" type:double value:401
+    | name:"cs_uri_stem" type:string value:"/"
+    | name:"host_ip" type:string value:"10.181.48.45"
+    | name:"cs_uri_query" type:string value:""
+
 --]]
 
 local dt = require "date_time"
@@ -48,7 +74,7 @@ local l = require 'lpeg'
 l.locale(l)
 
 local sp = l.space
-num = l.digit^1 / tonumber
+local num = l.digit^1 / tonumber
 
 function extract_quote(openp,endp)
     openp = l.P(openp)
@@ -76,27 +102,24 @@ local time_taken = l.Cg(num, "time_taken")
 local version_8 = timestamp * host_ip * cs_method * cs_uri_stem * cs_uri_query * port * cs_username * client_ip * cs_user_agent * cs_referer * status * substatus * win32_status * time_taken
 local version_7 = timestamp * host_ip * cs_method * cs_uri_stem * cs_uri_query * port * cs_username * client_ip * cs_user_agent * status * substatus * win32_status * time_taken 
 
-grammar = l.Ct(version_8)
-
+local grammar = l.Ct(version_8)
 
 local iis_version = read_config("iis_version_7")
+local payload_keep = read_config("payload_keep")
 
 if iis_version then
   grammar = l.Ct(version_7)
 end
-
-local payload_keep = read_config("payload_keep")
-
-
-function process_message()
 
 local msg = {
     Timestamp = nil,
     Payload = nil,
     Hostname = nil,
     Fields = nil,
-    Type = nil
+    Type = "iis"
 }
+
+function process_message()
 
     local data = read_message("Payload")
     local host = read_message("Hostname")
@@ -105,18 +128,19 @@ local msg = {
     if not fields then 
       return -1
     end
-    msg.Type = "iis"
+
     msg.Timestamp = fields.timestamp
     msg.Hostname = string.lower(host)
     fields.timestamp = nil
     msg.Fields = fields
+
     if msg.Fields.cs_username == "-" then
 	msg.Fields.cs_username = ""
     end
+
     if msg.Fields.cs_uri_query == "-" then
 	msg.Fields.cs_uri_query = ""
     end
-
 
     if payload_keep then
         msg.Payload = data
