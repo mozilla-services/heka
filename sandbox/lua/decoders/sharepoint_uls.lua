@@ -3,7 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Parses the Microsft sharepoint uls logs based on the uls log format.
+Parses the Microsoft sharepoint uls logs based on the uls log format.
 
 Config:
 
