@@ -44,6 +44,7 @@ Features
 * Adder `log_flags` to hekad config, to control the prefix for STDOUT and
   STDERR logs.
 
+* Added Sandbox decoders for Microsoft iis and sharepoint uls logs.
 
 Bug Handling
 ------------
