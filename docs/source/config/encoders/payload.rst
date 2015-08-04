@@ -26,13 +26,11 @@ Config:
 	the system clock at the time of message processing. Defaults to true. This
 	setting has no impact if `prefix_ts` is set to false.
 
-- ts_format (string, optional):
-	Specifies the format that should be used for prepended timestamps, using
-	Go's standard `time format specification strings
-	<http://golang.org/pkg/time/#pkg-constants>`_. Defaults to
-	`[2006/Jan/02:15:04:05 -0700]`. If the specified format string does not
-	end with a space character, then a space will be inserted between the
-	formatted timestamp and the payload.
+- ts_format (string, optional): Specifies the format that should be used for
+	prepended timestamps, using the standard `strftime string format
+	<http://strftime.net/>`_. Defaults to ``[%Y/%b/%d:%H:%M:%S %z]``. If the
+	specified format string does not end with a space character, then a space
+	will be inserted between the formatted timestamp and the payload.
 
 Example
 
@@ -41,4 +39,4 @@ Example
 	[PayloadEncoder]
 	append_newlines = false
 	prefix_ts = true
-	ts_format = "2006/01/02 3:04:05PM MST"
+	ts_format = "%Y/%m/%d %l:%M:%S%p %Z"
