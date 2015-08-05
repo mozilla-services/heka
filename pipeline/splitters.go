@@ -294,7 +294,7 @@ func (m *MessagePackSplitter) SetSplitterRunner(sr SplitterRunner) {
 
 func (m *MessagePackSplitter) ConfigStruct() interface{} {
 	return &MessagePackSplitterConfig{
-		UseMsgBytes: true,
+		UseMsgBytes: false,
 	}
 }
 

@@ -11,6 +11,7 @@ Available Decoder Plugins
    :maxdepth: 1
 
    apache_access
+   docker_fluentd
    geoip
    graylog_extended
    linux_cpu_stats

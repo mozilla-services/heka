@@ -20,6 +20,12 @@ Graylog Extended Log Format Decoder
    :start-after: --[[
    :end-before: --]]
 
+Docker Fluentd Decoder
+^^^^^^^^^^^^^^^^^^^^^^
+.. include:: ../../../sandbox/lua/decoders/docker_fluentd.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Linux CPU Stats Decoder
 ^^^^^^^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/decoders/linux_procstat.lua
