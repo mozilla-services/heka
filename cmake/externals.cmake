@@ -159,6 +159,8 @@ git_clone(https://github.com/golang/snappy eaa750b9bf4dcb7cb20454be850613b66cda3
 git_clone(https://github.com/rafrombrc/sarama fda3e239249dd96f4a2c446aea39dfc823f4030a)
 add_dependencies(sarama snappy)
 
+git_clone(https://github.com/tinylib/msgp cd4fb1548c31d88af25205dc021be20935aec720)
+
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
 endif()

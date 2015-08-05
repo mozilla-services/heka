@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mozilla-services/heka/message"
+	"github.com/tinylib/msgp/msgp"
 	"hash"
 	"regexp"
 )
@@ -273,6 +274,46 @@ func (h *HekaFramingSplitter) UnframeRecord(framed []byte, pack *PipelinePack) [
 	return unframed
 }
 
+type MessagePackSplitter struct {
+	*MessagePackSplitterConfig
+	sr SplitterRunner
+}
+
+type MessagePackSplitterConfig struct {
+	UseMsgBytes bool `toml:"use_message_bytes"`
+}
+
+func (m *MessagePackSplitter) Init(config interface{}) error {
+	m.MessagePackSplitterConfig = config.(*MessagePackSplitterConfig)
+	return nil
+}
+
+func (m *MessagePackSplitter) SetSplitterRunner(sr SplitterRunner) {
+	m.sr = sr
+}
+
+func (m *MessagePackSplitter) ConfigStruct() interface{} {
+	return &MessagePackSplitterConfig{
+		UseMsgBytes: true,
+	}
+}
+
+func (m *MessagePackSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
+	for {
+		if remainingBytes, err := msgp.Skip(buf); err == nil {
+			recordSize := len(buf) - len(remainingBytes)
+			bytesRead += recordSize
+			return bytesRead, buf[:recordSize]
+		} else if err == msgp.ErrShortBytes {
+			return bytesRead, nil // read more data
+		} else {
+			m.sr.LogError(err)
+			buf = buf[1:]
+			bytesRead++
+		}
+	}
+}
+
 func init() {
 	RegisterPlugin("NullSplitter", func() interface{} {
 		return &NullSplitter{}
@@ -285,5 +326,8 @@ func init() {
 	})
 	RegisterPlugin("HekaFramingSplitter", func() interface{} {
 		return &HekaFramingSplitter{}
+	})
+	RegisterPlugin("MessagePackSplitter", func() interface{} {
+		return &MessagePackSplitter{}
 	})
 }
