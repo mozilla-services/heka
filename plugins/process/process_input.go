@@ -373,7 +373,7 @@ func (pi *ProcessInput) runOnce() {
 
 func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	sRunner SplitterRunner) {
-	err := sRunner.SplitStream(r, deliverer)
+	err := sRunner.SplitStreamNullSplitterToEOF(r, deliverer)
 	// Go doesn't seem to have a good solution to streaming output
 	// between subprocesses.  It seems like you have to read *all* the
 	// content in a goroutine instead of just streaming the content.

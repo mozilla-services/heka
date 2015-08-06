@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -58,6 +59,54 @@ func makeMockReader(data []byte) (d *MockDataReader) {
 	d.data = make([]byte, len(data))
 	d.ptr = 0
 	copy(d.data, data)
+	return
+}
+
+type MultiReadReader struct {
+	data0     []byte
+	data1     []byte
+	ptr       int
+	firstDone bool
+}
+
+func (mr *MultiReadReader) read(p []byte, data []byte) (n int) {
+	start := mr.ptr
+	mr.ptr += len(p)
+	if mr.ptr >= len(data) {
+		mr.ptr = len(data)
+		copy(p, data[start:])
+	} else {
+		copy(p, data[start:mr.ptr])
+	}
+	return mr.ptr - start
+}
+
+func (mr *MultiReadReader) Read(p []byte) (n int, err error) {
+	if !mr.firstDone {
+		n = mr.read(p, mr.data0)
+		if mr.ptr >= len(mr.data0) {
+			mr.firstDone = true
+			mr.ptr = 0
+		}
+		return n, nil
+	}
+
+	// On second buffer now.
+	n = mr.read(p, mr.data1)
+	if mr.ptr >= len(mr.data1) {
+		err = io.EOF
+	}
+	return n, err
+}
+
+func makeMultiReadReader(data []byte) (mr *MultiReadReader) {
+	mr = &MultiReadReader{}
+	idxHalf := len(data) / 2
+	mr.data0 = make([]byte, idxHalf)
+	mr.data1 = make([]byte, len(data)-idxHalf)
+	mr.ptr = 0
+	copy(mr.data0, data[:idxHalf])
+	copy(mr.data1, data[idxHalf:])
 	return
 }
 
@@ -329,6 +378,100 @@ func SplitterRunnerSpec(c gs.Context) {
 				c.Expect(seekPos, gs.Equals, len(buf))
 				c.Expect(i, gs.Equals, numRecs)
 			})
+		})
+	})
+
+	c.Specify("A SplitterRunner w/ NullSplitter", func() {
+		splitter := &NullSplitter{}
+		config := struct{}{}
+
+		c.Specify("reads to EOF when 'ToEOF' call is used", func() {
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			// Create SplitterRunner w/ mock InputRunner
+			sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
+			ir := NewMockInputRunner(ctrl)
+			sr.SetInputRunner(ir)
+			recycleChan := make(chan *PipelinePack, 1)
+			pack := NewPipelinePack(recycleChan)
+			recycleChan <- pack
+			ir.EXPECT().InChan().Return(recycleChan)
+			ir.EXPECT().Name().Return("InputRunnerName")
+
+			// Create reader that will always require multiple reads.
+			s := "0123456789"
+			b := bytes.Repeat([]byte(s), 100)
+			reader := makeMultiReadReader(b)
+
+			// Set up deliverer that will return the pack back to us.
+			delChan := make(chan *PipelinePack, 1)
+			delFunc := func(pack *PipelinePack) {
+				delChan <- pack
+			}
+			del := &deliverer{
+				deliver: delFunc,
+			}
+
+			errChan := make(chan error, 1)
+			go func() {
+				err := sr.SplitStreamNullSplitterToEOF(reader, del)
+				errChan <- err
+			}()
+
+			pack = <-delChan
+			c.Expect(pack.Message.GetPayload(), gs.Equals, string(b))
+
+			err = <-errChan
+			c.Expect(err, gs.Equals, io.EOF)
+		})
+
+		c.Specify("only reads once when regular `SplitStream` call is used", func() {
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			// Create SplitterRunner w/ mock InputRunner
+			sr := NewSplitterRunner("TokenSplitter", splitter, srConfig)
+			ir := NewMockInputRunner(ctrl)
+			sr.SetInputRunner(ir)
+			recycleChan := make(chan *PipelinePack, 2)
+			pack0 := NewPipelinePack(recycleChan)
+			pack1 := NewPipelinePack(recycleChan)
+			recycleChan <- pack0
+			recycleChan <- pack1
+			ir.EXPECT().InChan().Return(recycleChan).Times(2)
+			ir.EXPECT().Name().Return("InputRunnerName").Times(2)
+
+			// Create reader that will always require multiple reads.
+			s := "0123456789"
+			b := make([]byte, 1000)
+			copy(b[:500], strings.Repeat(s, 50))
+			copy(b[500:510], "FFFFFFFFFF") // So the first and second half aren't identical.
+			copy(b[510:], strings.Repeat(s, 49))
+			reader := makeMultiReadReader(b)
+
+			// Set up deliverer that will return the pack back to us.
+			delChan := make(chan *PipelinePack, 1)
+			delFunc := func(pack *PipelinePack) {
+				delChan <- pack
+			}
+			del := &deliverer{
+				deliver: delFunc,
+			}
+
+			errChan := make(chan error, 1)
+			go func() {
+				err := sr.SplitStream(reader, del)
+				errChan <- err
+			}()
+
+			pack := <-delChan
+			c.Expect(pack.Message.GetPayload(), gs.Equals, string(b)[:500])
+			pack = <-delChan
+			c.Expect(pack.Message.GetPayload(), gs.Equals, string(b)[500:])
+
+			err = <-errChan
+			c.Expect(err, gs.Equals, io.EOF)
 		})
 
 	})

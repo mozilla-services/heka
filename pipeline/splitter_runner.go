@@ -35,6 +35,7 @@ type SplitterRunner interface {
 	Splitter() Splitter
 	SplitBytes(data []byte, del Deliverer) (int, error)
 	SplitStream(r io.Reader, del Deliverer) error
+	SplitStreamNullSplitterToEOF(r io.Reader, del Deliverer) error
 	GetRemainingData() (record []byte)
 	GetRecordFromStream(r io.Reader) (int, []byte, error)
 	DeliverRecord(record []byte, del Deliverer)
@@ -357,6 +358,56 @@ func (sr *sRunner) SplitStream(r io.Reader, del Deliverer) error {
 			break
 		}
 		sr.DeliverRecord(record, del)
+	}
+	return err
+}
+
+func (sr *sRunner) SplitStreamNullSplitterToEOF(r io.Reader, del Deliverer) error {
+	var (
+		record       []byte
+		longRecord   []byte
+		err          error
+		deliver      bool
+		nullSplitter bool
+	)
+	// If we're using a NullSplitter we want to make sure we capture the input
+	// data all the way to EOF and not be subject to whatever we get from a
+	// single Read() call.
+	if _, ok := sr.Splitter().(*NullSplitter); ok {
+		nullSplitter = true
+	}
+	for err == nil {
+		deliver = true
+		_, record, err = sr.GetRecordFromStream(r)
+		if err == io.ErrShortBuffer {
+			if sr.KeepTruncated() {
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was truncated",
+					message.MAX_RECORD_SIZE)
+			} else {
+				deliver = false
+				err = fmt.Errorf("record exceeded MAX_RECORD_SIZE %d and was dropped",
+					message.MAX_RECORD_SIZE)
+			}
+			sr.ir.LogError(err)
+			err = nil // non-fatal, keep going
+		} else if sr.IncompleteFinal() && err == io.EOF && len(record) == 0 {
+			record = sr.GetRemainingData()
+		}
+		if len(record) > 0 && deliver {
+			if nullSplitter {
+				// Concatenate all the records until EOF. This should be safe
+				// b/c NullSplitter means FindRecord will always return the
+				// full buffer contents, we don't have to worry about
+				// GetRecordFromStream trying to append multiple reads to a
+				// single record and triggering an io.ErrShortBuffer error.
+				longRecord = append(longRecord, record...)
+			} else {
+				sr.DeliverRecord(record, del)
+			}
+		}
+	}
+	if err == io.EOF && nullSplitter && len(longRecord) > 0 {
+		sr.DeliverRecord(longRecord, del)
 	}
 	return err
 }

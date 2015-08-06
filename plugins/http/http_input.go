@@ -186,10 +186,11 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		sRunner.SetPackDecorator(hi.makePackDecorator(respData))
 	}
 
-	err = splitStream(hi.ir, sRunner, resp.Body)
+	err = sRunner.SplitStreamNullSplitterToEOF(resp.Body, nil)
 	if err != nil && err != io.EOF {
 		hi.ir.LogError(fmt.Errorf("fetching %s response input: %s", url, err.Error()))
 	}
+	resp.Body.Close()
 }
 
 func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
