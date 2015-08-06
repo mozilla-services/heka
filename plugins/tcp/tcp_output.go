@@ -61,10 +61,9 @@ type TcpOutputConfig struct {
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
 	KeepAlivePeriod int `toml:"keep_alive_period"`
-	// Specifies whether or not Heka should close the TCP socket after
-	// successfully writing out a message. This exists to deal with buggy TCP
-	// servers that close their sockets after clients write out their message.
-	CloseAfterWrite bool `toml:"close_after_write"`
+	// Number of successfully processed messages to re-establish the TCP
+	// connection after.  Defaults to 0 (never)
+	ReconnectAfter int64 `toml:"reconnect_after"`
 	// Specifies whether or not Heka's stream framing wil be applied to the
 	// output. We do some magic to default to true if ProtobufEncoder is used,
 	// false otherwise.
@@ -83,11 +82,10 @@ func (t *TcpOutput) ConfigStruct() interface{} {
 		FullAction:        "shutdown",
 	}
 	return &TcpOutputConfig{
-		Address:         "localhost:9125",
-		Encoder:         "ProtobufEncoder",
-		CloseAfterWrite: false,
-		UseBuffering:    &b,
-		Buffering:       queueConfig,
+		Address:      "localhost:9125",
+		Encoder:      "ProtobufEncoder",
+		UseBuffering: &b,
+		Buffering:    queueConfig,
 	}
 }
 
@@ -171,7 +169,9 @@ func (t *TcpOutput) ProcessMessage(pack *PipelinePack) (err error) {
 	} else {
 		atomic.AddInt64(&t.processMessageCount, 1)
 		t.or.UpdateCursor(pack.QueueCursor)
-		if t.conf.CloseAfterWrite {
+		if t.conf.ReconnectAfter > 0 &&
+			atomic.LoadInt64(&t.processMessageCount)%t.conf.ReconnectAfter == 0 {
+
 			t.cleanupConn()
 		}
 	}

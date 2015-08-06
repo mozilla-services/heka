@@ -9,7 +9,8 @@ Backwards Incompatibilities
 Features
 --------
 
-* Added `close_after_write` option to TcpOutput.
+* Allow TcpOutput to re-establish the connection after a configurable number
+  of successfully delivered messages.
 
 * Added `set_hostname` option to UdpInput configuration (#1668).
 
@@ -21,7 +22,6 @@ Features
 
 * Adder `log_flags` to hekad config, to control the prefix for STDOUT and
   STDERR logs.
-
 
 Bug Handling
 ------------
@@ -80,6 +80,8 @@ Features
 --------
 
 * Allow multiple sandbox module directories to be specified (#1525).
+
+* Add Nginx stub status lua sandbox decoder
 
 * Add Nginx stub status lua sandbox decoder.
 
