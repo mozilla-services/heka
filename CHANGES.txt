@@ -19,6 +19,9 @@ Bug Handling
 
 * Fixed ProcessInput hangs when splitter is defined (#1620, #1644).
 
+* `heka.all-report` and `heka.memstat` messages are now protobuf encoded before
+  being injected into the router (#1659).
+
 * Fixed ProcessInput not getting process's full output when NullSplitter is in
   use (#1645).
 
