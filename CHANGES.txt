@@ -19,6 +19,8 @@ Features
 
 * Allow multiple sandbox module directories to be specified (#1525).
 * Add Nginx stub status lua sandbox decoder
+* Allow TcpOutput to re-establish the connection after a configurable number
+  of successfully delivered messages.
 
 Bug Fixes
 ---------
