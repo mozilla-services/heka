@@ -198,10 +198,11 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		if !sRunner.UseMsgBytes() {
 			sRunner.SetPackDecorator(hli.makePackDecorator(req))
 		}
-		err = splitStream(hli.ir, sRunner, req.Body)
+		err = sRunner.SplitStreamNullSplitterToEOF(req.Body, nil)
 		if err != nil && err != io.EOF {
 			hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
 		}
+		req.Body.Close()
 		sRunner.Done()
 	}
 }
