@@ -19,6 +19,7 @@ package http
 import (
 	"crypto/tls"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -47,7 +48,6 @@ func HttpListenInputSpec(c gs.Context) {
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
 	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
-	splitter := &TokenSplitter{} // Not actually used.
 
 	errChan := make(chan error, 1)
 	startInput := func() {
@@ -81,7 +81,6 @@ func HttpListenInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().NewSplitterRunner(gomock.Any()).Return(
 			ith.MockSplitterRunner)
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
-		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
 		ith.MockSplitterRunner.EXPECT().Done()
 
 		decChan := make(chan func(*PipelinePack), 1)
@@ -91,26 +90,21 @@ func HttpListenInputSpec(c gs.Context) {
 		setDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 		setDecCall.Do(feedDecorator)
 
-		streamChan := make(chan io.Reader, 1)
-		feedStream := func(r io.Reader) {
-			streamChan <- r
-		}
-		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(
-			gomock.Any()).Do(feedStream)
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStreamNullSplitterToEOF(gomock.Any(),
+			nil)
 
 		bytesChan := make(chan []byte, 1)
-		deliver := func(msgBytes []byte, del Deliverer) {
+		splitAndDeliver := func(r io.Reader, del Deliverer) {
+			msgBytes, _ := ioutil.ReadAll(r)
 			bytesChan <- msgBytes
 		}
-
-		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
 
 		c.Specify("Adds query parameters to the message pack as fields", func() {
 			err := httpListenInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 			resp, err := http.Get(ts.URL + "/?test=Hello%20World")
@@ -134,7 +128,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 			resp, err := http.Get(ts.URL)
@@ -157,12 +151,10 @@ func HttpListenInputSpec(c gs.Context) {
 			ts.Config = httpListenInput.server
 
 			body := "1+2"
-			getRecCall.Return(0, []byte(body), io.EOF)
+			splitCall.Return(io.EOF)
+			splitCall.Do(splitAndDeliver)
 			startInput()
 			<-startedChan
-			deliverCall := ith.MockSplitterRunner.EXPECT().DeliverRecord(gomock.Any(),
-				nil)
-			deliverCall.Do(deliver)
 			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader(body))
 			c.Assume(err, gs.IsNil)
 			resp.Body.Close()
@@ -180,7 +172,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -205,7 +197,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -254,7 +246,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -276,7 +268,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -310,7 +302,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
