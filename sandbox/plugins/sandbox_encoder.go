@@ -152,22 +152,16 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxEncoder) Stop() {
-	s.Destroy()
-}
-
-func (s *SandboxEncoder) Destroy() error {
 	s.reportLock.Lock()
-	var err error
 	if s.sb != nil {
 		if s.sbc.PreserveData {
-			err = s.sb.Destroy(s.preservationFile)
+			s.sb.Destroy(s.preservationFile)
 		} else {
-			err = s.sb.Destroy("")
+			s.sb.Destroy("")
 		}
 		s.sb = nil
 	}
 	s.reportLock.Unlock()
-	return err
 }
 
 func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err error) {

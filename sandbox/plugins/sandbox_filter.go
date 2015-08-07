@@ -356,7 +356,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 		this.manager.PluginExited()
 	}
 
-	destroyErr := this.Destroy()
+	destroyErr := this.destroy()
 	if destroyErr != nil {
 		if err != nil {
 			fr.LogError(destroyErr)
@@ -367,7 +367,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	return err
 }
 
-func (this *SandboxFilter) Destroy() error {
+func (this *SandboxFilter) destroy() error {
 	this.reportLock.Lock()
 
 	var err error

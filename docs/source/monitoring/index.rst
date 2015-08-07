@@ -95,12 +95,15 @@ triggered:
 * A Heka report will be generated and output to the console, hopefully
   providing insight into what caused the wedging.
 
+* A shutdown signal will be sent to the Heka pipeline, triggering a shut down
+  if one hasn't already been sent.
+
 * An `abort` signal will propagate through the Heka pipeline, causing any
   wedged sandboxes to become unwedged and immediately exit, preserving their
   state if specified with the ``preserve_data = true`` config setting.
 
-* All remaining sandboxes will be shut down, preserving state if specified.
-
-* Heka will send itself a SIGQUIT signal, causing the process to immediately
-  terminate, dumping the stack traces for all running goroutines to the
-  console for forensic purposes.
+When this has finished usually Heka will become unwedged and exit cleanly,
+preserving the state of all so configured sandboxes. In some cases Heka will
+still not exit cleanly and will require a SIGQUIT signal. Even in these cases,
+however, state of sandbox plugins will often be serialized to disk such that
+it's available after a restart.

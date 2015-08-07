@@ -160,11 +160,10 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		}
 	}
 
-	err = s.Destroy()
-	return err
+	return s.destroy()
 }
 
-func (s *SandboxInput) Destroy() error {
+func (s *SandboxInput) destroy() error {
 	var err error
 
 	s.reportLock.Lock()

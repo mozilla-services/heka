@@ -256,13 +256,13 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 }
 
 func (s *SandboxDecoder) Shutdown() {
-	err := s.Destroy()
+	err := s.destroy()
 	if err != nil {
 		s.dRunner.LogError(err)
 	}
 }
 
-func (s *SandboxDecoder) Destroy() error {
+func (s *SandboxDecoder) destroy() error {
 	s.reportLock.Lock()
 
 	var err error

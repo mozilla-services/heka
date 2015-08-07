@@ -165,7 +165,7 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		}
 	}
 
-	destroyErr := s.Destroy()
+	destroyErr := s.destroy()
 	if destroyErr != nil {
 		if err != nil {
 			or.LogError(err)
@@ -175,7 +175,7 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 	return err
 }
 
-func (s *SandboxOutput) Destroy() error {
+func (s *SandboxOutput) destroy() error {
 	var err error
 	s.reportLock.Lock()
 	if s.sb != nil {
