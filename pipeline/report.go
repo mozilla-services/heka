@@ -282,7 +282,12 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	pack.Message.SetLogger(HEKA_DAEMON)
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
-	pc.router.InChan() <- pack
+	if err := pack.EncodeMsgBytes(); err != nil {
+		LogError.Printf("encoding heka.all-report message: %s\n", err.Error())
+		pack.recycle()
+	} else {
+		pc.router.InChan() <- pack
+	}
 
 	mempack, e := pc.PipelinePack(0)
 	if e != nil {
@@ -300,7 +305,12 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	message.NewInt64Field(mempack.Message, "HeapInuse", int64(m.HeapInuse), "B")
 	message.NewInt64Field(mempack.Message, "HeapReleased", int64(m.HeapReleased), "B")
 	message.NewInt64Field(mempack.Message, "HeapObjects", int64(m.HeapObjects), "count")
-	pc.router.InChan() <- mempack
+	if err := mempack.EncodeMsgBytes(); err != nil {
+		LogError.Printf("encoding heka.memstat message: %s\n", err.Error())
+		mempack.recycle()
+	} else {
+		pc.router.InChan() <- mempack
+	}
 }
 
 func (pc *PipelineConfig) allReportsStdout() {

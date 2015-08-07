@@ -65,7 +65,7 @@ func ProcessInputSpec(c gs.Context) {
 		})
 
 		bytesChan := make(chan []byte, 1)
-		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStreamNullSplitterToEOF(gomock.Any(),
 			ith.MockDeliverer).Return(nil)
 		splitCall.Do(func(r io.Reader, del Deliverer) {
 			bytes, err := ioutil.ReadAll(r)
@@ -101,10 +101,6 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_TEST1_OUTPUT+"\n")
 
 				dec := <-decChan
-				select {
-				case pInput.ccDone["stdout"] <- true:
-				default:
-				}
 
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
@@ -142,10 +138,7 @@ func ProcessInputSpec(c gs.Context) {
 				c.Expect(string(actual), gs.Equals, PROCESSINPUT_PIPE_OUTPUT+"\n")
 
 				dec := <-decChan
-				select {
-				case pInput.ccDone["stdout"] <- true:
-				default:
-				}
+
 				dec(ith.Pack)
 				fPInputName := ith.Pack.Message.FindFirstField("ProcessInputName")
 				c.Expect(fPInputName.ValueString[0], gs.Equals, "PipedCmd.stdout")

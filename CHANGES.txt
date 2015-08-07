@@ -20,10 +20,22 @@ Features
 * InputRunner and router's `Inject` methods each now return an error that can
   be checked to verify successful message injection.
 
-Bug Fixes
----------
+* Added `SplitStreamNullSplitterToEOF` to SplitterRunner interface so input
+  plugins can avoid generating messages with whatever happens to come back from
+  a `Read()` call.
+
+Bug Handling
+------------
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
+
+* Fixed ProcessInput hangs when splitter is defined (#1620, #1644).
+
+* `heka.all-report` and `heka.memstat` messages are now protobuf encoded before
+  being injected into the router (#1659).
+
+* Fixed ProcessInput not getting process's full output when NullSplitter is in
+  use (#1645).
 
 0.10.0b0 (2015-07-13)
 =====================
