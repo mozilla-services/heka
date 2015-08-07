@@ -65,7 +65,7 @@ func ProcessInputSpec(c gs.Context) {
 		})
 
 		bytesChan := make(chan []byte, 1)
-		splitCall := ith.MockSplitterRunner.EXPECT().SplitStream(gomock.Any(),
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStreamNullSplitterToEOF(gomock.Any(),
 			ith.MockDeliverer).Return(nil)
 		splitCall.Do(func(r io.Reader, del Deliverer) {
 			bytes, err := ioutil.ReadAll(r)

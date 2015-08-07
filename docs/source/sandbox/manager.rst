@@ -6,7 +6,7 @@
 Control Message
 ---------------
 The sandbox manager control message is a regular Heka message with the following
-variables set to the specified values. 
+variables set to the specified values.
 
 Starting a SandboxFilter
 
@@ -64,9 +64,9 @@ Example
 
 heka-sbmgrload
 --------------
-Heka Sbmgrload is a test tool for starting/stopping a large number of sandboxes.  The
-script and configuration are built into the tool and the filters will be named:
-CounterSandbox\ **N** where **N** is the instance number.
+Heka Sbmgrload is a test tool for starting/stopping a large number of
+sandboxes. The script and configuration are built into the tool and the filters
+will be named: CounterSandbox\ **N** where **N** is the instance number.
 
 Command Line Options
 
@@ -109,22 +109,20 @@ messages. The signer section consists of the signer name followed by an
 underscore and the key version number (the reason for this notation is to
 simply flatten the signer configuration structure into a single map).
 Multiple key versions are allowed to be active at the same time facilitating
-the rollout  of new keys.
+the rollout of new keys.
 
 .. code-block:: ini
 
     [TCP:5565]
     type = "TcpInput"
-    parser_type = "message.proto"
-    decoder = "ProtobufDecoder"
     address = ":5565"
         [TCP:5565.signer.PlatformDevs_0]
         hmac_key = "Old Platform devs signing key"
         [TCP:5565.signer.PlatformDevs_1]
         hmac_key = "Platform devs signing key"
 
-3. Configure the sandbox manager utility (sbmgr).  The signer information must 
-exactly match the values in the input configuration above otherwise the 
+3. Configure the sandbox manager utility (sbmgr). The signer information must
+exactly match the values in the input configuration above otherwise the
 messages will be discarded. Save the file as PlatformDevs.toml.
 
 .. code-block:: ini
@@ -161,9 +159,9 @@ SandboxFilter Setup
 2. Create the SandboxFilter configuration and save it as "example.toml".
 
 The only difference between a static and dynamic SandboxFilter configuration is
-the filename.  In the dynamic configuration it can be left blank or left out
-entirely.  The manager will assign the filter a unique system wide name, in 
-this case, "PlatformDevs-Example".
+the filename. In the dynamic configuration it can be left blank or left out
+entirely. The manager will assign the filter a unique system wide name, in this
+case, "PlatformDevs-Example".
 
 .. code-block:: ini
 
@@ -180,7 +178,7 @@ this case, "PlatformDevs-Example".
 
     sbmgr -action=load -config=PlatformDevs.toml -script=example.lua -scriptconfig=example.toml
 
-If you are running the :ref:`config_dashboard_output` the following links are 
+If you are running the :ref:`config_dashboard_output` the following links are
 available:
 
 - Information about the running filters:
@@ -195,9 +193,9 @@ Otherwise
 
 .. note::
 
-    A running filter cannot be 'reloaded' it must be unloaded and loaded again.  
+    A running filter cannot be 'reloaded' it must be unloaded and loaded again.
     During the unload/load process some data can be missed and gaps will be
-    created.  In the future we hope to remedy this but for now it is a 
+    created. In the future we hope to remedy this but for now it is a
     limitation of the dynamic sandbox.
 
 4. Unload the filter using sbmgr.
@@ -205,5 +203,3 @@ Otherwise
 ::
 
     sbmgr -action=unload -config=PlatformDevs.toml -filtername=Example
-
-
