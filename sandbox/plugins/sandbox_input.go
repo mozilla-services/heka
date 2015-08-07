@@ -109,7 +109,7 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		case pack = <-ir.InChan():
 		case <-abortChan:
 			pack.Recycle(nil)
-			return 1
+			return 5
 		}
 		if err := proto.Unmarshal([]byte(payload), pack.Message); err != nil {
 			pack.Recycle(nil)
@@ -124,7 +124,7 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		}
 		if err := ir.Inject(pack); err != nil {
 			pack.Recycle(nil)
-			return 1
+			return 5
 		}
 		atomic.AddInt64(&s.processMessageCount, 1)
 		atomic.AddInt64(&s.processMessageBytes, int64(len(payload)))

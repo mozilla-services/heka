@@ -104,7 +104,8 @@ int timer_event(lua_sandbox* lsb, long long ns)
 
     lua_pushnumber(lua, ns);
     if (lua_pcall(lua, 1, 0, 0) != 0) {
-        const char* errmsg = lua_tostring(lua, -1);
+        size_t errmsg_len = 0;
+        const char* errmsg = lua_tolstring(lua, -1, &errmsg_len);
         char err[LSB_ERROR_SIZE];
         size_t len = snprintf(err, LSB_ERROR_SIZE, "%s() %s", func_name,
                               errmsg);
@@ -112,9 +113,13 @@ int timer_event(lua_sandbox* lsb, long long ns)
           err[LSB_ERROR_SIZE - 1] = 0;
         }
         // Don't terminate if we're aborting so we preserve data on exit.
-        const char* tail = errmsg + strlen(errmsg) - 7; // Last 7 chars of err msg.
-        if (strcmp(tail, "aborted") != 0) {
-          lsb_terminate(lsb, err);
+        if (errmsg_len < 7) {
+            lsb_terminate(lsb, err);
+        } else {
+            const char* tail = errmsg + strlen(errmsg) - 7; // Last 7 chars of err msg.
+            if (strcmp(tail, "aborted") != 0) {
+                lsb_terminate(lsb, err);
+            }
         }
         return 1;
     }

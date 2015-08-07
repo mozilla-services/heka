@@ -177,7 +177,7 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 		if s.pack == nil {
 			s.pack = dr.NewPack()
 			if s.pack == nil {
-				return 1 // We're aborting, exit out.
+				return 5 // We're aborting, exit out.
 			}
 			if original == nil && len(s.packs) > 0 {
 				original = s.packs[0].Message // payload injections have the original header data in the first pack
