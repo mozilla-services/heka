@@ -17,6 +17,7 @@
 package pipeline
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -37,6 +38,8 @@ const (
 	STOP   = "stop"
 )
 
+var AbortError = errors.New("Aborting")
+
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
 	MaxMsgProcessDuration uint64
@@ -53,6 +56,7 @@ type GlobalConfigStruct struct {
 	SampleDenominator     int
 	sigChan               chan os.Signal
 	Hostname              string
+	abortChan             chan struct{}
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -70,6 +74,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
 		Hostname:              hostname,
+		abortChan:             make(chan struct{}),
 	}
 }
 
@@ -105,6 +110,10 @@ func (g *GlobalConfigStruct) stop() {
 // Log a message out
 func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 	LogInfo.Printf("%s: %s", src, msg)
+}
+
+func (g *GlobalConfigStruct) AbortChan() chan struct{} {
+	return g.abortChan
 }
 
 func isAbs(path string) bool {
@@ -318,7 +327,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
+		SIGUSR1, SIGUSR2)
 
 	for !globals.IsShuttingDown() {
 		select {
@@ -335,6 +345,9 @@ func Run(config *PipelineConfig) {
 			case SIGUSR1:
 				LogInfo.Println("Queue report initiated.")
 				go config.allReportsStdout()
+			case SIGUSR2:
+				LogInfo.Println("Sandbox abort initiated.")
+				go sandboxAbort(config)
 			}
 		}
 	}
@@ -385,4 +398,50 @@ func Run(config *PipelineConfig) {
 	}
 
 	LogInfo.Println("Shutdown complete.")
+}
+
+func sandboxAbort(config *PipelineConfig) {
+	// This should only be run when the router isn't processing messages, so we
+	// try to inject a new message and exit if successful. Far from perfect,
+	// but protects in most cases.
+	var pack *PipelinePack
+	doSave := false
+
+	select {
+	case pack = <-config.injectRecycleChan:
+	case <-time.After(1 * time.Second):
+	}
+
+	if pack == nil {
+		select {
+		case pack = <-config.inputRecycleChan:
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	if pack == nil {
+		doSave = true
+	} else {
+		pack.Message.SetType("heka.router-test")
+		select {
+		case config.router.inChan <- pack:
+		case <-time.After(1 * time.Second):
+			doSave = true
+		}
+	}
+
+	if !doSave {
+		msg := "Can't save sandboxes while router is processing messages, use regular shutdown."
+		LogError.Println(msg)
+		return
+	}
+
+	// If we got this far the router is presumably wedged and we'll go ahead
+	// and do it.  First we generate a report for forensics re: why we were
+	// wedged, then send a shutdown signal, then close the abortChan to free up
+	// and abort any sandboxes that are wedged inside process_message or
+	// timer_event.
+	config.allReportsStdout()
+	config.Globals.ShutDown()
+	close(config.Globals.abortChan)
 }

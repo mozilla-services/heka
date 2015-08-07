@@ -102,10 +102,9 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
 	this.rates = append(this.rates, this.rate)
 
-	pack := h.PipelinePack(msgLoopCount)
-	if pack == nil {
-		fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-			h.PipelineConfig().Globals.MaxMsgLoops))
+	pack, e := h.PipelinePack(msgLoopCount)
+	if e != nil {
+		fr.LogError(e)
 		return
 	}
 	pack.Message.SetLogger(fr.Name())
@@ -124,10 +123,9 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 			sum += val
 		}
 		mean := sum / float64(samples)
-		pack := h.PipelinePack(msgLoopCount)
-		if pack == nil {
-			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				h.PipelineConfig().Globals.MaxMsgLoops))
+		pack, e := h.PipelinePack(msgLoopCount)
+		if e != nil {
+			fr.LogError(e)
 			return
 		}
 		pack.Message.SetLogger(fr.Name())

@@ -17,3 +17,4 @@ package pipeline
 import "syscall"
 
 const SIGUSR1 = syscall.SIGUSR1
+const SIGUSR2 = syscall.SIGUSR2

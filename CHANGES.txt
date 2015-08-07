@@ -1,12 +1,25 @@
 0.10.0 (2015-??-??)
 ===================
 
+Backwards Incompatibilities
+---------------------------
+
+* `PluginHelper.PipelinePack` method now returns `(*PipelinePack, err)` values
+  instead of just `*PipelinePack`.
+
 Features
 --------
 
 * Allow multiple sandbox module directories to be specified (#1525).
 
 * Add Nginx stub status lua sandbox decoder.
+
+* Added support for SIGUSR2 signal for use when Heka is wedged, triggers a Heka
+  pipeline report to the console, abort and serialize of all sandboxes, and a
+  shutdown.
+
+* InputRunner and router's `Inject` methods each now return an error that can
+  be checked to verify successful message injection.
 
 * Added `SplitStreamNullSplitterToEOF` to SplitterRunner interface so input
   plugins can avoid generating messages with whatever happens to come back from

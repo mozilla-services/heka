@@ -39,7 +39,11 @@ int process_message(lua_sandbox* lsb)
         if (len >= LSB_ERROR_SIZE) {
           err[LSB_ERROR_SIZE - 1] = 0;
         }
-        lsb_terminate(lsb, err);
+        // Don't terminate if we're aborting so we preserve data on exit.
+        const char* tail = err + len -7; // Last 7 chars of err msg.
+        if (strcmp(tail, "aborted") != 0) {
+          lsb_terminate(lsb, err);
+        }
         return 1;
     }
 
@@ -100,13 +104,23 @@ int timer_event(lua_sandbox* lsb, long long ns)
 
     lua_pushnumber(lua, ns);
     if (lua_pcall(lua, 1, 0, 0) != 0) {
+        size_t errmsg_len = 0;
+        const char* errmsg = lua_tolstring(lua, -1, &errmsg_len);
         char err[LSB_ERROR_SIZE];
         size_t len = snprintf(err, LSB_ERROR_SIZE, "%s() %s", func_name,
-                              lua_tostring(lua, -1));
+                              errmsg);
         if (len >= LSB_ERROR_SIZE) {
           err[LSB_ERROR_SIZE - 1] = 0;
         }
-        lsb_terminate(lsb, err);
+        // Don't terminate if we're aborting so we preserve data on exit.
+        if (errmsg_len < 7) {
+            lsb_terminate(lsb, err);
+        } else {
+            const char* tail = errmsg + strlen(errmsg) - 7; // Last 7 chars of err msg.
+            if (strcmp(tail, "aborted") != 0) {
+                lsb_terminate(lsb, err);
+            }
+        }
         return 1;
     }
     lsb_pcall_teardown(lsb);
@@ -368,6 +382,8 @@ static inline void inject_error(lua_State* lua, const char* fn, int result)
     case 4:
         luaL_error(lua, "%s creates a circular reference (matches this plugin's message_matcher)", fn);
         break;
+    case 5:
+        luaL_error(lua, "%s aborted", fn);
     default:
         luaL_error(lua, "%s unknown error", fn);
         break;
