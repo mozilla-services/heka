@@ -15,7 +15,8 @@ Features
 * Add Nginx stub status lua sandbox decoder.
 
 * Added support for SIGUSR2 signal for use when Heka is wedged, triggers a Heka
-  pipeline report to the console, serialization of all sandboxes, and SIGQUIT.
+  pipeline report to the console, abort and serialize of all sandboxes, and a
+  shutdown.
 
 * InputRunner and router's `Inject` methods each now return an error that can
   be checked to verify successful message injection.
