@@ -18,9 +18,11 @@ package pipeline
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,6 +62,7 @@ type GlobalConfigStruct struct {
 	abortChan             chan struct{}
 	FullBufferMaxRetries  uint
 	exitCode              int
+	notifySocket          string
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -146,6 +149,22 @@ func (g *GlobalConfigStruct) PrependShareDir(path string) string {
 	return filepath.Join(g.ShareDir, path)
 }
 
+func (g *GlobalConfigStruct) SdNotify(state string) {
+	if g.notifySocket != "" {
+		unixAddr, err := net.ResolveUnixAddr("unixgram", g.notifySocket)
+		if err != nil {
+			LogError.Printf("Error resolving unixgram address NOTIFY_SOCKET=%s: %s", g.notifySocket, err)
+		} else {
+			notifysockconn, err := net.DialUnix("unixgram", nil, unixAddr)
+			if err != nil {
+				LogError.Printf("Unable to open NOTIFY_SOCKET=%s: %s", g.notifySocket, err)
+			} else {
+				fmt.Fprintf(notifysockconn, "%s\n", state)
+				notifysockconn.Close()
+			}
+		}
+	}
+}
 // Main Heka pipeline data structure containing raw message data, a Message
 // object, and other Heka related message metadata.
 type PipelinePack struct {
@@ -332,6 +351,10 @@ func Run(config *PipelineConfig) (exitCode int) {
 		LogInfo.Println("Input started:", name)
 	}
 
+	// Support sd_notify
+	globals.notifySocket = os.Getenv("NOTIFY_SOCKET")
+	globals.SdNotify("READY=1")
+	os.Unsetenv("NOTIFY_SOCKET")
 	// wait for sigint
 	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
 		SIGUSR1, SIGUSR2)
@@ -342,11 +365,14 @@ func Run(config *PipelineConfig) (exitCode int) {
 			switch sig {
 			case syscall.SIGHUP:
 				LogInfo.Println("Reload initiated.")
+				globals.SdNotify("RELOADING=1")
 				if err := notify.Post(RELOAD, nil); err != nil {
 					LogError.Println("Error sending reload event: ", err)
 				}
+				globals.SdNotify("READY=1")
 			case syscall.SIGINT, syscall.SIGTERM:
 				LogInfo.Println("Shutdown initiated.")
+				globals.SdNotify("STOPPING=1")
 				globals.stop()
 			case SIGUSR1:
 				LogInfo.Println("Queue report initiated.")

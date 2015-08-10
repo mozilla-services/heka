@@ -4,6 +4,7 @@ After=network.target auditd.service
 ConditionPathExists=!/etc/heka/hekad_not_to_be_run
 
 [Service]
+Type=notify
 EnvironmentFile=-/etc/default/heka
 User=heka
 Group=heka
