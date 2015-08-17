@@ -1,3 +1,11 @@
+0.10.0 (2015-??-??)
+===================
+
+Bug Handling
+------------
+
+* Set hostname correctly in the Graylog decoder (#1663).
+
 0.10.0b1 (2015-08-07)
 =====================
 
@@ -26,8 +34,6 @@ Features
   a `Read()` call.
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
-
-* Set hostname correctly in the Graylog decoder (#1663).
 
 Bug Handling
 ------------
