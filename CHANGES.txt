@@ -11,6 +11,9 @@ Bug Handling
 Features
 --------
 
+* Allow TcpOutput to re-establish the connection after a configurable number of
+  successfully delivered messages.
+
 0.10.0 (2015-??-??)
 =====================
 
