@@ -14,6 +14,22 @@ Features
 0.10.0 (2015-??-??)
 =====================
 
+Bug Handling
+------------
+
+* Set hostname correctly in the Graylog decoder (#1663).
+
+* Add sample rate support for gauge type in StatsdInput.
+
+0.10.0b1 (2015-08-07)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* `PluginHelper.PipelinePack` method now returns `(*PipelinePack, err)` values
+  instead of just `*PipelinePack`.
+
 Features
 --------
 
@@ -21,9 +37,18 @@ Features
 
 * Add Nginx stub status lua sandbox decoder.
 
+* Added support for SIGUSR2 signal for use when Heka is wedged, triggers a Heka
+  pipeline report to the console, abort and serialize of all sandboxes, and a
+  shutdown.
+
+* InputRunner and router's `Inject` methods each now return an error that can
+  be checked to verify successful message injection.
+
 * Added `SplitStreamNullSplitterToEOF` to SplitterRunner interface so input
   plugins can avoid generating messages with whatever happens to come back from
   a `Read()` call.
+
+* Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
 
 Bug Handling
 ------------

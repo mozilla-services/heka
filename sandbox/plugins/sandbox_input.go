@@ -102,8 +102,15 @@ func (s *SandboxInput) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
+	abortChan := s.pConfig.Globals.AbortChan()
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
-		pack := <-ir.InChan()
+		var pack *pipeline.PipelinePack
+		select {
+		case pack = <-ir.InChan():
+		case <-abortChan:
+			pack.Recycle(nil)
+			return 5
+		}
 		if err := proto.Unmarshal([]byte(payload), pack.Message); err != nil {
 			pack.Recycle(nil)
 			return 1
@@ -115,7 +122,10 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 			ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
 			pack.Message.SetTimestamp(ct.UnixNano())
 		}
-		ir.Inject(pack)
+		if err := ir.Inject(pack); err != nil {
+			pack.Recycle(nil)
+			return 5
+		}
 		atomic.AddInt64(&s.processMessageCount, 1)
 		atomic.AddInt64(&s.processMessageBytes, int64(len(payload)))
 		return 0
@@ -150,15 +160,23 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		}
 	}
 
+	return s.destroy()
+}
+
+func (s *SandboxInput) destroy() error {
+	var err error
+
 	s.reportLock.Lock()
-	if s.sbc.PreserveData {
-		err = s.sb.Destroy(s.preservationFile)
-	} else {
-		err = s.sb.Destroy("")
+	if s.sb != nil {
+		if s.sbc.PreserveData {
+			err = s.sb.Destroy(s.preservationFile)
+		} else {
+			err = s.sb.Destroy("")
+		}
+		s.sb = nil
 	}
-	s.sb = nil
 	s.reportLock.Unlock()
-	return
+	return err
 }
 
 func (s *SandboxInput) Stop() {

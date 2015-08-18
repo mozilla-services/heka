@@ -165,23 +165,29 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		}
 	}
 
-	s.reportLock.Lock()
-	var destroyErr error
-	if s.sbc.PreserveData {
-		destroyErr = s.sb.Destroy(s.preservationFile)
-	} else {
-		destroyErr = s.sb.Destroy("")
-	}
+	destroyErr := s.destroy()
 	if destroyErr != nil {
 		if err != nil {
 			or.LogError(err)
 		}
 		err = destroyErr
 	}
+	return err
+}
 
-	s.sb = nil
+func (s *SandboxOutput) destroy() error {
+	var err error
+	s.reportLock.Lock()
+	if s.sb != nil {
+		if s.sbc.PreserveData {
+			err = s.sb.Destroy(s.preservationFile)
+		} else {
+			err = s.sb.Destroy("")
+		}
+		s.sb = nil
+	}
 	s.reportLock.Unlock()
-	return
+	return err
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

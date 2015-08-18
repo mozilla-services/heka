@@ -37,6 +37,9 @@ type MessageRouter interface {
 	// Input channel from which the router gets messages to test against the
 	// registered plugin message_matchers.
 	InChan() chan *PipelinePack
+	// Inject message for matching and possible delivery to all filter and
+	// output plugins.
+	Inject(pack *PipelinePack) error
 	// Channel to facilitate adding a matcher to the router which starts the
 	// message flow to the associated filter.
 	AddFilterMatcher() chan *MatchRunner
@@ -64,10 +67,11 @@ type messageRouter struct {
 	// the definitive list of active matchers.
 	fMatcherMap map[string]*MatchRunner
 	oMatcherMap map[string]*MatchRunner
+	abortChan   chan struct{}
 }
 
 // Creates and returns a (not yet started) Heka message router.
-func NewMessageRouter(chanSize int) (router *messageRouter) {
+func NewMessageRouter(chanSize int, abortChan chan struct{}) (router *messageRouter) {
 	router = new(messageRouter)
 	router.inChan = make(chan *PipelinePack, chanSize)
 	router.addFilterMatcher = make(chan *MatchRunner, 0)
@@ -92,6 +96,15 @@ func (self *messageRouter) RemoveFilterMatcher() chan *MatchRunner {
 
 func (self *messageRouter) RemoveOutputMatcher() chan *MatchRunner {
 	return self.removeOutputMatcher
+}
+
+func (self *messageRouter) Inject(pack *PipelinePack) error {
+	select {
+	case self.inChan <- pack:
+		return nil
+	case <-self.abortChan:
+		return AbortError
+	}
 }
 
 // initMatchSlices creates the `fMatchers` and `oMatchers` MatchRunner slices

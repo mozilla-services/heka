@@ -73,9 +73,12 @@ To generate new messages, your filter must call
 be passed in should be obtained from the ``MsgLoopCount`` value on the pack
 that you're already holding, or possibly zero if the new message is being
 triggered by a timed ticker instead of an incoming message. The PipelinePack
-method will either return a pack ready for you to populate or nil if the loop
-count is greater than the configured maximum value, as a safeguard against
-inadvertently creating infinite message loops.
+method returns two values, the first a ``*PipelinePack`` and the second an
+error.  If all goes well, you'll get a pack ready for you to populate and a nil
+error. If the loop count is greater than the configured maximum value (as a
+safeguard against inadvertently creating infinite message loops), or if a pack
+isn't available for some other reason, you'll get a nil pack and a non-nil
+error.
 
 Once a pack has been obtained, a filter plugin can populate its Message struct
 using the various provided mutator methods. The pack can then be injected into

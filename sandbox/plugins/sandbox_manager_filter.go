@@ -305,7 +305,12 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
 				if current < this.maxFilters {
 					err := this.loadSandbox(fr, h, this.workingDirectory, pack.Message)
 					if err != nil {
-						p := h.PipelinePack(0)
+						p, e := h.PipelinePack(0)
+						if e != nil {
+							fr.LogError(err)
+							fr.LogError(fmt.Errorf("can't send termination message: %s", e.Error()))
+							break
+						}
 						p.Message.SetType("heka.sandbox-terminated")
 						p.Message.SetLogger(pipeline.HEKA_DAEMON)
 						message.NewStringField(p.Message, "plugin", fr.Name())

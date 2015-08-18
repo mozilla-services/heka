@@ -90,7 +90,7 @@ type PluginHelper interface {
 	// pointer that can be populated w/ message data and inserted into the
 	// Heka pipeline. Returns `nil` if the loop count value provided is
 	// greater than the maximum allowed by the Heka instance.
-	PipelinePack(msgLoopCount uint) *PipelinePack
+	PipelinePack(msgLoopCount uint) (*PipelinePack, error)
 
 	// Returns an input plugin of the given name that provides the
 	// StatAccumulator interface, or an error value if such a plugin
@@ -210,7 +210,7 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 	config.OutputRunners = make(map[string]OutputRunner)
 
 	config.allEncoders = make(map[string]Encoder)
-	config.router = NewMessageRouter(globals.PluginChanSize)
+	config.router = NewMessageRouter(globals.PluginChanSize, globals.abortChan)
 	config.inputRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.injectRecycleChan = make(chan *PipelinePack, globals.PoolSize)
 	config.LogMsgs = make([]string, 0, 4)
@@ -227,18 +227,23 @@ func NewPipelineConfig(globals *GlobalConfigStruct) (config *PipelineConfig) {
 // Callers should pass in the msgLoopCount value from any relevant Message
 // objects they are holding. Returns a PipelinePack for injection into Heka
 // pipeline, or nil if the msgLoopCount is above the configured maximum.
-func (self *PipelineConfig) PipelinePack(msgLoopCount uint) *PipelinePack {
+func (self *PipelineConfig) PipelinePack(msgLoopCount uint) (*PipelinePack, error) {
 	if msgLoopCount++; msgLoopCount > self.Globals.MaxMsgLoops {
-		return nil
+		return nil, fmt.Errorf("exceeded MaxMsgLoops = %d", self.Globals.MaxMsgLoops)
 	}
-	pack := <-self.injectRecycleChan
+	var pack *PipelinePack
+	select {
+	case pack = <-self.injectRecycleChan:
+	case <-self.Globals.abortChan:
+		return nil, AbortError
+	}
 	pack.Message.SetTimestamp(time.Now().UnixNano())
 	pack.Message.SetUuid(uuid.NewRandom())
 	pack.Message.SetHostname(self.hostname)
 	pack.Message.SetPid(self.pid)
 	pack.RefCount = 1
 	pack.MsgLoopCount = msgLoopCount
-	return pack
+	return pack, nil
 }
 
 // Returns the router.
