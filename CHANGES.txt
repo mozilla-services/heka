@@ -8,6 +8,8 @@ Bug Handling
 
 * Add sample rate support for gauge type in StatsdInput.
 
+* Fixed broken queue rolling and added test.
+
 0.10.0b1 (2015-08-07)
 =====================
 
