@@ -6,6 +6,8 @@ Bug Handling
 
 * Set hostname correctly in the Graylog decoder (#1663).
 
+* Add sample rate support for gauge type in StatsdInput.
+
 0.10.0b1 (2015-08-07)
 =====================
 
