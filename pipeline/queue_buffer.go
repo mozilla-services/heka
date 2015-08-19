@@ -66,9 +66,11 @@ type QueueBufferConfig struct {
 	CursorUpdateCount uint   `toml:"cursor_update_count"`
 }
 
+const DefaultBufferMaxFileSize uint64 = uint64(512 * 1024 * 1024)
+
 func defaultQueueBufferConfig() *QueueBufferConfig {
 	return &QueueBufferConfig{
-		MaxFileSize:       uint64(512 * 1024 * 1024),
+		MaxFileSize:       DefaultBufferMaxFileSize,
 		MaxBufferSize:     uint64(0),
 		FullAction:        "shutdown",
 		CursorUpdateCount: uint(1),
@@ -96,6 +98,9 @@ func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 		config.CursorUpdateCount = 1
 	}
 
+	if config.MaxFileSize == 0 {
+		config.MaxFileSize = DefaultBufferMaxFileSize // 512 MiB
+	}
 	if config.MaxFileSize < uint64(message.MAX_RECORD_SIZE) {
 		err := fmt.Errorf("`max_file_size` must be greater than maximum record size of %d",
 			message.MAX_RECORD_SIZE)
@@ -127,9 +132,6 @@ type BufferFeeder struct {
 func NewBufferFeeder(queue string, config *QueueBufferConfig, queueSize *BufferSize) (
 	*BufferFeeder, error) {
 
-	if config.MaxFileSize == 0 {
-		config.MaxFileSize = 512 * 1024 * 1024 // 512 MiB
-	}
 	bf := &BufferFeeder{
 		queue:     queue,
 		queueSize: queueSize,
