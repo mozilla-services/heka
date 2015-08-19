@@ -11,6 +11,8 @@ Bug Handling
 * Fixed some cases where SandboxDecoder wasn't correctly setting
   `pack.TrustMsgBytes` to false when needed.
 
+* Fixed broken queue rolling and added test.
+
 0.10.0b1 (2015-08-07)
 =====================
 

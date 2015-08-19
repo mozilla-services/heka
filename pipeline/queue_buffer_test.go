@@ -239,7 +239,7 @@ func QueueBufferSpec(c gs.Context) {
 
 				err = feeder.QueueRecord(newpack)
 				c.Expect(err, gs.IsNil)
-				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(115))
+				c.Expect(feeder.queueSize.Get(), gs.Equals, uint64(expectedLen))
 			})
 
 			c.Specify("when queue has limit and is full", func() {
@@ -275,6 +275,29 @@ func QueueBufferSpec(c gs.Context) {
 				queueFiles, err = ioutil.ReadDir(feeder.queue)
 				c.Expect(err, gs.IsNil)
 				c.Expect(len(queueFiles), gs.Equals, numFiles+1)
+			})
+
+			c.Specify("rolls when queue file hits max size", func() {
+				feeder.Config.MaxFileSize = uint64(300)
+				c.Assume(feeder.writeFileSize, gs.Equals, uint64(0))
+
+				// First two shouldn't trigger roll.
+				err = feeder.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+				err = feeder.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(feeder.writeFileSize, gs.Equals, uint64(expectedLen*2))
+				queueFiles, err := ioutil.ReadDir(feeder.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, 1)
+
+				// Third one should.
+				err = feeder.QueueRecord(newpack)
+				c.Expect(err, gs.IsNil)
+				c.Expect(feeder.writeFileSize, gs.Equals, uint64(expectedLen))
+				queueFiles, err = ioutil.ReadDir(feeder.queue)
+				c.Expect(err, gs.IsNil)
+				c.Expect(len(queueFiles), gs.Equals, 2)
 			})
 		})
 

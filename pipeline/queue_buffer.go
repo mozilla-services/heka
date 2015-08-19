@@ -107,8 +107,8 @@ func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 }
 
 type BufferFeeder struct {
-	writeFileSize uint64
 	writeFile     *os.File
+	writeFileSize uint64
 	writeId       uint
 	queue         string
 	queueSize     *BufferSize
@@ -119,7 +119,7 @@ func NewBufferFeeder(queue string, config *QueueBufferConfig, queueSize *BufferS
 	*BufferFeeder, error) {
 
 	if config.MaxFileSize == 0 {
-		config.MaxFileSize = 128 * 1024 * 1024
+		config.MaxFileSize = 512 * 1024 * 1024 // 512 MiB
 	}
 	bf := &BufferFeeder{
 		queue:     queue,
@@ -143,6 +143,11 @@ func NewBufferFeeder(queue string, config *QueueBufferConfig, queueSize *BufferS
 	if err != nil {
 		return nil, fmt.Errorf("can't open write file: %s", err)
 	}
+	writeFileInfo, err := bf.writeFile.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("can't stat write file: %s", err)
+	}
+	bf.writeFileSize = uint64(writeFileInfo.Size())
 	return bf, nil
 }
 
@@ -154,9 +159,13 @@ func (bf *BufferFeeder) RollQueue() (err error) {
 	bf.writeId++
 	bf.writeFile, err = os.OpenFile(getQueueFilename(bf.queue, bf.writeId),
 		os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	bf.writeFileSize = 0
 	return err
 }
 
+// QueueRecord adds a new record to the end of the current queue buffer. Note
+// that QueueRecord is *not* thread safe, it should only ever be called by one
+// goroutine at a time.
 func (bf *BufferFeeder) QueueRecord(pack *PipelinePack) error {
 	maxQueueSize := bf.Config.MaxBufferSize
 	if maxQueueSize > 0 && (bf.queueSize.Get()+uint64(len(pack.MsgBytes)) > maxQueueSize) {
@@ -192,6 +201,7 @@ func (bf *BufferFeeder) QueueRecord(pack *PipelinePack) error {
 		return fmt.Errorf("can't write to queue: %s", err)
 	}
 	bf.queueSize.Add(uint64(n))
+	bf.writeFileSize += uint64(n)
 	return nil
 }
 
