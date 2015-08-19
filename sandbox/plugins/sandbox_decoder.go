@@ -326,7 +326,6 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	if retval == 0 && s.pack != nil {
 		// InjectMessage was never called, we're passing the original message
 		// through.
-		pack.TrustMsgBytes = false // The message was presumably mutated.
 		packs = append(packs, pack)
 		s.pack = nil
 	} else {

@@ -358,6 +358,7 @@ func go_lua_write_message_string(ptr unsafe.Pointer, c, v, rep *C.char,
 		lsb.globals.LogMessage("go_lua_write_message_string", "No sandbox pack.")
 		return 1
 	}
+	lsb.pack.TrustMsgBytes = false
 	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
@@ -458,6 +459,7 @@ func go_lua_write_message_double(ptr unsafe.Pointer, c *C.char, v C.double, rep 
 		lsb.globals.LogMessage("go_lua_write_message_double", "No sandbox pack.")
 		return 1
 	}
+	lsb.pack.TrustMsgBytes = false
 	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
@@ -500,6 +502,7 @@ func go_lua_write_message_bool(ptr unsafe.Pointer, c *C.char, v bool, rep *C.cha
 		lsb.globals.LogMessage("go_lua_write_message_bool", "No sandbox pack.")
 		return 1
 	}
+	lsb.pack.TrustMsgBytes = false
 	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
@@ -525,6 +528,7 @@ func go_lua_delete_message_field(ptr unsafe.Pointer, c *C.char, fi, ai int, has_
 		lsb.globals.LogMessage("go_lua_delete_message_field", "No sandbox pack.")
 		return 1
 	}
+	lsb.pack.TrustMsgBytes = false
 	if !lsb.messageCopied && lsb.sbConfig.PluginType == "encoder" {
 		lsb.pack.Message = message.CopyMessage(lsb.pack.Message)
 		lsb.messageCopied = true
