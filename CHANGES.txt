@@ -10,6 +10,8 @@ Bug Handling
 
 * Fixed broken queue rolling and added test.
 
+* Force ElasticSearch index name to lower case, as required by ElasticSearch.
+
 0.10.0b1 (2015-08-07)
 =====================
 
