@@ -1,6 +1,11 @@
 0.10.0 (2015-??-??)
 ===================
 
+Features
+--------
+
+* Added `set_hostname` option to UdpInput configuration (#1668).
+
 Bug Handling
 ------------
 
