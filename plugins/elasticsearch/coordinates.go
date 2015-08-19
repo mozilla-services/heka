@@ -47,7 +47,7 @@ func (e *ElasticSearchCoordinates) PopulateBuffer(m *message.Message, buf *bytes
 
 	interpIndex, err = interpolateFlag(e, m, e.Index)
 
-	buf.WriteString(strconv.Quote(interpIndex))
+	buf.WriteString(strconv.Quote(strings.ToLower(interpIndex)))
 	buf.WriteString(`,"_type":`)
 
 	interpType, err = interpolateFlag(e, m, e.Type)
