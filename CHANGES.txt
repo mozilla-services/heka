@@ -13,6 +13,9 @@ Bug Handling
 
 * Add sample rate support for gauge type in StatsdInput.
 
+* Fixed some cases where SandboxDecoder wasn't correctly setting
+  `pack.TrustMsgBytes` to false when needed.
+
 * Fixed broken queue rolling and added test.
 
 * Force ElasticSearch index name to lower case, as required by ElasticSearch.
