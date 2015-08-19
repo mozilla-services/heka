@@ -427,8 +427,9 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 			return nil, err
 		}
 	}
+
 	if commonFO.Buffering == nil {
-		bufConfig := getAttr(config, "Buffering", &QueueBufferConfig{})
+		bufConfig := getAttr(config, "Buffering", defaultQueueBufferConfig())
 		switch c := bufConfig.(type) {
 		case *QueueBufferConfig:
 			commonFO.Buffering = c

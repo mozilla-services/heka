@@ -66,6 +66,15 @@ type QueueBufferConfig struct {
 	CursorUpdateCount uint   `toml:"cursor_update_count"`
 }
 
+func defaultQueueBufferConfig() *QueueBufferConfig {
+	return &QueueBufferConfig{
+		MaxFileSize:       uint64(512 * 1024 * 1024),
+		MaxBufferSize:     uint64(0),
+		FullAction:        "shutdown",
+		CursorUpdateCount: uint(1),
+	}
+}
+
 func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 	runner *foRunner, pConfig *PipelineConfig) (*BufferFeeder, *BufferReader, error) {
 
