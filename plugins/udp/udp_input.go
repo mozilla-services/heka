@@ -30,10 +30,12 @@ import (
 // Input plugin implementation that listens for Heka protocol messages on a
 // specified UDP socket.
 type UdpInput struct {
-	listener net.Conn
-	name     string
-	stopChan chan struct{}
-	config   *UdpInputConfig
+	listener    net.Conn
+	reader      UdpInputReader
+	name        string
+	stopChan    chan struct{}
+	config      *UdpInputConfig
+	remote_addr string
 }
 
 // ConfigStruct for NetworkInput plugins.
@@ -44,6 +46,14 @@ type UdpInputConfig struct {
 	// String representation of the address of the network connection on which
 	// the listener should be listening (e.g. "127.0.0.1:5565").
 	Address string
+	// Set Hostname field from remote address
+	SetHostname bool `toml:"set_hostname"`
+}
+
+// Wrap ReadFrom into Read and set Hostname
+type UdpInputReader struct {
+	listener *net.UDPConn
+	input *UdpInput
 }
 
 func (u *UdpInput) ConfigStruct() interface{} {
@@ -64,6 +74,10 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 			return errors.New(
 				"Abstract sockets are linux-specific.")
 		}
+		if u.config.SetHostname {
+			return errors.New(
+				"Can't set Hostname from Unix datagram.")
+		}
 		unixAddr, err := net.ResolveUnixAddr(u.config.Net, u.config.Address)
 		if err != nil {
 			return fmt.Errorf("Error resolving unixgram address: %s", err)
@@ -82,6 +96,10 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 
 	} else if len(u.config.Address) > 3 && u.config.Address[:3] == "fd:" {
 		// File descriptor
+		if u.config.SetHostname {
+			return errors.New(
+				"Can't set Hostname from file descriptor.")
+		}
 		fdStr := u.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
@@ -104,6 +122,12 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		if err != nil {
 			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
 		}
+		if u.config.SetHostname {
+			u.reader = UdpInputReader {
+				u.listener.(*net.UDPConn),
+				u,
+			}
+		}
 	}
 	u.stopChan = make(chan struct{})
 	return
@@ -119,6 +143,9 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 		name := ir.Name()
 		packDec := func(pack *PipelinePack) {
 			pack.Message.SetType(name)
+			if u.config.SetHostname {
+				pack.Message.SetHostname(u.remote_addr)
+			}
 		}
 		sr.SetPackDecorator(packDec)
 	}
@@ -128,7 +155,11 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 		case _, ok = <-u.stopChan:
 			break
 		default:
-			err = sr.SplitStream(u.listener, nil)
+			if u.config.SetHostname {
+				err = sr.SplitStream(u.reader, nil)
+			} else {
+				err = sr.SplitStream(u.listener, nil)
+			}
 			// "use of closed" -> we're stopping.
 			if err != nil && !strings.Contains(err.Error(), "use of closed") {
 				ir.LogError(fmt.Errorf("Read error: %s", err))
@@ -150,6 +181,16 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 func (u *UdpInput) Stop() {
 	close(u.stopChan)
 	u.listener.Close()
+}
+
+func (r UdpInputReader) Read(p []byte) (n int, err error) {
+	n, addr, err := r.listener.ReadFromUDP(p)
+	if addr != nil {
+		r.input.remote_addr = addr.IP.String()
+	} else {
+		r.input.remote_addr = ""
+	}
+	return n, err
 }
 
 func init() {

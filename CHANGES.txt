@@ -17,12 +17,24 @@ Features
 0.10.0 (2015-??-??)
 =====================
 
+Features
+--------
+
+* Added `set_hostname` option to UdpInput configuration (#1668).
+
 Bug Handling
 ------------
 
 * Set hostname correctly in the Graylog decoder (#1663).
 
 * Add sample rate support for gauge type in StatsdInput.
+
+* Fixed some cases where SandboxDecoder wasn't correctly setting
+  `pack.TrustMsgBytes` to false when needed.
+
+* Fixed broken queue rolling and added test.
+
+* Force ElasticSearch index name to lower case, as required by ElasticSearch.
 
 0.10.0b1 (2015-08-07)
 =====================
@@ -84,10 +96,10 @@ Backwards Incompatibilities
 
 * LogOutput will write data to stdout instead of stderr (#1515).
 
-* Using stftime literals for filenames during rotation in FileOutput plugin
+* Using strftime literals for filenames during rotation in FileOutput plugin
   (#1469).
 
-* Implemented stftime format codes in: filenames in FileOutput plugin,
+* Implemented strftime format codes in: filenames in FileOutput plugin,
   ESJsonEncoder, ESLogstashV0Encoder, Payload encoder (#1469, #1508).
 
 * The package created by 'make deb' creates an "heka" user and ships an init

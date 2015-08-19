@@ -209,8 +209,10 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 				t = t.In(time.UTC)
 				ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
 				s.pack.Message.SetTimestamp(ct.UnixNano())
+				s.pack.TrustMsgBytes = false
 			}
 		} else {
+			s.pack.TrustMsgBytes = false
 			s.pack.Message.SetPayload(payload)
 			ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
 			s.pack.Message.AddField(ptype)
