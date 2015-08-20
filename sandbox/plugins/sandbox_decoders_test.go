@@ -306,8 +306,8 @@ func DecoderSpec(c gs.Context) {
 		conf.MemoryLimit = 8e6
 		conf.Config = make(map[string]interface{})
 		conf.Config["map_fields"] = true
-                conf.Config["Severity"] = "severity"
-                conf.Config["Hostname"] = "hostname"
+		conf.Config["Severity"] = "severity"
+		conf.Config["Hostname"] = "hostname"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		dRunner := pm.NewMockDecoderRunner(ctrl)
