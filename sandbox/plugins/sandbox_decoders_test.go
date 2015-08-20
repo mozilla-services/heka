@@ -297,6 +297,46 @@ func DecoderSpec(c gs.Context) {
 		})
 	})
 
+	c.Specify("JSON decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/json.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["map_fields"] = true
+                conf.Config["Severity"] = "severity"
+                conf.Config["Hostname"] = "hostname"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decodes a message", func() {
+			payload := `{"hostname":"wyrd.local","msg":"message","severity":3,"nested":{"field":"value"}}`
+			pack.Message.SetPayload(payload)
+
+			_, err := decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "message")
+
+			value, ok = pack.Message.GetFieldValue("nested.field")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "value")
+		})
+	})
+
 	c.Specify("Linux Cpu Stats decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
