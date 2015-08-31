@@ -20,6 +20,10 @@ Bug Handling
 
 * Force ElasticSearch index name to lower case, as required by ElasticSearch.
 
+* Fixed default buffer config values.
+
+* Updated docker configuration so docker build works again (#1634).
+
 0.10.0b1 (2015-08-07)
 =====================
 
