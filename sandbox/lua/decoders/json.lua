@@ -17,6 +17,11 @@ Config:
 - map_fields (bool, optional, default false)
     Enables mapping of json fields to heka message fields.
 
+- Payload (string, optional, default nil)
+    string specifying json field to map to message Payload,
+    expects field value to be a string. Overrides the
+    keep_payload option.
+
 - Uuid (string, optional, default nil)
     string specifying json field to map to message Uuid,
     expects field value to be a string.
