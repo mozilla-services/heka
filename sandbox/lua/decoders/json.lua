@@ -129,10 +129,16 @@ local field_type_map = {
 }
 
 local msg = {
-    Type     = msg_type,
-    Payload  = nil,
-    Fields   = nil,
-    Severity = nil
+    Payload    = nil,
+    Uuid       = nil,
+    Type       = read_config("type") or "json",
+    Logger     = nil,
+    Hostname   = nil,
+    Severity   = nil,
+    EnvVersion = nil,
+    Pid        = nil,
+    Timestamp  = nil,
+    Fields     = nil
 }
 
 function process_message()
