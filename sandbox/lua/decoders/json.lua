@@ -101,11 +101,11 @@ Config:
 require "cjson"
 local util = require("util")
 
-local msg_type     = read_config("type") or "json"
 local payload_keep = read_config("payload_keep")
 local map_fields   = read_config("map_fields")
 
 local field_map = {
+    Payload    = read_config("Payload")
     Uuid       = read_config("Uuid"),
     Type       = read_config("Type"),
     Logger     = read_config("Logger"),
@@ -117,6 +117,7 @@ local field_map = {
 }
 
 local field_type_map = {
+    Payload    = "string",
     Uuid       = "string",
     Type       = "string",
     Logger     = "string",
