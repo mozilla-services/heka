@@ -19,8 +19,8 @@ Config:
 
 - Payload (string, optional, default nil)
     string specifying json field to map to message Payload,
-    expects field value to be a string. Overrides the
-    keep_payload option.
+    expects field value to be a string. Overrides the keep_payload
+    config option.
 
 - Uuid (string, optional, default nil)
     string specifying json field to map to message Uuid,
@@ -28,7 +28,8 @@ Config:
 
 - Type (string, optional, default nil)
     string specifying json field to map to to message Type,
-    expects field value to be a string.
+    expects field value to be a string. Overrides the type
+    config option
 
 - Logger (string, optional, default nil)
     string specifying json field to map to message Logger,
