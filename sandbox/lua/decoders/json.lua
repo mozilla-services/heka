@@ -109,6 +109,7 @@ local util = require("util")
 
 local payload_keep = read_config("payload_keep")
 local map_fields   = read_config("map_fields")
+local msg_type     = read_config("type") or "json"
 
 local field_map = {
     Payload    = read_config("Payload")
@@ -137,7 +138,21 @@ local field_type_map = {
 local msg = {
     Payload    = nil,
     Uuid       = nil,
-    Type       = read_config("type") or "json",
+    Type       = msg_type,
+    Logger     = nil,
+    Hostname   = nil,
+    Severity   = nil,
+    EnvVersion = nil,
+    Pid        = nil,
+    Timestamp  = nil,
+    Fields     = nil
+}
+
+-- keep a clean copy of the initial state
+local reset = {
+    Payload    = nil,
+    Uuid       = nil,
+    Type       = msg_type,
     Logger     = nil,
     Hostname   = nil,
     Severity   = nil,
@@ -179,6 +194,11 @@ function process_message()
 
     if not pcall(inject_message, msg) then
       return -1, "Failed to inject message."
+    end
+
+    -- reset initial msg state to prevent leaking values
+    for k, v in pairs(reset) do
+        msg[k] = v
     end
 
     return 0
