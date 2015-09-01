@@ -144,7 +144,7 @@ local msg = {
 function process_message()
     local ok, json = pcall(cjson.decode, read_message("Payload"))
     if not ok then
-        return -1
+        return -1, "Failed to decode JSON."
     end
 
     -- keep payload, or not
@@ -171,7 +171,9 @@ function process_message()
     util.table_to_fields(json, flat, nil)
     msg.Fields = flat
 
-    if not pcall(inject_message, msg) then return -1 end
+    if not pcall(inject_message, msg) then
+      return -1, "Failed to inject message."
+    end
 
     return 0
 end
