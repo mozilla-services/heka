@@ -53,7 +53,11 @@ Config:
 
 - Timestamp (string, optional, default nil)
     string specifying json field to map to message Timestamp,
-    expects field value to be unix epoch timestamp in seconds.
+    if field value not in ns-since-epoch format, provide the
+    timestamp_format config option.
+
+- timestamp_format (string, optional, default nil)
+    string specifying the timestamp in strftime format.
 
 .. code-block:: javascript
 
@@ -106,8 +110,11 @@ Config:
 
 require "cjson"
 local util = require("util")
+local dt = require "date_time"
 
 local payload_keep = read_config("payload_keep")
+local timestamp_format = read_config("timestamp_format")
+local tsg = dt.build_strftime_grammar(timestamp_format)
 local map_fields   = read_config("map_fields")
 
 local field_map = {
@@ -131,7 +138,6 @@ local field_type_map = {
     Severity   = "number",
     EnvVersion = "number",
     Pid        = "number",
-    Timestamp  = "number"
 }
 
 local msg = {
@@ -148,10 +154,8 @@ local msg = {
 }
 
 function process_message()
-    local ok, json = pcall(cjson.decode, read_message("Payload"))
-    if not ok then
-        return -1, "Failed to decode JSON."
-    end
+    local pok, json = pcall(cjson.decode, read_message("Payload"))
+    if not pok then return -1, "Failed to decode JSON." end
 
     -- keep payload, or not
     if payload_keep then
@@ -162,16 +166,19 @@ function process_message()
     if map_fields then
         for F, f in pairs(field_map) do
             if type(json[f]) == field_type_map[F] then
-                if F == "Timestamp" then
-                    msg[F] = json[f] * 1e9
-                else
-                    msg[F] = json[f]
-                end
-                json[f] = nil
+                msg[F] = json[f] ; json[f] = nil
             else
+                -- avoid leaking values from last decode
                 msg[F] = nil
             end
         end
+    end
+
+    -- convert timestamp if mapped and format specified
+    if field_map.Timestamp then
+        local tok, ts = tsg:match(json[field_map.Timestamp])
+        if not tok then return -1, "Failed to decode timestamp." end
+        msg.Timestamp = dt.time_to_ns(ts) ; json[field_map.Timestamp] = nil
     end
 
     -- flatten and assign remaining fields to heka fields

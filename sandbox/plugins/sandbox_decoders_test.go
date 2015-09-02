@@ -308,6 +308,8 @@ func DecoderSpec(c gs.Context) {
 		conf.Config["map_fields"] = true
 		conf.Config["Severity"] = "severity"
 		conf.Config["Hostname"] = "hostname"
+                conf.Config["Timestamp"] = "time"
+                conf.Config["timestamp_format"] = "%m/%d/%Y %H:%M:%S"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		dRunner := pm.NewMockDecoderRunner(ctrl)
@@ -317,14 +319,14 @@ func DecoderSpec(c gs.Context) {
 		decoder.SetDecoderRunner(dRunner)
 
 		c.Specify("decodes a message", func() {
-			payload := `{"hostname":"wyrd.local","msg":"message","severity":3,"nested":{"field":"value"}}`
+			payload := `{"hostname":"wyrd.local","time":"05/07/2014 15:12:24","msg":"message","severity":3,"nested":{"field":"value"}}`
 			pack.Message.SetPayload(payload)
 
 			_, err := decoder.Decode(pack)
 			c.Assume(err, gs.IsNil)
 			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
-
+                        c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1399500744000000000))
 			var ok bool
 			var value interface{}
 			value, ok = pack.Message.GetFieldValue("msg")
