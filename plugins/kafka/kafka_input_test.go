@@ -21,11 +21,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Shopify/sarama"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
-	"github.com/rafrombrc/sarama"
 )
 
 func TestEmptyInputAddress(t *testing.T) {
@@ -59,8 +59,7 @@ func TestInvalidOffsetMethod(t *testing.T) {
 }
 
 func TestReceivePayloadMessage(t *testing.T) {
-	b1 := sarama.NewMockBroker(t, 1)
-	b2 := sarama.NewMockBroker(t, 2)
+	broker := sarama.NewMockBroker(t, 1)
 	ctrl := gomock.NewController(t)
 	tmpDir, tmpErr := ioutil.TempDir("", "kafkainput-tests")
 	if tmpErr != nil {
@@ -75,18 +74,18 @@ func TestReceivePayloadMessage(t *testing.T) {
 	}()
 
 	topic := "test"
-	mdr := new(sarama.MetadataResponse)
-	mdr.AddBroker(b2.Addr(), b2.BrokerID())
-	mdr.AddTopicPartition(topic, 0, 2)
-	b1.Returns(mdr)
+	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)
+	mockFetchResponse.SetMessage(topic, 0, 0, sarama.ByteEncoder([]byte{0x41, 0x42}))
 
-	or := new(sarama.OffsetResponse)
-	or.AddTopicPartition(topic, 0, 0)
-	b2.Returns(or)
-
-	fr := new(sarama.FetchResponse)
-	fr.AddMessage(topic, 0, nil, sarama.ByteEncoder([]byte{0x41, 0x42}), 0)
-	b2.Returns(fr)
+	broker.SetHandlerByMap(map[string]sarama.MockResponse{
+		"MetadataRequest": sarama.NewMockMetadataResponse(t).
+			SetBroker(broker.Addr(), broker.BrokerID()).
+			SetLeader(topic, 0, broker.BrokerID()),
+		"OffsetRequest": sarama.NewMockOffsetResponse(t).
+			SetOffset(topic, 0, sarama.OffsetOldest, 0).
+			SetOffset(topic, 0, sarama.OffsetNewest, 2),
+		"FetchRequest": mockFetchResponse,
+	})
 
 	pConfig := NewPipelineConfig(nil)
 	pConfig.Globals.BaseDir = tmpDir
@@ -94,7 +93,7 @@ func TestReceivePayloadMessage(t *testing.T) {
 	ki.SetName(topic)
 	ki.SetPipelineConfig(pConfig)
 	config := ki.ConfigStruct().(*KafkaInputConfig)
-	config.Addrs = append(config.Addrs, b1.Addr())
+	config.Addrs = append(config.Addrs, broker.Addr())
 	config.Topic = topic
 
 	ith := new(plugins_ts.InputTestHelper)
@@ -144,8 +143,7 @@ func TestReceivePayloadMessage(t *testing.T) {
 	// There is a hang on the consumer close with the mock broker
 	// closing the brokers before the consumer works around the issue
 	// and is good enough for this test.
-	b1.Close()
-	b2.Close()
+	broker.Close()
 
 	ki.Stop()
 	err = <-errChan
@@ -164,8 +162,7 @@ func TestReceivePayloadMessage(t *testing.T) {
 }
 
 func TestReceiveProtobufMessage(t *testing.T) {
-	b1 := sarama.NewMockBroker(t, 1)
-	b2 := sarama.NewMockBroker(t, 2)
+	broker := sarama.NewMockBroker(t, 2)
 	ctrl := gomock.NewController(t)
 	tmpDir, tmpErr := ioutil.TempDir("", "kafkainput-tests")
 	if tmpErr != nil {
@@ -180,18 +177,18 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	}()
 
 	topic := "test"
-	mdr := new(sarama.MetadataResponse)
-	mdr.AddBroker(b2.Addr(), b2.BrokerID())
-	mdr.AddTopicPartition(topic, 0, 2)
-	b1.Returns(mdr)
+	mockFetchResponse := sarama.NewMockFetchResponse(t, 1)
+	mockFetchResponse.SetMessage(topic, 0, 0, sarama.ByteEncoder([]byte{0x41, 0x42}))
 
-	or := new(sarama.OffsetResponse)
-	or.AddTopicPartition(topic, 0, 0)
-	b2.Returns(or)
-
-	fr := new(sarama.FetchResponse)
-	fr.AddMessage(topic, 0, nil, sarama.ByteEncoder([]byte{0x41, 0x42}), 0)
-	b2.Returns(fr)
+	broker.SetHandlerByMap(map[string]sarama.MockResponse{
+		"MetadataRequest": sarama.NewMockMetadataResponse(t).
+			SetBroker(broker.Addr(), broker.BrokerID()).
+			SetLeader(topic, 0, broker.BrokerID()),
+		"OffsetRequest": sarama.NewMockOffsetResponse(t).
+			SetOffset(topic, 0, sarama.OffsetOldest, 0).
+			SetOffset(topic, 0, sarama.OffsetNewest, 2),
+		"FetchRequest": mockFetchResponse,
+	})
 
 	pConfig := NewPipelineConfig(nil)
 	pConfig.Globals.BaseDir = tmpDir
@@ -199,7 +196,7 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	ki.SetName(topic)
 	ki.SetPipelineConfig(pConfig)
 	config := ki.ConfigStruct().(*KafkaInputConfig)
-	config.Addrs = append(config.Addrs, b1.Addr())
+	config.Addrs = append(config.Addrs, broker.Addr())
 	config.Topic = topic
 
 	ith := new(plugins_ts.InputTestHelper)
@@ -237,8 +234,7 @@ func TestReceiveProtobufMessage(t *testing.T) {
 	// There is a hang on the consumer close with the mock broker
 	// closing the brokers before the consumer works around the issue
 	// and is good enough for this test.
-	b1.Close()
-	b2.Close()
+	broker.Close()
 
 	ki.Stop()
 	err = <-errChan
