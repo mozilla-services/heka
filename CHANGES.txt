@@ -53,6 +53,8 @@ Features
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
 
+* Add generic json lua sandbox decoder
+
 Bug Handling
 ------------
 
