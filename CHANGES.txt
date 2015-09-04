@@ -24,6 +24,8 @@ Bug Handling
 
 * Updated docker configuration so docker build works again (#1634).
 
+* Add generic json lua sandbox decoder (#1651).
+
 0.10.0b1 (2015-08-07)
 =====================
 
@@ -52,8 +54,6 @@ Features
   a `Read()` call.
 
 * Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
-
-* Add generic json lua sandbox decoder
 
 Bug Handling
 ------------

@@ -18,46 +18,50 @@ Config:
     Enables mapping of json fields to heka message fields.
 
 - Payload (string, optional, default nil)
-    string specifying json field to map to message Payload,
+    String specifying json field to map to message Payload,
     expects field value to be a string. Overrides the keep_payload
     config option.
 
 - Uuid (string, optional, default nil)
-    string specifying json field to map to message Uuid,
+    String specifying json field to map to message Uuid,
     expects field value to be a string.
 
 - Type (string, optional, default nil)
-    string specifying json field to map to to message Type,
+    String specifying json field to map to to message Type,
     expects field value to be a string. Overrides the type
     config option
 
 - Logger (string, optional, default nil)
-    string specifying json field to map to message Logger,
+    String specifying json field to map to message Logger,
     expects field value to be a string.
 
 - Hostname (string, optional, default nil)
-    string specifying json field to map to message Hostname,
+    String specifying json field to map to message Hostname,
     expects field value to be a string.
 
 - Severity (string, optional, default nil)
-    string specifying json field to map to message Severity,
+    String specifying json field to map to message Severity,
     expects field value to be numeric.
 
 - EnvVersion (string, optional, default nil)
-    string specifying json field to map to message EnvVersion,
+    String specifying json field to map to message EnvVersion,
     expects field value to be numeric.
 
 - Pid (string, optional, default nil)
-    string specifying json field to map to message Pid,
+    String specifying json field to map to message Pid,
     expects field value to be numeric
 
 - Timestamp (string, optional, default nil)
-    string specifying json field to map to message Timestamp,
+    String specifying json field to map to message Timestamp,
     if field value not in ns-since-epoch format, provide the
     timestamp_format config option.
 
 - timestamp_format (string, optional, default nil)
-    string specifying the timestamp in strftime format.
+    String specifying the format used to parse extracted JSON values for the
+    Timestamp fields, in standard strftime format. If left blank, timestamp
+    values will be assumed to be in nanoseconds-since-epoch.
+
+timestamp in strftime format.
 
 .. code-block:: javascript
 
@@ -114,7 +118,10 @@ local dt = require "date_time"
 
 local payload_keep = read_config("payload_keep")
 local timestamp_format = read_config("timestamp_format")
-local tsg = dt.build_strftime_grammar(timestamp_format)
+local tsg
+if timestamp_format then
+    tsg = dt.build_strftime_grammar(timestamp_format)
+end
 local map_fields   = read_config("map_fields")
 
 local field_map = {
@@ -175,10 +182,19 @@ function process_message()
     end
 
     -- convert timestamp if mapped and format specified
-    if field_map.Timestamp then
-        local tok, ts = tsg:match(json[field_map.Timestamp])
-        if not tok then return -1, "Failed to decode timestamp." end
-        msg.Timestamp = dt.time_to_ns(ts) ; json[field_map.Timestamp] = nil
+    fm_timestamp = field_map.Timestamp
+    if fm_timestamp then
+        ts_from_json = json[fm_timestamp]
+        if ts_from_json then
+            if tsg then
+                local ts = tsg:match(ts_from_json)
+                if not ts then return -1, "Failed to decode timestamp." end
+                msg.Timestamp = dt.time_to_ns(ts)
+            else
+                msg.Timestamp = ts_from_json
+            end
+        end
+        json[fm_timestamp] = nil
     end
 
     -- flatten and assign remaining fields to heka fields
