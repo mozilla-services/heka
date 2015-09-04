@@ -24,6 +24,8 @@ Bug Handling
 
 * Updated docker configuration so docker build works again (#1634).
 
+* Add generic json lua sandbox decoder (#1651).
+
 0.10.0b1 (2015-08-07)
 =====================
 
