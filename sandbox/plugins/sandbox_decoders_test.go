@@ -2,6 +2,9 @@ package plugins
 
 import (
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -9,8 +12,6 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"os"
-	"time"
 )
 
 func DecoderSpec(c gs.Context) {
@@ -294,6 +295,78 @@ func DecoderSpec(c gs.Context) {
 
 			}
 			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("JSON decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/json.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["map_fields"] = true
+		conf.Config["Severity"] = "severity"
+		conf.Config["Hostname"] = "hostname"
+		conf.Config["Timestamp"] = "time"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes a message w/ timestamp_format", func() {
+			conf.Config["timestamp_format"] = "%m/%d/%Y %H:%M:%S"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `{"hostname":"wyrd.local","time":"05/07/2014 15:12:24","msg":"message","severity":3,"nested":{"field":"value"}}`
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			fmt.Println(pack.Message.GetPayload())
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1399475544000000000))
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "message")
+
+			value, ok = pack.Message.GetFieldValue("nested.field")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "value")
+		})
+
+		c.Specify("decodes a message w/ no timestamp format", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `{"hostname":"wyrd.local","time":1399475544000000000,"msg":"message","severity":3,"nested":{"field":"value"}}`
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1399475544000000000))
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "message")
+
+			value, ok = pack.Message.GetFieldValue("nested.field")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "value")
 		})
 	})
 

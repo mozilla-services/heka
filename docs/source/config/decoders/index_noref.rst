@@ -12,6 +12,9 @@ Decoders
 .. include:: /config/decoders/geoip.rst
    :start-line: 1
 
+.. include:: /config/decoders/json.rst
+   :start-line: 1
+
 .. include:: /config/decoders/multi.rst
    :start-line: 1
 

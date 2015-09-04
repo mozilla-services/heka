@@ -490,11 +490,11 @@ func getAttr(ob interface{}, attr string, default_ interface{}) (ret interface{}
 	obVal = reflect.Indirect(obVal) // Dereference if it's a pointer.
 	if obVal.Kind().String() != "struct" {
 		// `FieldByName` will panic if we're not a struct.
-		return
+		return ret
 	}
 	attrVal := obVal.FieldByName(attr)
 	if !attrVal.IsValid() {
-		return
+		return ret
 	}
 	return attrVal.Interface()
 }
