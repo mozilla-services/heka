@@ -3,8 +3,10 @@
 # and builds a new image which installs that dpkg
 FROM mozilla/heka_base
 
+RUN cd /heka && . ./build.sh
+RUN cd /heka && . ./env.sh && cd /heka/build && make deb
+
 RUN mkdir -p /heka_docker
-RUN cd /heka/build && make deb
 RUN find /heka/build -name "*.deb" -exec cp {} /heka_docker/heka.deb \;
 COPY Dockerfile.final /heka_docker/Dockerfile
 
