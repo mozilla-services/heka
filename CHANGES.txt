@@ -26,6 +26,9 @@ Bug Handling
 
 * Add generic json lua sandbox decoder (#1651).
 
+* Fixed bug where a SandboxInput configured with a `ticker_interval` would
+  get stuck in an infinite loop on shutdown (#1705).
+
 0.10.0b1 (2015-08-07)
 =====================
 
