@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -57,6 +57,7 @@ type KafkaOutputConfig struct {
 	MaxBufferTime              uint32 `toml:"max_buffer_time"`
 	MaxBufferedBytes           uint32 `toml:"max_buffered_bytes"`
 	BackPressureThresholdBytes uint32 `toml:"back_pressure_threshold_bytes"`
+	MaxMessageBytes            uint32 `toml:"max_message_bytes"`
 }
 
 var fieldRegex = regexp.MustCompile("^Fields\\[([^\\]]*)\\](?:\\[(\\d+)\\])?(?:\\[(\\d+)\\])?$")
@@ -204,6 +205,10 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 		return errors.New("addrs must have at least one entry")
 	}
 
+	if k.config.MaxMessageBytes == 0 {
+		k.config.MaxMessageBytes = message.MAX_RECORD_SIZE
+	}
+
 	k.saramaConfig = sarama.NewConfig()
 	k.saramaConfig.ClientID = k.config.Id
 	k.saramaConfig.Metadata.Retry.Max = k.config.MetadataRetries
@@ -215,6 +220,7 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 	k.saramaConfig.Net.ReadTimeout = time.Duration(k.config.ReadTimeout) * time.Millisecond
 	k.saramaConfig.Net.WriteTimeout = time.Duration(k.config.WriteTimeout) * time.Millisecond
 
+	k.saramaConfig.Producer.MaxMessageBytes = int(k.config.MaxMessageBytes)
 	switch k.config.Partitioner {
 	case "Random":
 		k.saramaConfig.Producer.Partitioner = sarama.NewRandomPartitioner

@@ -24,6 +24,8 @@ Config:
     background (in milliseconds). Default is 600000 (10 minutes). Set to 0 to
     disable.
 
+- max_message_bytes (uint32)
+    Maximum size of a single message. Defaults to Heka's maximum record size.
 - max_open_reqests (int)
     How many outstanding requests the broker is allowed to have before blocking
     attempts to send. Default is 4.

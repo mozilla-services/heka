@@ -8,8 +8,8 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
-* Updated Sarama dependency from pre-1.0 release fork to what is effectively
-  the 1.5.0 release.
+* Updated Sarama dependency from pre-1.0 release fork to fork (with only test
+  code changes) of Sarama 1.5.0 release.
 
 Features
 --------
