@@ -135,7 +135,7 @@ There are two build customization options that can be specified during the cmake
 - BENCHMARK (bool) Enable the benchmark tests (default false)
 
 For example: to enable the benchmark tests in addition to the standard unit tests
-type 'cmake -DBENCHMARK=true ..' in the build directory.
+upon building type 'source ./build.sh -DBENCHMARK=true ..' in the top repo directory.
 
 .. _build_include_externals:
 
