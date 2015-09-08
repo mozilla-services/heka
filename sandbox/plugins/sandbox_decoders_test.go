@@ -298,6 +298,83 @@ func DecoderSpec(c gs.Context) {
 		})
 	})
 
+	c.Specify("IIS decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/iis.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["payload_keep"] = true
+		conf.Config["tz"] = "UTC"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes a version 7 log line", func() {
+			conf.Config["iis_version_7"] = true
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `2014-09-22 06:32:29 101.181.48.45 GET / - 6005 - 10.181.72.190 Mozilla/4.0+(compatible;+MSIE+8.0;+Windows+NT+5.1;+Trident/4.0) 401 0 64 46`
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			rem_addr, ok := pack.Message.GetFieldValue("remote_addr")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(rem_addr, gs.Equals, "10.181.72.190")
+			user_agent, ok := pack.Message.GetFieldValue("http_user_agent")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(user_agent, gs.Equals, "Mozilla/4.0+(compatible;+MSIE+8.0;+Windows+NT+5.1;+Trident/4.0)")
+		})
+
+	})
+
+	c.Specify("Sharepoint ULS decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/sharepoint_uls.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["payload_keep"] = true
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes a Sharepoint ULS line", func() {
+			conf.Config["iis_version_7"] = true
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `04/20/2015 20:04:46.02	OWSTIMER.EXE (0x5A0C)			0x7D8C	SharePoint Foundation	Monitoring
+		b4ly`
+			// 			`    Medium          Leaving Monitored Scope (Timer Job Search Health Monitoring - Trace Events). Execution Time=328.687724277806
+			// 76b7fe9c-03c0-40dc-2ea6-6162b7e29775
+			// `
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			eventID, ok := pack.Message.GetFieldValue("EventID")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(eventID, gs.Equals, "b4ly")
+			message, ok := pack.Message.GetFieldValue("Message")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(message, gs.Equals, "Leaving Monitored Scope (Timer Job Search Health Monitoring - Trace Events). Execution Time=328.687724277806")
+		})
+
+	})
+
 	c.Specify("JSON decoder", func() {
 		decoder := new(SandboxDecoder)
 		decoder.SetPipelineConfig(pConfig)
@@ -326,7 +403,6 @@ func DecoderSpec(c gs.Context) {
 			pack.Message.SetPayload(payload)
 
 			_, err = decoder.Decode(pack)
-			fmt.Println(pack.Message.GetPayload())
 			c.Assume(err, gs.IsNil)
 			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
 			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")

@@ -69,10 +69,10 @@ l.locale(l)
 local sp = l.space
 local num = l.digit^1 / tonumber
 
-function extract_quote(openp,endp)
+local function extract_quote(openp,endp)
     openp = l.P(openp)
     endp = endp and l.P(endp) or openp
-    local upto_endp = (1 - endp)^0 
+    local upto_endp = (1 - endp)^0
     return openp * l.C(upto_endp) * endp
 end
 
@@ -88,7 +88,7 @@ local correlation = l.Cg(l.P(1)^0, "Correlation")
 
 local request = l.Cg(datetime,"DateTime") * process * t_id * area * category * event_id * level * message * correlation
 
-grammar = l.Ct(request)
+local grammar = l.Ct(request)
 
 local payload_keep = read_config("payload_keep")
 
@@ -105,7 +105,7 @@ function process_message()
     local data = read_message("Payload")
     local host = read_message("Hostname")
     local fields = grammar:match(data)
-    
+
     if not fields then
 	return -1
     end
@@ -118,7 +118,7 @@ function process_message()
     if payload_keep then
         msg.Payload = data
     end
-    
+
     inject_message(msg)
     return 0
 end
