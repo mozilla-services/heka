@@ -73,7 +73,7 @@ We start with the highest directory to start scanning for files under, in
 this case ``/var/log``. Then the files under that directory (recursively
 searching in sub-directories) are matched against the ``file_match``.
 
-The ``log_directory`` should be the most specific directory of files to
+The ``log_directory`` must exist and should be the most specific directory of files to
 match to prevent excessive file scanning to locate the
 ``file_match``'s.
 
