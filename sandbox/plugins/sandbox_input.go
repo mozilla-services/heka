@@ -133,7 +133,8 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 
 	ticker := ir.Ticker()
 
-	for true {
+	ok := true
+	for ok {
 		retval := s.sb.ProcessMessage(nil)
 		if retval <= 0 { // Sandbox is in polling mode
 			if retval < 0 {
@@ -148,7 +149,7 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 				break
 			}
 			select { // block until stop or poll interval
-			case <-s.stopChan:
+			case _, ok = <-s.stopChan:
 			case <-ticker:
 			}
 		} else { // Sandbox is shutting down
