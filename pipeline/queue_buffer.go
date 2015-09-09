@@ -319,8 +319,10 @@ func (br *BufferReader) getFileFromId(id uint) (file *os.File, foundId uint,
 		return file, foundId, err
 	}
 
-	// If we got this far there's no file matching our id, try to find the
-	// next one above.
+	// If we got this far, there was no file matching our id when we checked.
+	// It might, however, have been created after we checked, but before we get
+	// our id list back from the sortedBufferIds call below. This is fine,
+	// we'll still find and return it.
 	ids := sortedBufferIds(br.queue)
 	if len(ids) == 0 || ids[len(ids)-1] < id {
 		// No log file for us, not an error.
@@ -329,7 +331,7 @@ func (br *BufferReader) getFileFromId(id uint) (file *os.File, foundId uint,
 
 	// Increment until we find an id greater than what was requested.
 	for _, val := range ids {
-		if val > id {
+		if val >= id {
 			foundId = val
 			break
 		}
