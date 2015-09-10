@@ -33,6 +33,33 @@ Example (in MultiDecoder context)
 
 .. code-block:: ini
 
+        [AccesslogDecoder]
+        type = "MultiDecoder"
+        subs = ["AccesslogApacheDecoder", "EnvironmentScribbler"]
+        cascade_strategy = "all"
+        log_sub_errors = true
+
+        [AccesslogApacheDecoder]
+        type = "SandboxDecoder"
+        filename = "lua_decoders/apache_access.lua"
+
+            [AccesslogApacheDecoder.config]
+            type = "combinedio"
+            user_agent_transform = true
+            user_agent_conditional = true
+            log_format = '%h %l %u %t %m \"%U\" \"%q\" \"%H\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %T %I %O'
+
+        [EnvironmentScribbler]
+        type = "ScribbleDecoder"
+
+            [EnvironmentScribbler.message_fields]
+            Environment = "production"
+
+You can also add static fields to messages decoded by a downstream heka instance
+that forwards messages for further processing.
+
+.. code-block:: ini
+
         [mytypedecoder]
         type = "MultiDecoder"
         subs = ["ProtobufDecoder", "mytype"]
@@ -46,3 +73,7 @@ Example (in MultiDecoder context)
 
             [mytype.message_fields]
             Type = "MyType"
+
+Message scribbling is commonly performed after the lua sandboxed decoders have been
+applied. Otherwise the scribbled field may get discarded, depending on the
+decoder implementation.
