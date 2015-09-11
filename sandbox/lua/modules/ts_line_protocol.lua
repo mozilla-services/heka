@@ -134,13 +134,12 @@ local function points_tags_tables(config)
     -- as fields and as tags).
     local points = {}
     local msg = decode_message(read_message("raw"))
+    local seen_fields = {}
+    local seen_tags = {}
+    local field, value, field_idx, field_out_name
     if msg.Fields then
         for _, field_entry in ipairs(msg.Fields) do
-            local field = field_entry["name"]
-            local value
-            for _, field_value in ipairs(field_entry["value"]) do
-                value = field_value
-            end
+            field = field_entry["name"]
 
             -- Replace non-word characters with underscores for Carbon
             -- to avoid periods resulting in extraneous directories
@@ -148,23 +147,40 @@ local function points_tags_tables(config)
                 field = field:gsub("[^%w]", "_")
             end
 
-            -- Include the dynamic fields as tags if they are defined in
-            -- configuration or the magic value "**all**" is defined.
-            -- Convert value to a string as this is required by the API
-            if not config["carbon_format"]
-                and (config["tag_fields_all"]
-                or (config["used_tag_fields"] and used_tag_fields[field])) then
-                    table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
+            field_out_name = field
+
+            field_idx = seen_fields[field] or -1
+            field_idx = field_idx + 1
+            seen_fields[field] = field_idx
+            if field_idx > 0 then
+                field_out_name = field_out_name .. "_fidx_" .. tostring(field_idx)
             end
 
-            if config["source_value_field"] and field == config["source_value_field"] then
-                points[name_prefix] = value
-            -- Only add fields that are not requested to be skipped
-            elseif not config["skip_fields_str"]
+            for i, field_value in ipairs(field_entry["value"]) do
+                value = field_value
+
+                if i > 1 then
+                    field_out_name = field_out_name .. "_vidx_" .. tostring(i-1)
+                end
+
+                -- Include the dynamic fields as tags if they are defined in
+                -- configuration or the magic value "**all**" is defined.
+                -- Convert value to a string as this is required by the API
+                if not config["carbon_format"]
+                    and (config["tag_fields_all"]
+                         or (config["used_tag_fields"] and used_tag_fields[field])) then
+                        table.insert(tags, influxdb_kv_fmt(field_out_name).."="..tostring(influxdb_kv_fmt(value)))
+                end
+
+                if config["source_value_field"] and field == config["source_value_field"] then
+                    points[name_prefix] = value
+                    -- Only add fields that are not requested to be skipped
+                elseif not config["skip_fields_str"]
                 or (config["skip_fields"] and not skip_fields[field]) then
                     -- Set the name attribute of this table by concatenating name_prefix
                     -- with the name of this particular field
-                    points[name_prefix..name_prefix_delimiter..field] = value
+                    points[name_prefix..name_prefix_delimiter..field_out_name] = value
+                end
             end
         end
     else
