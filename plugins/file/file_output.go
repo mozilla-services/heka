@@ -359,7 +359,6 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 				break
 			}
 		case rotateTime := <-o.rotateChan:
-			fmt.Println("GOT ROTATION: ", rotateTime)
 			o.file.Close()
 			o.path = gostrftime.Strftime(o.FileOutputConfig.Path, rotateTime)
 			if err = o.openFile(); err != nil {

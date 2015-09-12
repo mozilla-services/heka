@@ -130,13 +130,12 @@ func FileOutputSpec(c gs.Context) {
 			futureDuration, _ := time.ParseDuration("24h")
 			futureNow := time.Now().Add(futureDuration)
 
-			fmt.Println("futureNow: ", futureNow)
 			rotateChan <- futureNow
+			close(inChan)
+			close(fileOutput.batchChan)
 
 			c.Assume(fileOutput.path, gs.Equals, futureNow.Format("2006-01-02"))
 
-			close(inChan)
-			close(fileOutput.batchChan)
 		})
 
 		c.Specify("processes incoming messages", func() {
