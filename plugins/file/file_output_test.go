@@ -107,15 +107,16 @@ func FileOutputSpec(c gs.Context) {
 			})
 		})
 
-		c.Specify("tests rotation of files", func() {
+		c.Specify("rotates files correctly", func() {
 			config.Path = "%Y-%m-%d"
+			config.RotationInterval = 24
 			rotateChan := make(chan time.Time)
 			closingChan := make(chan struct{})
 
 			err := fileOutput.Init(config)
-			defer fileOutput.file.Close()
-
 			c.Assume(err, gs.IsNil)
+
+			defer fileOutput.file.Close()
 
 			fileOutput.rotateChan = rotateChan
 			fileOutput.closing = closingChan
@@ -313,7 +314,6 @@ func FileOutputSpec(c gs.Context) {
 				}
 
 				inChan <- pack2
-				runtime.Gosched()
 				select {
 				case <-fileOutput.batchChan:
 				default:
