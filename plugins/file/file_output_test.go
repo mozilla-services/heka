@@ -123,7 +123,11 @@ func FileOutputSpec(c gs.Context) {
 
 			fileOutput.startRotateNotifier()
 
-			go fileOutput.committer(oth.MockOutputRunner, errChan)
+			committerChan := make(chan struct{})
+			go func() {
+				fileOutput.committer(oth.MockOutputRunner, errChan)
+				close(committerChan)
+			}()
 
 			c.Assume(fileOutput.path, gs.Equals, time.Now().Format("2006-01-02"))
 
@@ -133,6 +137,7 @@ func FileOutputSpec(c gs.Context) {
 			rotateChan <- futureNow
 			close(inChan)
 			close(fileOutput.batchChan)
+			<-committerChan
 
 			c.Assume(fileOutput.path, gs.Equals, futureNow.Format("2006-01-02"))
 
