@@ -257,6 +257,7 @@ func FileOutputSpec(c gs.Context) {
 			timerChan := make(chan time.Time)
 
 			msg2 := pipeline_ts.GetTestMessage()
+			msg2.SetPayload("MESSAGE 2")
 			pack2 := NewPipelinePack(pConfig.InputRecycleChan())
 			pack2.Message = msg2
 
@@ -313,10 +314,11 @@ func FileOutputSpec(c gs.Context) {
 				default:
 				}
 
+				after := time.After(1 * time.Second)
 				inChan <- pack2
 				select {
 				case <-fileOutput.batchChan:
-				default:
+				case <-after:
 					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 				}
 			})
