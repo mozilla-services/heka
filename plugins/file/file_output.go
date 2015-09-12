@@ -190,6 +190,7 @@ func (o *FileOutput) startRotateNotifier() {
 			case _, ok = <-o.closing:
 				break
 			case <-after:
+				fmt.Println("AFTER")
 				last = next
 				next = next.Add(interval)
 				until = next.Sub(time.Now())
@@ -358,6 +359,7 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 				break
 			}
 		case rotateTime := <-o.rotateChan:
+			fmt.Println("GOT ROTATION: ", rotateTime)
 			o.file.Close()
 			o.path = gostrftime.Strftime(o.FileOutputConfig.Path, rotateTime)
 			if err = o.openFile(); err != nil {

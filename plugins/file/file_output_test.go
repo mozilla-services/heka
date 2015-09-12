@@ -130,6 +130,7 @@ func FileOutputSpec(c gs.Context) {
 			futureDuration, _ := time.ParseDuration("24h")
 			futureNow := time.Now().Add(futureDuration)
 
+			fmt.Println("futureNow: ", futureNow)
 			rotateChan <- futureNow
 
 			c.Assume(fileOutput.path, gs.Equals, futureNow.Format("2006-01-02"))
@@ -301,20 +302,22 @@ func FileOutputSpec(c gs.Context) {
 				defer cleanUp()
 				inChan <- pack
 
+				after := time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
 				timerChan <- time.Now()
+				after = time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
-				after := time.After(1 * time.Second)
+				after = time.After(100 * time.Millisecond)
 				inChan <- pack2
 				select {
 				case <-fileOutput.batchChan:
@@ -331,18 +334,19 @@ func FileOutputSpec(c gs.Context) {
 				defer cleanUp()
 				inChan <- pack
 
+				after := time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
 				c.Specify("when interval triggers first", func() {
 					timerChan <- time.Now()
-					runtime.Gosched()
+					after = time.After(100 * time.Millisecond)
 					select {
 					case <-fileOutput.batchChan:
-					default:
+					case <-after:
 						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 					}
 				})
@@ -351,10 +355,10 @@ func FileOutputSpec(c gs.Context) {
 					out, err := encoder.Encode(pack2)
 					oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(out, err)
 					inChan <- pack2
-					runtime.Gosched()
+					after = time.After(100 * time.Millisecond)
 					select {
 					case <-fileOutput.batchChan:
-					default:
+					case <-after:
 						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 					}
 				})
