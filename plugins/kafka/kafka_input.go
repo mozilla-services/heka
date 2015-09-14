@@ -24,9 +24,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
-	"github.com/rafrombrc/sarama"
 )
 
 type KafkaInputConfig struct {
@@ -62,8 +62,7 @@ type KafkaInput struct {
 	processMessageFailures int64
 
 	config             *KafkaInputConfig
-	clientConfig       *sarama.ClientConfig
-	consumerConfig     *sarama.ConsumerConfig
+	saramaConfig       *sarama.Config
 	client             *sarama.Client
 	consumer           *sarama.Consumer
 	pConfig            *pipeline.PipelineConfig
@@ -141,47 +140,47 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 		k.config.Group = k.config.Id
 	}
 
-	k.clientConfig = sarama.NewClientConfig()
-	k.clientConfig.MetadataRetries = k.config.MetadataRetries
-	k.clientConfig.WaitForElection = time.Duration(k.config.WaitForElection) * time.Millisecond
-	k.clientConfig.BackgroundRefreshFrequency = time.Duration(k.config.BackgroundRefreshFrequency) * time.Millisecond
+	k.saramaConfig = sarama.NewConfig()
 
-	k.clientConfig.DefaultBrokerConf = sarama.NewBrokerConfig()
-	k.clientConfig.DefaultBrokerConf.MaxOpenRequests = k.config.MaxOpenRequests
-	k.clientConfig.DefaultBrokerConf.DialTimeout = time.Duration(k.config.DialTimeout) * time.Millisecond
-	k.clientConfig.DefaultBrokerConf.ReadTimeout = time.Duration(k.config.ReadTimeout) * time.Millisecond
-	k.clientConfig.DefaultBrokerConf.WriteTimeout = time.Duration(k.config.WriteTimeout) * time.Millisecond
+	k.saramaConfig.ClientId = k.config.Id
 
-	k.consumerConfig = sarama.NewConsumerConfig()
-	k.consumerConfig.DefaultFetchSize = k.config.DefaultFetchSize
-	k.consumerConfig.MinFetchSize = k.config.MinFetchSize
-	k.consumerConfig.MaxMessageSize = k.config.MaxMessageSize
-	k.consumerConfig.MaxWaitTime = time.Duration(k.config.MaxWaitTime) * time.Millisecond
+	k.saramaConfig.Metadata.Retry.Max = k.config.MetadataRetries
+	k.saramaConfig.Metadata.Retry.Backoff = time.Duration(k.config.WaitForElection) * time.Millisecond
+	k.saramaConfig.Metadata.RefreshFrequency = time.Duration(k.config.BackgroundRefreshFrequency) * time.Millisecond
+
+	k.saramaConfig.Net.MaxOpenRequests = k.config.MaxOpenRequests
+	k.saramaConfig.Net.DialTimeout = time.Duration(k.config.DialTimeout) * time.Millisecond
+	k.saramaConfig.Net.ReadTimeout = time.Duration(k.config.ReadTimeout) * time.Millisecond
+	k.saramaConfig.Net.WriteTimeout = time.Duration(k.config.WriteTimeout) * time.Millisecond
+
+	k.saramaConfig.Consumer.Fetch.Default = k.config.DefaultFetchSize
+	k.saramaConfig.Consumer.Fetch.Min = k.config.MinFetchSize
+	k.saramaConfig.Consumer.Fetch.Max = k.config.MaxMessageSize
+	k.saramaConfig.Consumer.MaxWaitTime = time.Duration(k.config.MaxWaitTime) * time.Millisecond
 	k.checkpointFilename = k.pConfig.Globals.PrependBaseDir(filepath.Join("kafka",
 		fmt.Sprintf("%s.%s.%d.offset.bin", k.name, k.config.Topic, k.config.Partition)))
 
 	switch k.config.OffsetMethod {
 	case "Manual":
-		k.consumerConfig.OffsetMethod = sarama.OffsetMethodManual
 		if fileExists(k.checkpointFilename) {
-			if k.consumerConfig.OffsetValue, err = readCheckpoint(k.checkpointFilename); err != nil {
+			if k.saramaConfig.Consumer.Offsets.Initial, err = readCheckpoint(k.checkpointFilename); err != nil {
 				return fmt.Errorf("readCheckpoint %s", err)
 			}
 		} else {
 			if err = os.MkdirAll(filepath.Dir(k.checkpointFilename), 0766); err != nil {
 				return
 			}
-			k.consumerConfig.OffsetMethod = sarama.OffsetMethodOldest
+			k.saramaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 		}
 	case "Newest":
-		k.consumerConfig.OffsetMethod = sarama.OffsetMethodNewest
+		k.saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
 		if fileExists(k.checkpointFilename) {
 			if err = os.Remove(k.checkpointFilename); err != nil {
 				return
 			}
 		}
 	case "Oldest":
-		k.consumerConfig.OffsetMethod = sarama.OffsetMethodOldest
+		k.saramaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 		if fileExists(k.checkpointFilename) {
 			if err = os.Remove(k.checkpointFilename); err != nil {
 				return
@@ -191,13 +190,13 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("invalid offset_method: %s", k.config.OffsetMethod)
 	}
 
-	k.consumerConfig.EventBufferSize = k.config.EventBufferSize
+	k.saramaConfig.ChannelBufferSize = k.config.EventBufferSize
 
-	k.client, err = sarama.NewClient(k.config.Id, k.config.Addrs, k.clientConfig)
+	k.client, err = sarama.NewClient(k.config.Addrs, k.saramaConfig)
 	if err != nil {
 		return
 	}
-	k.consumer, err = sarama.NewConsumer(k.client, k.config.Topic, k.config.Partition, k.config.Group, k.consumerConfig)
+	k.consumer, err = sarama.NewConsumerFromClient(k.client) // NewConsumer(k.client, k.config.Topic, k.config.Partition, k.config.Group, k.consumerConfig)
 	return
 }
 
