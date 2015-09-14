@@ -30,6 +30,9 @@ Encoders
 .. include:: /config/encoders/sandbox.rst
    :start-line: 1
 
+.. include:: /config/encoders/schema_carbon_line.rst
+   :start-line: 1
+
 .. include:: /config/encoders/schema_influx.rst
    :start-line: 1
 
