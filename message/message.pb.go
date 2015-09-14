@@ -20,12 +20,12 @@ import math "math"
 
 // discarding unused import gogoproto "gogo.pb"
 
-import io "io"
 import math1 "math"
+
+import io "io"
+import math2 "math"
 import fmt "fmt"
 import github_com_gogo_protobuf_proto "github.com/gogo/protobuf/proto"
-
-import math2 "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -323,6 +323,413 @@ func (m *Message) GetFields() []*Field {
 func init() {
 	proto.RegisterEnum("message.Header_HmacHashFunction", Header_HmacHashFunction_name, Header_HmacHashFunction_value)
 	proto.RegisterEnum("message.Field_ValueType", Field_ValueType_name, Field_ValueType_value)
+}
+func (m *Header) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *Header) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.MessageLength != nil {
+		data[i] = 0x8
+		i++
+		i = encodeVarintMessage(data, i, uint64(*m.MessageLength))
+	}
+	if m.HmacHashFunction != nil {
+		data[i] = 0x18
+		i++
+		i = encodeVarintMessage(data, i, uint64(*m.HmacHashFunction))
+	}
+	if m.HmacSigner != nil {
+		data[i] = 0x22
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.HmacSigner)))
+		i += copy(data[i:], *m.HmacSigner)
+	}
+	if m.HmacKeyVersion != nil {
+		data[i] = 0x28
+		i++
+		i = encodeVarintMessage(data, i, uint64(*m.HmacKeyVersion))
+	}
+	if m.Hmac != nil {
+		data[i] = 0x32
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(m.Hmac)))
+		i += copy(data[i:], m.Hmac)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(data[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *Field) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *Field) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Name != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Name)))
+		i += copy(data[i:], *m.Name)
+	}
+	if m.ValueType != nil {
+		data[i] = 0x10
+		i++
+		i = encodeVarintMessage(data, i, uint64(*m.ValueType))
+	}
+	if m.Representation != nil {
+		data[i] = 0x1a
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Representation)))
+		i += copy(data[i:], *m.Representation)
+	}
+	if len(m.ValueString) > 0 {
+		for _, s := range m.ValueString {
+			data[i] = 0x22
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				data[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			data[i] = uint8(l)
+			i++
+			i += copy(data[i:], s)
+		}
+	}
+	if len(m.ValueBytes) > 0 {
+		for _, b := range m.ValueBytes {
+			data[i] = 0x2a
+			i++
+			i = encodeVarintMessage(data, i, uint64(len(b)))
+			i += copy(data[i:], b)
+		}
+	}
+	if len(m.ValueInteger) > 0 {
+		data2 := make([]byte, len(m.ValueInteger)*10)
+		var j1 int
+		for _, num1 := range m.ValueInteger {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				data2[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			data2[j1] = uint8(num)
+			j1++
+		}
+		data[i] = 0x32
+		i++
+		i = encodeVarintMessage(data, i, uint64(j1))
+		i += copy(data[i:], data2[:j1])
+	}
+	if len(m.ValueDouble) > 0 {
+		data[i] = 0x3a
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(m.ValueDouble)*8))
+		for _, num := range m.ValueDouble {
+			f3 := math1.Float64bits(num)
+			data[i] = uint8(f3)
+			i++
+			data[i] = uint8(f3 >> 8)
+			i++
+			data[i] = uint8(f3 >> 16)
+			i++
+			data[i] = uint8(f3 >> 24)
+			i++
+			data[i] = uint8(f3 >> 32)
+			i++
+			data[i] = uint8(f3 >> 40)
+			i++
+			data[i] = uint8(f3 >> 48)
+			i++
+			data[i] = uint8(f3 >> 56)
+			i++
+		}
+	}
+	if len(m.ValueBool) > 0 {
+		data[i] = 0x42
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(m.ValueBool)))
+		for _, b := range m.ValueBool {
+			if b {
+				data[i] = 1
+			} else {
+				data[i] = 0
+			}
+			i++
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(data[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *Message) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *Message) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Uuid != nil {
+		data[i] = 0xa
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(m.Uuid)))
+		i += copy(data[i:], m.Uuid)
+	}
+	if m.Timestamp != nil {
+		data[i] = 0x10
+		i++
+		i = encodeVarintMessage(data, i, uint64(*m.Timestamp))
+	}
+	if m.Type != nil {
+		data[i] = 0x1a
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Type)))
+		i += copy(data[i:], *m.Type)
+	}
+	if m.Logger != nil {
+		data[i] = 0x22
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Logger)))
+		i += copy(data[i:], *m.Logger)
+	}
+	if m.Severity != nil {
+		data[i] = 0x28
+		i++
+		i = encodeVarintMessage(data, i, uint64(uint32(*m.Severity)))
+	}
+	if m.Payload != nil {
+		data[i] = 0x32
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Payload)))
+		i += copy(data[i:], *m.Payload)
+	}
+	if m.EnvVersion != nil {
+		data[i] = 0x3a
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.EnvVersion)))
+		i += copy(data[i:], *m.EnvVersion)
+	}
+	if m.Pid != nil {
+		data[i] = 0x40
+		i++
+		i = encodeVarintMessage(data, i, uint64(uint32(*m.Pid)))
+	}
+	if m.Hostname != nil {
+		data[i] = 0x4a
+		i++
+		i = encodeVarintMessage(data, i, uint64(len(*m.Hostname)))
+		i += copy(data[i:], *m.Hostname)
+	}
+	if len(m.Fields) > 0 {
+		for _, msg := range m.Fields {
+			data[i] = 0x52
+			i++
+			i = encodeVarintMessage(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(data[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func encodeFixed64Message(data []byte, offset int, v uint64) int {
+	data[offset] = uint8(v)
+	data[offset+1] = uint8(v >> 8)
+	data[offset+2] = uint8(v >> 16)
+	data[offset+3] = uint8(v >> 24)
+	data[offset+4] = uint8(v >> 32)
+	data[offset+5] = uint8(v >> 40)
+	data[offset+6] = uint8(v >> 48)
+	data[offset+7] = uint8(v >> 56)
+	return offset + 8
+}
+func encodeFixed32Message(data []byte, offset int, v uint32) int {
+	data[offset] = uint8(v)
+	data[offset+1] = uint8(v >> 8)
+	data[offset+2] = uint8(v >> 16)
+	data[offset+3] = uint8(v >> 24)
+	return offset + 4
+}
+func encodeVarintMessage(data []byte, offset int, v uint64) int {
+	for v >= 1<<7 {
+		data[offset] = uint8(v&0x7f | 0x80)
+		v >>= 7
+		offset++
+	}
+	data[offset] = uint8(v)
+	return offset + 1
+}
+func (m *Header) Size() (n int) {
+	var l int
+	_ = l
+	if m.MessageLength != nil {
+		n += 1 + sovMessage(uint64(*m.MessageLength))
+	}
+	if m.HmacHashFunction != nil {
+		n += 1 + sovMessage(uint64(*m.HmacHashFunction))
+	}
+	if m.HmacSigner != nil {
+		l = len(*m.HmacSigner)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.HmacKeyVersion != nil {
+		n += 1 + sovMessage(uint64(*m.HmacKeyVersion))
+	}
+	if m.Hmac != nil {
+		l = len(m.Hmac)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Field) Size() (n int) {
+	var l int
+	_ = l
+	if m.Name != nil {
+		l = len(*m.Name)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.ValueType != nil {
+		n += 1 + sovMessage(uint64(*m.ValueType))
+	}
+	if m.Representation != nil {
+		l = len(*m.Representation)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if len(m.ValueString) > 0 {
+		for _, s := range m.ValueString {
+			l = len(s)
+			n += 1 + l + sovMessage(uint64(l))
+		}
+	}
+	if len(m.ValueBytes) > 0 {
+		for _, b := range m.ValueBytes {
+			l = len(b)
+			n += 1 + l + sovMessage(uint64(l))
+		}
+	}
+	if len(m.ValueInteger) > 0 {
+		l = 0
+		for _, e := range m.ValueInteger {
+			l += sovMessage(uint64(e))
+		}
+		n += 1 + sovMessage(uint64(l)) + l
+	}
+	if len(m.ValueDouble) > 0 {
+		n += 1 + sovMessage(uint64(len(m.ValueDouble)*8)) + len(m.ValueDouble)*8
+	}
+	if len(m.ValueBool) > 0 {
+		n += 1 + sovMessage(uint64(len(m.ValueBool))) + len(m.ValueBool)*1
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Message) Size() (n int) {
+	var l int
+	_ = l
+	if m.Uuid != nil {
+		l = len(m.Uuid)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.Timestamp != nil {
+		n += 1 + sovMessage(uint64(*m.Timestamp))
+	}
+	if m.Type != nil {
+		l = len(*m.Type)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.Logger != nil {
+		l = len(*m.Logger)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.Severity != nil {
+		n += 1 + sovMessage(uint64(uint32(*m.Severity)))
+	}
+	if m.Payload != nil {
+		l = len(*m.Payload)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.EnvVersion != nil {
+		l = len(*m.EnvVersion)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if m.Pid != nil {
+		n += 1 + sovMessage(uint64(uint32(*m.Pid)))
+	}
+	if m.Hostname != nil {
+		l = len(*m.Hostname)
+		n += 1 + l + sovMessage(uint64(l))
+	}
+	if len(m.Fields) > 0 {
+		for _, e := range m.Fields {
+			l = e.Size()
+			n += 1 + l + sovMessage(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func sovMessage(x uint64) (n int) {
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
+}
+func sozMessage(x uint64) (n int) {
+	return sovMessage(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
 func (m *Header) Unmarshal(data []byte) error {
 	l := len(data)
@@ -672,7 +1079,7 @@ func (m *Field) Unmarshal(data []byte) error {
 					v |= uint64(data[i-3]) << 40
 					v |= uint64(data[i-2]) << 48
 					v |= uint64(data[i-1]) << 56
-					v2 := math1.Float64frombits(v)
+					v2 := math2.Float64frombits(v)
 					m.ValueDouble = append(m.ValueDouble, v2)
 				}
 			} else if wireType == 1 {
@@ -690,7 +1097,7 @@ func (m *Field) Unmarshal(data []byte) error {
 				v |= uint64(data[i-3]) << 40
 				v |= uint64(data[i-2]) << 48
 				v |= uint64(data[i-1]) << 56
-				v2 := math1.Float64frombits(v)
+				v2 := math2.Float64frombits(v)
 				m.ValueDouble = append(m.ValueDouble, v2)
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field ValueDouble", wireType)
@@ -1020,411 +1427,4 @@ func (m *Message) Unmarshal(data []byte) error {
 		}
 	}
 	return nil
-}
-func (m *Header) Size() (n int) {
-	var l int
-	_ = l
-	if m.MessageLength != nil {
-		n += 1 + sovMessage(uint64(*m.MessageLength))
-	}
-	if m.HmacHashFunction != nil {
-		n += 1 + sovMessage(uint64(*m.HmacHashFunction))
-	}
-	if m.HmacSigner != nil {
-		l = len(*m.HmacSigner)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.HmacKeyVersion != nil {
-		n += 1 + sovMessage(uint64(*m.HmacKeyVersion))
-	}
-	if m.Hmac != nil {
-		l = len(m.Hmac)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *Field) Size() (n int) {
-	var l int
-	_ = l
-	if m.Name != nil {
-		l = len(*m.Name)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.ValueType != nil {
-		n += 1 + sovMessage(uint64(*m.ValueType))
-	}
-	if m.Representation != nil {
-		l = len(*m.Representation)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if len(m.ValueString) > 0 {
-		for _, s := range m.ValueString {
-			l = len(s)
-			n += 1 + l + sovMessage(uint64(l))
-		}
-	}
-	if len(m.ValueBytes) > 0 {
-		for _, b := range m.ValueBytes {
-			l = len(b)
-			n += 1 + l + sovMessage(uint64(l))
-		}
-	}
-	if len(m.ValueInteger) > 0 {
-		l = 0
-		for _, e := range m.ValueInteger {
-			l += sovMessage(uint64(e))
-		}
-		n += 1 + sovMessage(uint64(l)) + l
-	}
-	if len(m.ValueDouble) > 0 {
-		n += 1 + sovMessage(uint64(len(m.ValueDouble)*8)) + len(m.ValueDouble)*8
-	}
-	if len(m.ValueBool) > 0 {
-		n += 1 + sovMessage(uint64(len(m.ValueBool))) + len(m.ValueBool)*1
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *Message) Size() (n int) {
-	var l int
-	_ = l
-	if m.Uuid != nil {
-		l = len(m.Uuid)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.Timestamp != nil {
-		n += 1 + sovMessage(uint64(*m.Timestamp))
-	}
-	if m.Type != nil {
-		l = len(*m.Type)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.Logger != nil {
-		l = len(*m.Logger)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.Severity != nil {
-		n += 1 + sovMessage(uint64(uint32(*m.Severity)))
-	}
-	if m.Payload != nil {
-		l = len(*m.Payload)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.EnvVersion != nil {
-		l = len(*m.EnvVersion)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if m.Pid != nil {
-		n += 1 + sovMessage(uint64(uint32(*m.Pid)))
-	}
-	if m.Hostname != nil {
-		l = len(*m.Hostname)
-		n += 1 + l + sovMessage(uint64(l))
-	}
-	if len(m.Fields) > 0 {
-		for _, e := range m.Fields {
-			l = e.Size()
-			n += 1 + l + sovMessage(uint64(l))
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func sovMessage(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
-}
-func sozMessage(x uint64) (n int) {
-	return sovMessage(uint64((x << 1) ^ uint64((int64(x) >> 63))))
-}
-func (m *Header) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *Header) MarshalTo(data []byte) (n int, err error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.MessageLength != nil {
-		data[i] = 0x8
-		i++
-		i = encodeVarintMessage(data, i, uint64(*m.MessageLength))
-	}
-	if m.HmacHashFunction != nil {
-		data[i] = 0x18
-		i++
-		i = encodeVarintMessage(data, i, uint64(*m.HmacHashFunction))
-	}
-	if m.HmacSigner != nil {
-		data[i] = 0x22
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.HmacSigner)))
-		i += copy(data[i:], *m.HmacSigner)
-	}
-	if m.HmacKeyVersion != nil {
-		data[i] = 0x28
-		i++
-		i = encodeVarintMessage(data, i, uint64(*m.HmacKeyVersion))
-	}
-	if m.Hmac != nil {
-		data[i] = 0x32
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(m.Hmac)))
-		i += copy(data[i:], m.Hmac)
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(data[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
-
-func (m *Field) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *Field) MarshalTo(data []byte) (n int, err error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Name != nil {
-		data[i] = 0xa
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Name)))
-		i += copy(data[i:], *m.Name)
-	}
-	if m.ValueType != nil {
-		data[i] = 0x10
-		i++
-		i = encodeVarintMessage(data, i, uint64(*m.ValueType))
-	}
-	if m.Representation != nil {
-		data[i] = 0x1a
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Representation)))
-		i += copy(data[i:], *m.Representation)
-	}
-	if len(m.ValueString) > 0 {
-		for _, s := range m.ValueString {
-			data[i] = 0x22
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				data[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			data[i] = uint8(l)
-			i++
-			i += copy(data[i:], s)
-		}
-	}
-	if len(m.ValueBytes) > 0 {
-		for _, b := range m.ValueBytes {
-			data[i] = 0x2a
-			i++
-			i = encodeVarintMessage(data, i, uint64(len(b)))
-			i += copy(data[i:], b)
-		}
-	}
-	if len(m.ValueInteger) > 0 {
-		data2 := make([]byte, len(m.ValueInteger)*10)
-		var j1 int
-		for _, num1 := range m.ValueInteger {
-			num := uint64(num1)
-			for num >= 1<<7 {
-				data2[j1] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j1++
-			}
-			data2[j1] = uint8(num)
-			j1++
-		}
-		data[i] = 0x32
-		i++
-		i = encodeVarintMessage(data, i, uint64(j1))
-		i += copy(data[i:], data2[:j1])
-	}
-	if len(m.ValueDouble) > 0 {
-		data[i] = 0x3a
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(m.ValueDouble)*8))
-		for _, num := range m.ValueDouble {
-			f3 := math2.Float64bits(num)
-			data[i] = uint8(f3)
-			i++
-			data[i] = uint8(f3 >> 8)
-			i++
-			data[i] = uint8(f3 >> 16)
-			i++
-			data[i] = uint8(f3 >> 24)
-			i++
-			data[i] = uint8(f3 >> 32)
-			i++
-			data[i] = uint8(f3 >> 40)
-			i++
-			data[i] = uint8(f3 >> 48)
-			i++
-			data[i] = uint8(f3 >> 56)
-			i++
-		}
-	}
-	if len(m.ValueBool) > 0 {
-		data[i] = 0x42
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(m.ValueBool)))
-		for _, b := range m.ValueBool {
-			if b {
-				data[i] = 1
-			} else {
-				data[i] = 0
-			}
-			i++
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(data[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
-
-func (m *Message) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *Message) MarshalTo(data []byte) (n int, err error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Uuid != nil {
-		data[i] = 0xa
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(m.Uuid)))
-		i += copy(data[i:], m.Uuid)
-	}
-	if m.Timestamp != nil {
-		data[i] = 0x10
-		i++
-		i = encodeVarintMessage(data, i, uint64(*m.Timestamp))
-	}
-	if m.Type != nil {
-		data[i] = 0x1a
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Type)))
-		i += copy(data[i:], *m.Type)
-	}
-	if m.Logger != nil {
-		data[i] = 0x22
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Logger)))
-		i += copy(data[i:], *m.Logger)
-	}
-	if m.Severity != nil {
-		data[i] = 0x28
-		i++
-		i = encodeVarintMessage(data, i, uint64(uint32(*m.Severity)))
-	}
-	if m.Payload != nil {
-		data[i] = 0x32
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Payload)))
-		i += copy(data[i:], *m.Payload)
-	}
-	if m.EnvVersion != nil {
-		data[i] = 0x3a
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.EnvVersion)))
-		i += copy(data[i:], *m.EnvVersion)
-	}
-	if m.Pid != nil {
-		data[i] = 0x40
-		i++
-		i = encodeVarintMessage(data, i, uint64(uint32(*m.Pid)))
-	}
-	if m.Hostname != nil {
-		data[i] = 0x4a
-		i++
-		i = encodeVarintMessage(data, i, uint64(len(*m.Hostname)))
-		i += copy(data[i:], *m.Hostname)
-	}
-	if len(m.Fields) > 0 {
-		for _, msg := range m.Fields {
-			data[i] = 0x52
-			i++
-			i = encodeVarintMessage(data, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(data[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(data[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
-
-func encodeFixed64Message(data []byte, offset int, v uint64) int {
-	data[offset] = uint8(v)
-	data[offset+1] = uint8(v >> 8)
-	data[offset+2] = uint8(v >> 16)
-	data[offset+3] = uint8(v >> 24)
-	data[offset+4] = uint8(v >> 32)
-	data[offset+5] = uint8(v >> 40)
-	data[offset+6] = uint8(v >> 48)
-	data[offset+7] = uint8(v >> 56)
-	return offset + 8
-}
-func encodeFixed32Message(data []byte, offset int, v uint32) int {
-	data[offset] = uint8(v)
-	data[offset+1] = uint8(v >> 8)
-	data[offset+2] = uint8(v >> 16)
-	data[offset+3] = uint8(v >> 24)
-	return offset + 4
-}
-func encodeVarintMessage(data []byte, offset int, v uint64) int {
-	for v >= 1<<7 {
-		data[offset] = uint8(v&0x7f | 0x80)
-		v >>= 7
-		offset++
-	}
-	data[offset] = uint8(v)
-	return offset + 1
 }
