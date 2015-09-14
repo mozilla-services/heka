@@ -21,6 +21,7 @@ Available Encoder Plugins
    protobuf
    rst
    sandbox
+   schema_carbon_line
    schema_influx
    schema_influx_line
    statmetric_influx
