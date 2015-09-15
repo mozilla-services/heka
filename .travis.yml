@@ -1,3 +1,4 @@
+sudo: false
 language: go
 go:
     - 1.4
@@ -5,11 +6,13 @@ notifications:
     irc:
         channels:
             - "irc.mozilla.org#heka"
-before_install:
-    - sudo apt-get install protobuf-compiler cmake libgeoip-dev
-
+addons:
+    apt:
+        packages:
+        - protobuf-compiler
+        - cmake
+        - libgeoip-dev
 install:
     - . build.sh
-
 script:
     - make test
