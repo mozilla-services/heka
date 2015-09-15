@@ -30,6 +30,12 @@ Decoders
 .. include:: /config/decoders/linux_mem_stats.rst
   :start-line: 1
 
+.. include:: /config/decoders/linux_netdev.rst
+  :start-line: 1
+
+.. include:: /config/decoders/linux_netstat.rst
+  :start-line: 1
+
 .. include:: /config/decoders/mysql_slow_query.rst
   :start-line: 1
 

@@ -6,6 +6,8 @@ Features
 
 * Added `set_hostname` option to UdpInput configuration (#1668).
 
+* Added `linux_netdev` and `linux_netstat` decoders (#1712).
+
 Bug Handling
 ------------
 
@@ -30,6 +32,9 @@ Bug Handling
   get stuck in an infinite loop on shutdown (#1705).
 
 * Fixed race condition in the BufferReader's queue file lookup code (#1639).
+
+* Changes in StatAccumInput and FileOutput tests to minimize intermittent
+  Travis failures.
 
 0.10.0b1 (2015-08-07)
 =====================
