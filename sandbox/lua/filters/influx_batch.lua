@@ -173,7 +173,7 @@ function process_message()
     -- Inject a new message with the payload populated with the newline
     -- delimited data points, and append a newline at the end for the last line
     any = true
-    add_to_payload(table.concat(api_message, "\n").."\n")
+    add_to_payload(table.concat(api_message, "\n"), "\n")
 
     if flush_count > 0 then
         count_since_flush = count_since_flush + 1

@@ -153,7 +153,7 @@ local function points_tags_tables(config)
             field_idx = field_idx + 1
             seen_fields[field] = field_idx
             if field_idx > 0 then
-                field_out_name = field_out_name .. "_fidx_" .. tostring(field_idx)
+                field_out_name = string.format("%s_fidx_%d", field_out_name, field_idx)
             end
 
             for i, field_value in ipairs(field_entry["value"]) do
