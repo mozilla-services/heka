@@ -329,7 +329,8 @@ func (br *BufferReader) getFileFromId(id uint) (file *os.File, foundId uint,
 		return nil, 0, nil
 	}
 
-	// Increment until we find an id greater than what was requested.
+	// Increment until we find an id greater than or equal to what was
+	// requested.
 	for _, val := range ids {
 		if val >= id {
 			foundId = val
