@@ -294,7 +294,7 @@ func FileOutputSpec(c gs.Context) {
 				}
 
 				timerChan <- time.Now()
-				after := time.After(100 * time.Millisecond)
+				after = time.After(100 * time.Millisecond)
 				select {
 				case _ = <-fileOutput.batchChan:
 				case <-after:
