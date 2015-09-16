@@ -13,10 +13,13 @@ Available Decoder Plugins
    apache_access
    geoip
    graylog_extended
+   json
    linux_cpu_stats
    linux_disk_stats
    linux_load_avg
    linux_mem_stats
+   linux_netdev
+   linux_netstat
    multi
    mysql_slow_query
    nginx_access

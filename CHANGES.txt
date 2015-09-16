@@ -29,6 +29,8 @@ Features
 
 * Added `set_hostname` option to UdpInput configuration (#1668).
 
+* Added `linux_netdev` and `linux_netstat` decoders (#1712).
+
 Bug Handling
 ------------
 
@@ -42,6 +44,20 @@ Bug Handling
 * Fixed broken queue rolling and added test.
 
 * Force ElasticSearch index name to lower case, as required by ElasticSearch.
+
+* Fixed default buffer config values.
+
+* Updated docker configuration so docker build works again (#1634).
+
+* Add generic json lua sandbox decoder (#1651).
+
+* Fixed bug where a SandboxInput configured with a `ticker_interval` would
+  get stuck in an infinite loop on shutdown (#1705).
+
+* Fixed race condition in the BufferReader's queue file lookup code (#1639).
+
+* Changes in StatAccumInput and FileOutput tests to minimize intermittent
+  Travis failures.
 
 0.10.0b1 (2015-08-07)
 =====================

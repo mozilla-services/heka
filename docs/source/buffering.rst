@@ -23,7 +23,7 @@ Buffering configuration settings
 - max_file_size (uint64)
   The maximum size (in bytes) of a single file in the queue buffer. When a
   message would increase a queue file to greater than this size, the message
-  will be written into a new file instead. Defaults to 128MiB. Value cannot
+  will be written into a new file instead. Defaults to 512MiB. Value cannot
   be zero, if zero is specified the default will instead be used.
 
 - max_buffer_size (uint64)

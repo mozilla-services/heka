@@ -66,6 +66,17 @@ type QueueBufferConfig struct {
 	CursorUpdateCount uint   `toml:"cursor_update_count"`
 }
 
+const DefaultBufferMaxFileSize uint64 = uint64(512 * 1024 * 1024)
+
+func defaultQueueBufferConfig() *QueueBufferConfig {
+	return &QueueBufferConfig{
+		MaxFileSize:       DefaultBufferMaxFileSize,
+		MaxBufferSize:     uint64(0),
+		FullAction:        "shutdown",
+		CursorUpdateCount: uint(1),
+	}
+}
+
 func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 	runner *foRunner, pConfig *PipelineConfig) (*BufferFeeder, *BufferReader, error) {
 
@@ -87,6 +98,9 @@ func NewBufferSet(queueDir, queueName string, config *QueueBufferConfig,
 		config.CursorUpdateCount = 1
 	}
 
+	if config.MaxFileSize == 0 {
+		config.MaxFileSize = DefaultBufferMaxFileSize // 512 MiB
+	}
 	if config.MaxFileSize < uint64(message.MAX_RECORD_SIZE) {
 		err := fmt.Errorf("`max_file_size` must be greater than maximum record size of %d",
 			message.MAX_RECORD_SIZE)
@@ -118,9 +132,6 @@ type BufferFeeder struct {
 func NewBufferFeeder(queue string, config *QueueBufferConfig, queueSize *BufferSize) (
 	*BufferFeeder, error) {
 
-	if config.MaxFileSize == 0 {
-		config.MaxFileSize = 512 * 1024 * 1024 // 512 MiB
-	}
 	bf := &BufferFeeder{
 		queue:     queue,
 		queueSize: queueSize,
@@ -308,17 +319,20 @@ func (br *BufferReader) getFileFromId(id uint) (file *os.File, foundId uint,
 		return file, foundId, err
 	}
 
-	// If we got this far there's no file matching our id, try to find the
-	// next one above.
+	// If we got this far, there was no file matching our id when we checked.
+	// It might, however, have been created after we checked, but before we get
+	// our id list back from the sortedBufferIds call below. This is fine,
+	// we'll still find and return it.
 	ids := sortedBufferIds(br.queue)
 	if len(ids) == 0 || ids[len(ids)-1] < id {
 		// No log file for us, not an error.
 		return nil, 0, nil
 	}
 
-	// Increment until we find an id greater than what was requested.
+	// Increment until we find an id greater than or equal to what was
+	// requested.
 	for _, val := range ids {
-		if val > id {
+		if val >= id {
 			foundId = val
 			break
 		}
