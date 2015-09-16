@@ -60,6 +60,21 @@ function(git_clone url tag)
     add_dependencies(GoPackages ${name})
 endfunction(git_clone)
 
+function(git_clone_to_path url tag dest_path)
+    parse_url(${url})
+    externalproject_add(
+        ${name}
+        GIT_REPOSITORY ${url}
+        GIT_TAG ${tag}
+        SOURCE_DIR "${PROJECT_PATH}/src/${dest_path}"
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND ""
+        INSTALL_COMMAND ""
+        UPDATE_COMMAND "" # comment out to enable updates
+    )
+    add_dependencies(GoPackages ${name})
+endfunction(git_clone_to_path)
+
 function(hg_clone url tag)
     parse_url(${url})
     externalproject_add(
@@ -146,8 +161,13 @@ git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
 git_clone(https://github.com/cactus/gostrftime 4544856e3a415ff5668bb75fed36726240ea1f8d)
-git_clone(https://github.com/golang/snappy eaa750b9bf4dcb7cb20454be850613b66cda3273)
-git_clone(https://github.com/rafrombrc/sarama fda3e239249dd96f4a2c446aea39dfc823f4030a)
+
+git_clone(https://github.com/golang/snappy 723cc1e459b8eea2dea4583200fd60757d40097a)
+git_clone(https://github.com/eapache/go-resiliency v1.0.0)
+git_clone(https://github.com/eapache/queue v1.0.2)
+git_clone_to_path(https://github.com/rafrombrc/sarama f742e1e20b15b31320e0b6ff2f995bc5f0482fed github.com/Shopify/sarama)
+git_clone(https://github.com/davecgh/go-spew 2df174808ee097f90d259e432cc04442cf60be21)
+
 add_dependencies(sarama snappy)
 
 if (INCLUDE_GEOIP)
