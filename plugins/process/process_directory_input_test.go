@@ -16,18 +16,19 @@
 package process
 
 import (
-	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func ProcessDirectoryInputSpec(c gs.Context) {
@@ -116,6 +117,15 @@ func ProcessDirectoryInputSpec(c gs.Context) {
 		defer func() {
 			pdiInput.Stop()
 			for _, entry := range pdiInput.inputs {
+				// Make sure we don't try to tear down the ProcessInputs before
+				// they've even finished initializing.
+				for {
+					pInput := entry.ir.Input().(*ProcessInput)
+					if pInput.stopChan != nil {
+						break
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
 				entry.ir.Input().Stop()
 			}
 		}()

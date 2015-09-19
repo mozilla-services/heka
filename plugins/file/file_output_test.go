@@ -285,15 +285,19 @@ func FileOutputSpec(c gs.Context) {
 				recvWithConfig(config)
 				defer cleanUp()
 				inChan <- pack
+
+				after := time.After(100 * time.Millisecond)
 				select {
 				case _ = <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
+
 				timerChan <- time.Now()
+				after = time.After(100 * time.Millisecond)
 				select {
 				case _ = <-fileOutput.batchChan:
-				default:
+				case <-after:
 					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 				}
 			})
