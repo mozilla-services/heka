@@ -31,8 +31,10 @@ Bug Handling
 * Fixed bug where a SandboxInput configured with a `ticker_interval` would
   get stuck in an infinite loop on shutdown (#1705).
 
-* Changes in StatAccumInput and FileOutput tests to minimize intermittent
-  Travis failures.
+* Fixed race condition in the BufferReader's queue file lookup code (#1639).
+
+* Changes in StatAccumInput, FileOutput, TcpInput, ProcessDirectoryInput tests
+  to minimize intermittent Travis failures.
 
 0.10.0b1 (2015-08-07)
 =====================
