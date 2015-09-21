@@ -101,6 +101,7 @@ elseif(UNIX)
 	set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
         set(CPACK_RPM_PACKAGE_REQUIRES_PRE "shadow-utils")
         set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/rpm/heka.preinst.in")
+        set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/rpm/heka.postinst.in")
     endif()
 endif()
 
