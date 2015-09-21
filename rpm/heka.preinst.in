@@ -1,0 +1,8 @@
+USER="heka"
+GROUP=$USER
+HOMEBASE=/var/cache/hekad 
+
+getent group $GROUP >/dev/null || groupadd -r $GROUP
+getent passwd $USER >/dev/null || useradd -r -g $GROUP -M -d $HOMEBASE -s /sbin/nologin -c "heka daemon" $USER
+install -d -m0755 -o$USER -g$GROUP $HOMEBASE
+exit 0

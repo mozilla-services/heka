@@ -96,9 +96,11 @@ elseif(UNIX)
         set(CPACK_GENERATOR ${CPACK_GENERATOR} "RPM")
         set(CPACK_RPM_PACKAGE_LICENSE "MPLv2.0")
         set(CPACK_RPM_PACKAGE_DESCRIPTION "Heka is a tool for collecting and collating data from a number of different sources, performing 'in-flight' processing of collected data, and delivering the results to any number of destinations for further analysis.")
-		# todo we should pull lua_sandbox out of the heka/build and packaging
-		set(CPACK_RPM_PACKAGE_PROVIDES "libluasb.so.0()(64bit), libluasandbox.so.0()(64bit)")
-		set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
+	# todo we should pull lua_sandbox out of the heka/build and packaging
+	set(CPACK_RPM_PACKAGE_PROVIDES "libluasb.so.0()(64bit), libluasandbox.so.0()(64bit)")
+	set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION /usr/share/man)
+        set(CPACK_RPM_PACKAGE_REQUIRES_PRE "shadow-utils")
+        set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/rpm/heka.preinst.in")
     endif()
 endif()
 
