@@ -148,6 +148,7 @@ func (o *HttpOutput) request(or pipeline.OutputRunner, outBytes []byte) (err err
 		return fmt.Errorf("Error making HTTP request: %s", err.Error())
 	}
 	defer resp.Body.Close()
+	io.Copy(ioutil.Discard, resp.Body)
 
 	if resp.StatusCode >= 400 {
 		body, err := ioutil.ReadAll(resp.Body)
