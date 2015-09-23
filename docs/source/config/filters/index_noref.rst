@@ -34,6 +34,9 @@ Filters
 .. include:: /config/filters/http_status.rst
    :start-line: 1
 
+.. include:: /config/filters/influx_batch.rst
+   :start-line: 1
+
 .. include:: /config/filters/load_avg.rst
    :start-line: 1
 

@@ -12,6 +12,7 @@ import (
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	pm "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/mozilla-services/heka/sandbox"
+	"github.com/pborman/uuid"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 )
@@ -196,7 +197,7 @@ func FilterSpec(c gs.Context) {
 			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() - 5e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
+			fth.MockFilterRunner.EXPECT().UpdateCursor("")
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
 			pack.BufferedPack = true
 			pack.DelivErrChan = make(chan error, 1)
@@ -212,7 +213,7 @@ func FilterSpec(c gs.Context) {
 			sbmFilter.Init(config)
 			pack.Message.SetTimestamp(time.Now().UnixNano() + 5.9e9)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
+			fth.MockFilterRunner.EXPECT().UpdateCursor("")
 			fth.MockFilterRunner.EXPECT().Name().Return("SandboxManagerFilter")
 			pack.BufferedPack = true
 			pack.DelivErrChan = make(chan error, 1)
@@ -227,7 +228,6 @@ func FilterSpec(c gs.Context) {
 		c.Specify("Generates the right default working directory", func() {
 			sbmFilter.Init(config)
 			fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
-			fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
 			name := "SandboxManagerFilter"
 			fth.MockFilterRunner.EXPECT().Name().Return(name)
 			close(inChan)
@@ -340,7 +340,6 @@ func FilterSpec(c gs.Context) {
 		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 		fth.MockFilterRunner.EXPECT().UsesBuffering().Return(false)
-		fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
 		fth.MockFilterRunner.EXPECT().Name().Return("loadavg")
 		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
 			retPackChan <- pack
@@ -418,7 +417,6 @@ func FilterSpec(c gs.Context) {
 		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 		fth.MockFilterRunner.EXPECT().UsesBuffering().Return(false)
-		fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
 		fth.MockFilterRunner.EXPECT().Name().Return("memstats")
 		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
 			retPackChan <- pack
@@ -510,7 +508,6 @@ func FilterSpec(c gs.Context) {
 		fth.MockFilterRunner.EXPECT().Ticker().Return(timer).AnyTimes()
 		fth.MockFilterRunner.EXPECT().InChan().Return(inChan).AnyTimes()
 		fth.MockFilterRunner.EXPECT().UsesBuffering().Return(false)
-		fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
 		fth.MockFilterRunner.EXPECT().Name().Return("diskstats").AnyTimes()
 		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
 			msg := pack.Message
@@ -608,7 +605,6 @@ func FilterSpec(c gs.Context) {
 		fth.MockFilterRunner.EXPECT().Ticker().Return(timer)
 		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
 		fth.MockFilterRunner.EXPECT().UsesBuffering().Return(false)
-		fth.MockFilterRunner.EXPECT().UpdateCursor("").AnyTimes()
 		fth.MockFilterRunner.EXPECT().Name().Return("http_status")
 		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
 			retPackChan <- pack
@@ -637,6 +633,115 @@ func FilterSpec(c gs.Context) {
 nan	nan	nan	nan	nan	nan
 `
 			c.Expect(p.Message.GetPayload(), gs.Equals, pl)
+
+		})
+
+		close(inChan)
+		c.Expect(<-errChan, gs.IsNil)
+	})
+
+	c.Specify("influx_batch filter", func() {
+		filter := new(SandboxFilter)
+		filter.SetPipelineConfig(pConfig)
+		filter.name = "influx_batch"
+		conf := filter.ConfigStruct().(*sandbox.SandboxConfig)
+
+		errChan := make(chan error, 1)
+		retMsgChan := make(chan *message.Message, 1)
+		recycleChan := make(chan *pipeline.PipelinePack, 1)
+
+		defer func() {
+			close(errChan)
+			close(retMsgChan)
+		}()
+
+		pack := pipeline.NewPipelinePack(recycleChan)
+		pack.Message = &message.Message{}
+		pack.Message.SetType("my_type")
+		pack.Message.SetPid(12345)
+		pack.Message.SetSeverity(4)
+		pack.Message.SetHostname("hostname")
+		pack.Message.SetTimestamp(54321 * 1e9)
+		pack.Message.SetLogger("Logger")
+		pack.Message.SetPayload("Payload value lorem ipsum")
+		pack.Message.SetUuid(uuid.Parse("8e414f01-9d7f-4a48-a5e1-ae92e5954df5"))
+
+		f, err := message.NewField("intField", 123, "") // Overwritten in a loop below.
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue(456)
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "0_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("0_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "1_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("1_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("byteField", []byte("first"), "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue([]byte("second"))
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		fth.MockHelper.EXPECT().PipelinePack(uint(0)).Return(pack, nil)
+		fth.MockFilterRunner.EXPECT().Ticker().Return(nil)
+		fth.MockFilterRunner.EXPECT().InChan().Return(inChan)
+		fth.MockFilterRunner.EXPECT().UsesBuffering().Return(false)
+		fth.MockFilterRunner.EXPECT().Name().Return(filter.name)
+		fth.MockFilterRunner.EXPECT().Inject(pack).Do(func(pack *pipeline.PipelinePack) {
+			retMsgChan <- pack.Message
+		}).Return(true)
+
+		c.Assume(err, gs.IsNil)
+
+		conf.ScriptFilename = "../lua/filters/influx_batch.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.Config = make(map[string]interface{})
+
+		c.Specify("encodes a basic message", func() {
+			conf.Config["flush_count"] = "6"
+			err := filter.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			go func() {
+				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
+			}()
+
+			// Having our own reference to the message struct lets us hand it
+			// back to the pack even after recycling.
+			msg := pack.Message
+			for i := 0; i < 6; i++ {
+				msg.Fields[0].ValueInteger[0] = int64(i * 100)
+				pack.Message = msg
+				pack.EncodeMsgBytes()
+				inChan <- pack
+				pack = <-recycleChan
+			}
+
+			// timer <- time.Now()
+			m := <-retMsgChan
+			// Check the result of the filter's inject
+			msgStr := `byteField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="first" 54321000
+byteField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="second" 54321000
+strField_fidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="1_first" 54321000
+strField_fidx_1_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="1_second" 54321000
+strField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="0_first" 54321000
+strField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="0_second" 54321000
+intField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=%d.000000 54321000
+intField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=456.000000 54321000
+`
+			pl := ""
+			for i := 0; i < 6; i++ {
+				pl += fmt.Sprintf(msgStr, i*100)
+			}
+			c.Expect(m.GetPayload(), gs.Equals, pl)
 
 		})
 

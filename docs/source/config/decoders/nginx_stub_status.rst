@@ -1,7 +1,7 @@
 .. _nginx_stub_status_decoder:
 
 Nginx Stub Status Decoder
-========================
+=========================
 
 .. versionadded:: 0.10
 

@@ -34,8 +34,8 @@ Config:
 :Pid: 0
 :Uuid: cf705300-b3d7-4e5a-a56e-37846f8c246a
 :Logger: Netdev
-:Payload: 
-:EnvVersion: 
+:Payload:
+:EnvVersion:
 :Severity: 7
 :Fields:
     | name:"lo_transmit_carrier" type:integer value:0

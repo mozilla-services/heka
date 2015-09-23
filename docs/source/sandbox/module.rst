@@ -68,7 +68,7 @@ Graphite Module
 Time Series Line Protocol Module
 --------------------------------
 .. include:: ../../../sandbox/lua/modules/ts_line_protocol.lua
-   :start-after: --[[
-   :end-before: --]]
+   :start-after: --[=[
+   :end-before: --]=]
 
 .. _sandbox_ts_line_protocol_module:
