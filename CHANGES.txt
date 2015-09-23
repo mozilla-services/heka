@@ -1,3 +1,28 @@
+0.11.0 (2015-??-??)
+===================
+
+Backwards Incompatibilities
+---------------------------
+
+* StatAccumInput Input: percent_threshold param type convert to slice
+
+Bug Handling
+------------
+
+* Updated Sarama dependency from pre-1.0 release fork to fork (with only test
+  code changes) of Sarama 1.5.0 release.
+
+Features
+--------
+
+* Allow TcpOutput to re-establish the connection after a configurable number of
+  successfully delivered messages.
+
+* Added `git_clone_to_path` to the cmake build to allow git repos to be cloned
+  into alternate locations; useful for relocating forks of Go packages into
+  their original import paths.
+
+
 0.10.0 (2015-??-??)
 ===================
 
@@ -35,6 +60,11 @@ Bug Handling
 
 * Changes in StatAccumInput, FileOutput, TcpInput, ProcessDirectoryInput tests
   to minimize intermittent Travis failures.
+
+* Ensure the response is read until it is complete in the HttpOutput plugin.
+  Previously, the deferred Body.Close() may have been called on incomplete
+  responses. This resulted in the connections not returning to the client's
+  Transport connection pool.
 
 0.10.0b1 (2015-08-07)
 =====================
