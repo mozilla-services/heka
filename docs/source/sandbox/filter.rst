@@ -62,6 +62,12 @@ HTTP Status Graph
    :start-after: --[[
    :end-before: --]]
 
+InfluxDB Batch
+^^^^^^^^^^^^^^
+.. include:: ../../../sandbox/lua/filters/influx_batch.lua
+   :start-after: --[=[
+   :end-before: --]=]
+
 Load Average Filter
 ^^^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/filters/loadavg.lua

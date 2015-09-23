@@ -94,6 +94,8 @@ local type = type
 local M = {}
 setfenv(1, M) -- Remove external access to contain everything in the module.
 
+local decimal_format_string
+
 local function influxdb_kv_fmt(string)
     return tostring(string):gsub("([ ,])", "\\%1")
 end
@@ -134,13 +136,12 @@ local function points_tags_tables(config)
     -- as fields and as tags).
     local points = {}
     local msg = decode_message(read_message("raw"))
+    local seen_fields = {}
+    local seen_tags = {}
+    local field, value, field_idx, field_out_name
     if msg.Fields then
         for _, field_entry in ipairs(msg.Fields) do
-            local field = field_entry["name"]
-            local value
-            for _, field_value in ipairs(field_entry["value"]) do
-                value = field_value
-            end
+            field = field_entry["name"]
 
             -- Replace non-word characters with underscores for Carbon
             -- to avoid periods resulting in extraneous directories
@@ -148,23 +149,42 @@ local function points_tags_tables(config)
                 field = field:gsub("[^%w]", "_")
             end
 
-            -- Include the dynamic fields as tags if they are defined in
-            -- configuration or the magic value "**all**" is defined.
-            -- Convert value to a string as this is required by the API
-            if not config["carbon_format"]
-                and (config["tag_fields_all"]
-                or (config["used_tag_fields"] and used_tag_fields[field])) then
-                    table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
+            field_out_name = field
+
+            field_idx = seen_fields[field] or -1
+            field_idx = field_idx + 1
+            seen_fields[field] = field_idx
+            if field_idx > 0 then
+                field_out_name = string.format("%s_fidx_%d", field_out_name, field_idx)
             end
 
-            if config["source_value_field"] and field == config["source_value_field"] then
-                points[name_prefix] = value
-            -- Only add fields that are not requested to be skipped
-            elseif not config["skip_fields_str"]
+            for i, field_value in ipairs(field_entry["value"]) do
+                value = field_value
+
+                if i > 1 then
+                    field_out_name = string.format("%s_vidx_%d", field_out_name, i-1)
+                end
+
+                -- Include the dynamic fields as tags if they are defined in
+                -- configuration or the magic value "**all**" is defined.
+                -- Convert value to a string as this is required by the API
+                if not config["carbon_format"]
+                    and (config["tag_fields_all"]
+                         or (config["used_tag_fields"] and used_tag_fields[field])) then
+                        table.insert(tags,
+                                     string.format("%s=%s", influxdb_kv_fmt(field_out_name),
+                                                   tostring(influxdb_kv_fmt(value))))
+                end
+
+                if config["source_value_field"] and field == config["source_value_field"] then
+                    points[name_prefix] = value
+                    -- Only add fields that are not requested to be skipped
+                elseif not config["skip_fields_str"]
                 or (config["skip_fields"] and not skip_fields[field]) then
                     -- Set the name attribute of this table by concatenating name_prefix
                     -- with the name of this particular field
-                    points[name_prefix..name_prefix_delimiter..field] = value
+                    points[string.format("%s%s%s", name_prefix, name_prefix_delimiter, field_out_name)] = value
+                end
             end
         end
     else
@@ -186,7 +206,7 @@ function carbon_line_msg(config)
         -- Only add metrics that are originally integers or floats, as that is
         -- what Carbon is limited to storing.
         if string.match(value, "^[%d.]+$") then
-            table.insert(api_message, name.." "..value.." "..message_timestamp)
+            table.insert(api_message, string.format("%s %s %s", name, value, message_timestamp))
         end
     end
 
@@ -205,7 +225,7 @@ function influxdb_line_msg(config)
         -- Wrap in double quotes and escape embedded double quotes
         -- as defined by the protocol.
         if type(value) == "string" then
-            value = '"'..value:gsub('"', '\\"')..'"'
+            value = string.format('"%s"', value:gsub('"', '\\"'))
         end
 
         -- Always send numbers as formatted floats, so InfluxDB will accept
@@ -214,7 +234,7 @@ function influxdb_line_msg(config)
         -- Use the decimal_precision config option to control the
         -- numbers after the decimal that are printed.
         if type(value) == "number" or string.match(value, "^[%d.]+$") then
-            value = string.format("%."..config.decimal_precision.."f", value)
+            value = string.format(decimal_format_string, value)
         end
 
         -- Format the line differently based on the presence of tags
@@ -254,6 +274,8 @@ function set_config(client_config)
         end
     end
 
+    decimal_format_string = "%."..module_config.decimal_precision.."f"
+
     -- Remove blacklisted fields from the set of base fields that we use, and
     -- create a table of dynamic fields to skip.
     if module_config.skip_fields_str then
@@ -279,4 +301,3 @@ function set_config(client_config)
 end
 
 return M
-

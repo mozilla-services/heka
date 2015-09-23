@@ -3,6 +3,7 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
+
 Parses a payload containing the output of nginx's stub status module:
 http://nginx.org/en/docs/http/ngx_http_stub_status_module.html
 

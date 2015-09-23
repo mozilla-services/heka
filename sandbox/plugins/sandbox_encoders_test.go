@@ -246,4 +246,98 @@ func EncoderSpec(c gs.Context) {
 			c.Expect(string(result), gs.Equals, expected)
 		})
 	})
+
+	c.Specify("schema influx line encoder", func() {
+		encoder := new(SandboxEncoder)
+		encoder.SetPipelineConfig(pConfig)
+		conf := encoder.ConfigStruct().(*SandboxEncoderConfig)
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		pack.Message.SetType("my_type")
+		pack.Message.SetPid(12345)
+		pack.Message.SetSeverity(4)
+		pack.Message.SetHostname("hostname")
+		pack.Message.SetTimestamp(54321 * 1e9)
+		pack.Message.SetLogger("Logger")
+		pack.Message.SetPayload("Payload value lorem ipsum")
+		pack.Message.SetUuid(uuid.Parse("8e414f01-9d7f-4a48-a5e1-ae92e5954df5"))
+
+		f, err := message.NewField("intField", 123, "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue(456)
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "0_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("0_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("strField", "1_first", "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue("1_second")
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		f, err = message.NewField("byteField", []byte("first"), "")
+		c.Assume(err, gs.IsNil)
+		err = f.AddValue([]byte("second"))
+		c.Assume(err, gs.IsNil)
+		pack.Message.AddField(f)
+
+		pack.EncodeMsgBytes()
+
+		conf.ScriptFilename = "../lua/encoders/schema_influx_line.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.Config = make(map[string]interface{})
+
+		c.Specify("encodes a message", func() {
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `byteField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="first" 54321000
+byteField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="second" 54321000
+strField_fidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="1_first" 54321000
+strField_fidx_1_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="1_second" 54321000
+strField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="0_first" 54321000
+strField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="0_second" 54321000
+intField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=123.000000 54321000
+intField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=456.000000 54321000
+`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+
+		c.Specify("skips specified fields", func() {
+			conf.Config["skip_fields"] = "strField"
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `intField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=456.000000 54321000
+byteField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="second" 54321000
+intField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=123.000000 54321000
+byteField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="first" 54321000
+`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+
+		c.Specify("honors tag_fields", func() {
+			conf.Config["multi_fields"] = true
+			conf.Config["tag_fields"] = "Hostname Logger strField"
+			conf.Config["skip_fields"] = "strField"
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `intField_vidx_1,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value=456.000000 54321000
+byteField_vidx_1,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value="second" 54321000
+intField,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value=123.000000 54321000
+byteField,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value="first" 54321000
+`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+	})
+
 }

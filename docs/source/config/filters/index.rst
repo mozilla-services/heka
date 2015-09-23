@@ -56,6 +56,7 @@ Available Filter Plugins
    frequent_items
    heka_memstat
    http_status
+   influx_batch
    load_avg
    mem_stats
    message_failures
