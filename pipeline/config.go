@@ -677,6 +677,10 @@ func (self *PipelineConfig) LoadConfig() error {
 	}
 
 	makersByCategory := self.makersByCategory
+	if len(makersByCategory) == 0 {
+		return errors.New("Empty configuration, exiting.")
+	}
+
 	var err error
 
 	multiDecoders := make([]multiDecoderNode, len(makersByCategory["MultiDecoder"]))
