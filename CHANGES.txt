@@ -1,4 +1,5 @@
 0.11.0 (2015-??-??)
+===================
 
 Backwards Incompatibilities
 ---------------------------
@@ -10,11 +11,6 @@ Bug Handling
 
 * Updated Sarama dependency from pre-1.0 release fork to fork (with only test
   code changes) of Sarama 1.5.0 release.
-
-* Ensure the response is read until it is complete in the HttpOutput plugin.
-  Previously, the deferred Body.Close() may have been called on incomplete
-  responses. This resulted in the connections not returning to the client's
-  Transport connection pool.
 
 Features
 --------
@@ -63,6 +59,11 @@ Bug Handling
 
 * Changes in StatAccumInput, FileOutput, TcpInput, ProcessDirectoryInput tests
   to minimize intermittent Travis failures.
+
+* Ensure the response is read until it is complete in the HttpOutput plugin.
+  Previously, the deferred Body.Close() may have been called on incomplete
+  responses. This resulted in the connections not returning to the client's
+  Transport connection pool.
 
 0.10.0b1 (2015-08-07)
 =====================
