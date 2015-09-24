@@ -26,12 +26,19 @@ Features
 0.10.0 (2015-??-??)
 ===================
 
+Backwards Incompatibilities
+---------------------------
+
+* `DecoderRunner` interface changed `SetSendFailure` to `SetFailureHandling`.
+
 Features
 --------
 
 * Added `set_hostname` option to UdpInput configuration (#1668).
 
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
+
+* Added `log_decode_failures` config value to decoders.
 
 Bug Handling
 ------------
