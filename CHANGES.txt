@@ -116,6 +116,10 @@ Backwards Incompatibilities
 * Major overhaul of filter and output plugin APIs to support disk buffering
   (#1378).
 
+* `queue_max_buffer_size` and `queue_full_action` config options for TcpOutput
+  and ElasticSearchOutput are now moved to `max_buffer_size` and `full_action`
+  in the `buffering` subsection (#1378).
+
 * Go 1.4 now required for building.
 
 * Deprecated the read_next_field() sandbox API; it is targeted for removal in
