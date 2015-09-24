@@ -32,6 +32,8 @@ Features
 
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
 
+* Added `print_decode_failures` config value to decoders.
+
 Bug Handling
 ------------
 
