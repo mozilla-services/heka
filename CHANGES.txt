@@ -33,6 +33,9 @@ Features
 
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
 
+* Adder `log_flags` to hekad config, to control the prefix for STDOUT and
+  STDERR logs.
+
 Bug Handling
 ------------
 

@@ -164,6 +164,14 @@ Config:
     The maximum size (in bytes) of message can be sent during processing.
     Defaults to 64KiB.
 
+.. versionadded:: 0.10
+
+- log_flags (int):
+    Control the prefix for STDOUT and STDERR logs. Does not control the
+    `LogOutput` plugin. Common values are 3 (date and time, the default) or 0
+    (no prefix). See `https://golang.org/pkg/log/#pkg-constants Go documentation`_
+    for details.
+
 Example hekad.toml file
 =======================
 
