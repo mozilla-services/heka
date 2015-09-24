@@ -337,6 +337,12 @@ func (m *pluginMaker) makeInputRunner(name string, config interface{}, input Inp
 			return nil, err
 		}
 	}
+	if commonInput.PrintDecodeFailures == nil {
+		commonInput.PrintDecodeFailures, err = getDefaultBool(config, "PrintDecodeFailures")
+		if err != nil {
+			return nil, err
+		}
+	}
 	if commonInput.CanExit == nil {
 		if commonInput.CanExit, err = getDefaultBool(config, "CanExit"); err != nil {
 			return nil, err
