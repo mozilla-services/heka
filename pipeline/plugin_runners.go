@@ -208,6 +208,8 @@ type iRunner struct {
 	syncDecode         bool
 	sendDecodeFailures bool
 	deliver            DeliverFunc
+	delivererOnce      sync.Once
+	delivererLock      sync.Mutex
 	canExit            bool
 	shutdownWanters    []WantsDecoderRunnerShutdown
 	shutdownLock       sync.Mutex
@@ -379,7 +381,6 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 }
 
 func (ir *iRunner) Unregister(pConfig *PipelineConfig) error {
-
 	// Send shutdown signal to any decoders that need it.
 	if len(ir.shutdownWanters) > 0 {
 		ir.shutdownLock.Lock()
@@ -388,7 +389,6 @@ func (ir *iRunner) Unregister(pConfig *PipelineConfig) error {
 		}
 		ir.shutdownLock.Unlock()
 	}
-
 	return nil
 }
 
@@ -511,7 +511,13 @@ func (ir *iRunner) NewDeliverer(token string) Deliverer {
 
 func (ir *iRunner) Deliver(pack *PipelinePack) {
 	if ir.deliver == nil {
-		ir.deliver, _, _ = ir.getDeliverFunc("")
+		// The lock keeps latecomers from hitting the `deliver` call before the
+		// first `getDeliverFunc` call has returned.
+		ir.delivererLock.Lock()
+		ir.delivererOnce.Do(func() {
+			ir.deliver, _, _ = ir.getDeliverFunc("")
+		})
+		ir.delivererLock.Unlock()
 	}
 	ir.deliver(pack)
 }
