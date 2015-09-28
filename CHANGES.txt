@@ -36,6 +36,8 @@ Features
 Bug Handling
 ------------
 
+* Fixed race condition in InputRunner's default deliverer initialization.
+
 * Set hostname correctly in the Graylog decoder (#1663).
 
 * Add sample rate support for gauge type in StatsdInput.
