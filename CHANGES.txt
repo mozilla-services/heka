@@ -68,6 +68,9 @@ Bug Handling
   responses. This resulted in the connections not returning to the client's
   Transport connection pool.
 
+* Fixed panic that was occurring when loading a config file or directory that
+  exists but which registers no plugins (#1597).
+
 0.10.0b1 (2015-08-07)
 =====================
 
