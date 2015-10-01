@@ -56,6 +56,8 @@ function process_message ()
     if not msg then return -1 end
 
     msg.Type = msg_type
+    msg.Timestamp = msg.time
+
     inject_message(msg)
     return 0
 end
