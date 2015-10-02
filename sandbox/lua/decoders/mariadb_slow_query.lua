@@ -16,14 +16,17 @@ Config:
 
 .. code-block:: ini
 
-    [Sync-1_5-SlowQuery]
+    [MariadbSlowQuery]
     type = "LogstreamerInput"
     log_directory = "/var/log/mariadb"
     file_match = 'mariadb-slow\.log'
-    parser_type = "regexp"
-    delimiter = "\n(# User@Host:)"
-    delimiter_location = "start"
+    splitter = "MariaDbSlowQuerySplitter"
     decoder = "MariaDbSlowQueryDecoder"
+
+    [MariaDbSlowQuerySplitter]
+    type = "RegexSplitter"
+    delimiter = '\n(# Time: )'
+    delimiter_eol = false
 
     [MariaDbSlowQueryDecoder]
     type = "SandboxDecoder"
@@ -36,10 +39,10 @@ Config:
 
 :Timestamp: 2014-05-07 15:51:28 -0700 PDT
 :Type: mariadb.slow-query
-:Hostname: 127.0.0.1
+:Hostname: test.example.com
 :Pid: 0
-:UUID: 5324dd93-47df-485b-a88e-429f0fcd57d6
-:Logger: Sync-1_5-SlowQuery
+:Uuid: 5324dd93-47df-485b-a88e-429f0fcd57d6
+:Logger: MariaDbSlowQuery
 :Payload: /* [queryName=FIND_ITEMS] */ SELECT bso.userid, bso.collection, ...
 :EnvVersion:
 :Severity: 7
