@@ -409,16 +409,18 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 	if response != nil {
 		defer response.Body.Close()
 		if response_body, err = ioutil.ReadAll(response.Body); err != nil {
-			return fmt.Errorf("Can't read HTTP response body. Status: %d. Error: %s", response.Status, err.Error()), true
+			return fmt.Errorf("Can't read HTTP response body. Status: %s. Error: %s",
+				response.Status, err.Error()), true
 		}
 		err = json.Unmarshal(response_body, &response_body_json)
 		if err != nil {
-			return fmt.Errorf("HTTP response didn't contain valid JSON. Status: %d. Body: %s",
+			return fmt.Errorf("HTTP response didn't contain valid JSON. Status: %s. Body: %s",
 				response.Status, string(response_body)), true
 		}
 		json_errors, ok := response_body_json["errors"].(bool)
 		if ok && json_errors {
-			return fmt.Errorf("ElasticSearch server reported error within JSON. Status: %d. Body: %s",
+			return fmt.Errorf(
+				"ElasticSearch server reported error within JSON. Status: %s. Body: %s",
 				response.Status, string(response_body)), false
 		}
 		if response.StatusCode > 304 {
