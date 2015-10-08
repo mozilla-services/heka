@@ -33,6 +33,8 @@ Features
 
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
 
+* Improved error output for ElasticSearchOutput HTTP failures.
+
 Bug Handling
 ------------
 
