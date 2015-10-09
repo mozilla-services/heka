@@ -42,6 +42,10 @@ Features
 
 * Added `log_decode_failures` config value to decoders.
 
+* Adder `log_flags` to hekad config, to control the prefix for STDOUT and
+  STDERR logs.
+
+
 Bug Handling
 ------------
 
