@@ -14,4 +14,4 @@ Restart=on-failure
 StandardError=inherit
 
 [Install]
-Alias=heka.service
+WantedBy=multi-user.target
