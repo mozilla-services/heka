@@ -26,6 +26,11 @@ Features
 0.10.0 (2015-??-??)
 ===================
 
+Backwards Incompatibilities
+---------------------------
+
+* `DecoderRunner` interface changed `SetSendFailure` to `SetFailureHandling`.
+
 Features
 --------
 
@@ -34,6 +39,8 @@ Features
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
 
 * Improved error output for ElasticSearchOutput HTTP failures.
+
+* Added `log_decode_failures` config value to decoders.
 
 Bug Handling
 ------------

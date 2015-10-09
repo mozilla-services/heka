@@ -675,8 +675,9 @@ output pack, additional ones can be obtained from the DecoderRunner's
 
 If decoding fails for any reason, then Decode should return a nil value for
 the PipelinePack slice and an appropriate error value. Returning an error will
-cause Heka to log an error message about the decoding failure. Additionally,
-if the associated input plugin's configuration set the ``send_decode_failure``
+cause Heka to log an error message about the decoding failure (if
+``log_decode_failures`` is true, which is the default). Additionally, if the
+associated input plugin's configuration set the ``send_decode_failure``
 value to true, the message will be tagged with ``decode_failure`` and
 ``decode_error`` fields and delivered to the router.
 
