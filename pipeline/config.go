@@ -539,13 +539,14 @@ type CommonConfig struct {
 }
 
 type CommonInputConfig struct {
-	Ticker             uint `toml:"ticker_interval"`
-	Decoder            string
-	Splitter           string
-	SyncDecode         *bool `toml:"synchronous_decode"`
-	SendDecodeFailures *bool `toml:"send_decode_failures"`
-	CanExit            *bool `toml:"can_exit"`
-	Retries            RetryOptions
+	Ticker              uint `toml:"ticker_interval"`
+	Decoder             string
+	Splitter            string
+	SyncDecode          *bool `toml:"synchronous_decode"`
+	SendDecodeFailures  *bool `toml:"send_decode_failures"`
+	LogDecodeFailures   *bool `toml:"log_decode_failures"`
+	CanExit             *bool `toml:"can_exit"`
+	Retries             RetryOptions
 }
 
 type CommonFOConfig struct {

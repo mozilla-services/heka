@@ -109,6 +109,8 @@ func main() {
 	if err != nil {
 		pipeline.LogError.Fatal("Error reading config: ", err)
 	}
+	pipeline.LogInfo.SetFlags(config.LogFlags)
+	pipeline.LogError.SetFlags(config.LogFlags)
 	if config.SampleDenominator <= 0 {
 		pipeline.LogError.Fatalln("'sample_denominator' value must be greater than 0.")
 	}
