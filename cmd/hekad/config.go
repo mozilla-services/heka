@@ -22,6 +22,7 @@ import (
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,8 @@ type HekadConfig struct {
 	SampleDenominator     int           `toml:"sample_denominator"`
 	PidFile               string        `toml:"pid_file"`
 	Hostname              string
-	MaxMessageSize        uint32 `toml:"max_message_size"`
+	MaxMessageSize        uint32        `toml:"max_message_size"`
+	LogFlags              int           `toml:"log_flags"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -69,6 +71,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		SampleDenominator:     1000,
 		PidFile:               "",
 		Hostname:              hostname,
+		LogFlags:              log.LstdFlags,
 	}
 
 	var configFile map[string]toml.Primitive
