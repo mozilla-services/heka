@@ -30,11 +30,11 @@ initialization code.
 	will happen synchronously and message delivery will not return control to
 	the input until after decoding has completed. Defaults to false.
 - send_decode_failures (bool, optional):
-	If false, then if an attempt to decode a message fails then Heka will log
-	an error message and then drop the message. If true, then in addition to
-	logging an error message, decode failure will cause the original,
-	undecoded message to be tagged with a `decode_failure` field (set to true)
-	and delivered to the router for possible further processing.
+	If true, then if an attempt to decode a message fails then decode failure
+	will cause the original, undecoded message to be tagged with a
+	`decode_failure` field (set to true) and delivered to the router for
+	possible further processing. Defaults to false. See also
+	`log_decode_failures`.
 - can_exit (bool, optional):
         If false, the input plugin exiting will trigger a Heka shutdown.  If
         set to true, Heka will continue processing other plugins.  Defaults to
@@ -46,6 +46,12 @@ initialization code.
 	decoding and/or injection to the router. Typically defaults to
 	"NullSplitter", although certain inputs override this with a different
 	default value.
+
+.. versionadded:: 0.10
+
+- log_decode_failures (bool, optional):
+	If true, then if an attempt to decode a message fails then Heka will log
+	an error message. Defaults to true. See also `send_decode_failures`.
 
 Available Input Plugins
 =======================

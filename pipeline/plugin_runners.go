@@ -199,20 +199,21 @@ type InputRunner interface {
 
 type iRunner struct {
 	pRunnerBase
-	input              Input
-	config             CommonInputConfig
-	pConfig            *PipelineConfig
-	inChan             chan *PipelinePack
-	ticker             <-chan time.Time
-	transient          bool
-	syncDecode         bool
-	sendDecodeFailures bool
-	deliver            DeliverFunc
-	delivererOnce      sync.Once
-	delivererLock      sync.Mutex
-	canExit            bool
-	shutdownWanters    []WantsDecoderRunnerShutdown
-	shutdownLock       sync.Mutex
+	input               Input
+	config              CommonInputConfig
+	pConfig             *PipelineConfig
+	inChan              chan *PipelinePack
+	ticker              <-chan time.Time
+	transient           bool
+	syncDecode          bool
+	sendDecodeFailures  bool
+	logDecodeFailures   bool
+	deliver             DeliverFunc
+	delivererOnce       sync.Once
+	delivererLock       sync.Mutex
+	canExit             bool
+	shutdownWanters     []WantsDecoderRunnerShutdown
+	shutdownLock        sync.Mutex
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -249,6 +250,9 @@ func NewInputRunner(name string, input Input, config CommonInputConfig) (ir Inpu
 	}
 	if config.SendDecodeFailures != nil {
 		runner.sendDecodeFailures = *config.SendDecodeFailures
+	}
+	if config.LogDecodeFailures != nil {
+		runner.logDecodeFailures = *config.LogDecodeFailures
 	}
 	if config.CanExit != nil && *config.CanExit {
 		runner.canExit = true
@@ -440,7 +444,7 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Dec
 	// its inChan.
 	if !ir.syncDecode {
 		dr, _ := ir.pConfig.DecoderRunner(decoderName, fullName)
-		dr.SetSendFailure(ir.sendDecodeFailures)
+		dr.SetFailureHandling(ir.logDecodeFailures, ir.sendDecodeFailures)
 		inChan := dr.InChan()
 		deliver = func(pack *PipelinePack) {
 			inChan <- pack
@@ -476,7 +480,9 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Dec
 		if err != nil {
 			errMsg := err.Error()
 			e := fmt.Errorf("decoding: %s", errMsg)
-			ir.LogError(e)
+			if ir.logDecodeFailures {
+				ir.LogError(e)
+			}
 			if !ir.sendDecodeFailures {
 				pack.recycle()
 				return
@@ -566,21 +572,22 @@ type DecoderRunner interface {
 	// for decoders that generate multiple messages from a single input
 	// message.
 	NewPack() *PipelinePack
-	// SetSendFailure allows the InputRunner to specify whether or not
+	// SetFailureHandling allows the InputRunner to specify whether or not
 	// messages that fail decoding should still be tagged and given to the
 	// router.
-	SetSendFailure(sendFailure bool)
+	SetFailureHandling(printFailure, sendFailure bool)
 }
 
 type dRunner struct {
 	pRunnerBase
-	decoder     Decoder
-	inChan      chan *PipelinePack
-	router      *messageRouter
-	h           PluginHelper
-	sendFailure bool
-	encodes     bool
-	globals     *GlobalConfigStruct
+	decoder      Decoder
+	inChan       chan *PipelinePack
+	router       *messageRouter
+	h            PluginHelper
+	printFailure bool
+	sendFailure  bool
+	encodes      bool
+	globals      *GlobalConfigStruct
 }
 
 // Creates and returns a new (but not yet started) DecoderRunner for the
@@ -626,7 +633,9 @@ func (dr *dRunner) start(h PluginHelper, wg *sync.WaitGroup) {
 			}
 		} else {
 			if err != nil {
-				dr.LogError(err)
+				if dr.printFailure {
+					dr.LogError(err)
+				}
 				if dr.sendFailure {
 					if err = AddDecodeFailureFields(pack.Message, err.Error()); err != nil {
 						dr.LogError(err)
@@ -685,7 +694,8 @@ func (dr *dRunner) LogMessage(msg string) {
 	LogInfo.Printf("Decoder '%s': %s", dr.name, msg)
 }
 
-func (dr *dRunner) SetSendFailure(sendFailure bool) {
+func (dr *dRunner) SetFailureHandling(printFailure, sendFailure bool) {
+	dr.printFailure = printFailure
 	dr.sendFailure = sendFailure
 }
 
