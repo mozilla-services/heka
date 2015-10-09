@@ -33,7 +33,8 @@ type LogOutput struct {
 }
 
 func (self *LogOutput) Init(config interface{}) (err error) {
-	return
+	logOut.SetFlags(LogInfo.Flags())
+	return err
 }
 
 func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {

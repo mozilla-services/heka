@@ -5,7 +5,8 @@ Log Output
 
 Plugin Name: **LogOutput**
 
-Logs messages to stdout using Go's `log` package.
+Logs messages to stdout using Go's `log` package. Honors hekad's global
+``log_flags`` setting.
 
 Config:
 
