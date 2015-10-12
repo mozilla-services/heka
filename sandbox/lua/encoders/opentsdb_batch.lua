@@ -47,7 +47,7 @@ Config:
 
     [OpentsdbEncoder]
     type = "SandboxEncoder"
-    filename = "lua_encoders/opentsdb_http.lua"
+    filename = "lua_encoders/opentsdb_batch.lua"
 
       [OpentsdbEncoder.config]
       ts_from_message = true
