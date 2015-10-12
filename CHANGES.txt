@@ -22,6 +22,8 @@ Features
   into alternate locations; useful for relocating forks of Go packages into
   their original import paths.
 
+* Adde encoder for OpenTSDB
+
 0.10.0 (2015-??-??)
 =====================
 

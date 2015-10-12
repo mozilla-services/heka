@@ -26,6 +26,12 @@ ESPayloadEncoder
    :start-after: --[[
    :end-before: --]]
 
+OpenTSDBEncoder
+^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/encoders/opentsdb_batch.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Schema Carbon Line Encoder
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/encoders/schema_carbon_line.lua
