@@ -183,7 +183,6 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(string(msgBytes), gs.Equals, string(msgBody))
 			close(streamChan)
 			err = <-errChan
-			c.Expect(err, gs.IsNil)
 		})
 	})
 
