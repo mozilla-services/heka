@@ -145,7 +145,8 @@ function process_message()
     if tag then
       tags[tag] = value
     else
-      if type(value) == "number" and not skip_fields[name] then
+      value = tonumber(value)
+      if value and not skip_fields[name] then
         if type_as_prefix then
           name = string.format("%s.%s", typ, name)
         end
