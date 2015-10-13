@@ -69,7 +69,7 @@ l.locale(l)
 local sp = l.space
 local num = l.digit^1 / tonumber
 
-function extract_quote(openp,endp)
+local function extract_quote(openp,endp)
     openp = l.P(openp)
     endp = endp and l.P(endp) or openp
     local upto_endp = (1 - endp)^0 
