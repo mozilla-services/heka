@@ -76,7 +76,8 @@ require "table"
 require "string"
 require "os"
 
-local l = require 'lpeg'
+local math = require "math"
+local l = require "lpeg"
 l.locale(l)
 
 local flush_count     = read_config("flush_count") or 1
@@ -123,7 +124,7 @@ function process_message()
 
   local ts
   if ts_from_message then
-    ts = read_message("Timestamp") / 1e9
+    ts = math.floor(read_message("Timestamp") / 1e9)
   else
     ts = os.time()
   end
