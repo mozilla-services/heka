@@ -410,7 +410,7 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 		expectedN int64
 	)
 	if seekPos >= 0 {
-		n, err = reader.Read(buf)
+		n, err = io.ReadFull(reader, buf)
 		expectedN = int64(LINEBUFFERLEN)
 	} else {
 		n, err = reader.Read(buf[-seekPos:])
