@@ -170,6 +170,11 @@ git_clone(https://github.com/davecgh/go-spew 2df174808ee097f90d259e432cc04442cf6
 
 add_dependencies(sarama snappy)
 
+git_clone(https://github.com/philhofer/fwd 8fd9a4b75098b2125fe442e48a3ffbf738254e13)
+git_clone(https://github.com/tinylib/msgp cd4fb1548c31d88af25205dc021be20935aec720)
+git_clone(https://github.com/fluent-logger-golang e781f26187b040b56b1ce871bb4bbcca0d6abe5f)
+add_dependencies(fluent-logger-golang msgp fwd)
+
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
 endif()
