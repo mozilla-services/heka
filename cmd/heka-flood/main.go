@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/bbangert/toml"
+	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
@@ -249,6 +250,37 @@ func CreateHekaStream(msgBytes []byte, outBytes *[]byte) error {
 	return nil
 }
 
+type FluentEncoder struct{}
+
+func (f *FluentEncoder) EncodeMessage(msg *message.Message) (b []byte, err error) {
+	fluentMsg := &fluent.Message{
+		Tag:  "heka.flood",
+		Time: msg.GetTimestamp() / 1000000000,
+		Record: map[string]string{
+			"uuid":       uuid.UUID(msg.GetUuid()).String(),
+			"severity":   fmt.Sprintf("%v", msg.GetSeverity()),
+			"envVersion": msg.GetEnvVersion(),
+			"pid":        fmt.Sprintf("%v", msg.GetPid()),
+			"hostname":   msg.GetHostname(),
+			"payload":    msg.GetPayload(),
+			"logger":     msg.GetLogger(),
+			"type":       msg.GetType(),
+		},
+	}
+	return fluentMsg.MarshalMsg(nil)
+}
+
+func (f *FluentEncoder) EncodeMessageStream(msg *message.Message,
+	outBytes *[]byte) (err error) {
+
+	msgBytes, err := f.EncodeMessage(msg)
+	if err != nil {
+		return err
+	}
+	*outBytes = msgBytes
+	return
+}
+
 func makeFixedMessage(encoder client.StreamEncoder, size uint64,
 	rdm *randomDataMaker) [][]byte {
 
@@ -371,9 +403,20 @@ func main() {
 		}
 	}
 
-	unsignedEncoder := client.NewProtobufEncoder(nil)
-	signedEncoder := client.NewProtobufEncoder(&test.Signer)
-	oversizedEncoder := &OversizedEncoder{}
+	var unsignedEncoder, signedEncoder, oversizedEncoder client.StreamEncoder
+
+	if test.Encoder == "" || test.Encoder == "protobuf" {
+		unsignedEncoder = client.NewProtobufEncoder(nil)
+		signedEncoder = client.NewProtobufEncoder(&test.Signer)
+		oversizedEncoder = &OversizedEncoder{}
+	} else if test.Encoder == "fluent" {
+		unsignedEncoder = &FluentEncoder{}
+		oversizedEncoder = &FluentEncoder{}
+		test.SignedPercentage = 0 // Signed messages are not supported
+	} else {
+		fmt.Println("Unknown encoder: ", test.Encoder)
+		return
+	}
 
 	var numTestMessages = 1
 	var unsignedMessages [][]byte
@@ -388,16 +431,19 @@ func main() {
 	if test.VariableSizeMessages {
 		numTestMessages = 64
 		unsignedMessages = makeVariableMessage(unsignedEncoder, numTestMessages, rdm, false)
-		signedMessages = makeVariableMessage(signedEncoder, numTestMessages, rdm, false)
+		if signedEncoder != nil {
+			signedMessages = makeVariableMessage(signedEncoder, numTestMessages, rdm, false)
+		}
 		oversizedMessages = makeVariableMessage(oversizedEncoder, 1, rdm, true)
 	} else {
 		if test.StaticMessageSize == 0 {
 			test.StaticMessageSize = 1000
 		}
-		unsignedMessages = makeFixedMessage(unsignedEncoder, test.StaticMessageSize,
-			rdm)
-		signedMessages = makeFixedMessage(signedEncoder, test.StaticMessageSize,
-			rdm)
+		unsignedMessages = makeFixedMessage(unsignedEncoder, test.StaticMessageSize, rdm)
+
+		if signedEncoder != nil {
+			signedMessages = makeFixedMessage(signedEncoder, test.StaticMessageSize, rdm)
+		}
 	}
 	// wait for sigint
 	sigChan := make(chan os.Signal, 1)

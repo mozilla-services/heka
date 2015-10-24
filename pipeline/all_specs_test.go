@@ -48,6 +48,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(SplitterRunnerSpec)
 	r.AddSpec(StatAccumInputSpec)
 	r.AddSpec(TokenSpec)
+	r.AddSpec(MessagePackSpec)
 
 	gospec.MainGoTest(r, t)
 }

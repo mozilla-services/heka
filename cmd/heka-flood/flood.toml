@@ -99,3 +99,16 @@ signed_percentage   = 100.0
     hmac_hash       = "md5"
     hmac_key        = "4865ey9urgkidls xtb0[7lf9rzcivthkm"
     version          = 0
+
+[fluent]                                   # real world some errors, variable size messages
+ip_address          = "127.0.0.1:24224"
+sender              = "tcp"                 # tcp or udp
+pprof_file          = ""
+num_messages        = 1000000                     # number of message to send 0 = infinite
+corrupt_percentage  = 0.0                # 1 in a million
+signed_percentage   = 0.0
+oversized_percentage  = 0.0
+variable_size_messages = false
+encoder             = "fluent"
+ascii_only = true
+
