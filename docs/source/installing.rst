@@ -34,7 +34,6 @@ Prerequisites (all systems):
 - CMake 3.0.0 or greater http://www.cmake.org/cmake/resources/software.html
 - Git http://git-scm.com/download
 - Go 1.4 or greater http://golang.org/dl/
-- Mercurial http://mercurial.selenic.com/wiki/Download
 - Protobuf 2.3 or greater (optional - only needed if message.proto is modified) http://code.google.com/p/protobuf/downloads/list
 - Sphinx (optional - used to generate the documentation) http://sphinx-doc.org/
 - An internet connection to fetch sub modules
