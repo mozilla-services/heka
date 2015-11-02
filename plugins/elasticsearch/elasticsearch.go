@@ -381,6 +381,10 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 	var response_body []byte
 	var response_body_json map[string]interface{}
 
+	if len(body) == 0 {
+		return nil, false
+	}
+
 	url := fmt.Sprintf("%s://%s%s%s", h.Protocol, h.Domain, h.Path, "/_bulk")
 
 	// Creating ElasticSearch Bulk HTTP request
