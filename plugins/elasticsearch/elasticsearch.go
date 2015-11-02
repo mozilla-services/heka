@@ -426,7 +426,7 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 				response.Status, string(response_body)), true
 		}
 		json_errors, ok := response_body_json["errors"].(bool)
-		if ok && json_errors {
+		if ok && json_errors && response.StatusCode != 200 {
 			return fmt.Errorf(
 				"ElasticSearch server reported error within JSON. Status: %s. Body: %s",
 				response.Status, string(response_body)), false
