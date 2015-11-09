@@ -79,7 +79,7 @@ func (re *RstEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err er
 	// Writing out the message attributes is easy.
 	buf := new(bytes.Buffer)
 	buf.WriteString("\n")
-	timestamp := time.Unix(0, pack.Message.GetTimestamp()).UTC()
+	timestamp := time.Unix(pack.Message.GetTimestamp(), 0).Local()
 	re.writeAttr(buf, "Timestamp", timestamp.String())
 	re.writeAttr(buf, "Type", pack.Message.GetType())
 	re.writeAttr(buf, "Hostname", pack.Message.GetHostname())
