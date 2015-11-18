@@ -199,21 +199,21 @@ type InputRunner interface {
 
 type iRunner struct {
 	pRunnerBase
-	input               Input
-	config              CommonInputConfig
-	pConfig             *PipelineConfig
-	inChan              chan *PipelinePack
-	ticker              <-chan time.Time
-	transient           bool
-	syncDecode          bool
-	sendDecodeFailures  bool
-	logDecodeFailures   bool
-	deliver             DeliverFunc
-	delivererOnce       sync.Once
-	delivererLock       sync.Mutex
-	canExit             bool
-	shutdownWanters     []WantsDecoderRunnerShutdown
-	shutdownLock        sync.Mutex
+	input              Input
+	config             CommonInputConfig
+	pConfig            *PipelineConfig
+	inChan             chan *PipelinePack
+	ticker             <-chan time.Time
+	transient          bool
+	syncDecode         bool
+	sendDecodeFailures bool
+	logDecodeFailures  bool
+	deliver            DeliverFunc
+	delivererOnce      sync.Once
+	delivererLock      sync.Mutex
+	canExit            bool
+	shutdownWanters    []WantsDecoderRunnerShutdown
+	shutdownLock       sync.Mutex
 }
 
 func (ir *iRunner) Ticker() (ticker <-chan time.Time) {
@@ -314,7 +314,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 	if err != nil {
 		ir.LogError(err)
 		if !ir.IsStoppable() {
-			globals.ShutDown()
+			globals.ShutDown(1)
 		}
 		return
 	}
@@ -380,7 +380,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 
 	// If we're not a stoppable input, trigger Heka shutdown.
 	if !ir.IsStoppable() {
-		globals.ShutDown()
+		globals.ShutDown(1)
 	}
 }
 
@@ -957,8 +957,41 @@ func (foRunner *foRunner) BackPressured() bool {
 		return len(foRunner.inChan) >= foRunner.capacity ||
 			foRunner.matcher.InChanLen() >= foRunner.capacity
 	}
-
 	return foRunner.capacity > 0 && foRunner.bufReader.queueSize.Get() >= uint64(foRunner.capacity)
+}
+
+func (foRunner *foRunner) waitForBackPressure() error {
+	globals := foRunner.pConfig.Globals
+	retryOptions := getDefaultRetryOptions()
+	retryOptions.MaxDelay = "1s"
+	retryOptions.MaxRetries = int(globals.FullBufferMaxRetries)
+	// NewRetryHelper will only return an error if the duration strings don't
+	// parse. Ours are hard-coded, so this error shouldn't happen.
+	retry, err := NewRetryHelper(retryOptions)
+	if err != nil {
+		return fmt.Errorf("can't create retry helper: %s", err.Error())
+	}
+	for !globals.IsShuttingDown() {
+		bp := foRunner.BackPressured()
+		fmt.Println("back-pressured?: ", bp)
+		if !bp {
+			return nil
+		}
+		err = retry.Wait()
+		if err != nil {
+			// We've exhausted our max allowed retries, so we honor the
+			// buffer's 'full_action' setting and trigger a shutdown if
+			// necessary.
+			if foRunner.bufReader.config.FullAction == "shutdown" {
+				globals.ShutDown(1)
+				foRunner.LogError(errors.New("back-pressure not resolving: triggering shutdown"))
+			}
+			// But we always return `nil` so that regular start up sequence can
+			// continue.
+			return nil
+		}
+	}
+	return nil
 }
 
 func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
@@ -1034,6 +1067,14 @@ func (foRunner *foRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) 
 	} else {
 		go foRunner.OldStarter(h, wg)
 	}
+
+	if foRunner.useBuffering && foRunner.BackPressured() {
+		foRunner.LogMessage("Delaying start while trying to relieve back-pressure...")
+		if err = foRunner.waitForBackPressure(); err != nil {
+			return err
+		}
+	}
+
 	return
 }
 
@@ -1145,7 +1186,7 @@ func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 	if err != nil {
 		foRunner.LogError(err)
 		if !foRunner.IsStoppable() {
-			globals.ShutDown()
+			globals.ShutDown(1)
 		}
 		return
 	}
@@ -1183,7 +1224,7 @@ func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 			// No more retries.
 			foRunner.lastErr = err
 			if !foRunner.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			return
 		}
@@ -1308,7 +1349,7 @@ func (foRunner *foRunner) exit() {
 	// Also, if this isn't a "stoppable" plugin we shut everything down.
 	if !foRunner.IsStoppable() {
 		foRunner.LogMessage("has stopped, shutting down.")
-		foRunner.pConfig.Globals.ShutDown()
+		foRunner.pConfig.Globals.ShutDown(1)
 		return
 	}
 
@@ -1424,7 +1465,7 @@ func (foRunner *foRunner) OldStarter(helper PluginHelper, wg *sync.WaitGroup) {
 	if err != nil {
 		foRunner.LogError(err)
 		if !foRunner.IsStoppable() {
-			globals.ShutDown()
+			globals.ShutDown(1)
 		}
 		return
 	}

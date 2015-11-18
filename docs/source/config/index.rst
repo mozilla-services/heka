@@ -171,6 +171,14 @@ Config:
     and time, the default) or 0 (no prefix). See
     `https://golang.org/pkg/log/#pkg-constants Go documentation`_ for details.
 
+- full_buffer_max_retries (int):
+    When Heka shuts down due to a buffer filling to capacity, the next time
+    Heka starts it will delay startup briefly to give the buffer a chance to
+    drain, to alleviate the back-pressure. This setting specifies the maximum
+    number of intervals (max 1s in duration) Heka should wait for the buffer
+    size to get below 90% of capacity before deciding that the issue is not
+    resolved and continuing startup (or shutting down).
+
 Example hekad.toml file
 =======================
 

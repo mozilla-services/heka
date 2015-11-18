@@ -366,7 +366,7 @@ func (mr *MatchRunner) deliver(pack *PipelinePack) error {
 		if err == QueueIsFull {
 			switch mr.bufFeeder.Config.FullAction {
 			case "shutdown":
-				mr.globals.ShutDown()
+				mr.globals.ShutDown(1)
 			case "block":
 				for {
 					err = mr.bufFeeder.QueueRecord(pack)
