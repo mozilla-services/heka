@@ -55,6 +55,9 @@ Config:
     All of the :ref:`buffering <buffering>` config options are set to the
     standard default options, except for `cursor_update_count`, which is set to
     50 instead of the standard default of 1.
+- reconnect_after (int, optional):
+    Re-establish the TCP connection after the specified number of successfully
+    delivered messages.  Defaults to 0 (no reconnection).
 
 Example:
 

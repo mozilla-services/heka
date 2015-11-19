@@ -61,6 +61,9 @@ type TcpOutputConfig struct {
 	KeepAlive bool `toml:"keep_alive"`
 	// Integer indicating seconds between keep alives.
 	KeepAlivePeriod int `toml:"keep_alive_period"`
+	// Number of successfully processed messages to re-establish the TCP
+	// connection after.  Defaults to 0 (never)
+	ReconnectAfter int64 `toml:"reconnect_after"`
 	// Specifies whether or not Heka's stream framing wil be applied to the
 	// output. We do some magic to default to true if ProtobufEncoder is used,
 	// false otherwise.
@@ -166,6 +169,11 @@ func (t *TcpOutput) ProcessMessage(pack *PipelinePack) (err error) {
 	} else {
 		atomic.AddInt64(&t.processMessageCount, 1)
 		t.or.UpdateCursor(pack.QueueCursor)
+		if t.conf.ReconnectAfter > 0 &&
+			atomic.LoadInt64(&t.processMessageCount)%t.conf.ReconnectAfter == 0 {
+
+			t.cleanupConn()
+		}
 	}
 
 	return err
