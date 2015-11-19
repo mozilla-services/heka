@@ -263,7 +263,7 @@ func (sm *StatAccumInput) Flush() {
 	countPercentThreshold := len(sm.config.PercentThreshold)
 	for key, timings := range sm.timers {
 		timerNs := globalNs.Namespace(sm.config.TimerPrefix).Namespace(key)
-		var min, max, sum, mean, rate, thresholdBoundary  float64
+		var min, max, sum, mean, rate, thresholdBoundary float64
 		meanPercentile := make([]float64, countPercentThreshold)
 		upperPercentile := make([]float64, countPercentThreshold)
 		count := len(timings)
@@ -281,7 +281,7 @@ func (sm *StatAccumInput) Flush() {
 			max = timings[count-1]
 			mean = min
 
-			for i := 0; i < countPercentThreshold; i++{
+			for i := 0; i < countPercentThreshold; i++ {
 				tmp := ((100.0 - float64(sm.config.PercentThreshold[i])) / 100.0) * float64(count)
 				numInThreshold := count - int(math.Floor(tmp+0.5)) // simulate JS Math.round(x)
 
@@ -338,7 +338,7 @@ func (sm *StatAccumInput) Flush() {
 	pack.Message.SetHostname(sm.pConfig.hostname)
 	pack.Message.SetPid(sm.pConfig.pid)
 	pack.Message.SetPayload(buffer.String())
-	sm.ir.Inject(pack)
+	sm.ir.Deliver(pack)
 }
 
 type statsEmitters struct {

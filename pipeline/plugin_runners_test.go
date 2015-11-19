@@ -224,11 +224,11 @@ func InputRunnerSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
 				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
-				close(d.dRunner.InChan())
 
 				pack.Recycle(nil)
 				input.Stop()
 				wg.Wait()
+				close(d.dRunner.InChan())
 			})
 
 			c.Specify("when using a decoder", func() {

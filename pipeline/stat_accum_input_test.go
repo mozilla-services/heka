@@ -95,14 +95,14 @@ func StatAccumInputSpec(c gs.Context) {
 			}
 
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			// Need one of these for every Inject
+			// Need one of these for every message delivered.
 			ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
 
-			injectCall := ith.MockInputRunner.EXPECT().Inject(ith.Pack)
-			var injectCalled sync.WaitGroup
-			injectCalled.Add(1)
-			injectCall.Do(func(pack *PipelinePack) {
-				injectCalled.Done()
+			deliverCall := ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
+			var deliverCalled sync.WaitGroup
+			deliverCalled.Add(1)
+			deliverCall.Do(func(pack *PipelinePack) {
+				deliverCalled.Done()
 			})
 
 			c.Specify("using normal namespaces", func() {
@@ -229,11 +229,11 @@ func StatAccumInputSpec(c gs.Context) {
 					drainStats()
 					tickChan <- time.Now()
 
-					injectCalled.Wait()
+					deliverCalled.Wait()
 					ith.Pack.Recycle(nil)
 					ith.PackSupply <- ith.Pack
 					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
-					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+					ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
 
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
@@ -255,14 +255,14 @@ func StatAccumInputSpec(c gs.Context) {
 					sendTimer("sample.timer", 10, 10, 20, 20)
 					drainStats()
 					tickChan <- time.Now()
-					injectCalled.Wait()
+					deliverCalled.Wait()
 
 					sendTimer("sample2.timer", 10, 20)
 					drainStats()
 					ith.Pack.Recycle(nil)
 					ith.PackSupply <- ith.Pack
 					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
-					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+					ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
 					validateValueAtKey(msg, "stats.statsd.numStats", int64(1))
@@ -396,15 +396,15 @@ func StatAccumInputSpec(c gs.Context) {
 					}
 					tickChan <- time.Now()
 
-					// Don't try to validate our message payload until Inject has
+					// Don't try to validate our message payload until Deliver has
 					// been called.
-					injectCalled.Wait()
+					deliverCalled.Wait()
 					validateMsgPayload(ith.Pack.Message)
 
 					// Prep pack and EXPECTS for the close.
 					ith.PackSupply <- ith.Pack
 					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
-					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
+					ith.MockInputRunner.EXPECT().Deliver(ith.Pack)
 
 					close(statAccumInput.statChan)
 					err = <-runErrChan
