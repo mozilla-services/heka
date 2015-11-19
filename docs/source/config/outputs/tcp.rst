@@ -55,6 +55,11 @@ Config:
     All of the :ref:`buffering <buffering>` config options are set to the
     standard default options, except for `cursor_update_count`, which is set to
     50 instead of the standard default of 1.
+- close_after_write (bool, optional):
+    Specifies whether or not the TCP socket should be closed after Heka
+    successfully writes a message. This option exists to deal with buggy TCP
+    servers that close their socket before our Heka client does. This should
+    only be enabled if you absolutely need it. Defaults to false.
 
 Example:
 

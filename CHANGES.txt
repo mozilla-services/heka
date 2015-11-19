@@ -9,6 +9,8 @@ Backwards Incompatibilities
 Features
 --------
 
+* Added `close_after_write` option to TcpOutput.
+
 * Added `set_hostname` option to UdpInput configuration (#1668).
 
 * Added `linux_netdev` and `linux_netstat` decoders (#1712).
