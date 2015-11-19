@@ -170,7 +170,9 @@ func (t *TcpOutput) ProcessMessage(pack *PipelinePack) (err error) {
 	} else {
 		atomic.AddInt64(&t.processMessageCount, 1)
 		t.or.UpdateCursor(pack.QueueCursor)
-		if t.conf.ReconnectAfter > 0 && atomic.LoadInt64(&t.processMessageCount)%t.conf.ReconnectAfter == 0 {
+		if t.conf.ReconnectAfter > 0 &&
+			atomic.LoadInt64(&t.processMessageCount)%t.conf.ReconnectAfter == 0 {
+
 			t.cleanupConn()
 		}
 	}
