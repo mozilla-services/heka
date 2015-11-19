@@ -19,38 +19,37 @@ package main
 
 import (
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/pipeline"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 type HekadConfig struct {
-	Maxprocs              int           `toml:"maxprocs"`
-	PoolSize              int           `toml:"poolsize"`
-	ChanSize              int           `toml:"plugin_chansize"`
-	CpuProfName           string        `toml:"cpuprof"`
-	MemProfName           string        `toml:"memprof"`
-	MaxMsgLoops           uint          `toml:"max_message_loops"`
-	MaxMsgProcessInject   uint          `toml:"max_process_inject"`
-	MaxMsgProcessDuration uint64        `toml:"max_process_duration"`
-	MaxMsgTimerInject     uint          `toml:"max_timer_inject"`
-	MaxPackIdle           time.Duration `toml:"max_pack_idle"`
-	BaseDir               string        `toml:"base_dir"`
-	ShareDir              string        `toml:"share_dir"`
-	SampleDenominator     int           `toml:"sample_denominator"`
-	PidFile               string        `toml:"pid_file"`
+	Maxprocs              int    `toml:"maxprocs"`
+	PoolSize              int    `toml:"poolsize"`
+	ChanSize              int    `toml:"plugin_chansize"`
+	CpuProfName           string `toml:"cpuprof"`
+	MemProfName           string `toml:"memprof"`
+	MaxMsgLoops           uint   `toml:"max_message_loops"`
+	MaxMsgProcessInject   uint   `toml:"max_process_inject"`
+	MaxMsgProcessDuration uint64 `toml:"max_process_duration"`
+	MaxMsgTimerInject     uint   `toml:"max_timer_inject"`
+	MaxPackIdle           string `toml:"max_pack_idle"`
+	BaseDir               string `toml:"base_dir"`
+	ShareDir              string `toml:"share_dir"`
+	SampleDenominator     int    `toml:"sample_denominator"`
+	PidFile               string `toml:"pid_file"`
 	Hostname              string
-	MaxMessageSize        uint32        `toml:"max_message_size"`
-	LogFlags              int           `toml:"log_flags"`
+	MaxMessageSize        uint32 `toml:"max_message_size"`
+	LogFlags              int    `toml:"log_flags"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
-	idle, _ := time.ParseDuration("2m")
 	hostname, err := os.Hostname()
 	if err != nil {
 		return
@@ -65,7 +64,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		MaxMsgProcessInject:   1,
 		MaxMsgProcessDuration: 100000,
 		MaxMsgTimerInject:     10,
-		MaxPackIdle:           idle,
+		MaxPackIdle:           "2m",
 		BaseDir:               filepath.FromSlash("/var/cache/hekad"),
 		ShareDir:              filepath.FromSlash("/usr/share/heka"),
 		SampleDenominator:     1000,

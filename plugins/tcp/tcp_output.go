@@ -82,10 +82,11 @@ func (t *TcpOutput) ConfigStruct() interface{} {
 		FullAction:        "shutdown",
 	}
 	return &TcpOutputConfig{
-		Address:      "localhost:9125",
-		Encoder:      "ProtobufEncoder",
-		UseBuffering: &b,
-		Buffering:    queueConfig,
+		Address:         "localhost:9125",
+		Encoder:         "ProtobufEncoder",
+		CloseAfterWrite: false,
+		UseBuffering:    &b,
+		Buffering:       queueConfig,
 	}
 }
 

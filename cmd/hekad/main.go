@@ -31,6 +31,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
@@ -67,6 +68,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	maxMsgProcessInject := config.MaxMsgProcessInject
 	maxMsgProcessDuration := config.MaxMsgProcessDuration
 	maxMsgTimerInject := config.MaxMsgTimerInject
+	maxPackIdle, _ := time.ParseDuration(config.MaxPackIdle)
 
 	runtime.GOMAXPROCS(maxprocs)
 
@@ -80,6 +82,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.MaxMsgProcessInject = maxMsgProcessInject
 	globals.MaxMsgProcessDuration = maxMsgProcessDuration
 	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.MaxPackIdle = maxPackIdle
 	globals.BaseDir = config.BaseDir
 	globals.ShareDir = config.ShareDir
 	globals.SampleDenominator = config.SampleDenominator
@@ -114,6 +117,11 @@ func main() {
 	if config.SampleDenominator <= 0 {
 		pipeline.LogError.Fatalln("'sample_denominator' value must be greater than 0.")
 	}
+
+	if _, err = time.ParseDuration(config.MaxPackIdle); err != nil {
+		pipeline.LogError.Fatalf("Can't parse `max_pack_idle` time duration: %s\n", config.MaxPackIdle)
+	}
+
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
