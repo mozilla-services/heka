@@ -344,7 +344,7 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 				break
 			}
 
-			// Otherwise we'll execute the Retry config
+			// Otherwise we'll execute the Retry config.
 			recon.CleanupForRestart()
 			if ir.maker == nil {
 				ir.pConfig.makersLock.RLock()
@@ -364,10 +364,16 @@ func (ir *iRunner) Starter(h PluginHelper, wg *sync.WaitGroup) {
 			ir.LogMessage(fmt.Sprintf("Restarting (attempt %d/%d)\n",
 				rh.times, rh.retries))
 
-			// If we've not been created elsewhere, call the plugin's Init()
+			// If we've not been created elsewhere, call the plugin's Init().
 			if !ir.transient {
-				if err = ir.plugin.Init(ir.maker.Config()); err != nil {
-					// We couldn't reInit the plugin, do a mini-retry loop
+				var config interface{}
+				if config, err = ir.maker.PrepConfig(); err != nil {
+					// We couldn't reInit the plugin, do a mini-retry loop.
+					ir.LogError(err)
+					goto initLoop
+				}
+				if err = ir.plugin.Init(config); err != nil {
+					// We couldn't reInit the plugin, do a mini-retry loop.
 					ir.LogError(err)
 					goto initLoop
 				}
@@ -1292,7 +1298,12 @@ func (foRunner *foRunner) Starter(plugin MessageProcessor, h PluginHelper,
 			break
 		}
 		foRunner.LogMessage("now restarting")
-		if err = foRunner.plugin.Init(foRunner.maker.Config()); err != nil {
+		var config interface{}
+		if config, err = foRunner.maker.PrepConfig(); err != nil {
+			foRunner.LogError(err)
+			goto initLoop
+		}
+		if err = foRunner.plugin.Init(config); err != nil {
 			foRunner.LogError(err)
 			goto initLoop
 		}
@@ -1538,7 +1549,12 @@ func (foRunner *foRunner) OldStarter(helper PluginHelper, wg *sync.WaitGroup) {
 			break
 		}
 		foRunner.LogMessage("now restarting")
-		if err = foRunner.plugin.Init(foRunner.maker.Config()); err != nil {
+		var config interface{}
+		if config, err = foRunner.maker.PrepConfig(); err != nil {
+			foRunner.LogError(err)
+			goto initLoop
+		}
+		if err = foRunner.plugin.Init(config); err != nil {
 			foRunner.LogError(err)
 			goto initLoop
 		}

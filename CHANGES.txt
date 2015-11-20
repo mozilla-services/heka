@@ -26,6 +26,9 @@ Features
 Bug Handling
 ------------
 
+* Fixed error where restarting plugins were losing specified configuration
+  (#1756).
+
 * Fixed config error where global `max_pack_idle` setting was the wrong type
   and was being ignored (#1778).
 
