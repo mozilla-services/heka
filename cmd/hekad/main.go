@@ -87,6 +87,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.ShareDir = config.ShareDir
 	globals.SampleDenominator = config.SampleDenominator
 	globals.Hostname = config.Hostname
+	globals.FullBufferMaxRetries = uint(config.FullBufferMaxRetries)
 
 	return globals, cpuProfName, memProfName
 }

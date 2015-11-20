@@ -169,7 +169,7 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			s.sb.Destroy("")
 			s.sb = nil
 		}
-		s.pConfig.Globals.ShutDown()
+		s.pConfig.Globals.ShutDown(1)
 		return
 	}
 
@@ -306,7 +306,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	if retval > 0 {
 		err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(err)
-		s.pConfig.Globals.ShutDown()
+		s.pConfig.Globals.ShutDown(1)
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)

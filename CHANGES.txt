@@ -64,6 +64,9 @@ Bug Handling
 * Fixed panic that was occurring when loading a config file or directory that
   exists but which registers no plugins (#1597).
 
+* Delay start up when a buffered plugin's buffer is at capacity to give the
+  back-pressure time to resolve (#1738).
+
 * Fixed bug where LogStreamerInput would sometimes loop infinitely reading the
   same file over and over when reading gzipped log files.
 
