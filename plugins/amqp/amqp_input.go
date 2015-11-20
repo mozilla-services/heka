@@ -175,7 +175,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	stream, err := ai.ch.Consume(ai.config.Queue, "", false, ai.config.QueueExclusive,
 		false, false, nil)
 	if err != nil {
-		return
+		return fmt.Errorf("Cannot consume from queue %s: %s", ai.config.Queue, err)
 	}
 
 	sRunner := ir.NewSplitterRunner("")
@@ -203,7 +203,8 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 		msg.Ack(false)
 	}
-	return nil
+	// return an error message to trigger a potential restart of the plugin
+	return fmt.Errorf("Channel closed while reading from queue %s",  ai.config.Queue)
 }
 
 func (ai *AMQPInput) CleanupForRestart() {
