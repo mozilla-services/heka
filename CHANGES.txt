@@ -26,6 +26,9 @@ Features
 Bug Handling
 ------------
 
+* AMQPInput `Run` method now returns an error when the input channel closes but
+  `Stop` hasn't been called to successfully trigger restarts (#1757).
+
 * Fixed error where restarting plugins were losing specified configuration
   (#1756).
 

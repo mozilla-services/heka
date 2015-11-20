@@ -132,6 +132,8 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(string(msgBytes), gs.Equals, "This is a message")
 			close(streamChan)
 			err = <-errChan
+			// We didn't call `Stop` so `Run` *should* return an error.
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 
 		c.Specify("consumes a protobuf encoded message", func() {
@@ -183,7 +185,8 @@ func AMQPPluginSpec(c gs.Context) {
 			c.Expect(string(msgBytes), gs.Equals, string(msgBody))
 			close(streamChan)
 			err = <-errChan
-			c.Expect(err, gs.IsNil)
+			// We didn't call `Stop` so `Run` *should* return an error.
+			c.Expect(err, gs.Not(gs.IsNil))
 		})
 	})
 
