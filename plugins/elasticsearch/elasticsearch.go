@@ -53,7 +53,7 @@ type ElasticSearchOutput struct {
 	dropMessageCount int64
 	count            int64
 	backChan         chan []byte
-	recvChan         chan *MsgPack
+	recvChan         chan MsgPack
 	batchChan        chan ESBatch // Chan to pass completed batches
 	outBatch         []byte
 	queueCursor      string
@@ -123,7 +123,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 
 	o.batchChan = make(chan ESBatch)
 	o.backChan = make(chan []byte, 2)
-	o.recvChan = make(chan *MsgPack, 1024)
+	o.recvChan = make(chan MsgPack, 1024)
 
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
@@ -190,7 +190,7 @@ func (o *ElasticSearchOutput) ProcessMessage(pack *PipelinePack) error {
 	}
 
 	if outBytes != nil {
-		o.recvChan <- &MsgPack{bytes: outBytes, queueCursor: pack.QueueCursor}
+		o.recvChan <- MsgPack{bytes: outBytes, queueCursor: pack.QueueCursor}
 	}
 
 	return nil
