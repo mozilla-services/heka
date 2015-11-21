@@ -51,12 +51,15 @@ type GlobalConfigStruct struct {
 	MaxPackIdle           time.Duration
 	stopping              bool
 	stoppingMutex         sync.RWMutex
+	shutdownOnce          sync.Once
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
 	sigChan               chan os.Signal
 	Hostname              string
 	abortChan             chan struct{}
+	FullBufferMaxRetries  uint
+	exitCode              int
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -87,10 +90,13 @@ func (g *GlobalConfigStruct) SigChan() chan os.Signal {
 // This method returns immediately by spawning a goroutine to do to
 // work so that the caller won't end up blocking part of the shutdown
 // sequence
-func (g *GlobalConfigStruct) ShutDown() {
-	go func() {
-		g.sigChan <- syscall.SIGINT
-	}()
+func (g *GlobalConfigStruct) ShutDown(exitCode int) {
+	g.shutdownOnce.Do(func() {
+		g.exitCode = exitCode
+		go func() {
+			g.sigChan <- syscall.SIGINT
+		}()
+	})
 }
 
 func (g *GlobalConfigStruct) IsShuttingDown() (stopping bool) {
@@ -251,9 +257,9 @@ func (p *PipelinePack) EncodeMsgBytes() error {
 	return err
 }
 
-// Main function driving Heka execution. Loads config, initializes
-// PipelinePack pools, and starts all the runners. Then it listens for signals
-// and drives the shutdown process when that is triggered.
+// Main function driving Heka execution. Loads config, initializes PipelinePack
+// pools, and starts all the runners. Then it listens for signals and drives
+// the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
 	LogInfo.Println("Starting hekad...")
 
@@ -268,7 +274,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Output '%s' failed to start: %s", name, err)
 			outputsWg.Done()
 			if !output.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -281,7 +287,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Filter '%s' failed to start: %s", name, err)
 			config.filtersWg.Done()
 			if !filter.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -319,7 +325,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Input '%s' failed to start: %s", name, err)
 			config.inputsWg.Done()
 			if !input.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -398,6 +404,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	LogInfo.Println("Shutdown complete.")
+	os.Exit(globals.exitCode)
 }
 
 func sandboxAbort(config *PipelineConfig) {
@@ -442,6 +449,6 @@ func sandboxAbort(config *PipelineConfig) {
 	// and abort any sandboxes that are wedged inside process_message or
 	// timer_event.
 	config.allReportsStdout()
-	config.Globals.ShutDown()
+	config.Globals.ShutDown(1)
 	close(config.Globals.abortChan)
 }

@@ -47,6 +47,7 @@ type HekadConfig struct {
 	Hostname              string
 	MaxMessageSize        uint32 `toml:"max_message_size"`
 	LogFlags              int    `toml:"log_flags"`
+	FullBufferMaxRetries  uint32 `toml:"full_buffer_max_retries"`
 }
 
 func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
@@ -71,6 +72,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 		PidFile:               "",
 		Hostname:              hostname,
 		LogFlags:              log.LstdFlags,
+		FullBufferMaxRetries:  10,
 	}
 
 	var configFile map[string]toml.Primitive

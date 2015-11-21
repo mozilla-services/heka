@@ -22,6 +22,32 @@ Features
   their original import paths.
 
 0.10.0 (2015-??-??)
+===================
+
+0.10.0b2 (2015-11-20)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* StatAccumInput Input: percent_threshold param type convert to slice
+
+Bug Handling
+------------
+
+* Updated Sarama dependency from pre-1.0 release fork to fork (with only test
+  code changes) of Sarama 1.5.0 release.
+
+Features
+--------
+
+* Added decoder support to StatAccumInput.
+
+* Added `git_clone_to_path` to the cmake build to allow git repos to be cloned
+  into alternate locations; useful for relocating forks of Go packages into
+  their original import paths.
+
+0.10.0 (2015-??-??)
 =====================
 
 Backwards Incompatibilities
@@ -48,6 +74,17 @@ Features
 
 Bug Handling
 ------------
+
+* Fixed issue where ElasticSearchOutput was trying to send zero length requests
+  (#1783).
+
+* Fixed race condition in ElasticSearchOutput (#1786).
+
+* AMQPInput `Run` method now returns an error when the input channel closes but
+  `Stop` hasn't been called to successfully trigger restarts (#1757).
+
+* Fixed error where restarting plugins were losing specified configuration
+  (#1756).
 
 * Fixed config error where global `max_pack_idle` setting was the wrong type
   and was being ignored (#1778).
@@ -86,6 +123,9 @@ Bug Handling
 
 * Fixed panic that was occurring when loading a config file or directory that
   exists but which registers no plugins (#1597).
+
+* Delay start up when a buffered plugin's buffer is at capacity to give the
+  back-pressure time to resolve (#1738).
 
 * Fixed bug where LogStreamerInput would sometimes loop infinitely reading the
   same file over and over when reading gzipped log files.

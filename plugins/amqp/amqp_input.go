@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
@@ -80,6 +81,7 @@ type AMQPInput struct {
 	usageWg *sync.WaitGroup
 	connWg  *sync.WaitGroup
 	amqpHub AMQPConnectionHub
+	stopped uint32
 }
 
 func (ai *AMQPInput) ConfigStruct() interface{} {
@@ -165,6 +167,8 @@ func (ai *AMQPInput) packDecorator(pack *PipelinePack) {
 }
 
 func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	atomic.StoreUint32(&ai.stopped, 0)
+
 	var (
 		n   int
 		e   error
@@ -175,7 +179,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	stream, err := ai.ch.Consume(ai.config.Queue, "", false, ai.config.QueueExclusive,
 		false, false, nil)
 	if err != nil {
-		return
+		return fmt.Errorf("Cannot consume from queue %s: %s", ai.config.Queue, err)
 	}
 
 	sRunner := ir.NewSplitterRunner("")
@@ -203,7 +207,13 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		}
 		msg.Ack(false)
 	}
-	return nil
+
+	if atomic.LoadUint32(&ai.stopped) == 0 {
+		// `Stop` wasn't called, return an error message to trigger a potential
+		// restart of the plugin.
+		err = fmt.Errorf("Channel closed while reading from queue %s", ai.config.Queue)
+	}
+	return err
 }
 
 func (ai *AMQPInput) CleanupForRestart() {
@@ -212,6 +222,7 @@ func (ai *AMQPInput) CleanupForRestart() {
 }
 
 func (ai *AMQPInput) Stop() {
+	atomic.StoreUint32(&ai.stopped, 1)
 	ai.ch.Close()
 	ai.amqpHub.Close(ai.config.URL, ai.connWg)
 	ai.connWg.Wait()
