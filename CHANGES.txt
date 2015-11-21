@@ -26,6 +26,11 @@ Features
 Bug Handling
 ------------
 
+* Fixed issue where ElasticSearchOutput was trying to send zero length requests
+  (#1783).
+
+* Fixed race condition in ElasticSearchOutput (#1786).
+
 * AMQPInput `Run` method now returns an error when the input channel closes but
   `Stop` hasn't been called to successfully trigger restarts (#1757).
 

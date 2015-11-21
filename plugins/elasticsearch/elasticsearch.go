@@ -123,7 +123,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 
 	o.batchChan = make(chan ESBatch)
 	o.backChan = make(chan []byte, 2)
-	o.recvChan = make(chan MsgPack, 1024)
+	o.recvChan = make(chan MsgPack, 100)
 
 	var serverUrl *url.URL
 	if serverUrl, err = url.Parse(o.conf.Server); err == nil {
