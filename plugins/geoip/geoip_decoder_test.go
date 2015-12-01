@@ -59,6 +59,13 @@ func GeoIpDecoderSpec(c gs.Context) {
 		conf.SourceIpField = "remote_host"
 		decoder.Init(conf)
 
+		decoder.Timezones = map[string]string{
+			"USCA": "America/Los_Angeles",
+		}
+		decoder.RegionNames = map[string]string{
+			"USCA": "California",
+		}
+
 		rec.CountryCode = "US"
 		rec.CountryCode3 = "USA"
 		rec.CountryName = "United States"
@@ -79,7 +86,7 @@ func GeoIpDecoderSpec(c gs.Context) {
 			b, ok := pack.Message.GetFieldValue("geoip")
 			c.Expect(ok, gs.IsTrue)
 
-			c.Expect(string(b.([]byte)), gs.Equals, `{"latitude":37.4192008972168,"longitude":-122.0574035644531,"location":[-122.0574035644531,37.4192008972168],"coordinates":["-122.0574035644531","37.4192008972168"],"countrycode":"US","countrycode3":"USA","countryname":"United States","region":"CA","city":"Mountain View","postalcode":"94043","areacode":650,"charset":1,"continentcode":"NA"}`)
+			c.Expect(string(b.([]byte)), gs.Equals, `{"latitude":37.4192008972168,"longitude":-122.0574035644531,"location":[-122.0574035644531,37.4192008972168],"coordinates":["-122.0574035644531","37.4192008972168"],"countrycode":"US","countrycode3":"USA","countryname":"United States","region":"CA","city":"Mountain View","postalcode":"94043","areacode":650,"charset":1,"continentcode":"NA","region_name":"California","timezone":"America/Los_Angeles"}`)
 		})
 
 	})

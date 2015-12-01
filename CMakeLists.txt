@@ -291,6 +291,7 @@ install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" 
 endif()
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/geoip" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
 install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/io_modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_io_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/conf/" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
