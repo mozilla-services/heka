@@ -246,7 +246,7 @@ if (UNIX AND DPKG_EXECUTABLE)
         DEPENDS hekad
         COMMENT "Custom deb target")
 
-    add_subdirectory(debian)
+    add_subdirectory(packaging/debian)
 endif()
 
 # MOVING INCLUSION OF CPACK DOWN HERE SO IT ACTUALLY GETS THE VARIABLES WE SET
