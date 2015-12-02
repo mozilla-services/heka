@@ -8,7 +8,7 @@ endif()
 # Copy all generated files where the packing will happen,
 # exclude the DEBIAN-directory.
 file( COPY
-	"${CPACK_OUTPUT_FILE_PREFIX}/debian/${CPACK_DEBIAN_PACKAGE_NAME}/"
+	"${CPACK_OUTPUT_FILE_PREFIX}/packaging/debian/${CPACK_DEBIAN_PACKAGE_NAME}/"
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}" 
 	PATTERN DEBIAN EXCLUDE
 ) 
