@@ -5,7 +5,7 @@ Stat Filter
 
 Plugin Name: **StatFilter**
 
-Filter plugin that accepts messages of a specfied form and uses extracted
+Filter plugin that accepts messages of a specified form and uses extracted
 message data to feed statsd-style numerical metrics in the form of `Stat`
 objects to a `StatAccumulator`.
 

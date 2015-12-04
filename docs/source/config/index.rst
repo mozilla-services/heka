@@ -102,7 +102,7 @@ Config:
 
 - max_pack_idle (string):
     A time duration string (e.x. "2s", "2m", "2h") indicating how long a
-    message pack can be 'idle' before its considered leaked by heka. If too
+    message pack can be 'idle' before it is considered leaked by heka. If too
     many packs leak from a bug in a filter or output then heka will eventually
     halt. This setting indicates when that is considered to have occurred.
 

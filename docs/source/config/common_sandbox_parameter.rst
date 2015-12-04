@@ -3,7 +3,7 @@
 Common Sandbox Parameters
 =========================
 These are the configuration options that are universally available to all
-Sandbox plugins. The are consumed by Heka when it initializes the plugin.
+Sandbox plugins. They are consumed by Heka when it initializes the plugin.
 
 - script_type (string):
     The language the sandbox is written in. Currently the only valid option is
