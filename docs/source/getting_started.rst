@@ -451,7 +451,7 @@ Heka Dashboard
 ==============
 
 At this point it's useful to notice that, while the SandboxFilter gathers the
-data that we're interested in and packages it up an a format that's useful for
+data that we're interested in and packages it up in a format that's useful for
 graphing, it doesn't actually *do* any graphing. Instead, it periodically
 creates a message of type `heka.sandbox-output`, containing the current
 circular buffer data, and injects that message back into Heka's message
@@ -659,7 +659,7 @@ by `Logstash <http://logstash.net/>`_ (specifically intended for HTTP request da
 natively supported by Kibana), and the :ref:`config_espayload`, which assumes
 that the message payload will already contain a fully formed JSON document
 ready for sending to ElasticSearch, and just prepends the necessary Bulk API
-segement.
+segment.
 
 In our `ESJsonEncoder` section, we're mostly adhering to the default settings.
 By default, this decoder inserts documents into an ElasticSearch index based
@@ -819,7 +819,7 @@ Gaussian distribution, such as cases where the set of data points is sparse.
 
 The next argument tells us what column we'll be looking at. In this case we're
 using column 5, which is where we store the 500 range status responses, or
-server errors. After that is the number of intervals to use in a analysis
+server errors. After that is the number of intervals to use in an analysis
 window (15), followed by the number of analysis windows to compare (10). In
 this case, that means we'll be examining the last 15 seconds, and comparing
 what we find there with the 10 prior 15 second windows, or the 150 previous

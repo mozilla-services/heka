@@ -47,7 +47,7 @@ Config:
     The name of the new field created by the decoder. The decoder will output
     a JSON object with the following elements:
 
-        - latitute: string,
+        - latitude: string,
         - longitude: string,
         - location: [ float64, float64 ],
                 - GeoJSON format intended for use as a `geo_point <http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-geo-point-type.html/>`_ for ES output.

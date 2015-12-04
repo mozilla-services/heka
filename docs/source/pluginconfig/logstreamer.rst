@@ -47,7 +47,7 @@ This is the basic use-case where a single logfile should be read that the
 system may rotate/truncate at some time (hopefully not using truncation though
 that condition is handled). Log rotation inherently has a risk that some
 loglines written may be missed if the program reading the log happens to die
-at exactly the wrong time that the rotation is occuring.
+at exactly the wrong time that the rotation is occurring.
 
 An example of a single rotating logfile would be the case where you
 want to watch /var/log/system.log for all new entries. Here's what the

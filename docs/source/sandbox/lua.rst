@@ -138,7 +138,7 @@ Heka specific functions that are exposed to the Lua sandbox
         - representation (string) only used in combination with the Fields variableName
             - representation tag to set
         - fieldIndex (unsigned) only used in combination with the Fields variableName
-            - use to set a specfic instance of a repeated field _name_
+            - use to set a specific instance of a repeated field _name_
         - arrayIndex (unsigned) only used in combination with the Fields variableName
             - use to set a specific element of a field containing an array
 
