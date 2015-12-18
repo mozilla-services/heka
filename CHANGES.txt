@@ -1,6 +1,11 @@
 0.10.0 (2015-??-??)
 ===================
 
+Bug Handling
+------------
+
+* Fixed conditional which was causing InfluxDB line protocol encoder to not
+  correctly honor the `source_value_field` config setting.
 
 0.10.0b2 (2015-11-20)
 =====================
