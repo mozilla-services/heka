@@ -176,8 +176,10 @@ local function points_tags_tables(config)
                                                    tostring(influxdb_kv_fmt(value))))
                 end
 
-                if config["source_value_field"] and field == config["source_value_field"] then
-                    points[name_prefix] = value
+                if config["source_value_field"] then 
+                    if field == config["source_value_field"] then
+                        points[name_prefix] = value
+                    end
                     -- Only add fields that are not requested to be skipped
                 elseif not config["skip_fields_str"]
                 or (config["skip_fields"] and not skip_fields[field]) then
