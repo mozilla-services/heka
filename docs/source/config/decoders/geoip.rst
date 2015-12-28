@@ -61,6 +61,8 @@ Config:
         - areacode: int,
         - charset: int,
         - continentalcode: string
+        - region_name: string
+        - timezone: string
 
 .. code-block:: ini
 
