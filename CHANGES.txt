@@ -1,6 +1,12 @@
 0.10.0 (2015-??-??)
 ===================
 
+Bug Handling
+------------
+
+* Fixed issue where LogstreamerInput doesn't notice when a zero-length file is
+  deleted and replaced by a new zero-length file before any data is appended
+  (#1199).
 
 0.10.0b2 (2015-11-20)
 =====================
