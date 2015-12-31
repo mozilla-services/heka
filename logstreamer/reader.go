@@ -179,9 +179,17 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 		return "", false
 	}
 
+	priorWasEmpty := false
+	lastSize := currentInfo.Size()
+	newSize := fInfo.Size()
 	// 1. If our size is greater than the file at this filename, we're not the
-	// same file
-	if currentInfo.Size() > fInfo.Size() {
+	// same file.
+	if lastSize > newSize {
+		ok = true
+	} else if lastSize < newSize && lastSize == 0 {
+		// We have to double-check for cases where an empty file might have
+		// been deleted out from under us.
+		priorWasEmpty = true
 		ok = true
 	} else if l.FileHashMismatch() {
 		// Our file-hash didn't verify, not the same file
@@ -207,11 +215,10 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 			defer l.lfMutex.RUnlock()
 			if len(l.logfiles) > 0 {
 				file = l.logfiles[0].FileName
-				return
+				return file, ok
 			} else {
 				// Apparently no logfiles at all, retain this fd
-				ok = false
-				return
+				return file, false
 			}
 		}
 
@@ -227,7 +234,7 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 	if fileIndex == -1 {
 		// We couldn't find our filename in the list? Then there's nothing
 		// newer
-		return
+		return file, ok
 	}
 
 	if fileIndex+1 < len(l.logfiles) {
@@ -235,7 +242,14 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 		return l.logfiles[fileIndex+1].FileName, true
 	}
 
-	return
+	// Filename didn't change, but currently opened fd is empty and file system
+	// file is bigger. No way to tell if the file system file is the same or if
+	// it was replaced by a new file before the content was appended, so we
+	// force the file to be repoened.
+	if priorWasEmpty {
+		return l.position.Filename, true
+	}
+	return file, ok
 }
 
 // FileHashMismatch uses the file path, seek location, and hash stored in the
@@ -264,7 +278,9 @@ func (l *Logstream) FileHashMismatch() bool {
 // returned if the prior location cannot be located.
 // If the logfile this location for has changed names, the position will be updated to
 // reflect the move.
-func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader, err error) {
+func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader,
+	err error) {
+
 	var info os.FileInfo
 	l.lfMutex.RLock()
 	defer l.lfMutex.RUnlock()
