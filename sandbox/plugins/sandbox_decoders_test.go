@@ -2,6 +2,9 @@ package plugins
 
 import (
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -9,8 +12,6 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"os"
-	"time"
 )
 
 func DecoderSpec(c gs.Context) {
@@ -88,6 +89,19 @@ func DecoderSpec(c gs.Context) {
 				c.Expect(err, gs.IsNil)
 				err = os.Remove("sandbox_preservation/serialize.data")
 				c.Expect(err, gs.IsNil)
+			})
+
+			c.Specify("Propagates headers and invalidates MsgBytes when doing so", func() {
+				data := "1376389920 debug id=2321 url=example.com item=1"
+				decoder.SetDecoderRunner(dRunner)
+				pack.Message.SetPayload(data)
+				logger := "Test Logger Value"
+				pack.Message.SetLogger(logger)
+				_, err = decoder.Decode(pack)
+				c.Assume(err, gs.IsNil)
+
+				c.Expect(pack.Message.GetLogger(), gs.Equals, logger)
+				c.Expect(pack.TrustMsgBytes, gs.IsFalse)
 			})
 		})
 
@@ -193,6 +207,54 @@ func DecoderSpec(c gs.Context) {
 				c.Expect(values[0], gs.Equals, "first")
 				c.Expect(values[1], gs.Equals, "second")
 			})
+
+			c.Specify("deletes a field from message", func() {
+				data := "delete field scribble"
+				pack.Message.SetPayload(data)
+				f, _ := message.NewField("scribble", "asdf", "")
+				pack.Message.AddField(f)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("scribble")
+				c.Expect(len(fields), gs.Equals, 0)
+				_, ok := pack.Message.GetFieldValue("scribble")
+				c.Expect(ok, gs.IsFalse)
+			})
+
+			c.Specify("deletes one of multiple field values", func() {
+				data := "delete second field of multi"
+				pack.Message.SetPayload(data)
+				f1, _ := message.NewField("multi", "first", "")
+				f2, _ := message.NewField("multi", "second", "")
+				f3, _ := message.NewField("multi", "third", "")
+				pack.Message.AddField(f1)
+				pack.Message.AddField(f2)
+				pack.Message.AddField(f3)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("multi")
+				c.Expect(len(fields), gs.Equals, 2)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "first")
+				values = fields[1].GetValueString()
+				c.Expect(len(values), gs.Equals, 1)
+				c.Expect(values[0], gs.Equals, "third")
+				_, ok := pack.Message.GetFieldValue("multi")
+				c.Expect(ok, gs.IsTrue)
+			})
+
+			c.Specify("deletes one of multiple array values", func() {
+				data := "delete second value of array"
+				pack.Message.SetPayload(data)
+				decoder.Decode(pack)
+				fields := pack.Message.FindAllFields("array")
+				c.Expect(len(fields), gs.Equals, 1)
+				values := fields[0].GetValueString()
+				c.Expect(len(values), gs.Equals, 2)
+				c.Expect(values[0], gs.Equals, "first")
+				c.Expect(values[1], gs.Equals, "third")
+				_, ok := pack.Message.GetFieldValue("array")
+				c.Expect(ok, gs.IsTrue)
+			})
 		})
 	})
 
@@ -233,6 +295,78 @@ func DecoderSpec(c gs.Context) {
 
 			}
 			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("JSON decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/json.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		conf.Config["map_fields"] = true
+		conf.Config["Severity"] = "severity"
+		conf.Config["Hostname"] = "hostname"
+		conf.Config["Timestamp"] = "time"
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+
+		c.Specify("decodes a message w/ timestamp_format", func() {
+			conf.Config["timestamp_format"] = "%m/%d/%Y %H:%M:%S"
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `{"hostname":"wyrd.local","time":"05/07/2014 15:12:24","msg":"message","severity":3,"nested":{"field":"value"}}`
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			fmt.Println(pack.Message.GetPayload())
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1399475544000000000))
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "message")
+
+			value, ok = pack.Message.GetFieldValue("nested.field")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "value")
+		})
+
+		c.Specify("decodes a message w/ no timestamp format", func() {
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+
+			dRunner := pm.NewMockDecoderRunner(ctrl)
+			dRunner.EXPECT().Name().Return("SandboxDecoder")
+			decoder.SetDecoderRunner(dRunner)
+
+			payload := `{"hostname":"wyrd.local","time":1399475544000000000,"msg":"message","severity":3,"nested":{"field":"value"}}`
+			pack.Message.SetPayload(payload)
+
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(3))
+			c.Expect(pack.Message.GetHostname(), gs.Equals, "wyrd.local")
+			c.Expect(pack.Message.GetTimestamp(), gs.Equals, int64(1399475544000000000))
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("msg")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "message")
+
+			value, ok = pack.Message.GetFieldValue("nested.field")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, "value")
 		})
 	})
 
@@ -533,6 +667,62 @@ HugePages_Free:        0
 			c.Expect(err.Error(), gs.Equals, "Failed parsing:  payload: "+data)
 			c.Expect(decoder.processMessageFailures, gs.Equals, int64(1))
 			decoder.Shutdown()
+		})
+	})
+
+	c.Specify("Nginx stub status decoder", func() {
+		decoder := new(SandboxDecoder)
+		decoder.SetPipelineConfig(pConfig)
+		conf := decoder.ConfigStruct().(*sandbox.SandboxConfig)
+		conf.ScriptFilename = "../lua/decoders/nginx_stub_status.lua"
+		conf.ModuleDirectory = "../lua/modules"
+		conf.MemoryLimit = 8e6
+		conf.Config = make(map[string]interface{})
+		supply := make(chan *pipeline.PipelinePack, 1)
+		pack := pipeline.NewPipelinePack(supply)
+		dRunner := pm.NewMockDecoderRunner(ctrl)
+		dRunner.EXPECT().Name().Return("SandboxDecoder")
+		err := decoder.Init(conf)
+		c.Assume(err, gs.IsNil)
+		decoder.SetDecoderRunner(dRunner)
+
+		c.Specify("decodes a message", func() {
+			payload := "Active connections: 291 \nserver accepts handled requests\n 16630948 16630948 31070465 \nReading: 6 Writing: 179 Waiting: 106 \n"
+			pack.Message.SetPayload(payload)
+
+			_, err := decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+			c.Expect(pack.Message.GetSeverity(), gs.Equals, int32(7))
+
+			var ok bool
+			var value interface{}
+			value, ok = pack.Message.GetFieldValue("connections")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(291))
+
+			value, ok = pack.Message.GetFieldValue("accepts")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(16630948))
+
+			value, ok = pack.Message.GetFieldValue("handled")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(16630948))
+
+			value, ok = pack.Message.GetFieldValue("requests")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(31070465))
+
+			value, ok = pack.Message.GetFieldValue("reading")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(6))
+
+			value, ok = pack.Message.GetFieldValue("writing")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(179))
+
+			value, ok = pack.Message.GetFieldValue("waiting")
+			c.Expect(ok, gs.IsTrue)
+			c.Expect(value, gs.Equals, float64(106))
 		})
 	})
 

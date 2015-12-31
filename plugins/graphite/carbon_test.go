@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,14 +18,15 @@ package graphite
 
 import (
 	"fmt"
+	"net"
+	"strings"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	. "github.com/mozilla-services/heka/pipelinemock"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"net"
-	"strings"
-	"time"
 )
 
 type CarbonTestHelper struct {
@@ -65,8 +66,8 @@ func CarbonOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 		pack.Message.SetPayload(submit_data)
+		pack.QueueCursor = "queuecursor"
 		return pack
 	}
 
@@ -104,6 +105,8 @@ func CarbonOutputSpec(c gs.Context) {
 			conn net.Conn
 			err  error
 		)
+
+		oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 		c.Specify("using TCP", func() {
 			var listener net.Listener

@@ -17,10 +17,11 @@ package file
 
 import (
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 )
 
 type FilePollingInput struct {
@@ -82,6 +83,7 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 	if !sRunner.UseMsgBytes() {
 		sRunner.SetPackDecorator(input.packDecorator)
 	}
+	defer sRunner.Done()
 
 	for {
 		select {
@@ -102,8 +104,6 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 			}
 		}
 	}
-
-	return nil
 }
 
 func init() {

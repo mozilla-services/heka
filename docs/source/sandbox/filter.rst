@@ -20,6 +20,12 @@ Circular Buffer Delta Aggregator (by hostname)
    :start-after: --[[
    :end-before: --]]
 
+CPU Stats Filter
+^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/filters/procstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Disk Stats Filter
 ^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/filters/diskstats.lua
@@ -55,6 +61,12 @@ HTTP Status Graph
 .. include:: ../../../sandbox/lua/filters/http_status.lua
    :start-after: --[[
    :end-before: --]]
+
+InfluxDB Batch
+^^^^^^^^^^^^^^
+.. include:: ../../../sandbox/lua/filters/influx_batch.lua
+   :start-after: --[=[
+   :end-before: --]=]
 
 Load Average Filter
 ^^^^^^^^^^^^^^^^^^^

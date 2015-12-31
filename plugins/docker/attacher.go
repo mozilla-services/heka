@@ -39,10 +39,9 @@ type AttachEvent struct {
 }
 
 type Log struct {
-	ID   string
-	Name string
-	Type string
-	Data string
+	Type   string
+	Data   string
+	Fields map[string]string
 }
 
 type Source struct {
@@ -58,16 +57,18 @@ func (s *Source) All() bool {
 
 type AttachManager struct {
 	sync.RWMutex
-	attached   map[string]*LogPump
-	channels   map[chan *AttachEvent]struct{}
-	client     DockerClient
-	errors     chan<- error
-	events     chan *docker.APIEvents
-	eventReset chan struct{}
-	sentinel   struct{}
+	attached      map[string]*LogPump
+	channels      map[chan *AttachEvent]struct{}
+	client        DockerClient
+	errors        chan<- error
+	events        chan *docker.APIEvents
+	eventReset    chan struct{}
+	sentinel      struct{}
+	nameFromEnv   string
+	fieldsFromEnv []string
 }
 
-func NewAttachManager(endpoint, certPath string, attachErrors chan<- error) (*AttachManager, error) {
+func NewAttachManager(endpoint, certPath string, attachErrors chan<- error, nameFromEnv string, fieldsFromEnv []string) (*AttachManager, error) {
 	var client DockerClient
 	var err error
 
@@ -85,11 +86,13 @@ func NewAttachManager(endpoint, certPath string, attachErrors chan<- error) (*At
 	}
 
 	m := &AttachManager{
-		attached: make(map[string]*LogPump),
-		channels: make(map[chan *AttachEvent]struct{}),
-		client:   client,
-		errors:   attachErrors,
-		events:   make(chan *docker.APIEvents),
+		attached:      make(map[string]*LogPump),
+		channels:      make(map[chan *AttachEvent]struct{}),
+		client:        client,
+		errors:        attachErrors,
+		events:        make(chan *docker.APIEvents),
+		nameFromEnv:   nameFromEnv,
+		fieldsFromEnv: fieldsFromEnv,
 	}
 
 	// Attach to all currently running containers
@@ -124,6 +127,16 @@ func (m *AttachManager) attach(id string) {
 		m.errors <- err
 	}
 	name := container.Name[1:]
+
+	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
+	if m.nameFromEnv != "" {
+		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
+			name = alt_name
+		}
+	}
+	fields["ContainerID"] = id
+	fields["ContainerName"] = name
+
 	success := make(chan struct{})
 	failure := make(chan error)
 	outrd, outwr := io.Pipe()
@@ -145,6 +158,7 @@ func (m *AttachManager) attach(id string) {
 			close(success)
 			failure <- err
 		}
+
 		m.send(&AttachEvent{Type: "detach", ID: id, Name: name})
 		m.Lock()
 		delete(m.attached, id)
@@ -153,12 +167,38 @@ func (m *AttachManager) attach(id string) {
 	_, ok := <-success
 	if ok {
 		m.Lock()
-		m.attached[id] = NewLogPump(outrd, errrd, id, name)
+		m.attached[id] = NewLogPump(outrd, errrd, name, fields)
 		m.Unlock()
 		success <- struct{}{}
 		m.send(&AttachEvent{ID: id, Name: name, Type: "attach"})
 		return
 	}
+}
+
+func (m *AttachManager) getEnvVars(container *docker.Container, keys []string) map[string]string {
+	vars := make(map[string]string)
+	for _, value := range container.Config.Env {
+		valueParts := strings.SplitN(value, "=", 2)
+		if len(valueParts) == 2 {
+			for _, key := range keys {
+				if key != "" && valueParts[0] == key {
+					vars[valueParts[0]] = valueParts[1]
+					break
+				}
+			}
+		}
+	}
+	return vars
+}
+
+func (m *AttachManager) changeNameByEnv(container *docker.Container, envName string) string {
+	for _, value := range container.Config.Env {
+		valueParts := strings.SplitN(value, "=", 2)
+		if len(valueParts) == 2 && valueParts[0] == envName {
+			return valueParts[1]
+		}
+	}
+	return ""
 }
 
 func (m *AttachManager) send(event *AttachEvent) {
@@ -226,14 +266,12 @@ func (m *AttachManager) Listen(logstream chan *Log, closer <-chan struct{}) {
 
 type LogPump struct {
 	sync.RWMutex
-	ID       string
 	Name     string
 	channels map[chan *Log]struct{}
 }
 
-func NewLogPump(stdout, stderr io.Reader, id, name string) *LogPump {
+func NewLogPump(stdout, stderr io.Reader, name string, fields map[string]string) *LogPump {
 	obj := &LogPump{
-		ID:       id,
 		Name:     name,
 		channels: make(map[chan *Log]struct{}),
 	}
@@ -245,10 +283,9 @@ func NewLogPump(stdout, stderr io.Reader, id, name string) *LogPump {
 				return
 			}
 			obj.send(&Log{
-				Data: strings.TrimSuffix(string(data), "\n"),
-				ID:   id,
-				Name: name,
-				Type: typ,
+				Data:   strings.TrimSuffix(string(data), "\n"),
+				Type:   typ,
+				Fields: fields,
 			})
 		}
 	}

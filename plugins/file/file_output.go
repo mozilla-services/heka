@@ -19,14 +19,27 @@ package file
 import (
 	"errors"
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	"github.com/mozilla-services/heka/plugins"
-	"github.com/rafrombrc/go-notify"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/cactus/gostrftime"
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins"
+	"github.com/rafrombrc/go-notify"
 )
+
+type outBatch struct {
+	data   []byte
+	cursor string
+}
+
+func newOutBatch() *outBatch {
+	return &outBatch{
+		data: make([]byte, 0, 10000),
+	}
+}
 
 // Output plugin that writes message contents to a file on the file system.
 type FileOutput struct {
@@ -35,8 +48,8 @@ type FileOutput struct {
 	perm       os.FileMode
 	flushOpAnd bool
 	file       *os.File
-	batchChan  chan []byte
-	backChan   chan []byte
+	batchChan  chan *outBatch
+	backChan   chan *outBatch
 	folderPerm os.FileMode
 	timerChan  <-chan time.Time
 	rotateChan chan time.Time
@@ -82,9 +95,15 @@ type FileOutputConfig struct {
 	// output. We do some magic to default to true if ProtobufEncoder is used,
 	// false otherwise.
 	UseFraming *bool `toml:"use_framing"`
+
+	BufferConfig *QueueBufferConfig `toml:"buffering"`
 }
 
 func (o *FileOutput) ConfigStruct() interface{} {
+	bufConfig := &QueueBufferConfig{
+		CursorUpdateCount: 1,
+	}
+
 	return &FileOutputConfig{
 		Perm:             "644",
 		RotationInterval: 0,
@@ -92,6 +111,7 @@ func (o *FileOutput) ConfigStruct() interface{} {
 		FlushCount:       1,
 		FlushOperator:    "AND",
 		FolderPerm:       "700",
+		BufferConfig:     bufConfig,
 	}
 }
 
@@ -147,8 +167,9 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		return err
 	}
 
-	o.batchChan = make(chan []byte)
-	o.backChan = make(chan []byte, 2) // Never block on the hand-back
+	o.batchChan = make(chan *outBatch)
+	o.backChan = make(chan *outBatch, 2) // Never block on the hand-back
+	o.rotateChan = make(chan time.Time)
 	return nil
 }
 
@@ -160,8 +181,7 @@ func (o *FileOutput) startRotateNotifier() {
 	until := next.Sub(now)
 	after := time.After(until)
 
-	o.path = last.Format(o.Path)
-	o.rotateChan = make(chan time.Time)
+	o.path = gostrftime.Strftime(o.FileOutputConfig.Path, now)
 
 	go func() {
 		ok := true
@@ -221,7 +241,7 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 		outBytes        []byte
 	)
 	ok := true
-	outBatch := make([]byte, 0, 10000)
+	out := newOutBatch()
 	inChan := or.InChan()
 
 	timerDuration = time.Duration(o.FlushInterval) * time.Millisecond
@@ -237,19 +257,23 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 		case pack, ok = <-inChan:
 			if !ok {
 				// Closed inChan => we're shutting down, flush data
-				if len(outBatch) > 0 {
-					o.batchChan <- outBatch
+				if len(out.data) > 0 {
+					o.batchChan <- out
 				}
 				close(o.batchChan)
 				break
 			}
 			if outBytes, e = or.Encode(pack); e != nil {
-				or.LogError(e)
-			} else if outBytes != nil {
-				outBatch = append(outBatch, outBytes...)
+				e = fmt.Errorf("can't encode: %s", e)
+				pack.Recycle(e) // Don't try to resend.
+				continue
+			}
+			if outBytes != nil {
+				out.data = append(out.data, outBytes...)
+				out.cursor = pack.QueueCursor
 				msgCounter++
 			}
-			pack.Recycle()
+			pack.Recycle(nil)
 
 			// Trigger immediately when the message count threshold has been
 			// reached if a) the "OR" operator is in effect or b) the
@@ -259,8 +283,8 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 				if !o.flushOpAnd || o.FlushInterval == 0 || intervalElapsed {
 					// This will block until the other side is ready to accept
 					// this batch, freeing us to start on the next one.
-					o.batchChan <- outBatch
-					outBatch = <-o.backChan
+					o.batchChan <- out
+					out = <-o.backChan
 					msgCounter = 0
 					intervalElapsed = false
 					if timer != nil {
@@ -274,8 +298,8 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 
 				// This will block until the other side is ready to accept
 				// this batch, freeing us to start on the next one.
-				o.batchChan <- outBatch
-				outBatch = <-o.backChan
+				o.batchChan <- out
+				out = <-o.backChan
 				msgCounter = 0
 				intervalElapsed = false
 			} else {
@@ -294,9 +318,9 @@ func (o *FileOutput) receiver(or OutputRunner, errChan chan error) (err error) {
 // channel, writes it out to the filesystem, and puts the now empty buffer on
 // the return channel for reuse.
 func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
-	initBatch := make([]byte, 0, 10000)
+	initBatch := newOutBatch()
 	o.backChan <- initBatch
-	var outBatch []byte
+	var out *outBatch
 	var err error
 
 	ok := true
@@ -305,23 +329,25 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 
 	for ok {
 		select {
-		case outBatch, ok = <-o.batchChan:
+		case out, ok = <-o.batchChan:
 			if !ok {
 				// Channel is closed => we're shutting down, exit cleanly.
 				o.file.Close()
 				close(o.closing)
 				break
 			}
-			n, err := o.file.Write(outBatch)
+			n, err := o.file.Write(out.data)
 			if err != nil {
 				or.LogError(fmt.Errorf("Can't write to %s: %s", o.path, err))
-			} else if n != len(outBatch) {
-				or.LogError(fmt.Errorf("Truncated output for %s", o.path))
+			} else if n != len(out.data) {
+				or.LogError(fmt.Errorf("data loss - truncated output for %s", o.path))
+				or.UpdateCursor(out.cursor)
 			} else {
 				o.file.Sync()
+				or.UpdateCursor(out.cursor)
 			}
-			outBatch = outBatch[:0]
-			o.backChan <- outBatch
+			out.data = out.data[:0]
+			o.backChan <- out
 		case <-hupChan:
 			o.file.Close()
 			if err = o.openFile(); err != nil {
@@ -333,7 +359,7 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 			}
 		case rotateTime := <-o.rotateChan:
 			o.file.Close()
-			o.path = rotateTime.Format(o.Path)
+			o.path = gostrftime.Strftime(o.FileOutputConfig.Path, rotateTime)
 			if err = o.openFile(); err != nil {
 				close(o.closing)
 				err = fmt.Errorf("unable to open rotated file '%s': %s", o.path, err)

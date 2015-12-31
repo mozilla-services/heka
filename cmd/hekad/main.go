@@ -23,6 +23,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	_ "github.com/mozilla-services/heka/plugins"
@@ -42,18 +52,10 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/statsd"
 	_ "github.com/mozilla-services/heka/plugins/tcp"
 	_ "github.com/mozilla-services/heka/plugins/udp"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"runtime"
-	"runtime/pprof"
-	"strconv"
-	"strings"
-	"syscall"
 )
 
 const (
-	VERSION = "0.9.2"
+	VERSION = "0.10.0"
 )
 
 func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string, string) {
@@ -66,6 +68,7 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	maxMsgProcessInject := config.MaxMsgProcessInject
 	maxMsgProcessDuration := config.MaxMsgProcessDuration
 	maxMsgTimerInject := config.MaxMsgTimerInject
+	maxPackIdle, _ := time.ParseDuration(config.MaxPackIdle)
 
 	runtime.GOMAXPROCS(maxprocs)
 
@@ -79,10 +82,12 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 	globals.MaxMsgProcessInject = maxMsgProcessInject
 	globals.MaxMsgProcessDuration = maxMsgProcessDuration
 	globals.MaxMsgTimerInject = maxMsgTimerInject
+	globals.MaxPackIdle = maxPackIdle
 	globals.BaseDir = config.BaseDir
 	globals.ShareDir = config.ShareDir
 	globals.SampleDenominator = config.SampleDenominator
 	globals.Hostname = config.Hostname
+	globals.FullBufferMaxRetries = uint(config.FullBufferMaxRetries)
 
 	return globals, cpuProfName, memProfName
 }
@@ -108,9 +113,16 @@ func main() {
 	if err != nil {
 		pipeline.LogError.Fatal("Error reading config: ", err)
 	}
+	pipeline.LogInfo.SetFlags(config.LogFlags)
+	pipeline.LogError.SetFlags(config.LogFlags)
 	if config.SampleDenominator <= 0 {
 		pipeline.LogError.Fatalln("'sample_denominator' value must be greater than 0.")
 	}
+
+	if _, err = time.ParseDuration(config.MaxPackIdle); err != nil {
+		pipeline.LogError.Fatalf("Can't parse `max_pack_idle` time duration: %s\n", config.MaxPackIdle)
+	}
+
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {

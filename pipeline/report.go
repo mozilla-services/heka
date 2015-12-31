@@ -18,10 +18,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"runtime"
 	"strings"
 	"sync/atomic"
+
+	"github.com/mozilla-services/heka/message"
 )
 
 // Interface for Heka plugins that will provide reporting data. Plugins can
@@ -34,6 +35,11 @@ type ReportingPlugin interface {
 	// arbitrary information regarding the plugin's operational state that
 	// might be useful in a report.
 	ReportMsg(msg *message.Message) (err error)
+}
+
+type ReportingDecoder struct {
+	name    string
+	decoder Decoder
 }
 
 // Given a PluginRunner and a Message struct, this function will populate the
@@ -132,6 +138,9 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", name)
 		message.NewStringField(pack.Message, "key", "inputs")
+		if runner.SynchronousDecode() {
+			message.NewStringField(pack.Message, "SynchronousDecode", "true")
+		}
 		reportChan <- pack
 	}
 	pc.inputsLock.Unlock()
@@ -140,6 +149,34 @@ func (pc *PipelineConfig) reports(reportChan chan *PipelinePack) {
 		pack = getReport(runner)
 		message.NewStringField(pack.Message, "name", runner.Name())
 		message.NewStringField(pack.Message, "key", "decoders")
+		reportChan <- pack
+	}
+
+	for _, reportingDecoder := range pc.allSyncDecoders {
+		pack = <-pc.reportRecycleChan
+		message.NewStringField(pack.Message, "name", reportingDecoder.name)
+		message.NewStringField(pack.Message, "key", "decoders")
+		pack.Message.SetLogger(HEKA_DAEMON)
+		pack.Message.SetType("heka.plugin-report")
+
+		reportChan <- pack
+	}
+
+	for _, runner := range pc.allSplitters {
+		pack = <-pc.reportRecycleChan
+		message.NewStringField(pack.Message, "name", runner.Name())
+		message.NewStringField(pack.Message, "key", "splitters")
+		pack.Message.SetLogger(HEKA_DAEMON)
+		pack.Message.SetType("heka.plugin-report")
+
+		if reporter, hasReports := runner.Splitter().(ReportingPlugin); hasReports {
+			if err = reporter.ReportMsg(msg); err != nil {
+				if f, e = message.NewField("Error", err.Error(), ""); e == nil {
+					msg.AddField(f)
+				}
+			}
+		}
+
 		reportChan <- pack
 	}
 
@@ -222,7 +259,7 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 		}
 
 		data[key] = append(data[key], pData)
-		pack.Recycle()
+		pack.recycle()
 	}
 	buffer := new(bytes.Buffer)
 	enc := json.NewEncoder(buffer)
@@ -237,13 +274,26 @@ func (pc *PipelineConfig) allReportsData() (report_type, msg_payload string) {
 func (pc *PipelineConfig) AllReportsMsg() {
 	report_type, msg_payload := pc.allReportsData()
 
-	pack := pc.PipelinePack(0)
+	pack, e := pc.PipelinePack(0)
+	if e != nil {
+		LogError.Println(e.Error())
+		return
+	}
 	pack.Message.SetLogger(HEKA_DAEMON)
 	pack.Message.SetType(report_type)
 	pack.Message.SetPayload(msg_payload)
-	pc.router.InChan() <- pack
+	if err := pack.EncodeMsgBytes(); err != nil {
+		LogError.Printf("encoding heka.all-report message: %s\n", err.Error())
+		pack.recycle()
+	} else {
+		pc.router.InChan() <- pack
+	}
 
-	mempack := pc.PipelinePack(0)
+	mempack, e := pc.PipelinePack(0)
+	if e != nil {
+		LogError.Println(e.Error())
+		return
+	}
 	mempack.Message.SetLogger(HEKA_DAEMON)
 	mempack.Message.SetType("heka.memstat")
 
@@ -255,7 +305,12 @@ func (pc *PipelineConfig) AllReportsMsg() {
 	message.NewInt64Field(mempack.Message, "HeapInuse", int64(m.HeapInuse), "B")
 	message.NewInt64Field(mempack.Message, "HeapReleased", int64(m.HeapReleased), "B")
 	message.NewInt64Field(mempack.Message, "HeapObjects", int64(m.HeapObjects), "count")
-	pc.router.InChan() <- mempack
+	if err := mempack.EncodeMsgBytes(); err != nil {
+		LogError.Printf("encoding heka.memstat message: %s\n", err.Error())
+		mempack.recycle()
+	} else {
+		pc.router.InChan() <- mempack
+	}
 }
 
 func (pc *PipelineConfig) allReportsStdout() {
@@ -269,7 +324,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 		"InChanCapacity", "InChanLength", "MatchChanCapacity", "MatchChanLength",
 		"MatchAvgDuration", "ProcessMessageCount", "InjectMessageCount", "Memory",
 		"MaxMemory", "MaxInstructions", "MaxOutput", "ProcessMessageAvgDuration",
-		"TimerEventAvgDuration",
+		"TimerEventAvgDuration", "SynchronousDecode",
 	}
 
 	///////////
@@ -278,7 +333,7 @@ func (pc *PipelineConfig) FormatTextReport(report_type, payload string) string {
 	json.Unmarshal([]byte(payload), &m)
 
 	fullReport := make([]string, 0)
-	categories := []string{"globals", "inputs", "decoders", "filters", "outputs", "encoders"}
+	categories := []string{"globals", "inputs", "splitters", "decoders", "filters", "outputs", "encoders"}
 	for _, cat := range categories {
 		fullReport = append(fullReport, fmt.Sprintf("\n====%s====", strings.Title(cat)))
 		catReports, ok := m[cat]

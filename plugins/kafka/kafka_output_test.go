@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -15,15 +15,16 @@
 package kafka
 
 import (
-	"github.com/Shopify/sarama"
+	"sync/atomic"
+	"testing"
+
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
-	"sync/atomic"
-	"testing"
+	"github.com/rafrombrc/sarama"
 )
 
 func TestVerifyMessageInvalidVariables(t *testing.T) {
@@ -307,7 +308,6 @@ func TestSendMessage(t *testing.T) {
 	msg := pipeline_ts.GetTestMessage()
 	pack := NewPipelinePack(pConfig.InputRecycleChan())
 	pack.Message = msg
-	pack.Decoded = true
 
 	outStr := "Write me out to the network"
 	newpack := NewPipelinePack(nil)
@@ -315,6 +315,7 @@ func TestSendMessage(t *testing.T) {
 
 	inChanCall := oth.MockOutputRunner.EXPECT().InChan().AnyTimes()
 	inChanCall.Return(inChan)
+	oth.MockOutputRunner.EXPECT().UsesBuffering().Return(false)
 
 	errChan := make(chan error)
 	startOutput := func() {

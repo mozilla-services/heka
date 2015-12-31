@@ -1,0 +1,7 @@
+[hekad]
+maxprocs = 2
+
+[TcpInput]
+address = "127.0.0.1:5565"
+
+[StatAccumInput]

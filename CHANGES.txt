@@ -1,3 +1,282 @@
+0.10.0 (2015-12-30)
+===================
+
+Bug Handling
+------------
+
+* Fixed issue where LogstreamerInput doesn't notice when a zero-length file is
+  deleted and replaced by a new zero-length file before any data is appended
+  (#1199).
+
+0.10.0b2 (2015-11-20)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* `DecoderRunner` interface changed `SetSendFailure` to `SetFailureHandling`.
+
+Features
+--------
+
+* Allow TcpOutput to re-establish the connection after a configurable number
+  of successfully delivered messages.
+
+* Added `set_hostname` option to UdpInput configuration (#1668).
+
+* Added `linux_netdev` and `linux_netstat` decoders (#1712).
+
+* Improved error output for ElasticSearchOutput HTTP failures.
+
+* Added `log_decode_failures` config value to decoders.
+
+* Adder `log_flags` to hekad config, to control the prefix for STDOUT and
+  STDERR logs.
+
+Bug Handling
+------------
+
+* Fixed issue where ElasticSearchOutput was trying to send zero length requests
+  (#1783).
+
+* Fixed race condition in ElasticSearchOutput (#1786).
+
+* AMQPInput `Run` method now returns an error when the input channel closes but
+  `Stop` hasn't been called to successfully trigger restarts (#1757).
+
+* Fixed error where restarting plugins were losing specified configuration
+  (#1756).
+
+* Fixed config error where global `max_pack_idle` setting was the wrong type
+  and was being ignored (#1778).
+
+* Fixed race condition in InputRunner's default deliverer initialization.
+
+* Set hostname correctly in the Graylog decoder (#1663).
+
+* Add sample rate support for gauge type in StatsdInput.
+
+* Fixed some cases where SandboxDecoder wasn't correctly setting
+  `pack.TrustMsgBytes` to false when needed.
+
+* Fixed broken queue rolling and added test.
+
+* Force ElasticSearch index name to lower case, as required by ElasticSearch.
+
+* Fixed default buffer config values.
+
+* Updated docker configuration so docker build works again (#1634).
+
+* Add generic json lua sandbox decoder (#1651).
+
+* Fixed bug where a SandboxInput configured with a `ticker_interval` would
+  get stuck in an infinite loop on shutdown (#1705).
+
+* Fixed race condition in the BufferReader's queue file lookup code (#1639).
+
+* Changes in StatAccumInput, FileOutput, TcpInput, ProcessDirectoryInput tests
+  to minimize intermittent Travis failures.
+
+* Ensure the response is read until it is complete in the HttpOutput plugin.
+  Previously, the deferred Body.Close() may have been called on incomplete
+  responses. This resulted in the connections not returning to the client's
+  Transport connection pool.
+
+* Fixed panic that was occurring when loading a config file or directory that
+  exists but which registers no plugins (#1597).
+
+* Delay start up when a buffered plugin's buffer is at capacity to give the
+  back-pressure time to resolve (#1738).
+
+* Fixed bug where LogStreamerInput would sometimes loop infinitely reading the
+  same file over and over when reading gzipped log files.
+
+0.10.0b1 (2015-08-07)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* `PluginHelper.PipelinePack` method now returns `(*PipelinePack, err)` values
+  instead of just `*PipelinePack`.
+
+Features
+--------
+
+* Allow multiple sandbox module directories to be specified (#1525).
+
+* Add Nginx stub status lua sandbox decoder
+
+* Add Nginx stub status lua sandbox decoder.
+
+* Added support for SIGUSR2 signal for use when Heka is wedged, triggers a Heka
+  pipeline report to the console, abort and serialize of all sandboxes, and a
+  shutdown.
+
+* InputRunner and router's `Inject` methods each now return an error that can
+  be checked to verify successful message injection.
+
+* Added `SplitStreamNullSplitterToEOF` to SplitterRunner interface so input
+  plugins can avoid generating messages with whatever happens to come back from
+  a `Read()` call.
+
+* Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
+
+Bug Handling
+------------
+
+* Validate the buffer max_file_size is greater than MAX_RECORD_SIZE (#1623).
+
+* Fixed ProcessInput hangs when splitter is defined (#1620, #1644).
+
+* `heka.all-report` and `heka.memstat` messages are now protobuf encoded before
+  being injected into the router (#1659).
+
+* Fixed ProcessInput not getting process's full output when NullSplitter is in
+  use (#1645).
+
+0.10.0b0 (2015-07-13)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* Major overhaul of filter and output plugin APIs to support disk buffering
+  (#1378).
+
+* `queue_max_buffer_size` and `queue_full_action` config options for TcpOutput
+  and ElasticSearchOutput are now moved to `max_buffer_size` and `full_action`
+  in the `buffering` subsection (#1378).
+
+* Go 1.4 now required for building.
+
+* Deprecated the read_next_field() sandbox API; it is targeted for removal in
+  0.11.0 (#1602).
+
+* Removed unused PipelinePack.Decoded attribute.
+
+* LogOutput will write data to stdout instead of stderr (#1515).
+
+* Using strftime literals for filenames during rotation in FileOutput plugin
+  (#1469).
+
+* Implemented strftime format codes in: filenames in FileOutput plugin,
+  ESJsonEncoder, ESLogstashV0Encoder, Payload encoder (#1469, #1508).
+
+* The package created by 'make deb' creates an "heka" user and ships an init
+  script and a systemd unit.
+
+* The 'make deb' target requires fakeroot and debhelper to be installed.
+
+* SplitterRunner interface now provides a `Done` method that should be called
+  whenever the splitter is no longer needed.
+
+* `"Fields"` choice for the `fields` setting renamed to `"DynamicFields"` for
+  both ESJsonEncoder and ESLogstashV0Encoder.
+
+Features
+--------
+
+* Added support for `write_message` to delete fields when passed nil values.
+
+* Added a timer_event_on_shutdown configuration option for Filter/Output
+  sandboxes (#1460).
+
+* Added `replace_dot` setting to StatFilter.
+
+* A protobuf encoding of the current message is now always stored in
+  pack.MsgBytes prior to injection into the message router (#265).
+
+* ProtobufEncoder now just copies the pack.MsgBytes into a new byte slice and
+  returns that.
+
+* Added Linux CPU Stats Decoder and CPU Stats Filter.
+
+* Centralized common functions used by the Schema Carbon Line Encoder and
+  Schema InfluxDB Line Encoder into new ts_line_protocol and field_util modules.
+
+* Added a new sandbox encoder, Schema Carbon Line Encoder, which provides
+  support for converting fields in a Heka message to metrics formatted to
+  send to Carbon/Graphite.
+
+* Added a new sandbox encoder, Schema InfluxDB Line Encoder, which updates
+  compatibility of sending data in Heka message fields to InfluxDB 0.9.0+
+  write API. It is required to use this encoder when integrating Heka with an
+  InfluxDB 0.9.0+ instance as the API to commit metrics has changed. This
+  encoder was also updated to use the line protocol which is now the default
+  series format for the write API.
+
+* Added support for abstract Unix domain sockets to the UdpInput.
+
+* Added support for `can_exit` to inputs (defaults to false, except on
+  ProcessDirectoryInput spawned processes where it defaults to true)
+
+* Added `field_mappings` setting to the ESJsonEncoder allowing custom names for
+  Heka message fields in ElasticSearch.
+
+* Termination messages are now generated for SandboxFilters that fail
+  initialization by a SandboxManagerFilter.
+
+* Added alert_throttle setting to HTTP status graph filter.
+
+* Added DockerEventInput.
+
+* Added splitters to the reports displayed by Heka after SIGUSR1 signal.
+
+* Added `graphite` module with helpers allowing to generate graphite metrics
+  for counters and timeseries (#1461).
+
+* Added Basic Auth and API key authentication to HttpListenInput (#1533).
+
+* Added SSL/TLS support to HttpListenInput (#1534)
+
+* Allow to overwrite ContainerName using a Container environment variable from
+  within the Docker container for the DockerLogInput. (#1545)
+
+* Allow extracting environment variables from a Docker container to use as
+  fields for the DockerLogInput. (#1569)
+
+* Dashboard now shows sandbox plugins in alphabetical order.
+
+* Added 'dynamic_fields' config to ESJsonEncoder for selecting a subset of
+  Fields values
+
+Bug Handling
+------------
+
+* Fixed visibility of synchronous decoders in reports (#1312).
+
+* Fixed hang on SandboxFilter termination (#1509)
+
+* More ProcessInput/ProcessDirectoryInput retry logic fixes (#1412 & #1418).
+
+* ProcessInput fixed to no longer leak decoder goroutines when reconfigured
+  via ProcessDirectoryInput-driven config changes (#1444).
+
+* Check configuration, ticker_interval in Stat Accumulator Input  must be
+  greater than 0 (#1474).
+
+* Switch from unmaintained `crowdmob` fork of GoAMZ dependency to `AdRoll`
+  (#1458).
+
+* Added ability to reconnect after lost connection in `heka-flood` (#1536).
+
+* Respect ElasticSearch URL path (#1558).
+
+0.9.3 (2015-??-??)
+==================
+
+Bug Handling
+------------
+
+* Correctly honor "user-agent" heading config in HttpInput (#1520).
+
+* Removed state from PluginMaker to remove race conditions during plugin
+  construction (#1532).
+
+* Get decoder lock before cleaning up decoders during pipeline shutdown to
+  avoid race condition panics during exit (#1531).
+
 0.9.2 (2015-04-22)
 ==================
 

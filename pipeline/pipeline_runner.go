@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -17,8 +17,7 @@
 package pipeline
 
 import (
-	"github.com/mozilla-services/heka/message"
-	"github.com/rafrombrc/go-notify"
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -27,6 +26,10 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	notify "github.com/rafrombrc/go-notify"
 )
 
 const (
@@ -34,6 +37,8 @@ const (
 	RELOAD = "reload"
 	STOP   = "stop"
 )
+
+var AbortError = errors.New("Aborting")
 
 // Struct for holding global pipeline config values.
 type GlobalConfigStruct struct {
@@ -46,11 +51,15 @@ type GlobalConfigStruct struct {
 	MaxPackIdle           time.Duration
 	stopping              bool
 	stoppingMutex         sync.RWMutex
+	shutdownOnce          sync.Once
 	BaseDir               string
 	ShareDir              string
 	SampleDenominator     int
 	sigChan               chan os.Signal
 	Hostname              string
+	abortChan             chan struct{}
+	FullBufferMaxRetries  uint
+	exitCode              int
 }
 
 // Creates a GlobalConfigStruct object populated w/ default values.
@@ -68,6 +77,7 @@ func DefaultGlobals() (globals *GlobalConfigStruct) {
 		SampleDenominator:     1000,
 		sigChan:               make(chan os.Signal, 1),
 		Hostname:              hostname,
+		abortChan:             make(chan struct{}),
 	}
 }
 
@@ -80,10 +90,13 @@ func (g *GlobalConfigStruct) SigChan() chan os.Signal {
 // This method returns immediately by spawning a goroutine to do to
 // work so that the caller won't end up blocking part of the shutdown
 // sequence
-func (g *GlobalConfigStruct) ShutDown() {
-	go func() {
-		g.sigChan <- syscall.SIGINT
-	}()
+func (g *GlobalConfigStruct) ShutDown(exitCode int) {
+	g.shutdownOnce.Do(func() {
+		g.exitCode = exitCode
+		go func() {
+			g.sigChan <- syscall.SIGINT
+		}()
+	})
 }
 
 func (g *GlobalConfigStruct) IsShuttingDown() (stopping bool) {
@@ -103,6 +116,10 @@ func (g *GlobalConfigStruct) stop() {
 // Log a message out
 func (g *GlobalConfigStruct) LogMessage(src, msg string) {
 	LogInfo.Printf("%s: %s", src, msg)
+}
+
+func (g *GlobalConfigStruct) AbortChan() chan struct{} {
+	return g.abortChan
 }
 
 func isAbs(path string) bool {
@@ -140,8 +157,6 @@ type PipelinePack struct {
 	// Specific channel on which this pack should be recycled when all
 	// processing has completed for a given message.
 	RecycleChan chan *PipelinePack
-	// Indicates whether or not this pack's Message object has been populated.
-	Decoded bool
 	// Reference count used to determine when it is safe to recycle a pack for
 	// reuse by the system.
 	RefCount int32
@@ -151,8 +166,21 @@ type PipelinePack struct {
 	// Number of times the current message chain has generated new messages
 	// and inserted them into the pipeline.
 	MsgLoopCount uint
-	// Used internally to stamp diagnostic information onto a packet
+	// Used internally to stamp diagnostic information onto a packet.
 	diagnostics *PacketTracking
+	// Used to track whether or not a pack's MsgBytes needs to be re-encoded
+	// before being injected into the router. Should be set to true by any
+	// decoder that leaves the pack with a valid protobuf encoding of the
+	// message stored in pack.MsgBytes.
+	TrustMsgBytes bool
+	// Used to store the queue buffer cursor position that a given queue
+	// should be set to after the successful consumption of this message.
+	QueueCursor string
+	// Used internally to differentiate packs that are owned by a buffered
+	// plugin from those that are in circulation for the router.
+	BufferedPack bool
+	// Used to send delivery result error back to the buffered plugin.
+	DelivErrChan chan error
 }
 
 // Returns a new PipelinePack pointer that will recycle itself onto the
@@ -163,33 +191,34 @@ func NewPipelinePack(recycleChan chan *PipelinePack) (pack *PipelinePack) {
 	message.SetSeverity(7)
 
 	return &PipelinePack{
-		MsgBytes:     msgBytes,
-		Message:      message,
-		RecycleChan:  recycleChan,
-		Decoded:      false,
-		RefCount:     int32(1),
-		MsgLoopCount: uint(0),
-		diagnostics:  NewPacketTracking(),
+		MsgBytes:      msgBytes,
+		Message:       message,
+		RecycleChan:   recycleChan,
+		RefCount:      int32(1),
+		MsgLoopCount:  uint(0),
+		diagnostics:   NewPacketTracking(),
+		TrustMsgBytes: false,
 	}
 }
 
-// Reset a pack to its zero state.
+// Zero resets a pack to its zero state.
 func (p *PipelinePack) Zero() {
 	p.MsgBytes = p.MsgBytes[:0]
-	p.Decoded = false
 	p.RefCount = 1
 	p.MsgLoopCount = 0
 	p.Signer = ""
 	p.diagnostics.Reset()
+	p.TrustMsgBytes = false
+	if p.BufferedPack {
+		p.QueueCursor = ""
+	}
 
 	// TODO: Possibly zero the message instead depending on benchmark
 	// results of re-allocating a new message
 	p.Message = new(message.Message)
 }
 
-// Decrement the ref count and, if ref count == zero, zero the pack and put it
-// on the appropriate recycle channel.
-func (p *PipelinePack) Recycle() {
+func (p *PipelinePack) recycle() {
 	cnt := atomic.AddInt32(&p.RefCount, -1)
 	if cnt == 0 {
 		p.Zero()
@@ -197,9 +226,40 @@ func (p *PipelinePack) Recycle() {
 	}
 }
 
-// Main function driving Heka execution. Loads config, initializes
-// PipelinePack pools, and starts all the runners. Then it listens for signals
-// and drives the shutdown process when that is triggered.
+// Recycle checks if the pack is buffered and, if so, drops the returned error
+// on the delivery error channel. If not, it decrements the ref count and, if
+// ref count == zero, zeroes the pack and put it on the appropriate recycle
+// channel.
+func (p *PipelinePack) Recycle(delivErr error) {
+	if p.BufferedPack {
+		p.DelivErrChan <- delivErr
+	} else {
+		p.recycle()
+	}
+}
+
+// EncodeMsgBytes protobuf encodes the pack's message struct and copies the
+// result into the pack's MsgBytes attribute.
+func (p *PipelinePack) EncodeMsgBytes() error {
+	if p.TrustMsgBytes {
+		return nil
+	}
+	msgBytes, err := proto.Marshal(p.Message)
+	if err == nil {
+		if cap(p.MsgBytes) < len(msgBytes) {
+			p.MsgBytes = msgBytes
+		} else {
+			p.MsgBytes = p.MsgBytes[:len(msgBytes)]
+			copy(p.MsgBytes, msgBytes)
+		}
+		p.TrustMsgBytes = true
+	}
+	return err
+}
+
+// Main function driving Heka execution. Loads config, initializes PipelinePack
+// pools, and starts all the runners. Then it listens for signals and drives
+// the shutdown process when that is triggered.
 func Run(config *PipelineConfig) {
 	LogInfo.Println("Starting hekad...")
 
@@ -214,7 +274,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Output '%s' failed to start: %s", name, err)
 			outputsWg.Done()
 			if !output.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -227,7 +287,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Filter '%s' failed to start: %s", name, err)
 			config.filtersWg.Done()
 			if !filter.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -265,7 +325,7 @@ func Run(config *PipelineConfig) {
 			LogError.Printf("Input '%s' failed to start: %s", name, err)
 			config.inputsWg.Done()
 			if !input.IsStoppable() {
-				globals.ShutDown()
+				globals.ShutDown(1)
 			}
 			continue
 		}
@@ -273,7 +333,8 @@ func Run(config *PipelineConfig) {
 	}
 
 	// wait for sigint
-	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, SIGUSR1)
+	signal.Notify(globals.sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
+		SIGUSR1, SIGUSR2)
 
 	for !globals.IsShuttingDown() {
 		select {
@@ -290,6 +351,9 @@ func Run(config *PipelineConfig) {
 			case SIGUSR1:
 				LogInfo.Println("Queue report initiated.")
 				go config.allReportsStdout()
+			case SIGUSR2:
+				LogInfo.Println("Sandbox abort initiated.")
+				go sandboxAbort(config)
 			}
 		}
 	}
@@ -302,11 +366,14 @@ func Run(config *PipelineConfig) {
 	config.inputsLock.Unlock()
 	config.inputsWg.Wait()
 
+	config.allDecodersLock.Lock()
 	LogInfo.Println("Waiting for decoders shutdown")
 	for _, decoder := range config.allDecoders {
 		close(decoder.InChan())
-		LogError.Printf("Stop message sent to decoder '%s'", decoder.Name())
+		LogInfo.Printf("Stop message sent to decoder '%s'", decoder.Name())
 	}
+	config.allDecoders = config.allDecoders[:0]
+	config.allDecodersLock.Unlock()
 	config.decodersWg.Wait()
 	LogInfo.Println("Decoders shutdown complete")
 
@@ -337,4 +404,51 @@ func Run(config *PipelineConfig) {
 	}
 
 	LogInfo.Println("Shutdown complete.")
+	os.Exit(globals.exitCode)
+}
+
+func sandboxAbort(config *PipelineConfig) {
+	// This should only be run when the router isn't processing messages, so we
+	// try to inject a new message and exit if successful. Far from perfect,
+	// but protects in most cases.
+	var pack *PipelinePack
+	doSave := false
+
+	select {
+	case pack = <-config.injectRecycleChan:
+	case <-time.After(1 * time.Second):
+	}
+
+	if pack == nil {
+		select {
+		case pack = <-config.inputRecycleChan:
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	if pack == nil {
+		doSave = true
+	} else {
+		pack.Message.SetType("heka.router-test")
+		select {
+		case config.router.inChan <- pack:
+		case <-time.After(1 * time.Second):
+			doSave = true
+		}
+	}
+
+	if !doSave {
+		msg := "Can't save sandboxes while router is processing messages, use regular shutdown."
+		LogError.Println(msg)
+		return
+	}
+
+	// If we got this far the router is presumably wedged and we'll go ahead
+	// and do it.  First we generate a report for forensics re: why we were
+	// wedged, then send a shutdown signal, then close the abortChan to free up
+	// and abort any sandboxes that are wedged inside process_message or
+	// timer_event.
+	config.allReportsStdout()
+	config.Globals.ShutDown(1)
+	close(config.Globals.abortChan)
 }

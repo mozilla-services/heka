@@ -17,16 +17,18 @@ package tcp
 
 import (
 	"crypto/tls"
+	"io"
+	"io/ioutil"
+	"net"
+	"sync"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"io/ioutil"
-	"net"
-	"time"
 )
 
 type address struct {
@@ -70,8 +72,10 @@ func TcpInputSpec(c gs.Context) {
 
 		bytesChan := make(chan []byte, 1)
 		errChan := make(chan error, 1)
+		var srDoneWG sync.WaitGroup
 
 		startServer := func() {
+			srDoneWG.Add(1)
 			ith.MockInputRunner.EXPECT().Name().Return("mock_name")
 			ith.MockInputRunner.EXPECT().NewDeliverer(gomock.Any()).Return(ith.MockDeliverer)
 			ith.MockDeliverer.EXPECT().Done()
@@ -79,6 +83,9 @@ func TcpInputSpec(c gs.Context) {
 				ith.MockSplitterRunner)
 			ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 			ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
+			ith.MockSplitterRunner.EXPECT().Done().Do(func() {
+				srDoneWG.Done()
+			})
 
 			// splitCall gets called twice. The first time it returns nil, the
 			// second time it returns io.EOF.
@@ -117,6 +124,7 @@ func TcpInputSpec(c gs.Context) {
 				tcpInput.Stop()
 				err = <-errChan
 				c.Expect(err, gs.IsNil)
+				srDoneWG.Wait()
 			})
 		})
 
@@ -161,6 +169,7 @@ func TcpInputSpec(c gs.Context) {
 				tcpInput.Stop()
 				err = <-errChan
 				c.Expect(err, gs.IsNil)
+				srDoneWG.Wait()
 			})
 
 			c.Specify("doesn't accept connections below specified min TLS version", func() {
@@ -183,6 +192,7 @@ func TcpInputSpec(c gs.Context) {
 				tcpInput.Stop()
 				err = <-errChan
 				c.Expect(err, gs.IsNil)
+				srDoneWG.Wait()
 			})
 		})
 	})

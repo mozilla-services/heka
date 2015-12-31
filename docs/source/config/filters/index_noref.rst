@@ -16,6 +16,9 @@ Filters
 .. include:: /config/filters/counter.rst
    :start-line: 1
 
+.. include:: /config/filters/cpu_stats.rst
+   :start-line: 1
+
 .. include:: /config/filters/disk_stats.rst
    :start-line: 1
 
@@ -29,6 +32,9 @@ Filters
    :start-line: 1
 
 .. include:: /config/filters/http_status.rst
+   :start-line: 1
+
+.. include:: /config/filters/influx_batch.rst
    :start-line: 1
 
 .. include:: /config/filters/load_avg.rst

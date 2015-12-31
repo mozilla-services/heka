@@ -4,11 +4,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2014-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Chance Zibolski (chance.zibolski@gmail.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 #***** END LICENSE BLOCK *****/
 
@@ -16,6 +17,10 @@ package irc
 
 import (
 	"fmt"
+	"sync"
+	"testing"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/plugins"
@@ -23,9 +28,6 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
 	"github.com/thoj/go-ircevent"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestAllSpecs(t *testing.T) {
@@ -63,7 +65,6 @@ func IrcOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pipelineConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
 
 		c.Specify("requires an encoder", func() {
 			err := ircOutput.Init(config)
@@ -72,7 +73,6 @@ func IrcOutputSpec(c gs.Context) {
 			outTestHelper.MockOutputRunner.EXPECT().Encoder().Return(nil)
 			err = ircOutput.Run(outTestHelper.MockOutputRunner, outTestHelper.MockHelper)
 			c.Expect(err, gs.Not(gs.IsNil))
-
 		})
 
 		c.Specify("that is started", func() {
@@ -80,6 +80,7 @@ func IrcOutputSpec(c gs.Context) {
 			outTestHelper.MockOutputRunner.EXPECT().Ticker().Return(tickChan)
 			outTestHelper.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 			outTestHelper.MockOutputRunner.EXPECT().InChan().Return(inChan)
+			outTestHelper.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 			outTestHelper.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack)).AnyTimes()
 
 			startOutput := func() {

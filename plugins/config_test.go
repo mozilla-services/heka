@@ -282,6 +282,10 @@ Router:
 ====Inputs====
 TcpInput:
 
+====Splitters====
+NONE
+
+
 ====Decoders====
 ProtobufDecoder:
     InChanCapacity: 50

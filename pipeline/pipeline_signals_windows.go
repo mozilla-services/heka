@@ -24,3 +24,4 @@ import (
 // SIGUSR1 isn't defined on Windows.
 
 const SIGUSR1 = syscall.Signal(0xa)
+const SIGUSR2 = syscall.Signal(0xb)

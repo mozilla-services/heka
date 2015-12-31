@@ -21,10 +21,12 @@
 package payload
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
+	"testing"
+
 	"github.com/bbangert/toml"
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -32,7 +34,6 @@ import (
 	"github.com/rafrombrc/gomock/gomock"
 	"github.com/rafrombrc/gospec/src/gospec"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"testing"
 )
 
 type MultiOutputDecoder struct {
@@ -72,14 +73,14 @@ func MultiDecoderSpec(c gospec.Context) {
 		log_errors = true
 		[StartsWithM.message_fields]
 		StartsWithM = "%TheData%"
-	
+
 		[StartsWithS]
 		type = "PayloadRegexDecoder"
 		match_regex = '^(?P<TheData>s.*)'
 		log_errors = true
 		[StartsWithS.message_fields]
 		StartsWithS = "%TheData%"
-	
+
 		[StartsWithM2]
 		type = "PayloadRegexDecoder"
 		match_regex = '^(?P<TheData>m.*)'

@@ -20,13 +20,21 @@ define(
     *
     * @constructor
     */
+    var Sandboxes = Backbone.Collection.extend({
+      model: Sandbox,
+
+      comparator: function(collection) {
+        return(collection.get('Name'));
+      }
+    });
+
     var SandboxesAdapter = function() {
       /**
       * Sandboxes collection to be filled with data.
       *
       * @property {Backbone.Collection} sandboxes
       */
-      this.sandboxes = new Backbone.Collection();
+      this.sandboxes = new Sandboxes();
     };
 
     /**

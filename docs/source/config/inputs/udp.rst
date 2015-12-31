@@ -33,6 +33,11 @@ Config:
 - net (string, optional, default: "udp")
     Network value must be one of: "udp", "udp4", "udp6", or "unixgram".
 
+.. versionadded:: 0.10
+
+- set_hostname (boolean, default: false)
+    Set Hostname field from remote address.
+
 Example:
 
 .. code-block:: ini

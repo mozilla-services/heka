@@ -17,19 +17,23 @@
 package http
 
 import (
-	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/pipelinemock"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
+	"crypto/tls"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/pipelinemock"
+	. "github.com/mozilla-services/heka/plugins/tcp"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func HttpListenInputSpec(c gs.Context) {
@@ -44,7 +48,6 @@ func HttpListenInputSpec(c gs.Context) {
 	ith.MockHelper = pipelinemock.NewMockPluginHelper(ctrl)
 	ith.MockInputRunner = pipelinemock.NewMockInputRunner(ctrl)
 	ith.MockSplitterRunner = pipelinemock.NewMockSplitterRunner(ctrl)
-	splitter := &TokenSplitter{} // Not actually used.
 
 	errChan := make(chan error, 1)
 	startInput := func() {
@@ -63,7 +66,12 @@ func HttpListenInputSpec(c gs.Context) {
 		ts := httptest.NewUnstartedServer(nil)
 
 		httpListenInput.starterFunc = func(hli *HttpListenInput) error {
-			ts.Start()
+			if hli.conf.UseTls {
+				ts.StartTLS()
+			} else {
+				ts.Start()
+			}
+
 			startedChan <- true
 			return nil
 		}
@@ -73,7 +81,7 @@ func HttpListenInputSpec(c gs.Context) {
 		ith.MockInputRunner.EXPECT().NewSplitterRunner(gomock.Any()).Return(
 			ith.MockSplitterRunner)
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
-		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
+		ith.MockSplitterRunner.EXPECT().Done()
 
 		decChan := make(chan func(*PipelinePack), 1)
 		feedDecorator := func(decorator func(*PipelinePack)) {
@@ -82,26 +90,21 @@ func HttpListenInputSpec(c gs.Context) {
 		setDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 		setDecCall.Do(feedDecorator)
 
-		streamChan := make(chan io.Reader, 1)
-		feedStream := func(r io.Reader) {
-			streamChan <- r
-		}
-		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(
-			gomock.Any()).Do(feedStream)
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStreamNullSplitterToEOF(gomock.Any(),
+			nil)
 
 		bytesChan := make(chan []byte, 1)
-		deliver := func(msgBytes []byte, del Deliverer) {
+		splitAndDeliver := func(r io.Reader, del Deliverer) {
+			msgBytes, _ := ioutil.ReadAll(r)
 			bytesChan <- msgBytes
 		}
-
-		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
 
 		c.Specify("Adds query parameters to the message pack as fields", func() {
 			err := httpListenInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 			resp, err := http.Get(ts.URL + "/?test=Hello%20World")
@@ -125,7 +128,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 			resp, err := http.Get(ts.URL)
@@ -148,12 +151,10 @@ func HttpListenInputSpec(c gs.Context) {
 			ts.Config = httpListenInput.server
 
 			body := "1+2"
-			getRecCall.Return(0, []byte(body), io.EOF)
+			splitCall.Return(io.EOF)
+			splitCall.Do(splitAndDeliver)
 			startInput()
 			<-startedChan
-			deliverCall := ith.MockSplitterRunner.EXPECT().DeliverRecord(gomock.Any(),
-				nil)
-			deliverCall.Do(deliver)
 			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader(body))
 			c.Assume(err, gs.IsNil)
 			resp.Body.Close()
@@ -171,7 +172,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -196,7 +197,7 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Assume(err, gs.IsNil)
 			ts.Config = httpListenInput.server
 
-			getRecCall.Return(0, make([]byte, 0), io.EOF)
+			splitCall.Return(io.EOF)
 			startInput()
 			<-startedChan
 
@@ -237,9 +238,91 @@ func HttpListenInputSpec(c gs.Context) {
 			c.Expect(ip != nil, gs.IsTrue)
 		})
 
+		c.Specify("Test API Authentication", func() {
+			config.AuthType = "API"
+			config.Key = "123"
+
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			splitCall.Return(io.EOF)
+			startInput()
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			req.Header.Add("X-API-KEY", "123")
+			resp, err := client.Do(req)
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Expect(resp.StatusCode, gs.Equals, 200)
+		})
+
+		c.Specify("Test Basic Auth", func() {
+			config.AuthType = "Basic"
+			config.Username = "foo"
+			config.Password = "bar"
+
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			splitCall.Return(io.EOF)
+			startInput()
+			<-startedChan
+
+			client := &http.Client{}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			req.SetBasicAuth("foo", "bar")
+			resp, err := client.Do(req)
+			c.Assume(err, gs.IsNil)
+			resp.Body.Close()
+			c.Expect(resp.StatusCode, gs.Equals, 200)
+		})
+
+		c.Specify("Test TLS", func() {
+			config.UseTls = true
+
+			c.Specify("fails to init w/ missing key or cert file", func() {
+				config.Tls = TlsConfig{}
+
+				err := httpListenInput.setupTls(&config.Tls)
+				c.Expect(err, gs.Not(gs.IsNil))
+				c.Expect(err.Error(), gs.Equals,
+					"TLS config requires both cert_file and key_file value.")
+			})
+
+			config.Tls = TlsConfig{
+				CertFile: "./testsupport/cert.pem",
+				KeyFile:  "./testsupport/key.pem",
+			}
+
+			err := httpListenInput.Init(config)
+			c.Assume(err, gs.IsNil)
+			ts.Config = httpListenInput.server
+
+			splitCall.Return(io.EOF)
+			startInput()
+			<-startedChan
+
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
+			req, err := http.NewRequest("GET", ts.URL, nil)
+			resp, err := client.Do(req)
+			c.Assume(err, gs.IsNil)
+			c.Expect(resp.TLS, gs.Not(gs.IsNil))
+			c.Expect(resp.StatusCode, gs.Equals, 200)
+			resp.Body.Close()
+
+		})
+
 		ts.Close()
 		httpListenInput.Stop()
 		err := <-errChan
 		c.Expect(err, gs.IsNil)
+
 	})
 }

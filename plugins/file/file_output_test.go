@@ -17,12 +17,6 @@ package file
 
 import (
 	"fmt"
-	. "github.com/mozilla-services/heka/pipeline"
-	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/mozilla-services/heka/plugins"
-	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -30,6 +24,13 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	. "github.com/mozilla-services/heka/pipeline"
+	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/mozilla-services/heka/plugins"
+	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 func FileOutputSpec(c gs.Context) {
@@ -59,7 +60,7 @@ func FileOutputSpec(c gs.Context) {
 		msg := pipeline_ts.GetTestMessage()
 		pack := NewPipelinePack(pConfig.InputRecycleChan())
 		pack.Message = msg
-		pack.Decoded = true
+		pack.QueueCursor = "queuecursor"
 
 		errChan := make(chan error, 1)
 
@@ -106,6 +107,42 @@ func FileOutputSpec(c gs.Context) {
 			})
 		})
 
+		c.Specify("rotates files correctly", func() {
+			config.Path = "%Y-%m-%d"
+			config.RotationInterval = 24
+			rotateChan := make(chan time.Time)
+			closingChan := make(chan struct{})
+
+			err := fileOutput.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			defer fileOutput.file.Close()
+
+			fileOutput.rotateChan = rotateChan
+			fileOutput.closing = closingChan
+
+			fileOutput.startRotateNotifier()
+
+			committerChan := make(chan struct{})
+			go func() {
+				fileOutput.committer(oth.MockOutputRunner, errChan)
+				close(committerChan)
+			}()
+
+			c.Assume(fileOutput.path, gs.Equals, time.Now().Format("2006-01-02"))
+
+			futureDuration, _ := time.ParseDuration("24h")
+			futureNow := time.Now().Add(futureDuration)
+
+			rotateChan <- futureNow
+			close(inChan)
+			close(fileOutput.batchChan)
+			<-committerChan
+
+			c.Assume(fileOutput.path, gs.Equals, futureNow.Format("2006-01-02"))
+
+		})
+
 		c.Specify("processes incoming messages", func() {
 			err := fileOutput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -119,12 +156,19 @@ func FileOutputSpec(c gs.Context) {
 			inChan <- pack
 			close(inChan)
 			outBatch := <-fileOutput.batchChan
-			c.Expect(string(outBatch), gs.Equals, payload)
+			c.Expect(string(outBatch.data), gs.Equals, payload)
+			c.Expect(outBatch.cursor, gs.Equals, pack.QueueCursor)
 		})
 
 		c.Specify("commits to a file", func() {
 			outStr := "Write me out to the log file"
 			outBytes := []byte(outStr)
+			batch := &outBatch{
+				data:   outBytes,
+				cursor: pack.QueueCursor,
+			}
+
+			oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 			c.Specify("with default settings", func() {
 				err := fileOutput.Init(config)
@@ -135,7 +179,7 @@ func FileOutputSpec(c gs.Context) {
 
 				// Feed and close the batchChan.
 				go func() {
-					fileOutput.batchChan <- outBytes
+					fileOutput.batchChan <- batch
 					_ = <-fileOutput.backChan // clear backChan to prevent blocking.
 					close(fileOutput.batchChan)
 				}()
@@ -161,7 +205,7 @@ func FileOutputSpec(c gs.Context) {
 
 				// Feed and close the batchChan.
 				go func() {
-					fileOutput.batchChan <- outBytes
+					fileOutput.batchChan <- batch
 					_ = <-fileOutput.backChan // clear backChan to prevent blocking.
 					close(fileOutput.batchChan)
 				}()
@@ -218,6 +262,7 @@ func FileOutputSpec(c gs.Context) {
 			timerChan := make(chan time.Time)
 
 			msg2 := pipeline_ts.GetTestMessage()
+			msg2.SetPayload("MESSAGE 2")
 			pack2 := NewPipelinePack(pConfig.InputRecycleChan())
 			pack2.Message = msg2
 
@@ -240,15 +285,19 @@ func FileOutputSpec(c gs.Context) {
 				recvWithConfig(config)
 				defer cleanUp()
 				inChan <- pack
+
+				after := time.After(100 * time.Millisecond)
 				select {
 				case _ = <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
+
 				timerChan <- time.Now()
+				after = time.After(100 * time.Millisecond)
 				select {
 				case _ = <-fileOutput.batchChan:
-				default:
+				case <-after:
 					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 				}
 			})
@@ -261,24 +310,26 @@ func FileOutputSpec(c gs.Context) {
 				defer cleanUp()
 				inChan <- pack
 
+				after := time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
 				timerChan <- time.Now()
+				after = time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
+				after = time.After(100 * time.Millisecond)
 				inChan <- pack2
-				runtime.Gosched()
 				select {
 				case <-fileOutput.batchChan:
-				default:
+				case <-after:
 					c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 				}
 			})
@@ -291,18 +342,19 @@ func FileOutputSpec(c gs.Context) {
 				defer cleanUp()
 				inChan <- pack
 
+				after := time.After(100 * time.Millisecond)
 				select {
 				case <-fileOutput.batchChan:
 					c.Expect("", gs.Equals, "fileOutput.batchChan should NOT have fired yet")
-				default:
+				case <-after:
 				}
 
 				c.Specify("when interval triggers first", func() {
 					timerChan <- time.Now()
-					runtime.Gosched()
+					after = time.After(100 * time.Millisecond)
 					select {
 					case <-fileOutput.batchChan:
-					default:
+					case <-after:
 						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 					}
 				})
@@ -311,10 +363,10 @@ func FileOutputSpec(c gs.Context) {
 					out, err := encoder.Encode(pack2)
 					oth.MockOutputRunner.EXPECT().Encode(gomock.Any()).Return(out, err)
 					inChan <- pack2
-					runtime.Gosched()
+					after = time.After(100 * time.Millisecond)
 					select {
 					case <-fileOutput.batchChan:
-					default:
+					case <-after:
 						c.Expect("", gs.Equals, "fileOutput.batchChan SHOULD have fired by now")
 					}
 				})

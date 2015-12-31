@@ -57,7 +57,7 @@ local payload_keep = read_config("payload_keep")
 local msg = {
     Timestamp  = nil,
     EnvVersion = nil,
-    Host       = nil,
+    Hostname   = nil,
     Type       = msg_type,
     Payload    = nil,
     Fields     = nil,
@@ -79,7 +79,7 @@ function process_message()
 
     msg.EnvVersion = json["version"]
     msg.Severity = json["level"]
-    msg.Host = json["host"]
+    msg.Hostname = json["host"]
     msg.Fields = json
 
     -- Remove original fields to avoid duplication

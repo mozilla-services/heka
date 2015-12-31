@@ -15,19 +15,20 @@
 package plugins
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 // Heka Input plugin that acts as a wrapper for sandboxed input scripts.
@@ -101,10 +102,17 @@ func (s *SandboxInput) Init(config interface{}) (err error) {
 }
 
 func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
+	abortChan := s.pConfig.Globals.AbortChan()
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
-		pack := <-ir.InChan()
+		var pack *pipeline.PipelinePack
+		select {
+		case pack = <-ir.InChan():
+		case <-abortChan:
+			pack.Recycle(nil)
+			return 5
+		}
 		if err := proto.Unmarshal([]byte(payload), pack.Message); err != nil {
-			pack.Recycle()
+			pack.Recycle(nil)
 			return 1
 		}
 		if s.tz != time.UTC {
@@ -114,7 +122,10 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 			ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
 			pack.Message.SetTimestamp(ct.UnixNano())
 		}
-		ir.Inject(pack)
+		if err := ir.Inject(pack); err != nil {
+			pack.Recycle(nil)
+			return 5
+		}
 		atomic.AddInt64(&s.processMessageCount, 1)
 		atomic.AddInt64(&s.processMessageBytes, int64(len(payload)))
 		return 0
@@ -122,7 +133,8 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 
 	ticker := ir.Ticker()
 
-	for true {
+	ok := true
+	for ok {
 		retval := s.sb.ProcessMessage(nil)
 		if retval <= 0 { // Sandbox is in polling mode
 			if retval < 0 {
@@ -137,7 +149,7 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 				break
 			}
 			select { // block until stop or poll interval
-			case <-s.stopChan:
+			case _, ok = <-s.stopChan:
 			case <-ticker:
 			}
 		} else { // Sandbox is shutting down
@@ -149,19 +161,31 @@ func (s *SandboxInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		}
 	}
 
+	return s.destroy()
+}
+
+func (s *SandboxInput) destroy() error {
+	var err error
+
 	s.reportLock.Lock()
-	if s.sbc.PreserveData {
-		err = s.sb.Destroy(s.preservationFile)
-	} else {
-		err = s.sb.Destroy("")
+	if s.sb != nil {
+		if s.sbc.PreserveData {
+			err = s.sb.Destroy(s.preservationFile)
+		} else {
+			err = s.sb.Destroy("")
+		}
+		s.sb = nil
 	}
-	s.sb = nil
 	s.reportLock.Unlock()
-	return
+	return err
 }
 
 func (s *SandboxInput) Stop() {
-	s.sb.Stop()
+	s.reportLock.Lock()
+	if s.sb != nil {
+		s.sb.Stop()
+	}
+	s.reportLock.Unlock()
 	close(s.stopChan)
 }
 

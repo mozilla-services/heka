@@ -73,7 +73,7 @@ We start with the highest directory to start scanning for files under, in
 this case ``/var/log``. Then the files under that directory (recursively
 searching in sub-directories) are matched against the ``file_match``.
 
-The ``log_directory`` should be the most specific directory of files to
+The ``log_directory`` must exist and should be the most specific directory of files to
 match to prevent excessive file scanning to locate the
 ``file_match``'s.
 
@@ -232,7 +232,7 @@ Configuration for this case:
     [accesslogs]
     type = "LogstreamerInput"
     log_directory = "/var/log/nginx"
-    file_match = '(?P<DomainName>[^/]+/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
+    file_match = '(?P<DomainName>[^/]+)/(?P<Year>\d+)/(?P<Month>\d+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "Month", "^Seq"]
     differentiator = ["nginx-", "DomainName", "-access"]
 
@@ -284,7 +284,7 @@ Using the default mappings would provide us a simple configuration:
     [accesslogs]
     type = "LogstreamerInput"
     log_directory = "/var/log/nginx"
-    file_match = '(?P<Domain>[^/]+/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
+    file_match = '(?P<Domain>[^/]+)/(?P<Year>\d+)/(?P<MonthName>\s+)/access\.log\.?(?P<Seq>\d*)'
     priority = ["Year", "MonthName", "^Seq"]
     differentiator = ["nginx-", "Domain", "-access"]
 

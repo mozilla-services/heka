@@ -27,7 +27,7 @@ func PayloadEncoderSpec(c gs.Context) {
 	c.Specify("A PayloadEncoder", func() {
 		encoder := new(PayloadEncoder)
 		config := encoder.ConfigStruct().(*PayloadEncoderConfig)
-		tsFormat := config.TsFormat
+		tsFormat := "[2006/Jan/02:15:04:05 -0700]"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 		payload := "This is the payload!"
@@ -73,14 +73,13 @@ func PayloadEncoderSpec(c gs.Context) {
 
 		c.Specify("supports alternate time format", func() {
 			config.PrefixTs = true
-			tsFormat = time.RFC1123
-			config.TsFormat = tsFormat
+			config.TsFormat = "%a, %d %b %Y %H:%M:%S %Z"
 			err = encoder.Init(config)
 			c.Expect(err, gs.IsNil)
 
 			output, err = encoder.Encode(pack)
 			c.Expect(err, gs.IsNil)
-			formattedTime := ts.Format(tsFormat)
+			formattedTime := ts.Format(time.RFC1123)
 			expected := fmt.Sprintf("%s %s\n", formattedTime, payload)
 			c.Expect(string(output), gs.Equals, expected)
 		})

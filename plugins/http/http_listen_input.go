@@ -17,13 +17,17 @@
 package http
 
 import (
+	"crypto/tls"
+	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"net"
 	"net/http"
 	"os"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/plugins/tcp"
 )
 
 type HttpListenInput struct {
@@ -44,14 +48,25 @@ type HttpListenInputConfig struct {
 	Address        string
 	Headers        http.Header
 	RequestHeaders []string `toml:"request_headers"`
+	AuthType       string   `toml:"auth_type"`
+	Username       string   `toml:"username"`
+	Password       string   `toml:"password"`
+	Key            string   `toml:"api_key"`
+	// Set to true if the TCP connection should be tunneled through TLS.
+	// Requires additional Tls config section.
+	UseTls bool `toml:"use_tls"`
+	// Subsection for TLS configuration.
+	Tls TlsConfig
 }
 
 func (hli *HttpListenInput) ConfigStruct() interface{} {
-	return &HttpListenInputConfig{
+	config := &HttpListenInputConfig{
 		Address:        "127.0.0.1:8325",
 		Headers:        make(http.Header),
 		RequestHeaders: []string{},
 	}
+	config.Tls = TlsConfig{PreferServerCiphers: true}
+	return config
 }
 
 func defaultStarter(hli *HttpListenInput) (err error) {
@@ -64,12 +79,29 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 			hli.conf.Address))
 	}
 
+	if hli.conf.UseTls {
+		if err = hli.setupTls(&hli.conf.Tls); err != nil {
+			return err
+		}
+	}
+
 	err = hli.server.Serve(hli.listener)
 	if err != nil {
 		return fmt.Errorf("Serve fail: %s", err.Error())
 	}
 
 	return nil
+}
+
+func (hli *HttpListenInput) setupTls(tomlConf *TlsConfig) (err error) {
+	if tomlConf.CertFile == "" || tomlConf.KeyFile == "" {
+		return errors.New("TLS config requires both cert_file and key_file value.")
+	}
+	var goConf *tls.Config
+	if goConf, err = CreateGoTlsConfig(tomlConf); err == nil {
+		hli.listener = tls.NewListener(hli.listener, goConf)
+	}
+	return
 }
 
 func (hli *HttpListenInput) makeField(name string, value string) (field *message.Field, err error) {
@@ -141,13 +173,37 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 }
 
 func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Request) {
-	sRunner := hli.ir.NewSplitterRunner(req.RemoteAddr)
-	if !sRunner.UseMsgBytes() {
-		sRunner.SetPackDecorator(hli.makePackDecorator(req))
+	var err error
+
+	if hli.conf.AuthType == "Basic" {
+		if hli.conf.Username != "" && hli.conf.Password != "" {
+			user, pass, ok := req.BasicAuth()
+			if !ok || user != hli.conf.Username || pass != hli.conf.Password {
+				err = fmt.Errorf("Basic Auth Failed")
+				hli.ir.LogError(err)
+			}
+		}
 	}
-	err := splitStream(hli.ir, sRunner, req.Body)
-	if err != nil && err != io.EOF {
-		hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
+	if hli.conf.AuthType == "API" {
+		if hli.conf.Key != "" {
+			api_key := req.Header.Get("X-API-Key")
+			if api_key != hli.conf.Key {
+				err = fmt.Errorf("API Auth Failed")
+				hli.ir.LogError(err)
+			}
+		}
+	}
+	if err == nil {
+		sRunner := hli.ir.NewSplitterRunner(req.RemoteAddr)
+		if !sRunner.UseMsgBytes() {
+			sRunner.SetPackDecorator(hli.makePackDecorator(req))
+		}
+		err = sRunner.SplitStreamNullSplitterToEOF(req.Body, nil)
+		if err != nil && err != io.EOF {
+			hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
+		}
+		req.Body.Close()
+		sRunner.Done()
 	}
 }
 

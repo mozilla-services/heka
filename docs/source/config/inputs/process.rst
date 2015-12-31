@@ -7,9 +7,11 @@ Plugin Name: **ProcessInput**
 
 Executes one or more external programs on an interval, creating messages from
 the output.  Supports a chain of commands, where stdout from each process will
-be piped into the stdin for the next process in the chain. In the event the
-program returns a non-zero exit code, ProcessInput will log that an error
-occurred.
+be piped into the stdin for the next process in the chain. ProcessInput creates
+Fields[ExitStatus] and Fields[SubcmdErrors]. Fields[ExitStatus] represents the
+platform dependent exit status of the last command in the command chain.
+Fields[SubcmdErrors] represents errors from each sub command, in the format
+of "Subcommand[<subcommand ID>] returned an error: <error message>".
 
 Config:
 
@@ -26,7 +28,7 @@ Config:
     ticker_interval is set to 0 and the process exits, then the ProcessInput
     will exit, invoking the restart behavior (see :ref:`configuring_restarting`).
     Ignored when used in conjunction with :ref:`config_process_directory_input`,
-    where ticker_interval value is instead parsed from the directory path.
+    where `ticker_interval` value is instead parsed from the directory path.
 - immediate_start (bool):
     If true, heka starts process immediately instead of waiting for first
     interval defined by ticker_interval to pass. Defaults to false.

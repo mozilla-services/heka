@@ -217,6 +217,9 @@ func extractModifier(message []byte) ([]byte, bool, error) {
 		if message[0] == 'c' {
 			return []byte("c"), true, nil
 		}
+		if message[0] == 'g' {
+			return []byte("g"), true, nil
+		}
 		if bytes.HasPrefix(message, []byte("ms")) {
 			return []byte("ms"), true, nil
 		}

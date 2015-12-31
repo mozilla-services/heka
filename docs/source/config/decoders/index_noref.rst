@@ -12,8 +12,14 @@ Decoders
 .. include:: /config/decoders/geoip.rst
    :start-line: 1
 
+.. include:: /config/decoders/json.rst
+   :start-line: 1
+
 .. include:: /config/decoders/multi.rst
    :start-line: 1
+
+.. include:: /config/decoders/linux_cpu_stats.rst
+  :start-line: 1
 
 .. include:: /config/decoders/linux_disk_stats.rst
   :start-line: 1
@@ -24,6 +30,12 @@ Decoders
 .. include:: /config/decoders/linux_mem_stats.rst
   :start-line: 1
 
+.. include:: /config/decoders/linux_netdev.rst
+  :start-line: 1
+
+.. include:: /config/decoders/linux_netstat.rst
+  :start-line: 1
+
 .. include:: /config/decoders/mysql_slow_query.rst
   :start-line: 1
 
@@ -31,6 +43,9 @@ Decoders
   :start-line: 1
 
 .. include:: /config/decoders/nginx_error.rst
+  :start-line: 1
+
+.. include:: /config/decoders/nginx_stub_status.rst
   :start-line: 1
 
 .. include:: /config/decoders/payload_regex.rst

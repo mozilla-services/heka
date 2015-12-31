@@ -15,7 +15,7 @@ as the message payload. Messages will be populated as follows:
 - Timestamp: Time HTTP request is handled.
 - Type: `heka.httpdata.request`
 - Hostname: The remote network address of requester.
-- Payload: Entire contents of the HTTP response body.
+- Payload: Entire contents of the HTTP request body.
 - Severity: 6
 - Logger: HttpListenInput
 - Fields["UserAgent"] (string): Request User-Agent header (e.g. "GitHub Hookshot dd0772a").
@@ -47,9 +47,55 @@ Config:
 - request_headers ([]string):
     Add additional request headers as message fields. Defaults to empty list.
 
+.. versionadded:: 0.10
+
+- auth_type (string, optional):
+    If requiring Authentication specify "Basic" or "API" To use "API" you must
+    set a header called "X-API-KEY" with the value of the "api_key" config.
+
+- username (string, optional):
+    Username to check against if auth_type = "Basic".
+
+- password (string, optional):
+    Password to check against if auth_type = "Basic".
+
+- api_key (string, optional):
+    String to validate the "X-API-KEY" header against when using auth_type =
+    "API"
+
+- use_tls (bool):
+    Specifies whether or not SSL/TLS encryption should be used for the TCP
+    connections. Defaults to false.
+
+- tls (TlsConfig):
+    A sub-section that specifies the settings to be used for any SSL/TLS
+    encryption. This will only have any impact if `use_tls` is set to true.
+    See :ref:`tls`.
+
 Example:
 
 .. code-block:: ini
 
     [HttpListenInput]
     address = "0.0.0.0:8325"
+
+
+With Basic Auth:
+
+.. code-block:: ini
+
+    [HttpListenInput]
+    address = "0.0.0.0:8325"
+    auth_type = "Basic"
+    username = "foo"
+    password = "bar"
+
+
+With API Key Auth:
+
+.. code-block:: ini
+
+    [HttpListenInput]
+    address = "0.0.0.0:8325"
+    auth_type = "API"
+    api_key = "1234567"

@@ -218,7 +218,7 @@ func BenchmarkMatcherMatch(b *testing.B) {
 
 func BenchmarkMatcherSimpleRegex(b *testing.B) {
 	b.StopTimer()
-	s := "Type =~ /^TEST/ && Severity == 6"
+	s := "Type =~ /[Tt]EST/ && Severity == 6"
 	ms, _ := CreateMatcherSpecification(s)
 	msg := getTestMessage()
 	b.StartTimer()

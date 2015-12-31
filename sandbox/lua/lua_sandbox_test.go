@@ -4,27 +4,29 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
+#   Rob Miller (rmiller@mozilla.com)
 #
 # ***** END LICENSE BLOCK *****/
 package lua_test
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
+	"github.com/pborman/uuid"
 )
 
 func TestCreation(t *testing.T) {
@@ -293,7 +295,7 @@ func TestAPIErrors(t *testing.T) {
 		"invalid error message",
 	}
 	msgs := []string{
-		"process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '/unknown.lua'\n\tno file '/unknown.so'",
+		"process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file 'unknown.lua'\n\tno file 'unknown.so'",
 		"process_message() ./testsupport/errors.lua:13: bad argument #0 to 'add_to_payload' (must have at least one argument)",
 		"process_message() not enough memory",
 		"process_message() instruction_limit exceeded",
@@ -312,7 +314,7 @@ func TestAPIErrors(t *testing.T) {
 	}
 
 	if runtime.GOOS == "windows" {
-		msgs[0] = "process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file '\\unknown.lua'\n\tno file '\\unknown.dll'"
+		msgs[0] = "process_message() ./testsupport/errors.lua:11: module 'unknown' not found:\n\tno file 'unknown.lua'\n\tno file 'unknown.dll'"
 	}
 
 	var sbc SandboxConfig
@@ -359,13 +361,15 @@ func TestWriteMessageErrors(t *testing.T) {
 		"Negative field index",
 		"Negative array index",
 		"nil field",
-		"nil value",
 		"empty uuid",
 		"invalid uuid",
 		"empty timestamp",
 		"invalid timestamp",
 		"bool severity",
 		"double hostname",
+		"invalid field type",
+		"out of range field index deletion",
+		"out of range field array index deletion",
 	}
 	msgs := []string{
 		"process_message() ./testsupport/write_message_errors.lua:11: write_message() incorrect number of arguments",
@@ -377,13 +381,15 @@ func TestWriteMessageErrors(t *testing.T) {
 		"process_message() ./testsupport/write_message_errors.lua:23: bad argument #4 to 'write_message' (field index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:25: bad argument #5 to 'write_message' (array index must be >= 0)",
 		"process_message() ./testsupport/write_message_errors.lua:27: bad argument #1 to 'write_message' (string expected, got nil)",
-		"process_message() ./testsupport/write_message_errors.lua:29: write_message() only accepts numeric, string, or boolean field values",
+		"process_message() ./testsupport/write_message_errors.lua:29: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:31: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:33: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:35: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:37: write_message() failed",
 		"process_message() ./testsupport/write_message_errors.lua:39: write_message() failed",
-		"process_message() ./testsupport/write_message_errors.lua:41: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:41: write_message() only accepts numeric, string, or boolean field values, or nil to delete",
+		"process_message() ./testsupport/write_message_errors.lua:43: write_message() failed",
+		"process_message() ./testsupport/write_message_errors.lua:45: write_message() failed",
 	}
 
 	var sbc SandboxConfig
@@ -579,6 +585,9 @@ func TestWriteMessage(t *testing.T) {
 	}
 	if pack.Message.GetUuidString() != "550d19b9-58c7-49d8-b0dd-b48cd1c5b305" {
 		t.Errorf("Uuid not set: %s", pack.Message.GetUuidString())
+	}
+	if f = pack.Message.FindAllFields("delete"); len(f) != 0 {
+		t.Error("'delete' field not deleted")
 	}
 }
 
@@ -934,6 +943,77 @@ func TestCJson(t *testing.T) {
 	if r != 0 {
 		t.Errorf("ProcessMessage should return 0, received %d %s", r, sb.LastError())
 	}
+	sb.Destroy("")
+}
+
+func TestGraphiteHelpers(t *testing.T) {
+	var sbc SandboxConfig
+	sbc.ScriptFilename = "./testsupport/graphite.lua"
+	sbc.ModuleDirectory = "./modules"
+	sbc.MemoryLimit = 100000
+	sbc.InstructionLimit = 1000
+	sbc.OutputLimit = 8000
+	sbc.Config = make(map[string]interface{})
+
+	sb, err := lua.CreateLuaSandbox(&sbc)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	err = sb.Init("")
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	for i := 0; i < 4; i++ {
+		pack := getTestPack()
+		pack.Message.SetHostname("localhost")
+		pack.Message.SetLogger("GoSpec")
+
+		message.NewIntField(pack.Message, "status", 200, "status")
+
+		message.NewIntField(pack.Message, "request_time", 15*i, "request_time")
+		r := sb.ProcessMessage(pack)
+		if r != 0 {
+			t.Errorf("Graphite returned %s", r)
+		}
+	}
+
+	injectCount := 0
+	sb.InjectMessage(func(payload, payload_type, payload_name string) int {
+		graphite_payload := `stats.counters.localhost.nginx.GoSpec.http_200.count 4 0
+stats.counters.localhost.nginx.GoSpec.http_200.rate 0.400000 0
+stats.timers.localhost.nginx.GoSpec.request_time.count 4 0
+stats.timers.localhost.nginx.GoSpec.request_time.count_ps 0.400000 0
+stats.timers.localhost.nginx.GoSpec.request_time.lower 0.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.upper 45.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.sum 90.000000 0
+stats.timers.localhost.nginx.GoSpec.request_time.mean 22.500000 0
+stats.timers.localhost.nginx.GoSpec.request_time.mean_90 22.500000 0
+stats.timers.localhost.nginx.GoSpec.request_time.upper_90 45.000000 0
+stats.statsd.numStats 2 0
+`
+		if payload_type != "txt" {
+			t.Errorf("Received payload type: %s", payload_type)
+		}
+
+		if payload_name != "statmetric" {
+			t.Errorf("Received payload name: %s", payload_name)
+		}
+
+		if graphite_payload != payload {
+			t.Errorf("Received payload: %s", payload)
+		}
+		injectCount += 1
+		return 0
+	})
+
+	sb.TimerEvent(200)
+
+	if injectCount > 0 {
+		t.Errorf("Looks there was an error during timer_event")
+	}
+
 	sb.Destroy("")
 }
 

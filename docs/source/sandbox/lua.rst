@@ -149,6 +149,19 @@ Heka specific functions that are exposed to the Lua sandbox
         Decoders, encoders
 
 **read_next_field()**
+    .. deprecated:: 0.10.0
+       Use read_message("raw") instead e.g.,
+
+.. code-block:: lua
+
+    local msg = decode_message(read_message("raw"))
+    if msg.Fields then
+        for i, f in ipairs(msg.Fields) do
+        -- process fields
+        end
+    end
+..
+
     Iterates through the message fields returning the field contents or nil when the end is reached.
 
     *Arguments*

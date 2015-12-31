@@ -16,14 +16,15 @@
 package http
 
 import (
+	"io"
+	"time"
+
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/mozilla-services/heka/pipelinemock"
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io"
-	"time"
 )
 
 func HttpInputSpec(c gs.Context) {
@@ -60,18 +61,16 @@ func HttpInputSpec(c gs.Context) {
 
 		// These assume that every sub-spec makes exactly one HTTP request.
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("0").Return(ith.MockSplitterRunner)
-		getRecCall := ith.MockSplitterRunner.EXPECT().GetRecordFromStream(gomock.Any())
-		getRecCall.Return(len(json_post), []byte(json_post), io.EOF)
+		ith.MockSplitterRunner.EXPECT().Done()
+
+		splitCall := ith.MockSplitterRunner.EXPECT().SplitStreamNullSplitterToEOF(gomock.Any(), nil)
+		splitCall.Return(io.EOF)
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 		decChan := make(chan func(*PipelinePack), 1)
 		packDecCall := ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
 		packDecCall.Do(func(dec func(*PipelinePack)) {
 			decChan <- dec
 		})
-		ith.MockSplitterRunner.EXPECT().DeliverRecord([]byte(json_post), nil)
-		ith.MockSplitterRunner.EXPECT().IncompleteFinal().Return(false).AnyTimes()
-		splitter := &TokenSplitter{} // not actually used
-		ith.MockSplitterRunner.EXPECT().Splitter().Return(splitter)
 
 		c.Specify("honors time ticker to flush", func() {
 			// Spin up a http server.
@@ -142,13 +141,18 @@ func HttpInputSpec(c gs.Context) {
 
 		c.Specify("supports configuring HTTP headers", func() {
 			// Spin up a http server which expects requests with method "POST"
-			server, err := plugins_ts.NewHttpHeadersServer(map[string]string{"Accept": "text/plain"}, "localhost", 9873)
+			headers := map[string]string{
+				"Accept":     "text/plain",
+				"user-agent": "CustomUserAgent",
+			}
+
+			server, err := plugins_ts.NewHttpHeadersServer(headers, "localhost", 9873)
 			c.Expect(err, gs.IsNil)
 			go server.Start("/HeadersTest")
 			time.Sleep(10 * time.Millisecond)
 
 			config.Url = "http://localhost:9873/HeadersTest"
-			config.Headers = map[string]string{"Accept": "text/plain"}
+			config.Headers = headers
 
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
@@ -178,7 +182,7 @@ func HttpInputSpec(c gs.Context) {
 			err = httpInput.Init(config)
 			c.Assume(err, gs.IsNil)
 			respBodyChan := make(chan []byte, 1)
-			getRecCall.Do(func(r io.Reader) {
+			splitCall.Do(func(r io.Reader, d Deliverer) {
 				respBody := make([]byte, len(config.Body))
 				n, err := r.Read(respBody)
 				c.Expect(n, gs.Equals, len(config.Body))

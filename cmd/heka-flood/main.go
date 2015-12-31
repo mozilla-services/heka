@@ -27,15 +27,9 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/client"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/plugins/tcp"
 	"io"
 	"math"
 	"math/rand"
@@ -45,6 +39,13 @@ import (
 	"runtime/pprof"
 	"syscall"
 	"time"
+
+	"github.com/bbangert/toml"
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/plugins/tcp"
+	"github.com/pborman/uuid"
 )
 
 type FloodTest struct {
@@ -64,6 +65,8 @@ type FloodTest struct {
 	UseTls               bool                         `toml:"use_tls"`
 	Tls                  tcp.TlsConfig                `toml:"tls"`
 	MaxMessageSize       uint32                       `toml:"max_message_size"`
+	ReconnectOnError     bool                         `toml:"reconnect_on_error"`
+	ReconnectInterval    int32                        `toml:"reconnect_interval"`
 	msgInterval          time.Duration
 }
 
@@ -194,7 +197,6 @@ func (r *randomDataMaker) Read(p []byte) (n int, err error) {
 			valStash >>= 8
 		}
 	}
-	panic("unreachable")
 }
 
 func makePayload(size uint64, rdm *randomDataMaker) (payload string) {
@@ -271,6 +273,20 @@ func makeFixedMessage(encoder client.StreamEncoder, size uint64,
 	return ma
 }
 
+func createSender(test FloodTest) (sender *client.NetworkSender, err error) {
+	if test.UseTls {
+		var goTlsConfig *tls.Config
+		goTlsConfig, err = tcp.CreateGoTlsConfig(&test.Tls)
+		if err != nil {
+			return
+		}
+		sender, err = client.NewTlsSender(test.Sender, test.IpAddress, goTlsConfig)
+	} else {
+		sender, err = client.NewNetworkSender(test.Sender, test.IpAddress)
+	}
+	return
+}
+
 func sendMessage(sender client.Sender, buf []byte, corrupt bool) (err error) {
 	var b byte
 	var index int
@@ -331,21 +347,28 @@ func main() {
 	if test.MaxMessageSize > 0 {
 		message.SetMaxMessageSize(test.MaxMessageSize)
 	}
+	if test.ReconnectInterval < 1 {
+		test.ReconnectInterval = 5
+	}
 
+	retryIntervalDuration := time.Duration(test.ReconnectInterval) * time.Second
 	var sender *client.NetworkSender
 	var err error
-	if test.UseTls {
-		var goTlsConfig *tls.Config
-		goTlsConfig, err = tcp.CreateGoTlsConfig(&test.Tls)
+
+	for {
+		sender, err = createSender(test)
 		if err != nil {
-			client.LogError.Fatalf("Error creating TLS config: %s\n", err)
+			client.LogError.Printf("Error creating sender: %s\n", err)
+			if test.ReconnectOnError {
+				client.LogInfo.Println("Attempting to reconnect...")
+				time.Sleep(retryIntervalDuration)
+				continue
+			} else {
+				return
+			}
+		} else {
+			break
 		}
-		sender, err = client.NewTlsSender(test.Sender, test.IpAddress, goTlsConfig)
-	} else {
-		sender, err = client.NewNetworkSender(test.Sender, test.IpAddress)
-	}
-	if err != nil {
-		client.LogError.Fatalf("Error creating sender: %s\n", err)
 	}
 
 	unsignedEncoder := client.NewProtobufEncoder(nil)
@@ -424,6 +447,20 @@ func main() {
 		bytesSent += uint64(len(buf))
 		if err = sendMessage(sender, buf, corrupt); err != nil {
 			client.LogError.Printf("Error sending message: %s\n", err.Error())
+			if test.ReconnectOnError {
+				for {
+					client.LogInfo.Println("Attempting to reconnect...")
+					time.Sleep(retryIntervalDuration)
+					sender, err = createSender(test)
+					if err != nil {
+						client.LogError.Printf("Error creating sender: %s\n", err)
+					} else {
+						break
+					}
+				}
+			} else {
+				break
+			}
 		} else {
 			msgsDelivered++
 		}

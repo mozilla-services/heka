@@ -24,12 +24,13 @@ pipeline.
 package main
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"flag"
-	"github.com/mozilla-services/heka/client"
-	"github.com/mozilla-services/heka/message"
 	"os"
 	"time"
+
+	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/message"
+	"github.com/pborman/uuid"
 )
 
 type HekaClient struct {

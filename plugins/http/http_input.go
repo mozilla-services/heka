@@ -18,15 +18,16 @@
 package http
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/pborman/uuid"
 )
 
 type ResponseData struct {
@@ -39,14 +40,15 @@ type ResponseData struct {
 }
 
 type HttpInput struct {
-	name       string
-	urls       []string
-	stopChan   chan bool
-	conf       *HttpInputConfig
-	ir         InputRunner
-	sRunners   []SplitterRunner
-	hostname   string
-	packSupply chan *PipelinePack
+	name            string
+	urls            []string
+	stopChan        chan bool
+	conf            *HttpInputConfig
+	ir              InputRunner
+	sRunners        []SplitterRunner
+	hostname        string
+	packSupply      chan *PipelinePack
+	customUserAgent bool
 }
 
 // Http Input config struct
@@ -96,6 +98,16 @@ func (hi *HttpInput) Init(config interface{}) error {
 		hi.urls = []string{hi.conf.Url}
 	}
 	hi.stopChan = make(chan bool)
+
+	// Check to see if a custom user-agent is in use.
+	h := make(http.Header)
+	for key, value := range hi.conf.Headers {
+		h.Add(key, value)
+	}
+	if h.Get("User-Agent") != "" {
+		hi.customUserAgent = true
+	}
+
 	return nil
 }
 
@@ -141,9 +153,11 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		req.SetBasicAuth(hi.conf.User, hi.conf.Password)
 	}
 	// Request headers
-	req.Header.Add("User-Agent", "Heka")
 	for key, value := range hi.conf.Headers {
 		req.Header.Add(key, value)
+	}
+	if !hi.customUserAgent {
+		req.Header.Add("User-Agent", "Heka")
 	}
 	resp, err := httpClient.Do(req)
 	responseTime := time.Since(responseTimeStart)
@@ -172,10 +186,11 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		sRunner.SetPackDecorator(hi.makePackDecorator(respData))
 	}
 
-	err = splitStream(hi.ir, sRunner, resp.Body)
+	err = sRunner.SplitStreamNullSplitterToEOF(resp.Body, nil)
 	if err != nil && err != io.EOF {
 		hi.ir.LogError(fmt.Errorf("fetching %s response input: %s", url, err.Error()))
 	}
+	resp.Body.Close()
 }
 
 func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
@@ -187,6 +202,12 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 		token := strconv.Itoa(i)
 		hi.sRunners[i] = ir.NewSplitterRunner(token)
 	}
+
+	defer func() {
+		for _, sRunner := range hi.sRunners {
+			sRunner.Done()
+		}
+	}()
 
 	ticker := ir.Ticker()
 	for {
@@ -200,7 +221,6 @@ func (hi *HttpInput) Run(ir InputRunner, h PluginHelper) (err error) {
 			return nil
 		}
 	}
-	return nil
 }
 
 func (hi *HttpInput) Stop() {

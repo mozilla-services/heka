@@ -5,15 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /// @brief Sandboxed Lua execution @file
-#include <stdlib.h>
-#include <stdio.h>
 #include <ctype.h>
+#include <luasandbox.h>
+#include <luasandbox/lauxlib.h>
+#include <luasandbox/lua.h>
+#include <luasandbox/lualib.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
 #include <time.h>
-#include <lsb.h>
 #include "_cgo_export.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,11 @@ int process_message(lua_sandbox* lsb)
         if (len >= LSB_ERROR_SIZE) {
           err[LSB_ERROR_SIZE - 1] = 0;
         }
-        lsb_terminate(lsb, err);
+        // Don't terminate if we're aborting so we preserve data on exit.
+        const char* tail = err + len -7; // Last 7 chars of err msg.
+        if (strcmp(tail, "aborted") != 0) {
+          lsb_terminate(lsb, err);
+        }
         return 1;
     }
 
@@ -100,13 +104,23 @@ int timer_event(lua_sandbox* lsb, long long ns)
 
     lua_pushnumber(lua, ns);
     if (lua_pcall(lua, 1, 0, 0) != 0) {
+        size_t errmsg_len = 0;
+        const char* errmsg = lua_tolstring(lua, -1, &errmsg_len);
         char err[LSB_ERROR_SIZE];
         size_t len = snprintf(err, LSB_ERROR_SIZE, "%s() %s", func_name,
-                              lua_tostring(lua, -1));
+                              errmsg);
         if (len >= LSB_ERROR_SIZE) {
           err[LSB_ERROR_SIZE - 1] = 0;
         }
-        lsb_terminate(lsb, err);
+        // Don't terminate if we're aborting so we preserve data on exit.
+        if (errmsg_len < 7) {
+            lsb_terminate(lsb, err);
+        } else {
+            const char* tail = errmsg + strlen(errmsg) - 7; // Last 7 chars of err msg.
+            if (strcmp(tail, "aborted") != 0) {
+                lsb_terminate(lsb, err);
+            }
+        }
         return 1;
     }
     lsb_pcall_teardown(lsb);
@@ -232,6 +246,7 @@ int write_message(lua_State* lua)
     luaL_argcheck(lua, fi >= 0, 4, "field index must be >= 0");
     int ai = luaL_optinteger(lua, 5, 0);
     luaL_argcheck(lua, ai >= 0, 5, "array index must be >= 0");
+    int has_ai = !lua_isnoneornil(lua, 5); // needed for deletion
 
     int result;
 
@@ -258,8 +273,12 @@ int write_message(lua_State* lua)
             (char*)value, (char*)rep, fi, ai);
         break;
     }
+    case LUA_TNIL: {
+        result = go_lua_delete_message_field(lsb_get_parent(lsb), (char*)field, fi, ai, has_ai);
+        break;
+    }
     default:
-        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values");
+        luaL_error(lua, "write_message() only accepts numeric, string, or boolean field values, or nil to delete");
     }
 
     if (result != 0) {
@@ -363,6 +382,8 @@ static inline void inject_error(lua_State* lua, const char* fn, int result)
     case 4:
         luaL_error(lua, "%s creates a circular reference (matches this plugin's message_matcher)", fn);
         break;
+    case 5:
+        luaL_error(lua, "%s aborted", fn);
     default:
         luaL_error(lua, "%s unknown error", fn);
         break;

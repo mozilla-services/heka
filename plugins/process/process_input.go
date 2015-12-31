@@ -17,16 +17,18 @@
 package process
 
 import (
-	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	. "github.com/mozilla-services/heka/pipeline"
 	"io"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type cmdConfig struct {
@@ -138,7 +140,9 @@ type ProcessInput struct {
 	stderrDeliverer Deliverer
 	stderrSRunner   SplitterRunner
 
-	stopChan chan bool
+	stopChan  chan bool
+	exitError error
+	ccStatus  CommandChainStatus
 
 	hostname       string
 	hekaPid        int32
@@ -163,13 +167,10 @@ func (pi *ProcessInput) ConfigStruct() interface{} {
 func (pi *ProcessInput) Init(config interface{}) (err error) {
 	conf := config.(*ProcessInputConfig)
 
-	pi.stopChan = make(chan bool)
-
 	pi.tickInterval = conf.TickerInterval
 	pi.immediateStart = conf.ImmediateStart
 	pi.parseStdout = conf.ParseStdout
 	pi.parseStderr = conf.ParseStderr
-	pi.once = sync.Once{}
 
 	if len(conf.Command) < 1 {
 		return fmt.Errorf("No Command Configured")
@@ -197,7 +198,6 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	}
 
 	pi.hekaPid = int32(os.Getpid())
-
 	return nil
 }
 
@@ -209,13 +209,23 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// So we can access our InputRunner outside of the Run function.
 	pi.ir = ir
 	pi.hostname = h.Hostname()
-
+	pi.stopChan = make(chan bool)
+	pi.once = sync.Once{}
+	pi.exitError = nil
 	if pi.parseStdout {
 		pi.stdoutDeliverer, pi.stdoutSRunner = pi.initDelivery("stdout")
+		defer func() {
+			pi.stdoutDeliverer.Done()
+			pi.stdoutSRunner.Done()
+		}()
 	}
 
 	if pi.parseStderr {
 		pi.stderrDeliverer, pi.stderrSRunner = pi.initDelivery("stderr")
+		defer func() {
+			pi.stderrDeliverer.Done()
+			pi.stderrSRunner.Done()
+		}()
 	}
 
 	// Start the output parser and start running commands.
@@ -224,10 +234,10 @@ func (pi *ProcessInput) Run(ir InputRunner, h PluginHelper) error {
 	// Wait for stop signal.
 	<-pi.stopChan
 
-	// tickInterval == 0 => we're a long running process, exiting before
-	// shutdown represents an error condition.
-	if pi.tickInterval == 0 && !h.PipelineConfig().Globals.IsShuttingDown() {
-		return errors.New("long running process exited")
+	// If RunCmd exited with an error, and we're not in shutdown, pass back
+	// up (to trigger any configured retry behaviour)
+	if pi.exitError != nil {
+		return pi.exitError
 	}
 
 	return nil
@@ -241,12 +251,37 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 			pack.Message.SetType("ProcessInput")
 			pack.Message.SetPid(pi.hekaPid)
 			pack.Message.SetHostname(pi.hostname)
+			// Add ProcessInputName
 			fPInputName, err := message.NewField("ProcessInputName",
 				fmt.Sprintf("%s.%s", pi.ProcessName, streamName), "")
 			if err == nil {
 				pack.Message.AddField(fPInputName)
 			} else {
 				pi.ir.LogError(err)
+			}
+			// Wait for the result for subcommands.
+			// Add exit status and subcommand error messages to pack.
+			var r int
+			if exiterr, ok := pi.ccStatus.ExitStatus.(*exec.ExitError); ok {
+				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+					r = status.ExitStatus()
+				}
+			}
+
+			exitStatus, err := message.NewField("ExitStatus", r, "")
+			if err == nil {
+				pack.Message.AddField(exitStatus)
+			} else {
+				pi.ir.LogError(err)
+			}
+
+			if pi.ccStatus.SubcmdErrors != nil {
+				subcmdStatus, err := message.NewField("SubcmdErrors", pi.ccStatus.SubcmdErrors.Error(), "")
+				if err == nil {
+					pack.Message.AddField(subcmdStatus)
+				} else {
+					pi.ir.LogError(err)
+				}
 			}
 		}
 		sRunner.SetPackDecorator(packDecorator)
@@ -256,8 +291,10 @@ func (pi *ProcessInput) initDelivery(streamName string) (Deliverer, SplitterRunn
 }
 
 func (pi *ProcessInput) Stop() {
-	// This will shutdown the ProcessInput::RunCmd goroutine
+	// This will also shutdown the ProcessInput::RunCmd goroutine and
+	// spawned CmdChain processes
 	pi.once.Do(func() {
+		pi.cc.Stopchan <- true
 		close(pi.stopChan)
 	})
 }
@@ -265,14 +302,6 @@ func (pi *ProcessInput) Stop() {
 // RunCmd pipes multiple commands together, runs them per the configured
 // msInterval, and passes the output to the appropriate splitter.
 func (pi *ProcessInput) RunCmd() {
-	defer func() {
-		if pi.parseStdout {
-			pi.stdoutDeliverer.Done()
-		}
-		if pi.parseStderr {
-			pi.stderrDeliverer.Done()
-		}
-	}()
 
 	if pi.tickInterval == 0 {
 		pi.runOnce()
@@ -291,6 +320,10 @@ func (pi *ProcessInput) RunCmd() {
 			// detached from the main thread.
 			pi.cc = pi.cc.clone()
 			pi.runOnce()
+			if pi.exitError != nil {
+				pi.stopChan <- true
+				return
+			}
 		case <-pi.stopChan:
 			return
 		}
@@ -302,8 +335,8 @@ func (pi *ProcessInput) runOnce() {
 	var err error
 
 	if err = pi.cc.Start(); err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Start() error: [%s]",
-			pi.ProcessName, err.Error()))
+		pi.exitError = fmt.Errorf("CommandChain::Start() error: [%s]", err)
+		return
 	}
 
 	// We don't get EOF on the pipe readers unless we drain both the stdout
@@ -318,7 +351,8 @@ func (pi *ProcessInput) runOnce() {
 
 	var stdoutReader io.Reader
 	if stdoutReader, err = pi.cc.Stdout_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stdout reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stdout reader: %s", err)
+		return
 	} else if pi.parseStdout {
 		go pi.ParseOutput(stdoutReader, pi.stdoutDeliverer, pi.stdoutSRunner)
 	} else {
@@ -327,24 +361,19 @@ func (pi *ProcessInput) runOnce() {
 
 	var stderrReader io.Reader
 	if stderrReader, err = pi.cc.Stderr_r(); err != nil {
-		pi.ir.LogError(fmt.Errorf("Error getting stderr reader: %s", err))
+		pi.exitError = fmt.Errorf("Error getting stderr reader: %s", err)
+		return
 	} else if pi.parseStderr {
 		go pi.ParseOutput(stderrReader, pi.stderrDeliverer, pi.stderrSRunner)
 	} else {
 		go throwAway(stderrReader)
 	}
-
-	err = pi.cc.Wait()
-	if err != nil {
-		pi.ir.LogError(fmt.Errorf("%s CommandChain::Wait() error: [%s]",
-			pi.ProcessName, err.Error()))
-	}
+	pi.ccStatus = pi.cc.Wait()
 }
 
 func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	sRunner SplitterRunner) {
-
-	err := sRunner.SplitStream(r, deliverer)
+	err := sRunner.SplitStreamNullSplitterToEOF(r, deliverer)
 	// Go doesn't seem to have a good solution to streaming output
 	// between subprocesses.  It seems like you have to read *all* the
 	// content in a goroutine instead of just streaming the content.
@@ -353,12 +382,14 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
 	if err != nil && err != io.ErrShortBuffer && err != io.EOF &&
 		!strings.Contains(err.Error(), "read |0: bad file descriptor") {
-
+		pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
 	}
 }
 
 // CleanupForRestart implements the Restarting interface.
 func (pi *ProcessInput) CleanupForRestart() {
+	// Reset the CommandChain (and therefore os.exec status)
+	pi.cc = pi.cc.clone()
 	pi.Stop()
 }
 

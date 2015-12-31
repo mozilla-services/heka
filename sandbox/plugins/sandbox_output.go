@@ -17,16 +17,17 @@ package plugins
 import (
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
 )
 
 // Heka Output plugin that acts as a wrapper for sandboxed output scripts.
@@ -125,18 +126,22 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 				s.reportLock.Unlock()
 			}
 			s.sample = 0 == rand.Intn(s.sampleDenominator)
-			pack.Recycle()
 
+			or.UpdateCursor(pack.QueueCursor) // TODO: support retries?
 			if retval == 0 {
 				atomic.AddInt64(&s.processMessageCount, 1)
+				pack.Recycle(nil)
 			} else if retval < 0 {
 				atomic.AddInt64(&s.processMessageFailures, 1)
+				var e error
 				em := s.sb.LastError()
 				if len(em) > 0 {
-					or.LogError(errors.New(em))
+					e = errors.New(em)
 				}
+				pack.Recycle(e)
 			} else {
 				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+				pack.Recycle(err)
 				ok = false
 			}
 
@@ -154,20 +159,35 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		}
 	}
 
-	s.reportLock.Lock()
-	var destroyErr error
-	if s.sbc.PreserveData {
-		destroyErr = s.sb.Destroy(s.preservationFile)
-	} else {
-		destroyErr = s.sb.Destroy("")
-	}
-	if destroyErr != nil {
-		err = destroyErr
+	if err == nil && s.sbc.TimerEventOnShutdown {
+		if retval = s.sb.TimerEvent(time.Now().UnixNano()); retval != 0 {
+			err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+		}
 	}
 
-	s.sb = nil
+	destroyErr := s.destroy()
+	if destroyErr != nil {
+		if err != nil {
+			or.LogError(err)
+		}
+		err = destroyErr
+	}
+	return err
+}
+
+func (s *SandboxOutput) destroy() error {
+	var err error
+	s.reportLock.Lock()
+	if s.sb != nil {
+		if s.sbc.PreserveData {
+			err = s.sb.Destroy(s.preservationFile)
+		} else {
+			err = s.sb.Destroy("")
+		}
+		s.sb = nil
+	}
 	s.reportLock.Unlock()
-	return
+	return err
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,17 +18,20 @@ package statsd
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"strconv"
 )
 
 // Simple struct representing a single statsd-style metric value.
 type metric struct {
 	// Supports "Counter", "Timer", or "Gauge"
-	Type_ string `toml:"type"`
-	Name  string
-	Value string
+	Type_      string `toml:"type"`
+	Name       string
+	Value      string
+	ReplaceDot bool `toml:"replace_dot"`
 }
 
 // Heka Filter plugin that can accept specific message types, extract data
@@ -107,7 +110,14 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 
 		// We matched, generate appropriate metrics
 		for _, met := range s.metrics {
+			if met.ReplaceDot {
+				for key, value := range values {
+					values[key] = strings.Replace(value, ".", "_", -1)
+				}
+			}
+
 			stat.Bucket = InterpolateString(met.Name, values)
+
 			switch met.Type_ {
 			case "Counter":
 				stat.Modifier = ""
@@ -122,7 +132,8 @@ func (s *StatFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 				fr.LogError(fmt.Errorf("Undelivered stat: %v", stat))
 			}
 		}
-		pack.Recycle()
+		fr.UpdateCursor(pack.QueueCursor)
+		pack.Recycle(nil)
 	}
 
 	return

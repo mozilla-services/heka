@@ -19,7 +19,7 @@ if(INCLUDE_SANDBOX)
     externalproject_add(
         ${SANDBOX_PACKAGE}
         GIT_REPOSITORY https://github.com/mozilla-services/lua_sandbox.git
-        GIT_TAG e9e8082d247b7d8b639094624a595c43da3a1f56
+        GIT_TAG 4bf74cc480c2306fcffe1e423186e115cc87222d
         CMAKE_ARGS ${SANDBOX_ARGS}
         INSTALL_DIR ${PROJECT_PATH}
     )
@@ -148,15 +148,16 @@ git_clone(https://github.com/feyeleanor/slices bb44bb2e4817fe71ba7082d351fd582e7
 add_dependencies(slices raw)
 git_clone(https://github.com/feyeleanor/sets 6c54cb57ea406ff6354256a4847e37298194478f)
 add_dependencies(sets slices)
-git_clone(https://github.com/crowdmob/goamz e9a919b6da95151fc77b1b7bb3e78a8a68379aa1)
+git_clone(https://github.com/AdRoll/goamz e0af8b0b22517e9fb1d6a4438fa8269c3e834d2d)
 git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e370e6b)
 git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
+git_clone(https://github.com/cactus/gostrftime 4544856e3a415ff5668bb75fed36726240ea1f8d)
 
-hg_clone(https://code.google.com/p/snappy-go default)
-git_clone(https://github.com/Shopify/sarama ab8518c05fd3775bdbf06c97d97389fe8af2dfef)
-add_dependencies(sarama snappy-go)
+git_clone(https://github.com/golang/snappy eaa750b9bf4dcb7cb20454be850613b66cda3273)
+git_clone(https://github.com/rafrombrc/sarama fda3e239249dd96f4a2c446aea39dfc823f4030a)
+add_dependencies(sarama snappy)
 
 if (INCLUDE_GEOIP)
     add_external_plugin(git https://github.com/abh/geoip da130741c8ed2052f5f455d56e552f2e997e1ce9)
@@ -167,15 +168,15 @@ if (INCLUDE_DOCKER_PLUGINS)
 endif()
 
 if (INCLUDE_MOZSVC)
-    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 91278658b5d52bd45b0b74d54e478a230c0ef0c4)
+    add_external_plugin(git https://github.com/mozilla-services/heka-mozsvc-plugins 77f9b7ae9089e2bfa8f11d2250802860a9f9a1ab)
     git_clone(https://github.com/getsentry/raven-go 0cc1491d9d27b258a9b4f0238908cb0d51bd6c9b)
     add_dependencies(heka-mozsvc-plugins raven-go)
 endif()
 
-hg_clone(https://code.google.com/p/go-uuid default)
-git_clone(https://code.google.com/p/gogoprotobuf 7008a93e68bf)
-add_custom_command(TARGET gogoprotobuf POST_BUILD
-COMMAND ${GO_EXECUTABLE} install code.google.com/p/gogoprotobuf/protoc-gen-gogo)
+git_clone(https://github.com/pborman/uuid ca53cad383cad2479bbba7f7a1a05797ec1386e4)
+git_clone(https://github.com/gogo/protobuf 7d21ffbc76b992157ec7057b69a1529735fbab21)
+add_custom_command(TARGET protobuf POST_BUILD
+COMMAND ${GO_EXECUTABLE} install github.com/gogo/protobuf/protoc-gen-gogo)
 
 include(plugin_loader OPTIONAL)
 

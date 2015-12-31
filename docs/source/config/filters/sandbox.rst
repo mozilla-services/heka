@@ -15,6 +15,9 @@ Config:
 
 - :ref:`config_common_sandbox_parameters`
 
+- timer_event_on_shutdown (bool):
+    True if the sandbox should have its timer_event function called on shutdown.
+
 Example:
 
 .. code-block:: ini

@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -16,13 +16,7 @@
 package plugins
 
 import (
-	"code.google.com/p/go-uuid/uuid"
-	"code.google.com/p/gogoprotobuf/proto"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
-	"github.com/mozilla-services/heka/pipeline"
-	. "github.com/mozilla-services/heka/sandbox"
-	"github.com/mozilla-services/heka/sandbox/lua"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -30,6 +24,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
+	. "github.com/mozilla-services/heka/sandbox"
+	"github.com/mozilla-services/heka/sandbox/lua"
+	"github.com/pborman/uuid"
 )
 
 // Decoder for converting structured/unstructured data into Heka messages.
@@ -168,13 +169,16 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			s.sb.Destroy("")
 			s.sb = nil
 		}
-		s.pConfig.Globals.ShutDown()
+		s.pConfig.Globals.ShutDown(1)
 		return
 	}
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
 		if s.pack == nil {
 			s.pack = dr.NewPack()
+			if s.pack == nil {
+				return 5 // We're aborting, exit out.
+			}
 			if original == nil && len(s.packs) > 0 {
 				original = s.packs[0].Message // payload injections have the original header data in the first pack
 			}
@@ -182,11 +186,21 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			original = nil // processing a new message, clear the old message
 		}
 		if len(payload_type) == 0 { // heka protobuf message
+			// write protobuf encoding to MsgBytes
+			needed := len(payload)
+			if cap(s.pack.MsgBytes) < needed {
+				s.pack.MsgBytes = make([]byte, len(payload))
+			} else {
+				s.pack.MsgBytes = s.pack.MsgBytes[:len(payload)]
+			}
+			copy(s.pack.MsgBytes, payload)
+			s.pack.TrustMsgBytes = true
+
 			if original == nil {
 				original = new(message.Message)
 				copyMessageHeaders(original, s.pack.Message) // save off the header values since unmarshal will wipe them out
 			}
-			if nil != proto.Unmarshal([]byte(payload), s.pack.Message) {
+			if nil != proto.Unmarshal(s.pack.MsgBytes, s.pack.Message) {
 				return 1
 			}
 			if s.tz != time.UTC {
@@ -195,8 +209,10 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 				t = t.In(time.UTC)
 				ct, _ := time.ParseInLocation(layout, t.Format(layout), s.tz)
 				s.pack.Message.SetTimestamp(ct.UnixNano())
+				s.pack.TrustMsgBytes = false
 			}
 		} else {
+			s.pack.TrustMsgBytes = false
 			s.pack.Message.SetPayload(payload)
 			ptype, _ := message.NewField("payload_type", payload_type, "file-extension")
 			s.pack.Message.AddField(ptype)
@@ -208,24 +224,31 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 			// from the original message.
 			if s.pack.Message.Uuid == nil {
 				s.pack.Message.SetUuid(uuid.NewRandom()) // UUID should always be unique
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Timestamp == nil {
 				s.pack.Message.SetTimestamp(original.GetTimestamp())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Type == nil {
 				s.pack.Message.SetType(original.GetType())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Hostname == nil {
 				s.pack.Message.SetHostname(original.GetHostname())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Logger == nil {
 				s.pack.Message.SetLogger(original.GetLogger())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Severity == nil {
 				s.pack.Message.SetSeverity(original.GetSeverity())
+				s.pack.TrustMsgBytes = false
 			}
 			if s.pack.Message.Pid == nil {
 				s.pack.Message.SetPid(original.GetPid())
+				s.pack.TrustMsgBytes = false
 			}
 		}
 		s.packs = append(s.packs, s.pack)
@@ -235,24 +258,31 @@ func (s *SandboxDecoder) SetDecoderRunner(dr pipeline.DecoderRunner) {
 }
 
 func (s *SandboxDecoder) Shutdown() {
-	s.reportLock.Lock()
-	defer s.reportLock.Unlock()
+	err := s.destroy()
+	if err != nil {
+		s.dRunner.LogError(err)
+	}
+}
 
+func (s *SandboxDecoder) destroy() error {
+	s.reportLock.Lock()
+
+	var err error
 	if s.sb != nil {
-		var err error
 		if s.sbc.PreserveData {
 			err = s.sb.Destroy(s.preservationFile)
 		} else {
 			err = s.sb.Destroy("")
 		}
 		s.sb = nil
-		if err != nil {
-			s.dRunner.LogError(err)
-		}
 	}
+	s.reportLock.Unlock()
+	return err
 }
 
-func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack, err error) {
+func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.PipelinePack,
+	err error) {
+
 	if s.sb == nil {
 		err = fmt.Errorf("SandboxDecoder has been terminated")
 		return
@@ -276,7 +306,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	if retval > 0 {
 		err = fmt.Errorf("FATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(err)
-		s.pConfig.Globals.ShutDown()
+		s.pConfig.Globals.ShutDown(1)
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
@@ -288,7 +318,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		}
 		if len(s.packs) > 1 {
 			for _, p := range s.packs[1:] {
-				p.Recycle()
+				p.Recycle(nil)
 			}
 		}
 		s.packs = nil
@@ -302,7 +332,11 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 		packs = s.packs
 	}
 	s.packs = nil
-	return
+	return packs, err
+}
+
+func (s *SandboxDecoder) EncodesMsgBytes() bool {
+	return true
 }
 
 // Satisfies the `pipeline.ReportingPlugin` interface to provide sandbox state

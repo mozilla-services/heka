@@ -16,7 +16,12 @@
 package udp
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
+	"io/ioutil"
+	"net"
+	"path/filepath"
+	"runtime"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	pipeline_ts "github.com/mozilla-services/heka/pipeline/testsupport"
@@ -24,10 +29,6 @@ import (
 	plugins_ts "github.com/mozilla-services/heka/plugins/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"io/ioutil"
-	"net"
-	"path/filepath"
-	"runtime"
 )
 
 func encodeMessage(hbytes, mbytes []byte) (emsg []byte) {
@@ -70,6 +71,7 @@ func UdpInputSpec(c gs.Context) {
 
 		ith.MockInputRunner.EXPECT().Name().Return("mock_name")
 		ith.MockInputRunner.EXPECT().NewSplitterRunner("").Return(ith.MockSplitterRunner)
+		ith.MockSplitterRunner.EXPECT().Done().AnyTimes()
 		ith.MockSplitterRunner.EXPECT().GetRemainingData().AnyTimes()
 		ith.MockSplitterRunner.EXPECT().UseMsgBytes().Return(false)
 		ith.MockSplitterRunner.EXPECT().SetPackDecorator(gomock.Any())
@@ -119,6 +121,36 @@ func UdpInputSpec(c gs.Context) {
 				config.Address = ith.AddrStr
 
 				err = udpInput.Init(config)
+				c.Assume(err, gs.IsNil)
+				realListener := (udpInput.listener).(*net.UnixConn)
+				c.Expect(realListener.LocalAddr().String(), gs.Equals, unixPath)
+
+				c.Specify("passes the socket to SplitStream", func() {
+					go udpInput.Run(ith.MockInputRunner, ith.MockHelper)
+
+					unixAddr, err := net.ResolveUnixAddr("unixgram", unixPath)
+					c.Assume(err, gs.IsNil)
+					conn, err := net.DialUnix("unixgram", nil, unixAddr)
+					c.Assume(err, gs.IsNil)
+					_, err = conn.Write(buf)
+					c.Assume(err, gs.IsNil)
+					conn.Close()
+
+					recd := <-bytesChan
+					c.Expect(string(recd), gs.Equals, string(buf))
+					udpInput.Stop()
+				})
+			})
+		}
+
+		if runtime.GOOS == "linux" {
+			c.Specify("using an abstract unix domain socket", func() {
+				unixPath := "@unixgram-socket"
+				ith.AddrStr = unixPath
+				config.Net = "unixgram"
+				config.Address = ith.AddrStr
+
+				err := udpInput.Init(config)
 				c.Assume(err, gs.IsNil)
 				realListener := (udpInput.listener).(*net.UnixConn)
 				c.Expect(realListener.LocalAddr().String(), gs.Equals, unixPath)

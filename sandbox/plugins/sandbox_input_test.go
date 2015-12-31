@@ -23,6 +23,7 @@ import (
 	"github.com/mozilla-services/heka/sandbox"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -124,7 +125,12 @@ func InputSpec(c gs.Context) {
 			tickChan := make(chan time.Time)
 			defer close(tickChan)
 			ith.MockInputRunner.EXPECT().Ticker().Return(tickChan)
-			ith.MockInputRunner.EXPECT().LogError(fmt.Errorf("process_message() ../lua/testsupport/input_error.lua:2: boom"))
+
+			if runtime.GOOS == "windows" {
+				ith.MockInputRunner.EXPECT().LogError(fmt.Errorf("process_message() ..\\lua\\testsupport\\input_error.lua:2: boom"))
+			} else {
+				ith.MockInputRunner.EXPECT().LogError(fmt.Errorf("process_message() ../lua/testsupport/input_error.lua:2: boom"))
+			}
 
 			config := input.ConfigStruct().(*sandbox.SandboxConfig)
 			config.ScriptFilename = "../lua/testsupport/input_error.lua"

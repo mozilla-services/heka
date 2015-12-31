@@ -20,17 +20,18 @@ Heka Sandbox Manager
 package main
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"crypto/tls"
 	"flag"
+	"io/ioutil"
+	"os"
+	"time"
+
 	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/client"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
-	"io/ioutil"
-	"os"
-	"time"
+	"github.com/pborman/uuid"
 )
 
 type SbmgrConfig struct {

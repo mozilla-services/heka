@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -70,7 +70,8 @@ func (this *CounterFilter) Run(fr FilterRunner, h PluginHelper) (err error) {
 			}
 			msgLoopCount = pack.MsgLoopCount
 			this.count++
-			pack.Recycle()
+			fr.UpdateCursor(pack.QueueCursor)
+			pack.Recycle(nil)
 		case <-ticker:
 			this.tally(fr, h, msgLoopCount)
 		}
@@ -101,10 +102,9 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 	this.rate = float64(msgsSent) / elapsedTime.Seconds()
 	this.rates = append(this.rates, this.rate)
 
-	pack := h.PipelinePack(msgLoopCount)
-	if pack == nil {
-		fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-			h.PipelineConfig().Globals.MaxMsgLoops))
+	pack, e := h.PipelinePack(msgLoopCount)
+	if e != nil {
+		fr.LogError(e)
 		return
 	}
 	pack.Message.SetLogger(fr.Name())
@@ -123,10 +123,9 @@ func (this *CounterFilter) tally(fr FilterRunner, h PluginHelper,
 			sum += val
 		}
 		mean := sum / float64(samples)
-		pack := h.PipelinePack(msgLoopCount)
-		if pack == nil {
-			fr.LogError(fmt.Errorf("exceeded MaxMsgLoops = %d",
-				h.PipelineConfig().Globals.MaxMsgLoops))
+		pack, e := h.PipelinePack(msgLoopCount)
+		if e != nil {
+			fr.LogError(e)
 			return
 		}
 		pack.Message.SetLogger(fr.Name())

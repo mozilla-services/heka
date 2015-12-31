@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -19,11 +19,13 @@ package pipeline
 import (
 	"bytes"
 	"errors"
+	"sync"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/mozilla-services/heka/message"
 	ts "github.com/mozilla-services/heka/pipeline/testsupport"
 	"github.com/rafrombrc/gomock/gomock"
 	gs "github.com/rafrombrc/gospec/src/gospec"
-	"sync"
 )
 
 var stopinputTimes int
@@ -38,6 +40,7 @@ func (s *StoppingInput) Init(config interface{}) (err error) {
 }
 
 func (s *StoppingInput) Run(ir InputRunner, h PluginHelper) (err error) {
+	err = errors.New("Unclean Exit")
 	return
 }
 
@@ -64,13 +67,15 @@ func InputRunnerSpec(c gs.Context) {
 	decoder := &_fooDecoder{}
 
 	decoderMaker := &pluginMaker{
-		name:          "FooDecoder",
-		category:      "Decoder",
-		pConfig:       pConfig,
-		configPrepped: true,
+		name:     "FooDecoder",
+		category: "Decoder",
+		pConfig:  pConfig,
 	}
 	decoderMaker.constructor = func() interface{} {
 		return decoder
+	}
+	decoderMaker.prepConfig = func() (interface{}, error) {
+		return make(map[string]interface{}), nil
 	}
 	pConfig.DecoderMakers["FooDecoder"] = decoderMaker
 
@@ -87,6 +92,7 @@ func InputRunnerSpec(c gs.Context) {
 		var wg sync.WaitGroup
 
 		startRunner := func(runner InputRunner) {
+			pConfig.InputRunners[runner.Name()] = runner
 			wg.Add(1)
 			err := runner.Start(mockHelper, &wg)
 			if err != nil {
@@ -99,7 +105,9 @@ func InputRunnerSpec(c gs.Context) {
 			mockHelper.EXPECT().PipelineConfig().Return(pConfig)
 			input := &StoppingInput{}
 			maker := &pluginMaker{}
-			maker.configStruct = make(map[string]interface{})
+			maker.prepConfig = func() (interface{}, error) {
+				return make(map[string]interface{}), nil
+			}
 			runner := NewInputRunner("stopping", input, commonInput).(*iRunner)
 			runner.maker = maker
 			startRunner(runner)
@@ -112,12 +120,67 @@ func InputRunnerSpec(c gs.Context) {
 				pConfig: pConfig,
 			}
 			iConfig := &StatAccumInputConfig{
-				EmitInPayload: true,
+				EmitInPayload:  true,
+				TickerInterval: 10,
 			}
 			err := input.Init(iConfig)
 			c.Assume(err, gs.IsNil)
 			pack := NewPipelinePack(pConfig.inputRecycleChan)
 			pack.Message = ts.GetTestMessage()
+			c.Assume(pack.TrustMsgBytes, gs.IsFalse)
+			msgEncoding, err := proto.Marshal(pack.Message)
+			c.Assume(err, gs.IsNil)
+
+			c.Specify("if splitters should be visible in reports", func() {
+				runner := NewInputRunner("splitinput", input, commonInput).(*iRunner)
+				runner.pConfig = pConfig
+				c.Expect(len(pConfig.allSplitters), gs.Equals, 0)
+
+				sr := runner.NewSplitterRunner("split")
+
+				c.Expect(len(pConfig.allSplitters), gs.Equals, 1)
+				c.Expect(pConfig.allSplitters[0], gs.Equals, sr)
+				c.Expect(pConfig.allSplitters[0].Name(), gs.Equals, "splitinput-NullSplitter-split")
+			})
+
+			c.Specify("when decoding is synchronous", func() {
+				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
+
+				syncDecode := true
+				commonInput.SyncDecode = &syncDecode
+				commonInput.Decoder = "FooDecoder"
+				runner := NewInputRunner("syncdec", input, commonInput).(*iRunner)
+				runner.pConfig = pConfig
+				d := runner.NewDeliverer("").(*deliverer)
+				runner.deliver = d.deliver
+
+				startRunner(runner)
+
+				runner.Deliver(pack)
+				recd := <-pConfig.router.inChan
+
+				c.Expect(recd, gs.Equals, pack)
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO")
+
+				msgEncoding, err = proto.Marshal(pack.Message)
+				c.Expect(err, gs.IsNil)
+				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+
+				// Checking if decoder was added to global list of synchronous decoders
+				c.Expect(len(pConfig.allSyncDecoders), gs.Equals, 1)
+				c.Expect(pConfig.allSyncDecoders[0].decoder, gs.Equals, d.decoder)
+				c.Expect(pConfig.allSyncDecoders[0].name, gs.Equals, "syncdec-FooDecoder")
+
+				d.Done()
+
+				// Tests if decoder was removed safely
+				c.Expect(len(pConfig.allSyncDecoders), gs.Equals, 0)
+
+				pack.Recycle(nil)
+				input.Stop()
+				wg.Wait()
+			})
 
 			c.Specify("when there's no decoder", func() {
 				mockHelper.EXPECT().PipelineConfig().Return(pConfig)
@@ -125,9 +188,14 @@ func InputRunnerSpec(c gs.Context) {
 				runner.pConfig = pConfig
 				startRunner(runner)
 				runner.Deliver(pack)
-				recd := <-pConfig.router.inChan // It was delivered to the router.
+				// It was delivered to the router.
+				recd := <-pConfig.router.inChan
 				c.Expect(recd, gs.Equals, pack)
-				pack.Recycle() // Put it back so input.Flush() can use it again.
+				// And MsgBytes was populated w/ protobuf encoding.
+				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+
+				pack.Recycle(nil) // Put it back so input.Flush() can use it again.
 				input.Stop()
 				wg.Wait()
 			})
@@ -141,9 +209,24 @@ func InputRunnerSpec(c gs.Context) {
 				runner.deliver = d.deliver
 				startRunner(runner)
 				go runner.Deliver(pack)
-				recd := <-d.dRunner.InChan() // It was delivered to the DecoderRunner.
+
+				dWg := new(sync.WaitGroup)
+				dWg.Add(1)
+				d.dRunner.Start(pConfig, dWg)
+
+				// Make sure it was passed all the way through to the router.
+				recd := <-pConfig.router.inChan
 				c.Expect(recd, gs.Equals, pack)
-				pack.Recycle()
+				c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO")
+
+				// Check that DecoderRunner stored protobuf encoding on MsgBytes.
+				msgEncoding, err = proto.Marshal(pack.Message)
+				c.Expect(err, gs.IsNil)
+				c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+				c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+				close(d.dRunner.InChan())
+
+				pack.Recycle(nil)
 				input.Stop()
 				wg.Wait()
 			})
@@ -165,7 +248,14 @@ func InputRunnerSpec(c gs.Context) {
 					recd := <-pConfig.router.inChan // It was delivered to the router.
 					c.Expect(recd, gs.Equals, pack)
 					c.Expect(pack.Message.GetPayload(), gs.Equals, "FOO") // And decoded.
-					pack.Recycle()
+
+					// Make sure deliverFunc stored protobuf encoding on MsgBytes
+					msgEncoding, err = proto.Marshal(pack.Message)
+					c.Expect(err, gs.IsNil)
+					c.Expect(pack.TrustMsgBytes, gs.IsTrue)
+					c.Expect(bytes.Equal(msgEncoding, pack.MsgBytes), gs.IsTrue)
+
+					pack.Recycle(nil)
 					input.Stop()
 					wg.Wait()
 				})
@@ -179,7 +269,7 @@ func InputRunnerSpec(c gs.Context) {
 					f := pack.Message.FindFirstField("decode_failure")
 					c.Expect(f, gs.Not(gs.IsNil))
 					c.Expect(f.GetValue().(bool), gs.IsTrue)
-					pack.Recycle()
+					pack.Recycle(nil)
 					input.Stop()
 					wg.Wait()
 				})
@@ -204,6 +294,37 @@ func InputRunnerSpec(c gs.Context) {
 					wg.Wait()
 				})
 			})
+		})
+	})
+}
+
+func FilterRunnerSpec(c gs.Context) {
+	c.Specify("A filterrunner", func() {
+		pConfig := NewPipelineConfig(nil)
+		filter := &CounterFilter{}
+		commonFO := CommonFOConfig{
+			Matcher: "Type == 'bogus'",
+		}
+		chanSize := 10
+		fRunner, err := NewFORunner("counterFilter", filter, commonFO, "CounterFilter",
+			chanSize)
+		fRunner.h = pConfig
+		c.Assume(err, gs.IsNil)
+
+		pack := NewPipelinePack(pConfig.injectRecycleChan)
+		pConfig.injectRecycleChan <- pack
+		pack.Message = ts.GetTestMessage()
+		c.Assume(pack.TrustMsgBytes, gs.IsFalse)
+		msgEncoding, err := proto.Marshal(pack.Message)
+		c.Assume(err, gs.IsNil)
+
+		c.Specify("puts protobuf encoding into MsgBytes before delivery", func() {
+			result := fRunner.Inject(pack)
+			c.Expect(result, gs.IsTrue)
+			recd := <-pConfig.router.inChan
+			c.Expect(recd, gs.Equals, pack)
+			c.Expect(recd.TrustMsgBytes, gs.IsTrue)
+			c.Expect(bytes.Equal(msgEncoding, recd.MsgBytes), gs.IsTrue)
 		})
 	})
 }
@@ -317,7 +438,9 @@ func OutputRunnerSpec(c gs.Context) {
 		}
 		chanSize := 10
 		maker := &pluginMaker{}
-		maker.configStruct = make(map[string]interface{})
+		maker.prepConfig = func() (interface{}, error) {
+			return make(map[string]interface{}), nil
+		}
 		pConfig.makers["Output"]["stoppingOutput"] = maker
 
 		c.Specify("restarts a plugin on the first time only", func() {

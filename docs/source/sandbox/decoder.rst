@@ -20,6 +20,12 @@ Graylog Extended Log Format Decoder
    :start-after: --[[
    :end-before: --]]
 
+Linux CPU Stats Decoder
+^^^^^^^^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/decoders/linux_procstat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 Linux Disk Stats Decoder
 ^^^^^^^^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/decoders/linux_diskstats.lua

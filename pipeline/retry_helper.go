@@ -23,6 +23,29 @@ import (
 
 var ErrMaxRetriesExceeded = errors.New("Max retries exceeded")
 
+// This struct provides a structure for the available retry options for a
+// RetryHelper.
+type RetryOptions struct {
+	// Maximum time in seconds between restart attempts. Defaults to 30s.
+	MaxDelay string `toml:"max_delay"`
+	// Starting delay in milliseconds between restart attempts. Defaults to
+	// 250ms.
+	Delay string
+	// Maximum jitter added to every retry attempt. Defaults to 500ms.
+	MaxJitter string `toml:"max_jitter"`
+	// How many times to attempt starting the plugin before failing. Defaults
+	// to -1 (retry forever).
+	MaxRetries int `toml:"max_retries"`
+}
+
+func getDefaultRetryOptions() RetryOptions {
+	return RetryOptions{
+		MaxDelay:   "30s",
+		Delay:      "250ms",
+		MaxRetries: -1,
+	}
+}
+
 // Retry helper, created with a RetryOptions struct
 //
 // Everytime Wait is called, the times this has been used is incremented.

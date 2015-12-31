@@ -8,8 +8,8 @@
 #ifndef lua_sandbox_interface_
 #define lua_sandbox_interface_
 
-#include "lua.h"
-#include "lsb.h"
+#include <luasandbox.h>
+#include <luasandbox/lua.h>
 
 // LMW_ERR_*: Lua Message Write errors
 extern const int LMW_ERR_NO_SANDBOX_PACK;

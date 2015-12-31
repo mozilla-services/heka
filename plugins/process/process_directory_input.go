@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -18,12 +18,13 @@ package process
 import (
 	"errors"
 	"fmt"
-	"github.com/bbangert/toml"
-	. "github.com/mozilla-services/heka/pipeline"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/bbangert/toml"
+	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type ProcessEntry struct {
@@ -118,7 +119,7 @@ func (pdi *ProcessDirectoryInput) loadInputs() (err error) {
 		return
 	}
 
-	// Remove any running inputs that are no longer specified.
+	// Remove any running inputs that are no longer specified
 	for name, entry := range pdi.inputs {
 		if _, ok := pdi.specified[name]; !ok {
 			pdi.pConfig.RemoveInputRunner(entry.ir)
@@ -130,6 +131,7 @@ func (pdi *ProcessDirectoryInput) loadInputs() (err error) {
 	// Iterate through the specified inputs and activate any that are new or
 	// have been modified.
 	for name, newEntry := range pdi.specified {
+
 		if runningEntry, ok := pdi.inputs[name]; ok {
 			if runningEntry.config.Equals(newEntry.config) {
 				// Nothing has changed, let this one keep running.
@@ -201,22 +203,32 @@ func (pdi *ProcessDirectoryInput) procDirWalkFunc(path string, info os.FileInfo,
 		pdi.ir.LogError(fmt.Errorf("loading process file '%s': %s", path, err))
 		return nil
 	}
-	// Override the config settings we manage, make the runner, and store the entry.
-	entry.config.TickerInterval = uint(tickInterval)
 
-	commonConfig := entry.maker.CommonTypedConfig().(CommonInputConfig)
-	commonConfig.Retries = RetryOptions{
-		MaxDelay:   "30s",
-		Delay:      "250ms",
-		MaxRetries: -1,
+	// Override the config settings we manage, make the runner, and store the
+	// entry.
+	prepConfig := func() (interface{}, error) {
+		config, err := entry.maker.OrigPrepConfig()
+		if err != nil {
+			return nil, err
+		}
+		processInputConfig := config.(*ProcessInputConfig)
+		processInputConfig.TickerInterval = uint(tickInterval)
+		return processInputConfig, nil
 	}
-	entry.maker.SetCommonTypedConfig(commonConfig)
+	config, err := prepConfig()
+	if err != nil {
+		pdi.ir.LogError(fmt.Errorf("prepping config: %s", err.Error()))
+		return nil
+	}
+	entry.config = config.(*ProcessInputConfig)
+	entry.maker.SetPrepConfig(prepConfig)
 
 	runner, err := entry.maker.MakeRunner("")
 	if err != nil {
 		pdi.ir.LogError(fmt.Errorf("making runner: %s", err.Error()))
 		return nil
 	}
+
 	entry.ir = runner.(InputRunner)
 	entry.ir.SetTransient(true)
 	pdi.specified[path] = entry
@@ -242,13 +254,28 @@ func (pdi *ProcessDirectoryInput) loadProcessFile(path string) (*ProcessEntry, e
 
 	mutMaker := maker.(MutableMaker)
 	mutMaker.SetName(path)
-	if err = mutMaker.PrepConfig(); err != nil {
-		return nil, fmt.Errorf("can't prep config: %s", err)
+
+	prepCommonTypedConfig := func() (interface{}, error) {
+		commonTypedConfig, err := mutMaker.OrigPrepCommonTypedConfig()
+		if err != nil {
+			return nil, err
+		}
+		commonInput := commonTypedConfig.(CommonInputConfig)
+		commonInput.Retries = RetryOptions{
+			MaxDelay:   "30s",
+			Delay:      "250ms",
+			MaxRetries: -1,
+		}
+		if commonInput.CanExit == nil {
+			b := true
+			commonInput.CanExit = &b
+		}
+		return commonInput, nil
 	}
+	mutMaker.SetPrepCommonTypedConfig(prepCommonTypedConfig)
 
 	entry := &ProcessEntry{
-		maker:  mutMaker,
-		config: mutMaker.Config().(*ProcessInputConfig),
+		maker: mutMaker,
 	}
 	return entry, nil
 }

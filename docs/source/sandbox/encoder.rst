@@ -26,9 +26,21 @@ ESPayloadEncoder
    :start-after: --[[
    :end-before: --]]
 
+Schema Carbon Line Encoder
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/encoders/schema_carbon_line.lua
+   :start-after: --[=[
+   :end-before: --]=]
+
 Schema InfluxDB Encoder
 ^^^^^^^^^^^^^^^^^^^^^^^
 .. include:: /../../sandbox/lua/encoders/schema_influx.lua
+   :start-after: --[=[
+   :end-before: --]=]
+
+Schema InfluxDB Line Encoder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. include:: /../../sandbox/lua/encoders/schema_influx_line.lua
    :start-after: --[=[
    :end-before: --]=]
 

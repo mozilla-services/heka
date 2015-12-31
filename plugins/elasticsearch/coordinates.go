@@ -18,6 +18,7 @@ package elasticsearch
 import (
 	"bytes"
 	"fmt"
+	"github.com/cactus/gostrftime"
 	"github.com/mozilla-services/heka/message"
 	"strconv"
 	"strings"
@@ -46,7 +47,7 @@ func (e *ElasticSearchCoordinates) PopulateBuffer(m *message.Message, buf *bytes
 
 	interpIndex, err = interpolateFlag(e, m, e.Index)
 
-	buf.WriteString(strconv.Quote(interpIndex))
+	buf.WriteString(strconv.Quote(strings.ToLower(interpIndex)))
 	buf.WriteString(`,"_type":`)
 
 	interpType, err = interpolateFlag(e, m, e.Type)
@@ -102,7 +103,7 @@ func interpolateFlag(e *ElasticSearchCoordinates, m *message.Message, name strin
 					} else {
 						t = time.Now().UTC()
 					}
-					iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], t.Format(elVal), -1)
+					iSlice[i] = strings.Replace(iSlice[i], element[:elEnd+1], gostrftime.Strftime(elVal, t), -1)
 				}
 			}
 			if iSlice[i] == elVal {

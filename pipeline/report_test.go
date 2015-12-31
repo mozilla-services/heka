@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2012-2014
+# Portions created by the Initial Developer are Copyright (C) 2012-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -79,7 +79,7 @@ func ReportSpec(c gs.Context) {
 	}
 	fRunner, err := NewFORunner(fName, filter, foConfig, "CounterFilter", chanSize)
 	c.Assume(err, gs.IsNil)
-	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner, chanSize)
+	fRunner.matcher, err = NewMatchRunner("Type == ''", "", fRunner, chanSize, fRunner.inChan)
 	c.Assume(err, gs.IsNil)
 	fRunner.matcher.inChan = make(chan *PipelinePack, chanSize)
 	leakCount := 10

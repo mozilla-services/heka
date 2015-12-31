@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2013-2014
+# Portions created by the Initial Developer are Copyright (C) 2013-2015
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -15,14 +15,16 @@
 package pipeline
 
 import (
-	"github.com/mozilla-services/heka/message"
-	ts "github.com/mozilla-services/heka/pipeline/testsupport"
-	"github.com/rafrombrc/gomock/gomock"
-	gs "github.com/rafrombrc/gospec/src/gospec"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mozilla-services/heka/message"
+	ts "github.com/mozilla-services/heka/pipeline/testsupport"
+	"github.com/rafrombrc/gomock/gomock"
+	gs "github.com/rafrombrc/gospec/src/gospec"
 )
 
 type InputTestHelper struct {
@@ -47,6 +49,14 @@ func StatAccumInputSpec(c gs.Context) {
 		config := statAccumInput.ConfigStruct().(*StatAccumInputConfig)
 		pConfig := NewPipelineConfig(nil)
 		statAccumInput.pConfig = pConfig
+
+		c.Specify("ticker interval is zero", func() {
+			config.TickerInterval = 0
+			err := statAccumInput.Init(config)
+			c.Expect(err, gs.Not(gs.IsNil))
+			expected := "TickerInterval must be greater than 0."
+			c.Expect(err.Error(), gs.Equals, expected)
+		})
 
 		c.Specify("validates that data is emitted", func() {
 			config.EmitInPayload = false
@@ -85,7 +95,8 @@ func StatAccumInputSpec(c gs.Context) {
 			}
 
 			ith.MockInputRunner.EXPECT().InChan().Return(ith.PackSupply)
-			ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput").AnyTimes()
+			// Need one of these for every Inject
+			ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
 
 			injectCall := ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 			var injectCalled sync.WaitGroup
@@ -122,9 +133,26 @@ func StatAccumInputSpec(c gs.Context) {
 					}
 				}
 
+				drainStats := func() {
+					ok := true
+					for ok {
+						if len(statAccumInput.statChan) > 0 {
+							time.Sleep(100 * time.Millisecond)
+						} else {
+							ok = false
+						}
+					}
+				}
+
 				validateValueAtKey := func(msg *message.Message, key string, value interface{}) {
 					fieldValue, ok := msg.GetFieldValue(key)
+					if !ok {
+						log.Printf("%s field is missing from the message\n", key)
+					}
 					c.Expect(ok, gs.IsTrue)
+					if fieldValue != value {
+						log.Printf("%s should be %v is %v\n", key, value, fieldValue)
+					}
 					c.Expect(fieldValue, gs.Equals, value)
 				}
 
@@ -194,15 +222,17 @@ func StatAccumInputSpec(c gs.Context) {
 
 				c.Specify("emits proper idle stats", func() {
 					startInput()
+					inputStarted.Wait()
 					sendGauge("sample.gauge", 1, 2)
 					sendCounter("sample.cnt", 1, 2, 3, 4, 5)
 					sendTimer("sample.timer", 10, 10, 20, 20)
-					inputStarted.Wait()
+					drainStats()
 					tickChan <- time.Now()
 
 					injectCalled.Wait()
-					ith.Pack.Recycle()
+					ith.Pack.Recycle(nil)
 					ith.PackSupply <- ith.Pack
+					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 
 					msg, err := finalizeSendingStats()
@@ -216,19 +246,22 @@ func StatAccumInputSpec(c gs.Context) {
 				c.Specify("omits idle stats", func() {
 					config.DeleteIdleStats = true
 					err := statAccumInput.Init(config)
-					c.Expect(err, gs.IsNil)
+					c.Assume(err, gs.IsNil)
 
 					startInput()
+					inputStarted.Wait() // Can't flush until the input has started.
 					sendGauge("sample.gauge", 1, 2)
 					sendCounter("sample.cnt", 1, 2, 3, 4, 5)
 					sendTimer("sample.timer", 10, 10, 20, 20)
-					inputStarted.Wait() // Can't flush until the input has started.
+					drainStats()
 					tickChan <- time.Now()
 					injectCalled.Wait()
 
 					sendTimer("sample2.timer", 10, 20)
-					ith.Pack.Recycle()
+					drainStats()
+					ith.Pack.Recycle(nil)
 					ith.PackSupply <- ith.Pack
+					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 					msg, err := finalizeSendingStats()
 					c.Assume(err, gs.IsNil)
@@ -370,6 +403,7 @@ func StatAccumInputSpec(c gs.Context) {
 
 					// Prep pack and EXPECTS for the close.
 					ith.PackSupply <- ith.Pack
+					ith.MockInputRunner.EXPECT().Name().Return("StatAccumInput")
 					ith.MockInputRunner.EXPECT().Inject(ith.Pack)
 
 					close(statAccumInput.statChan)
