@@ -23,9 +23,9 @@ Config:
     in the message fields of the generated messages. Defaults to false. *NOTE*:
     At least one of 'emit_in_payload' or 'emit_in_fields' *must* be true or it
     will be considered a configuration error and the input won't start.
-- percent_threshold (int):
+- percent_threshold (slice):
     Percent threshold to use for computing "upper_N%" type stat values.
-    Defaults to 90.
+    Defaults to [90].
 - ticker_interval (uint):
     Time interval (in seconds) between generated output messages.
     Defaults to 10.

@@ -1,3 +1,26 @@
+0.11.0 (2015-??-??)
+===================
+
+Backwards Incompatibilities
+---------------------------
+
+* StatAccumInput Input: percent_threshold param type convert to slice
+
+Bug Handling
+------------
+
+* Updated Sarama dependency from pre-1.0 release fork to fork (with only test
+  code changes) of Sarama 1.5.0 release.
+
+Features
+--------
+
+* Added decoder support to StatAccumInput.
+
+* Added `git_clone_to_path` to the cmake build to allow git repos to be cloned
+  into alternate locations; useful for relocating forks of Go packages into
+  their original import paths.
+
 0.10.0 (2015-12-30)
 ===================
 
@@ -9,6 +32,29 @@ Bug Handling
   (#1199).
 
 0.10.0b2 (2015-11-20)
+=====================
+
+Backwards Incompatibilities
+---------------------------
+
+* StatAccumInput Input: percent_threshold param type convert to slice
+
+Bug Handling
+------------
+
+* Updated Sarama dependency from pre-1.0 release fork to fork (with only test
+  code changes) of Sarama 1.5.0 release.
+
+Features
+--------
+
+* Added decoder support to StatAccumInput.
+
+* Added `git_clone_to_path` to the cmake build to allow git repos to be cloned
+  into alternate locations; useful for relocating forks of Go packages into
+  their original import paths.
+
+0.10.0 (2015-??-??)
 =====================
 
 Backwards Incompatibilities

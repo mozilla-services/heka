@@ -23,7 +23,7 @@ From Source
 this task is automated by the build process. The build script will override the
 Go environment for the shell window it is executed in. This creates an isolated
 environment that is intended specifically for building and developing Heka.
-The build script should be be sourced every time a new shell is opened for Heka
+The build script should be sourced every time a new shell is opened for Heka
 development to ensure the correct dependencies are found and being used. To
 create a working `hekad` binary for your platform you'll need to install some
 prerequisites. Many of these are standard on modern Unix distributions and all
@@ -135,7 +135,7 @@ There are two build customization options that can be specified during the cmake
 - BENCHMARK (bool) Enable the benchmark tests (default false)
 
 For example: to enable the benchmark tests in addition to the standard unit tests
-type 'cmake -DBENCHMARK=true ..' in the build directory.
+upon building type 'source ./build.sh -DBENCHMARK=true ..' in the top repo directory.
 
 .. _build_include_externals:
 
@@ -161,7 +161,7 @@ sub-packages to be initialized.
         # is checked in, the value can simply be changed to the correct tag to make it 'live'.
         # i.e. {heka root}/externals/heka-sns-input -> {heka root}/build/heka/src/github.com/bellycard/heka-sns-input
 
-The preceeding entry clones the `heka-mozsvc-plugins` git repository into the Go
+The preceding entry clones the `heka-mozsvc-plugins` git repository into the Go
 work environment, checks out SHA 6fe574dbd32a21f5d5583608a9d2339925edd2a7, and imports the package into 
 `hekad` when `make` is run. By adding an `init() function <http://golang.org/doc/effective_go.html#init>`_ 
 in your package you can make calls into `pipeline.RegisterPlugin` to register 

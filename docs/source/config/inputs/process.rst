@@ -17,7 +17,7 @@ Config:
 
 - command (map[uint]cmd_config):
     The command is a structure that contains the full path to the binary,
-    command line arguments, optional enviroment variables and an optional
+    command line arguments, optional environment variables and an optional
     working directory (see below). ProcessInput expects the commands to be
     indexed by integers starting with 0, where 0 is the first process in the
     chain.

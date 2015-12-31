@@ -28,50 +28,33 @@ Config:
 
 *Example Heka Message*
 
-:Timestamp: 2015-09-03 13:44:25 +0000 UTC
+:Timestamp: 2015-10-16 13:31:07 +0000 UTC
 :Type: stats.netdev
-:Hostname: ultrathieu
+:Hostname: example.com
 :Pid: 0
-:Uuid: cf705300-b3d7-4e5a-a56e-37846f8c246a
-:Logger: Netdev
+:Uuid: 505561dc-81f6-4856-abe5-077c24457010
+:Logger: NetdevInput
 :Payload:
 :EnvVersion:
 :Severity: 7
 :Fields:
-    | name:"lo_transmit_carrier" type:integer value:0
-    | name:"eth0_receive_fifo" type:integer value:0
-    | name:"lo_transmit_bytes" type:integer value:50278
-    | name:"lo_receive_multicast" type:integer value:0
-    | name:"eth0_receive_packets" type:integer value:0
-    | name:"lo_transmit_compressed" type:integer value:0
-    | name:"eth0_transmit_packets" type:integer value:0
-    | name:"lo_transmit_colls" type:integer value:0
-    | name:"eth0_transmit_compressed" type:integer value:0
-    | name:"eth0_receive_drop" type:integer value:0
-    | name:"eth0_receive_frame" type:integer value:0
-    | name:"eth0_transmit_errs" type:integer value:0
-    | name:"eth0_transmit_fifo" type:integer value:0
-    | name:"lo_receive_drop" type:integer value:0
-    | name:"eth0_receive_bytes" type:integer value:0
-    | name:"lo_transmit_drop" type:integer value:0
-    | name:"lo_receive_frame" type:integer value:0
-    | name:"FilePath" type:string value:"/proc/net/dev"
-    | name:"lo_transmit_fifo" type:integer value:0
-    | name:"lo_transmit_errs" type:integer value:0
-    | name:"eth0_transmit_drop" type:integer value:0
-    | name:"lo_transmit_packets" type:integer value:601
-    | name:"lo_receive_compressed" type:integer value:0
-    | name:"lo_receive_fifo" type:integer value:0
-    | name:"lo_receive_errs" type:integer value:0
-    | name:"eth0_transmit_carrier" type:integer value:0
-    | name:"lo_receive_packets" type:integer value:601
-    | name:"lo_receive_bytes" type:integer value:50278
-    | name:"eth0_transmit_colls" type:integer value:0
-    | name:"eth0_receive_compressed" type:integer value:0
-    | name:"eth0_receive_errs" type:integer value:0
-    | name:"eth0_receive_multicast" type:integer value:0
-    | name:"eth0_transmit_bytes" type:integer value:0
-
+| name:"receive_multicast" type:double value:0
+| name:"transmit_errs" type:double value:0
+| name:"receive_drop" type:double value:0
+| name:"netdevice" type:string value:"eth0"
+| name:"transmit_drop" type:double value:0
+| name:"transmit_carrier" type:double value:0
+| name:"receive_packets" type:double value:1.18443194e+08
+| name:"receive_compressed" type:double value:0
+| name:"transmit_colls" type:double value:0
+| name:"transmit_compressed" type:double value:0
+| name:"receive_frame" type:double value:0
+| name:"transmit_packets" type:double value:1.07330545e+08
+| name:"receive_fifo" type:double value:0
+| name:"receive_bytes" type:double value:1.3915983085e+11
+| name:"transmit_bytes" type:double value:1.78516842512e+11
+| name:"receive_errs" type:double value:0
+| name:"transmit_fifo" type:double value:0
 --]]
 
 local table = require "table"
@@ -137,7 +120,9 @@ function process_message()
         return -1, "Failed to match grammar"
     end
 
-    msg.Fields = {}
+    if payload_keep then
+        msg.Payload = data
+    end
 
     if field_names == nil then
         -- Extract field names only once
@@ -153,19 +138,22 @@ function process_message()
         end
     end
     local counters = data[2]
+
     for i, iface_counters in ipairs(counters) do
+        local fields = {}
+        fields.FilePath = read_message("Fields[FilePath]")
+
         local iface = iface_counters[1]
         local counters = iface_counters[2]
         for i2, v2 in ipairs(counters) do
-            msg.Fields[iface .. '_' .. field_names[i2]] = v2
+            fields[field_names[i2]] = v2
         end
+
+        fields.netdevice = iface
+
+        msg.Fields = fields
+        inject_message(msg)
     end
 
-    if payload_keep then
-        msg.Payload = data
-    end
-
-    msg.Fields.FilePath = read_message("Fields[FilePath]")
-    inject_message(msg)
     return 0
 end

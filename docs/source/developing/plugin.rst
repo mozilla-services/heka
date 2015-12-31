@@ -833,7 +833,7 @@ output and the error.
 Unlike the other plugin types, encoders don't have a PluginRunner, nor do they
 run in their own goroutines. Outputs invoke encoders directly, by calling the
 Encode method exposed on the OutputRunner. This has the same signature as the
-Encoder interface's Encode method, to which it will will delegate. If
+Encoder interface's Encode method, to which it will delegate. If
 ``use_framing`` is set to true in the output's configuration, however, the
 OutputRunner will prepend Heka's :ref:`stream_framing` to the generated binary
 data.
@@ -874,7 +874,7 @@ of these is the ``Output`` interface::
   }
 
 The only difference between this and the :ref:`Filter <filters>` interface is
-that the first argument to ``Prepare`` is and ``OutputRunner`` and not a
+that the first argument to ``Prepare`` is an ``OutputRunner`` and not a
 ``FilterRunner``. The two interfaces are used in the same way, with Prepare
 being called before message processing starts and CleanUp being called after
 message processing has completed.

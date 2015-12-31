@@ -31,7 +31,7 @@ Config:
     failed if *none* of the sub-decoders succeed.
 
 Here is a slightly contrived example where we have protocol buffer encoded
-messages coming in over a TCP connection, with each message containin a single
+messages coming in over a TCP connection, with each message containing a single
 nginx log line. Our MultiDecoder will run each message through two decoders,
 the first to deserialize the protocol buffer and the second to parse the log
 text:

@@ -6,7 +6,7 @@ Sandbox Development
 Decoders
 --------
 Since decoders cannot be dynamically loaded and they stop Heka processing on
-fatal errors they must be developed outside of a production enviroment. Most
+fatal errors they must be developed outside of a production environment. Most
 Lua  decoders are LPeg based as it is the best way to parse and transform data
 within the sandbox. The other alternatives are the built-in Lua pattern
 matcher or the  JSON parser with a manual transformation.
@@ -33,7 +33,7 @@ matcher or the  JSON parser with a manual transformation.
         [SandboxDecoder]
         filename = "decoder.lua"
 
-4. Configure the DasboardOutput for visibility into the decoder (performance,
+4. Configure the DashboardOutput for visibility into the decoder (performance,
    memory usage, messages processed/failed, etc.)
 
     .. code-block:: ini
@@ -102,15 +102,15 @@ production with live data.
        usually straight forward to correct and commonly caused by a syntax
        error in the script or invalid assumptions about the data (e.g. `cnt =
        cnt + read_message("Fields[counter]")` will fail if the counter field
-       doesn't exist or is non-numeric due to a error in the data).
+       doesn't exist or is non-numeric due to an error in the data).
 
     2. No termination report and the output does not match expectations. These
        are usually a little harder to debug.
 
-        1. Check the Heka dasboard to make sure the router is sending messages
+        1. Check the Heka dashboard to make sure the router is sending messages
            to the plugin. If not, verify your message_matcher configuration.
 
-        2. Visually review the the plugin for errors. Are the message field
+        2. Visually review the plugin for errors. Are the message field
            names correct, was the result of the cjson.decode tested, are the
            output variables actually being assigned to and output/injected,
            etc.
