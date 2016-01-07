@@ -76,7 +76,7 @@ func (f *HostFilter) Run(runner pipeline.FilterRunner, helper pipeline.PluginHel
 		if f.hosts[hostname] {
 			output.InChan() <- pack
 		} else {
-			pack.Recycle()
+			pack.Recycle(nil)
 		}
 	}
 	return
