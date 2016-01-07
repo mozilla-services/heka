@@ -10,7 +10,7 @@ function process_message ()
     local tmp = read_message("Hostname")
     if string.len(tmp) == 0 then return 1 end
 
-    local uuid = read_message("Uuid")
+    tmp = read_message("Uuid")
     if string.len(tmp) == 0 then return 2 end
 
     if read_message("Payload") ~= "" then return 3 end
