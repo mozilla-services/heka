@@ -155,15 +155,13 @@ func TcpInputSpec(c gs.Context) {
 				clientConfig.InsecureSkipVerify = true
 				outConn, err := tls.Dial("tcp", ith.AddrStr, clientConfig)
 				c.Assume(err, gs.IsNil)
-				outConn.SetWriteDeadline(time.Now().Add(time.Duration(10000)))
+				outConn.SetWriteDeadline(time.Now().Add(time.Duration(100000)))
 				n, err := outConn.Write(data)
-				c.Expect(err, gs.IsNil)
+				c.Assume(err, gs.IsNil)
 				c.Expect(n, gs.Equals, len(data))
 				outConn.Close()
 
 				recd := <-bytesChan
-
-				c.Expect(err, gs.IsNil)
 				c.Expect(string(recd), gs.Equals, string(data))
 
 				tcpInput.Stop()
