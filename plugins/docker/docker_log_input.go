@@ -10,13 +10,13 @@
 # Contributor(s):
 #   Anton Lindström (carlantonlindstrom@gmail.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Karl Matthias (karl.matthias@gonitro.com)
 #
 # ***** END LICENSE BLOCK *****/
 
 package docker
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -34,12 +34,11 @@ type DockerLogInputConfig struct {
 }
 
 type DockerLogInput struct {
-	conf         *DockerLogInputConfig
-	stopChan     chan error
-	closer       chan struct{}
-	logstream    chan *Log
-	attachErrors chan error
-	attachMgr    *AttachManager
+	conf      *DockerLogInputConfig
+	stopChan  chan error
+	closer    chan struct{}
+	logstream chan *Log
+	attachMgr *AttachManager
 }
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
@@ -54,9 +53,8 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	di.stopChan = make(chan error)
 	di.closer = make(chan struct{})
 	di.logstream = make(chan *Log)
-	di.attachErrors = make(chan error)
 
-	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors, di.conf.NameFromEnv, di.conf.FieldsFromEnv)
+	m, err := NewAttachManager(di.conf.Endpoint, di.conf.CertPath, di.conf.NameFromEnv, di.conf.FieldsFromEnv)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
 	}
@@ -66,10 +64,9 @@ func (di *DockerLogInput) Init(config interface{}) error {
 }
 
 func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
-	var (
-		pack *pipeline.PipelinePack
-		ok   bool
-	)
+	var pack *pipeline.PipelinePack
+
+	di.attachMgr.Run(ir)
 
 	hostname := h.Hostname()
 
@@ -78,9 +75,9 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
 
-	ok = true
 	var err error
-	for ok {
+
+	for {
 		select {
 		case logline := <-di.logstream:
 			pack = <-packSupply
@@ -97,15 +94,8 @@ func (di *DockerLogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) 
 
 			ir.Deliver(pack)
 
-		case err, ok = <-di.attachErrors:
-			if !ok {
-				err = errors.New("Docker event channel closed")
-				break
-			}
-			ir.LogError(fmt.Errorf("Attacher error: %s", err))
-
 		case err = <-di.stopChan:
-			ok = false
+			break
 		}
 	}
 
