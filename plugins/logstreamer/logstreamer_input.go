@@ -51,6 +51,8 @@ type LogstreamerInputConfig struct {
 	RescanInterval string `toml:"rescan_interval"`
 	// So we can default to TokenSplitter.
 	Splitter string
+	// Whether to ignore previous logfiles while initial scan
+	InitialTail bool `toml:"initial_tail"`
 }
 
 type LogstreamerInput struct {
@@ -66,6 +68,7 @@ type LogstreamerInput struct {
 	delimiterLocation  string
 	hostName           string
 	pluginName         string
+	initialTail        bool
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -146,7 +149,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
 	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
-		conf.JournalDirectory)
+		conf.JournalDirectory, conf.initialTail)
 	if err != nil {
 		return
 	}
