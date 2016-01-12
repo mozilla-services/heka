@@ -149,7 +149,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
 	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
-		conf.JournalDirectory, conf.initialTail)
+		conf.JournalDirectory, conf.InitialTail)
 	if err != nil {
 		return
 	}
