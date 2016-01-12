@@ -68,7 +68,6 @@ type LogstreamerInput struct {
 	delimiterLocation  string
 	hostName           string
 	pluginName         string
-	initialTail        bool
 }
 
 // Heka will call this before calling any other methods to give us access to
@@ -85,6 +84,7 @@ func (li *LogstreamerInput) ConfigStruct() interface{} {
 		LogDirectory:     "/var/log",
 		JournalDirectory: filepath.Join(baseDir, "logstreamer"),
 		Splitter:         "TokenSplitter",
+		InitialTail:      false,
 	}
 }
 
