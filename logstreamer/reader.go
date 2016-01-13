@@ -157,6 +157,7 @@ func (l *LogstreamLocation) SetToTail(filePath string) (err error) {
 	l.Filename = filePath
 	l.SeekPosition = end
 	l.lastLine.Write(buf)
+	l.GenerateHash()
 
 	return
 }
