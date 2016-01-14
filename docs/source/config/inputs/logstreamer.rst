@@ -59,3 +59,7 @@ Config:
 - splitter (string, optional):
     Defaults to "TokenSplitter", which will split the log stream into one
     Heka message per line.
+- initial_tail (bool, optional, default: false):
+    If this setting is true, reading the logfile will start at the end of the
+    file instead of the beginning. This only applies to logfiles that have not
+    been scanned before.

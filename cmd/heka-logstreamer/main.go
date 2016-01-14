@@ -131,7 +131,7 @@ func parseConfig(name string, prim toml.Primitive) {
 		Differentiator: config.Differentiator,
 	}
 	oldest, _ := time.ParseDuration(config.OldestDuration)
-	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "")
+	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "", false)
 	if err != nil {
 		client.LogError.Fatalf("Error initializing LogstreamSet: %s\n", err.Error())
 	}

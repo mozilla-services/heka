@@ -51,6 +51,8 @@ type LogstreamerInputConfig struct {
 	RescanInterval string `toml:"rescan_interval"`
 	// So we can default to TokenSplitter.
 	Splitter string
+	// Whether to ignore previous logfiles while initial scan
+	InitialTail bool `toml:"initial_tail"`
 }
 
 type LogstreamerInput struct {
@@ -82,6 +84,7 @@ func (li *LogstreamerInput) ConfigStruct() interface{} {
 		LogDirectory:     "/var/log",
 		JournalDirectory: filepath.Join(baseDir, "logstreamer"),
 		Splitter:         "TokenSplitter",
+		InitialTail:      false,
 	}
 }
 
@@ -146,7 +149,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 	li.logstreamSetLock.Lock()
 	defer li.logstreamSetLock.Unlock()
 	li.logstreamSet, err = ls.NewLogstreamSet(sp, oldest, conf.LogDirectory,
-		conf.JournalDirectory)
+		conf.JournalDirectory, conf.InitialTail)
 	if err != nil {
 		return
 	}

@@ -49,7 +49,7 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"errorlog"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, false)
 		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
@@ -110,7 +110,7 @@ func ReaderSpec(c gs.Context) {
 			Differentiator: []string{"Type", "-log"},
 		}
 		fivey, _ := time.ParseDuration("5y")
-		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath)
+		ls, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, false)
 		c.Expect(err, gs.IsNil)
 
 		names, err := ls.ScanForLogstreams()
@@ -191,5 +191,31 @@ func ReaderSpec(c gs.Context) {
 		// This is the hash for the contents of the `short.log` file,
 		// prepended by 0 bytes to fill out a length of 500.
 		c.Expect(l.Hash, gs.Equals, "4a9ab34da77c10e87cb6566bbf061d9715985551")
+	})
+
+	c.Specify("InitialTail option seeks to the end of a file", func() {
+		regex := `/(?P<Year>\d+)/(?P<Month>\d+)/error\.log(\.(?P<Seq>\d+))?`
+		if runtime.GOOS == "windows" {
+			regex = `\\(?P<Year>\d+)\\(?P<Month>\d+)\\error\.log(\.(?P<Seq>\d+))?`
+		}
+		sp := &SortPattern{
+			FileMatch:      regex,
+			Translation:    make(SubmatchTranslationMap),
+			Priority:       []string{"Year", "Month", "^Seq"},
+			Differentiator: []string{"errorlog"},
+		}
+		fivey, _ := time.ParseDuration("5y")
+		lss, err := NewLogstreamSet(sp, fivey, testDirPath, dirPath, true)
+		c.Expect(err, gs.IsNil)
+
+		names, err := lss.ScanForLogstreams()
+		c.Expect(len(names), gs.Equals, 1)
+
+		ls := lss.logstreams[names[0]]
+		ls.position.GenerateHash()
+		// ls.position expect the end of newest logfile
+		c.Expect(ls.position.SeekPosition, gs.Equals, int64(1969))
+		c.Expect(ls.position.Hash, gs.Equals, "72781af95a1583690cc97548fdcf3bb0efbe3119")
+		c.Expect(ls.position.Filename[len(testDirPath):], gs.Equals, "/2013/08/error.log")
 	})
 }
