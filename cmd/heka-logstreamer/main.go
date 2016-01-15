@@ -4,7 +4,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # The Initial Developer of the Original Code is the Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2014
+# Portions created by the Initial Developer are Copyright (C) 2016
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -23,14 +23,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/bbangert/toml"
-	"github.com/mozilla-services/heka/client"
-	"github.com/mozilla-services/heka/logstreamer"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/bbangert/toml"
+	"github.com/mozilla-services/heka/client"
+	"github.com/mozilla-services/heka/logstreamer"
 )
 
 // Logstreamer config struct
