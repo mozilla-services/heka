@@ -979,7 +979,6 @@ func (foRunner *foRunner) waitForBackPressure() error {
 	}
 	for !globals.IsShuttingDown() {
 		bp := foRunner.BackPressured()
-		fmt.Println("back-pressured?: ", bp)
 		if !bp {
 			return nil
 		}

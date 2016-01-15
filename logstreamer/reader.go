@@ -56,9 +56,9 @@ func IsFileError(err error) (fileError bool) {
 
 // Loads a logstreamlocation from a file or returns an empty one if no journal
 // record was found.
-func LogstreamLocationFromFile(path string) (l *LogstreamLocation, err error) {
+func LogstreamLocationFromFile(journalPath string) (l *LogstreamLocation, err error) {
 	l = new(LogstreamLocation)
-	l.JournalPath = path
+	l.JournalPath = journalPath
 	l.lastLine = ringbuf.New(LINEBUFFERLEN)
 
 	// So that we can check to see if it exists or not.
@@ -129,6 +129,41 @@ func (l *LogstreamLocation) Reset() {
 	l.SeekPosition = int64(0)
 	l.Hash = ""
 	l.lastLine = ringbuf.New(LINEBUFFERLEN)
+}
+
+// Sets the position to the end of the file.
+func (l *LogstreamLocation) SetToTail(filePath string) (err error) {
+	var fd *os.File
+	if fd, err = os.Open(filePath); err != nil {
+		return
+	}
+	defer fd.Close()
+
+	var end, lastLinePos int64
+	if end, err = fd.Seek(0, os.SEEK_END); err != nil {
+		return
+	}
+	if lastLinePos = end - int64(LINEBUFFERLEN); lastLinePos < 0 {
+		lastLinePos = 0
+	}
+	if _, err = fd.Seek(lastLinePos, 0); err != nil {
+		return
+	}
+	buf := make([]byte, LINEBUFFERLEN)
+	if _, err = fd.Read(buf); err != io.EOF && err != nil {
+		return
+	}
+
+	l.Filename = filePath
+	l.SeekPosition = end
+	l.lastLine.Write(buf)
+	l.GenerateHash()
+
+	return
+}
+
+func (l *LogstreamLocation) IsZero() bool {
+	return l.SeekPosition == 0 && l.Filename == "" && l.Hash == ""
 }
 
 func (l *LogstreamLocation) Save() error {

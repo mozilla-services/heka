@@ -59,3 +59,12 @@ Config:
 - splitter (string, optional):
     Defaults to "TokenSplitter", which will split the log stream into one
     Heka message per line.
+
+.. versionadded:: 0.11
+
+- initial_tail (bool, optional, default: false):
+    If this setting is true, when there is no cursor file for a given stream
+    (which is always the case when reading a stream for the first time) then
+    the input will start from the end of the stream instead of the
+    beginning. If a cursor file exists, the input will attempt to continue from
+    the specified cursor location, as always.

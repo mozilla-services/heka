@@ -21,6 +21,8 @@ Features
   into alternate locations; useful for relocating forks of Go packages into
   their original import paths.
 
+* Added `initial_tail` config option to LogstreamerInput (#1482, #1801).
+
 0.10.1 (2016-??-??)
 ===================
 
