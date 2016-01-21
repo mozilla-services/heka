@@ -41,6 +41,7 @@ type LogstreamerConfig struct {
 	Differentiator []string
 	OldestDuration string `toml:"oldest_duration"`
 	Translation    logstreamer.SubmatchTranslationMap
+	InitialTail    bool `toml:"initial_tail"`
 }
 
 type Basic struct {
@@ -131,7 +132,7 @@ func parseConfig(name string, prim toml.Primitive) {
 		Differentiator: config.Differentiator,
 	}
 	oldest, _ := time.ParseDuration(config.OldestDuration)
-	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "", false)
+	ls, err := logstreamer.NewLogstreamSet(sp, oldest, config.LogDirectory, "", config.InitialTail)
 	if err != nil {
 		client.LogError.Fatalf("Error initializing LogstreamSet: %s\n", err.Error())
 	}
@@ -143,7 +144,10 @@ func parseConfig(name string, prim toml.Primitive) {
 	fmt.Printf("Found %d Logstream(s) for section [%s].\n", len(streams), name)
 	for _, name := range streams {
 		stream, _ := ls.GetLogstream(name)
+		filename, seekPosition := stream.ReportPosition()
+
 		fmt.Printf("\nLogstream name: [%s]\n", name)
+		fmt.Printf("Stream Choosing Filename: %s, SeekPosition: %d\n", filename, seekPosition)
 		fmt.Printf("Files: %d (printing oldest to newest)\n", len(stream.GetLogfiles()))
 		for _, logfile := range stream.GetLogfiles() {
 			fmt.Printf("\t%s\n", logfile.FileName)
