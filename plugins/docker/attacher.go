@@ -127,6 +127,7 @@ func (m *AttachManager) attach(id string) {
 		m.errors <- err
 	}
 	name := container.Name[1:]
+	image := container.Config.Image
 
 	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
 	if m.nameFromEnv != "" {
@@ -136,6 +137,7 @@ func (m *AttachManager) attach(id string) {
 	}
 	fields["ContainerID"] = id
 	fields["ContainerName"] = name
+	fields["ContainerImage"] = image
 
 	success := make(chan struct{})
 	failure := make(chan error)
