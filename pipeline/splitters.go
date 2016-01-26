@@ -23,9 +23,14 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"hash"
 	"regexp"
+
+	"github.com/mozilla-services/heka/message"
+)
+
+const (
+	MULTILINE_SPLITTER_MAX_LINES = 99
 )
 
 type NullSplitter struct {
@@ -92,6 +97,78 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 			}
 			bytesRead += n + 1
 		}
+	}
+
+	return bytesRead, buf[:bytesRead]
+}
+
+type MultilineSplitter struct {
+	delimiter  *regexp.Regexp
+	multiline  *regexp.Regexp
+	captureLen int
+}
+
+type MultilineSplitterConfig struct {
+	Delimiter string
+	Multiline string
+}
+
+func (r *MultilineSplitter) ConfigStruct() interface{} {
+	return &MultilineSplitterConfig{
+		Delimiter: "\n",
+	}
+}
+
+func (r *MultilineSplitter) Init(config interface{}) error {
+	conf := config.(*MultilineSplitterConfig)
+	var err error
+	if r.delimiter, err = regexp.Compile(conf.Delimiter); err != nil {
+		return err
+	}
+	if r.delimiter.NumSubexp() > 1 {
+		return fmt.Errorf("regex must not contain more than one capture group: %s",
+			conf.Delimiter)
+	}
+
+	if r.multiline, err = regexp.Compile(conf.Multiline); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
+	var loc [][]int
+	loc = r.delimiter.FindAllSubmatchIndex(buf[r.captureLen:], MULTILINE_SPLITTER_MAX_LINES) // Up to 99 matches
+	if loc == nil {
+		return 0, nil
+	}
+
+	// Check the first one
+	if !r.multiline.Match(buf[:loc[0][1]]) {
+		bytesRead = loc[0][1]
+		return bytesRead, buf[:bytesRead]
+	}
+
+	// Loop through, looking for the first delimiter not also matching a multiline
+	var lastDelimiter []int
+	previous := []int{ 0, 0 }
+	for _, lastDelimiter = range loc[1:] {
+		// Check for a multiline match inside this record
+		if r.multiline.Match(buf[previous[1]:lastDelimiter[0]]) {
+			previous = lastDelimiter // Set to the position of previous delimiter
+			continue
+		}
+
+		// We didn't match, so fall back one
+		lastDelimiter = previous
+		break
+	}
+
+
+	// We always keep the delimiter at EOL
+	bytesRead = lastDelimiter[1]
+	if bytesRead == 0 {
+		return 0, nil
 	}
 
 	return bytesRead, buf[:bytesRead]
@@ -282,6 +359,9 @@ func init() {
 	})
 	RegisterPlugin("RegexSplitter", func() interface{} {
 		return &RegexSplitter{}
+	})
+	RegisterPlugin("MultilineSplitter", func() interface{} {
+		return &MultilineSplitter{}
 	})
 	RegisterPlugin("HekaFramingSplitter", func() interface{} {
 		return &HekaFramingSplitter{}
