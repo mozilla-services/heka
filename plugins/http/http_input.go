@@ -63,8 +63,8 @@ type HttpInputConfig struct {
 	Headers map[string]string
 	// Request body for POST
 	Body string
-	// User and password for Basic Authentication
-	User     string
+	// Username and password for Basic Authentication
+	Username     string
 	Password string
 	// Default interval at which http.Get will execute. Default is 10 seconds.
 	TickerInterval uint `toml:"ticker_interval"`
@@ -149,8 +149,8 @@ func (hi *HttpInput) fetchUrl(url string, sRunner SplitterRunner) {
 		return
 	}
 	// HTTP Basic Auth
-	if hi.conf.User != "" {
-		req.SetBasicAuth(hi.conf.User, hi.conf.Password)
+	if hi.conf.Username != "" {
+		req.SetBasicAuth(hi.conf.Username, hi.conf.Password)
 	}
 	// Request headers
 	for key, value := range hi.conf.Headers {
