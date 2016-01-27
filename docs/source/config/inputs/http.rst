@@ -47,7 +47,7 @@ Config:
     .. versionadded:: 0.5
 
     The HTTP method to use for the request. Defaults to "GET".
-- headers (subsection):
+- body (string):
     .. versionadded:: 0.5
 
     The request body (e.g. for an HTTP POST request). No default body is
@@ -74,11 +74,11 @@ Config:
 
     Severity level of errors, unreachable connections, and non-200 responses
     of successful HTTP requests. Defaults to 1 (alert).
+- headers (subsection):
+    .. versionadded:: 0.5
 
     Subsection defining headers for the request. By default the User-Agent
     header is set to "Heka"
-- body (string):
-    .. versionadded:: 0.5
 
 Example:
 
