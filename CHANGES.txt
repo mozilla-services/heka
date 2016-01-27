@@ -12,6 +12,9 @@ Bug Handling
 * Updated Sarama dependency from pre-1.0 release fork to fork (with only test
   code changes) of Sarama 1.5.0 release.
 
+* Fixed ESJsonEncoder generating invalid JSON when `DynamicFields` is first of
+  multiple specified fields but the message contains no dynamic fields.
+
 Features
 --------
 

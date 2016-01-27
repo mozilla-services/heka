@@ -379,6 +379,31 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 		})
 
+		c.Specify("Produces valid JSON when DynamicFields is first configured field and message has no fields", func() {
+			config := encoder.ConfigStruct().(*ESJsonEncoderConfig)
+			config.Fields = []string{"DynamicFields", "Hostname"}
+			err := encoder.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			msg := getTestMessageWithFunnyFields()
+			msg.Fields = nil
+			pack := NewPipelinePack(recycleChan)
+			pack.Message = msg
+			b, err := encoder.Encode(pack)
+			c.Assume(err, gs.IsNil)
+
+			output := string(b)
+			lines := strings.Split(output, string(NEWLINE))
+
+			decoded := make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[0]), &decoded)
+			c.Expect(err, gs.IsNil)
+
+			decoded = make(map[string]interface{})
+			err = json.Unmarshal([]byte(lines[1]), &decoded)
+			c.Expect(err, gs.IsNil)
+		})
+
 		c.Specify("Should use field mappings", func() {
 			config := encoder.ConfigStruct().(*ESJsonEncoderConfig)
 			config.FieldMappings = &ESFieldMappings{
