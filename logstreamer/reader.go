@@ -150,13 +150,14 @@ func (l *LogstreamLocation) SetToTail(filePath string) (err error) {
 		return
 	}
 	buf := make([]byte, LINEBUFFERLEN)
-	if _, err = fd.Read(buf); err != io.EOF && err != nil {
+	var n int
+	if n, err = fd.Read(buf); err != io.EOF && err != nil {
 		return
 	}
 
 	l.Filename = filePath
 	l.SeekPosition = end
-	l.lastLine.Write(buf)
+	l.lastLine.Write(buf[:n])
 	l.GenerateHash()
 
 	return
@@ -467,7 +468,7 @@ func SeekInFile(path string, position *LogstreamLocation) (*os.File, io.Reader, 
 		n, err = reader.Read(buf[-seekPos:])
 		expectedN = position.SeekPosition
 	}
-	if err == nil && int64(n) == expectedN {
+	if (err == nil || err == io.EOF) && int64(n) == expectedN {
 		h := sha1.New()
 		h.Write(buf)
 		tmp := fmt.Sprintf("%x", h.Sum(nil))
