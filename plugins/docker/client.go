@@ -1,6 +1,6 @@
 package docker
 
-import "github.com/carlanton/go-dockerclient"
+import "github.com/fsouza/go-dockerclient"
 
 type DockerClient interface {
 	// AddEventListener adds a new listener to container events in the Docker
