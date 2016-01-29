@@ -98,7 +98,7 @@ func HttpInputSpec(c gs.Context) {
 			time.Sleep(10 * time.Millisecond)
 
 			config.Url = "http://localhost:9875/BasicAuthTest"
-			config.User = "user"
+			config.Username = "user"
 			config.Password = "password"
 
 			err = httpInput.Init(config)

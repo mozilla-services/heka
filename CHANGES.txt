@@ -5,6 +5,7 @@ Backwards Incompatibilities
 ---------------------------
 
 * StatAccumInput Input: percent_threshold param type convert to slice
+* HttpInput Input: user param changed to username to match other Http plugins
 
 Bug Handling
 ------------
