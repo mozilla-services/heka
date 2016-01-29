@@ -29,7 +29,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fsouza/go-dockerclient"
+	"github.com/carlanton/go-dockerclient"
 )
 
 type AttachEvent struct {
