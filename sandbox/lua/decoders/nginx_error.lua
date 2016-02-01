@@ -49,12 +49,14 @@ Config:
 local clf = require "common_log_format"
 
 local msg_type = read_config("type") or "nginx.error"
+local payload_keep = read_config("payload_keep")
 
 function process_message ()
     local log = read_message("Payload")
     local msg = clf.nginx_error_grammar:match(log)
     if not msg then return -1 end
-
+    
+    if payload_keep then msg.Payload = log end
     msg.Type = msg_type
     inject_message(msg)
     return 0
