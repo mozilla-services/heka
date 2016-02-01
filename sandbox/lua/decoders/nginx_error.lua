@@ -13,6 +13,9 @@ Config:
 - type (string, optional, defaults to "nginx.error"):
     Sets the message 'Type' header to the specified value
 
+- payload_keep (bool, optional, default false)
+    Always preserve the original log line in the message payload.
+
 *Example Heka Configuration*
 
 .. code-block:: ini
@@ -35,6 +38,7 @@ Config:
 :Timestamp: 2014-01-10 07:04:56 -0800 PST
 :Type: nginx.error
 :Hostname: trink-x230
+:Payload:
 :Pid: 16842
 :UUID: 8e414f01-9d7f-4a48-a5e1-ae92e5954df5
 :Logger: TestWebserverError
