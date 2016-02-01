@@ -93,6 +93,15 @@ func setGlobalConfigs(config *HekadConfig) (*pipeline.GlobalConfigStruct, string
 }
 
 func main() {
+	exitCode := 0
+	// `os.Exit` will skip any registered deferred functions, so to support
+	// exit codes we put it in the first registerred deferred (i.e. the last to
+	// run), we can set the exitCode and then call `return` to exit with an
+	// error code.
+	defer func() {
+		os.Exit(exitCode)
+	}()
+
 	configPath := flag.String("config", filepath.FromSlash("/etc/hekad.toml"),
 		"Config file or directory. If directory is specified then all files "+
 			"in the directory will be loaded.")
@@ -106,41 +115,54 @@ func main() {
 
 	if *version {
 		fmt.Println(VERSION)
-		os.Exit(0)
+		return
 	}
 
 	config, err = LoadHekadConfig(*configPath)
 	if err != nil {
-		pipeline.LogError.Fatal("Error reading config: ", err)
+		pipeline.LogError.Println("Error reading config: ", err)
+		exitCode = 1
+		return
 	}
 	pipeline.LogInfo.SetFlags(config.LogFlags)
 	pipeline.LogError.SetFlags(config.LogFlags)
 	if config.SampleDenominator <= 0 {
-		pipeline.LogError.Fatalln("'sample_denominator' value must be greater than 0.")
+		pipeline.LogError.Println("'sample_denominator' value must be greater than 0.")
+		exitCode = 1
+		return
 	}
 
 	if _, err = time.ParseDuration(config.MaxPackIdle); err != nil {
-		pipeline.LogError.Fatalf("Can't parse `max_pack_idle` time duration: %s\n", config.MaxPackIdle)
+		pipeline.LogError.Printf("Can't parse `max_pack_idle` time duration: %s\n",
+			config.MaxPackIdle)
+		exitCode = 1
+		return
 	}
 
 	globals, cpuProfName, memProfName := setGlobalConfigs(config)
 
 	if err = os.MkdirAll(globals.BaseDir, 0755); err != nil {
-		pipeline.LogError.Fatalf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
+		pipeline.LogError.Printf("Error creating 'base_dir' %s: %s", config.BaseDir, err)
+		exitCode = 1
+		return
 	}
 
 	if config.MaxMessageSize > 1024 {
 		message.SetMaxMessageSize(config.MaxMessageSize)
 	} else if config.MaxMessageSize > 0 {
-		pipeline.LogError.Fatalln("Error: 'max_message_size' setting must be greater than 1024.")
+		pipeline.LogError.Println("Error: 'max_message_size' setting must be greater than 1024.")
+		exitCode = 1
+		return
 	}
 	if config.PidFile != "" {
 		contents, err := ioutil.ReadFile(config.PidFile)
 		if err == nil {
 			pid, err := strconv.Atoi(strings.TrimSpace(string(contents)))
 			if err != nil {
-				pipeline.LogError.Fatalf("Error reading proccess id from pidfile '%s': %s",
+				pipeline.LogError.Printf("Error reading proccess id from pidfile '%s': %s",
 					config.PidFile, err)
+				exitCode = 1
+				return
 			}
 
 			process, err := os.FindProcess(pid)
@@ -148,20 +170,25 @@ func main() {
 			// on Windows, err != nil if the process cannot be found
 			if runtime.GOOS == "windows" {
 				if err == nil {
-					pipeline.LogError.Fatalf("Process %d is already running.", pid)
+					pipeline.LogError.Printf("Process %d is already running.", pid)
+					exitCode = 1
+					return
 				}
 			} else if process != nil {
 				// err is always nil on POSIX, so we have to send the process
 				// a signal to check whether it exists
 				if err = process.Signal(syscall.Signal(0)); err == nil {
-					pipeline.LogError.Fatalf("Process %d is already running.", pid)
+					pipeline.LogError.Printf("Process %d is already running.", pid)
+					exitCode = 1
+					return
 				}
 			}
 		}
 		if err = ioutil.WriteFile(config.PidFile, []byte(strconv.Itoa(os.Getpid())),
 			0644); err != nil {
 
-			pipeline.LogError.Fatalf("Unable to write pidfile '%s': %s", config.PidFile, err)
+			pipeline.LogError.Printf("Unable to write pidfile '%s': %s", config.PidFile, err)
+			exitCode = 1
 		}
 		pipeline.LogInfo.Printf("Wrote pid to pidfile '%s'", config.PidFile)
 		defer func() {
@@ -174,7 +201,9 @@ func main() {
 	if cpuProfName != "" {
 		profFile, err := os.Create(cpuProfName)
 		if err != nil {
-			pipeline.LogError.Fatalln(err)
+			pipeline.LogError.Println(err)
+			exitCode = 1
+			return
 		}
 
 		pprof.StartCPUProfile(profFile)
@@ -198,9 +227,11 @@ func main() {
 	// Set up and load the pipeline configuration and start the daemon.
 	pipeconf := pipeline.NewPipelineConfig(globals)
 	if err = loadFullConfig(pipeconf, configPath); err != nil {
-		pipeline.LogError.Fatal("Error reading config: ", err)
+		pipeline.LogError.Println("Error reading config: ", err)
+		exitCode = 1
+		return
 	}
-	pipeline.Run(pipeconf)
+	exitCode = pipeline.Run(pipeconf)
 }
 
 func loadFullConfig(pipeconf *pipeline.PipelineConfig, configPath *string) (err error) {
