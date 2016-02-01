@@ -55,7 +55,7 @@ function process_message ()
     local log = read_message("Payload")
     local msg = clf.nginx_error_grammar:match(log)
     if not msg then return -1 end
-    
+
     if payload_keep then msg.Payload = log end
     msg.Type = msg_type
     inject_message(msg)
