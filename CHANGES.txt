@@ -12,6 +12,11 @@ Bug Handling
 * Updated Sarama dependency from pre-1.0 release fork to fork (with only test
   code changes) of Sarama 1.5.0 release.
 
+* Fixed bug where DockerLogInput would not reconnect to a Docker daemon that
+  had been down for some time (#1843).
+
+* More verbose logging from the DockerLogInput plugin (#1843).
+
 Features
 --------
 
@@ -22,6 +27,10 @@ Features
   their original import paths.
 
 * Added `initial_tail` config option to LogstreamerInput (#1482, #1801).
+
+* Added Splitter support to DockerLogInput plugin (#1843).
+
+* Added `fields_from_labels` config option to DockerLogInput (#1843).
 
 0.10.1 (2016-??-??)
 ===================
