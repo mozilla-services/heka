@@ -134,6 +134,8 @@ func (m *AttachManager) attachAll() error {
 		}
 	}
 
+	m.ir.LogMessage("Attached to all containers")
+
 	return nil
 }
 
@@ -152,8 +154,6 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 		)
 		return err
 	}
-
-	m.ir.LogMessage("Attached to all containers")
 
 	err = withRetries(func() error { return m.client.AddEventListener(m.events) })
 	if err != nil {
