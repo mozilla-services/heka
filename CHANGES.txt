@@ -12,8 +12,8 @@ Bug Handling
 * Updated Sarama dependency from pre-1.0 release fork to fork (with only test
   code changes) of Sarama 1.5.0 release.
 
-* Fixed bug where DockerLogInput would not reconnect to a Docker daemon that
-  had been down for some time (#1843).
+* Fixed bug where DockerLogInput would not reconnect when a Docker daemon 
+  was down for some time (#1843).
 
 * More verbose logging from the DockerLogInput plugin (#1843).
 
