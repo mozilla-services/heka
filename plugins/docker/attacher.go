@@ -288,8 +288,8 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 	select {
 	case _, ok := <-success:
 		if ok {
-			go m.handleOneStream("stdout", outrd, fields)
-			go m.handleOneStream("stderr", errrd, fields)
+			go m.handleOneStream("stdout", outrd, fields, id)
+			go m.handleOneStream("stderr", errrd, fields, id)
 
 			// Signal back to the client to continue with attachment
 			success <- struct{}{}
@@ -327,7 +327,7 @@ func (m *AttachManager) makePackDecorator(logger string, fields map[string]strin
 }
 
 // Sets up the Heka pipeline for a single IO stream (either stdout or stderr)
-func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[string]string) {
+func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[string]string, containerId string) {
 	id := fmt.Sprintf("%s-%s", fields["ContainerName"], name)
 
 	sRunner := m.ir.NewSplitterRunner(id)
@@ -345,6 +345,8 @@ func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[st
 		}
 	}
 	sRunner.Done()
+
+	m.ir.LogMessage(fmt.Sprintf("Disconnecting %s stream from %s", name, containerId))
 }
 
 // Process the env vars and capture the ones we want
