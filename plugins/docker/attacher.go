@@ -36,12 +36,7 @@ import (
 )
 
 const (
-	CONNECT_RETRIES         = 4
 	SLEEP_BETWEEN_RECONNECT = 500 * time.Millisecond
-)
-
-var (
-	retryInterval = []time.Duration{1, 2, 3, 7}
 )
 
 type AttachManager struct {
@@ -96,12 +91,26 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 // Handler to wrap functions with retry logic
 func withRetries(doWork func() error) error {
 	var err error
-	for i := 0; i < CONNECT_RETRIES; i++ {
-		err := doWork()
+
+	retrier, err := NewRetryHelper(RetryOptions{
+		MaxRetries: 10,
+		Delay:      "1s",
+		MaxJitter:  "250ms",
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		err = doWork()
 		if err == nil {
 			return nil
 		}
-		time.Sleep(retryInterval[i] * time.Second)
+
+		// Sleep between retries, break if we're done
+		if e := retrier.Wait(); e != nil {
+			break
+		}
 	}
 
 	return err
@@ -133,14 +142,13 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 	m.ir = ir
 	m.hostname = hostname
 
-	// Retry this up to CONNECT_RETRIES number of times, sleeping
-	// the defined interval. During this time the Docker client should
-	// get reconnected if there is a general connection issue.
+	// Retry this sleeping in between tries During this time
+	// the Docker client should get reconnected if there is a
+	// general connection issue.
 	err := withRetries(m.attachAll)
 	if err != nil {
-		m.ir.LogError(err)
 		m.ir.LogError(
-			fmt.Errorf("Failed to attach to Docker containers after %s retries. Plugin giving up.", CONNECT_RETRIES),
+			fmt.Errorf("Failed to attach to Docker containers after retrying. Plugin giving up."),
 		)
 		return err
 	}
@@ -150,7 +158,7 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 	err = withRetries(func() error { return m.client.AddEventListener(m.events) })
 	if err != nil {
 		m.ir.LogError(
-			fmt.Errorf("Failed to add Docker event listener after %s retries. Plugin giving up.", CONNECT_RETRIES),
+			fmt.Errorf("Failed to add Docker event listener after retrying. Plugin giving up."),
 		)
 		return err
 	}
@@ -160,19 +168,27 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 }
 
 // Try to reboot all of our connections
-func (m *AttachManager) restart() {
+func (m *AttachManager) restart() error {
 	var err error
 
-	m.ir.LogMessage("Lost connection to Docker, re-connecting")
+	m.ir.LogMessage("Restarting Docker connection...")
 	m.client.RemoveEventListener(m.events)
-	m.events = make(chan *docker.APIEvents) // RemoveEventListener closes it
+
+	// See if the Docker client closed the channel. We can throw away
+	// the read result because we're going to attach to all containers
+	// next, anyway. An EOF from the client can close it.
+	if _, ok := <-m.events; !ok {
+		m.events = make(chan *docker.APIEvents)
+	}
 
 	m.client.AddEventListener(m.events)
 
 	err = withRetries(m.attachAll)
 	if err != nil {
-		m.ir.LogError(fmt.Errorf("Unable to attach to some containers! (%s)", err.Error()))
+		return err
 	}
+
+	return nil
 }
 
 // Watch for Docker events, and trigger an attachment if we see a new
@@ -183,7 +199,11 @@ func (m *AttachManager) handleDockerEvents(stopChan chan error) {
 		case msg, ok := <-m.events:
 			if !ok {
 				m.ir.LogMessage("Events channel closed, restarting...")
-				m.restart()
+				err := withRetries(m.restart)
+				if err != nil {
+					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)", err.Error()))
+					return // Will cause the plugin to restart
+				}
 				time.Sleep(SLEEP_BETWEEN_RECONNECT)
 				continue
 			}
@@ -233,7 +253,6 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 
 	fields, err := m.extractFields(id, client)
 	if err != nil {
-		m.ir.LogError(err)
 		return err
 	}
 
@@ -260,7 +279,6 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 		outwr.Close()
 		errwr.Close()
 		if err != nil {
-			m.ir.LogError(err)
 			close(success)
 			failure <- err
 		}
