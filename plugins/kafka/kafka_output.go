@@ -10,6 +10,7 @@
 # Contributor(s):
 #   Mike Trinkala (trink@mozilla.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Matt Moyer (moyer@simple.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -27,6 +28,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/plugins/tcp"
 )
 
 type KafkaOutputConfig struct {
@@ -36,6 +38,10 @@ type KafkaOutputConfig struct {
 	MetadataRetries            int    `toml:"metadata_retries"`
 	WaitForElection            uint32 `toml:"wait_for_election"`
 	BackgroundRefreshFrequency uint32 `toml:"background_refresh_frequency"`
+
+	// TLS Config
+	UseTls bool `toml:"use_tls"`
+	Tls    tcp.TlsConfig
 
 	// Broker Config
 	MaxOpenRequests int    `toml:"max_open_reqests"`
@@ -214,6 +220,13 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 	k.saramaConfig.Metadata.Retry.Max = k.config.MetadataRetries
 	k.saramaConfig.Metadata.Retry.Backoff = time.Duration(k.config.WaitForElection) * time.Millisecond
 	k.saramaConfig.Metadata.RefreshFrequency = time.Duration(k.config.BackgroundRefreshFrequency) * time.Millisecond
+
+	k.saramaConfig.Net.TLS.Enable = k.config.UseTls
+	if k.config.UseTls {
+		if k.saramaConfig.Net.TLS.Config, err = tcp.CreateGoTlsConfig(&k.config.Tls); err != nil {
+			return fmt.Errorf("TLS init error: %s", err)
+		}
+	}
 
 	k.saramaConfig.Net.MaxOpenRequests = k.config.MaxOpenRequests
 	k.saramaConfig.Net.DialTimeout = time.Duration(k.config.DialTimeout) * time.Millisecond
