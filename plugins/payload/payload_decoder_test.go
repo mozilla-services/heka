@@ -363,4 +363,147 @@ func PayloadDecodersSpec(c gospec.Context) {
 		})
 	})
 
+	c.Specify("A PayloadCSVDecoder", func() {
+		decoder := new(PayloadCSVDecoder)
+		conf := decoder.ConfigStruct().(*PayloadCSVDecoderConfig)
+		supply := make(chan *PipelinePack, 1)
+		pack := NewPipelinePack(supply)
+
+		c.Specify("decodes simple csv messages", func() {
+			csv_data := `"Rob","Pike",rob
+Ken,Thompson,ken
+"Robert","Griesemer","gri"
+`
+
+			conf.FieldsMapConfig = map[string]uint32{
+				"FirstName": 0,
+				"LastName": 1,
+				"Username": 2,
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"First Name": "%FirstName%",
+				"Last Name": "%LastName%",
+				"Username": "%Username%",
+			}
+			conf.Comma = ','
+			conf.Comment = '#'
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(csv_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			var first_name, last_name, username interface{}
+			var ok bool
+
+			first_name, ok = pack.Message.GetFieldValue("First Name")
+			c.Expect(ok, gs.Equals, true)
+
+			last_name, ok = pack.Message.GetFieldValue("Last Name")
+			c.Expect(ok, gs.Equals, true)
+
+			username, ok = pack.Message.GetFieldValue("Username")
+			c.Expect(ok, gs.Equals, true)
+
+			c.Expect(first_name, gs.Equals, "Rob")
+			c.Expect(last_name, gs.Equals, "Pike")
+			c.Expect(username, gs.Equals, "rob")
+		})
+
+		c.Specify("decodes csv messages with out of range index", func() {
+			csv_data := `"Rob","Pike",rob
+Ken,Thompson,ken
+"Robert","Griesemer","gri"
+`
+
+			conf.FieldsMapConfig = map[string]uint32{
+				"FirstName": 0,
+				"LastName": 5,
+				"Username": 2,
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"First Name": "%FirstName%",
+				"Last Name": "%LastName%",
+				"Username": "%Username%",
+			}
+			conf.Comma = ','
+			conf.Comment = '#'
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(csv_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			var (
+				ok bool
+				first_name, last_name, username interface{}
+			)
+
+			first_name, ok = pack.Message.GetFieldValue("First Name")
+			c.Expect(ok, gs.Equals, true)
+
+			last_name, ok = pack.Message.GetFieldValue("Last Name")
+			c.Expect(ok, gs.Equals, true)
+
+			username, ok = pack.Message.GetFieldValue("Username")
+			c.Expect(ok, gs.Equals, true)
+
+			c.Expect(first_name, gs.Equals, "Rob")
+			c.Expect(last_name, gs.Equals, "")
+			c.Expect(username, gs.Equals, "rob")
+		})
+
+		c.Specify("decodes csv messages with comma and comment", func() {
+			csv_data := `#Ken|Thompson|ken
+"Rob"|"Pike"|rob
+"Robert"|"Griesemer"|"gri"
+`
+
+			conf.FieldsMapConfig = map[string]uint32{
+				"FirstName": 0,
+				"LastName": 1,
+				"Username": 2,
+			}
+
+			conf.MessageFields = MessageTemplate{
+				"First Name": "%FirstName%",
+				"Last Name": "%LastName%",
+				"Username": "%Username%",
+			}
+			conf.Comma = '|'
+			conf.Comment = '#'
+			err := decoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			dRunner := pipelinemock.NewMockDecoderRunner(ctrl)
+			decoder.SetDecoderRunner(dRunner)
+			pack.Message.SetPayload(csv_data)
+			_, err = decoder.Decode(pack)
+			c.Assume(err, gs.IsNil)
+
+			var (
+				ok bool
+				first_name, last_name, username interface{}
+			)
+
+			first_name, ok = pack.Message.GetFieldValue("First Name")
+			c.Expect(ok, gs.Equals, true)
+
+			last_name, ok = pack.Message.GetFieldValue("Last Name")
+			c.Expect(ok, gs.Equals, true)
+
+			username, ok = pack.Message.GetFieldValue("Username")
+			c.Expect(ok, gs.Equals, true)
+
+			c.Expect(first_name, gs.Equals, "Rob")
+			c.Expect(last_name, gs.Equals, "Pike")
+			c.Expect(username, gs.Equals, "rob")
+		})
+	})
+
 }
