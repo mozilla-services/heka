@@ -149,6 +149,15 @@ func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte
 		return bytesRead, buf[:bytesRead]
 	}
 
+	if len(loc) == 1 {
+		// In this scenario we are on a multiline but missed the full record in this
+		// read, so we just emit what we have. It would be nice to just try this again on
+		// next read but without keeping more state, we could try forever if somehow that
+		// next line never comes (i.e. truncated input).
+		bytesRead = loc[0][1]
+		return bytesRead, buf[:bytesRead]
+	}
+
 	// Loop through, looking for the first delimiter not also matching a multiline
 	var lastDelimiter []int
 	previous := []int{ 0, 0 }
