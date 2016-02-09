@@ -12,6 +12,7 @@
 # Contributor(s):
 #   Michael Gibson (michael.gibson79@gmail.com)
 #   Rob Miller (rmiller@mozilla.com)
+#   Andrew Williams (williams.andrew@gmail.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -22,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/abh/geoip"
+	"github.com/bbangert/toml"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"strconv"
@@ -37,6 +39,8 @@ type GeoIpDecoder struct {
 	DatabaseFile  string
 	SourceIpField string
 	TargetField   string
+	Timezones     map[string]string
+	RegionNames   map[string]string
 	gi            *geoip.GeoIP
 	pConfig       *PipelineConfig
 }
@@ -75,6 +79,16 @@ func (ld *GeoIpDecoder) Init(config interface{}) (err error) {
 	}
 	if err != nil {
 		return fmt.Errorf("Could not open GeoIP database: %s\n")
+	}
+
+	globals := ld.pConfig.Globals
+	err = ld.PopulateTimezones(globals.PrependShareDir("geoip/timezones.toml"))
+	if err != nil {
+		return err
+	}
+	err = ld.PopulateRegionNames(globals.PrependShareDir("geoip/region_codes.toml"))
+	if err != nil {
+		return err
 	}
 
 	return
@@ -146,6 +160,14 @@ func (ld *GeoIpDecoder) GeoBuff(rec *geoip.GeoIPRecord) bytes.Buffer {
 	buf.WriteString(rec.ContinentCode)
 	buf.WriteString(`"`)
 
+	buf.WriteString(`,"region_name":"`)
+	buf.WriteString(ld.nameForRegion(rec.CountryCode, rec.Region))
+	buf.WriteString(`"`)
+
+	buf.WriteString(`,"timezone":"`)
+	buf.WriteString(ld.timezoneForRegion(rec.CountryCode, rec.Region))
+	buf.WriteString(`"`)
+
 	buf.WriteString(`}`)
 
 	return buf
@@ -183,6 +205,71 @@ func (ld *GeoIpDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 	packs = []*PipelinePack{pack}
 
 	return
+}
+
+func (ld *GeoIpDecoder) PopulateRegionNames(path string) (err error) {
+	ld.RegionNames = make(map[string]string)
+	db := make(map[string]interface{})
+
+	if _, err = toml.DecodeFile(path, &db); err != nil {
+		return fmt.Errorf("Could not open GeoIP region database: %s\n", err)
+	}
+
+	regionCodes, ok := db["Regions"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("Could not find `Regions` table in GeoIP region database `%s`\n", path)
+	}
+
+	for country, countryRegions := range regionCodes {
+		for region, name := range countryRegions.(map[string]interface{}) {
+			key := fmt.Sprintf("%s%s", country, region)
+			ld.RegionNames[key] = name.(string)
+		}
+	}
+
+	return
+}
+
+func (ld *GeoIpDecoder) PopulateTimezones(path string) (err error) {
+	ld.Timezones = make(map[string]string)
+	db := make(map[string]interface{})
+
+	if _, err = toml.DecodeFile(path, &db); err != nil {
+		return fmt.Errorf("Could not open GeoIP timezone database: %s\n", err)
+	}
+
+	timezones, ok := db["Timezones"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("Could not find `Timezones` table in GeoIP timezone database `%s`\n", path)
+	}
+
+	for key, name := range timezones {
+		ld.Timezones[key] = name.(string)
+	}
+
+	return
+}
+
+func (ld *GeoIpDecoder) timezoneForRegion(country, region string) string {
+	combined := fmt.Sprintf("%s%s", country, region)
+
+	if val, ok := ld.Timezones[combined]; ok {
+		return val
+	} else if val, ok := ld.Timezones[country]; ok {
+		return val
+	}
+
+	return ""
+}
+
+func (ld *GeoIpDecoder) nameForRegion(country, region string) string {
+	combined := fmt.Sprintf("%s%s", country, region)
+
+	if val, ok := ld.RegionNames[combined]; ok {
+		return val
+	}
+
+	return ""
 }
 
 func init() {
