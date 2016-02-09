@@ -19,6 +19,8 @@ Bug Handling
 Features
 --------
 
+* Added TLS support to KafkaInput and KafkaOutput plugins.
+
 * Added decoder support to StatAccumInput.
 
 * Added `git_clone_to_path` to the cmake build to allow git repos to be cloned

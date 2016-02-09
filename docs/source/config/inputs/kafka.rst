@@ -77,6 +77,18 @@ Config:
     client code consumes events, greatly improving throughput. The default is
     16.
 
+.. versionadded:: 0.11
+
+- use_tls (bool, optional):
+    Specifies whether or not SSL/TLS encryption should be used for the TCP
+    connections. Defaults to false.
+
+- tls (TlsConfig, optional):
+    A sub-section that specifies the settings to be used for any SSL/TLS
+    encryption. This will only have any impact if ``use_tls`` is set to true.
+    See :ref:`tls`.
+
+
 Example 1: Read Fxa messages from partition 0.
 
 .. code-block:: ini
