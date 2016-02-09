@@ -1,8 +1,11 @@
 package docker
 
-// Based on Logspout (https://github.com/progrium/logspout)
-//
+// Originally based on Logspout (https://github.com/progrium/logspout)
 // Copyright (C) 2014 Jeff Lindsay
+//
+// Significantly modified by Karl Matthias (karl.matthias@gonitro.com) and Rob
+// Miller (rmiller@mozilla.com)
+// Copyright (C) 2016
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +26,7 @@ package docker
 // SOFTWARE.
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -149,18 +153,16 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 	// general connection issue.
 	err := withRetries(m.attachAll)
 	if err != nil {
-		m.ir.LogError(
-			fmt.Errorf("Failed to attach to Docker containers after retrying. Plugin giving up."),
-		)
-		return err
+		m.ir.LogError(err)
+		return errors.New(
+			"Failed to attach to Docker containers after retrying. Plugin giving up.")
 	}
 
 	err = withRetries(func() error { return m.client.AddEventListener(m.events) })
 	if err != nil {
-		m.ir.LogError(
-			fmt.Errorf("Failed to add Docker event listener after retrying. Plugin giving up."),
-		)
-		return err
+		m.ir.LogError(err)
+		return errors.New(
+			"Failed to add Docker event listener after retrying. Plugin giving up.")
 	}
 
 	m.handleDockerEvents(stopChan)
