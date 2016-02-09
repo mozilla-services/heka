@@ -1,8 +1,11 @@
 package docker
 
-// Based on Logspout (https://github.com/progrium/logspout)
-//
+// Originally based on Logspout (https://github.com/progrium/logspout)
 // Copyright (C) 2014 Jeff Lindsay
+//
+// Significantly modified by Karl Matthias (karl.matthias@gonitro.com) and Rob
+// Miller (rmiller@mozilla.com)
+// Copyright (C) 2016
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,52 +26,37 @@ package docker
 // SOFTWARE.
 
 import (
-	"bufio"
+	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
-	"sync"
+	"time"
 
-	"github.com/carlanton/go-dockerclient"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/mozilla-services/heka/message"
+	. "github.com/mozilla-services/heka/pipeline"
+	"github.com/pborman/uuid"
 )
 
-type AttachEvent struct {
-	Type string
-	ID   string
-	Name string
-}
-
-type Log struct {
-	Type   string
-	Data   string
-	Fields map[string]string
-}
-
-type Source struct {
-	ID     string
-	Name   string
-	Filter string
-	Types  []string
-}
-
-func (s *Source) All() bool {
-	return s.ID == "" && s.Name == "" && s.Filter == ""
-}
+const (
+	SLEEP_BETWEEN_RECONNECT = 500 * time.Millisecond
+)
 
 type AttachManager struct {
-	sync.RWMutex
-	attached      map[string]*LogPump
-	channels      map[chan *AttachEvent]struct{}
-	client        DockerClient
-	errors        chan<- error
-	events        chan *docker.APIEvents
-	eventReset    chan struct{}
-	sentinel      struct{}
-	nameFromEnv   string
-	fieldsFromEnv []string
+	hostname         string
+	client           DockerClient
+	events           chan *docker.APIEvents
+	ir               InputRunner
+	endpoint         string
+	certPath         string
+	nameFromEnv      string
+	fieldsFromEnv    []string
+	fieldsFromLabels []string
 }
 
-func NewAttachManager(endpoint, certPath string, attachErrors chan<- error, nameFromEnv string, fieldsFromEnv []string) (*AttachManager, error) {
+// Return a properly configured Docker client
+func newDockerClient(certPath string, endpoint string) (DockerClient, error) {
 	var client DockerClient
 	var err error
 
@@ -81,52 +69,164 @@ func NewAttachManager(endpoint, certPath string, attachErrors chan<- error, name
 		client, err = docker.NewTLSClient(endpoint, cert, key, ca)
 	}
 
+	return client, err
+}
+
+// Construct an AttachManager and set up the Docker Client
+func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
+	fieldsFromEnv []string, fieldsFromLabels []string) (*AttachManager, error) {
+
+	client, err := newDockerClient(certPath, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	m := &AttachManager{
-		attached:      make(map[string]*LogPump),
-		channels:      make(map[chan *AttachEvent]struct{}),
-		client:        client,
-		errors:        attachErrors,
-		events:        make(chan *docker.APIEvents),
-		nameFromEnv:   nameFromEnv,
-		fieldsFromEnv: fieldsFromEnv,
+		client:           client,
+		events:           make(chan *docker.APIEvents),
+		nameFromEnv:      nameFromEnv,
+		fieldsFromEnv:    fieldsFromEnv,
+		fieldsFromLabels: fieldsFromLabels,
 	}
 
-	// Attach to all currently running containers
-	if containers, err := client.ListContainers(docker.ListContainersOptions{}); err == nil {
-		for _, listing := range containers {
-			m.attach(listing.ID[:12])
-		}
-	} else {
-		return nil, err
-	}
-
-	if err := client.AddEventListener(m.events); err != nil {
-		return nil, err
-	}
-
-	go m.recvDockerEvents()
 	return m, nil
 }
 
-func (m *AttachManager) recvDockerEvents() {
-	for msg := range m.events {
-		if msg.Status == "start" {
-			go m.attach(msg.ID[:12])
+// Handler to wrap functions with retry logic
+func withRetries(doWork func() error) error {
+	var err error
+
+	retrier, err := NewRetryHelper(RetryOptions{
+		MaxRetries: 10,
+		Delay:      "1s",
+		MaxJitter:  "250ms",
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		err = doWork()
+		if err == nil {
+			return nil
+		}
+
+		// Sleep between retries, break if we're done
+		if e := retrier.Wait(); e != nil {
+			break
 		}
 	}
-	close(m.errors)
+
+	return err
 }
 
-func (m *AttachManager) attach(id string) {
-	container, err := m.client.InspectContainer(id)
+// Attach to all running containers
+func (m *AttachManager) attachAll() error {
+	containers, err := m.client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
-		m.errors <- err
+		m.ir.LogError(err)
+		return err
 	}
-	name := container.Name[1:]
+
+	for _, listing := range containers {
+		err := withRetries(func() error {
+			return m.attach(listing.ID[:12], m.client)
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	m.ir.LogMessage("Attached to all containers")
+
+	return nil
+}
+
+// Main body of work
+func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error) error {
+	m.ir = ir
+	m.hostname = hostname
+
+	// Retry this sleeping in between tries During this time
+	// the Docker client should get reconnected if there is a
+	// general connection issue.
+	err := withRetries(m.attachAll)
+	if err != nil {
+		m.ir.LogError(err)
+		return errors.New(
+			"Failed to attach to Docker containers after retrying. Plugin giving up.")
+	}
+
+	err = withRetries(func() error { return m.client.AddEventListener(m.events) })
+	if err != nil {
+		m.ir.LogError(err)
+		return errors.New(
+			"Failed to add Docker event listener after retrying. Plugin giving up.")
+	}
+
+	m.handleDockerEvents(stopChan)
+	return nil
+}
+
+// Try to reboot all of our connections
+func (m *AttachManager) restart() error {
+	var err error
+
+	m.ir.LogMessage("Restarting Docker connection...")
+	m.client.RemoveEventListener(m.events)
+
+	// See if the Docker client closed the channel. We can throw away
+	// the read result because we're going to attach to all containers
+	// next, anyway. An EOF from the client can close it.
+	if _, ok := <-m.events; !ok {
+		m.events = make(chan *docker.APIEvents)
+	}
+
+	m.client.AddEventListener(m.events)
+
+	err = withRetries(m.attachAll)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Watch for Docker events, and trigger an attachment if we see a new
+// container.
+func (m *AttachManager) handleDockerEvents(stopChan chan error) {
+	for {
+		select {
+		case msg, ok := <-m.events:
+			if !ok {
+				m.ir.LogMessage("Events channel closed, restarting...")
+				err := withRetries(m.restart)
+				if err != nil {
+					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)", err.Error()))
+					return // Will cause the plugin to restart
+				}
+				time.Sleep(SLEEP_BETWEEN_RECONNECT)
+				continue
+			}
+
+			if msg.Status == "start" {
+				go m.attach(msg.ID[:12], m.client)
+			}
+		case <-stopChan:
+			return
+		}
+	}
+}
+
+// Inspect the container and extract the env vars/labels we were told to keep
+func (m *AttachManager) extractFields(id string, client DockerClient) (map[string]string, error) {
+
+	container, err := client.InspectContainer(id)
+	if err != nil {
+		return nil, err
+	}
+	name := container.Name[1:] // Strip the leading slas
 	image := container.Config.Image
 
 	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
@@ -139,12 +239,35 @@ func (m *AttachManager) attach(id string) {
 	fields["ContainerName"] = name
 	fields["ContainerImage"] = image
 
+	// NOTE! Anything that is a duplicate key will be overridden with the value
+	// that is in the label, not the environment
+	for _, key := range m.fieldsFromLabels {
+		if value, ok := container.Config.Labels[key]; ok {
+			fields[key] = value
+		}
+	}
+
+	return fields, nil
+}
+
+// Attach to the output of a single running container
+func (m *AttachManager) attach(id string, client DockerClient) error {
+	m.ir.LogMessage(fmt.Sprintf("Attaching container: %s", id))
+
+	fields, err := m.extractFields(id, client)
+	if err != nil {
+		return err
+	}
+
 	success := make(chan struct{})
 	failure := make(chan error)
 	outrd, outwr := io.Pipe()
 	errrd, errwr := io.Pipe()
+
+	// Spin up one of these for each container we're watching
 	go func() {
-		err := m.client.AttachToContainer(docker.AttachToContainerOptions{
+		// This will block until the container exits
+		err := client.AttachToContainer(docker.AttachToContainerOptions{
 			Container:    id,
 			OutputStream: outwr,
 			ErrorStream:  errwr,
@@ -154,29 +277,82 @@ func (m *AttachManager) attach(id string) {
 			Stream:       true,
 			Success:      success,
 		})
+
+		// Once it has exited, close our pipes
 		outwr.Close()
 		errwr.Close()
 		if err != nil {
 			close(success)
 			failure <- err
 		}
-
-		m.send(&AttachEvent{Type: "detach", ID: id, Name: name})
-		m.Lock()
-		delete(m.attached, id)
-		m.Unlock()
 	}()
-	_, ok := <-success
-	if ok {
-		m.Lock()
-		m.attached[id] = NewLogPump(outrd, errrd, name, fields)
-		m.Unlock()
-		success <- struct{}{}
-		m.send(&AttachEvent{ID: id, Name: name, Type: "attach"})
-		return
+
+	// Wait for success from the attachment
+	select {
+	case _, ok := <-success:
+		if ok {
+			go m.handleOneStream("stdout", outrd, fields, id)
+			go m.handleOneStream("stderr", errrd, fields, id)
+
+			// Signal back to the client to continue with attachment
+			success <- struct{}{}
+			return nil
+		}
+	case err := <-failure:
+		close(failure)
+		return err
+	}
+
+	return nil
+}
+
+// Add our fields to the output pack
+func (m *AttachManager) makePackDecorator(logger string, fields map[string]string) func(*PipelinePack) {
+	return func(pack *PipelinePack) {
+		pack.Message.SetType("DockerLog")
+		pack.Message.SetLogger(logger)       // stderr or stdout
+		pack.Message.SetHostname(m.hostname) // Use the host's hosntame
+		pack.Message.SetTimestamp(time.Now().UnixNano())
+		pack.Message.SetUuid(uuid.NewRandom())
+
+		for name, value := range fields {
+			field, err := message.NewField(name, value, "")
+			if err != nil {
+				m.ir.LogError(
+					fmt.Errorf("can't add '%s' field: %s", name, err.Error()),
+				)
+				continue
+			}
+
+			pack.Message.AddField(field)
+		}
 	}
 }
 
+// Sets up the Heka pipeline for a single IO stream (either stdout or stderr)
+func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[string]string, containerId string) {
+	id := fmt.Sprintf("%s-%s", fields["ContainerName"], name)
+
+	sRunner := m.ir.NewSplitterRunner(id)
+	if !sRunner.UseMsgBytes() {
+		sRunner.SetPackDecorator(m.makePackDecorator(name, fields))
+	}
+
+	deliverer := m.ir.NewDeliverer(id)
+
+	var err error
+	for err == nil {
+		err = sRunner.SplitStream(in, deliverer)
+		if err != io.EOF && err != nil {
+			m.ir.LogError(fmt.Errorf("Error reading %s stream: %s", name, err.Error()))
+		}
+	}
+	sRunner.Done()
+
+	m.ir.LogMessage(fmt.Sprintf("Disconnecting %s stream from %s", name, containerId))
+}
+
+// Process the env vars and capture the ones we want
 func (m *AttachManager) getEnvVars(container *docker.Container, keys []string) map[string]string {
 	vars := make(map[string]string)
 	for _, value := range container.Config.Env {
@@ -191,128 +367,4 @@ func (m *AttachManager) getEnvVars(container *docker.Container, keys []string) m
 		}
 	}
 	return vars
-}
-
-func (m *AttachManager) changeNameByEnv(container *docker.Container, envName string) string {
-	for _, value := range container.Config.Env {
-		valueParts := strings.SplitN(value, "=", 2)
-		if len(valueParts) == 2 && valueParts[0] == envName {
-			return valueParts[1]
-		}
-	}
-	return ""
-}
-
-func (m *AttachManager) send(event *AttachEvent) {
-	m.RLock()
-	defer m.RUnlock()
-	for ch, _ := range m.channels {
-		// TODO: log err after timeout and continue
-		ch <- event
-	}
-}
-
-func (m *AttachManager) addListener(ch chan *AttachEvent) {
-	m.Lock()
-	defer m.Unlock()
-	m.channels[ch] = struct{}{}
-	go func() {
-		for id, pump := range m.attached {
-			ch <- &AttachEvent{ID: id, Name: pump.Name, Type: "attach"}
-		}
-	}()
-}
-
-func (m *AttachManager) removeListener(ch chan *AttachEvent) {
-	m.Lock()
-	defer m.Unlock()
-	delete(m.channels, ch)
-}
-
-func (m *AttachManager) Get(id string) *LogPump {
-	m.Lock()
-	defer m.Unlock()
-	return m.attached[id]
-}
-
-func (m *AttachManager) Listen(logstream chan *Log, closer <-chan struct{}) {
-	source := new(Source) // TODO: Make the source parameters configurable
-	events := make(chan *AttachEvent)
-	m.addListener(events)
-	defer m.removeListener(events)
-
-	for {
-		select {
-		case event := <-events:
-			if event.Type == "attach" && (source.All() ||
-				(source.ID != "" && strings.HasPrefix(event.ID, source.ID)) ||
-				(source.Name != "" && event.Name == source.Name) ||
-				(source.Filter != "" && strings.Contains(event.Name, source.Filter))) {
-
-				pump := m.Get(event.ID)
-				pump.AddListener(logstream)
-				defer func() {
-					if pump != nil {
-						pump.RemoveListener(logstream)
-					}
-				}()
-			} else if source.ID != "" && event.Type == "detach" &&
-				strings.HasPrefix(event.ID, source.ID) {
-				return
-			}
-		case <-closer:
-			return
-		}
-	}
-}
-
-type LogPump struct {
-	sync.RWMutex
-	Name     string
-	channels map[chan *Log]struct{}
-}
-
-func NewLogPump(stdout, stderr io.Reader, name string, fields map[string]string) *LogPump {
-	obj := &LogPump{
-		Name:     name,
-		channels: make(map[chan *Log]struct{}),
-	}
-	pump := func(typ string, source io.Reader) {
-		buf := bufio.NewReader(source)
-		for {
-			data, err := buf.ReadBytes('\n')
-			if err != nil {
-				return
-			}
-			obj.send(&Log{
-				Data:   strings.TrimSuffix(string(data), "\n"),
-				Type:   typ,
-				Fields: fields,
-			})
-		}
-	}
-	go pump("stdout", stdout)
-	go pump("stderr", stderr)
-	return obj
-}
-
-func (o *LogPump) send(log *Log) {
-	o.RLock()
-	defer o.RUnlock()
-	for ch, _ := range o.channels {
-		// TODO: log err after timeout and continue
-		ch <- log
-	}
-}
-
-func (o *LogPump) AddListener(ch chan *Log) {
-	o.Lock()
-	defer o.Unlock()
-	o.channels[ch] = struct{}{}
-}
-
-func (o *LogPump) RemoveListener(ch chan *Log) {
-	o.Lock()
-	defer o.Unlock()
-	delete(o.channels, ch)
 }

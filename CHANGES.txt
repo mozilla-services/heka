@@ -16,6 +16,11 @@ Bug Handling
 * Fixed ESJsonEncoder generating invalid JSON when `DynamicFields` is first of
   multiple specified fields but the message contains no dynamic fields.
 
+* Fixed bug where DockerLogInput would not reconnect when a Docker daemon 
+  was down for some time (#1843).
+
+* More verbose logging from the DockerLogInput plugin (#1843).
+
 Features
 --------
 
@@ -28,6 +33,10 @@ Features
   their original import paths.
 
 * Added `initial_tail` config option to LogstreamerInput (#1482, #1801).
+
+* Added Splitter support to DockerLogInput plugin (#1843).
+
+* Added `fields_from_labels` config option to DockerLogInput (#1843).
 
 0.10.1 (2016-??-??)
 ===================
