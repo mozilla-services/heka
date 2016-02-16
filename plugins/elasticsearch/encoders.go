@@ -344,9 +344,10 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	e.coord.PopulateBuffer(pack.Message, &buf)
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
-	first := true
+	bufLenBeforeFirstField := buf.Len()
 
 	for _, f := range e.fields {
+		first := buf.Len() == bufLenBeforeFirstField
 		switch strings.ToLower(f) {
 		case "uuid":
 			writeStringField(first, &buf, e.fieldMappings.Uuid, m.GetUuidString())
@@ -392,14 +393,12 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 						}
 					}
 					writeField(first, &buf, field, raw)
-					first = false
 				}
 			}
 		default:
 			err = fmt.Errorf("Unable to find field: %s", f)
 			return
 		}
-		first = false
 	}
 
 	buf.WriteString(`}`)

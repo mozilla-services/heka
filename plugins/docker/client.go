@@ -1,6 +1,6 @@
 package docker
 
-import "github.com/carlanton/go-dockerclient"
+import "github.com/fsouza/go-dockerclient"
 
 type DockerClient interface {
 	// AddEventListener adds a new listener to container events in the Docker
@@ -8,6 +8,9 @@ type DockerClient interface {
 	//
 	// The parameter is a channel through which events will be sent.
 	AddEventListener(listener chan<- *docker.APIEvents) error
+
+	// RemoveEventListener removes a listener from the monitor.
+	RemoveEventListener(listener chan *docker.APIEvents) error
 
 	// ListContainersOptions specify parameters to the ListContainers function.
 	//
@@ -23,4 +26,9 @@ type DockerClient interface {
 	//
 	// See http://goo.gl/RRAhws for more details.
 	AttachToContainer(opts docker.AttachToContainerOptions) error
+
+	// Ping pings the docker server
+	//
+	// See https://goo.gl/kQCfJj for more details.
+	Ping() error
 }

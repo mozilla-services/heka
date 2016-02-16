@@ -80,6 +80,17 @@ Config:
     MaxRequestSize (100 MiB). Default is 50 * 1024 * 1024 (50 MiB), cannot be
     more than (MaxRequestSize - 10 KiB).
 
+.. versionadded:: 0.11
+
+- use_tls (bool, optional):
+    Specifies whether or not SSL/TLS encryption should be used for the TCP
+    connections. Defaults to false.
+
+- tls (TlsConfig, optional):
+    A sub-section that specifies the settings to be used for any SSL/TLS
+    encryption. This will only have any impact if ``use_tls`` is set to true.
+    See :ref:`tls`.
+
 Example (send various Fxa messages to a static Fxa topic):
 
 .. code-block:: ini
