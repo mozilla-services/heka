@@ -275,6 +275,8 @@ type ESJsonEncoderConfig struct {
 	// Dynamic fields to be included. Non-empty value raises an error if
 	// 'DynamicFields' is not in Fields []string property.
 	DynamicFields []string `toml:"dynamic_fields"`
+	// Shall we send the ES coordinates needed by the bulk API?
+	SendCoords bool `toml:"send_coords"`
 }
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
@@ -295,6 +297,7 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 			Pid:        "Pid",
 			Hostname:   "Hostname",
 		},
+		SendCoords: true,
 	}
 
 	config.Fields = fieldChoices[:]
@@ -307,11 +310,13 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 	e.fields = conf.Fields
 	e.timestampFormat = conf.Timestamp
 	e.rawBytesFields = conf.RawBytesFields
-	e.coord = &ElasticSearchCoordinates{
-		Index:                conf.Index,
-		Type:                 conf.TypeName,
-		ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
-		Id:                   conf.Id,
+	if conf.SendCoords {
+		e.coord = &ElasticSearchCoordinates{
+			Index:                conf.Index,
+			Type:                 conf.TypeName,
+			ESIndexFromTimestamp: conf.ESIndexFromTimestamp,
+			Id:                   conf.Id,
+		}
 	}
 	e.fieldMappings = conf.FieldMappings
 	e.dynamicFields = conf.DynamicFields
@@ -341,7 +346,10 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 	m := pack.Message
 	buf := bytes.Buffer{}
-	e.coord.PopulateBuffer(pack.Message, &buf)
+	// Coordinates will be nil if we disabled sending them
+	if e.coord != nil {
+		e.coord.PopulateBuffer(pack.Message, &buf)
+	}
 	buf.WriteByte(NEWLINE)
 	buf.WriteString(`{`)
 	bufLenBeforeFirstField := buf.Len()

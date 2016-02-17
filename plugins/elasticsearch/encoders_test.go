@@ -516,5 +516,33 @@ func ESEncodersSpec(c gs.Context) {
 				c.Expect(len(decoded), gs.Equals, 11) // 9 base fields and 2 dynamic fields.
 			})
 		})
+
+		c.Specify("handling ElasticSearch bulk coordinates", func() {
+			c.Specify("enables sending coordinates by default", func() {
+				c.Expect(config.SendCoords, gs.IsTrue)
+			})
+
+			c.Specify("doesn't send them when SendCoords is false", func() {
+				config.SendCoords = false
+				err := encoder.Init(config)
+				c.Assume(err, gs.IsNil)
+				b, err := encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				output := string(b)
+				c.Expect(strings.Contains(output, "index\":{\"_index"), gs.IsFalse)
+			})
+
+			c.Specify("sends them when SendCoords is true", func() {
+				config.SendCoords = true
+				err := encoder.Init(config)
+				c.Assume(err, gs.IsNil)
+				b, err := encoder.Encode(pack)
+				c.Expect(err, gs.IsNil)
+
+				output := string(b)
+				c.Expect(strings.Contains(output, "index\":{\"_index"), gs.IsTrue)
+			})
+		})
 	})
 }
