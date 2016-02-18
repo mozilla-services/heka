@@ -31,7 +31,6 @@ package docker
 // SOFTWARE.
 
 import (
-	"path/filepath"
 	"strings"
 	"sync"
 	"encoding/json"
@@ -231,7 +230,7 @@ func (m *StatsManager) extractFields(id string, client DockerClient) (map[string
 	image := container.Config.Image
 
 	m.ir.LogMessage("Container Name : " + name)
-	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
+	fields := getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
 	if m.nameFromEnv != "" {
 		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
 			name = alt_name
@@ -250,22 +249,6 @@ func (m *StatsManager) extractFields(id string, client DockerClient) (map[string
 	}
 
 	return fields, nil
-}
-
-func (m *StatsManager) getEnvVars(container *docker.Container, keys []string) map[string]string {
-	vars := make(map[string]string)
-	for _, value := range container.Config.Env {
-		valueParts := strings.SplitN(value, "=", 2)
-		if len(valueParts) == 2 {
-			for _, key := range keys {
-				if key != "" && valueParts[0] == key {
-					vars[valueParts[0]] = valueParts[1]
-					break
-				}
-			}
-		}
-	}
-	return vars
 }
 
 func (m *StatsManager) send(event *StatsAttachEvent) {

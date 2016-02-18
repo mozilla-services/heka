@@ -229,7 +229,7 @@ func (m *AttachManager) extractFields(id string, client DockerClient) (map[strin
 	name := container.Name[1:] // Strip the leading slas
 	image := container.Config.Image
 
-	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
+	fields := getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
 	if m.nameFromEnv != "" {
 		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
 			name = alt_name
@@ -353,7 +353,7 @@ func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[st
 }
 
 // Process the env vars and capture the ones we want
-func (m *AttachManager) getEnvVars(container *docker.Container, keys []string) map[string]string {
+func getEnvVars(container *docker.Container, keys []string) map[string]string {
 	vars := make(map[string]string)
 	for _, value := range container.Config.Env {
 		valueParts := strings.SplitN(value, "=", 2)
