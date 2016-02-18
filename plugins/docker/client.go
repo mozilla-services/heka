@@ -27,6 +27,11 @@ type DockerClient interface {
 	// See http://goo.gl/RRAhws for more details.
 	AttachToContainer(opts docker.AttachToContainerOptions) error
 
+	// StreamContainerStats attaches to a container for stats streaming
+	//
+	// See https://goo.gl/PKOSSE for more details.
+	Stats(opts docker.StatsOptions) error
+
 	// Ping pings the docker server
 	//
 	// See https://goo.gl/kQCfJj for more details.
