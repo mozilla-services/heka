@@ -16,6 +16,9 @@ Inputs
 .. include:: /config/inputs/docker_log.rst
    :start-line: 1
 
+.. include:: /config/inputs/docker_stats.rst
+   :start-line: 1
+
 .. include:: /config/inputs/file_polling.rst
    :start-line: 1
 

@@ -62,6 +62,7 @@ Available Input Plugins
    amqp
    docker_event
    docker_log
+   docker_stats
    file_polling
    http
    httplisten
