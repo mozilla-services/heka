@@ -119,8 +119,10 @@ func (m *pluginMaker) OrigPrepCommonTypedConfig() (interface{}, error) {
 	)
 	switch m.category {
 	case "Input":
+		b := true
 		commonInput := CommonInputConfig{
 			Retries: getDefaultRetryOptions(),
+			LogDecodeFailures: &b,
 		}
 		err = toml.PrimitiveDecode(m.tomlSection, &commonInput)
 		commonTypedConfig = commonInput
