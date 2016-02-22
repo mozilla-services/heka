@@ -44,7 +44,8 @@ import (
 type DockerStat struct {
 	Container		string
 	Time			time.Time
-	Stats 			string
+	StatsString 		string
+	Stat			docker.Stats
 	Fields			map[string]string
 }
 
@@ -303,7 +304,6 @@ func (m *StatsManager) restart() error {
 	}
 
 	m.client.AddEventListener(m.events)
-
 	err = withRetries(m.attachAll)
 	if err != nil {
 		return err
@@ -360,10 +360,11 @@ func NewStatsPump(statsChan chan *docker.Stats, name string, fields map[string]s
 			json_ver, _ := json.Marshal(source)
 			// Send a DockerStat struct out
 			obj.send(&DockerStat{
-				Container:   name,
-				Time: source.Read,
-				Stats:string(json_ver),
-				Fields:fields,
+				Container:   	name,
+				Time: 		source.Read,
+				StatsString:	string(json_ver),
+				Stat: 		*source,
+				Fields:		fields,
 			})
 		}
 	}
