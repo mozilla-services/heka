@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/message"
 	"github.com/pborman/uuid"
