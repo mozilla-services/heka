@@ -71,11 +71,8 @@ func (di *DockerStatsInput) Init(config interface{}) error {
 }
 
 func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
-	var (
-		ok   bool
-	)
+	var ok   bool
 	di.statsMgr.ir = ir
-
 	hostname := h.Hostname()
 
 	go di.statsMgr.Run(di.statsstream, di.closer, di.stopChan)
@@ -176,9 +173,8 @@ func (di *DockerStatsInput) MarshalStatsFields(path string, v reflect.Value, ir 
 	// Handle each item within a map
 	case reflect.Map:
 		for _, key := range v.MapKeys() {
-
 			di.MarshalStatsFields(fmt.Sprintf("%s[%s]", path,
-				strconv.Quote(v.String())), v.MapIndex(key), ir)
+				v.String()), v.MapIndex(key), ir)
 		}
 	case reflect.Interface:
 		if v.IsNil() {
