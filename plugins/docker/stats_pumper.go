@@ -196,7 +196,7 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 		m.errors <- err
 	}
 	name := container.Name[1:]
-	fields, err := m.extractFields(id, m.client)
+	fields, err := extractFields(id, m.client, m.fieldsFromLabels, m.fieldsFromEnv, m.nameFromEnv)
 	if m.nameFromEnv != "" {
 		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
 			name = alt_name
@@ -218,38 +218,6 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 		return nil
 	}
 	return nil
-}
-
-// Inspect the container and extract the env vars/labels we were told to keep
-func (m *StatsManager) extractFields(id string, client DockerClient) (map[string]string, error) {
-
-	container, err := client.InspectContainer(id)
-	if err != nil {
-		return nil, err
-	}
-	name := container.Name[1:] // Strip the leading slas
-	image := container.Config.Image
-
-	m.ir.LogMessage("Container Name : " + name)
-	fields := getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
-	if m.nameFromEnv != "" {
-		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
-			name = alt_name
-		}
-	}
-	fields["ContainerID"] = id
-	fields["ContainerName"] = name
-	fields["ContainerImage"] = image
-
-	// NOTE! Anything that is a duplicate key will be overridden with the value
-	// that is in the label, not the environment
-	for _, key := range m.fieldsFromLabels {
-		if value, ok := container.Config.Labels[key]; ok {
-			fields[key] = value
-		}
-	}
-
-	return fields, nil
 }
 
 func (m *StatsManager) send(event *StatsAttachEvent) {

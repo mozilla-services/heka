@@ -120,19 +120,6 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 			ok = false
 		}
 	}
-
-	di.closer <- struct{}{}
-	close(di.statsstream)
-	if err != nil {
-		ir.LogError(err)
-		return errors.New(
-			"Failed to attach to Docker containers after retrying. Plugin giving up.")
-	}
-	if err != nil {
-		ir.LogError(err)
-		return errors.New(
-			"Failed to add Docker event listener after retrying. Plugin giving up.")
-	}
 	return nil
 }
 
