@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"math"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/message"
 	"github.com/pborman/uuid"
@@ -194,7 +195,7 @@ func (di *DockerStatsInput) packValue(path string, v reflect.Value, ir pipeline.
 		err error
 		field *message.Field
 	)
-	//Switch on the kind of value passed in
+	// Switch on the kind of value passed in
 	switch v.Kind() {
 	case reflect.Invalid:
 		field, err = message.NewField(path, "invalid", "")
@@ -204,8 +205,12 @@ func (di *DockerStatsInput) packValue(path string, v reflect.Value, ir pipeline.
 		field, err = message.NewField(path, v.Int(), "")
 	case reflect.Uint, reflect.Uint8, reflect.Uint16,
 		reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		// Uints are currently unsupported, so just return out
-		return
+		// If possible cast to int
+		if v.Uint() < math.MaxInt64 {
+			field, err = message.NewField(path, int64(v.Uint()), "")
+		} else {
+			return
+		}
 	case reflect.String:
 		field, err = message.NewField(path, v.String(), "")
 	case reflect.Bool: //Currently no Bools in Stats but handle them anyway
