@@ -208,7 +208,9 @@ func (di *DockerStatsInput) packValue(path string, v reflect.Value, ir pipeline.
 		return
 	case reflect.String:
 		field, err = message.NewField(path, v.String(), "")
-	default: // Arrays, interfaces, structs, maps
+	case reflect.Bool: //Currently no Bools in Stats but handle them anyway
+		field, err = message.NewField(path, v.Bool(), "")
+	default: // Arrays, slices (structs and interfaces will error)
 		field, err = message.NewField(path, v.Type().String() + " value", "")
 	}
 	// Handle errors on packing - probably an unsupported type
