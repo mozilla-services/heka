@@ -174,7 +174,7 @@ func (di *DockerStatsInput) MarshalStatsFields(path string, v reflect.Value, ir 
 	case reflect.Map:
 		for _, key := range v.MapKeys() {
 			di.MarshalStatsFields(fmt.Sprintf("%s[%s]", path,
-				v.String()), v.MapIndex(key), ir)
+				key.String()), v.MapIndex(key), ir)
 		}
 	case reflect.Interface:
 		if v.IsNil() {
