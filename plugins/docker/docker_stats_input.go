@@ -168,7 +168,7 @@ func (di *DockerStatsInput) MarshalStatsFields(path string, v reflect.Value, ir 
 			field, _ := message.NewField(path, "nil", "")
 			di.pack.Message.AddField(field)
 		} else {
-			field, _ := message.NewField(path, v.Elem().Type().String(), "")
+			field, _ := message.NewField(path, fmt.Sprintf("%T", v.Elem()), "")
 			di.pack.Message.AddField(field)
 			di.MarshalStatsFields(path + ".value", v.Elem(), ir)
 		}
@@ -199,11 +199,11 @@ func (di *DockerStatsInput) packValue(path string, v reflect.Value, ir pipeline.
 			return
 		}
 	case reflect.String:
-		field, err = message.NewField(path, v.String(), "")
+		field, err = message.NewField(path, fmt.Sprintf("%v", v), "")
 	case reflect.Bool: //Currently no Bools in Stats but handle them anyway
 		field, err = message.NewField(path, v.Bool(), "")
 	default: // Arrays, slices (structs and interfaces will error)
-		field, err = message.NewField(path, v.Type().String() + " value", "")
+		field, err = message.NewField(path,  fmt.Sprintf("%T", v) + " value", "")
 	}
 	// Handle errors on packing - probably an unsupported type
 	if err != nil {
