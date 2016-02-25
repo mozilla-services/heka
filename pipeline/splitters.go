@@ -29,10 +29,6 @@ import (
 	"github.com/mozilla-services/heka/message"
 )
 
-const (
-	MULTILINE_SPLITTER_MAX_LINES = 99
-)
-
 type NullSplitter struct {
 }
 
@@ -103,42 +99,43 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 }
 
 type MultilineSplitter struct {
-	delimiter  *regexp.Regexp
-	multiline  *regexp.Regexp
-	captureLen int
+	delimiter *regexp.Regexp
+	multiline *regexp.Regexp
+	maxLines  int
 }
 
 type MultilineSplitterConfig struct {
 	Delimiter string
 	Multiline string
+	MaxLines  int `toml:"max_lines"` // Maximum lines to group together
 }
 
 func (r *MultilineSplitter) ConfigStruct() interface{} {
 	return &MultilineSplitterConfig{
 		Delimiter: "\n",
+		MaxLines:  99,
 	}
 }
 
 func (r *MultilineSplitter) Init(config interface{}) error {
 	conf := config.(*MultilineSplitterConfig)
 	var err error
+
 	if r.delimiter, err = regexp.Compile(conf.Delimiter); err != nil {
 		return err
-	}
-	if r.delimiter.NumSubexp() > 1 {
-		return fmt.Errorf("regex must not contain more than one capture group: %s",
-			conf.Delimiter)
 	}
 
 	if r.multiline, err = regexp.Compile(conf.Multiline); err != nil {
 		return err
 	}
+
+	r.maxLines = conf.MaxLines
 	return nil
 }
 
 func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 	var loc [][]int
-	loc = r.delimiter.FindAllSubmatchIndex(buf[r.captureLen:], MULTILINE_SPLITTER_MAX_LINES) // Up to 99 matches
+	loc = r.delimiter.FindAllSubmatchIndex(buf, r.maxLines) // Up to maxLines matches
 	if loc == nil {
 		return 0, nil
 	}
@@ -160,7 +157,7 @@ func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte
 
 	// Loop through, looking for the first delimiter not also matching a multiline
 	var lastDelimiter []int
-	previous := []int{ 0, 0 }
+	previous := []int{0, 0}
 	for _, lastDelimiter = range loc[1:] {
 		// Check for a multiline match inside this record
 		if r.multiline.Match(buf[previous[1]:lastDelimiter[0]]) {
@@ -172,7 +169,6 @@ func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte
 		lastDelimiter = previous
 		break
 	}
-
 
 	// We always keep the delimiter at EOL
 	bytesRead = lastDelimiter[1]
