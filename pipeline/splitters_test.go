@@ -156,13 +156,13 @@ func TokenSpec(c gs.Context) {
 	})
 }
 
-func MultilineSpec(c gs.Context) {
-	c.Specify("A MultilineSplitter", func() {
-		splitter := &MultilineSplitter{}
-		config := splitter.ConfigStruct().(*MultilineSplitterConfig)
+func PatternGroupingSpec(c gs.Context) {
+	c.Specify("A PatternGroupingSplitter", func() {
+		splitter := &PatternGroupingSplitter{}
+		config := splitter.ConfigStruct().(*PatternGroupingSplitterConfig)
 		config.Delimiter = "\n"
-		config.Multiline = "(\\A\\s*.+Exception: .)|(at \\S+\\(\\S+\\))|(\\A\\s+... \\d+ more)|(\\A\\s*Caused by:.)|(\\A\\s*Grave:)"
-		sRunner := makeSplitterRunner("MultilineSplitter", splitter)
+		config.Grouping = "(\\A\\s*.+Exception: .)|(at \\S+\\(\\S+\\))|(\\A\\s+... \\d+ more)|(\\A\\s*Caused by:.)|(\\A\\s*Grave:)"
+		sRunner := makeSplitterRunner("PatternGroupingSplitter", splitter)
 
 		c.Specify("handles empty lines", func() {
 			buf := []byte("\n\n")

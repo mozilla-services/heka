@@ -98,34 +98,34 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 	return bytesRead, buf[:bytesRead]
 }
 
-type MultilineSplitter struct {
+type PatternGroupingSplitter struct {
 	delimiter *regexp.Regexp
-	multiline *regexp.Regexp
+	grouping *regexp.Regexp
 	maxLines  int
 }
 
-type MultilineSplitterConfig struct {
+type PatternGroupingSplitterConfig struct {
 	Delimiter string
-	Multiline string
+	Grouping string
 	MaxLines  int `toml:"max_lines"` // Maximum lines to group together
 }
 
-func (r *MultilineSplitter) ConfigStruct() interface{} {
-	return &MultilineSplitterConfig{
+func (r *PatternGroupingSplitter) ConfigStruct() interface{} {
+	return &PatternGroupingSplitterConfig{
 		Delimiter: "\n",
 		MaxLines:  99,
 	}
 }
 
-func (r *MultilineSplitter) Init(config interface{}) error {
-	conf := config.(*MultilineSplitterConfig)
+func (r *PatternGroupingSplitter) Init(config interface{}) error {
+	conf := config.(*PatternGroupingSplitterConfig)
 	var err error
 
 	if r.delimiter, err = regexp.Compile(conf.Delimiter); err != nil {
 		return err
 	}
 
-	if r.multiline, err = regexp.Compile(conf.Multiline); err != nil {
+	if r.grouping, err = regexp.Compile(conf.Grouping); err != nil {
 		return err
 	}
 
@@ -133,7 +133,7 @@ func (r *MultilineSplitter) Init(config interface{}) error {
 	return nil
 }
 
-func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
+func (r *PatternGroupingSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 	var loc [][]int
 	loc = r.delimiter.FindAllSubmatchIndex(buf, r.maxLines) // Up to maxLines matches
 	if loc == nil {
@@ -141,13 +141,13 @@ func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte
 	}
 
 	// Check the first one
-	if !r.multiline.Match(buf[:loc[0][1]]) {
+	if !r.grouping.Match(buf[:loc[0][1]]) {
 		bytesRead = loc[0][1]
 		return bytesRead, buf[:bytesRead]
 	}
 
 	if len(loc) == 1 {
-		// In this scenario we are on a multiline but missed the full record in this
+		// In this scenario we are in a grouping but missed the full record in this
 		// read, so we just emit what we have. It would be nice to just try this again on
 		// next read but without keeping more state, we could try forever if somehow that
 		// next line never comes (i.e. truncated input).
@@ -155,12 +155,12 @@ func (r *MultilineSplitter) FindRecord(buf []byte) (bytesRead int, record []byte
 		return bytesRead, buf[:bytesRead]
 	}
 
-	// Loop through, looking for the first delimiter not also matching a multiline
+	// Loop through, looking for the first delimiter not also matching a grouping
 	var lastDelimiter []int
 	previous := []int{0, 0}
 	for _, lastDelimiter = range loc[1:] {
-		// Check for a multiline match inside this record
-		if r.multiline.Match(buf[previous[1]:lastDelimiter[0]]) {
+		// Check for a grouping match inside this record
+		if r.grouping.Match(buf[previous[1]:lastDelimiter[0]]) {
 			previous = lastDelimiter // Set to the position of previous delimiter
 			continue
 		}
@@ -365,8 +365,8 @@ func init() {
 	RegisterPlugin("RegexSplitter", func() interface{} {
 		return &RegexSplitter{}
 	})
-	RegisterPlugin("MultilineSplitter", func() interface{} {
-		return &MultilineSplitter{}
+	RegisterPlugin("PatternGroupingSplitter", func() interface{} {
+		return &PatternGroupingSplitter{}
 	})
 	RegisterPlugin("HekaFramingSplitter", func() interface{} {
 		return &HekaFramingSplitter{}

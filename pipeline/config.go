@@ -574,7 +574,7 @@ func makeDefaultConfigs() map[string]bool {
 		"ProtobufDecoder":     false,
 		"ProtobufEncoder":     false,
 		"TokenSplitter":       false,
-		"MultilineSplitter":   false,
+		"PatternGroupingSplitter":   false,
 		"HekaFramingSplitter": false,
 		"NullSplitter":        false,
 	}
