@@ -153,7 +153,7 @@ git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e
 git_clone(https://github.com/crankycoder/g2s 2594f7a035ed881bb10618bc5dc4440ef35c6a29)
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
-git_clone(https://github.com/cactus/gostrftime 4544856e3a415ff5668bb75fed36726240ea1f8d)
+git_clone(https://github.com/cactus/gostrftime d329f83c5ce9c416f8983f0a0044734db54ee24d)
 
 git_clone(https://github.com/golang/snappy eaa750b9bf4dcb7cb20454be850613b66cda3273)
 git_clone(https://github.com/rafrombrc/sarama fda3e239249dd96f4a2c446aea39dfc823f4030a)
