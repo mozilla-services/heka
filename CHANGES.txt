@@ -1,6 +1,12 @@
 0.10.1 (2016-??-??)
 ===================
 
+Bug Handling
+------------
+
+* Don't use `os.Exit` in the pipeline's main `Run` function or else any
+  wrapping deffered functions (such as those that output the cpu and mem
+  profiles) won't get called.
 
 0.10.0 (2015-12-30)
 ===================
