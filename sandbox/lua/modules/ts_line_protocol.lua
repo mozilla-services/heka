@@ -109,31 +109,32 @@ local function points_tags_tables(config)
     local used_tag_fields = config.used_tag_fields
     local skip_fields = config.skip_fields
 
-    -- Initialize the tags table, including base field tag values in
-    -- list if the magic **all** or **all_base** config values are
-    -- defined.
+    -- Initialize the tags table, including base field tag values in list if
+    -- the magic **all** or **all_base** config values are defined.
     local tags = {}
     if not config.carbon_format
         and (config.tag_fields_all
         or config.tag_fields_all_base
         or config.used_tag_fields) then
             for field in pairs(field_util.base_fields_tag_list) do
-                if config.tag_fields_all or config.tag_fields_all_base or used_tag_fields[field] then
+                if config.tag_fields_all or config.tag_fields_all_base
+                or used_tag_fields[field] then
                     local value = read_message(field)
-                    table.insert(tags, influxdb_kv_fmt(field).."="..tostring(influxdb_kv_fmt(value)))
+                    local insert_str = string.format("%s=%s", influxdb_kv_fmt(field),
+                                                     tostring(influxdb_kv_fmt(value)))
+                    table.insert(tags, insert_str)
                 end
             end
     end
 
-    -- Initialize the table of data points and populate it with data
-    -- from the Heka message.  When skip_fields includes "**all_base**",
-    -- only dynamic fields are included as InfluxDB data points, while
-    -- the base fields serve as tags for them. If skip_fields does not
-    -- define any base fields, they are added to the fields of each data
-    -- point and each dynamic field value is set as the "value" field.
-    -- Setting skip_fields to "**all_base**" is recommended to avoid
-    -- redundant data being stored in each data point (the base fields
-    -- as fields and as tags).
+    -- Initialize the table of data points and populate it with data from the
+    -- Heka message.  When skip_fields includes "**all_base**", only dynamic
+    -- fields are included as InfluxDB data points, while the base fields serve
+    -- as tags for them. If skip_fields does not define any base fields, they
+    -- are added to the fields of each data point and each dynamic field value
+    -- is set as the "value" field.  Setting skip_fields to "**all_base**" is
+    -- recommended to avoid redundant data being stored in each data point (the
+    -- base fields as fields and as tags).
     local points = {}
     local msg = decode_message(read_message("raw"))
     local seen_fields = {}
@@ -141,11 +142,11 @@ local function points_tags_tables(config)
     local field, value, field_idx, field_out_name
     if msg.Fields then
         for _, field_entry in ipairs(msg.Fields) do
-            field = field_entry["name"]
+            field = field_entry.name
 
             -- Replace non-word characters with underscores for Carbon
             -- to avoid periods resulting in extraneous directories
-            if config["carbon_format"] then
+            if config.carbon_format then
                 field = field:gsub("[^%w]", "_")
             end
 
@@ -158,7 +159,7 @@ local function points_tags_tables(config)
                 field_out_name = string.format("%s_fidx_%d", field_out_name, field_idx)
             end
 
-            for i, field_value in ipairs(field_entry["value"]) do
+            for i, field_value in ipairs(field_entry.value) do
                 value = field_value
 
                 if i > 1 then
@@ -168,22 +169,25 @@ local function points_tags_tables(config)
                 -- Include the dynamic fields as tags if they are defined in
                 -- configuration or the magic value "**all**" is defined.
                 -- Convert value to a string as this is required by the API
-                if not config["carbon_format"]
-                    and (config["tag_fields_all"]
-                         or (config["used_tag_fields"] and used_tag_fields[field])) then
-                        table.insert(tags,
-                                     string.format("%s=%s", influxdb_kv_fmt(field_out_name),
-                                                   tostring(influxdb_kv_fmt(value))))
+                if not config.carbon_format and config.tag_fields_all
+                or (config.used_tag_fields and used_tag_fields[field]) then
+                    local insert_str = string.format("%s=%s",
+                                                     influxdb_kv_fmt(field_out_name),
+                                                     tostring(influxdb_kv_fmt(value)))
+                    table.insert(tags, insert_str)
                 end
 
-                if config["source_value_field"] and field == config["source_value_field"] then
-                    points[name_prefix] = value
-                    -- Only add fields that are not requested to be skipped
-                elseif not config["skip_fields_str"]
-                or (config["skip_fields"] and not skip_fields[field]) then
-                    -- Set the name attribute of this table by concatenating name_prefix
-                    -- with the name of this particular field
-                    points[string.format("%s%s%s", name_prefix, name_prefix_delimiter, field_out_name)] = value
+                if config.source_value_field then
+                    if field == config.source_value_field then
+                        points[name_prefix] = value
+                    end
+                -- Only add fields that are not requested to be skipped
+                elseif not config.skip_fields_str
+                or (config.skip_fields and not skip_fields[field]) then
+                    -- Set the name attribute of this table by concatenating
+                    -- name_prefix with the name of this particular field
+                    points[string.format("%s%s%s", name_prefix, name_prefix_delimiter,
+                                         field_out_name)] = value
                 end
             end
         end
@@ -218,35 +222,37 @@ function influxdb_line_msg(config)
     local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
     local points, tags = points_tags_tables(config)
 
-    -- Build a table of data points that we will eventually convert
-    -- to a newline delimited list of InfluxDB write API line protocol
-    -- formatted values that are then injected back into the pipeline.
+    -- Build a table of data points that we will eventually convert to a
+    -- newline delimited list of InfluxDB write API line protocol formatted
+    -- values that are then injected back into the pipeline.
     for name, value in pairs(points) do
-        -- Wrap in double quotes and escape embedded double quotes
-        -- as defined by the protocol.
+        -- Wrap in double quotes and escape embedded double quotes as defined
+        -- by the protocol.
         if type(value) == "string" then
             value = string.format('"%s"', value:gsub('"', '\\"'))
         end
 
         -- Always send numbers as formatted floats, so InfluxDB will accept
-        -- them if they happen to change from ints to floats between
-        -- points in time.  Forcing them to always be floats avoids this.
-        -- Use the decimal_precision config option to control the
-        -- numbers after the decimal that are printed.
+        -- them if they happen to change from ints to floats between points in
+        -- time.  Forcing them to always be floats avoids this.  Use the
+        -- decimal_precision config option to control the numbers after the
+        -- decimal that are printed.
         if type(value) == "number" or string.match(value, "^[%d.]+$") then
             value = string.format(decimal_format_string, value)
         end
 
         -- Format the line differently based on the presence of tags
         -- i.e. length of the tags table is > 0
+        local insert_str
         if tags and #tags > 0 then
-            insert_value = string.format("%s,%s %s=%s %d", influxdb_kv_fmt(name), table.concat(tags, ","),
-                                         config.value_field_key, value, message_timestamp)
-            table.insert(api_message, insert_value)
+            insert_str = string.format("%s,%s %s=%s %d", influxdb_kv_fmt(name),
+                                       table.concat(tags, ","),
+                                       config.value_field_key, value, message_timestamp)
+            table.insert(api_message, insert_str)
         else
-            insert_value = string.format("%s %s=%s %d", influxdb_kv_fmt(name), config.value_field_key, value,
-                                         message_timestamp)
-            table.insert(api_message, insert_value)
+            insert_str = string.format("%s %s=%s %d", influxdb_kv_fmt(name),
+                                       config.value_field_key, value, message_timestamp)
+            table.insert(api_message, insert_str)
         end
     end
 

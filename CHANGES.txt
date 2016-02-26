@@ -4,6 +4,9 @@
 Bug Handling
 ------------
 
+* Fixed conditional which was causing InfluxDB line protocol encoder to not
+  correctly honor the `source_value_field` config setting.
+
 * Don't use `os.Exit` in the pipeline's main `Run` function or else any
   wrapping deffered functions (such as those that output the cpu and mem
   profiles) won't get called.
@@ -17,6 +20,7 @@ Bug Handling
 * Fixed issue where LogstreamerInput doesn't notice when a zero-length file is
   deleted and replaced by a new zero-length file before any data is appended
   (#1199).
+>>>>>>> versions/0.10
 
 0.10.0b2 (2015-11-20)
 =====================
