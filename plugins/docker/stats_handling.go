@@ -45,7 +45,6 @@ type DockerStat struct {
 	Container		string
 	Time			time.Time
 	StatsString 		string
-	Stat			docker.Stats
 	Fields			map[string]string
 }
 
@@ -331,7 +330,6 @@ func NewStatsPump(statsChan chan *docker.Stats, name string, fields map[string]s
 				Container:   	name,
 				Time: 		source.Read,
 				StatsString:	string(json_ver),
-				Stat: 		*source,
 				Fields:		fields,
 			})
 		}

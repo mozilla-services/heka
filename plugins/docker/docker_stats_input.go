@@ -20,8 +20,6 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"math"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/message"
 	"github.com/pborman/uuid"
@@ -43,7 +41,6 @@ type DockerStatsInput struct {
 	statsstream  chan *DockerStat
 	attachErrors chan error
 	statsMgr     *StatsManager
-	pack	     *pipeline.PipelinePack
 }
 
 func (di *DockerStatsInput) ConfigStruct() interface{} {
@@ -71,7 +68,10 @@ func (di *DockerStatsInput) Init(config interface{}) error {
 }
 
 func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) error {
-	var ok   bool
+	var (
+		ok   bool
+		pack *pipeline.PipelinePack
+	)
 	di.statsMgr.ir = ir
 	hostname := h.Hostname()
 
@@ -85,15 +85,14 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 	for ok {
 		select {
 		case statsline := <-di.statsstream:
-			di.pack = <-packSupply
+			pack = <-packSupply
 
-			di.pack.Message.SetType("DockerStats")
-			di.pack.Message.SetLogger(statsline.Container)
-			di.pack.Message.SetHostname(hostname)   // Use the host's hosntame
-			di.pack.Message.SetPayload(statsline.StatsString)
-			di.pack.Message.SetTimestamp(statsline.Time.UnixNano())
-			di.pack.Message.SetUuid(uuid.NewRandom())
-			di.MarshalStatsFields("stat", reflect.ValueOf(statsline.Stat), ir)
+			pack.Message.SetType("DockerStats")
+			pack.Message.SetLogger(statsline.Container)
+			pack.Message.SetHostname(hostname)   // Use the host's hosntame
+			pack.Message.SetPayload(statsline.StatsString)
+			pack.Message.SetTimestamp(statsline.Time.UnixNano())
+			pack.Message.SetUuid(uuid.NewRandom())
 
 			for name, value := range statsline.Fields {
 				field, err := message.NewField(name, value, "")
@@ -104,9 +103,9 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 					continue
 				}
 
-				di.pack.Message.AddField(field)
+				pack.Message.AddField(field)
 			}
-			ir.Deliver(di.pack)
+			ir.Deliver(pack)
 
 
 		case err, ok = <-di.attachErrors:
@@ -135,82 +134,4 @@ func init() {
 	pipeline.RegisterPlugin("DockerStatsInput", func() interface{} {
 		return new(DockerStatsInput)
 	})
-}
-
-
-// This method marshals the fields of a Stats struct into a map[string]string fields object
-// Core logic for handling reflect.value kinds based on
-// https://github.com/golang/go/blob/dbaf5010b33e5819050ebb0a387eb0bff2cfb8bf/src/fmt/scan.go#L994
-func (di *DockerStatsInput) MarshalStatsFields(path string, v reflect.Value, ir pipeline.InputRunner) {
-	switch v.Kind() {
-	case reflect.Ptr:
-		di.MarshalStatsFields(path, v.Elem(), ir)
-	case reflect.Invalid:
-		field, _ := message.NewField(path, "invalid", "")
-		di.pack.Message.AddField(field)
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < v.Len(); i++ {
-			di.MarshalStatsFields(fmt.Sprintf("%s[%d]", path, i), v.Index(i), ir)
-		}
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			fieldPath := fmt.Sprintf("%s-%s", path, v.Type().Field(i).Name)
-			di.MarshalStatsFields(fieldPath, v.Field(i), ir)
-		}
-	// Handle each item within a map
-	case reflect.Map:
-		for _, key := range v.MapKeys() {
-			di.MarshalStatsFields(fmt.Sprintf("%s[%s]", path,
-				key.String()), v.MapIndex(key), ir)
-		}
-	case reflect.Interface:
-		if v.IsNil() {
-			field, _ := message.NewField(path, "nil", "")
-			di.pack.Message.AddField(field)
-		} else {
-			field, _ := message.NewField(path, fmt.Sprintf("%T", v.Elem()), "")
-			di.pack.Message.AddField(field)
-			di.MarshalStatsFields(path + ".value", v.Elem(), ir)
-		}
-	default: //Pack the values of basic types in
-		di.packValue(path, v, ir)
-	}
-}
-
-func (di *DockerStatsInput) packValue(path string, v reflect.Value, ir pipeline.InputRunner) {
-	var (
-		err error
-		field *message.Field
-	)
-	// Switch on the kind of value passed in
-	switch v.Kind() {
-	case reflect.Invalid:
-		field, err = message.NewField(path, "invalid", "")
-		di.pack.Message.AddField(field)
-	case reflect.Int, reflect.Int8, reflect.Int16,
-		reflect.Int32, reflect.Int64:
-		field, err = message.NewField(path, v.Int(), "")
-	case reflect.Uint, reflect.Uint8, reflect.Uint16,
-		reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		// If possible cast to int
-		if v.Uint() < math.MaxInt64 {
-			field, err = message.NewField(path, int64(v.Uint()), "")
-		} else {
-			return
-		}
-	case reflect.String:
-		field, err = message.NewField(path, fmt.Sprintf("%v", v), "")
-	case reflect.Bool: //Currently no Bools in Stats but handle them anyway
-		field, err = message.NewField(path, v.Bool(), "")
-	default: // Arrays, slices (structs and interfaces will error)
-		field, err = message.NewField(path,  fmt.Sprintf("%T", v) + " value", "")
-	}
-	// Handle errors on packing - probably an unsupported type
-	if err != nil {
-			ir.LogError(
-				fmt.Errorf("can't add '%s' field: %s", path, err.Error()),
-			)
-			return
-	}
-	di.pack.Message.AddField(field)
 }
