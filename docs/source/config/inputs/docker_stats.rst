@@ -21,8 +21,6 @@ Messages will be populated as follows:
 - Logger: The container name
 - Fields["ContainerID"] (string): The container ID.
 - Fields["ContainerName"] (string): The container name.
-- Fields: A full selection of int and string fields from a docker.Stats struct. See
-`Go-DockerClient docs for more information. <https://godoc.org/github.com/fsouza/go-dockerclient#Stats>`_.
 - Fields: Optional fields specified in the fields_from_env and fields_from_labels config parameters.
 
 Config:

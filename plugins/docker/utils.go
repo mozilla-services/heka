@@ -35,6 +35,7 @@ import(
 
 const (
 	SLEEP_BETWEEN_RECONNECT = 500 * time.Millisecond
+	EVENT_FORMAT_STRING = "Event.ID : %s , event.Type : %s , event.Name : %s"
 )
 
 // Return a properly configured Docker client

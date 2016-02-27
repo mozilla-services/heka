@@ -116,7 +116,7 @@ func (m *StatsManager) Run(statsstream chan *DockerStat, closer <-chan struct{},
 	for {
 		select {
 		case event := <-events:
-			m.ir.LogMessage("Event.ID : " + event.ID + " , event.Type : "+ event.Type + " , event.Name : "+  event.Name)
+			m.ir.LogMessage(fmt.Sprintf(EVENT_FORMAT_STRING, event.ID, event.Type, event.Name))
 
 			if event.Type == "attach" && (source.AllContainers() ||
 				(source.ID != "" && strings.HasPrefix(event.ID, source.ID)) ||
