@@ -185,7 +185,6 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 		close(statsrd)
 		close(done)
 		if err != nil {
-			close(done)
 			failure <- err
 		}
 	}()
@@ -221,10 +220,10 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 
 func (m *StatsManager) send(event *StatsAttachEvent) {
 	m.RLock()
-	defer m.RUnlock()
 	for ch, _ := range m.channels {
 		ch <- event
 	}
+	m.RUnlock()
 }
 
 func (m *StatsManager) addStatsListener(ch chan *StatsAttachEvent) {
@@ -242,8 +241,8 @@ func (m *StatsManager) addStatsListener(ch chan *StatsAttachEvent) {
 
 func (m *StatsManager) removeStatsListener(ch chan *StatsAttachEvent) {
 	m.Lock()
-	defer m.Unlock()
 	delete(m.channels, ch)
+	m.Unlock()
 }
 
 func (m *StatsManager) Get(id string) *StatsPump {
