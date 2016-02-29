@@ -17,6 +17,11 @@ Config:
 - map_fields (bool, optional, default false)
     Enables mapping of json fields to heka message fields.
 
+- remap_original_input_fields (String, optional, default nil)
+    String describing how to map original fields in the message (usually from
+    input plugin "pack decorator"). Format is a space-delimited list of
+    key=value pairs, e.g.: "newField1=origField1 newField2=origField2 [...]".
+
 - Payload (string, optional, default nil)
     String specifying json field to map to message Payload,
     expects field value to be a string. Overrides the keep_payload
@@ -113,6 +118,7 @@ timestamp in strftime format.
 --]]
 
 require "cjson"
+require "string"
 local util = require("util")
 local dt = require "date_time"
 
@@ -123,6 +129,14 @@ if timestamp_format then
     tsg = dt.build_strftime_grammar(timestamp_format)
 end
 local map_fields   = read_config("map_fields")
+
+local remap_original_input_fields = read_config("remap_original_input_fields")
+local remap_original_input_fields_table = {}
+if remap_original_input_fields then
+    for new_field, orig_field in string.gmatch(remap_original_input_fields, "(%S+)=(%S+)") do
+        remap_original_input_fields_table[new_field] = orig_field
+    end
+end
 
 local field_map = {
     Payload    = read_config("Payload"),
@@ -200,6 +214,14 @@ function process_message()
     -- flatten and assign remaining fields to heka fields
     local flat = {}
     util.table_to_fields(json, flat, nil)
+
+    -- copy in any input fields, if requested
+    if remap_original_input_fields then
+        for new_field, orig_field in pairs(remap_original_input_fields_table) do
+            flat[new_field] = read_message("Fields["..orig_field.."]")
+        end
+    end
+
     msg.Fields = flat
 
     if not pcall(inject_message, msg) then
