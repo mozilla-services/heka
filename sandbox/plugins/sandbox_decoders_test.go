@@ -310,8 +310,8 @@ func DecoderSpec(c gs.Context) {
 		conf.Config["Severity"] = "severity"
 		conf.Config["Hostname"] = "hostname"
 		conf.Config["Timestamp"] = "time"
-		conf.Config["maximum_depth"] = 2
-		conf.Config["separator_char"] = "-"
+		conf.Config["maximum_depth"] = int64(2)
+		conf.Config["separator"] = "-"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 

@@ -67,7 +67,7 @@ Config:
     For example, specifying a maximum_depth of 1 for the json string
     '{"top":{"nested":1}}' would decode to '{"top":"{\"nested\":1}"}'.
 
-- separator_char (string, optional, default ".")
+- separator (string, optional, default ".")
     String specifying the character to use between keys during flattening.
     For example: '{"top":{"nested":1}}' would decode to '{"top.nested":1}"
 
@@ -125,7 +125,7 @@ local util = require("util")
 local dt = require "date_time"
 
 local max_depth = read_config("maximum_depth")
-local sep_char = read_config("separator_char")
+local separator = read_config("separator")
 local map_fields = read_config("map_fields")
 local payload_keep = read_config("payload_keep")
 local timestamp_format = read_config("timestamp_format")
@@ -209,7 +209,7 @@ function process_message()
 
     -- flatten and assign remaining fields to heka fields
     local flat = {}
-    util.table_to_fields(json, flat, nil, sep_char, max_depth)
+    util.table_to_fields(json, flat, nil, separator, max_depth)
     msg.Fields = flat
 
     if not pcall(inject_message, msg) then
