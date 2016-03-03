@@ -6,6 +6,8 @@ Features
 
 * Added `check_data_interval` setting to LogstreamerInput.
 
+* Added `separator` and `maximum_depth` settings to JSON decoder (#1809).
+
 Bug Handling
 ------------
 
