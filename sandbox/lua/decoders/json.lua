@@ -61,7 +61,15 @@ Config:
     Timestamp fields, in standard strftime format. If left blank, timestamp
     values will be assumed to be in nanoseconds-since-epoch.
 
-timestamp in strftime format.
+- maximum_depth (uint, optional, default nil)
+    Maximum depth to flatten nested keys to. Additional nesting
+    below max_depth will be stringified via json encoding.
+    For example, specifying a maximum_depth of 1 for the json string
+    '{"top":{"nested":1}}' would decode to '{"top":"{\"nested\":1}"}'.
+
+- separator_char (string, optional, default ".")
+    String specifying the character to use between keys during flattening.
+    For example: '{"top":{"nested":1}}' would decode to '{"top.nested":1}"
 
 .. code-block:: javascript
 
@@ -116,13 +124,15 @@ require "cjson"
 local util = require("util")
 local dt = require "date_time"
 
+local max_depth = read_config("maximum_depth")
+local sep_char = read_config("separator_char")
+local map_fields = read_config("map_fields")
 local payload_keep = read_config("payload_keep")
 local timestamp_format = read_config("timestamp_format")
 local tsg
 if timestamp_format then
     tsg = dt.build_strftime_grammar(timestamp_format)
 end
-local map_fields   = read_config("map_fields")
 
 local field_map = {
     Payload    = read_config("Payload"),
@@ -199,7 +209,7 @@ function process_message()
 
     -- flatten and assign remaining fields to heka fields
     local flat = {}
-    util.table_to_fields(json, flat, nil)
+    util.table_to_fields(json, flat, nil, sep_char, max_depth)
     msg.Fields = flat
 
     if not pcall(inject_message, msg) then
