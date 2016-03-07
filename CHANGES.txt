@@ -8,6 +8,8 @@ Features
 
 * Added `separator` and `maximum_depth` settings to JSON decoder (#1809).
 
+* Added `status_field` setting to http_status filter (#1876)
+
 Bug Handling
 ------------
 
