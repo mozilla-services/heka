@@ -8,8 +8,8 @@ package docker
 // Originally based on Logspout (https://github.com/progrium/logspout)
 // Copyright (C) 2014 Jeff Lindsay
 //
-// Significantly modified by Karl Matthias (karl.matthias@gonitro.com) and Rob
-// Miller (rmiller@mozilla.com)
+// Significantly modified by Karl Matthias (karl.matthias@gonitro.com) ,Rob
+// Miller (rmiller@mozilla.com) and Guy Templeton (guy.templeton@skyscanner.net)
 // Copyright (C) 2016
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
