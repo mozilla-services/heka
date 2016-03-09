@@ -310,6 +310,8 @@ func DecoderSpec(c gs.Context) {
 		conf.Config["Severity"] = "severity"
 		conf.Config["Hostname"] = "hostname"
 		conf.Config["Timestamp"] = "time"
+		conf.Config["maximum_depth"] = int64(2)
+		conf.Config["separator"] = "-"
 		supply := make(chan *pipeline.PipelinePack, 1)
 		pack := pipeline.NewPipelinePack(supply)
 
@@ -322,7 +324,7 @@ func DecoderSpec(c gs.Context) {
 			dRunner.EXPECT().Name().Return("SandboxDecoder")
 			decoder.SetDecoderRunner(dRunner)
 
-			payload := `{"hostname":"wyrd.local","time":"05/07/2014 15:12:24","msg":"message","severity":3,"nested":{"field":"value"}}`
+			payload := `{"hostname":"wyrd.local","time":"05/07/2014 15:12:24","msg":"message","severity":3,"nested1":{"field":{"nested2":"value"}}}`
 			pack.Message.SetPayload(payload)
 
 			_, err = decoder.Decode(pack)
@@ -337,9 +339,9 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, "message")
 
-			value, ok = pack.Message.GetFieldValue("nested.field")
+			value, ok = pack.Message.GetFieldValue("nested1-field")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, "value")
+			c.Expect(value, gs.Equals, `{"nested2":"value"}`)
 		})
 
 		c.Specify("decodes a message w/ no timestamp format", func() {
@@ -350,7 +352,7 @@ func DecoderSpec(c gs.Context) {
 			dRunner.EXPECT().Name().Return("SandboxDecoder")
 			decoder.SetDecoderRunner(dRunner)
 
-			payload := `{"hostname":"wyrd.local","time":1399475544000000000,"msg":"message","severity":3,"nested":{"field":"value"}}`
+			payload := `{"hostname":"wyrd.local","time":1399475544000000000,"msg":"message","severity":3,"nested1":{"field":{"nested2":"value"}}}`
 			pack.Message.SetPayload(payload)
 
 			_, err = decoder.Decode(pack)
@@ -364,9 +366,9 @@ func DecoderSpec(c gs.Context) {
 			c.Expect(ok, gs.IsTrue)
 			c.Expect(value, gs.Equals, "message")
 
-			value, ok = pack.Message.GetFieldValue("nested.field")
+			value, ok = pack.Message.GetFieldValue("nested1-field")
 			c.Expect(ok, gs.IsTrue)
-			c.Expect(value, gs.Equals, "value")
+			c.Expect(value, gs.Equals, `{"nested2":"value"}`)
 		})
 	})
 

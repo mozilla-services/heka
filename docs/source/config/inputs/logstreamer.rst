@@ -60,6 +60,13 @@ Config:
     Defaults to "TokenSplitter", which will split the log stream into one
     Heka message per line.
 
+.. versionadded:: 0.10
+
+- check_data_interval (string)
+    A time duration string. This interval is how often streams will be checked
+    for new data. Defaults to "250ms". If the plugin processes many logstreams,
+    you may increase this value to reduce the CPU load.
+
 .. versionadded:: 0.11
 
 - initial_tail (bool, optional, default: false):

@@ -234,6 +234,12 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 
 	if ok {
 		// 1. NO - Try and find our location
+
+		// First make sure our file list is current. Ignore errors, since we
+		// can't do anything about them here anyway, scanning errors should be
+		// reported during the next ticker interval rescan.
+		l.set.ScanForLogstreams()
+
 		fd, _, err := l.LocatePriorLocation(false)
 
 		if err != nil && IsFileError(err) {
@@ -244,9 +250,9 @@ func (l *Logstream) NewerFileAvailable() (file string, ok bool) {
 			fd.Close()
 		}
 
-		// Unable to locate prior position in our file-stream, are there
-		// any logfiles?
 		if err != nil {
+			// Unable to locate prior position in our file-stream, are there
+			// any logfiles?
 			l.lfMutex.RLock()
 			defer l.lfMutex.RUnlock()
 			if len(l.logfiles) > 0 {
@@ -310,10 +316,10 @@ func (l *Logstream) FileHashMismatch() bool {
 	return false
 }
 
-// Locate and return a file handle seeked to the appropriate location. An error will be
-// returned if the prior location cannot be located.
-// If the logfile this location for has changed names, the position will be updated to
-// reflect the move.
+// Locate and return a file handle seeked to the appropriate location. An
+// error will be returned if the prior location cannot be located. If the
+// logfile this location for has changed names, the position will be updated
+// to reflect the move.
 func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader io.Reader,
 	err error) {
 
@@ -336,12 +342,13 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 		}
 	}
 
-	// Unable to locate the file, or the position wasn't where we thought it should be.
-	// Start systematically searching all the files for this location to see if it was
-	// shuffled around.
-	// TODO: Would be more efficient to start searching backwards from where we are
-	//       in the logstream at the moment.
-	for _, logfile := range l.logfiles {
+	// Unable to locate the file, or the position wasn't where we thought it
+	// should be. Start systematically searching all the files for this
+	// location to see if it was shuffled around. We start at the end and work
+	// backwards under the assumption that we're probably much closer to the
+	// end of the stream than the beginning.
+	for i := len(l.logfiles) - 1; i >= 0; i-- {
+		logfile := l.logfiles[i]
 		// Check that the file is large enough for our seek position
 		info, err = os.Stat(logfile.FileName)
 		if err != nil {
@@ -364,6 +371,9 @@ func (l *Logstream) LocatePriorLocation(checkFilename bool) (fd *os.File, reader
 			return
 		}
 		err = nil // Reset our error to nil
+		if fd != nil {
+			fd.Close()
+		}
 	}
 	// Set our default error since we were unable to locate the position
 	err = errors.New("Unable to locate position in the stream")

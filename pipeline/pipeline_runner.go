@@ -260,7 +260,7 @@ func (p *PipelinePack) EncodeMsgBytes() error {
 // Main function driving Heka execution. Loads config, initializes PipelinePack
 // pools, and starts all the runners. Then it listens for signals and drives
 // the shutdown process when that is triggered.
-func Run(config *PipelineConfig) {
+func Run(config *PipelineConfig) (exitCode int) {
 	LogInfo.Println("Starting hekad...")
 
 	var outputsWg sync.WaitGroup
@@ -404,7 +404,7 @@ func Run(config *PipelineConfig) {
 	}
 
 	LogInfo.Println("Shutdown complete.")
-	os.Exit(globals.exitCode)
+	return globals.exitCode
 }
 
 func sandboxAbort(config *PipelineConfig) {

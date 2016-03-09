@@ -308,14 +308,20 @@ type Logstream struct {
 	saveBuffer []byte
 	// Records whether the prior read hit an EOF
 	priorEOF bool
+	// LogstreamSet to which this stream belongs, needed so we can trigger
+	// file rescanning when necessary.
+	set *LogstreamSet
 }
 
-func NewLogstream(logfiles Logfiles, position *LogstreamLocation) *Logstream {
+func NewLogstream(logfiles Logfiles, position *LogstreamLocation,
+	set *LogstreamSet) *Logstream {
+
 	return &Logstream{
 		lfMutex:    new(sync.RWMutex),
 		logfiles:   logfiles,
 		position:   position,
 		saveBuffer: make([]byte, 0, 200),
+		set:        set,
 	}
 }
 
@@ -474,7 +480,7 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 				errors.AddMessage(err.Error())
 				position.Reset()
 			}
-			logstream = NewLogstream(nil, position)
+			logstream = NewLogstream(nil, position, ls)
 		}
 
 		// Add an error if there's multiple logfiles but no priority for sorting
