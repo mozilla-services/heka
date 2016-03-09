@@ -171,8 +171,8 @@ local msg = {
 }
 
 function process_message()
-    local pok, json = pcall(cjson.decode, read_message("Payload"))
-    if not pok then return -1, "Failed to decode JSON." end
+    local ok, json = pcall(cjson.decode, read_message("Payload"))
+    if not ok then return -1, "Failed to decode JSON." end
 
     -- keep payload, or not
     if payload_keep then
@@ -209,7 +209,10 @@ function process_message()
 
     -- flatten and assign remaining fields to heka fields
     local flat = {}
-    util.table_to_fields(json, flat, nil, separator, max_depth)
+    if not pcall(util.table_to_fields, json, flat, nil, separator, max_depth) then
+        return -1, "Failed to flatten message."
+    end
+
     msg.Fields = flat
 
     if not pcall(inject_message, msg) then
