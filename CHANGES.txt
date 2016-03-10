@@ -31,6 +31,9 @@ Bug Handling
 
 * JSON decoder no longer exits when flattening the field structure fails.
 
+* Fixed bug where HttpOutput would discard the response body before trying to
+  use the response body when response returned an error status code.
+
 0.10.0 (2015-12-30)
 ===================
 
