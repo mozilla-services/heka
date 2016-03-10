@@ -19,7 +19,9 @@ find_package(Go 1.4 REQUIRED)
 find_package(Git REQUIRED)
 find_package(Protobuf 2.3 QUIET)
 set(CPACK_PACKAGE_FILE_NAME ${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}_${CPACK_PACKAGE_VERSION_MINOR}_${CPACK_PACKAGE_VERSION_PATCH}-${GO_PLATFORM}-${GO_ARCH})
-set(CMAKE_INSTALL_PREFIX ${CMAKE_PROJECT_NAME})
+if (NOT DEFINED CMAKE_INSTALL_PREFIX)
+    set(CMAKE_INSTALL_PREFIX ${CMAKE_PROJECT_NAME})
+endif()
 set(PROJECT_PATH "${CMAKE_BINARY_DIR}/heka")
 set(HEKA_PATH "${PROJECT_PATH}/src/github.com/mozilla-services/heka")
 set(LUA_INCLUDE_PATH "${PROJECT_PATH}/include")
@@ -181,18 +183,20 @@ if (INCLUDE_DOCUMENTATION)
     install(DIRECTORY "${HEKA_PATH}/docs/build/man/" DESTINATION share/man/man5 FILES_MATCHING PATTERN "*.5")
 endif()
 
-if (MINGW AND INCLUDE_SANDBOX)
-    add_custom_command(TARGET heka_source POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
-    COMMENT "Install dll's for the mock generation and unit tests")
-    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION bin PATTERN "*.dll" PATTERN "luasandbox" EXCLUDE PATTERN "luasandbox/*" EXCLUDE)
-else()
-    install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib PATTERN "*${CMAKE_SHARED_LIBRARY_SUFFIX}" PATTERN "luasandbox" EXCLUDE PATTERN "luasandbox/*" EXCLUDE)
+if (INCLUDE_SANDBOX)
+    if (MINGW)
+        add_custom_command(TARGET heka_source POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/pipeline"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/lua"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/sandbox/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_PATH}/lib/" "${HEKA_PATH}/cmd/hekad"
+        COMMENT "Install dll's for the mock generation and unit tests")
+        install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION bin PATTERN "*.dll" PATTERN "luasandbox" EXCLUDE PATTERN "luasandbox/*" EXCLUDE)
+    else()
+        install(DIRECTORY "${PROJECT_PATH}/lib/" DESTINATION lib PATTERN "*${CMAKE_SHARED_LIBRARY_SUFFIX}" PATTERN "luasandbox" EXCLUDE PATTERN "luasandbox/*" EXCLUDE)
+    endif()
 endif()
 
 install(PROGRAMS "${HEKA_EXE}" DESTINATION bin)
@@ -289,16 +293,17 @@ endif()
 if (INCLUDE_MOZSVC)
     add_test(mozsvc ${GO_EXECUTABLE} test ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka-mozsvc-plugins)
 endif()
-install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sbmgr/hekad.toml.sbmgr" DESTINATION bin)
-if(INCLUDE_SANDBOX)
-install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION bin)
-endif()
+
+install(FILES "${HEKA_PATH}/cmd/heka-sbmgr/sbmgr.toml" "${HEKA_PATH}/cmd/heka-sbmgr/hekad.toml.sbmgr" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
 install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt" DESTINATION "share/${CMAKE_PROJECT_NAME}")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/dasher" DESTINATION "share/${CMAKE_PROJECT_NAME}")
-install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
-install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/io_modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_io_modules")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/examples/conf/" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/decoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_decoders")
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/filters/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_filters")
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/encoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_encoders")
+if (INCLUDE_SANDBOX)
+    install(FILES "${HEKA_PATH}/sandbox/lua/testsupport/hekabench_cbuf_counter.lua" DESTINATION "share/${CMAKE_PROJECT_NAME}/examples")
+    install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
+    install(DIRECTORY "${PROJECT_PATH}/lib/luasandbox/io_modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_io_modules")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/modules/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_modules")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/decoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_decoders")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/filters/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_filters")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/sandbox/lua/encoders/" DESTINATION "share/${CMAKE_PROJECT_NAME}/lua_encoders")
+endif()
