@@ -38,6 +38,8 @@ Features
 
 * Added `fields_from_labels` config option to DockerLogInput (#1843).
 
+* Added iowait percentage output field in filter procstat (#1887).
+
 0.10.1 (2016-??-??)
 ===================
 
