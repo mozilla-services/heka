@@ -31,7 +31,7 @@ func (dei *DockerEventInput) ConfigStruct() interface{} {
 
 func (dei *DockerEventInput) Init(config interface{}) error {
 	dei.conf = config.(*DockerEventInputConfig)
-	c, err := newDockerClient(dei.conf.Endpoint, dei.conf.CertPath)
+	c, err := newDockerClient(dei.conf.CertPath, dei.conf.Endpoint)
 	if err != nil {
 		return fmt.Errorf("DockerEventInput: failed to attach to docker event API: %s", err.Error())
 	}
