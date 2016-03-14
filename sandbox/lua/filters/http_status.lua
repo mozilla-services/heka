@@ -3,8 +3,8 @@
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 --[[
-Graphs HTTP status codes using the numeric Fields[status] variable collected
-from web server access logs.
+Graphs HTTP status codes using the numeric status code collected from
+web server access logs.
 
 Config:
 
@@ -15,6 +15,9 @@ Config:
 - rows (uint, optional, default 1440)
     Sets the size of the sliding window i.e., 1440 rows representing 60
     seconds per row is a 24 sliding hour window with 1 minute resolution.
+
+- status_field (string, optional, default "status")
+    Sets the message field containing the numeric HTTP status code.
 
 - anomaly_config (string, optional)
     See :ref:`sandbox_anomaly_module`.
@@ -58,6 +61,7 @@ local anomaly       = require "anomaly"
 local title             = "HTTP Status"
 local rows              = read_config("rows") or 1440
 local sec_per_row       = read_config("sec_per_row") or 60
+local status_field      = read_config("status_field") or "status"
 local anomaly_config    = anomaly.parse_config(read_config("anomaly_config"))
 local alert_throttle    = read_config("alert_throttle") or 3600
 alert.set_throttle(alert_throttle * 1e9)
@@ -74,7 +78,7 @@ local HTTP_UNKNOWN = status:set_header(6, "HTTP_UNKNOWN")
 
 function process_message ()
     local ts = read_message("Timestamp")
-    local sc = read_message("Fields[status]")
+    local sc = read_message("Fields["..status_field.."]")
     if type(sc) ~= "number" then return -1 end
 
     local col = sc/100

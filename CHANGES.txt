@@ -48,6 +48,8 @@ Features
 
 * Added `separator` and `maximum_depth` settings to JSON decoder (#1809).
 
+* Added `status_field` setting to http_status filter (#1876)
+
 Bug Handling
 ------------
 
@@ -57,7 +59,7 @@ Bug Handling
 * Don't use `os.Exit` in the pipeline's main `Run` function or else any
   wrapping deffered functions (such as those that output the cpu and mem
   profiles) won't get called.
-  
+
 * Stop zero-length records with no error ending the splitter if there's
   more data to read (#1561)
 
@@ -66,6 +68,11 @@ Bug Handling
 * Fixed LogstreamerInput file rotation missing newly created files with new
   names by always triggering LogstreamSet rescan before checking location in
   stream (#1452).
+
+* JSON decoder no longer exits when flattening the field structure fails.
+
+* Fixed bug where HttpOutput would discard the response body before trying to
+  use the response body when response returned an error status code.
 
 0.10.0 (2015-12-30)
 ===================
