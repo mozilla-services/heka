@@ -38,6 +38,17 @@ Message Interpolation Module
 	:start-after: --[[
 	:end-before: --]]
 
+.. _sandbox_msgpack_module:
+
+MessagePack Module
+------------------
+
+.. versionadded:: 0.10
+
+.. include:: ../../../sandbox/lua/modules/msgpack.lua
+   :start-after: --[=[
+   :end-before: --]=]
+
 .. _sandbox_elasticsearch_module:
 
 ElasticSearch Module

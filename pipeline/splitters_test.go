@@ -426,3 +426,43 @@ func HekaFramingSpec(c gs.Context) {
 		})
 	})
 }
+
+func MessagePackSpec(c gs.Context) {
+	c.Specify("A MessagePack splitter", func() {
+		splitter := &MessagePackSplitter{}
+		config := splitter.ConfigStruct().(*MessagePackSplitterConfig)
+		sRunner := makeSplitterRunner("MessagePackSplitter", splitter)
+
+		c.Specify("splits records", func() {
+			b := []byte("\x95\x81\xa4\x74\x68\x69\x73\xa2\x69\x73\x81\xa4\x6a\x75\x73\x74\xa4\x74\x65\x73\x74\x81\xa4\x64\x61\x74\x61\xa3\x6c\x6f\x6c\x81\xaa\x6c\x65\x74\x27\x73\x20\x68\x61\x76\x65\xb4\x73\x6f\x6d\x65\x20\x6d\x6f\x72\x65\x20\x62\x79\x74\x65\x73\x21\x21\x21\x21\x21\xcd\x04\xd2\x95\x81\xa4\x74\x68\x69\x73\xa2\x69\x73\x81\xa4\x6a\x75\x73\x74\xa4\x74\x65\x73\x74\x81\xa4\x64\x61\x74\x61\xa3\x6c\x6f\x6c\x81\xaa\x6c\x65\x74\x27\x73\x20\x68\x61\x76\x65\xb4\x73\x6f\x6d\x65\x20\x6d\x6f\x72\x65\x20\x62\x79\x74\x65\x73\x21\x21\x21\x21\x21\xcd\x04\xd2\xc1\xc1\x95\x81\xa4\x74\x68\x69\x73\xa2\x69\x73\x81\xa4\x6a\x75\x73\x74\xa4\x74\x65\x73\x74\x81\xa4\x64\x61\x74\x61\xa3\x6c\x6f\x6c\x81\xaa\x6c\x65\x74\x27\x73\x20\x68\x61\x76\x65\xb4\x73\x6f\x6d\x65\x20\x6d\x6f\x72\x65\x20\x62\x79\x74\x65\x73\x21\x21\x21\x21\x21\xcd\x04\xd2\x9b\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09")
+			reader := bytes.NewReader(b)
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			n, record, err := sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 67)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, string(b[:67]))
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 67)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, string(b[67:134]))
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 69) // skips the invalid data (\xc1\xc1)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, string(b[136:203]))
+
+			n, record, err = sRunner.GetRecordFromStream(reader) // trigger the need to read more data
+			c.Expect(n, gs.Equals, 0)
+			c.Expect(err, gs.IsNil)
+			c.Expect(len(record), gs.Equals, 0)
+
+			n, record, err = sRunner.GetRecordFromStream(reader) // hit the EOF
+			c.Expect(n, gs.Equals, 0)
+			c.Expect(err, gs.Equals, io.EOF)
+			c.Expect(len(record), gs.Equals, 0)
+		})
+	})
+}

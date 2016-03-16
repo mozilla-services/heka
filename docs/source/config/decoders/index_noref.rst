@@ -6,6 +6,9 @@ Decoders
 .. include:: /config/decoders/apache_access.rst
   :start-line: 1
 
+.. include:: /config/decoders/docker_fluentd.rst
+  :start-line: 1
+
 .. include:: /config/decoders/graylog_extended.rst
   :start-line: 1
 
