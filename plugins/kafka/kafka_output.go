@@ -356,6 +356,7 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			}
 			or.LogError(err)
 		}
+		or.UpdateCursor(pack.QueueCursor)
 		pack.Recycle(err)
 	}
 
