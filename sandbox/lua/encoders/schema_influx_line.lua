@@ -55,6 +55,17 @@ Config:
     from being mapped to the event altogether (useful if you don't want to
     use tags and embed them in the name_prefix instead).
 
+- multi_fields (boolean, optional, default false)
+    Instead of submitting all fields to InfluxDB as separate series, they can be
+    sent in only one serie instead of one for each field. If this is
+    enabled, the `name_prefix` option should be set or no measurement name
+    will be present when trying to send to InfluxDB. When this option is present,
+    only one line will be sent to InfluxDB for each message processed:
+
+    .. code-block:: none
+
+        cpu,Hostname=myhost,Environment=dev 5MinAvg=0.110000,1MinAvg=0.110000,15MinAvg=0.170000 1434932024
+
 - source_value_field (string, optional, default nil)
     If the desired behavior of this encoder is to extract one field from the
     Heka message and feed it as a single line to InfluxDB, then use this option
@@ -149,6 +160,7 @@ local decoder_config = {
     source_value_field = read_config("source_value_field") or nil,
     tag_fields_str = read_config("tag_fields") or "**all_base**",
     timestamp_precision = read_config("timestamp_precision") or "ms",
+    multi_fields = read_config("multi_fields") or false,
     value_field_key = read_config("value_field_key") or "value"
 }
 

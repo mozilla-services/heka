@@ -324,7 +324,6 @@ byteField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="first" 
 		})
 
 		c.Specify("honors tag_fields", func() {
-			conf.Config["multi_fields"] = true
 			conf.Config["tag_fields"] = "Hostname Logger strField"
 			conf.Config["skip_fields"] = "strField"
 			err = encoder.Init(conf)
@@ -335,6 +334,18 @@ byteField,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value="first" 
 byteField_vidx_1,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value="second" 54321000
 intField,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value=123.000000 54321000
 byteField,Logger=Logger,Hostname=hostname,strField=0_first,strField_vidx_1=0_second,strField_fidx_1=1_first,strField_fidx_1_vidx_1=1_second value="first" 54321000
+`
+			c.Expect(string(result), gs.Equals, expected)
+		})
+
+		c.Specify("encodes a message with multiple fields in one line", func() {
+			conf.Config["multi_fields"] = true
+			conf.Config["name_prefix"] = "multiple_fields"
+			err = encoder.Init(conf)
+			c.Assume(err, gs.IsNil)
+			result, err := encoder.Encode(pack)
+			c.Expect(err, gs.IsNil)
+			expected := `multiple_fields,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname byteField_vidx_1="second",intField_vidx_1=456.000000,byteField="first",strField_fidx_1_vidx_1="1_second",strField_vidx_1="0_second",intField=123.000000,strField_fidx_1="1_first",strField="0_first" 54321000
 `
 			c.Expect(string(result), gs.Equals, expected)
 		})

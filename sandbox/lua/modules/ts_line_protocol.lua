@@ -222,37 +222,78 @@ function influxdb_line_msg(config)
     local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
     local points, tags = points_tags_tables(config)
 
-    -- Build a table of data points that we will eventually convert to a
-    -- newline delimited list of InfluxDB write API line protocol formatted
-    -- values that are then injected back into the pipeline.
-    for name, value in pairs(points) do
-        -- Wrap in double quotes and escape embedded double quotes as defined
-        -- by the protocol.
-        if type(value) == "string" then
-            value = string.format('"%s"', value:gsub('"', '\\"'))
-        end
+    if config.multi_fields then
+        -- Build fields key/value string
+        local fields = {}
+        local name_prefix = config.name_prefix or ""
+        local name_prefix_delimiter = config.name_prefix_delimiter or ""
+        local to_remove = string.format("%s%s", name_prefix, name_prefix_delimiter)
+        for name, value in pairs(points) do
+            -- Wrap in double quotes and escape embedded double quotes as defined
+            -- by the protocol.
+            if type(value) == "string" then
+                value = string.format('"%s"', value:gsub('"', '\\"'))
+            end
 
-        -- Always send numbers as formatted floats, so InfluxDB will accept
-        -- them if they happen to change from ints to floats between points in
-        -- time.  Forcing them to always be floats avoids this.  Use the
-        -- decimal_precision config option to control the numbers after the
-        -- decimal that are printed.
-        if type(value) == "number" or string.match(value, "^[%d.]+$") then
-            value = string.format(decimal_format_string, value)
+            -- Always send numbers as formatted floats, so InfluxDB will accept
+            -- them if they happen to change from ints to floats between points in
+            -- time.  Forcing them to always be floats avoids this.  Use the
+            -- decimal_precision config option to control the numbers after the
+            -- decimal that are printed.
+            if type(value) == "number" or string.match(value, "^[%d.]+$") then
+                value = string.format(decimal_format_string, value)
+            end
+
+            field_name = string.gsub(name, to_remove, "")
+            table.insert(fields, field_name .. "=" .. value)
         end
 
         -- Format the line differently based on the presence of tags
         -- i.e. length of the tags table is > 0
         local insert_str
         if tags and #tags > 0 then
-            insert_str = string.format("%s,%s %s=%s %d", influxdb_kv_fmt(name),
+            insert_str = string.format("%s,%s %s %d", name_prefix,
                                        table.concat(tags, ","),
-                                       config.value_field_key, value, message_timestamp)
+                                       table.concat(fields, ","), message_timestamp)
             table.insert(api_message, insert_str)
         else
-            insert_str = string.format("%s %s=%s %d", influxdb_kv_fmt(name),
-                                       config.value_field_key, value, message_timestamp)
+            insert_str = string.format("%s %s %d", name_prefix,
+                                       table.concat(fields, ","), message_timestamp)
             table.insert(api_message, insert_str)
+        end
+    else
+        -- Build a table of data points that we will eventually convert to a
+        -- newline delimited list of InfluxDB write API line protocol formatted
+        -- values that are then injected back into the pipeline.
+        for name, value in pairs(points) do
+            -- Wrap in double quotes and escape embedded double quotes as defined
+            -- by the protocol.
+            if type(value) == "string" then
+                value = string.format('"%s"', value:gsub('"', '\\"'))
+            end
+
+            -- Always send numbers as formatted floats, so InfluxDB will accept
+            -- them if they happen to change from ints to floats between points in
+            -- time.  Forcing them to always be floats avoids this.  Use the
+            -- decimal_precision config option to control the numbers after the
+            -- decimal that are printed.
+            if type(value) == "number" or string.match(value, "^[%d.]+$") then
+                value = string.format(decimal_format_string, value)
+            end
+
+            -- Format the line differently based on the presence of tags
+            -- i.e. length of the tags table is > 0
+            local insert_str
+            if tags and #tags > 0 then
+                insert_str = string.format("%s,%s %s=%s %d", influxdb_kv_fmt(name),
+                                           table.concat(tags, ","),
+                                           config.value_field_key, value, message_timestamp)
+                table.insert(api_message, insert_str)
+            else
+                insert_str = string.format("%s %s=%s %d", influxdb_kv_fmt(name),
+                                           config.value_field_key, value, message_timestamp)
+                table.insert(api_message, insert_str)
+            end
         end
     end
 
@@ -270,6 +311,7 @@ function set_config(client_config)
         source_value_field = false,
         tag_fields_str = "**all_base**",
         timestamp_precision = "ms",
+        multi_fields = false,
         value_field_key = "value"
     }
 
