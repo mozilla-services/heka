@@ -26,11 +26,14 @@ package docker
 // SOFTWARE.
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
@@ -43,6 +46,11 @@ const (
 	SLEEP_BETWEEN_RECONNECT = 500 * time.Millisecond
 )
 
+type sinces struct {
+	Since      int64
+	Containers map[string]int64
+}
+
 type AttachManager struct {
 	hostname         string
 	client           DockerClient
@@ -53,9 +61,13 @@ type AttachManager struct {
 	nameFromEnv      string
 	fieldsFromEnv    []string
 	fieldsFromLabels []string
+	sincePath        string
+	sinces           *sinces
+	sinceLock        sync.Mutex
+	sinceInterval    time.Duration
 }
 
-// Return a properly configured Docker client
+// Return a properly configured Docker client.
 func newDockerClient(certPath string, endpoint string) (DockerClient, error) {
 	var client DockerClient
 	var err error
@@ -74,7 +86,8 @@ func newDockerClient(certPath string, endpoint string) (DockerClient, error) {
 
 // Construct an AttachManager and set up the Docker Client
 func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
-	fieldsFromEnv []string, fieldsFromLabels []string) (*AttachManager, error) {
+	fieldsFromEnv []string, fieldsFromLabels []string,
+	sincePath string, sinceInterval time.Duration) (*AttachManager, error) {
 
 	client, err := newDockerClient(certPath, endpoint)
 	if err != nil {
@@ -87,12 +100,27 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 		nameFromEnv:      nameFromEnv,
 		fieldsFromEnv:    fieldsFromEnv,
 		fieldsFromLabels: fieldsFromLabels,
+		sincePath:        sincePath,
+		sinces:           &sinces{},
+		sinceInterval:    sinceInterval,
 	}
 
+	// Initialize the sinces from the JSON since file.
+	sinceFile, err := os.Open(sincePath)
+	if err != nil {
+		return nil, fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
+	}
+	jsonDecoder := json.NewDecoder(sinceFile)
+	m.sinceLock.Lock()
+	err = jsonDecoder.Decode(m.sinces)
+	m.sinceLock.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("Can't decode \"since\" file '%s': %s", sincePath, err.Error())
+	}
 	return m, nil
 }
 
-// Handler to wrap functions with retry logic
+// Handler to wrap functions with retry logic.
 func withRetries(doWork func() error) error {
 	var err error
 
@@ -111,7 +139,7 @@ func withRetries(doWork func() error) error {
 			return nil
 		}
 
-		// Sleep between retries, break if we're done
+		// Sleep between retries, break if we're done.
 		if e := retrier.Wait(); e != nil {
 			break
 		}
@@ -165,11 +193,56 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 			"Failed to add Docker event listener after retrying. Plugin giving up.")
 	}
 
-	m.handleDockerEvents(stopChan)
+	if m.sinceInterval > 0 {
+		go m.sinceWriteLoop(stopChan)
+	}
+	m.handleDockerEvents(stopChan) // Blocks until stopChan is closed.
+	// Write to since file on the way out.
+	m.writeSinceFile(time.Now())
 	return nil
 }
 
-// Try to reboot all of our connections
+func (m *AttachManager) writeSinceFile(t time.Time) {
+	sinceFile, err := os.Create(m.sincePath)
+	if err != nil {
+		m.ir.LogError(fmt.Errorf("Can't create \"since\" file '%s': %s", m.sincePath,
+			err.Error()))
+		return
+	}
+	jsonEncoder := json.NewEncoder(sinceFile)
+	m.sinceLock.Lock()
+	m.sinces.Since = t.Unix()
+	if err = jsonEncoder.Encode(m.sinces); err != nil {
+		m.ir.LogError(fmt.Errorf("Can't write to \"since\" file '%s': %s", m.sincePath,
+			err.Error()))
+	}
+	m.sinceLock.Unlock()
+	if err = sinceFile.Close(); err != nil {
+		m.ir.LogError(fmt.Errorf("Can't close \"since\" file '%s': %s", m.sincePath,
+			err.Error()))
+	}
+}
+
+// Periodically writes out a new since file, until stopped.
+func (m *AttachManager) sinceWriteLoop(stopChan chan error) {
+	ticker := time.Tick(m.sinceInterval)
+	ok := true
+	var now time.Time
+	for ok {
+		select {
+		case now, ok = <-ticker:
+			if !ok {
+				break
+			}
+			m.writeSinceFile(now)
+		case <-stopChan:
+			ok = false
+			break
+		}
+	}
+}
+
+// Try to reboot all of our connections.
 func (m *AttachManager) restart() error {
 	var err error
 
@@ -250,7 +323,7 @@ func (m *AttachManager) extractFields(id string, client DockerClient) (map[strin
 	return fields, nil
 }
 
-// Attach to the output of a single running container
+// Attach to the log output of a single running container.
 func (m *AttachManager) attach(id string, client DockerClient) error {
 	m.ir.LogMessage(fmt.Sprintf("Attaching container: %s", id))
 
@@ -259,50 +332,58 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 		return err
 	}
 
-	success := make(chan struct{})
-	failure := make(chan error)
 	outrd, outwr := io.Pipe()
 	errrd, errwr := io.Pipe()
 
-	// Spin up one of these for each container we're watching
+	// Spin up one of these for each container we're watching.
 	go func() {
-		// This will block until the container exits
-		err := client.AttachToContainer(docker.AttachToContainerOptions{
+		m.sinceLock.Lock()
+		since, ok := m.sinces.Containers[id]
+		if ok {
+			// We've seen this container before, need to use a since value.
+			if since == 0 {
+				// Fall back to the top level since time.
+				since = m.sinces.Since
+			} else {
+				// Clear out the container specific since time.
+				m.sinces.Containers[id] = 0
+			}
+		} else {
+			// We haven't seen it, add it to our sinces.
+			m.sinces.Containers[id] = 0
+		}
+		m.sinceLock.Unlock()
+
+		// This will block until the container exits.
+		err := client.Logs(docker.LogsOptions{
 			Container:    id,
 			OutputStream: outwr,
 			ErrorStream:  errwr,
-			Stdin:        false,
+			Follow:       true,
 			Stdout:       true,
 			Stderr:       true,
-			Stream:       true,
-			Success:      success,
+			Since:        since,
+			Timestamps:   false,
+			Tail:         "all",
+			RawTerminal:  false,
 		})
 
-		// Once it has exited, close our pipes
+		// Once it has exited, close our pipes, remove from the sinces, and (if
+		// necessary) log the error.
 		outwr.Close()
 		errwr.Close()
+		m.sinceLock.Lock()
+		m.sinces.Containers[id] = time.Now().Unix()
+		m.sinceLock.Unlock()
 		if err != nil {
-			close(success)
-			failure <- err
+			err = fmt.Errorf("streaming container %s logs: %s", id, err.Error())
+			m.ir.LogError(err)
 		}
 	}()
 
 	// Wait for success from the attachment
-	select {
-	case _, ok := <-success:
-		if ok {
-			go m.handleOneStream("stdout", outrd, fields, id)
-			go m.handleOneStream("stderr", errrd, fields, id)
-
-			// Signal back to the client to continue with attachment
-			success <- struct{}{}
-			return nil
-		}
-	case err := <-failure:
-		close(failure)
-		return err
-	}
-
+	go m.handleOneStream("stdout", outrd, fields, id)
+	go m.handleOneStream("stderr", errrd, fields, id)
 	return nil
 }
 
@@ -312,7 +393,7 @@ func (m *AttachManager) makePackDecorator(logger string, fields map[string]strin
 		pack.Message.SetType("DockerLog")
 		pack.Message.SetLogger(logger)       // stderr or stdout
 		pack.Message.SetHostname(m.hostname) // Use the host's hosntame
-		pack.Message.SetTimestamp(time.Now().UnixNano())
+		pack.Message.SetTimestamp(time.Now().Unix())
 		pack.Message.SetUuid(uuid.NewRandom())
 
 		for name, value := range fields {
@@ -330,7 +411,9 @@ func (m *AttachManager) makePackDecorator(logger string, fields map[string]strin
 }
 
 // Sets up the Heka pipeline for a single IO stream (either stdout or stderr)
-func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[string]string, containerId string) {
+func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[string]string,
+	containerId string) {
+
 	id := fmt.Sprintf("%s-%s", fields["ContainerName"], name)
 
 	sRunner := m.ir.NewSplitterRunner(id)

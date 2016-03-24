@@ -4,8 +4,15 @@
 Backwards Incompatibilities
 ---------------------------
 
-* StatAccumInput Input: percent_threshold param type convert to slice
-* HttpInput Input: user param changed to username to match other Http plugins
+* StatAccumInput `percent_threshold` param type convert to slice.
+
+* HttpInput `user` param changed to `username` to match other HTTP plugins.
+
+* DockerLogInput changed to use `logs` API endpoint instead of `attach`. This
+  helps prevent data loss by allowing use of the `since` parameter to fetch
+  records that were generated while Heka was down, but it means this input will
+  now only work with containers using the `json-file` or `journald` logging
+  drivers.
 
 Bug Handling
 ------------
@@ -16,7 +23,7 @@ Bug Handling
 * Fixed ESJsonEncoder generating invalid JSON when `DynamicFields` is first of
   multiple specified fields but the message contains no dynamic fields.
 
-* Fixed bug where DockerLogInput would not reconnect when a Docker daemon 
+* Fixed bug where DockerLogInput would not reconnect when a Docker daemon
   was down for some time (#1843).
 
 * More verbose logging from the DockerLogInput plugin (#1843).
