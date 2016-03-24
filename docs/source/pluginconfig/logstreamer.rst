@@ -376,7 +376,7 @@ capture all of these files:
     [accesslogs]
     type = "LogstreamerInput"
     log_directory = "/var/log/nginx"
-    file_match = '(?P<Domain>[^/]+)/access-?(?P<Year>\d4)(?P<Month>\d2)(?P<Day>\d2)\.log'
+    file_match = '(?P<Domain>[^/]+)/access(-(?P<Year>\d{4})(?P<Month>\d{2})(?P<Day>\d{2}))?\.log'
     priority = ["Year", "Month", "Day"]
     differentiator = ["nginx-", "Domain", "-access"]
 
