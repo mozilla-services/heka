@@ -156,23 +156,29 @@ function process_delta(delta)
         if not whitelist or k:match(whitelist) then
             if k:match('^cpu') ~= nil then
                 local ticks = 0
+                local length = 0
                 for ii, vv in pairs(v) do
                     if extras then
                         local field_name = proc_stat_mappings['cpu'][ii]
                         fields[k..'_delta_'..field_name] = vv
                     end
                     ticks = ticks + vv
+                    length = ii
                 end
                 if extras then
                     fields[k..'_delta_ticks'] = ticks
                 end
                 if ticks > 0 then
                     if extras then
-                        -- only default kernel fields: user, nice, system, idle
+                        -- default kernel fields: user, nice, system, idle
+                        -- some kernels have field iowait
                         fields[k..'_percent_user'] = format_percent(v[1] / ticks)
                         fields[k..'_percent_nice'] = format_percent(v[2] / ticks)
                         fields[k..'_percent_system'] = format_percent(v[3] / ticks)
                         fields[k..'_percent_idle'] = format_percent(v[4] / ticks)
+                        if length > 4 then
+                            fields[k..'_percent_iowait'] = format_percent(v[5] / ticks)
+                        end 
                     end
                     fields[k..'_percent'] = format_percent(1 - (v[4] / ticks))
                 end
