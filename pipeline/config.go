@@ -539,14 +539,14 @@ type CommonConfig struct {
 }
 
 type CommonInputConfig struct {
-	Ticker              uint `toml:"ticker_interval"`
-	Decoder             string
-	Splitter            string
-	SyncDecode          *bool `toml:"synchronous_decode"`
-	SendDecodeFailures  *bool `toml:"send_decode_failures"`
-	LogDecodeFailures   *bool `toml:"log_decode_failures"`
-	CanExit             *bool `toml:"can_exit"`
-	Retries             RetryOptions
+	Ticker             uint `toml:"ticker_interval"`
+	Decoder            string
+	Splitter           string
+	SyncDecode         *bool `toml:"synchronous_decode"`
+	SendDecodeFailures *bool `toml:"send_decode_failures"`
+	LogDecodeFailures  *bool `toml:"log_decode_failures"`
+	CanExit            *bool `toml:"can_exit"`
+	Retries            RetryOptions
 }
 
 type CommonFOConfig struct {
@@ -571,11 +571,12 @@ type CommonSplitterConfig struct {
 // Default configurations.
 func makeDefaultConfigs() map[string]bool {
 	return map[string]bool{
-		"ProtobufDecoder":     false,
-		"ProtobufEncoder":     false,
-		"TokenSplitter":       false,
-		"HekaFramingSplitter": false,
-		"NullSplitter":        false,
+		"ProtobufDecoder":         false,
+		"ProtobufEncoder":         false,
+		"TokenSplitter":           false,
+		"PatternGroupingSplitter": false,
+		"HekaFramingSplitter":     false,
+		"NullSplitter":            false,
 	}
 }
 

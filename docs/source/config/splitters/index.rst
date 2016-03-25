@@ -53,5 +53,6 @@ Available Splitter Plugins
 
    heka_framing
    null
+   pattern_grouping
    regex
    token

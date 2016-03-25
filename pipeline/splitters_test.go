@@ -156,6 +156,93 @@ func TokenSpec(c gs.Context) {
 	})
 }
 
+func PatternGroupingSpec(c gs.Context) {
+	c.Specify("A PatternGroupingSplitter", func() {
+		splitter := &PatternGroupingSplitter{}
+		config := splitter.ConfigStruct().(*PatternGroupingSplitterConfig)
+		config.Delimiter = "\n"
+		config.Grouping = "(\\A\\s*.+Exception: .)|(at \\S+\\(\\S+\\))|(\\A\\s+... \\d+ more)|(\\A\\s*Caused by:.)|(\\A\\s*Grave:)"
+		sRunner := makeSplitterRunner("PatternGroupingSplitter", splitter)
+
+		c.Specify("handles empty lines", func() {
+			buf := []byte("\n\n")
+			reader := bytes.NewReader(buf)
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			n, record, err := sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 1)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "\n")
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 1)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "\n")
+		})
+
+		c.Specify("correctly identifies multiline grouping for simple traces", func() {
+			buf := []byte("java.io.FileNotFoundException: fred.txt\n\tat java.io.FileInputStream.<init>(FileInputStream.java)\n\tat java.io.FileInputStream.<init>(FileInputStream.java)\n\tat ExTest.readMyFile(ExTest.java:19)\n\tat ExTest.main(ExTest.java:7)\n\nDon't capture me\nMore")
+			reader := bytes.NewReader(buf)
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			n, record, err := sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 223)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "java.io.FileNotFoundException: fred.txt\n\tat java.io.FileInputStream.<init>(FileInputStream.java)\n\tat java.io.FileInputStream.<init>(FileInputStream.java)\n\tat ExTest.readMyFile(ExTest.java:19)\n\tat ExTest.main(ExTest.java:7)\n")
+		})
+
+		c.Specify("correctly identifies multiline grouping for complex traces", func() {
+			buf := []byte("\n\njuil. 25, 2012 10:49:46 AM hudson.triggers.SafeTimerTask run\nGrave: Timer task com.base2services.jenkins.SqsQueueHandler@32eea79d failed\n\tcom.amazonaws.AmazonClientException: Unable to calculate a request signature: Unable to calculate a request signature: Empty key\n\tat com.amazonaws.auth.AbstractAWSSigner.signAndBase64Encode(AbstractAWSSigner.java:71)\n\tat com.amazonaws.auth.AbstractAWSSigner.signAndBase64Encode(AbstractAWSSigner.java:55)\n\tat com.amazonaws.auth.QueryStringSigner.sign(QueryStringSigner.java:83)\nCaused by: com.amazonaws.AmazonClientException: Unable to calculate a request signature: Empty key\npartial")
+			reader := bytes.NewReader(buf)
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			n, record, err := sRunner.GetRecordFromStream(reader)
+			n, record, err = sRunner.GetRecordFromStream(reader)
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 61)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "juil. 25, 2012 10:49:46 AM hudson.triggers.SafeTimerTask run\n")
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 554)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "Grave: Timer task com.base2services.jenkins.SqsQueueHandler@32eea79d failed\n\tcom.amazonaws.AmazonClientException: Unable to calculate a request signature: Unable to calculate a request signature: Empty key\n\tat com.amazonaws.auth.AbstractAWSSigner.signAndBase64Encode(AbstractAWSSigner.java:71)\n\tat com.amazonaws.auth.AbstractAWSSigner.signAndBase64Encode(AbstractAWSSigner.java:55)\n\tat com.amazonaws.auth.QueryStringSigner.sign(QueryStringSigner.java:83)\nCaused by: com.amazonaws.AmazonClientException: Unable to calculate a request signature: Empty key\n")
+
+			// We don't want to ever get back the partial match
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 0)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "")
+		})
+
+		c.Specify("doesn't interfere with non-multiline splitting", func() {
+			buf := []byte("test1\ntest2\npartial")
+			reader := bytes.NewReader(buf)
+			err := splitter.Init(config)
+			c.Assume(err, gs.IsNil)
+
+			n, record, err := sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 6)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "test1\n")
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 6)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "test2\n")
+
+			n, record, err = sRunner.GetRecordFromStream(reader)
+			c.Expect(n, gs.Equals, 0)
+			c.Expect(err, gs.IsNil)
+			c.Expect(string(record), gs.Equals, "")
+		})
+	})
+}
+
 func RegexSpec(c gs.Context) {
 	c.Specify("A RegexSplitter", func() {
 		splitter := &RegexSplitter{}

@@ -23,9 +23,10 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/message"
 	"hash"
 	"regexp"
+
+	"github.com/mozilla-services/heka/message"
 )
 
 type NullSplitter struct {
@@ -92,6 +93,87 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 			}
 			bytesRead += n + 1
 		}
+	}
+
+	return bytesRead, buf[:bytesRead]
+}
+
+type PatternGroupingSplitter struct {
+	delimiter *regexp.Regexp
+	grouping  *regexp.Regexp
+	maxLines  int
+}
+
+type PatternGroupingSplitterConfig struct {
+	Delimiter string
+	Grouping  string
+	MaxLines  int `toml:"max_lines"` // Maximum lines to group together
+}
+
+func (r *PatternGroupingSplitter) ConfigStruct() interface{} {
+	return &PatternGroupingSplitterConfig{
+		Delimiter: "\n",
+		MaxLines:  99,
+	}
+}
+
+func (r *PatternGroupingSplitter) Init(config interface{}) error {
+	conf := config.(*PatternGroupingSplitterConfig)
+	var err error
+
+	if r.delimiter, err = regexp.Compile(conf.Delimiter); err != nil {
+		return err
+	}
+
+	if r.grouping, err = regexp.Compile(conf.Grouping); err != nil {
+		return err
+	}
+
+	r.maxLines = conf.MaxLines
+	return nil
+}
+
+func (r *PatternGroupingSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
+	var loc [][]int
+	loc = r.delimiter.FindAllSubmatchIndex(buf, r.maxLines) // Up to maxLines matches
+	if loc == nil {
+		return 0, nil
+	}
+
+	// Check the first one
+	if !r.grouping.Match(buf[:loc[0][1]]) {
+		bytesRead = loc[0][1]
+		return bytesRead, buf[:bytesRead]
+	}
+
+	if len(loc) == 1 {
+		// In this scenario we are in a grouping but missed the full record in this
+		// read, so we just emit what we have. It would be nice to just try this again on
+		// next read but without keeping more state, we could try forever if somehow that
+		// next line never comes (i.e. truncated input).
+		bytesRead = loc[0][1]
+		return bytesRead, buf[:bytesRead]
+	}
+
+	// Loop through, looking for the first delimiter not also matching a grouping
+	var lastDelimiter []int
+	previous := []int{0, 0}
+	for _, lastDelimiter = range loc[1:] {
+		// Check for a grouping match inside this record
+		if r.grouping.Match(buf[previous[1]:lastDelimiter[0]]) {
+			previous = lastDelimiter // Set to the position of previous delimiter
+			continue
+		}
+
+		// We didn't match, so fall back one
+		lastDelimiter = previous
+		break
+	}
+
+	// We always keep the delimiter at EOL
+	bytesRead = lastDelimiter[1]
+	if bytesRead == 0 {
+		return 0, nil
 	}
 
 	return bytesRead, buf[:bytesRead]
@@ -282,6 +364,9 @@ func init() {
 	})
 	RegisterPlugin("RegexSplitter", func() interface{} {
 		return &RegexSplitter{}
+	})
+	RegisterPlugin("PatternGroupingSplitter", func() interface{} {
+		return &PatternGroupingSplitter{}
 	})
 	RegisterPlugin("HekaFramingSplitter", func() interface{} {
 		return &HekaFramingSplitter{}
