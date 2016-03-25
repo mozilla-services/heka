@@ -100,13 +100,13 @@ func (t *TokenSplitter) FindRecord(buf []byte) (bytesRead int, record []byte) {
 
 type PatternGroupingSplitter struct {
 	delimiter *regexp.Regexp
-	grouping *regexp.Regexp
+	grouping  *regexp.Regexp
 	maxLines  int
 }
 
 type PatternGroupingSplitterConfig struct {
 	Delimiter string
-	Grouping string
+	Grouping  string
 	MaxLines  int `toml:"max_lines"` // Maximum lines to group together
 }
 

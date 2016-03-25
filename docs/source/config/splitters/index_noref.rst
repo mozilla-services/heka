@@ -15,11 +15,11 @@ Splitters
 .. include:: /config/splitters/null.rst
    :start-line: 1
 
+.. include:: /config/splitters/pattern_grouping.rst
+   :start-line: 1
+
 .. include:: /config/splitters/regex.rst
    :start-line: 1
 
 .. include:: /config/splitters/token.rst
-   :start-line: 1
-
-.. include:: /config/splitters/pattern_grouping.rst
    :start-line: 1

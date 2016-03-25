@@ -1,7 +1,9 @@
 .. _config_pattern_grouping_splitter:
 
+.. versionadded:: 0.11
+
 PatternGrouping Splitter
-==============
+========================
 
 Plugin Name: **PatternGroupingSplitter**
 
@@ -26,10 +28,10 @@ record, rather than one line at a time.
 
 The performance characteristics of the PatternGroupingSplitter are noticeably
 worse than a RegexSplitter. The RegexSplitter is optimized to break one record
-off at a time, matching only the first occurrence of the record delimiter before
-processing the record. The PatternGroupingSplitter must break apart all of the
-records in a single read from the stream, then re-test each line against the
-grouping pattern. This can result in the same line being processed by the
+off at a time, matching only the first occurrence of the record delimiter
+before processing the record. The PatternGroupingSplitter must break apart all
+of the records in a single read from the stream, then re-test each line against
+the grouping pattern. This can result in the same line being processed by the
 delimiter pattern many times. Careful consideration should be made as to
 whether or not this performance tradeoff is tolerable.
 
@@ -45,7 +47,7 @@ Config:
 	Regular expression to be used to regroup matching records into a single
 	final record. Any contiguous lines matching this expression will become
 	a single record.
-- max_lines (int)
+- max_lines (int, optional)
     The maximum number of records to process in a single splitting operation
 	with the delimiter pattern. This is used to tune for performance by
 	helping to limit the number of times a single line will be re-parsed

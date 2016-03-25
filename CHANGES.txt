@@ -14,6 +14,8 @@ Backwards Incompatibilities
   now only work with containers using the `json-file` or `journald` logging
   drivers.
 
+* Added PatternGroupingSplitter.
+
 Bug Handling
 ------------
 
