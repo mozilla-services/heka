@@ -43,6 +43,7 @@ func TestAllSpecs(t *testing.T) {
 	r.AddSpec(OutputRunnerSpec)
 	r.AddSpec(ProtobufDecoderSpec)
 	r.AddSpec(QueueBufferSpec)
+	r.AddSpec(PatternGroupingSpec)
 	r.AddSpec(RegexSpec)
 	r.AddSpec(ReportSpec)
 	r.AddSpec(SplitterRunnerSpec)

@@ -20,3 +20,6 @@ Splitters
 
 .. include:: /config/splitters/token.rst
    :start-line: 1
+
+.. include:: /config/splitters/pattern_grouping.rst
+   :start-line: 1
