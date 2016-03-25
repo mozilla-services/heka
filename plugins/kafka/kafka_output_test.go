@@ -327,6 +327,7 @@ func TestSendMessage(t *testing.T) {
 
 	oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 	oth.MockOutputRunner.EXPECT().Encode(pack).Return(encoder.Encode(pack))
+	oth.MockOutputRunner.EXPECT().UpdateCursor(pack.QueueCursor)
 
 	pack.Message.SetPayload(outStr)
 	startOutput()
