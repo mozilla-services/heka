@@ -32,6 +32,11 @@ type DockerClient interface {
 	// See https://goo.gl/PKOSSE for more details.
 	Stats(opts docker.StatsOptions) error
 
+	// Logs gets stdout and stderr log from the specified container.
+	//
+	// See http://goo.gl/yl8PGm for more details.
+	Logs(opts docker.LogsOptions) error
+
 	// Ping pings the docker server
 	//
 	// See https://goo.gl/kQCfJj for more details.

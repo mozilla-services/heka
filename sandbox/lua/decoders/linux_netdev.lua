@@ -38,23 +38,24 @@ Config:
 :EnvVersion:
 :Severity: 7
 :Fields:
-| name:"receive_multicast" type:double value:0
-| name:"transmit_errs" type:double value:0
-| name:"receive_drop" type:double value:0
-| name:"netdevice" type:string value:"eth0"
-| name:"transmit_drop" type:double value:0
-| name:"transmit_carrier" type:double value:0
-| name:"receive_packets" type:double value:1.18443194e+08
-| name:"receive_compressed" type:double value:0
-| name:"transmit_colls" type:double value:0
-| name:"transmit_compressed" type:double value:0
-| name:"receive_frame" type:double value:0
-| name:"transmit_packets" type:double value:1.07330545e+08
-| name:"receive_fifo" type:double value:0
-| name:"receive_bytes" type:double value:1.3915983085e+11
-| name:"transmit_bytes" type:double value:1.78516842512e+11
-| name:"receive_errs" type:double value:0
-| name:"transmit_fifo" type:double value:0
+    | name:"receive_multicast" type:double value:0
+    | name:"transmit_errs" type:double value:0
+    | name:"receive_drop" type:double value:0
+    | name:"netdevice" type:string value:"eth0"
+    | name:"transmit_drop" type:double value:0
+    | name:"transmit_carrier" type:double value:0
+    | name:"receive_packets" type:double value:1.18443194e+08
+    | name:"receive_compressed" type:double value:0
+    | name:"transmit_colls" type:double value:0
+    | name:"transmit_compressed" type:double value:0
+    | name:"receive_frame" type:double value:0
+    | name:"transmit_packets" type:double value:1.07330545e+08
+    | name:"receive_fifo" type:double value:0
+    | name:"receive_bytes" type:double value:1.3915983085e+11
+    | name:"transmit_bytes" type:double value:1.78516842512e+11
+    | name:"receive_errs" type:double value:0
+    | name:"transmit_fifo" type:double value:0
+
 --]]
 
 local table = require "table"

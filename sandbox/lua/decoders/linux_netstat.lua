@@ -40,8 +40,8 @@ Config:
 :Pid: 0
 :Uuid: 90c202d1-1375-4ec2-ac8c-eb53b2850d19
 :Logger: NetSnmp
-:Payload: 
-:EnvVersion: 
+:Payload:
+:EnvVersion:
 :Severity: 7
 :Fields:
     | name:"Ip_FragCreates" type:integer value:0

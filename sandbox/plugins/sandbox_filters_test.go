@@ -583,6 +583,7 @@ func FilterSpec(c gs.Context) {
 		conf.Config = make(map[string]interface{})
 		conf.Config["rows"] = int64(2)
 		conf.Config["sec_per_row"] = int64(1)
+		conf.Config["status_field"] = "status_code"
 
 		timer := make(chan time.Time, 1)
 		errChan := make(chan error, 1)
@@ -594,7 +595,7 @@ func FilterSpec(c gs.Context) {
 			close(retPackChan)
 		}()
 
-		field, _ := message.NewField("status", 0, "")
+		field, _ := message.NewField("status_code", 0, "")
 		msg := &message.Message{}
 		msg.SetTimestamp(0)
 		msg.AddField(field)

@@ -4,8 +4,17 @@
 Backwards Incompatibilities
 ---------------------------
 
-* StatAccumInput Input: percent_threshold param type convert to slice
-* HttpInput Input: user param changed to username to match other Http plugins
+* StatAccumInput `percent_threshold` param type convert to slice.
+
+* HttpInput `user` param changed to `username` to match other HTTP plugins.
+
+* DockerLogInput changed to use `logs` API endpoint instead of `attach`. This
+  helps prevent data loss by allowing use of the `since` parameter to fetch
+  records that were generated while Heka was down, but it means this input will
+  now only work with containers using the `json-file` or `journald` logging
+  drivers.
+
+* Added PatternGroupingSplitter.
 
 Bug Handling
 ------------
@@ -16,7 +25,7 @@ Bug Handling
 * Fixed ESJsonEncoder generating invalid JSON when `DynamicFields` is first of
   multiple specified fields but the message contains no dynamic fields.
 
-* Fixed bug where DockerLogInput would not reconnect when a Docker daemon 
+* Fixed bug where DockerLogInput would not reconnect when a Docker daemon
   was down for some time (#1843).
 
 * More verbose logging from the DockerLogInput plugin (#1843).
@@ -40,9 +49,43 @@ Features
 
 * Added DockerStatsInput plugin.
 
+* Added iowait percentage output field in filter procstat (#1888).
+
 0.10.1 (2016-??-??)
 ===================
 
+Features
+--------
+
+* Added `check_data_interval` setting to LogstreamerInput.
+
+* Added `separator` and `maximum_depth` settings to JSON decoder (#1809).
+
+* Added `status_field` setting to http_status filter (#1876)
+
+Bug Handling
+------------
+
+* Fixed conditional which was causing InfluxDB line protocol encoder to not
+  correctly honor the `source_value_field` config setting.
+
+* Don't use `os.Exit` in the pipeline's main `Run` function or else any
+  wrapping deffered functions (such as those that output the cpu and mem
+  profiles) won't get called.
+
+* Stop zero-length records with no error ending the splitter if there's
+  more data to read (#1561)
+
+* Fixed gzipped file seeking in logstreamer may cause an OOM exception.
+
+* Fixed LogstreamerInput file rotation missing newly created files with new
+  names by always triggering LogstreamSet rescan before checking location in
+  stream (#1452).
+
+* JSON decoder no longer exits when flattening the field structure fails.
+
+* Fixed bug where HttpOutput would discard the response body before trying to
+  use the response body when response returned an error status code.
 
 0.10.0 (2015-12-30)
 ===================

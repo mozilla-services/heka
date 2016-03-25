@@ -31,21 +31,21 @@ package docker
 // SOFTWARE.
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
-	"encoding/json"
 	"time"
-	"fmt"
 
 	"github.com/fsouza/go-dockerclient"
 	. "github.com/mozilla-services/heka/pipeline"
 )
 
 type DockerStat struct {
-	Container		string
-	Time			time.Time
-	StatsString 		string
-	Fields			map[string]string
+	Container   string
+	Time        time.Time
+	StatsString string
+	Fields      map[string]string
 }
 
 type StatsAttachEvent struct {
@@ -55,26 +55,27 @@ type StatsAttachEvent struct {
 }
 
 type Source struct {
- 	ID     string
- 	Name   string
- 	Filter string
- 	Types  []string
- }
+	ID     string
+	Name   string
+	Filter string
+	Types  []string
+}
 
 type StatsManager struct {
 	sync.RWMutex
-	ir               	InputRunner
-	attached      		map[string]*StatsPump
-	channels      		map[chan *StatsAttachEvent]struct{}
-	client        		DockerClient
-	errors        		chan<- error
-	events        		chan *docker.APIEvents
-	nameFromEnv   		string
-	fieldsFromEnv 		[]string
-	fieldsFromLabels	[]string
+	ir               InputRunner
+	attached         map[string]*StatsPump
+	channels         map[chan *StatsAttachEvent]struct{}
+	client           DockerClient
+	errors           chan<- error
+	events           chan *docker.APIEvents
+	nameFromEnv      string
+	fieldsFromEnv    []string
+	fieldsFromLabels []string
 }
 
-func NewStatsManager(endpoint, certPath string, attachErrors chan<- error, nameFromEnv string, fieldsFromEnv []string, fieldsFromLabels []string) (*StatsManager, error) {
+func NewStatsManager(endpoint, certPath string, attachErrors chan<- error, nameFromEnv string,
+	fieldsFromEnv []string, fieldsFromLabels []string) (*StatsManager, error) {
 
 	var client DockerClient
 	var err error
@@ -100,7 +101,8 @@ func NewStatsManager(endpoint, certPath string, attachErrors chan<- error, nameF
 }
 
 //The main initial work happens here
-func (m *StatsManager) Run(statsstream chan *DockerStat, closer <-chan struct{}, stopChan chan error) {
+func (m *StatsManager) Run(statsstream chan *DockerStat, closer <-chan struct{},
+	stopChan chan error) {
 
 	m.attachAll()
 
@@ -175,7 +177,7 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 	go func() {
 		// This will block until the container exits
 		err := client.Stats(docker.StatsOptions{
-			ID:    	id,
+			ID:     id,
 			Stats:  statsrd,
 			Stream: true,
 			Done:   done,
@@ -233,7 +235,7 @@ func (m *StatsManager) addStatsListener(ch chan *StatsAttachEvent) {
 	m.channels[ch] = struct{}{}
 	go func() {
 		for id, pump := range m.attached {
-			m.ir.LogMessage("StatsID:" + id +" ,  Name: "+  pump.Name +", Type:  attach")
+			m.ir.LogMessage("StatsID:" + id + " ,  Name: " + pump.Name + ", Type:  attach")
 			ch <- &StatsAttachEvent{ID: id, Name: pump.Name, Type: "attach"}
 		}
 	}()
@@ -288,7 +290,8 @@ func (m *StatsManager) handleDockerEvents(stopChan chan error) {
 				m.ir.LogMessage("Events channel closed, restarting...")
 				err := withRetries(m.restart)
 				if err != nil {
-					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)", err.Error()))
+					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)",
+						err.Error()))
 					return // Will cause the plugin to restart
 				}
 				time.Sleep(SLEEP_BETWEEN_RECONNECT)
@@ -326,10 +329,10 @@ func NewStatsPump(statsChan chan *docker.Stats, name string, fields map[string]s
 			json_ver, _ := json.Marshal(source)
 			// Send a DockerStat struct out
 			obj.send(&DockerStat{
-				Container:   	name,
-				Time: 		source.Read,
-				StatsString:	string(json_ver),
-				Fields:		fields,
+				Container:   name,
+				Time:        source.Read,
+				StatsString: string(json_ver),
+				Fields:      fields,
 			})
 		}
 	}

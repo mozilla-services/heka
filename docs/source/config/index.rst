@@ -169,7 +169,7 @@ Config:
 - log_flags (int):
     Control the prefix for STDOUT and STDERR logs. Common values are 3 (date
     and time, the default) or 0 (no prefix). See
-    `https://golang.org/pkg/log/#pkg-constants Go documentation`_ for details.
+    `Go documentation <https://golang.org/pkg/log/#pkg-constants>`_ for details.
 
 - full_buffer_max_retries (int):
     When Heka shuts down due to a buffer filling to capacity, the next time

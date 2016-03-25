@@ -49,6 +49,9 @@ type LogstreamerInputConfig struct {
 	// Rescan interval declares how often the full directory scanner
 	// runs to locate more logfiles/streams
 	RescanInterval string `toml:"rescan_interval"`
+	// Check data interval declares how often the plugin checks if more data is
+	// available from the logfiles/streams
+	CheckDataInterval string `toml:"check_data_interval"`
 	// So we can default to TokenSplitter.
 	Splitter string
 	// Whether to ignore previous logfiles while initial scan
@@ -60,6 +63,7 @@ type LogstreamerInput struct {
 	logstreamSet       *ls.LogstreamSet
 	logstreamSetLock   sync.RWMutex
 	rescanInterval     time.Duration
+	checkDataInterval  time.Duration
 	plugins            map[string]*LogstreamInput
 	stopLogstreamChans []chan chan bool
 	stopChan           chan bool
@@ -79,12 +83,13 @@ func (li *LogstreamerInput) SetPipelineConfig(pConfig *p.PipelineConfig) {
 func (li *LogstreamerInput) ConfigStruct() interface{} {
 	baseDir := li.pConfig.Globals.BaseDir
 	return &LogstreamerInputConfig{
-		RescanInterval:   "1m",
-		OldestDuration:   "720h",
-		LogDirectory:     "/var/log",
-		JournalDirectory: filepath.Join(baseDir, "logstreamer"),
-		Splitter:         "TokenSplitter",
-		InitialTail:      false,
+		RescanInterval:    "1m",
+		CheckDataInterval: "250ms",
+		OldestDuration:    "720h",
+		LogDirectory:      "/var/log",
+		JournalDirectory:  filepath.Join(baseDir, "logstreamer"),
+		Splitter:          "TokenSplitter",
+		InitialTail:       false,
 	}
 }
 
@@ -116,6 +121,10 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 
 	// Setup the rescan interval.
 	if li.rescanInterval, err = time.ParseDuration(conf.RescanInterval); err != nil {
+		return
+	}
+	// Setup the check data interval.
+	if li.checkDataInterval, err = time.ParseDuration(conf.CheckDataInterval); err != nil {
 		return
 	}
 	// Parse the oldest duration.
@@ -171,7 +180,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		if !ok {
 			continue
 		}
-		li.plugins[name] = NewLogstreamInput(stream, name, li.hostName)
+		li.plugins[name] = NewLogstreamInput(stream, name, li.hostName, li.checkDataInterval)
 	}
 	li.stopLogstreamChans = make([]chan chan bool, 0, len(plugins))
 	li.stopChan = make(chan bool)
@@ -243,7 +252,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 					continue
 				}
 
-				lsi := NewLogstreamInput(stream, name, li.hostName)
+				lsi := NewLogstreamInput(stream, name, li.hostName, li.checkDataInterval)
 				li.plugins[name] = lsi
 				i++
 				li.startLogstreamInput(lsi, i, ir, h)
@@ -263,6 +272,7 @@ type LogstreamInput struct {
 	stream              *ls.Logstream
 	loggerIdent         string
 	hostName            string
+	checkDataInterval   time.Duration
 	recordCount         int
 	stopped             chan bool
 	prevMsgWasTruncated bool
@@ -273,12 +283,13 @@ type LogstreamInput struct {
 }
 
 func NewLogstreamInput(stream *ls.Logstream, loggerIdent,
-	hostName string) *LogstreamInput {
+	hostName string, checkDataInterval time.Duration) *LogstreamInput {
 
 	return &LogstreamInput{
 		stream:              stream,
 		loggerIdent:         loggerIdent,
 		hostName:            hostName,
+		checkDataInterval:   checkDataInterval,
 		prevMsgWasTruncated: false,
 	}
 }
@@ -297,8 +308,7 @@ func (lsi *LogstreamInput) Run(ir p.InputRunner, h p.PluginHelper, stopChan chan
 	var err error
 
 	// Check for more data interval
-	interval, _ := time.ParseDuration("250ms")
-	tick := time.Tick(interval)
+	tick := time.Tick(lsi.checkDataInterval)
 
 	ok := true
 	for ok {

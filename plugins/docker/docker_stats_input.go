@@ -20,18 +20,19 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"github.com/mozilla-services/heka/pipeline"
+
 	"github.com/mozilla-services/heka/message"
+	"github.com/mozilla-services/heka/pipeline"
 	"github.com/pborman/uuid"
 )
 
 type DockerStatsInputConfig struct {
 	// A Docker endpoint.
-	Endpoint      		string   `toml:"endpoint"`
-	CertPath      		string   `toml:"cert_path"`
-	NameFromEnv   		string   `toml:"name_from_env_var"`
-	FieldsFromEnv 		[]string `toml:"fields_from_env"`
-	FieldsFromLabels 	[]string `toml:"fields_from_labels"`
+	Endpoint         string   `toml:"endpoint"`
+	CertPath         string   `toml:"cert_path"`
+	NameFromEnv      string   `toml:"name_from_env_var"`
+	FieldsFromEnv    []string `toml:"fields_from_env"`
+	FieldsFromLabels []string `toml:"fields_from_labels"`
 }
 
 type DockerStatsInput struct {
@@ -58,7 +59,8 @@ func (di *DockerStatsInput) Init(config interface{}) error {
 	di.statsstream = make(chan *DockerStat)
 	di.attachErrors = make(chan error)
 
-	m, err := NewStatsManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors, di.conf.NameFromEnv, di.conf.FieldsFromEnv, di.conf.FieldsFromLabels)
+	m, err := NewStatsManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors,
+		di.conf.NameFromEnv, di.conf.FieldsFromEnv, di.conf.FieldsFromLabels)
 	if err != nil {
 		return fmt.Errorf("DockerStatsInput: failed to attach: %s", err.Error())
 	}
@@ -77,7 +79,9 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 
 	go di.statsMgr.Run(di.statsstream, di.closer, di.stopChan)
 
-	err := withRetries(func() error { return di.statsMgr.client.AddEventListener(di.statsMgr.events) })
+	err := withRetries(func() error {
+		return di.statsMgr.client.AddEventListener(di.statsMgr.events)
+	})
 	// Get the InputRunner's chan to receive empty PipelinePacks
 	packSupply := ir.InChan()
 
@@ -89,7 +93,7 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 
 			pack.Message.SetType("DockerStats")
 			pack.Message.SetLogger(statsline.Container)
-			pack.Message.SetHostname(hostname)   // Use the host's hosntame
+			pack.Message.SetHostname(hostname) // Use the host's hosntame
 			pack.Message.SetPayload(statsline.StatsString)
 			pack.Message.SetTimestamp(statsline.Time.UnixNano())
 			pack.Message.SetUuid(uuid.NewRandom())
@@ -106,7 +110,6 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 				pack.Message.AddField(field)
 			}
 			ir.Deliver(pack)
-
 
 		case err, ok = <-di.attachErrors:
 			if !ok {
