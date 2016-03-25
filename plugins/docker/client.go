@@ -27,6 +27,11 @@ type DockerClient interface {
 	// See http://goo.gl/RRAhws for more details.
 	AttachToContainer(opts docker.AttachToContainerOptions) error
 
+	// Logs gets stdout and stderr log from the specified container.
+	//
+	// See http://goo.gl/yl8PGm for more details.
+	Logs(opts docker.LogsOptions) error
+
 	// Ping pings the docker server
 	//
 	// See https://goo.gl/kQCfJj for more details.
