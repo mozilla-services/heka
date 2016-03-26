@@ -3,8 +3,8 @@ package docker
 // Originally based on Logspout (https://github.com/progrium/logspout)
 // Copyright (C) 2014 Jeff Lindsay
 //
-// Significantly modified by Karl Matthias (karl.matthias@gonitro.com) and Rob
-// Miller (rmiller@mozilla.com)
+// Significantly modified by Karl Matthias (karl.matthias@gonitro.com), Rob
+// Miller (rmiller@mozilla.com) and Guy Templeton (guy.templeton@skyscanner.net)
 // Copyright (C) 2016
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,8 +31,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -40,10 +38,6 @@ import (
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 	"github.com/pborman/uuid"
-)
-
-const (
-	SLEEP_BETWEEN_RECONNECT = 500 * time.Millisecond
 )
 
 type sinces struct {
@@ -65,23 +59,6 @@ type AttachManager struct {
 	sinces           *sinces
 	sinceLock        sync.Mutex
 	sinceInterval    time.Duration
-}
-
-// Return a properly configured Docker client.
-func newDockerClient(certPath string, endpoint string) (DockerClient, error) {
-	var client DockerClient
-	var err error
-
-	if certPath == "" {
-		client, err = docker.NewClient(endpoint)
-	} else {
-		key := filepath.Join(certPath, "key.pem")
-		ca := filepath.Join(certPath, "ca.pem")
-		cert := filepath.Join(certPath, "cert.pem")
-		client, err = docker.NewTLSClient(endpoint, cert, key, ca)
-	}
-
-	return client, err
 }
 
 // Construct an AttachManager and set up the Docker Client
@@ -118,34 +95,6 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 		return nil, fmt.Errorf("Can't decode \"since\" file '%s': %s", sincePath, err.Error())
 	}
 	return m, nil
-}
-
-// Handler to wrap functions with retry logic.
-func withRetries(doWork func() error) error {
-	var err error
-
-	retrier, err := NewRetryHelper(RetryOptions{
-		MaxRetries: 10,
-		Delay:      "1s",
-		MaxJitter:  "250ms",
-	})
-	if err != nil {
-		return err
-	}
-
-	for {
-		err = doWork()
-		if err == nil {
-			return nil
-		}
-
-		// Sleep between retries, break if we're done.
-		if e := retrier.Wait(); e != nil {
-			break
-		}
-	}
-
-	return err
 }
 
 // Attach to all running containers
@@ -292,42 +241,11 @@ func (m *AttachManager) handleDockerEvents(stopChan chan error) {
 	}
 }
 
-// Inspect the container and extract the env vars/labels we were told to keep
-func (m *AttachManager) extractFields(id string, client DockerClient) (map[string]string, error) {
-
-	container, err := client.InspectContainer(id)
-	if err != nil {
-		return nil, err
-	}
-	name := container.Name[1:] // Strip the leading slas
-	image := container.Config.Image
-
-	fields := m.getEnvVars(container, append(m.fieldsFromEnv, m.nameFromEnv))
-	if m.nameFromEnv != "" {
-		if alt_name, ok := fields[m.nameFromEnv]; ok && alt_name != "" {
-			name = alt_name
-		}
-	}
-	fields["ContainerID"] = id
-	fields["ContainerName"] = name
-	fields["ContainerImage"] = image
-
-	// NOTE! Anything that is a duplicate key will be overridden with the value
-	// that is in the label, not the environment
-	for _, key := range m.fieldsFromLabels {
-		if value, ok := container.Config.Labels[key]; ok {
-			fields[key] = value
-		}
-	}
-
-	return fields, nil
-}
-
 // Attach to the log output of a single running container.
 func (m *AttachManager) attach(id string, client DockerClient) error {
 	m.ir.LogMessage(fmt.Sprintf("Attaching container: %s", id))
 
-	fields, err := m.extractFields(id, client)
+	fields, err := extractFields(id, client, m.fieldsFromLabels, m.fieldsFromEnv, m.nameFromEnv)
 	if err != nil {
 		return err
 	}
@@ -388,7 +306,9 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 }
 
 // Add our fields to the output pack
-func (m *AttachManager) makePackDecorator(logger string, fields map[string]string) func(*PipelinePack) {
+func (m *AttachManager) makePackDecorator(logger string,
+	fields map[string]string) func(*PipelinePack) {
+
 	return func(pack *PipelinePack) {
 		pack.Message.SetType("DockerLog")
 		pack.Message.SetLogger(logger)       // stderr or stdout
@@ -433,21 +353,4 @@ func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[st
 	sRunner.Done()
 
 	m.ir.LogMessage(fmt.Sprintf("Disconnecting %s stream from %s", name, containerId))
-}
-
-// Process the env vars and capture the ones we want
-func (m *AttachManager) getEnvVars(container *docker.Container, keys []string) map[string]string {
-	vars := make(map[string]string)
-	for _, value := range container.Config.Env {
-		valueParts := strings.SplitN(value, "=", 2)
-		if len(valueParts) == 2 {
-			for _, key := range keys {
-				if key != "" && valueParts[0] == key {
-					vars[valueParts[0]] = valueParts[1]
-					break
-				}
-			}
-		}
-	}
-	return vars
 }
