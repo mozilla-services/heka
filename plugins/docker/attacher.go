@@ -313,7 +313,7 @@ func (m *AttachManager) makePackDecorator(logger string,
 		pack.Message.SetType("DockerLog")
 		pack.Message.SetLogger(logger)       // stderr or stdout
 		pack.Message.SetHostname(m.hostname) // Use the host's hosntame
-		pack.Message.SetTimestamp(time.Now().Unix())
+		pack.Message.SetTimestamp(time.Now().UnixNano())
 		pack.Message.SetUuid(uuid.NewRandom())
 
 		for name, value := range fields {
