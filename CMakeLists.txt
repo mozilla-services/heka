@@ -260,7 +260,7 @@ endif()
 # MOVING INCLUSION OF CPACK DOWN HERE SO IT ACTUALLY GETS THE VARIABLES WE SET
 include(CPack)
 
-add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka/cmd/hekad)
+add_test(cmd/hekad ${GO_EXECUTABLE} test ${LDFLAGS} -tags=${TAGS} ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka/cmd/hekad)
 add_test(message ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka/message)
 add_test(pipeline ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka/pipeline)
 add_test(plugins ${GO_EXECUTABLE} test ${LDFLAGS} ${BENCHMARK_FLAG} ${COVERAGE_FLAG} github.com/mozilla-services/heka/plugins)
