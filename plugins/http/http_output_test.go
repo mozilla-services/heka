@@ -235,7 +235,7 @@ func HttpOutputSpec(c gs.Context) {
 				handleWg.Wait()
 				runWg.Wait()
 				e := <-pack.DelivErrChan
-				c.Expect(strings.Contains(e.Error(), "use of closed network connection"),
+				c.Expect(strings.Contains(e.Error(), "Client.Timeout exceeded"),
 					gs.IsTrue)
 			})
 		})
