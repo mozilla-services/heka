@@ -129,16 +129,12 @@ func IrcOutputSpec(c gs.Context) {
 
 				c.Assume(len(ircOutput.Channels), gs.Equals, 1)
 				ircChan := ircOutput.Channels[0]
-
-				outTestHelper.MockOutputRunner.EXPECT().LogError(
-					ErrOutQueueFull)
-				outTestHelper.MockOutputRunner.EXPECT().LogError(
-					fmt.Errorf("%s Channel: %s.", ErrBacklogQueueFull, ircChan))
-
 				startOutput()
 
 				// Need to wait for callbacks to get registered before calling part.
-				// If we've called connected, then callbacks have been registered.
+				// If we've called `Connect`, then callbacks have been registered,
+				// and startOutput doesn't return until we've called `Connect`, so
+				// we should be good here.
 
 				// Leave the irc channel so we can fill up the backlog
 				ircOutput.Conn.Part(ircChan)
@@ -169,15 +165,28 @@ func IrcOutputSpec(c gs.Context) {
 				p = <-ircOutput.OutQueue
 				ircOutput.OutQueue <- p
 
-				// Send the tick after it's in the OutQueue so we can try processing
-				// it. This is where we drop it since we cant send, and the
-				// BacklogQueue is already full.
+				// Send the tick after it's in the OutQueue so we can try
+				// processing it. This is where we expect to drop it since we
+				// can't send, and the BacklogQueue is already full.
+				outTestHelper.MockOutputRunner.EXPECT().LogError(
+					fmt.Errorf("%s Channel: %s.", ErrBacklogQueueFull, ircChan))
 				tickChan <- time.Now()
+				// Wait until the OutQueue is empty bc we've dropped the
+				// message.
+				for len(ircOutput.OutQueue) > 0 {
+					time.Sleep(10 * time.Millisecond)
+				}
 
 				// Now we want to also cause the OutQueue to drop a message.
-				// We don't have to wait for it to arrive in the OutQueue like we do above
-				// since it shouldn't make it there.
+				// First feed one pack to fill the OutQueue, and wait until
+				// it's there.
 				inChan <- pack
+				p = <-ircOutput.OutQueue
+				ircOutput.OutQueue <- p
+				// Then feed another pack which we expect to get dropped before
+				// it hits the OutQueue.
+				outTestHelper.MockOutputRunner.EXPECT().LogError(
+					ErrOutQueueFull)
 				inChan <- pack
 
 				close(inChan)

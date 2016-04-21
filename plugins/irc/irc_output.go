@@ -132,6 +132,7 @@ func (output *IrcOutput) Init(config interface{}) error {
 
 func (output *IrcOutput) Run(runner pipeline.OutputRunner,
 	helper pipeline.PluginHelper) error {
+
 	if runner.Encoder() == nil {
 		return errors.New("Encoder required.")
 	}
