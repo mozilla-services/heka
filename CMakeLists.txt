@@ -240,13 +240,16 @@ if (UNIX AND DPKG_EXECUTABLE)
     execute_process(COMMAND "${DPKG_EXECUTABLE}" --print-architecture
         OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-    add_custom_target(deb
-        COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch="$(COLOR)" --cyan "Run CPack packaging tool..."
-        COMMAND ${CPACK_COMMAND} -G DEB
-        DEPENDS hekad
-        COMMENT "Custom deb target")
+    find_program( DEBHELPER dh_prep )
+    if ( DEBHELPER )
+        add_custom_target(deb
+            COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --switch="$(COLOR)" --cyan "Run CPack packaging tool..."
+            COMMAND ${CPACK_COMMAND} -G DEB
+            DEPENDS hekad
+            COMMENT "Custom deb target")
 
-    add_subdirectory(packaging/debian)
+        add_subdirectory(packaging/debian)
+    endif()
 endif()
 
 # MOVING INCLUSION OF CPACK DOWN HERE SO IT ACTUALLY GETS THE VARIABLES WE SET

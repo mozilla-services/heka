@@ -37,6 +37,9 @@ Bug Handling
 * Fixed issue where KafkaOutput wasn't updating the queue buffer cursor with
   successful delivery (#1886).
 
+* Fixed issue where build would fail on Debian-ish Linux distros if debhelper
+  wasn't installed, even when not building a package.
+
 0.10.0 (2015-12-30)
 ===================
 
