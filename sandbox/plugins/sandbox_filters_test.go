@@ -746,6 +746,39 @@ intField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=45
 
 		})
 
+		c.Specify("encodes messages with multiple fields in one line", func() {
+			conf.Config["flush_count"] = "6"
+			conf.Config["multi_fields"] = true
+			conf.Config["name_prefix"] = "multiple_fields"
+			err = filter.Init(conf)
+
+			go func() {
+				errChan <- filter.Run(fth.MockFilterRunner, fth.MockHelper)
+			}()
+
+			// Having our own reference to the message struct lets us hand it
+			// back to the pack even after recycling.
+			msg := pack.Message
+			for i := 0; i < 6; i++ {
+				msg.Fields[0].ValueInteger[0] = int64(i * 100)
+				pack.Message = msg
+				pack.EncodeMsgBytes()
+				inChan <- pack
+				pack = <-recycleChan
+			}
+
+			// timer <- time.Now()
+			m := <-retMsgChan
+
+                        msgStr := `multiple_fields,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname byteField_vidx_1="second",intField_vidx_1=456.000000,byteField="first",strField_fidx_1_vidx_1="1_second",strField_vidx_1="0_second",intField=%d.000000,strField_fidx_1="1_first",strField="0_first" 54321000
+`
+			pl := ""
+			for i := 0; i < 6; i++ {
+				pl += fmt.Sprintf(msgStr, i*100)
+			}
+			c.Expect(m.GetPayload(), gs.Equals, pl)
+		})
+
 		close(inChan)
 		c.Expect(<-errChan, gs.IsNil)
 	})

@@ -154,6 +154,7 @@ local filter_config = {
     source_value_field = read_config("source_value_field") or nil,
     tag_fields_str = read_config("tag_fields") or "**all_base**",
     timestamp_precision = read_config("timestamp_precision") or "ms",
+    multi_fields = read_config("multi_fields") or false,
     value_field_key = read_config("value_field_key") or "value"
 }
 
