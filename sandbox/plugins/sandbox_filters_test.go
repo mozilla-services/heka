@@ -770,7 +770,7 @@ intField_vidx_1,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname value=45
 			// timer <- time.Now()
 			m := <-retMsgChan
 
-                        msgStr := `multiple_fields,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname byteField_vidx_1="second",intField_vidx_1=456.000000,byteField="first",strField_fidx_1_vidx_1="1_second",strField_vidx_1="0_second",intField=%d.000000,strField_fidx_1="1_first",strField="0_first" 54321000
+			msgStr := `multiple_fields,Logger=Logger,Type=my_type,Severity=4,Hostname=hostname byteField="first",byteField_vidx_1="second",strField_fidx_1="1_first",strField_fidx_1_vidx_1="1_second",strField="0_first",strField_vidx_1="0_second",intField=%d.000000,intField_vidx_1=456.000000 54321000
 `
 			pl := ""
 			for i := 0; i < 6; i++ {

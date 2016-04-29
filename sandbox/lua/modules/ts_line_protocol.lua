@@ -108,6 +108,7 @@ local function points_tags_tables(config)
     local name_prefix_delimiter = config.name_prefix_delimiter or ""
     local used_tag_fields = config.used_tag_fields
     local skip_fields = config.skip_fields
+    local multi_fields = config.multi_fields
 
     -- Initialize the tags table, including base field tag values in list if
     -- the magic **all** or **all_base** config values are defined.
@@ -184,10 +185,14 @@ local function points_tags_tables(config)
                 -- Only add fields that are not requested to be skipped
                 elseif not config.skip_fields_str
                 or (config.skip_fields and not skip_fields[field]) then
-                    -- Set the name attribute of this table by concatenating
-                    -- name_prefix with the name of this particular field
-                    points[string.format("%s%s%s", name_prefix, name_prefix_delimiter,
-                                         field_out_name)] = value
+                    if multi_fields then
+                        points[field_out_name] = value
+                    else
+                        -- Set the name attribute of this table by concatenating
+                        -- name_prefix with the name of this particular field
+                        points[string.format("%s%s%s", name_prefix, name_prefix_delimiter,
+                                             field_out_name)] = value
+                    end
                 end
             end
         end
@@ -226,8 +231,6 @@ function influxdb_line_msg(config)
         -- Build fields key/value string
         local fields = {}
         local name_prefix = config.name_prefix or ""
-        local name_prefix_delimiter = config.name_prefix_delimiter or ""
-        local to_remove = string.format("%s%s", name_prefix, name_prefix_delimiter)
         for name, value in pairs(points) do
             -- Wrap in double quotes and escape embedded double quotes as defined
             -- by the protocol.
@@ -244,8 +247,7 @@ function influxdb_line_msg(config)
                 value = string.format(decimal_format_string, value)
             end
 
-            field_name = string.gsub(name, to_remove, "")
-            table.insert(fields, field_name .. "=" .. value)
+            table.insert(fields, name .. "=" .. value)
         end
 
         -- Format the line differently based on the presence of tags
