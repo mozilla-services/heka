@@ -17,6 +17,7 @@
 package http
 
 import (
+	"compress/gzip"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -52,6 +53,7 @@ type HttpListenInputConfig struct {
 	Username       string   `toml:"username"`
 	Password       string   `toml:"password"`
 	Key            string   `toml:"api_key"`
+	Deflate        bool     `toml:"deflate"`
 	// Set to true if the TCP connection should be tunneled through TLS.
 	// Requires additional Tls config section.
 	UseTls bool `toml:"use_tls"`
@@ -198,7 +200,17 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		if !sRunner.UseMsgBytes() {
 			sRunner.SetPackDecorator(hli.makePackDecorator(req))
 		}
-		err = sRunner.SplitStreamNullSplitterToEOF(req.Body, nil)
+
+		if req.Header.Get("Content-Encoding") == "gzip" && hli.conf.Deflate {
+			gz, err := gzip.NewReader(req.Body)
+			defer gz.Close()
+			if err == nil {
+				err = sRunner.SplitStreamNullSplitterToEOF(gz, nil)
+			}
+		} else {
+			err = sRunner.SplitStreamNullSplitterToEOF(req.Body, nil)
+		}
+
 		if err != nil && err != io.EOF {
 			hli.ir.LogError(fmt.Errorf("receiving request body: %s", err.Error()))
 		}

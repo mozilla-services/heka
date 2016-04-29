@@ -51,6 +51,8 @@ Features
 
 * Added iowait percentage output field in filter procstat (#1888).
 
+* Added ability to deflate gzip'd payloads in HttpListenInput.
+
 0.10.1 (2016-??-??)
 ===================
 
