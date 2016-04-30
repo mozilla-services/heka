@@ -87,6 +87,9 @@ Bug Handling
 * Fixed bug where HttpOutput would discard the response body before trying to
   use the response body when response returned an error status code.
 
+* Fixed issue where KafkaOutput wasn't updating the queue buffer cursor with
+  successful delivery (#1886).
+
 0.10.0 (2015-12-30)
 ===================
 

@@ -386,6 +386,7 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			Value: sarama.ByteEncoder(msgBytes),
 		}
 		pInChan <- pMessage
+		or.UpdateCursor(pack.QueueCursor)
 		pack.Recycle(nil)
 	}
 
