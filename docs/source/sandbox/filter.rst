@@ -56,6 +56,12 @@ Heka Process Message Failures (self monitoring)
    :start-after: --[[
    :end-before: --]]
 
+Heartbeat monitoring per host
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. include:: ../../../sandbox/lua/filters/heartbeat.lua
+   :start-after: --[[
+   :end-before: --]]
+
 HTTP Status Graph
 ^^^^^^^^^^^^^^^^^
 .. include:: ../../../sandbox/lua/filters/http_status.lua

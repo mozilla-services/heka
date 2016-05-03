@@ -31,6 +31,9 @@ Filters
 .. include:: /config/filters/message_schema.rst
    :start-line: 1
 
+.. include:: /config/filters/heartbeat.rst
+   :start-line: 1
+
 .. include:: /config/filters/http_status.rst
    :start-line: 1
 
