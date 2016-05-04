@@ -6,13 +6,16 @@ notifications:
     irc:
         channels:
             - "irc.mozilla.org#heka"
+services:
+    - docker
 addons:
     apt:
         packages:
         - protobuf-compiler
         - cmake
         - libgeoip-dev
+        - debhelper
 install:
     - . build.sh
 script:
-    - make test
+    - make test && make deb && ./../docker/release_travis.sh
