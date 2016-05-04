@@ -1,9 +1,13 @@
 package graylog
 
 import (
+	"strings"
+
 	"github.com/pborman/uuid"
 
 	"github.com/mozilla-services/heka/pipeline"
+	"github.com/mozilla-services/heka/message"
+
 	"github.com/Graylog2/go-gelf/gelf"
 )
 
@@ -62,11 +66,12 @@ func (g *GraylogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 
 	}()
 
+	MsgLoop:
 	for ctrlMsg := range g.ctrlMsgs {
 		if ctrlMsg.err != nil {
 			ir.LogError(ctrlMsg.err)
 			err = ctrlMsg.err
-			break
+			break MsgLoop
 		}
 
 		msg := ctrlMsg.message
@@ -84,10 +89,24 @@ func (g *GraylogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		pack.Message.SetHostname(msg.Host)
 		pack.Message.SetSeverity(msg.Level)
 		pack.Message.SetLogger(g.config.Address)
+		for k,v := range msg.Extra {
+			cleanedK := cleanKeyForKibana(k)
+			field,err := message.NewField(cleanedK, v, "")
+			if err != nil {
+				ir.LogError(err)
+				break MsgLoop
+			}
+			pack.Message.AddField(field)
+		}
+
 		ir.Deliver(pack)
 	}
 
 	return
+}
+
+func cleanKeyForKibana(k string) (output string) {
+	return strings.TrimPrefix(k, "_")
 }
 
 func (g *GraylogInput) Stop() {
