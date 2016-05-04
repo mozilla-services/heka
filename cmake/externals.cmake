@@ -208,3 +208,5 @@ if (PLUGIN_LOADER)
     set(_PLUGIN_LOADER_OUTPUT "${_PLUGIN_LOADER_OUTPUT}\n)\n")
     file(WRITE "${CMAKE_BINARY_DIR}/plugin_loader.go" ${_PLUGIN_LOADER_OUTPUT})
 endif()
+
+git_clone(https://github.com/Graylog2/go-gelf 76d60fc890684cff2fb65c631ed711d4af080592)
