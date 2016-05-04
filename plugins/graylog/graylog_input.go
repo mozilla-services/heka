@@ -9,7 +9,6 @@ import (
 
 type GraylogInputConfig struct{
 	Address string `toml:"address"`
-	Type string `toml:"type"`
 }
 
 type GraylogInput struct {
@@ -58,9 +57,9 @@ func (g *GraylogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 					break
 				}
 			}
-
-			close(g.ctrlMsgs)
 		}
+		close(g.ctrlMsgs)
+
 	}()
 
 	for ctrlMsg := range g.ctrlMsgs {
@@ -80,8 +79,9 @@ func (g *GraylogInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (er
 		}
 
 		pack.Message.SetUuid(uuid.NewRandom())
-		pack.Message.SetTimestamp(int64(msg.TimeUnix) * 1000000)
-		pack.Message.SetType(g.config.Type)
+		pack.Message.SetTimestamp(int64(msg.TimeUnix) * 1000000000)
+		pack.Message.SetType("heka.graylog")
+		pack.Message.SetHostname(msg.Host)
 		pack.Message.SetSeverity(msg.Level)
 		pack.Message.SetLogger(g.config.Address)
 		ir.Deliver(pack)
