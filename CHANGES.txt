@@ -33,6 +33,8 @@ Bug Handling
 Features
 --------
 
+* Added time interval configurability to Unique Items filter.
+
 * Added TLS support to KafkaInput and KafkaOutput plugins.
 
 * Added decoder support to StatAccumInput.
