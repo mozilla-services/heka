@@ -19,6 +19,9 @@ Backwards Incompatibilities
 Bug Handling
 ------------
 
+* Updated DockerEventInput to exit when the Docker event stream channel closes
+  (see https://github.com/fsouza/go-dockerclient/issues/485).
+
 * Updated Sarama dependency from pre-1.0 release fork to fork (with only test
   code changes) of Sarama 1.5.0 release.
 
