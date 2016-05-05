@@ -33,6 +33,8 @@ Bug Handling
 Features
 --------
 
+* Added `bind_queue` option to AMQPInput.
+
 * Added time interval configurability to Unique Items filter.
 
 * Added TLS support to KafkaInput and KafkaOutput plugins.
