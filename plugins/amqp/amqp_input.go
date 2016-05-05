@@ -54,6 +54,10 @@ type AMQPInputConfig struct {
 	// Name of the queue to consume from, an empty string will have the
 	// broker generate a name
 	Queue string
+	// Whether the queue should be explicitly bound to the exchange. Not all
+	// exchanges require the consumer to define and bind their own queue.
+	// Defaults to binding the queue
+	BindQueue bool `toml:"bind_queue"`
 	// Whether the queue is durable or not
 	// Defaults to non-durable
 	QueueDurability bool `toml:"queue_durability"`
@@ -91,6 +95,7 @@ func (ai *AMQPInput) ConfigStruct() interface{} {
 		RoutingKey:         "",
 		PrefetchCount:      2,
 		Queue:              "",
+		BindQueue:          true,
 		QueueDurability:    false,
 		QueueExclusive:     false,
 		QueueAutoDelete:    true,
@@ -143,16 +148,19 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 			return
 		}
 
-		_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
-			conf.QueueAutoDelete, conf.QueueExclusive, false, args)
-		if err != nil {
-			return
+		if conf.BindQueue {
+			_, err = ch.QueueDeclare(conf.Queue, conf.QueueDurability,
+				conf.QueueAutoDelete, conf.QueueExclusive, false, args)
+			if err != nil {
+				return
+			}
+
+			err = ch.QueueBind(conf.Queue, conf.RoutingKey, conf.Exchange, false, nil)
+			if err != nil {
+				return
+			}
 		}
 
-		err = ch.QueueBind(conf.Queue, conf.RoutingKey, conf.Exchange, false, nil)
-		if err != nil {
-			return
-		}
 		err = ch.Qos(conf.PrefetchCount, 0, false)
 		if err != nil {
 			return
