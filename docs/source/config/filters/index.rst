@@ -55,6 +55,7 @@ Available Filter Plugins
    disk_stats
    frequent_items
    heka_memstat
+   heartbeat
    http_status
    influx_batch
    load_avg
