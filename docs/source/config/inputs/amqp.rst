@@ -35,6 +35,10 @@ Config:
 - queue (string):
     Name of the queue to consume from, an empty string will have the broker
     generate a name for the queue. Defaults to empty string.
+- bind_queue (string):
+    Whether the queue should be explicitly bound to the exchange. Not all
+    exchanges require the consumer to define and bind their own queue.
+    Defaults to true.
 - queue_durability (bool):
     Whether the queue is durable or not. Defaults to non-durable.
 - queue_exclusive (bool):
