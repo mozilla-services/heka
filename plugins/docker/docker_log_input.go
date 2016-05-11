@@ -28,13 +28,15 @@ import (
 
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
-	Endpoint         string   `toml:"endpoint"`
-	CertPath         string   `toml:"cert_path"`
-	SincePath        string   `toml:"since_path"`
-	SinceInterval    string   `toml:"since_interval"`
-	NameFromEnv      string   `toml:"name_from_env_var"`
-	FieldsFromEnv    []string `toml:"fields_from_env"`
-	FieldsFromLabels []string `toml:"fields_from_labels"`
+	Endpoint                string   `toml:"endpoint"`
+	CertPath                string   `toml:"cert_path"`
+	SincePath               string   `toml:"since_path"`
+	SinceInterval           string   `toml:"since_interval"`
+	NameFromEnv             string   `toml:"name_from_env_var"`
+	FieldsFromEnv           []string `toml:"fields_from_env"`
+	FieldsFromLabels        []string `toml:"fields_from_labels"`
+	ContainerExpiryDays     int      `toml:"container_expiry_days"`
+	NewContainersReplayLogs bool     `toml:"new_containers_replay_logs"`
 }
 
 type DockerLogInput struct {
@@ -54,23 +56,14 @@ func (di *DockerLogInput) ConfigStruct() interface{} {
 		CertPath:      "",
 		SincePath:     filepath.Join("docker", "logs_since.txt"),
 		SinceInterval: "5s",
+		ContainerExpiryDays: 30,
+		NewContainersReplayLogs: true,
 	}
 }
 
-func (di *DockerLogInput) Init(config interface{}) error {
-	conf := config.(*DockerLogInputConfig)
-	globals := di.pConfig.Globals
-
-	// Make sure since interval is valid.
-	sinceInterval, err := time.ParseDuration(conf.SinceInterval)
-	if err != nil {
-		return fmt.Errorf("Can't parse since_interval value '%s': %s", conf.SinceInterval,
-			err.Error())
-	}
-
+func (di *DockerLogInput) ensureSincesFile(conf *DockerLogInputConfig, sincePath string) error {
 	// Make sure the since file exists.
-	sincePath := globals.PrependBaseDir(conf.SincePath)
-	_, err = os.Stat(sincePath)
+	_, err := os.Stat(sincePath)
 	if os.IsNotExist(err) {
 		sinceDir := filepath.Dir(sincePath)
 		if err = os.MkdirAll(sinceDir, 0700); err != nil {
@@ -96,6 +89,27 @@ func (di *DockerLogInput) Init(config interface{}) error {
 		return fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
 	}
 
+	return nil
+}
+
+func (di *DockerLogInput) Init(config interface{}) error {
+	conf := config.(*DockerLogInputConfig)
+	globals := di.pConfig.Globals
+	sincePath := globals.PrependBaseDir(conf.SincePath)
+
+	// Make sure since interval is valid.
+	sinceInterval, err := time.ParseDuration(conf.SinceInterval)
+	if err != nil {
+		return fmt.Errorf("Can't parse since_interval value '%s': %s", conf.SinceInterval,
+			err.Error())
+	}
+
+	// Make sure we have a sinces File.
+	err = di.ensureSincesFile(conf, sincePath)
+	if err != nil {
+		return err
+	}
+
 	di.stopChan = make(chan error)
 	di.closer = make(chan struct{})
 
@@ -107,6 +121,8 @@ func (di *DockerLogInput) Init(config interface{}) error {
 		conf.FieldsFromLabels,
 		sincePath,
 		sinceInterval,
+		conf.ContainerExpiryDays,
+		conf.NewContainersReplayLogs,
 	)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())

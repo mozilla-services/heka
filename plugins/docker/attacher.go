@@ -40,31 +40,36 @@ import (
 	"github.com/pborman/uuid"
 )
 
+// Tracks the timestamp of the last time we logged
+// data from a particular container.
 type sinces struct {
+	sync.Mutex
+	Path       string
+	Interval   time.Duration
 	Since      int64
 	Containers map[string]int64
 }
 
 type AttachManager struct {
-	hostname         string
-	client           DockerClient
-	events           chan *docker.APIEvents
-	ir               InputRunner
-	endpoint         string
-	certPath         string
-	nameFromEnv      string
-	fieldsFromEnv    []string
-	fieldsFromLabels []string
-	sincePath        string
-	sinces           *sinces
-	sinceLock        sync.Mutex
-	sinceInterval    time.Duration
+	hostname                string
+	client                  DockerClient
+	events                  chan *docker.APIEvents
+	ir                      InputRunner
+	endpoint                string
+	certPath                string
+	nameFromEnv             string
+	fieldsFromEnv           []string
+	fieldsFromLabels        []string
+	sinces                  *sinces
+	containerExpiryDays     int
+	newContainersReplayLogs bool
 }
 
 // Construct an AttachManager and set up the Docker Client
 func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 	fieldsFromEnv []string, fieldsFromLabels []string,
-	sincePath string, sinceInterval time.Duration) (*AttachManager, error) {
+	sincePath string, sinceInterval time.Duration, containerExpiryDays int,
+	newContainersReplayLogs bool) (*AttachManager, error) {
 
 	client, err := newDockerClient(certPath, endpoint)
 	if err != nil {
@@ -72,14 +77,14 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 	}
 
 	m := &AttachManager{
-		client:           client,
-		events:           make(chan *docker.APIEvents),
-		nameFromEnv:      nameFromEnv,
-		fieldsFromEnv:    fieldsFromEnv,
-		fieldsFromLabels: fieldsFromLabels,
-		sincePath:        sincePath,
-		sinces:           &sinces{},
-		sinceInterval:    sinceInterval,
+		client:                  client,
+		events:                  make(chan *docker.APIEvents),
+		nameFromEnv:             nameFromEnv,
+		fieldsFromEnv:           fieldsFromEnv,
+		fieldsFromLabels:        fieldsFromLabels,
+		sinces:                  &sinces{Path: sincePath, Interval: sinceInterval},
+		containerExpiryDays:     containerExpiryDays,
+		newContainersReplayLogs: newContainersReplayLogs,
 	}
 
 	// Initialize the sinces from the JSON since file.
@@ -88,9 +93,9 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 		return nil, fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
 	}
 	jsonDecoder := json.NewDecoder(sinceFile)
-	m.sinceLock.Lock()
+	m.sinces.Lock()
 	err = jsonDecoder.Decode(m.sinces)
-	m.sinceLock.Unlock()
+	m.sinces.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("Can't decode \"since\" file '%s': %s", sincePath, err.Error())
 	}
@@ -132,17 +137,19 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 	if err != nil {
 		m.ir.LogError(err)
 		return errors.New(
-			"Failed to attach to Docker containers after retrying. Plugin giving up.")
+			"Failed to attach to Docker containers after retrying. Plugin giving up.",
+		)
 	}
 
 	err = withRetries(func() error { return m.client.AddEventListener(m.events) })
 	if err != nil {
 		m.ir.LogError(err)
 		return errors.New(
-			"Failed to add Docker event listener after retrying. Plugin giving up.")
+			"Failed to add Docker event listener after retrying. Plugin giving up.",
+		)
 	}
 
-	if m.sinceInterval > 0 {
+	if m.sinces.Interval > 0 {
 		go m.sinceWriteLoop(stopChan)
 	}
 	m.handleDockerEvents(stopChan) // Blocks until stopChan is closed.
@@ -152,29 +159,45 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 }
 
 func (m *AttachManager) writeSinceFile(t time.Time) {
-	sinceFile, err := os.Create(m.sincePath)
+	sinceFile, err := os.Create(m.sinces.Path)
 	if err != nil {
-		m.ir.LogError(fmt.Errorf("Can't create \"since\" file '%s': %s", m.sincePath,
+		m.ir.LogError(fmt.Errorf("Can't create \"since\" file '%s': %s", m.sinces.Path,
 			err.Error()))
 		return
 	}
 	jsonEncoder := json.NewEncoder(sinceFile)
-	m.sinceLock.Lock()
+	m.sinces.Lock()
 	m.sinces.Since = t.Unix()
-	if err = jsonEncoder.Encode(m.sinces); err != nil {
-		m.ir.LogError(fmt.Errorf("Can't write to \"since\" file '%s': %s", m.sincePath,
+
+	// Eject since containers that are too old to keep so we don't build up
+	// a list forever.
+	for container, lastSeen := range m.sinces.Containers {
+		if lastSeen < time.Now().Unix() - int64(m.containerExpiryDays) * 3600 * 24 {
+			delete(m.sinces.Containers, container)
+		}
+	}
+
+	// Whitelist the parts of the struct we save to disk
+	outStruct := struct {
+		Since      int64
+		Containers map[string]int64
+	}{m.sinces.Since, m.sinces.Containers}
+
+	if err = jsonEncoder.Encode(outStruct); err != nil {
+		m.ir.LogError(fmt.Errorf("Can't write to \"since\" file '%s': %s", m.sinces.Path,
 			err.Error()))
 	}
-	m.sinceLock.Unlock()
+
+	m.sinces.Unlock()
 	if err = sinceFile.Close(); err != nil {
-		m.ir.LogError(fmt.Errorf("Can't close \"since\" file '%s': %s", m.sincePath,
+		m.ir.LogError(fmt.Errorf("Can't close \"since\" file '%s': %s", m.sinces.Path,
 			err.Error()))
 	}
 }
 
 // Periodically writes out a new since file, until stopped.
 func (m *AttachManager) sinceWriteLoop(stopChan chan error) {
-	ticker := time.Tick(m.sinceInterval)
+	ticker := time.Tick(m.sinces.Interval)
 	ok := true
 	var now time.Time
 	for ok {
@@ -255,7 +278,7 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 
 	// Spin up one of these for each container we're watching.
 	go func() {
-		m.sinceLock.Lock()
+		m.sinces.Lock()
 		since, ok := m.sinces.Containers[id]
 		if ok {
 			// We've seen this container before, need to use a since value.
@@ -269,8 +292,14 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 		} else {
 			// We haven't seen it, add it to our sinces.
 			m.sinces.Containers[id] = 0
+
+			// And set the since appropriately from our settings
+			if !m.newContainersReplayLogs {
+				// Use the last global since time when we connect to it
+				since = m.sinces.Since
+			}
 		}
-		m.sinceLock.Unlock()
+		m.sinces.Unlock()
 
 		// This will block until the container exits.
 		err := client.Logs(docker.LogsOptions{
@@ -282,17 +311,17 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 			Stderr:       true,
 			Since:        since,
 			Timestamps:   false,
-			Tail:         "all",
+			Tail:         "all", // This is scoped by "Since" above
 			RawTerminal:  false,
 		})
 
-		// Once it has exited, close our pipes, remove from the sinces, and (if
-		// necessary) log the error.
+		// Once it has exited, close our pipes, set the since time to now, and
+		// (if necessary) log the error.
 		outwr.Close()
 		errwr.Close()
-		m.sinceLock.Lock()
+		m.sinces.Lock()
 		m.sinces.Containers[id] = time.Now().Unix()
-		m.sinceLock.Unlock()
+		m.sinces.Unlock()
 		if err != nil {
 			err = fmt.Errorf("streaming container %s logs: %s", id, err.Error())
 			m.ir.LogError(err)
