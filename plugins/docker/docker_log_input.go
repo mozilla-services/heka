@@ -17,9 +17,7 @@
 package docker
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -52,44 +50,13 @@ func (di *DockerLogInput) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
 	return &DockerLogInputConfig{
-		Endpoint:      "unix:///var/run/docker.sock",
-		CertPath:      "",
-		SincePath:     filepath.Join("docker", "logs_since.txt"),
-		SinceInterval: "5s",
-		ContainerExpiryDays: 30,
+		Endpoint:                "unix:///var/run/docker.sock",
+		CertPath:                "",
+		SincePath:               filepath.Join("docker", "logs_since.txt"),
+		SinceInterval:           "5s",
+		ContainerExpiryDays:     30,
 		NewContainersReplayLogs: true,
 	}
-}
-
-func (di *DockerLogInput) ensureSincesFile(conf *DockerLogInputConfig, sincePath string) error {
-	// Make sure the since file exists.
-	_, err := os.Stat(sincePath)
-	if os.IsNotExist(err) {
-		sinceDir := filepath.Dir(sincePath)
-		if err = os.MkdirAll(sinceDir, 0700); err != nil {
-			return fmt.Errorf("Can't create storage directory '%s': %s", sinceDir,
-				err.Error())
-		}
-
-		sinceFile, err := os.Create(sincePath)
-		if err != nil {
-			return fmt.Errorf("Can't create \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-		jsonEncoder := json.NewEncoder(sinceFile)
-		if err = jsonEncoder.Encode(&sinces{Containers: make(map[string]int64)}); err != nil {
-			return fmt.Errorf("Can't write to \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-		if err = sinceFile.Close(); err != nil {
-			return fmt.Errorf("Can't close \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-	} else if err != nil {
-		return fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
-	}
-
-	return nil
 }
 
 func (di *DockerLogInput) Init(config interface{}) error {
@@ -105,7 +72,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	}
 
 	// Make sure we have a sinces File.
-	err = di.ensureSincesFile(conf, sincePath)
+	err = EnsureSincesFile(conf, sincePath)
 	if err != nil {
 		return err
 	}

@@ -26,12 +26,9 @@ package docker
 // SOFTWARE.
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"sync"
 	"time"
 
 	"github.com/fsouza/go-dockerclient"
@@ -40,15 +37,6 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// Tracks the timestamp of the last time we logged
-// data from a particular container.
-type sinces struct {
-	sync.Mutex
-	Path       string
-	Interval   time.Duration
-	Since      int64
-	Containers map[string]int64
-}
 
 type AttachManager struct {
 	hostname                string
@@ -60,8 +48,7 @@ type AttachManager struct {
 	nameFromEnv             string
 	fieldsFromEnv           []string
 	fieldsFromLabels        []string
-	sinces                  *sinces
-	containerExpiryDays     int
+	sinces                  *SinceTracker
 	newContainersReplayLogs bool
 }
 
@@ -76,29 +63,21 @@ func NewAttachManager(endpoint string, certPath string, nameFromEnv string,
 		return nil, err
 	}
 
+	sinceTracker, err := NewSinceTracker(containerExpiryDays, sincePath, sinceInterval)
+	if err != nil {
+		return nil, err
+	}
+
 	m := &AttachManager{
 		client:                  client,
 		events:                  make(chan *docker.APIEvents),
 		nameFromEnv:             nameFromEnv,
 		fieldsFromEnv:           fieldsFromEnv,
 		fieldsFromLabels:        fieldsFromLabels,
-		sinces:                  &sinces{Path: sincePath, Interval: sinceInterval},
-		containerExpiryDays:     containerExpiryDays,
+		sinces:			 sinceTracker,
 		newContainersReplayLogs: newContainersReplayLogs,
 	}
 
-	// Initialize the sinces from the JSON since file.
-	sinceFile, err := os.Open(sincePath)
-	if err != nil {
-		return nil, fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
-	}
-	jsonDecoder := json.NewDecoder(sinceFile)
-	m.sinces.Lock()
-	err = jsonDecoder.Decode(m.sinces)
-	m.sinces.Unlock()
-	if err != nil {
-		return nil, fmt.Errorf("Can't decode \"since\" file '%s': %s", sincePath, err.Error())
-	}
 	return m, nil
 }
 
@@ -128,6 +107,7 @@ func (m *AttachManager) attachAll() error {
 // Main body of work
 func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error) error {
 	m.ir = ir
+	m.sinces.ir = ir
 	m.hostname = hostname
 
 	// Retry this sleeping in between tries During this time
@@ -154,50 +134,10 @@ func (m *AttachManager) Run(ir InputRunner, hostname string, stopChan chan error
 	}
 	m.handleDockerEvents(stopChan) // Blocks until stopChan is closed.
 	// Write to since file on the way out.
-	m.writeSinceFile(time.Now())
+	m.sinces.Write(time.Now())
 	return nil
 }
 
-func (m *AttachManager) writeSinceFile(t time.Time) {
-	sinceFile, err := os.Create(m.sinces.Path)
-	if err != nil {
-		m.ir.LogError(fmt.Errorf("Can't create \"since\" file '%s': %s", m.sinces.Path,
-			err.Error()))
-		return
-	}
-	jsonEncoder := json.NewEncoder(sinceFile)
-	m.sinces.Lock()
-	m.sinces.Since = t.Unix()
-
-	// Eject since containers that are too old to keep so we don't build up
-	// a list forever.
-	for container, lastSeen := range m.sinces.Containers {
-		if lastSeen == 0 {
-			continue
-		}
-
-		if lastSeen < time.Now().Unix() - int64(m.containerExpiryDays) * 3600 * 24 {
-			delete(m.sinces.Containers, container)
-		}
-	}
-
-	// Whitelist the parts of the struct we save to disk
-	outStruct := struct {
-		Since      int64
-		Containers map[string]int64
-	}{m.sinces.Since, m.sinces.Containers}
-
-	if err = jsonEncoder.Encode(outStruct); err != nil {
-		m.ir.LogError(fmt.Errorf("Can't write to \"since\" file '%s': %s", m.sinces.Path,
-			err.Error()))
-	}
-
-	m.sinces.Unlock()
-	if err = sinceFile.Close(); err != nil {
-		m.ir.LogError(fmt.Errorf("Can't close \"since\" file '%s': %s", m.sinces.Path,
-			err.Error()))
-	}
-}
 
 // Periodically writes out a new since file, until stopped.
 func (m *AttachManager) sinceWriteLoop(stopChan chan error) {
@@ -210,7 +150,7 @@ func (m *AttachManager) sinceWriteLoop(stopChan chan error) {
 			if !ok {
 				break
 			}
-			m.writeSinceFile(now)
+			m.sinces.Write(now)
 		case <-stopChan:
 			ok = false
 			break
