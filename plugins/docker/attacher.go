@@ -172,6 +172,10 @@ func (m *AttachManager) writeSinceFile(t time.Time) {
 	// Eject since containers that are too old to keep so we don't build up
 	// a list forever.
 	for container, lastSeen := range m.sinces.Containers {
+		if lastSeen == 0 {
+			continue
+		}
+
 		if lastSeen < time.Now().Unix() - int64(m.containerExpiryDays) * 3600 * 24 {
 			delete(m.sinces.Containers, container)
 		}
@@ -293,7 +297,7 @@ func (m *AttachManager) attach(id string, client DockerClient) error {
 			// We haven't seen it, add it to our sinces.
 			m.sinces.Containers[id] = 0
 
-			// And set the since appropriately from our settings
+			// And set the since appropriately from our settings.
 			if !m.newContainersReplayLogs {
 				// Use the last global since time when we connect to it
 				since = m.sinces.Since
