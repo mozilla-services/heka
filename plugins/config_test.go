@@ -409,12 +409,12 @@ NONE
 			err = pipeConfig.LoadConfig()
 			c.Assume(err, gs.IsNil)
 			// Start two DecoderRunners.
-			dr1, ok := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_1")
-			c.Expect(ok, gs.IsTrue)
-			dr2, ok := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_2")
-			c.Expect(ok, gs.IsTrue)
+			dr1, err := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_1")
+			c.Expect(err, gs.IsNil)
+			dr2, err := pipeConfig.DecoderRunner("ProtobufDecoder", "ProtobufDecoder_2")
+			c.Expect(err, gs.IsNil)
 			// Stop the second one.
-			ok = pipeConfig.StopDecoderRunner(dr2)
+			ok := pipeConfig.StopDecoderRunner(dr2)
 			c.Expect(ok, gs.IsTrue)
 			// Verify that it's stopped, i.e. InChan is closed.
 			_, ok = <-dr2.InChan()

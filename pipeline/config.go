@@ -80,7 +80,7 @@ type PluginHelper interface {
 
 	// Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 	// created Decoder of the specified name.
-	DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, ok bool)
+	DecoderRunner(base_name, full_name string) (dRunner DecoderRunner, err error)
 
 	// Stops and unregisters the provided DecoderRunner.
 	StopDecoderRunner(dRunner DecoderRunner) (ok bool)
@@ -282,17 +282,19 @@ func (self *PipelineConfig) PipelineConfig() *PipelineConfig {
 // time this method is used to fetch an unwrapped Decoder instance, it is up
 // to the caller to check for and possibly satisfy the WantsDecoderRunner and
 // WantsDecoderRunnerShutdown interfaces.
-func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
+func (self *PipelineConfig) Decoder(name string) (decoder Decoder, err error) {
 	var maker PluginMaker
 	self.makersLock.RLock()
 	defer self.makersLock.RUnlock()
+	var ok bool
 	if maker, ok = self.DecoderMakers[name]; !ok {
+		err = fmt.Errorf("Unable to get DecoderMaker: %s", name)
 		return
 	}
 
 	plugin, _, err := maker.Make()
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 	decoder = plugin.(Decoder)
 	return
@@ -301,19 +303,21 @@ func (self *PipelineConfig) Decoder(name string) (decoder Decoder, ok bool) {
 // Instantiates, starts, and returns a DecoderRunner wrapped around a newly
 // created Decoder of the specified name.
 func (self *PipelineConfig) DecoderRunner(baseName, fullName string) (
-	dRunner DecoderRunner, ok bool) {
+	dRunner DecoderRunner, err error) {
 
 	self.makersLock.RLock()
 	var maker PluginMaker
+	var ok bool
 	if maker, ok = self.DecoderMakers[baseName]; !ok {
 		self.makersLock.RUnlock()
+		err = fmt.Errorf("Unable to get DecoderMaker: %s", baseName)
 		return
 	}
 
 	runner, err := maker.MakeRunner(fullName)
 	self.makersLock.RUnlock()
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
 	dRunner = runner.(DecoderRunner)

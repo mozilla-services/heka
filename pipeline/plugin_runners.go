@@ -297,9 +297,9 @@ func (ir *iRunner) Start(h PluginHelper, wg *sync.WaitGroup) (err error) {
 	}
 
 	if ir.config.Decoder != "" {
-		_, ok := ir.pConfig.Decoder(ir.config.Decoder)
-		if !ok {
-			return fmt.Errorf("no registered '%s' decoder", ir.config.Decoder)
+		_, err = ir.pConfig.Decoder(ir.config.Decoder)
+		if err != nil {
+			return fmt.Errorf("no registered '%s' decoder (%s)", ir.config.Decoder, err)
 		}
 	}
 	go ir.Starter(h, wg)
@@ -449,7 +449,11 @@ func (ir *iRunner) getDeliverFunc(token string) (DeliverFunc, DecoderRunner, Dec
 	// No synchronous decode means create a DecoderRunner and drop packs on
 	// its inChan.
 	if !ir.syncDecode {
-		dr, _ := ir.pConfig.DecoderRunner(decoderName, fullName)
+		dr, err := ir.pConfig.DecoderRunner(decoderName, fullName)
+		if err != nil {
+			ir.LogError(err)
+			return nil, nil, nil
+		}
 		dr.SetFailureHandling(ir.logDecodeFailures, ir.sendDecodeFailures)
 		inChan := dr.InChan()
 		deliver = func(pack *PipelinePack) {
