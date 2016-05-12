@@ -220,8 +220,8 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	}
 
 	for i, name := range md.Config.Subs {
-		if decoder, ok = md.pConfig.Decoder(name); !ok {
-			return fmt.Errorf("Non-existent subdecoder: %s", name)
+		if decoder, err = md.pConfig.Decoder(name); err != nil {
+			return fmt.Errorf("Non-existent subdecoder: %s (%s)", name, err)
 		}
 		md.Decoders[i] = decoder
 	}
