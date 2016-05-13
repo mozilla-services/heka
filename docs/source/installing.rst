@@ -45,7 +45,7 @@ Prerequisites (Unix):
 - make
 - gcc and libc6 development headers (package glibc-devel or libc6-dev)
 - patch
-- GeoIP development files (optional)
+- GeoIP development files and pkg-config (optional)
 - dpkg, debhelper and fakeroot (optional)
 - rpmbuild (optional)
 - packagemaker (optional)

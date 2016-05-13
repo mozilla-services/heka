@@ -21,16 +21,26 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/abh/geoip"
 	"github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
-	"strconv"
 )
 
+var geoip_flags = map[string]int{
+	"GEOIP_STANDARD" :     geoip.GEOIP_STANDARD,
+	"GEOIP_MEMORY_CACHE" : geoip.GEOIP_MEMORY_CACHE,
+	"GEOIP_CHECK_CACHE" :  geoip.GEOIP_CHECK_CACHE,
+	"GEOIP_INDEX_CACHE" :  geoip.GEOIP_INDEX_CACHE,
+	"GEOIP_MMAP_CACHE" :   geoip.GEOIP_MMAP_CACHE,
+}
 type GeoIpDecoderConfig struct {
 	DatabaseFile  string `toml:"db_file"`
 	SourceIpField string `toml:"source_ip_field"`
 	TargetField   string `toml:"target_field"`
+	Flags         string `toml:"flags"`
 }
 
 type GeoIpDecoder struct {
@@ -53,6 +63,7 @@ func (ld *GeoIpDecoder) ConfigStruct() interface{} {
 		DatabaseFile:  globals.PrependShareDir("GeoLiteCity.dat"),
 		SourceIpField: "",
 		TargetField:   "geoip",
+		Flags:         "GEOIP_MEMORY_CACHE",
 	}
 }
 
@@ -66,12 +77,21 @@ func (ld *GeoIpDecoder) Init(config interface{}) (err error) {
 	if conf.TargetField == "" {
 		return errors.New("`target_field` must be specified")
 	}
+	var flags_array = strings.Split(conf.Flags, "|")
+	var flags int
+	for _, flag_str := range flags_array {
+		if flag, ok := geoip_flags[strings.Trim(flag_str, " ")]; ok {
+			flags |= flag
+		} else {
+			return fmt.Errorf("Unknown GeoIP flag '%s' in '%s'", flag_str, conf.Flags)
+		}
+	}
 
 	ld.TargetField = conf.TargetField
 	ld.SourceIpField = conf.SourceIpField
 
 	if ld.gi == nil {
-		ld.gi, err = geoip.Open(conf.DatabaseFile)
+		ld.gi, err = geoip.OpenDb(strings.Split(conf.DatabaseFile, ":"), flags)
 	}
 	if err != nil {
 		return fmt.Errorf("Could not open GeoIP database: %s\n")

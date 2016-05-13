@@ -13,12 +13,7 @@ specified field. It uses the `GeoIP Go project
 library <https://github.com/maxmind/geoip-api-c/releases/>`_, and thus assumes
 you have the library downloaded and installed. Currently, only the GeoLiteCity
 database is supported, which you must also download and install yourself into
-a location to be referenced by the db_file config option.  By default the
-database file is opened using "GEOIP_MEMORY_CACHE" mode. This setting is hard-
-coded into the wrapper's geoip.go file. You will need to manually override
-that code  if you want to specify one of the other modes listed `here
-<https://github.com/maxmind/geoip- api-c/blob/master/README.md #memory-
-caching- and-other-options/>`_.
+a location to be referenced by the db_file config option.
 
 .. note::
     Due to external dependencies, this plugin is not compiled in to the
@@ -37,7 +32,8 @@ Config:
 
 - db_file:
     The location of the GeoLiteCity.dat database. Defaults to
-    "/var/cache/hekad/GeoLiteCity.dat"
+    "/var/cache/hekad/GeoLiteCity.dat". Since version 0.11, it can be a colon
+    separated list of files (first found is used).
 
 - source_ip_field:
     The name of the field containing the IP address you want to derive the
@@ -61,6 +57,13 @@ Config:
         - areacode: int,
         - charset: int,
         - continentalcode: string
+
+.. versionadded:: 0.11
+
+- flags:
+    `Memory Caching and Other Options
+    <https://github.com/maxmind/geoip-api-c/blob/master/README.md#memory-caching-and-other-options>`_.
+    Defaults to GEOIP_MEMORY_CACHE.
 
 .. code-block:: ini
 
