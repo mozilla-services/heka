@@ -36,6 +36,9 @@ Bug Handling
 Features
 --------
 
+* Added `fields_from_labels`, `container_expiry_days`, and
+  `new_containers_replay_logs` options to DockerLogInput.
+
 * Added `bind_queue` option to AMQPInput.
 
 * Added time interval configurability to Unique Items filter.
