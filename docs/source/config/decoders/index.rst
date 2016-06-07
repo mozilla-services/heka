@@ -11,6 +11,7 @@ Available Decoder Plugins
    :maxdepth: 1
 
    apache_access
+   bind_query_log
    geoip
    graylog_extended
    json
