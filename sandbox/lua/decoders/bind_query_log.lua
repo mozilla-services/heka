@@ -8,21 +8,6 @@ BIND DNS query log decoder script for the Heka stream processor:
 
 http://hekad.readthedocs.org/en/latest/
 
-Example use:
-
-[bind_query_logs]
-type = "LogstreamerInput"
-decoder = "bind_query_log_decoder"
-file_match = 'named_query.log'
-log_directory = "/var/log/named"
-
-[bind_query_log_decoder]
-type = "SandboxDecoder"
-filename = "lua_decoders/bind_query_log.lua"
-  [bind_query_log_decoder.config]
-  log_format = ''
-  type = "bind.query"
-
 Sample BIND query log message, with the print-category, print-severity and print-time options
 all set to 'yes' in the logging channel options in named.conf:
 
