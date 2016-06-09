@@ -72,6 +72,12 @@ Config:
     encryption. This will only have any impact if `use_tls` is set to true.
     See :ref:`tls`.
 
+.. versionadded:: 0.11
+
+- deflate (bool):
+    If true and a request has the "Content-Encoding" header set to "gzip", attempt
+    to deflate the body.
+
 Example:
 
 .. code-block:: ini
