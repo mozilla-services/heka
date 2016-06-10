@@ -11,6 +11,7 @@
 #   Tanguy Leroux (tlrx.dev@gmail.com)
 #   Rob Miller (rmiller@mozilla.com)
 #   Xavier Lange (xavier.lange@viasat.com)
+#   John Staford (john@solinea.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -39,6 +40,20 @@ func writeUTF16Escape(b *bytes.Buffer, c rune) {
 	b.WriteByte(lowerhex[(c>>8)&0xF])
 	b.WriteByte(lowerhex[(c>>4)&0xF])
 	b.WriteByte(lowerhex[c&0xF])
+}
+
+// replaceDots substitutes a string for all instances of '.' characters
+// in another string.
+func replaceDots(str string, sub string) (cname string) {
+    buf := bytes.Buffer{}
+    for _, r := range str {
+        if r == '.' {
+            buf.WriteString(sub)
+        } else {
+            buf.WriteRune(r)
+        }
+    }
+    return buf.String()
 }
 
 // Go json encoder will blow up on invalid utf8 so we use this custom json
@@ -88,12 +103,17 @@ func writeQuotedString(b *bytes.Buffer, str string) {
 
 }
 
-func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool) {
+func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool, replaceDotsWith string) {
 	if !first {
 		b.WriteString(`,`)
 	}
 
-	writeQuotedString(b, f.GetName())
+        if replaceDotsWith != "." {
+	    writeQuotedString(b, replaceDots(f.GetName(), replaceDotsWith))
+        } else {
+	    writeQuotedString(b, f.GetName())
+        }
+
 	b.WriteString(`:`)
 
 	switch f.GetValueType() {
@@ -238,6 +258,7 @@ type ESJsonEncoder struct {
 	fieldMappings     *ESFieldMappings
 	dynamicFields     []string
 	usesDynamicFields bool
+    	replaceDotsWith   string
 }
 
 // Heka fields to ElasticSearch mapping
@@ -275,6 +296,8 @@ type ESJsonEncoderConfig struct {
 	// Dynamic fields to be included. Non-empty value raises an error if
 	// 'DynamicFields' is not in Fields []string property.
 	DynamicFields []string `toml:"dynamic_fields"`
+   	// Replace dot (".") characters in JSON field names with a substitute string.
+   	ReplaceDotsWith string `toml:"replace_dots_with"`
 }
 
 func (e *ESJsonEncoder) ConfigStruct() interface{} {
@@ -295,6 +318,7 @@ func (e *ESJsonEncoder) ConfigStruct() interface{} {
 			Pid:        "Pid",
 			Hostname:   "Hostname",
 		},
+		ReplaceDotsWith:      ".",
 	}
 
 	config.Fields = fieldChoices[:]
@@ -307,6 +331,7 @@ func (e *ESJsonEncoder) Init(config interface{}) (err error) {
 	e.fields = conf.Fields
 	e.timestampFormat = conf.Timestamp
 	e.rawBytesFields = conf.RawBytesFields
+   	e.replaceDotsWith = conf.ReplaceDotsWith
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
@@ -392,7 +417,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 							}
 						}
 					}
-					writeField(first, &buf, field, raw)
+					writeField(first, &buf, field, raw, e.replaceDotsWith)
 				}
 			}
 		default:
@@ -416,6 +441,7 @@ type ESLogstashV0Encoder struct {
 	coord           *ElasticSearchCoordinates
 	dynamicFields   []string
 	useMessageType  bool
+    	replaceDotsWith string
 }
 
 type ESLogstashV0EncoderConfig struct {
@@ -440,6 +466,8 @@ type ESLogstashV0EncoderConfig struct {
 	// Dynamic fields to be included. Non-empty value raises an error if
 	// 'DynamicFields' is not in Fields []string property.
 	DynamicFields []string `toml:"dynamic_fields"`
+	// Replace dot (".") characters in JSON field names with a substitute string.
+   	ReplaceDotsWith string `toml:"replace_dots_with"`
 }
 
 func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
@@ -451,6 +479,7 @@ func (e *ESLogstashV0Encoder) ConfigStruct() interface{} {
 		UseMessageType:       false,
 		ESIndexFromTimestamp: false,
 		Id:                   "",
+		ReplaceDotsWith:      ".",
 	}
 
 	config.Fields = fieldChoices[:]
@@ -464,6 +493,7 @@ func (e *ESLogstashV0Encoder) Init(config interface{}) (err error) {
 	e.fields = conf.Fields
 	e.timestampFormat = conf.Timestamp
 	e.useMessageType = conf.UseMessageType
+   	e.replaceDotsWith = conf.ReplaceDotsWith
 	e.coord = &ElasticSearchCoordinates{
 		Index:                conf.Index,
 		Type:                 conf.TypeName,
@@ -563,7 +593,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 							}
 						}
 					}
-					writeField(firstfield, &buf, field, raw)
+					writeField(firstfield, &buf, field, raw,  e.replaceDotsWith)
 					firstfield = false
 				}
 			}
