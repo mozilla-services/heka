@@ -21,6 +21,20 @@ https://deepthought.isc.org/article/AA-00434/0/What-do-EDC-and-other-letters-I-s
 
 http://jpmens.net/2011/02/22/bind-querylog-know-your-flags/
 
+
+Sample BIND query log message, with the print-category, print-severity and print-time options
+all set to 'yes' in the logging channel options in named.conf:
+
+27-May-2015 21:06:49.246 queries: info: client 10.0.1.70#41242 (webserver.company.com): query: webserver.company.com IN A +E (10.0.1.71)
+
+The things we want out of it are:
+
+* The client IP
+* The name that was queried
+* The domain of the name that was queried
+* The record type (A, MX, PTR, etc.)
+* The address of the interface that BIND used for the reply
+
 --]]
 
 local l = require 'lpeg'
