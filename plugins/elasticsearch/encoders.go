@@ -42,20 +42,6 @@ func writeUTF16Escape(b *bytes.Buffer, c rune) {
 	b.WriteByte(lowerhex[c&0xF])
 }
 
-// replaceDots substitutes a string for all instances of '.' characters
-// in another string.
-func replaceDots(str string, sub string) (cname string) {
-    buf := bytes.Buffer{}
-    for _, r := range str {
-        if r == '.' {
-            buf.WriteString(sub)
-        } else {
-            buf.WriteRune(r)
-        }
-    }
-    return buf.String()
-}
-
 // Go json encoder will blow up on invalid utf8 so we use this custom json
 // encoder. Also, go json encoder generates these funny \U escapes which I
 // don't think are valid json.
@@ -109,7 +95,7 @@ func writeField(first bool, b *bytes.Buffer, f *message.Field, raw bool, replace
 	}
 
         if replaceDotsWith != "." {
-	    writeQuotedString(b, replaceDots(f.GetName(), replaceDotsWith))
+	    writeQuotedString(b, strings.Replace(f.GetName(), ".", replaceDotsWith, -1))
         } else {
 	    writeQuotedString(b, f.GetName())
         }
