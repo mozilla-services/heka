@@ -8,7 +8,6 @@ BIND Query Log Decoder
 | Plugin Name: **SandboxDecoder**
 | File Name: **lua_decoders/bind_query_log.lua**
 
-
 .. include:: /../../sandbox/lua/decoders/bind_query_log.lua
    :start-after: --[[
    :end-before: --]]
