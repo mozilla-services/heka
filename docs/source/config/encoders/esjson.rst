@@ -64,6 +64,8 @@ Config:
     the JSON output. Defaults to including all of the messages dynamic
     fields. If ``dynamic_fields`` is non-empty, then the ``fields`` list *must*
     contain "DynamicFields" or an error will be raised.
+- replace_dots_with (string):
+    This specifies a string to use as a replacement in JSON output field names. 
 
 Example
 
@@ -73,6 +75,8 @@ Example
     index = "%{Type}-%{%Y.%m.%d}"
     es_index_from_timestamp = true
     type_name = "%{Type}"
+    replace_dots_with = "_"
+
         [ESJsonEncoder.field_mappings]
         Timestamp = "@timestamp"
         Severity = "level"

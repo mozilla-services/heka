@@ -60,6 +60,8 @@ Features
 
 * Added iowait percentage output field in filter procstat (#1888).
 
+* Added support for 'replace_dot_with' flag in ES encoders (#1947).
+
 0.10.1 (2016-??-??)
 ===================
 
