@@ -2,42 +2,65 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
---[[BIND query log decoder
+--[[
 
-BIND DNS query log decoder script.
+Parses DNS query logs from the BIND DNS server.
 
-Adapted from: https://github.com/mozilla-services/heka/wiki/How-to-convert-a-PayloadRegex-MultiDecoder-to-a-SandboxDecoder-using-an-LPeg-Grammar
+**Note**: You must have the `print-time`, `print-severity` and `print-category` options all set to **yes** in the logging configuration section of your `named.conf` file:
 
-Built with the help of: http://lpeg.trink.com/
+.. code-block:: bash
 
-Reference for LPEG functions and uses: http://www.inf.puc-rio.br/~roberto/lpeg/lpeg.html
-
-Sources for explanations on what the flags mean:
-
-https://deepthought.isc.org/article/AA-00434/0/What-do-EDC-and-other-letters-I-see-in-my-query-log-mean.html
-
-http://jpmens.net/2011/02/22/bind-querylog-know-your-flags/
-
-Set the print-category, print-severity and print-time options to 'yes' in your query logging channel options in /etc/named.conf.
+    channel query_log {
+      file "/var/log/named/named_query.log" versions 3 size 5m;
+      severity info;
+      print-time yes;
+      print-severity yes;
+      print-category yes;
+    };
 
 Config:
 
 - type (string, optional, default nil):
     Sets the message 'Type' header to the specified value
 
-Example usage:
+*Example Heka Configuration*
 
-[bind_query_logs]
-type = "LogstreamerInput"
-decoder = "bind_query_log_decoder"
-file_match = 'named_query.log'
-log_directory = "/var/log/named"
+.. code-block:: ini
 
-[bind_query_log_decoder]
-type = "SandboxDecoder"
-filename = "lua_decoders/bind_query_log_decoder.lua"
-  [bind_query_log_decoder.config]
-  type = "bind.query"
+    [BindQueryLogInput]
+    type = "LogstreamerInput"
+    decoder = "BindQueryLogDecoder"
+    file_match = 'named_query.log'
+    log_directory = "/var/log/named"
+
+    [BindQueryLogDecoder]
+    type = "SandboxDecoder"
+    filename = "lua_decoders/bind_query_log.lua"
+      [BindQueryLogDecoder.config]
+      type = "bind.query"
+
+*Example Heka Message*
+
+2016/04/25 17:31:37 
+:Timestamp: 2016-04-26 00:31:37 +0000 UTC
+:Type: bind_query
+:Hostname: ns1.company.com
+:Pid: 0
+:Uuid: 09a83ad2-89c0-4a7d-adfc-0e225e1c1ad6
+:Logger: bind_query_log_input
+:Payload: 27-May-2015 21:06:49.246 queries: info: client 10.0.1.70#41242 (webserver.company.com): query: webserver.company.com IN A +E (10.0.1.71)
+:EnvVersion: 
+:Severity: 7
+:Fields:
+    | name:"QueryFlags" type:string value:["recursion requested","EDNS used"]
+    | name:"ClientIP" type:string value:"10.0.1.70" representation:"ipv4"
+    | name:"ServerRespondingIP" type:string value:"10.0.1.71" representation:"ipv4"
+    | name:"RecordType" type:string value:"A"
+    | name:"QueryName" type:string value:"webserver"
+    | name:"RecordClass" type:string value:"IN"
+    | name:"Timestamp" type:double value:1.432760809e+18
+    | name:"QueryDomain" type:string value:"company.com"
+    | name:"FullQuery" type:string value:"webserver.company.com"
 
 --]]
 
@@ -48,197 +71,48 @@ local date_time = require 'date_time'
 local ip = require 'ip_address'
 local table = require 'table'
 local syslog   = require "syslog"
+local bind = require "bind"
+
 l.locale(l)
 
-local M = {}
-setfenv(1, M) -- Remove external access to contain everything in the module
-
 local formats  = read_config("formats")
---Read the "type" value from the config:
+--The config for the SandboxDecoder plugin should have the type set to 'bindquerylog'
 local msg_type = read_config("type")
 
---[[ Generic patterns --]]
---Patterns for strings in the log lines that don't change from query to query:
-local space = l.space
--- ':'
-local colon_literal = l.P":"
--- 'queries'
-local queries_literal = l.P"queries:"
--- '#'
-local pound_literal = l.P"#" 
--- 'info'
-local info_literal = l.P"info:"
--- 'client'
-local client_literal = l.P"client"
--- '('
-local open_paren_literal = l.P"("
--- ')'
-local close_paren_literal = l.P")"
--- 'query'
-local query_literal = l.P"query:"
--- 'IN' literal string; 
-local in_literal = l.P"IN"
--- '+' literal character; + indicates that recursion was requested.
-local plus_literal = l.P"+"
--- '-' literal character; - indicates that recursion was not requested.
-local minus_literal = l.P"-"
--- 'E' literal character; E indicates that extended DNS was used
--- Source: http://ftp.isc.org/isc/bind9/cur/9.9/doc/arm/Bv9ARM.ch06.html#id2575001
--- More about EDNS: https://en.wikipedia.org/wiki/Extension_mechanisms_for_DNS
-local e_literal = l.P"E"
--- 'S' literal character; s indicates that the query was signed
--- Source: http://ftp.isc.org/isc/bind9/cur/9.9/doc/arm/Bv9ARM.ch06.html#id2575001
-local s_literal = l.P"S"
---'D' literal character; D means the client wants any DNSSEC related data
--- Source: http://ftp.isc.org/isc/bind9/cur/9.9/doc/arm/Bv9ARM.ch06.html#id2575001
-local d_literal = l.P"D"
---'T' literal character; if TCP was used
--- Source: http://ftp.isc.org/isc/bind9/cur/9.9/doc/arm/Bv9ARM.ch06.html#id2575001
-local t_literal = l.P"T"
---'C' literal character; queryer wants an answer anyway even if DNSSEC validation checks fail
--- Source: http://ftp.isc.org/isc/bind9/cur/9.9/doc/arm/Bv9ARM.ch06.html#id2575001
-local c_literal = l.P"C"
-
-
---[[ More complicated patterns for things that do change from line to line: --]]
-
---The below pattern matches date/timestamps in the following format:
--- 27-May-2015 21:06:49.246
--- The milliseconds (the .246) are discarded by the `l.P"." * l.P(3)` at the end:
---Source: https://github.com/mozilla-services/lua_sandbox/blob/dev/modules/date_time.lua
-local timestamp = l.Cg(date_time.build_strftime_grammar("%d-%b-%Y %H:%M:%S") / date_time.time_to_ns, "Timestamp") * l.P"." * l.P(3)
-local x4            = l.xdigit * l.xdigit * l.xdigit * l.xdigit
-
---The below pattern matches IPv4 addresses from BIND query logs like the following:
--- 10.0.1.70#41242
--- The # and ephemeral port number are discarded by the `pound_literal * l.P(5)` at the end:
-local client_ip = l.Cg(l.Ct(l.Cg(ip.v4, "value") * l.Cg(l.Cc"ipv4", "representation")), "ClientIP") * pound_literal * l.P(5)
-
---The ends of query logs have the IP address the DNS server used to respond to the query with. The LPEG capture group is just like 
--- the client IP, but encased in ( ) and without the # literal at the front: (10.0.1.71)
-local server_responding_ip = l.P"(" * l.Cg(l.Ct(l.Cg(ip.v4, "value") * l.Cg(l.Cc"ipv4", "representation")), "ServerRespondingIP") * l.P")"
-
---[[DNS query record types:
-Create a capture group that will match the DNS record type.
-
-The + signs mean to select A or CNAME or MX or PTR and so on.
-
-The ', "record_type"' part sets the name of the capture's entry in the table of
-matches that gets built.
-
-Source: https://en.wikipedia.org/wiki/List_of_DNS_record_types
---]]
-dns_record_type = l.Cg(
-      l.C"A"
-    + l.C"AAAA"
-    + l.C"AFSDB"
-    + l.C"APL"
-    + l.C"AXFR"
-    + l.C"CAA"
-    + l.C"CDNSKEY"
-    + l.C"CDS"
-    + l.C"CERT"
-    + l.C"CNAME"
-    + l.C"DHCID"
-    + l.C"DLV"
-    + l.C"DNAME"
-    + l.C"DS"
-    + l.C"HIP"
-    + l.C"IPSECKEY"
-    + l.C"IXFR"
-    + l.C"KEY"
-    + l.C"KX"
-    + l.C"LOC"
-    + l.C"MX"
-    + l.C"NAPTR"
-    + l.C"NS"
-    + l.C"NSEC"
-    + l.C"NSEC3"
-    + l.C"NSEC3PARAM"
-    + l.C"OPT"
-    + l.C"PTR"
-    + l.C"RRSIG"
-    + l.C"RP"
-    + l.C"SIG"
-    + l.C"SOA"
-    + l.C"SRV"
-    + l.C"SSHFP"
-    + l.C"TA"
-    + l.C"TKEY"
-    + l.C"TLSA"
-    + l.C"TSIG"
-    + l.C"TXT"
-    + l.C"*"
-    , "RecordType")
-
---A capture group for the 3 kinds of DNS record classes.
--- Source: https://en.wikipedia.org/wiki/Domain_Name_System#DNS_resource_records
-dns_record_class = l.Cg(
-      --For internet records:
-      l.P"IN" /"IN"
-      --For CHAOS records:
-    + l.P"CH" /"CH"
-      --For Hesiod records:
-    + l.P"HS" /"HS"
-    , "RecordClass")
-
---[[Query flag patterns
-Sources on what the query flags mean: 
-
-* https://deepthought.isc.org/article/AA-00434/0/What-do-EDC-and-other-letters-I-see-in-my-query-log-mean.html
-* http://jpmens.net/2011/02/22/bind-querylog-know-your-flags/
-
-]]--
-
---Create a table to hold possible matches that may appear:
-local t = {
-      ["+"] = "recursion requested",
-      ["-"] = "recursion not requested",
-      E = "EDNS used",
-      S = "query signed",
-      D = "DNSSEC data wanted",
-      C = "no DNSSEC validation check",
-      T = "TCP used",
+local msg = {
+  --This value is read in from the 'msg_type' config option in the TOML:
+  Type        = msg_type,
+  Payload     = nil,
+  Severity    = 'info',
+  Fields      = {},
 }
 
---Create a capture group that uses the table above to match any one or more of '+-EDCST'
---that are present and add them to a new table called QueryFlags: 
-query_flags = l.Cg( l.Ct((l.S"+-EDCST" / t)^1), "QueryFlags" )
+--Load the query log grammar from the bind module:
+local grammar = l.Ct(bind.query_log_grammar)
 
---[[Hostname and domain name patterns
+function process_message ()
 
-Hostnames and domain names are broken up into fragments that are called 
-"labels", which are the parts between the dots.
+  --Create a local variable for the log line from the Payload of the incoming Heka message.
+  --The LogstreamerInput that generates the messages automatically puts the 
+  local query_log_line = read_message("Payload")
 
-Source: https://en.wikipedia.org/wiki/Hostname#Restrictions_on_valid_host_names
+  --Create a fields table and use the :match method on the grammar object to fill it with the Lua table
+  --of values generated by parsing the query_log_line:
+  fields = grammar:match(query_log_line)
 
-For instance, webserver.company.com has the labels "webserver", "company" and 
-"com"
+  --If fields is empty, exit immediately:
+  if not ok then return -1, "Failed to parse the BIND query log line." end
 
-The pattern below uses the upper, lower and digit shortcuts from the main LPEG 
-library and combines them with the hyphen (-) character to match anything that's
-part of a valid hostname label. The ^1 means match one or more instances of it.
---]]
-local hostname_fragment = (l.upper + l.lower + l.digit +  "-")^1
+  --Set the time in the message we're generating and set it to nil in the original log line:
+  msg.Timestamp = fields.time
+  fields.time = nil
 
---The pattern below matches one or more hostname_fragments, followed by a . 
---and followed by one more hostname_fragment, indicating the end of a complete
---hostname. The open and close parens and colon are to match the decorations
---BIND puts around the name: 
--- (webserver.company.com):
-local enclosed_query = "(" * l.Cg((hostname_fragment * ".")^1 * hostname_fragment, "FullQuery") * "):"
+  --Set the Fields part of the generated message to the fields Lua table that was generated by the grammar:match function:
+  msg.Fields = fields
+  --Include the original, unparsed log line as the Payload of the message:
+  msg.Payload = read_message("Payload")
+  inject_message(msg)
 
---The ^-1 means match at most 1 instance of the pattern. We want this so that we 
---can match the first part of a hostname and leave the rest for the l.Cg((hostname_fragment...
---capture group to match into the QueryDomain table entry.
---In webserver.company.com, `(hostname_fragment * ".")^-1` matches webserver.
---and `l.Cg((hostname_fragment...` matches company.com
-local query = l.Cg((hostname_fragment)^-1, "QueryName") * "." * l.Cg((hostname_fragment * ".")^1 * hostname_fragment, "QueryDomain")
+  return 0
 
---Use all of the previously defined patterns to build a grammar:
-local bind_query = timestamp * space * queries_literal * space * info_literal * space * client_literal * space * client_ip * space * enclosed_query * space * query_literal * space * query * space * dns_record_class * space * dns_record_type * space * query_flags * space * server_responding_ip
-
--- To use the above grammar on http://lpeg.trink.com/, paste in everything above this line and just the single line below (uncomment it too):
---grammar = l.Ct(bind_query)
-
-return M
+end
