@@ -161,6 +161,7 @@ git_clone(https://github.com/rafrombrc/gospec 2e46585948f47047b0c217d00fa24bbc4e
 git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3ed7ebb488)
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
 git_clone(https://github.com/cactus/gostrftime d329f83c5ce9c416f8983f0a0044734db54ee24d)
+git_clone(https://github.com/edsrzf/mmap-go 935e0e8a636ca4ba70b713f3e38a19e1b77739e8)
 
 git_clone(https://github.com/golang/snappy 723cc1e459b8eea2dea4583200fd60757d40097a)
 git_clone(https://github.com/eapache/go-resiliency v1.0.0)

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/edsrzf/mmap-go"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
@@ -74,6 +75,7 @@ type KafkaInput struct {
 	pConfig            *pipeline.PipelineConfig
 	ir                 pipeline.InputRunner
 	checkpointFile     *os.File
+	checkpoint         mmap.MMap
 	stopChan           chan bool
 	name               string
 	checkpointFilename string
@@ -109,13 +111,18 @@ func fileExists(path string) bool {
 
 func (k *KafkaInput) writeCheckpoint(offset int64) (err error) {
 	if k.checkpointFile == nil {
-		if k.checkpointFile, err = os.OpenFile(k.checkpointFilename,
-			os.O_WRONLY|os.O_SYNC|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+		if k.checkpointFile, err = os.Create(k.checkpointFilename); err != nil {
+			return
+		}
+
+		binary.Write(k.checkpointFile, binary.LittleEndian, int64(0))
+		if k.checkpoint, err = mmap.Map(k.checkpointFile, mmap.RDWR, 0); err != nil {
 			return
 		}
 	}
-	k.checkpointFile.Seek(0, 0)
-	err = binary.Write(k.checkpointFile, binary.LittleEndian, &offset)
+
+	binary.LittleEndian.PutUint64(k.checkpoint, uint64(offset))
+
 	return
 }
 
