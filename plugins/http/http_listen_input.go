@@ -152,6 +152,17 @@ func (hli *HttpListenInput) makePackDecorator(req *http.Request) func(*PipelineP
 		if field, err := hli.makeField("RemoteAddr", host); err == nil {
 			pack.Message.AddField(field)
 		}
+
+		if field, err := hli.makeField("Method", req.Method); err == nil {
+			pack.Message.AddField(field)
+		}
+
+		if req.Method == "GET" {
+			if field, err := hli.makeField("Query", req.URL.RawQuery); err == nil {
+				pack.Message.AddField(field)
+			}
+		}
+
 		for _, key := range hli.conf.RequestHeaders {
 			value := req.Header.Get(key)
 			if len(value) == 0 {

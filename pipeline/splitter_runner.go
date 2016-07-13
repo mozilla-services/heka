@@ -404,6 +404,8 @@ func (sr *sRunner) SplitStreamNullSplitterToEOF(r io.Reader, del Deliverer) erro
 			} else {
 				sr.DeliverRecord(record, del)
 			}
+		} else {
+			sr.DeliverRecord(record, del)
 		}
 	}
 	if err == io.EOF && nullSplitter && len(longRecord) > 0 {
