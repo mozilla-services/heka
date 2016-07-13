@@ -56,6 +56,26 @@ API
         an InfluxDB server after being looped through in an encoder
         implementing this API.
 
+**kairosdb_telnet_msg(config)**
+    Wrapper function that calls others within this module and the field_util
+    module to generate a table of KairosDB line protocol messages that are
+    derived from the base or dynamic fields in a Heka message. Base fields or
+    dynamic fields can be used in the metric name portion of the message and
+    included as tags if desired.  Configuration is implemented in the encoders
+    that utilize this module.
+
+    *Arguments*
+        - config (table or nil)
+            Table of config option overrides that come from the client
+            of this API.  Defaults for this module are defined within
+            the set_config function and clients implementing this API
+            can reference it for available options.
+
+    *Return*
+        A table of KairosDB telnet API messages ready to be sent to
+        an KairosDB server after being looped through in an encoder
+        implementing this API.
+
 **set_config(client_config)**
     This function takes a table of configuration options as input that can
     override the defaults that are set within it.  The table is then used to
@@ -98,6 +118,10 @@ local decimal_format_string
 
 local function influxdb_kv_fmt(string)
     return tostring(string):gsub("([ ,])", "\\%1")
+end
+
+local function kairosdb_kv_fmt(string)
+    return tostring(string):gsub("[^a-zA-Z0-9\.-_/]", "")
 end
 
 local function points_tags_tables(config)
@@ -256,6 +280,40 @@ function influxdb_line_msg(config)
         end
     end
 
+    return api_message
+end
+
+function kairosdb_telnet_msg(config)
+    local api_message = {}
+    local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
+    local put_method = "putm"
+    if config.timestamp_precision == "s" then
+        put_method = "put"
+    end
+    local points, tags = points_tags_tables(config)
+    for name, value in pairs(points) do
+        if type(value) == "string" then
+            value = string.format('"%s"', value:gsub('"', '\\"'))
+        end
+    
+        if type(value) == "number" or string.match(value, "^[%d.]+$") then
+            value = string.format(decimal_format_string, value)
+        end
+        
+        local insert_str
+        if tags and #tags > 0 then
+            -- put <metric name> <time stamp> <value> <tag> <tag>... \n
+            insert_str = string.format("%s %s %d %s %s", put_method, kairosdb_kv_fmt(name),
+                                       message_timestamp, value,
+                                       table.concat(tags, " "))
+            table.insert(api_message, insert_str)
+        else
+            insert_str = string.format("%s %s %d %s", put_method, kairosdb_kv_fmt(name),
+                                       message_timestamp, value)
+            table.insert(api_message, insert_str)
+        end
+    end
+    
     return api_message
 end
 
