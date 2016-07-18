@@ -6,6 +6,9 @@ Decoders
 .. include:: /config/decoders/apache_access.rst
   :start-line: 1
 
+.. include:: /config/decoders/bind_query_log.rst
+  :start-line: 1
+
 .. include:: /config/decoders/graylog_extended.rst
   :start-line: 1
 

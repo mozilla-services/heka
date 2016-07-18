@@ -9,6 +9,7 @@
 #
 # Contributor(s):
 #   Tanguy Leroux (tlrx.dev@gmail.com)
+#   John Stanford (john@solinea.com)
 #
 # ***** END LICENSE BLOCK *****/
 
@@ -74,6 +75,8 @@ func getTestMessageWithFunnyFields() *message.Message {
 	field12.AddValue("jkl;")
 	field12.AddValue("push")
 	field12.AddValue("pull")
+	field13 := message.NewFieldInit("test.dotted.field.name.string", message.Field_STRING, "")
+	field13.AddValue("{\"asdf\":123}")
 
 	msg := &message.Message{}
 	msg.SetType("TEST")
@@ -102,6 +105,7 @@ func getTestMessageWithFunnyFields() *message.Message {
 	msg.AddField(field10)
 	msg.AddField(field11)
 	msg.AddField(field12)
+	msg.AddField(field13)
 
 	return msg
 }
@@ -164,7 +168,9 @@ func ESEncodersSpec(c gs.Context) {
 			"test_raw_field_bytes",
 			"test_raw_field_string_array",
 			"test_raw_field_bytes_array",
+			"test.dotted.field.name.string",
 		}
+		config.ReplaceDotsWith = "_"
 
 		c.Specify("Should properly encode a message", func() {
 			err := encoder.Init(config)
@@ -237,6 +243,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_string_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["@fields"].(map[string]interface{})["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
+			c.Expect(decoded["@fields"].(map[string]interface{})["test_dotted_field_name_string"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 		})
 
 		c.Specify("encodes w/ a different timestamp format", func() {
@@ -292,7 +299,7 @@ func ESEncodersSpec(c gs.Context) {
 				c.Expect(len(decoded), gs.Equals, 10)
 				fieldsValInterface := decoded["@fields"]
 				fieldsVal := fieldsValInterface.(map[string]interface{})
-				c.Expect(len(fieldsVal), gs.Equals, 13)
+				c.Expect(len(fieldsVal), gs.Equals, 14)
 			})
 		})
 	})
@@ -305,7 +312,9 @@ func ESEncodersSpec(c gs.Context) {
 			"test_raw_field_bytes",
 			"test_raw_field_string_array",
 			"test_raw_field_bytes_array",
+			"test.dotted.field.name.string",
 		}
+		config.ReplaceDotsWith = "_"
 
 		c.Specify("Should properly encode a message", func() {
 			err := encoder.Init(config)
@@ -377,6 +386,7 @@ func ESEncodersSpec(c gs.Context) {
 			c.Expect(decoded["test_raw_field_string_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[0].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 			c.Expect(decoded["test_raw_field_bytes_array"].([]interface{})[1].(map[string]interface{})["jkl;"], gs.Equals, 123.0)
+			c.Expect(decoded["test_dotted_field_name_string"].(map[string]interface{})["asdf"], gs.Equals, 123.0)
 		})
 
 		c.Specify("Produces valid JSON when DynamicFields is first configured field and message has no fields", func() {
@@ -498,7 +508,7 @@ func ESEncodersSpec(c gs.Context) {
 				decoded := make(map[string]interface{})
 				err = json.Unmarshal([]byte(lines[1]), &decoded)
 				c.Assume(err, gs.IsNil)
-				c.Expect(len(decoded), gs.Equals, 22) // 9 base fields and 13 dynamic fields.
+				c.Expect(len(decoded), gs.Equals, 23) // 9 base fields and 14 dynamic fields.
 			})
 
 			c.Specify("when dynamic_fields is specified", func() {

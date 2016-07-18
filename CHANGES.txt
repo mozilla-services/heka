@@ -39,6 +39,8 @@ Features
 * Added `fields_from_labels`, `container_expiry_days`, and
   `new_containers_replay_logs` options to DockerLogInput.
 
+* Added BIND query log decoder.
+
 * Added `bind_queue` option to AMQPInput.
 
 * Added time interval configurability to Unique Items filter.
@@ -60,6 +62,8 @@ Features
 * Added DockerStatsInput plugin.
 
 * Added iowait percentage output field in filter procstat (#1888).
+
+* Added support for 'replace_dot_with' flag in ES encoders (#1947).
 
 0.10.1 (2016-??-??)
 ===================

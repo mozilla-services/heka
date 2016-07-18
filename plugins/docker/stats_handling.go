@@ -184,7 +184,6 @@ func (m *StatsManager) statsAttach(id string, client DockerClient) error {
 		})
 
 		// Once it has exited, close our pipes
-		close(statsrd)
 		close(done)
 		if err != nil {
 			failure <- err
@@ -325,7 +324,10 @@ func NewStatsPump(statsChan chan *docker.Stats, name string, fields map[string]s
 	// from the channel
 	pump := func(sourceChan chan *docker.Stats, fields map[string]string) {
 		for {
-			source := <-sourceChan
+			source, ok := <-sourceChan
+			if !ok{
+				return
+			}
 			json_ver, _ := json.Marshal(source)
 			// Send a DockerStat struct out
 			obj.send(&DockerStat{
