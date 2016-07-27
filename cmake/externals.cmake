@@ -162,7 +162,7 @@ git_clone(https://github.com/crankycoder/xmlpath 670b185b686fd11aa115291fb2f6dc3
 git_clone(https://github.com/thoj/go-ircevent 90dc7f966b95d133f1c65531c6959b52effd5e40)
 git_clone(https://github.com/cactus/gostrftime d329f83c5ce9c416f8983f0a0044734db54ee24d)
 
-git_clone(github.com/eapache/go-xerial-snappy bb955e01b9346ac19dc29eb16586c90ded99a98c)
+git_clone(https://github.com/eapache/go-xerial-snappy bb955e01b9346ac19dc29eb16586c90ded99a98c)
 git_clone(https://github.com/eapache/go-resiliency b86b1ec0dd4209a588dc1285cdd471e73525c0b3)
 git_clone(https://github.com/eapache/queue v1.0.2)
 git_clone(https://github.com/Shopify/sarama e8020bffa1cae3ddf8068cb03416fc53d1627f3d)
