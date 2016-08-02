@@ -123,48 +123,63 @@ The ', "record_type"' part sets the name of the capture's entry in the table of
 matches that gets built.
 
 Source: https://en.wikipedia.org/wiki/List_of_DNS_record_types
+
+A, AAAA, NS, NSEC, NSEC3 and NSEC3PARAMrecords are not listed in strictly alphabeitcal order
+because pattern listings in capture groups appears to be order-sensitive.
+
+Putting the pattern for "A" at the top would mean that "A" would match, but "AXFR",
+for instance, would not. The "A" in "AXFR" match, but LPEG would barf on the "XFR" part
+because the grammar for the whole log line expects a space after whatever it successfully
+matches into the `dns_record_type` variable, not "XFR".
+
+"AAAA" is at the bottom, but above "A" for the same reason: a match for "A" would only hit
+the first "A" inside of "AAAA", then the grammar would break because it's expecting a space
+after the match for `dns_record_type` instead of "AAA".
+
+The same issue would occur with NS, NSEC, NSEC3 and NSEC3PARAM if they were put into strict
+alphabetical order.
 --]]
 dns_record_type = l.Cg(
-      l.C"A"
-    + l.C"AAAA"
-    + l.C"AFSDB"
-    + l.C"APL"
-    + l.C"AXFR"
-    + l.C"CAA"
-    + l.C"CDNSKEY"
-    + l.C"CDS"
-    + l.C"CERT"
-    + l.C"CNAME"
-    + l.C"DHCID"
-    + l.C"DLV"
-    + l.C"DNAME"
-    + l.C"DS"
-    + l.C"HIP"
-    + l.C"IPSECKEY"
-    + l.C"IXFR"
-    + l.C"KEY"
-    + l.C"KX"
-    + l.C"LOC"
-    + l.C"MX"
-    + l.C"NAPTR"
-    + l.C"NS"
-    + l.C"NSEC"
-    + l.C"NSEC3"
-    + l.C"NSEC3PARAM"
-    + l.C"OPT"
-    + l.C"PTR"
-    + l.C"RRSIG"
-    + l.C"RP"
-    + l.C"SIG"
-    + l.C"SOA"
-    + l.C"SRV"
-    + l.C"SSHFP"
-    + l.C"TA"
-    + l.C"TKEY"
-    + l.C"TLSA"
-    + l.C"TSIG"
-    + l.C"TXT"
-    + l.C"*"
+      l.P"AFSDB" /"AFSDB"
+    + l.P"APL" /"APL"
+    + l.P"AXFR" /"AXFR"
+    + l.P"CAA" /"CAA"
+    + l.P"CDNSKEY" /"CDNSKEY"
+    + l.P"CDS" /"CDS"
+    + l.P"CERT" /"CERT"
+    + l.P"CNAME" /"CNAME"
+    + l.P"DHCID" /"DHCID"
+    + l.P"DLV" /"DLC"
+    + l.P"DNAME" /"DNAME"
+    + l.P"DS" /"DS"
+    + l.P"HIP" /"HIP"
+    + l.P"IPSECKEY" /"IPSECKEY"
+    + l.P"IXFR" /"IXFR"
+    + l.P"KEY" /"KEY"
+    + l.P"KX" /"KX"
+    + l.P"LOC" /"LOC"
+    + l.P"MX" /"MX"
+    + l.P"NAPTR" /"NAPTR"
+    + l.P"NSEC3PARAM" /"NSEC3PARAM"
+    + l.P"NSEC3" /"NSEC3"
+    + l.P"NSEC" /"NSEC"
+    + l.P"NS" /"NS"
+    + l.P"OPT" /"OPT"
+    + l.P"PTR" /"PTR"
+    + l.P"RRSIG" /"RRSIG"
+    + l.P"RP" /"RP"
+    + l.P"SIG" /"SIG"
+    + l.P"SOA" /"SOA"
+    + l.P"SRV" /"SRV"
+    + l.P"SSHFP" /"SSHFP"
+    + l.P"TA" /"TA"
+    + l.P"TKEY" /"TKEY"
+    + l.P"TLSA" /"TLSA"
+    + l.P"TSIG" /"TSIG"
+    + l.P"TXT" /"TXT"
+    + l.P"*" /"*"
+    + l.P"A"^4 /"AAAA"
+    + l.P"A"^-1 /"A"
     , "RecordType")
 
 --A capture group for the 3 kinds of DNS record classes.
