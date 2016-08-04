@@ -38,12 +38,9 @@ The things we want out of it are:
 --]]
 
 local l = require 'lpeg'
-local math = require 'math'
-local string = require 'string'
 local date_time = require 'date_time'
 local ip = require 'ip_address'
 local table = require 'table'
-local syslog   = require "syslog"
 l.locale(l)
 
 local M = {}
