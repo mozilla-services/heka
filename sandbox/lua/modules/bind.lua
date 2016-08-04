@@ -37,13 +37,11 @@ The things we want out of it are:
 
 --]]
 
-local l = require 'lpeg'
-local math = require 'math'
-local string = require 'string'
-local date_time = require 'date_time'
-local ip = require 'ip_address'
-local table = require 'table'
-local syslog   = require "syslog"
+local l = require "lpeg"
+local math = require "math"
+local string = require "string"
+local date_time = require "date_time"
+local ip = require "ip_address"
 l.locale(l)
 
 local M = {}
@@ -105,10 +103,12 @@ local c_literal = l.P"C"
 local timestamp = l.Cg(date_time.build_strftime_grammar("%d-%b-%Y %H:%M:%S") / date_time.time_to_ns, "Timestamp") * l.P"." * l.P(3)
 local x4            = l.xdigit * l.xdigit * l.xdigit * l.xdigit
 
---The below pattern matches IPv4 addresses from BIND query logs like the following:
+--The patterns below match IPv4 addresses from BIND query logs like the following:
 -- 10.0.1.70#41242
--- The # and ephemeral port number are discarded by the `pound_literal * l.P(5)` at the end:
-local client_ip = l.Cg(l.Ct(l.Cg(ip.v4, "value") * l.Cg(l.Cc"ipv4", "representation")), "ClientIP") * pound_literal * l.P(5)
+
+--Ephemeral ports can be up to 5 digits long (^-5 means match up to and including 5 instances of the pattern):
+local client_ephemeral_port = l.digit^-5
+local client_ip = l.Cg(l.Ct(l.Cg(ip.v4, "value") * l.Cg(l.Cc"ipv4", "representation")), "ClientIP") * pound_literal * l.Cg(client_ephemeral_port, "ClientEphemeralPort")
 
 --The ends of query logs have the IP address the DNS server used to respond to the query with. The LPEG capture group is just like 
 -- the client IP, but encased in ( ) and without the # literal at the front: (10.0.1.71)
@@ -123,48 +123,61 @@ The ', "record_type"' part sets the name of the capture's entry in the table of
 matches that gets built.
 
 Source: https://en.wikipedia.org/wiki/List_of_DNS_record_types
+
+
+The patterns for A and AAAA records are at the bottom because the whole listing of 
+possible record types inside of the l.Cg() group is order-sensitive. 
+
+Putting the pattern for "A" at the top would mean that "A" would match, but "AXFR",
+for instance, would not. The "A" in "AXFR" match, but LPEG would barf on the "XFR",
+because the grammar for the whole log line expects a space after whatever it successfully
+matches into the `dns_record_type` variable.
+
+"AAAA" is at the bottom, but above "A" for the same reason: a match for "A" would only hit
+the first "A" inside of "AAAA", then the grammar would break because it's expecting a space
+after the match for `dns_record_type` instead of "XFR"
 --]]
 dns_record_type = l.Cg(
-      l.C"A"
-    + l.C"AAAA"
-    + l.C"AFSDB"
-    + l.C"APL"
-    + l.C"AXFR"
-    + l.C"CAA"
-    + l.C"CDNSKEY"
-    + l.C"CDS"
-    + l.C"CERT"
-    + l.C"CNAME"
-    + l.C"DHCID"
-    + l.C"DLV"
-    + l.C"DNAME"
-    + l.C"DS"
-    + l.C"HIP"
-    + l.C"IPSECKEY"
-    + l.C"IXFR"
-    + l.C"KEY"
-    + l.C"KX"
-    + l.C"LOC"
-    + l.C"MX"
-    + l.C"NAPTR"
-    + l.C"NS"
-    + l.C"NSEC"
-    + l.C"NSEC3"
-    + l.C"NSEC3PARAM"
-    + l.C"OPT"
-    + l.C"PTR"
-    + l.C"RRSIG"
-    + l.C"RP"
-    + l.C"SIG"
-    + l.C"SOA"
-    + l.C"SRV"
-    + l.C"SSHFP"
-    + l.C"TA"
-    + l.C"TKEY"
-    + l.C"TLSA"
-    + l.C"TSIG"
-    + l.C"TXT"
-    + l.C"*"
+      l.P"AFSDB" /"AFSDB"
+    + l.P"APL" /"APL"
+    + l.P"AXFR" /"AXFR"
+    + l.P"CAA" /"CAA"
+    + l.P"CDNSKEY" /"CDNSKEY"
+    + l.P"CDS" /"CDS"
+    + l.P"CERT" /"CERT"
+    + l.P"CNAME" /"CNAME"
+    + l.P"DHCID" /"DHCID"
+    + l.P"DLV" /"DLC"
+    + l.P"DNAME" /"DNAME"
+    + l.P"DS" /"DS"
+    + l.P"HIP" /"HIP"
+    + l.P"IPSECKEY" /"IPSECKEY"
+    + l.P"IXFR" /"IXFR"
+    + l.P"KEY" /"KEY"
+    + l.P"KX" /"KX"
+    + l.P"LOC" /"LOC"
+    + l.P"MX" /"MX"
+    + l.P"NAPTR" /"NAPTR"
+    + l.P"NSEC3PARAM" /"NSEC3PARAM"
+    + l.P"NSEC3" /"NSEC3"
+    + l.P"NSEC" /"NSEC"
+    + l.P"NS" /"NS"
+    + l.P"OPT" /"OPT"
+    + l.P"PTR" /"PTR"
+    + l.P"RRSIG" /"RRSIG"
+    + l.P"RP" /"RP"
+    + l.P"SIG" /"SIG"
+    + l.P"SOA" /"SOA"
+    + l.P"SRV" /"SRV"
+    + l.P"SSHFP" /"SSHFP"
+    + l.P"TA" /"TA"
+    + l.P"TKEY" /"TKEY"
+    + l.P"TLSA" /"TLSA"
+    + l.P"TSIG" /"TSIG"
+    + l.P"TXT" /"TXT"
+    + l.P"*" /"*"
+    + l.P"A"^4 /"AAAA"
+    + l.P"A"^-1 /"A"
     , "RecordType")
 
 --A capture group for the 3 kinds of DNS record classes.
@@ -215,7 +228,7 @@ The pattern below uses the upper, lower and digit shortcuts from the main LPEG
 library and combines them with the hyphen (-) character to match anything that's
 part of a valid hostname label. The ^1 means match one or more instances of it.
 --]]
-local hostname_fragment = (l.upper + l.lower + l.digit +  "-")^1
+local hostname_fragment = (l.upper + l.lower + l.digit +  "-" + "_")^1
 
 --The pattern below matches one or more hostname_fragments, followed by a . 
 --and followed by one more hostname_fragment, indicating the end of a complete
@@ -229,7 +242,13 @@ local enclosed_query = "(" * l.Cg((hostname_fragment * ".")^1 * hostname_fragmen
 --capture group to match into the QueryDomain table entry.
 --In webserver.company.com, `(hostname_fragment * ".")^-1` matches webserver.
 --and `l.Cg((hostname_fragment...` matches company.com
-local query = l.Cg((hostname_fragment)^-1, "QueryName") * "." * l.Cg((hostname_fragment * ".")^1 * hostname_fragment, "QueryDomain")
+--Match 0 or more (what the ^0 does) hostname_fragments and trailing '.' characters after a first hostname fragment.
+--We're matching 0 or more because this will include queries for 2-fragment queries, like 'google.com'
+--If we did ^1 instead of ^0, server.google.com would successfully get parsted but goole.com wouldn't since 'google' would get captured
+--as the QueryName and there'd be no '.' left for the QueryDomain capture group to capture if it *had* to capture 1 or more because of a ^1.
+--Also match 0 or more hostname_fragments and trailing "." characters for the QueryDomain since some DNS queries may not have a domain, like a query for 'github'
+--instead of github.com:
+local query = l.Cg((hostname_fragment)^0, "QueryName") * l.P"."^0 * l.Cg((hostname_fragment * ".")^0 * hostname_fragment, "QueryDomain")^0
 
 --Use all of the previously defined patterns to build a grammar:
 query_log_grammar = timestamp * space * queries_literal * space * info_literal * space * client_literal * space * client_ip * space * enclosed_query * space * query_literal * space * query * space * dns_record_class * space * dns_record_type * space * query_flags * space * server_responding_ip
