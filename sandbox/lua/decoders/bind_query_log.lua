@@ -101,7 +101,7 @@ function process_message ()
   fields = grammar:match(query_log_line)
 
   --If fields is empty, exit immediately:
-  if not ok then return -1, "Failed to parse the BIND query log line." end
+  if not fields then return -1, "Failed to parse the BIND query log line." end
 
   --Set the time in the message we're generating and set it to nil in the original log line:
   msg.Timestamp = fields.time
