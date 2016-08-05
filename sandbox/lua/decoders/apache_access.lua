@@ -50,13 +50,16 @@ Config:
     type = "combined"
     user_agent_transform = true
     # combined log format
-    log_format = '%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
+    log_format = '%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"'
+
+    # combined I/O log format
+    log_format = '%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\" %I %O'
 
     # common log format
-    # log_format = '%h %l %u %t \"%r\" %>s %O'
+    # log_format = '%h %l %u %t \"%r\" %>s %b'
 
     # vhost_combined log format
-    # log_format = '%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"'
+    # log_format = '%v:%p %h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"'
 
     # referer log format
     # log_format = '%{Referer}i -> %U'
