@@ -289,6 +289,23 @@ func ScanDirectoryForLogfiles(directoryPath string, fileMatch *regexp.Regexp) Lo
 	return files
 }
 
+// Globs through log_directory filtering out files that match the fileMatch regexp
+func GlobForLogfiles(directoryPath string, fileMatch *regexp.Regexp, globPattern string) Logfiles {
+	files := make(Logfiles, 0)
+	glob, _ := filepath.Glob(globPattern)
+
+	for _, path := range glob {
+		fi, err := os.Stat(path)
+		if err != nil || fi.Mode().IsDir() {
+			return nil
+		}
+		if fileMatch.MatchString(path) {
+			files = append(files, &Logfile{FileName: path})
+		}
+	}
+	return files
+}
+
 // A single logstream
 // Implements io.Reader interface for reading from the logstream
 type Logstream struct {
@@ -446,12 +463,18 @@ func (ls *LogstreamSet) ScanForLogstreams() (result []string, errors *MultipleEr
 	var (
 		logstream *Logstream
 		ok        bool
+		logfiles  Logfiles
 	)
 	result = make([]string, 0, 0)
 	errors = NewMultipleError()
 
-	// Scan for all our logfiles
-	logfiles := ScanDirectoryForLogfiles(ls.logRoot, ls.fileMatch)
+	if ls.sortPattern.GlobPattern != "" {
+		// Scan for all our logfiles using filepath.Glob()
+		logfiles = GlobForLogfiles(ls.logRoot, ls.fileMatch, ls.sortPattern.GlobPattern)
+	} else {
+		// Scan for all our logfiles using filepath.Walk()
+		logfiles = ScanDirectoryForLogfiles(ls.logRoot, ls.fileMatch)
+	}
 
 	// Filter out old logfiles
 	if ls.oldestDuration != time.Duration(0) {
@@ -583,6 +606,9 @@ type SortPattern struct {
 	// These names will be translated from short/long month/day names to the appropriate
 	// integer value.
 	FileMatch string
+	// Glob pattern to be used as an alternative method for scanning log_directory path for
+	// file_match.
+	GlobPattern string
 	// Translation is used for custom ordering lookups where a custom value needs to be
 	// translated to a value for sorting. ie. a different tool using weekdays with values
 	// causing the wrong day of the week to be parsed first
