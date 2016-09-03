@@ -48,7 +48,7 @@ Config:
     to achieve the same result.
 - glob_pattern (string, optional):
     By default, the method for scanning the filesystem uses the filepath.Walk()
-    method. That will travers every directory/file down "log_dir" and check
+    method. That will traverse every directory/file down "log_dir" and check
     to see if it matches "file_match". This can be slower depending on the
     complexity of the filesystem. "glob_pattern" provides an optional
     alternative method for scanning the filesystem by quickly ruling out
