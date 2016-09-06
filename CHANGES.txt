@@ -36,6 +36,9 @@ Bug Handling
 Features
 --------
 
+* Added `fields_from_labels`, `container_expiry_days`, and
+  `new_containers_replay_logs` options to DockerLogInput.
+
 * Added BIND query log decoder.
 
 * Added `bind_queue` option to AMQPInput.
@@ -1315,7 +1318,7 @@ Features
   HTTP GET of URL, Fields[Status] with HTTP Status, Fields[Protocol] with HTTP
   protocol and version, Fields[StatusCode] with HTTP Response Status Code for
   successful HTTP GETs. The Circular Buffer Graph Annotation (Alerts)
-  (http://hekad.readthedocs.org/en/latest/sandbox/graph_annotation.html) plugin
+  (https://hekad.readthedocs.io/en/latest/sandbox/graph_annotation.html) plugin
   is compatible with the HttpInput plugin.
 
 * HttpInput: Added success_severity and error_severity options for GET actions.

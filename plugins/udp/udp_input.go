@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/mozilla-services/heka/message"
 	. "github.com/mozilla-services/heka/pipeline"
 )
 

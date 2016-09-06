@@ -24,8 +24,8 @@ interact with the Heka environment.
 
 For more information about Heka please see the following resources:
 
-	* Heka project documentation: http://heka-docs.readthedocs.org/
-	* `hekad` daemon documenation: http://hekad.readthedocs.org/
+	* Heka project documentation: https://heka-docs.readthedocs.io/
+	* `hekad` daemon documenation: https://hekad.readthedocs.io/
 	* `hekad` github project: https://github.com/mozilla-services/heka
 
 */

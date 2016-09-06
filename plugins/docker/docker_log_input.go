@@ -17,9 +17,7 @@
 package docker
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -28,13 +26,15 @@ import (
 
 type DockerLogInputConfig struct {
 	// A Docker endpoint.
-	Endpoint         string   `toml:"endpoint"`
-	CertPath         string   `toml:"cert_path"`
-	SincePath        string   `toml:"since_path"`
-	SinceInterval    string   `toml:"since_interval"`
-	NameFromEnv      string   `toml:"name_from_env_var"`
-	FieldsFromEnv    []string `toml:"fields_from_env"`
-	FieldsFromLabels []string `toml:"fields_from_labels"`
+	Endpoint                string   `toml:"endpoint"`
+	CertPath                string   `toml:"cert_path"`
+	SincePath               string   `toml:"since_path"`
+	SinceInterval           string   `toml:"since_interval"`
+	NameFromEnv             string   `toml:"name_from_env_var"`
+	FieldsFromEnv           []string `toml:"fields_from_env"`
+	FieldsFromLabels        []string `toml:"fields_from_labels"`
+	ContainerExpiryDays     int      `toml:"container_expiry_days"`
+	NewContainersReplayLogs bool     `toml:"new_containers_replay_logs"`
 }
 
 type DockerLogInput struct {
@@ -50,16 +50,19 @@ func (di *DockerLogInput) SetPipelineConfig(pConfig *pipeline.PipelineConfig) {
 
 func (di *DockerLogInput) ConfigStruct() interface{} {
 	return &DockerLogInputConfig{
-		Endpoint:      "unix:///var/run/docker.sock",
-		CertPath:      "",
-		SincePath:     filepath.Join("docker", "logs_since.txt"),
-		SinceInterval: "5s",
+		Endpoint:                "unix:///var/run/docker.sock",
+		CertPath:                "",
+		SincePath:               filepath.Join("docker", "logs_since.txt"),
+		SinceInterval:           "5s",
+		ContainerExpiryDays:     30,
+		NewContainersReplayLogs: true,
 	}
 }
 
 func (di *DockerLogInput) Init(config interface{}) error {
 	conf := config.(*DockerLogInputConfig)
 	globals := di.pConfig.Globals
+	sincePath := globals.PrependBaseDir(conf.SincePath)
 
 	// Make sure since interval is valid.
 	sinceInterval, err := time.ParseDuration(conf.SinceInterval)
@@ -68,32 +71,10 @@ func (di *DockerLogInput) Init(config interface{}) error {
 			err.Error())
 	}
 
-	// Make sure the since file exists.
-	sincePath := globals.PrependBaseDir(conf.SincePath)
-	_, err = os.Stat(sincePath)
-	if os.IsNotExist(err) {
-		sinceDir := filepath.Dir(sincePath)
-		if err = os.MkdirAll(sinceDir, 0700); err != nil {
-			return fmt.Errorf("Can't create storage directory '%s': %s", sinceDir,
-				err.Error())
-		}
-
-		sinceFile, err := os.Create(sincePath)
-		if err != nil {
-			return fmt.Errorf("Can't create \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-		jsonEncoder := json.NewEncoder(sinceFile)
-		if err = jsonEncoder.Encode(&sinces{Containers: make(map[string]int64)}); err != nil {
-			return fmt.Errorf("Can't write to \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-		if err = sinceFile.Close(); err != nil {
-			return fmt.Errorf("Can't close \"since\" file '%s': %s", sincePath,
-				err.Error())
-		}
-	} else if err != nil {
-		return fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
+	// Make sure we have a sinces File.
+	err = EnsureSincesFile(conf, sincePath)
+	if err != nil {
+		return err
 	}
 
 	di.stopChan = make(chan error)
@@ -107,6 +88,8 @@ func (di *DockerLogInput) Init(config interface{}) error {
 		conf.FieldsFromLabels,
 		sincePath,
 		sinceInterval,
+		conf.ContainerExpiryDays,
+		conf.NewContainersReplayLogs,
 	)
 	if err != nil {
 		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
