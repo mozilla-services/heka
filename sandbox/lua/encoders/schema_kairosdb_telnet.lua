@@ -132,6 +132,7 @@ Config:
 local ts_line_protocol = require "ts_line_protocol"
 
 local decoder_config = {
+    kairosdb_format = true
     decimal_precision = read_config("decimal_precision") or "6",
     name_prefix = read_config("name_prefix") or nil,
     name_prefix_delimiter = read_config("name_prefix_delimiter") or nil,

@@ -125,6 +125,11 @@ local function kairosdb_kv_fmt(string)
 end
 
 local function points_tags_tables(config)
+    local kv_fmt = "influxdb"
+    if config.kairosdb_format then
+        kv_fmt = "kairosdb"
+    end
+    local kv_fmt_func_str = kv_fmt .. "_kv_fmt"
     local name_prefix = config.name_prefix or ""
     if config.interp_name_prefix then
         name_prefix = interp.interpolate_from_msg(name_prefix)
@@ -144,8 +149,8 @@ local function points_tags_tables(config)
                 if config.tag_fields_all or config.tag_fields_all_base
                 or used_tag_fields[field] then
                     local value = read_message(field)
-                    local insert_str = string.format("%s=%s", influxdb_kv_fmt(field),
-                                                     tostring(influxdb_kv_fmt(value)))
+                    local insert_str = string.format("%s=%s", _G[kv_fmt_func_str](field),
+                                                     tostring(_G[kv_fmt_func_str](value)))
                     table.insert(tags, insert_str)
                 end
             end
@@ -196,8 +201,8 @@ local function points_tags_tables(config)
                 if not config.carbon_format and config.tag_fields_all
                 or (config.used_tag_fields and used_tag_fields[field]) then
                     local insert_str = string.format("%s=%s",
-                                                     influxdb_kv_fmt(field_out_name),
-                                                     tostring(influxdb_kv_fmt(value)))
+                                                     _G[kv_fmt_func_str](field_out_name),
+                                                     tostring(_G[kv_fmt_func_str](value)))
                     table.insert(tags, insert_str)
                 end
 
