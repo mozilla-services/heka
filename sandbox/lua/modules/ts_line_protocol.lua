@@ -124,12 +124,9 @@ local function kairosdb_kv_fmt(string)
     return tostring(string):gsub("[^a-zA-Z0-9\.-_/]", "")
 end
 
-local function points_tags_tables(config)
+local function points_tags_tables(config, ...)
+    local kv_fmt={...}
     local kv_fmt = "influxdb"
-    if config.kairosdb_format then
-        kv_fmt = "kairosdb"
-    end
-    local kv_fmt_func_str = kv_fmt .. "_kv_fmt"
     local name_prefix = config.name_prefix or ""
     if config.interp_name_prefix then
         name_prefix = interp.interpolate_from_msg(name_prefix)
@@ -149,8 +146,14 @@ local function points_tags_tables(config)
                 if config.tag_fields_all or config.tag_fields_all_base
                 or used_tag_fields[field] then
                     local value = read_message(field)
-                    local insert_str = string.format("%s=%s", _G[kv_fmt_func_str](field),
-                                                     tostring(_G[kv_fmt_func_str](value)))
+                    local insert_str = ""
+                    if kv_fmt == "kairosdb" then
+			insert_str = string.format("%s=%s", kairosdb_kv_fmt(field),
+                                                     tostring(kairosdb_kv_fmt(value)))
+                    else
+                        insert_str = string.format("%s=%s", influxdb_kv_fmt(field),
+                                                     tostring(influxdb_kv_fmt(value)))
+                    end
                     table.insert(tags, insert_str)
                 end
             end
@@ -200,9 +203,14 @@ local function points_tags_tables(config)
                 -- Convert value to a string as this is required by the API
                 if not config.carbon_format and config.tag_fields_all
                 or (config.used_tag_fields and used_tag_fields[field]) then
-                    local insert_str = string.format("%s=%s",
-                                                     _G[kv_fmt_func_str](field_out_name),
-                                                     tostring(_G[kv_fmt_func_str](value)))
+                    local insert_str = ""
+                    if kv_fmt == "kairosdb" then
+                        insert_str = string.format("%s=%s", kairosdb_kv_fmt(field_out_name),
+                                                     tostring(kairosdb_kv_fmt(value)))
+                    else
+                        insert_str = string.format("%s=%s", influxdb_kv_fmt(field_out_name),
+                                                     tostring(influxdb_kv_fmt(value)))
+                    end
                     table.insert(tags, insert_str)
                 end
 
@@ -295,7 +303,7 @@ function kairosdb_telnet_msg(config)
     if config.timestamp_precision == "s" then
         put_method = "put"
     end
-    local points, tags = points_tags_tables(config)
+    local points, tags = points_tags_tables(config, "kairosdb")
     for name, value in pairs(points) do
         if type(value) == "string" then
             value = string.format('"%s"', value:gsub('"', '\\"'))
