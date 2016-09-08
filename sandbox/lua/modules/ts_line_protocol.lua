@@ -121,7 +121,7 @@ local function influxdb_kv_fmt(string)
 end
 
 local function kairosdb_kv_fmt(string)
-    return tostring(string):gsub("[^a-zA-Z0-9\.-_/]", "")
+    return tostring(string):gsub("[:=]", "."):gsub("[^a-zA-Z0-9%.-_/]", "")
 end
 
 local function points_tags_tables(config, ...)
