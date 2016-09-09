@@ -125,8 +125,11 @@ local function kairosdb_kv_fmt(string)
 end
 
 local function points_tags_tables(config, ...)
-    local kv_fmt={...}
+    local arg={...}
     local kv_fmt = "influxdb"
+    if #arg > 0 then
+        kv_fmt = arg[1]
+    end
     local name_prefix = config.name_prefix or ""
     if config.interp_name_prefix then
         name_prefix = interp.interpolate_from_msg(name_prefix)
