@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/bsm/sarama-cluster"
 	"github.com/mozilla-services/heka/message"
 	"github.com/mozilla-services/heka/pipeline"
 	"github.com/mozilla-services/heka/plugins/tcp"
@@ -55,6 +56,7 @@ type KafkaInputConfig struct {
 	Topic            string
 	Partition        int32
 	Group            string
+	ClusterMode      bool   `toml:"cluster_mode"`
 	DefaultFetchSize int32  `toml:"default_fetch_size"`
 	MinFetchSize     int32  `toml:"min_fetch_size"`
 	MaxMessageSize   int32  `toml:"max_message_size"`
@@ -71,6 +73,7 @@ type KafkaInput struct {
 	saramaConfig       *sarama.Config
 	consumer           sarama.Consumer
 	partitionConsumer  sarama.PartitionConsumer
+	clusterConsumer    *cluster.Consumer
 	pConfig            *pipeline.PipelineConfig
 	ir                 pipeline.InputRunner
 	checkpointFile     *os.File
@@ -137,6 +140,58 @@ func (k *KafkaInput) SetName(name string) {
 	k.name = name
 }
 
+func (k *KafkaInput) InitClusterMode() (err error) {
+	config := cluster.NewConfig()
+	if err = k.InitSaramaConfig(&config.Config); err != nil {
+		return err
+	}
+
+	config.Consumer.Return.Errors = true
+	config.Group.Return.Notifications = true
+
+	switch k.config.OffsetMethod {
+	case "Oldest":
+		config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	case "Newest":
+		config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	default:
+		return fmt.Errorf("offset_method should be `Oldest` or `Newest`, but got: %s", k.config.OffsetMethod)
+	}
+
+	k.clusterConsumer, err = cluster.NewConsumer(k.config.Addrs,
+		k.config.Group, []string{k.config.Topic}, config)
+
+	return err
+}
+
+func (k *KafkaInput) InitSaramaConfig(config *sarama.Config) (err error) {
+	config.ClientID = k.config.Id
+	config.ChannelBufferSize = k.config.EventBufferSize
+
+	config.Metadata.Retry.Max = k.config.MetadataRetries
+	config.Metadata.Retry.Backoff = time.Duration(k.config.WaitForElection) * time.Millisecond
+	config.Metadata.RefreshFrequency = time.Duration(k.config.BackgroundRefreshFrequency) * time.Millisecond
+
+	config.Net.TLS.Enable = k.config.UseTls
+	if k.config.UseTls {
+		if config.Net.TLS.Config, err = tcp.CreateGoTlsConfig(&k.config.Tls); err != nil {
+			return fmt.Errorf("TLS init error: %s", err)
+		}
+	}
+
+	config.Net.MaxOpenRequests = k.config.MaxOpenRequests
+	config.Net.DialTimeout = time.Duration(k.config.DialTimeout) * time.Millisecond
+	config.Net.ReadTimeout = time.Duration(k.config.ReadTimeout) * time.Millisecond
+	config.Net.WriteTimeout = time.Duration(k.config.WriteTimeout) * time.Millisecond
+
+	config.Consumer.Fetch.Default = k.config.DefaultFetchSize
+	config.Consumer.Fetch.Min = k.config.MinFetchSize
+	config.Consumer.Fetch.Max = k.config.MaxMessageSize
+	config.Consumer.MaxWaitTime = time.Duration(k.config.MaxWaitTime) * time.Millisecond
+
+	return
+}
+
 func (k *KafkaInput) Init(config interface{}) (err error) {
 	k.config = config.(*KafkaInputConfig)
 	if len(k.config.Addrs) == 0 {
@@ -146,28 +201,15 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 		k.config.Group = k.config.Id
 	}
 
-	k.saramaConfig = sarama.NewConfig()
-	k.saramaConfig.ClientID = k.config.Id
-	k.saramaConfig.Metadata.Retry.Max = k.config.MetadataRetries
-	k.saramaConfig.Metadata.Retry.Backoff = time.Duration(k.config.WaitForElection) * time.Millisecond
-	k.saramaConfig.Metadata.RefreshFrequency = time.Duration(k.config.BackgroundRefreshFrequency) * time.Millisecond
-
-	k.saramaConfig.Net.TLS.Enable = k.config.UseTls
-	if k.config.UseTls {
-		if k.saramaConfig.Net.TLS.Config, err = tcp.CreateGoTlsConfig(&k.config.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err)
-		}
+	if k.config.ClusterMode {
+		return k.InitClusterMode()
 	}
 
-	k.saramaConfig.Net.MaxOpenRequests = k.config.MaxOpenRequests
-	k.saramaConfig.Net.DialTimeout = time.Duration(k.config.DialTimeout) * time.Millisecond
-	k.saramaConfig.Net.ReadTimeout = time.Duration(k.config.ReadTimeout) * time.Millisecond
-	k.saramaConfig.Net.WriteTimeout = time.Duration(k.config.WriteTimeout) * time.Millisecond
+	k.saramaConfig = sarama.NewConfig()
+	if err = k.InitSaramaConfig(k.saramaConfig); err != nil {
+		return err
+	}
 
-	k.saramaConfig.Consumer.Fetch.Default = k.config.DefaultFetchSize
-	k.saramaConfig.Consumer.Fetch.Min = k.config.MinFetchSize
-	k.saramaConfig.Consumer.Fetch.Max = k.config.MaxMessageSize
-	k.saramaConfig.Consumer.MaxWaitTime = time.Duration(k.config.MaxWaitTime) * time.Millisecond
 	k.checkpointFilename = k.pConfig.Globals.PrependBaseDir(filepath.Join("kafka",
 		fmt.Sprintf("%s.%s.%d.offset.bin", k.name, k.config.Topic, k.config.Partition)))
 
@@ -202,8 +244,6 @@ func (k *KafkaInput) Init(config interface{}) (err error) {
 		return fmt.Errorf("invalid offset_method: %s", k.config.OffsetMethod)
 	}
 
-	k.saramaConfig.ChannelBufferSize = k.config.EventBufferSize
-
 	k.consumer, err = sarama.NewConsumer(k.config.Addrs, k.saramaConfig)
 	if err != nil {
 		return err
@@ -222,8 +262,103 @@ func (k *KafkaInput) addField(pack *pipeline.PipelinePack, name string,
 	}
 }
 
+func (k *KafkaInput) RunClusterMode(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
+	var (
+		consumer = k.clusterConsumer
+
+		eventChan  = consumer.Messages()
+		cErrChan   = consumer.Errors()
+		notifyChan = consumer.Notifications()
+
+		event  *sarama.ConsumerMessage
+		notify *cluster.Notification
+
+		sRunner = k.getSplitterRunner(ir, &event)
+
+		ok bool
+		n  int
+	)
+
+	defer func() {
+		sRunner.Done()
+		if err = consumer.Close(); err != nil {
+			ir.LogError(fmt.Errorf("Failed to close consumer: %v", err))
+		}
+	}()
+
+	for {
+		select {
+		case event, ok = <-eventChan:
+			if !ok {
+				return nil
+			}
+			consumer.MarkOffset(event, "")
+			atomic.AddInt64(&k.processMessageCount, 1)
+			if n, err = sRunner.SplitBytes(event.Value, nil); err != nil {
+				ir.LogError(fmt.Errorf("processing message from topic %s, partition %d, %s",
+					event.Topic, event.Partition, err))
+			}
+			if n > 0 && n != len(event.Value) {
+				ir.LogError(fmt.Errorf("extra data dropped in message from topic %s",
+					event.Topic))
+			}
+		case err = <-cErrChan:
+			atomic.AddInt64(&k.processMessageFailures, 1)
+			ir.LogError(err)
+		case notify = <-notifyChan:
+			ir.LogMessage(fmt.Sprintf("Kafka consumer rebalanced: %+v", notify))
+		case <-k.stopChan:
+			return nil
+		}
+	}
+
+	return
+}
+
+func (k *KafkaInput) getSplitterRunner(ir pipeline.InputRunner,
+	eventAddr **sarama.ConsumerMessage) (sRunner pipeline.SplitterRunner) {
+
+	sRunner = ir.NewSplitterRunner("")
+	if sRunner.UseMsgBytes() {
+		return
+	}
+
+	hn := k.pConfig.Hostname()
+	packDec := func(pack *pipeline.PipelinePack) {
+		event := *eventAddr
+		pack.Message.SetType("heka.kafka")
+		pack.Message.SetLogger(k.name)
+		pack.Message.SetHostname(hn)
+		k.addField(pack, "Key", event.Key, "")
+		k.addField(pack, "Topic", event.Topic, "")
+		k.addField(pack, "Partition", event.Partition, "")
+		k.addField(pack, "Offset", event.Offset, "")
+	}
+
+	sRunner.SetPackDecorator(packDec)
+	return
+}
+
 func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err error) {
-	sRunner := ir.NewSplitterRunner("")
+	k.ir = ir
+	k.stopChan = make(chan bool)
+
+	if k.config.ClusterMode {
+		return k.RunClusterMode(ir, h)
+	}
+
+	var (
+		eventChan = k.partitionConsumer.Messages()
+		cErrChan  = k.partitionConsumer.Errors()
+
+		event  *sarama.ConsumerMessage
+		cError *sarama.ConsumerError
+
+		sRunner = k.getSplitterRunner(ir, &event)
+
+		ok bool
+		n  int
+	)
 
 	defer func() {
 		k.partitionConsumer.Close()
@@ -233,32 +368,7 @@ func (k *KafkaInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper) (err 
 		}
 		sRunner.Done()
 	}()
-	k.ir = ir
-	k.stopChan = make(chan bool)
 
-	var (
-		hostname = k.pConfig.Hostname()
-		event    *sarama.ConsumerMessage
-		cError   *sarama.ConsumerError
-		ok       bool
-		n        int
-	)
-
-	packDec := func(pack *pipeline.PipelinePack) {
-		pack.Message.SetType("heka.kafka")
-		pack.Message.SetLogger(k.name)
-		pack.Message.SetHostname(hostname)
-		k.addField(pack, "Key", event.Key, "")
-		k.addField(pack, "Topic", event.Topic, "")
-		k.addField(pack, "Partition", event.Partition, "")
-		k.addField(pack, "Offset", event.Offset, "")
-	}
-	if !sRunner.UseMsgBytes() {
-		sRunner.SetPackDecorator(packDec)
-	}
-
-	eventChan := k.partitionConsumer.Messages()
-	cErrChan := k.partitionConsumer.Errors()
 	for {
 		select {
 		case event, ok = <-eventChan:
