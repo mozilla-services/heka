@@ -165,7 +165,8 @@ git_clone(https://github.com/cactus/gostrftime d329f83c5ce9c416f8983f0a0044734db
 git_clone(https://github.com/golang/snappy 723cc1e459b8eea2dea4583200fd60757d40097a)
 git_clone(https://github.com/eapache/go-resiliency v1.0.0)
 git_clone(https://github.com/eapache/queue v1.0.2)
-git_clone_to_path(https://github.com/rafrombrc/sarama f742e1e20b15b31320e0b6ff2f995bc5f0482fed github.com/Shopify/sarama)
+git_clone(http://github.com/klauspost/crc32 v1.0)
+git_clone(https://github.com/shopify/sarama 2acd68e45eac3abd90240ccb78673da642906fc5)
 git_clone(https://github.com/davecgh/go-spew 2df174808ee097f90d259e432cc04442cf60be21)
 
 add_dependencies(sarama snappy)
