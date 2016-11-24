@@ -1,0 +1,44 @@
+[syslog_udp]
+type = "UdpInput"
+net = "unixgram"
+address = "/dev/log"
+decoder = "RawSyslogDecoder"
+
+[RawSyslogDecoder]
+type = "MultiDecoder"
+subs = ['SyslogDecoderWProcess', 'SyslogDecoderSimple']
+cascade_strategy = "first-wins"
+## some extra verbosity here when matching the simple decoder (as the first fails with error)
+log_sub_errors = true
+
+[SyslogDecoderWProcess]
+type = "PayloadRegexDecoder"
+## <86>Mar 27 11:18:23 su[975952]: pam_unix(su:session): session opened for user root by (uid=0)
+match_regex = '^<(?P<Pri>\d+)>(?P<Timestamp>[A-Za-z]{3} \d{2} \d+:\d+:\d+) (?P<Payload>((?P<ProcessName>[^\[:]+)\[(?P<Pid>\d+)\]: )?.+)$'
+timestamp_layout = "Jan 02 15:04:05"
+# timestamp_location = "Europe/Amsterdam" ## specify here the timezone, as timestamps are provided in local time
+
+[SyslogDecoderWProcess.message_fields]
+Pid = "%Pid%"
+Payload = "%Payload%"
+ProcessName = "%ProcessName%"
+## see http://en.wikipedia.org/wiki/Syslog#Severity_levels for properly decoding the PRI field
+Pri = "%Pri%"
+
+[SyslogDecoderSimple]
+type = "PayloadRegexDecoder"
+## <86>Mar 27 11:18:23 root: hello
+match_regex = '(^|\n)<(?P<Pri>\d+)>(?P<Timestamp>[A-Za-z]{3} \d{2} \d+:\d+:\d+) (?P<Payload>[^\n]+)'
+timestamp_layout = "Jan 02 15:04:05"
+# timestamp_location = "Europe/Amsterdam" ## specify here the timezone, as timestamps are provided in local time
+
+[SyslogDecoderSimple.message_fields]
+Payload = "%Payload%"
+Pri = "%Pri%"
+
+[RstEncoder]
+## provides simple debugging output
+
+[LogOutput]
+message_matcher = "TRUE"
+encoder = "RstEncoder"
