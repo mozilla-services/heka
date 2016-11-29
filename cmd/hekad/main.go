@@ -41,6 +41,7 @@ import (
 	_ "github.com/mozilla-services/heka/plugins/elasticsearch"
 	_ "github.com/mozilla-services/heka/plugins/file"
 	_ "github.com/mozilla-services/heka/plugins/graphite"
+	_ "github.com/mozilla-services/heka/plugins/graylog"
 	_ "github.com/mozilla-services/heka/plugins/http"
 	_ "github.com/mozilla-services/heka/plugins/irc"
 	_ "github.com/mozilla-services/heka/plugins/kafka"
