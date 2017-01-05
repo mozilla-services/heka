@@ -213,7 +213,10 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 				// do not allow filters to override the following
 				pack.Message.SetType("heka.sandbox." + pack.Message.GetType())
 				pack.Message.SetLogger(fr.Name())
-				pack.Message.SetHostname(hostname)
+				// allow the user to overwrite Hostname, else use current Hostname
+				if pack.Message.GetHostname() == "" {
+					pack.Message.SetHostname(hostname)
+				}
 			} else {
 				return 1
 			}
