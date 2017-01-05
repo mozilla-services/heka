@@ -62,6 +62,8 @@ function process_message ()
 
     if payload_keep then msg.Payload = log end
     msg.Type = msg_type
+    msg.Timestamp = msg.time
+
     inject_message(msg)
     return 0
 end
