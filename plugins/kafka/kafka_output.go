@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -87,7 +86,7 @@ type KafkaOutput struct {
 	config         *KafkaOutputConfig
 	saramaConfig   *sarama.Config
 	client         sarama.Client
-	producer       sarama.AsyncProducer
+	producer       sarama.SyncProducer
 	pipelineConfig *pipeline.PipelineConfig
 }
 
@@ -293,42 +292,8 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 	if err != nil {
 		return err
 	}
-	k.producer, err = sarama.NewAsyncProducer(k.config.Addrs, k.saramaConfig)
+	k.producer, err = sarama.NewSyncProducer(k.config.Addrs, k.saramaConfig)
 	return err
-}
-
-func (k *KafkaOutput) processKafkaErrors(or pipeline.OutputRunner, errChan <-chan *sarama.ProducerError,
-	shutdownChan chan struct{}, wg *sync.WaitGroup) {
-
-	var (
-		ok   = true
-		pErr *sarama.ProducerError
-	)
-	for ok {
-		select {
-		case pErr, ok = <-errChan:
-			if !ok {
-				break
-			}
-			err := pErr.Err
-			switch err.(type) {
-			case sarama.PacketEncodingError:
-				atomic.AddInt64(&k.kafkaEncodingErrors, 1)
-				or.LogError(fmt.Errorf("kafka encoding error: %s", err.Error()))
-			default:
-				atomic.AddInt64(&k.kafkaDroppedMessages, 1)
-				if err != nil {
-					msgValue, _ := pErr.Msg.Value.Encode()
-					or.LogError(fmt.Errorf("kafka error '%s' for message '%s'", err.Error(),
-						string(msgValue)))
-				}
-			}
-		case <-shutdownChan:
-			ok = false
-			break
-		}
-	}
-	wg.Done()
 }
 
 func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err error) {
@@ -342,12 +307,6 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 	}
 
 	inChan := or.InChan()
-	errChan := k.producer.Errors()
-	pInChan := k.producer.Input()
-	shutdownChan := make(chan struct{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go k.processKafkaErrors(or, errChan, shutdownChan, &wg)
 
 	var (
 		pack  *pipeline.PipelinePack
@@ -385,12 +344,28 @@ func (k *KafkaOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (er
 			Key:   key,
 			Value: sarama.ByteEncoder(msgBytes),
 		}
-		pInChan <- pMessage
-		pack.Recycle(nil)
+
+		partition, offset, err := k.producer.SendMessage(pMessage)
+                _ = partition
+                _ = offset
+
+                if err != nil {
+                        switch err.(type) {
+                        case sarama.PacketEncodingError:
+                                atomic.AddInt64(&k.kafkaEncodingErrors, 1)
+                                or.LogError(fmt.Errorf("kafka encoding error: %s", err.Error()))
+                        default:
+                                e := pipeline.NewRetryMessageError(err.Error())
+			        pack.Recycle(e)
+                                atomic.AddInt64(&k.kafkaDroppedMessages, 1)
+                                or.LogError(fmt.Errorf("kafka raised error: %s while sending: %s", err.Error(),pMessage.Value))
+                        }
+                } else {
+                   or.UpdateCursor(pack.QueueCursor)
+		   pack.Recycle(nil)
+                }
 	}
 
-	close(shutdownChan)
-	wg.Wait()
 	return
 }
 
