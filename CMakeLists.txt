@@ -111,12 +111,14 @@ include(CTest)
 include(externals)
 include(mocks)
 
-execute_process(COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive
-WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-RESULT_VARIABLE error_code
-)
-if(error_code)
-    message(FATAL_ERROR "Failed to init Heka submodules")
+if (INCLUDE_DOCUMENTATION)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RESULT_VARIABLE error_code
+    )
+    if(error_code)
+        message(FATAL_ERROR "Failed to init Heka submodules")
+    endif()
 endif()
 
 configure_file("${CMAKE_SOURCE_DIR}/sandbox/lua/lua_sandbox.go.in" "${HEKA_PATH}/sandbox/lua/lua_sandbox.go" @ONLY)
