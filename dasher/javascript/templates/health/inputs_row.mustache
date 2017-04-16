@@ -1,1 +1,12 @@
-<td class="name"><span class="glyphicon glyphicon-log-in"></span> <a href="#plugins/inputs/{{Name}}">{{Name}}</a></td>
+              <div class="panel panel-default">
+                <div class="panel-heading inputs_row_holder" role="tab" id="inputCollapseListGroupHeading-{{Name}}">
+                  <h4 class="panel-title">
+                    <a class="accordion-toggle collapsed" data-toggle="collapse" href="#inputCollapseListGroup-{{Name}}" aria-expanded="false" aria-controls="inputCollapseListGroup-{{Name}}">
+                      {{Name}}
+                    </a>
+                  </h4>
+                </div>
+                <div id="inputCollapseListGroup-{{Name}}" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="inputCollapseListGroupHeading-{{Name}}" name="{{Name}}">
+                  <ul class="list-group coders_container"></ul>
+                </div>
+              </div>

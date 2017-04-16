@@ -2,29 +2,28 @@ define(
   [
     "views/base_view",
     "presenters/plugin_presenter",
-    "hgn!templates/health/encoders_row"
+    "hgn!templates/health/coders_row"
   ],
-  function(BaseView, PluginPresenter, EncodersRowTemplate) {
+  function(BaseView, PluginPresenter, CodersRowTemplate) {
     "use strict";
 
     /**
-    * Row view for encoders plugins.
+    * Row view for Coders plugins.
     *
-    * @class EncodersRow
+    * @class CodersRow
     * @extends BaseView
     *
     * @constructor
     */
-    var EncodersRow = BaseView.extend({
-      tagName: "tr",
+    var CodersRow = BaseView.extend({
       presenter: PluginPresenter,
-      template: EncodersRowTemplate,
+      template: CodersRowTemplate,
 
       initialize: function() {
         this.listenTo(this.model, "change", this.render, this);
       }
     });
 
-    return EncodersRow;
+    return CodersRow;
   }
 );

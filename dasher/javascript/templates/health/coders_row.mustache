@@ -1,0 +1,21 @@
+                    <li class="list-group-item">
+                      <table>
+                        <tr>
+                          <td class="name">{{Name}}</td>
+                        </tr>
+                        {{#isDecoder}}
+                        <tr>
+                          <td class="in-channel hidden-xs">
+                            <div class="progress" title="{{InChanLength.value}}/{{InChanCapacity.value}}">
+                              <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="50" style="width: {{InChanPercent}}%;"><span class="sr-only">{{InChanPercent}}% Complete</span></div>
+                            </div>
+                          </td>
+                        </tr>
+                        {{/isDecoder}}
+                        {{#InChanLength.value}}
+                        <tr>
+                          <td>Processed: {{InChanLength.value}}/{{InChanCapacity.value}} Duration: {{ProcessMessageAvgDurationFormatted}} {{ProcessMessageAvgDuration.representation}}</td>
+                        </tr>
+                        {{/InChanLength.value}}
+                      </table>
+                    </li>

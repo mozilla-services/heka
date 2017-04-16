@@ -15,6 +15,8 @@ define(
     var Plugins = Backbone.Collection.extend({
       model: Plugin,
 
+      comparator: "id",
+
       /**
       * Gets the Router plugin from the collection.
       *

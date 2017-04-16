@@ -16,7 +16,6 @@ define(
     * @constructor
     */
     var FiltersRow = BaseView.extend({
-      tagName: "tr",
       presenter: PluginPresenter,
       template: FiltersRowTemplate,
 

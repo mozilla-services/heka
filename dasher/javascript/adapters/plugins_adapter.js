@@ -182,6 +182,13 @@ define(
 
           this.parseArrayIntoCollection(response.encoders, this.encoders, "Encoder");
 
+          this.inputs.forEach(function (input) {
+            this.mapCodersToPut(input, this.decoders, true);
+          }.bind(this));
+          this.outputs.forEach(function (output) {
+            this.mapCodersToPut(output, this.encoders, false);
+          }.bind(this));
+
           deferred.resolve(this.globals, this.inputs, this.decoders, this.filters,
             this.outputs, this.encoders);
 
@@ -212,6 +219,33 @@ define(
         } else {
           collection.reset(plugins);
         }
+      },
+
+      /**
+      * For the Input (Output) plugin, create an array of the Decoders
+      * (Encoders) that consume (produce) its output (input), as flagged
+      * by the 'coder's id beginning with the 'put's id.
+      *
+      * @method mapCodersToPut
+      */
+      mapCodersToPut: function(put, allCoders, isDecoder) {
+        var coders = [];
+        var coderNames = {};
+        var name;
+        allCoders.forEach(function(coder) {
+          if (coder.id.toString().indexOf(put.id) == 0) {
+            name = coder.get("Name");
+            if (typeof(coderNames[name]) != "undefined") {
+              coderNames[name] += 1;
+              coder.set({"Name": name + "-" + coderNames[name].toString()})
+            } else {
+              coderNames[name] = 0;
+            }
+            coder.set({isDecoder: isDecoder});
+            coders.push(coder);
+          }
+         });
+        put.set('coders', coders);
       },
 
       /**

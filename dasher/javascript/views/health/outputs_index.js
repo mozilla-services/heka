@@ -23,12 +23,13 @@ define(
       },
 
       /**
-      * Renders OutputsRow into `.outputs tbody` after render.
+      * Renders OutputsRow into `.outputs_row_container` after render.
       *
       * @method afterRender
       */
       afterRender: function() {
-        this.renderCollection(OutputsRow, ".outputs tbody");
+        this.renderCollection(OutputsRow, ".outputs_row_container");
+        this.manageCollapseState(".outputs_row_container");
       }
     });
 
