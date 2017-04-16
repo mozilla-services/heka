@@ -142,6 +142,16 @@ API
     *Return*
         - string if an anomaly was detected, otherwise nil.
         - array of annotation tables
+
+Debugging
+---------
+The rate of change test has a dashboard visualization page to allow for easier
+threshold tuning.  The visualization shows the alert thresholds for the
+specified configuration. The CGI parameters are nearly identical to what is
+passed to the roc() function but instead of payload_name the full file name is
+specified. The complete set of CGI parameters are: file, col, win, hwin and sd.
+e.g., https://localhost:4352/roc_alert_threshold.html?file=Widget.Summary.cbuf&col=1&win=15&hwin=0&sd=1.5
+
 --]]
 
 -- Imports

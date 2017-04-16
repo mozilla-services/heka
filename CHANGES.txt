@@ -713,6 +713,8 @@ Bug Handling
 
 Features
 --------
+* Make the rate of change threshold visualization page available through the
+  dashboard (issue #1093).
 
 * Added Kafka Input/Output plugins (#1148).
 
