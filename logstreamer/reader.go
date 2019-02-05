@@ -182,12 +182,12 @@ func (l *LogstreamLocation) Save() error {
 
 	seekJournal, file_err := os.OpenFile(l.JournalPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0660)
 	if file_err != nil {
-		return fmt.Errorf("Error opening seek recovery log: %s", file_err.Error())
+		return fmt.Errorf("error opening seek recovery log: %s", file_err.Error())
 	}
 	defer seekJournal.Close()
 
 	if _, file_err = seekJournal.Write(b); file_err != nil {
-		return fmt.Errorf("Error writing seek recovery log: %s", file_err.Error())
+		return fmt.Errorf("error writing seek recovery log: %s", file_err.Error())
 	}
 	return nil
 }

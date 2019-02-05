@@ -97,7 +97,7 @@ func (n *NagiosOutput) Init(config interface{}) (err error) {
 		if n.conf.UseTls {
 			var tlsConf *tls.Config
 			if tlsConf, err = tcp.CreateGoTlsConfig(&n.conf.Tls); err != nil {
-				return fmt.Errorf("TLS init error: %s", err)
+				return fmt.Errorf("tLS init error: %s", err)
 			}
 			transport.TLSClientConfig = tlsConf
 		}

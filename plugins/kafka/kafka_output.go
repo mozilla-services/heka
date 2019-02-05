@@ -224,7 +224,7 @@ func (k *KafkaOutput) Init(config interface{}) (err error) {
 	k.saramaConfig.Net.TLS.Enable = k.config.UseTls
 	if k.config.UseTls {
 		if k.saramaConfig.Net.TLS.Config, err = tcp.CreateGoTlsConfig(&k.config.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err)
+			return fmt.Errorf("tLS init error: %s", err)
 		}
 	}
 

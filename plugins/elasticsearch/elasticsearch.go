@@ -133,7 +133,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 			var tlsConf *tls.Config = nil
 			if scheme == "https" && &o.conf.Tls != nil {
 				if tlsConf, err = tcp.CreateGoTlsConfig(&o.conf.Tls); err != nil {
-					return fmt.Errorf("TLS init error: %s", err)
+					return fmt.Errorf("tLS init error: %s", err)
 				}
 			}
 
@@ -146,7 +146,7 @@ func (o *ElasticSearchOutput) Init(config interface{}) (err error) {
 			err = errors.New("Server URL must specify one of `udp`, `http`, or `https`.")
 		}
 	} else {
-		err = fmt.Errorf("Unable to parse ElasticSearch server URL [%s]: %s", o.conf.Server, err)
+		err = fmt.Errorf("unable to parse ElasticSearch server URL [%s]: %s", o.conf.Server, err)
 	}
 	return
 }
@@ -394,7 +394,7 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 	// Creating ElasticSearch Bulk HTTP request
 	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("Can't create bulk request: %s", err.Error()), true
+		return fmt.Errorf("can't create bulk request: %s", err.Error()), true
 	}
 	request.Header.Add("Accept", "application/json")
 	if h.username != "" && h.password != "" {
@@ -408,31 +408,31 @@ func (h *HttpBulkIndexer) Index(body []byte) (err error, retry bool) {
 		if (h.client.Timeout > 0) && (request_time >= h.client.Timeout) &&
 			(strings.Contains(err.Error(), "use of closed network connection")) {
 
-			return fmt.Errorf("HTTP request was interrupted after timeout. It lasted %s",
+			return fmt.Errorf("hTTP request was interrupted after timeout. It lasted %s",
 				request_time.String()), true
 		} else {
-			return fmt.Errorf("HTTP request failed: %s", err.Error()), true
+			return fmt.Errorf("hTTP request failed: %s", err.Error()), true
 		}
 	}
 	if response != nil {
 		defer response.Body.Close()
 		if response_body, err = ioutil.ReadAll(response.Body); err != nil {
-			return fmt.Errorf("Can't read HTTP response body. Status: %s. Error: %s",
+			return fmt.Errorf("can't read HTTP response body. Status: %s. Error: %s",
 				response.Status, err.Error()), true
 		}
 		err = json.Unmarshal(response_body, &response_body_json)
 		if err != nil {
-			return fmt.Errorf("HTTP response didn't contain valid JSON. Status: %s. Body: %s",
+			return fmt.Errorf("hTTP response didn't contain valid JSON. Status: %s. Body: %s",
 				response.Status, string(response_body)), true
 		}
 		json_errors, ok := response_body_json["errors"].(bool)
 		if ok && json_errors && response.StatusCode != 200 {
 			return fmt.Errorf(
-				"ElasticSearch server reported error within JSON. Status: %s. Body: %s",
+				"elasticSearch server reported error within JSON. Status: %s. Body: %s",
 				response.Status, string(response_body)), false
 		}
 		if response.StatusCode > 304 {
-			return fmt.Errorf("HTTP response error. Status: %s. Body: %s", response.Status,
+			return fmt.Errorf("hTTP response error. Status: %s. Body: %s", response.Status,
 				string(response_body)), false
 		}
 	}
@@ -470,20 +470,20 @@ func (u *UDPBulkIndexer) CheckFlush(count int, length int) bool {
 func (u *UDPBulkIndexer) Index(body []byte) (err error, retry bool) {
 	if u.address == nil {
 		if u.address, err = net.ResolveUDPAddr("udp", u.Domain); err != nil {
-			return fmt.Errorf("Error resolving UDP address [%s]: %s", u.Domain, err), true
+			return fmt.Errorf("error resolving UDP address [%s]: %s", u.Domain, err), true
 		}
 	}
 	if u.client == nil {
 		if u.client, err = net.DialUDP("udp", nil, u.address); err != nil {
-			return fmt.Errorf("Error creating UDP client: %s", err), true
+			return fmt.Errorf("error creating UDP client: %s", err), true
 		}
 	}
 	if u.address != nil {
 		if _, err = u.client.Write(body[:]); err != nil {
-			return fmt.Errorf("Error writing data to UDP server: %s", err), true
+			return fmt.Errorf("error writing data to UDP server: %s", err), true
 		}
 	} else {
-		return fmt.Errorf("Error writing data to UDP server, address not found"), true
+		return fmt.Errorf("error writing data to UDP server, address not found"), true
 	}
 	return nil, false
 }

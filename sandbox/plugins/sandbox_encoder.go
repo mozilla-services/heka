@@ -124,11 +124,11 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 	case "lua":
 		s.sb, err = lua.CreateLuaSandbox(s.sbc)
 	default:
-		return fmt.Errorf("Unsupported script type: %s", s.sbc.ScriptType)
+		return fmt.Errorf("unsupported script type: %s", s.sbc.ScriptType)
 	}
 
 	if err != nil {
-		return fmt.Errorf("Sandbox creation failed: '%s'", err)
+		return fmt.Errorf("sandbox creation failed: '%s'", err)
 	}
 
 	s.preservationFile = filepath.Join(dataDir, s.name+sandbox.DATA_EXT)
@@ -138,7 +138,7 @@ func (s *SandboxEncoder) Init(config interface{}) (err error) {
 		err = s.sb.Init("")
 	}
 	if err != nil {
-		return fmt.Errorf("Sandbox initialization failed: %s", err)
+		return fmt.Errorf("sandbox initialization failed: %s", err)
 	}
 
 	s.sb.InjectMessage(func(payload, payload_type, payload_name string) int {
@@ -198,7 +198,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	s.sample = 0 == rand.Intn(s.sampleDenominator)
 
 	if retval > 0 {
-		err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+		err = fmt.Errorf("fATAL: %s", s.sb.LastError())
 		return
 	}
 	if retval == -2 {
@@ -207,7 +207,7 @@ func (s *SandboxEncoder) Encode(pack *pipeline.PipelinePack) (output []byte, err
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
-		err = fmt.Errorf("Failed serializing: %s", s.sb.LastError())
+		err = fmt.Errorf("failed serializing: %s", s.sb.LastError())
 		return
 	}
 	return s.output, nil
@@ -220,7 +220,7 @@ func (s *SandboxEncoder) ReportMsg(msg *message.Message) error {
 	defer s.reportLock.Unlock()
 
 	if s.sb == nil {
-		return fmt.Errorf("Encoder is not running")
+		return fmt.Errorf("encoder is not running")
 	}
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(sandbox.TYPE_MEMORY,

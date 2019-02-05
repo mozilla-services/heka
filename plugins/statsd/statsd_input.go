@@ -68,11 +68,11 @@ func (s *StatsdInput) Init(config interface{}) error {
 	conf := config.(*StatsdInputConfig)
 	udpAddr, err := net.ResolveUDPAddr("udp", conf.Address)
 	if err != nil {
-		return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
+		return fmt.Errorf("resolveUDPAddr failed: %s\n", err.Error())
 	}
 	s.listener, err = net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+		return fmt.Errorf("listenUDP failed: %s\n", err.Error())
 	}
 	s.statAccumName = conf.StatAccumName
 	s.maxMsgSize = conf.MaxMsgSize

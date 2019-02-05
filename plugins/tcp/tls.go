@@ -89,17 +89,17 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 	if tomlConf.MinVersion != "" {
 		goConf.MinVersion, ok = tlsVersions[tomlConf.MinVersion]
 		if !ok {
-			return nil, fmt.Errorf("Invalid MinVersion: %s", tomlConf.MinVersion)
+			return nil, fmt.Errorf("invalid MinVersion: %s", tomlConf.MinVersion)
 		}
 	}
 	if tomlConf.MaxVersion != "" {
 		goConf.MaxVersion, ok = tlsVersions[tomlConf.MaxVersion]
 		if !ok {
-			return nil, fmt.Errorf("Invalid MaxVersion: %s", tomlConf.MaxVersion)
+			return nil, fmt.Errorf("invalid MaxVersion: %s", tomlConf.MaxVersion)
 		}
 	}
 	if goConf.MaxVersion > 0 && goConf.MaxVersion < goConf.MinVersion {
-		return nil, fmt.Errorf("MaxVersion (%s) must be newer than MinVersion (%s)",
+		return nil, fmt.Errorf("maxVersion (%s) must be newer than MinVersion (%s)",
 			tomlConf.MaxVersion, tomlConf.MinVersion)
 	}
 
@@ -118,7 +118,7 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 	if tomlConf.ClientAuth != "" {
 		goConf.ClientAuth, ok = clientAuthTypes[tomlConf.ClientAuth]
 		if !ok {
-			return nil, fmt.Errorf("Invalid ClientAuth value: %s", tomlConf.ClientAuth)
+			return nil, fmt.Errorf("invalid ClientAuth value: %s", tomlConf.ClientAuth)
 		}
 	}
 
@@ -132,7 +132,7 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 			return nil, err
 		}
 		if len(ticketKey) != 32 {
-			return nil, fmt.Errorf("Invalid SessionTicketKey length: %d",
+			return nil, fmt.Errorf("invalid SessionTicketKey length: %d",
 				len(ticketKey))
 		}
 		copy(goConf.SessionTicketKey[:32], ticketKey[:])
@@ -141,7 +141,7 @@ func CreateGoTlsConfig(tomlConf *TlsConfig) (goConf *tls.Config, err error) {
 	var cipher uint16
 	for _, cipherStr := range tomlConf.Ciphers {
 		if cipher, ok = ciphers[cipherStr]; !ok {
-			return nil, fmt.Errorf("Invalid cipher string: %s", cipherStr)
+			return nil, fmt.Errorf("invalid cipher string: %s", cipherStr)
 		}
 		goConf.CipherSuites = append(goConf.CipherSuites, cipher)
 	}
@@ -157,5 +157,5 @@ func certPoolFromFile(pemfile string) (*x509.CertPool, error) {
 	if roots.AppendCertsFromPEM(data) {
 		return roots, nil
 	}
-	return nil, fmt.Errorf("No PEM encoded certificates found in: %s\n", pemfile)
+	return nil, fmt.Errorf("no PEM encoded certificates found in: %s\n", pemfile)
 }

@@ -140,7 +140,7 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 				}
 				pack.Recycle(e)
 			} else {
-				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+				err = fmt.Errorf("fATAL: %s", s.sb.LastError())
 				pack.Recycle(err)
 				ok = false
 			}
@@ -148,7 +148,7 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 		case t := <-ticker:
 			startTime = time.Now()
 			if retval = s.sb.TimerEvent(t.UnixNano()); retval != 0 {
-				err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+				err = fmt.Errorf("fATAL: %s", s.sb.LastError())
 				ok = false
 			}
 			duration = time.Since(startTime).Nanoseconds()
@@ -161,7 +161,7 @@ func (s *SandboxOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (
 
 	if err == nil && s.sbc.TimerEventOnShutdown {
 		if retval = s.sb.TimerEvent(time.Now().UnixNano()); retval != 0 {
-			err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+			err = fmt.Errorf("fATAL: %s", s.sb.LastError())
 		}
 	}
 
@@ -197,7 +197,7 @@ func (s *SandboxOutput) ReportMsg(msg *message.Message) error {
 	defer s.reportLock.Unlock()
 
 	if s.sb == nil {
-		return fmt.Errorf("Output is not running")
+		return fmt.Errorf("output is not running")
 	}
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,

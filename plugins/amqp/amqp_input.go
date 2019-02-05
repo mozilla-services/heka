@@ -110,7 +110,7 @@ func (ai *AMQPInput) Init(config interface{}) (err error) {
 	var tlsConf *tls.Config = nil
 	if strings.HasPrefix(conf.URL, "amqps://") && &ai.config.Tls != nil {
 		if tlsConf, err = tcp.CreateGoTlsConfig(&ai.config.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err)
+			return fmt.Errorf("tLS init error: %s", err)
 		}
 	}
 
@@ -187,7 +187,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	stream, err := ai.ch.Consume(ai.config.Queue, "", false, ai.config.QueueExclusive,
 		false, false, nil)
 	if err != nil {
-		return fmt.Errorf("Cannot consume from queue %s: %s", ai.config.Queue, err)
+		return fmt.Errorf("cannot consume from queue %s: %s", ai.config.Queue, err)
 	}
 
 	sRunner := ir.NewSplitterRunner("")
@@ -219,7 +219,7 @@ func (ai *AMQPInput) Run(ir InputRunner, h PluginHelper) (err error) {
 	if atomic.LoadUint32(&ai.stopped) == 0 {
 		// `Stop` wasn't called, return an error message to trigger a potential
 		// restart of the plugin.
-		err = fmt.Errorf("Channel closed while reading from queue %s", ai.config.Queue)
+		err = fmt.Errorf("channel closed while reading from queue %s", ai.config.Queue)
 	}
 	return err
 }

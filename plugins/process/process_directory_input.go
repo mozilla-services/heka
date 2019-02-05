@@ -180,19 +180,19 @@ func (pdi *ProcessDirectoryInput) procDirWalkFunc(path string, info os.FileInfo,
 	parentDir, timeInterval := filepath.Split(dir)
 	parentDir = strings.TrimSuffix(parentDir, string(os.PathSeparator))
 	if parentDir != pdi.procDir {
-		pdi.ir.LogError(fmt.Errorf("invalid ProcessInput path: %s.", path))
+		pdi.ir.LogError(fmt.Errorf("invalid ProcessInput path: %s", path))
 		return nil
 	}
 
 	// Extract and validate ticker interval from file path.
 	var tickInterval int
 	if tickInterval, err = strconv.Atoi(timeInterval); err != nil {
-		pdi.ir.LogError(fmt.Errorf("ticker interval could not be parsed for '%s'.",
+		pdi.ir.LogError(fmt.Errorf("ticker interval could not be parsed for '%s'",
 			path))
 		return nil
 	}
 	if tickInterval < 0 {
-		pdi.ir.LogError(fmt.Errorf("a negative ticker interval was parsed for '%s'.",
+		pdi.ir.LogError(fmt.Errorf("a negative ticker interval was parsed for '%s'",
 			path))
 		return nil
 	}

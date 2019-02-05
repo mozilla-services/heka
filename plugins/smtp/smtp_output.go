@@ -87,7 +87,7 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 
 	host, _, err := net.SplitHostPort(s.conf.Host)
 	if err != nil {
-		return fmt.Errorf("Host must contain a port specifier")
+		return fmt.Errorf("host must contain a port specifier")
 	}
 
 	s.sendFunction = smtp.SendMail
@@ -99,7 +99,7 @@ func (s *SmtpOutput) Init(config interface{}) (err error) {
 	} else if s.conf.Auth == "none" {
 		s.auth = nil
 	} else {
-		return fmt.Errorf("Invalid auth type: %s", s.conf.Auth)
+		return fmt.Errorf("invalid auth type: %s", s.conf.Auth)
 	}
 	return
 }

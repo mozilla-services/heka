@@ -144,15 +144,15 @@ func (l *Logfile) PopulateMatchParts(subexpNames, matches []string,
 		// will raise an error.
 		if name == "MonthName" {
 			if score, ok = MonthLookup[lowerValue]; !ok {
-				return fmt.Errorf("Unable to locate month name: %s", matchValue)
+				return fmt.Errorf("unable to locate month name: %s", matchValue)
 			}
 		} else if name == "DayName" {
 			if score, ok = DayLookup[lowerValue]; !ok {
-				return fmt.Errorf("Unable to locate day name: %s", matchValue)
+				return fmt.Errorf("unable to locate day name: %s", matchValue)
 			}
 		} else if submap, ok = translation[name]; ok && len(submap) > 1 {
 			if score, ok = submap[lowerValue]; !ok {
-				return fmt.Errorf("Value '%s' not found in translation map '%s'.",
+				return fmt.Errorf("value '%s' not found in translation map '%s'",
 					matchValue, name)
 			}
 		} else if ok {

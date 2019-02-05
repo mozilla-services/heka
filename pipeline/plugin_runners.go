@@ -927,7 +927,7 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	matcher, err := NewMatchRunner(config.Matcher, config.Signer, runner, chanSize,
 		matchChan)
 	if err != nil {
-		return nil, fmt.Errorf("Can't create message matcher for '%s': %s", name, err)
+		return nil, fmt.Errorf("can't create message matcher for '%s': %s", name, err)
 	}
 	runner.matcher = matcher
 
@@ -948,7 +948,7 @@ func NewFORunner(name string, plugin Plugin, config CommonFOConfig,
 	} else if _, ok := plugin.(Output); ok {
 		runner.kind = foOutput
 	} else {
-		err := fmt.Errorf("FORunner plugin must be filter or output, %s is neither",
+		err := fmt.Errorf("fORunner plugin must be filter or output, %s is neither",
 			name)
 		return nil, err
 	}
@@ -1091,7 +1091,7 @@ func (foRunner *foRunner) bufferLoop(plugin MessageProcessor, h PluginHelper,
 	err := foRunner.bufReader.NewStreamOutput(plugin, foRunner.backChan, tickReceiver,
 		foRunner.ticker, foRunner.stopChan)
 	if err != nil {
-		foRunner.LogError(fmt.Errorf("StreamOutput stopped: %s", err.Error()))
+		foRunner.LogError(fmt.Errorf("streamOutput stopped: %s", err.Error()))
 	}
 	return err
 }
@@ -1148,7 +1148,7 @@ func (foRunner *foRunner) channelLoop(plugin MessageProcessor, h PluginHelper,
 			}
 			err := tickReceiver.TimerEvent()
 			if err != nil {
-				err = fmt.Errorf("Error running TimerEvent for %s: %s",
+				err = fmt.Errorf("error running TimerEvent for %s: %s",
 					foRunner.name, err.Error())
 				if _, isFatal := err.(PluginExitError); isFatal {
 					return err
@@ -1345,9 +1345,9 @@ func (foRunner *foRunner) exit() {
 				pack.recycle()
 			}
 			if orphaned == 1 {
-				foRunner.LogError(fmt.Errorf("Lost/Dropped 1 message"))
+				foRunner.LogError(fmt.Errorf("lost/Dropped 1 message"))
 			} else if orphaned > 1 {
-				foRunner.LogError(fmt.Errorf("Lost/Dropped %d messages", orphaned))
+				foRunner.LogError(fmt.Errorf("lost/Dropped %d messages", orphaned))
 			}
 		}()
 	}

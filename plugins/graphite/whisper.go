@@ -52,7 +52,7 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 	if db, err = whisper.Open(path_); err != nil {
 		if !os.IsNotExist(err) {
 			// A real error.
-			err = fmt.Errorf("Error opening whisper db: %s", err)
+			err = fmt.Errorf("error opening whisper db: %s", err)
 			return
 		}
 
@@ -60,15 +60,15 @@ func NewWhisperRunner(path_ string, archiveInfo []whisper.ArchiveInfo,
 		dir := filepath.Dir(path_)
 		if _, err = os.Stat(dir); os.IsNotExist(err) {
 			if err = os.MkdirAll(dir, folderPerm); err != nil {
-				err = fmt.Errorf("Error creating whisper db folder '%s': %s", dir, err)
+				err = fmt.Errorf("error creating whisper db folder '%s': %s", dir, err)
 				return
 			}
 		} else if err != nil {
-			err = fmt.Errorf("Error opening whisper db folder '%s': %s", dir, err)
+			err = fmt.Errorf("error opening whisper db folder '%s': %s", dir, err)
 		}
 		createOptions := whisper.CreateOptions{0.1, aggMethod, false}
 		if db, err = whisper.Create(path_, archiveInfo, createOptions); err != nil {
-			err = fmt.Errorf("Error creating whisper db: %s", err)
+			err = fmt.Errorf("error creating whisper db: %s", err)
 			return
 		}
 	}
@@ -157,7 +157,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 
 	var intPerm int64
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
-		err = fmt.Errorf("WhisperOutput '%s' can't parse `folder_perm`, is it an octal integer string?", o.basePath)
+		err = fmt.Errorf("whisperOutput '%s' can't parse `folder_perm`, is it an octal integer string", o.basePath)
 		return
 	}
 	o.folderPerm = os.FileMode(intPerm)
@@ -183,7 +183,7 @@ func (o *WhisperOutput) Init(config interface{}) (err error) {
 	o.defaultArchiveInfo = make([]whisper.ArchiveInfo, len(conf.DefaultArchiveInfo))
 	for i, aiSpec := range conf.DefaultArchiveInfo {
 		if len(aiSpec) != 3 {
-			err = fmt.Errorf("All default archive info settings must have 3 values.")
+			err = fmt.Errorf("all default archive info settings must have 3 values")
 			return
 		}
 		o.defaultArchiveInfo[i] = whisper.ArchiveInfo{aiSpec[0], aiSpec[1], aiSpec[2]}

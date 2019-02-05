@@ -67,7 +67,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 	// Make sure since interval is valid.
 	sinceInterval, err := time.ParseDuration(conf.SinceInterval)
 	if err != nil {
-		return fmt.Errorf("Can't parse since_interval value '%s': %s", conf.SinceInterval,
+		return fmt.Errorf("can't parse since_interval value '%s': %s", conf.SinceInterval,
 			err.Error())
 	}
 
@@ -92,7 +92,7 @@ func (di *DockerLogInput) Init(config interface{}) error {
 		conf.NewContainersReplayLogs,
 	)
 	if err != nil {
-		return fmt.Errorf("DockerLogInput: failed to attach: %s", err.Error())
+		return fmt.Errorf("dockerLogInput: failed to attach: %s", err.Error())
 	}
 
 	di.attachMgr = m

@@ -96,7 +96,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 	}
 
 	if err = os.MkdirAll(self.dataDirectory, 0700); err != nil {
-		return fmt.Errorf("DashboardOutput: Can't create working directory: %s", err)
+		return fmt.Errorf("dashboardOutput: Can't create working directory: %s", err)
 	}
 
 	// Delete all previous output.
@@ -150,7 +150,7 @@ func (self *DashboardOutput) Init(config interface{}) (err error) {
 
 	if self.handler == nil {
 		if err = filepath.Walk(self.staticDirectory, copier); err != nil {
-			return fmt.Errorf("Error copying static dashboard files: %s", err)
+			return fmt.Errorf("error copying static dashboard files: %s", err)
 		}
 		self.handler = http.FileServer(http.Dir(self.workingDirectory))
 	}
@@ -193,7 +193,7 @@ func (self *DashboardOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				overwriteFile(fn, msg.GetPayload())
 				sbxsLock.Lock()
 				if err := overwritePluginListFile(self.dataDirectory, sandboxes); err != nil {
-					or.LogError(fmt.Errorf("Can't write plugin list file to '%s': %s",
+					or.LogError(fmt.Errorf("can't write plugin list file to '%s': %s",
 						self.dataDirectory, err))
 				}
 				sbxsLock.Unlock()

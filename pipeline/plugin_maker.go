@@ -86,7 +86,7 @@ func NewPluginMaker(name string, pConfig *PipelineConfig, tomlSection toml.Primi
 	}
 	constructor, ok := AvailablePlugins[maker.commonConfig.Typ]
 	if !ok {
-		return nil, fmt.Errorf("No registered plugin type: %s", maker.commonConfig.Typ)
+		return nil, fmt.Errorf("no registered plugin type: %s", maker.commonConfig.Typ)
 	}
 	maker.constructor = constructor
 	maker.plugin = maker.makePlugin() // Only used to generate config structs.
@@ -273,7 +273,7 @@ func (m *pluginMaker) Make() (Plugin, interface{}, error) {
 
 	plugin := m.makePlugin()
 	if err = plugin.Init(config); err != nil {
-		return nil, nil, fmt.Errorf("Initialization failed for '%s': %s", m.name, err)
+		return nil, nil, fmt.Errorf("initialization failed for '%s': %s", m.name, err)
 	}
 
 	return plugin, config, nil
@@ -282,7 +282,7 @@ func (m *pluginMaker) Make() (Plugin, interface{}, error) {
 func (m *pluginMaker) makeSplitterRunner(name string, config interface{}, splitter Splitter) (*sRunner, error) {
 	commonConfig, err := m.prepCommonTypedConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Can't prep common typed config: %s", err.Error())
+		return nil, fmt.Errorf("can't prep common typed config: %s", err.Error())
 	}
 	commonSplitter := commonConfig.(CommonSplitterConfig)
 	if commonSplitter.KeepTruncated == nil {
@@ -322,7 +322,7 @@ func (m *pluginMaker) makeInputRunner(name string, config interface{}, input Inp
 
 	commonConfig, err := m.prepCommonTypedConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Can't prep common typed config: %s", err.Error())
+		return nil, fmt.Errorf("can't prep common typed config: %s", err.Error())
 	}
 	commonInput := commonConfig.(CommonInputConfig)
 	if commonInput.Ticker == 0 {
@@ -406,7 +406,7 @@ func (m *pluginMaker) MakeRunner(name string) (PluginRunner, error) {
 	// We're a filter or an output.
 	commonConfig, err := m.prepCommonTypedConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Can't prep common typed config: %s", err.Error())
+		return nil, fmt.Errorf("can't prep common typed config: %s", err.Error())
 	}
 
 	commonFO := commonConfig.(CommonFOConfig)

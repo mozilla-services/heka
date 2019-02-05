@@ -67,7 +67,7 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 		case "EpochNano":
 			multiplier = 0
 		default:
-			err := fmt.Errorf("Unrecognized `Epoch` time format: %s", timeLayout)
+			err := fmt.Errorf("unrecognized `Epoch` time format: %s", timeLayout)
 			return parsedTime, err
 		}
 
@@ -96,7 +96,7 @@ func ForgivingTimeParse(timeLayout, inputTime string, loc *time.Location) (time.
 			parsedInt, err = strconv.ParseUint(intStr, 10, 64)
 		}
 		if err != nil {
-			err = fmt.Errorf("Error parsing %s time: %s", timeLayout, err.Error())
+			err = fmt.Errorf("error parsing %s time: %s", timeLayout, err.Error())
 			return parsedTime, err
 		}
 		return time.Unix(0, int64(parsedInt)), nil

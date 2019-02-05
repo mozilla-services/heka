@@ -192,7 +192,7 @@ func (m *AttachManager) handleDockerEvents(stopChan chan error) {
 				m.ir.LogMessage("Events channel closed, restarting...")
 				err := withRetries(m.restart)
 				if err != nil {
-					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)", err.Error()))
+					m.ir.LogError(fmt.Errorf("unable to restart Docker connection! (%s)", err.Error()))
 					return // Will cause the plugin to restart
 				}
 				time.Sleep(SLEEP_BETWEEN_RECONNECT)
@@ -320,7 +320,7 @@ func (m *AttachManager) handleOneStream(name string, in io.Reader, fields map[st
 	for err == nil {
 		err = sRunner.SplitStream(in, deliverer)
 		if err != io.EOF && err != nil {
-			m.ir.LogError(fmt.Errorf("Error reading %s stream: %s", name, err.Error()))
+			m.ir.LogError(fmt.Errorf("error reading %s stream: %s", name, err.Error()))
 		}
 	}
 	sRunner.Done()

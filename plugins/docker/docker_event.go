@@ -34,7 +34,7 @@ func (dei *DockerEventInput) Init(config interface{}) error {
 	dei.conf = config.(*DockerEventInputConfig)
 	c, err := newDockerClient(dei.conf.CertPath, dei.conf.Endpoint)
 	if err != nil {
-		return fmt.Errorf("DockerEventInput: failed to attach to docker event API: %s", err.Error())
+		return fmt.Errorf("dockerEventInput: failed to attach to docker event API: %s", err.Error())
 	}
 
 	dei.dockerClient = c
@@ -43,7 +43,7 @@ func (dei *DockerEventInput) Init(config interface{}) error {
 
 	err = dei.dockerClient.AddEventListener(dei.eventStream)
 	if err != nil {
-		return fmt.Errorf("DockerEventInput: failed to add event listener: %s", err.Error())
+		return fmt.Errorf("dockerEventInput: failed to add event listener: %s", err.Error())
 	}
 	return nil
 }

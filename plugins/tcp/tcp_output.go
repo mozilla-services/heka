@@ -101,7 +101,7 @@ func (t *TcpOutput) Init(config interface{}) (err error) {
 	if t.conf.LocalAddress != "" {
 		// Error out if use_tls and local_address options are both set for now.
 		if t.conf.UseTls {
-			return fmt.Errorf("Cannot combine local_address %s and use_tls config options",
+			return fmt.Errorf("cannot combine local_address %s and use_tls config options",
 				t.localAddress)
 		}
 		t.localAddress, err = net.ResolveTCPAddr("tcp", t.conf.LocalAddress)
@@ -185,7 +185,7 @@ func (t *TcpOutput) connect() (err error) {
 	if t.conf.UseTls {
 		var goTlsConf *tls.Config
 		if goTlsConf, err = CreateGoTlsConfig(&t.conf.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err)
+			return fmt.Errorf("tLS init error: %s", err)
 		}
 		// We should use DialWithDialer but its not in GOLANG release yet.
 		// https://code.google.com/p/go/source/detail?r=3d37606fb79393f22a69573afe31f0b0cd4866e3&name=default
@@ -197,7 +197,7 @@ func (t *TcpOutput) connect() (err error) {
 	if err == nil && t.conf.KeepAlive {
 		tcpConn, ok := t.connection.(*net.TCPConn)
 		if !ok {
-			t.or.LogError(fmt.Errorf("KeepAlive only supported for TCP Connections."))
+			t.or.LogError(fmt.Errorf("keepAlive only supported for TCP Connections"))
 		} else {
 			tcpConn.SetKeepAlive(t.conf.KeepAlive)
 			if t.keepAliveDuration != 0 {

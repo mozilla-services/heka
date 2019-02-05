@@ -100,7 +100,7 @@ func (ao *AMQPOutput) Init(config interface{}) (err error) {
 	var tlsConf *tls.Config = nil
 	if strings.HasPrefix(conf.URL, "amqps://") && &ao.config.Tls != nil {
 		if tlsConf, err = tcp.CreateGoTlsConfig(&ao.config.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err)
+			return fmt.Errorf("tLS init error: %s", err)
 		}
 	}
 
@@ -166,7 +166,7 @@ func (ao *AMQPOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			}
 			if outBytes, err = or.Encode(pack); err != nil {
 				or.UpdateCursor(pack.QueueCursor)
-				err = fmt.Errorf("Error encoding message: %s", err)
+				err = fmt.Errorf("error encoding message: %s", err)
 				pack.Recycle(err)
 				continue
 			} else if outBytes == nil {

@@ -289,7 +289,7 @@ func (m *StatsManager) handleDockerEvents(stopChan chan error) {
 				m.ir.LogMessage("Events channel closed, restarting...")
 				err := withRetries(m.restart)
 				if err != nil {
-					m.ir.LogError(fmt.Errorf("Unable to restart Docker connection! (%s)",
+					m.ir.LogError(fmt.Errorf("unable to restart Docker connection! (%s)",
 						err.Error()))
 					return // Will cause the plugin to restart
 				}

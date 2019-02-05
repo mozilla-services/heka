@@ -94,13 +94,13 @@ func (input *FilePollingInput) Run(runner pipeline.InputRunner,
 
 		f, err := os.Open(input.FilePath)
 		if err != nil {
-			runner.LogError(fmt.Errorf("Error opening file: %s", err.Error()))
+			runner.LogError(fmt.Errorf("error opening file: %s", err.Error()))
 			continue
 		}
 		for err == nil {
 			err = sRunner.SplitStream(f, nil)
 			if err != io.EOF && err != nil {
-				runner.LogError(fmt.Errorf("Error reading file: %s", err.Error()))
+				runner.LogError(fmt.Errorf("error reading file: %s", err.Error()))
 			}
 		}
 	}

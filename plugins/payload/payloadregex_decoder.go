@@ -72,11 +72,11 @@ func (ld *PayloadRegexDecoder) ConfigStruct() interface{} {
 func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
 	conf := config.(*PayloadRegexDecoderConfig)
 	if ld.Match, err = regexp.Compile(conf.MatchRegex); err != nil {
-		err = fmt.Errorf("PayloadRegexDecoder: %s", err)
+		err = fmt.Errorf("payloadRegexDecoder: %s", err)
 		return
 	}
 	if ld.Match.NumSubexp() == 0 {
-		err = fmt.Errorf("PayloadRegexDecoder regex must contain capture groups")
+		err = fmt.Errorf("payloadRegexDecoder regex must contain capture groups")
 		return
 	}
 
@@ -94,7 +94,7 @@ func (ld *PayloadRegexDecoder) Init(config interface{}) (err error) {
 	}
 	ld.TimestampLayout = conf.TimestampLayout
 	if ld.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
-		err = fmt.Errorf("PayloadRegexDecoder unknown timestamp_location '%s': %s",
+		err = fmt.Errorf("payloadRegexDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
 	ld.logErrors = conf.LogErrors
@@ -135,7 +135,7 @@ func (ld *PayloadRegexDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack
 	match, captures := tryMatch(ld.Match, pack.Message.GetPayload())
 	if !match {
 		if ld.logErrors {
-			err = fmt.Errorf("No match: %s", pack.Message.GetPayload())
+			err = fmt.Errorf("no match: %s", pack.Message.GetPayload())
 		}
 		return
 	}

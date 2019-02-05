@@ -86,7 +86,7 @@ func (pxd *PayloadXmlDecoder) Init(config interface{}) (err error) {
 	}
 	pxd.TimestampLayout = conf.TimestampLayout
 	if pxd.tzLocation, err = time.LoadLocation(conf.TimestampLocation); err != nil {
-		err = fmt.Errorf("PayloadXmlDecoder unknown timestamp_location '%s': %s",
+		err = fmt.Errorf("payloadXmlDecoder unknown timestamp_location '%s': %s",
 			conf.TimestampLocation, err)
 	}
 	return

@@ -95,7 +95,7 @@ func NewIrcConn(config *IrcOutputConfig) (IrcConnection, error) {
 	var tlsConf *tls.Config = nil
 	var err error = nil
 	if tlsConf, err = tcp.CreateGoTlsConfig(&config.Tls); err != nil {
-		return nil, fmt.Errorf("TLS init error: %s", err)
+		return nil, fmt.Errorf("tLS init error: %s", err)
 	}
 	conn.UseTLS = config.UseTLS
 	conn.TLSConfig = tlsConf

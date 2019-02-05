@@ -173,7 +173,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 	pi.parseStderr = conf.ParseStderr
 
 	if len(conf.Command) < 1 {
-		return fmt.Errorf("No Command Configured")
+		return fmt.Errorf("no Command Configured")
 	}
 
 	pi.cc = NewCommandChain(time.Duration(conf.TimeoutSeconds) * time.Second)
@@ -183,7 +183,7 @@ func (pi *ProcessInput) Init(config interface{}) (err error) {
 		str_idx := strconv.Itoa(idx)
 		cmdCfg, ok := conf.Command[str_idx]
 		if !ok {
-			return fmt.Errorf("Expected to find a command at index [%s][%d]",
+			return fmt.Errorf("expected to find a command at index [%s][%d]",
 				pi.ProcessName, idx)
 		}
 
@@ -335,7 +335,7 @@ func (pi *ProcessInput) runOnce() {
 	var err error
 
 	if err = pi.cc.Start(); err != nil {
-		pi.exitError = fmt.Errorf("CommandChain::Start() error: [%s]", err)
+		pi.exitError = fmt.Errorf("commandChain::Start() error: [%s]", err)
 		return
 	}
 
@@ -351,7 +351,7 @@ func (pi *ProcessInput) runOnce() {
 
 	var stdoutReader io.Reader
 	if stdoutReader, err = pi.cc.Stdout_r(); err != nil {
-		pi.exitError = fmt.Errorf("Error getting stdout reader: %s", err)
+		pi.exitError = fmt.Errorf("error getting stdout reader: %s", err)
 		return
 	} else if pi.parseStdout {
 		go pi.ParseOutput(stdoutReader, pi.stdoutDeliverer, pi.stdoutSRunner)
@@ -361,7 +361,7 @@ func (pi *ProcessInput) runOnce() {
 
 	var stderrReader io.Reader
 	if stderrReader, err = pi.cc.Stderr_r(); err != nil {
-		pi.exitError = fmt.Errorf("Error getting stderr reader: %s", err)
+		pi.exitError = fmt.Errorf("error getting stderr reader: %s", err)
 		return
 	} else if pi.parseStderr {
 		go pi.ParseOutput(stderrReader, pi.stderrDeliverer, pi.stderrSRunner)
@@ -382,7 +382,7 @@ func (pi *ProcessInput) ParseOutput(r io.Reader, deliverer Deliverer,
 	// and http://golang.org/pkg/os/exec/#Cmd.StdoutPipe
 	if err != nil && err != io.ErrShortBuffer && err != io.EOF &&
 		!strings.Contains(err.Error(), "read |0: bad file descriptor") {
-		pi.ir.LogError(fmt.Errorf("Stream Error [%s]", err.Error()))
+		pi.ir.LogError(fmt.Errorf("stream Error [%s]", err.Error()))
 	}
 }
 

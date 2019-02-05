@@ -62,7 +62,7 @@ func (di *DockerStatsInput) Init(config interface{}) error {
 	m, err := NewStatsManager(di.conf.Endpoint, di.conf.CertPath, di.attachErrors,
 		di.conf.NameFromEnv, di.conf.FieldsFromEnv, di.conf.FieldsFromLabels)
 	if err != nil {
-		return fmt.Errorf("DockerStatsInput: failed to attach: %s", err.Error())
+		return fmt.Errorf("dockerStatsInput: failed to attach: %s", err.Error())
 	}
 
 	di.statsMgr = m
@@ -116,7 +116,7 @@ func (di *DockerStatsInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper
 				err = errors.New("Docker event channel closed")
 				break
 			}
-			ir.LogError(fmt.Errorf("Attacher error: %s", err))
+			ir.LogError(fmt.Errorf("attacher error: %s", err))
 
 		case err = <-di.stopChan:
 			ok = false

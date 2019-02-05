@@ -348,7 +348,7 @@ func (this *SandboxFilter) Run(fr pipeline.FilterRunner, h pipeline.PluginHelper
 	if !terminated && this.sbc.TimerEventOnShutdown {
 		injectionCount = this.pConfig.Globals.MaxMsgTimerInject
 		if retval = this.sb.TimerEvent(time.Now().UnixNano()); retval != 0 {
-			err = fmt.Errorf("FATAL: %s", this.sb.LastError())
+			err = fmt.Errorf("fATAL: %s", this.sb.LastError())
 		}
 	}
 

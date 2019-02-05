@@ -58,7 +58,7 @@ func (o *HttpOutput) ConfigStruct() interface{} {
 func (o *HttpOutput) Init(config interface{}) (err error) {
 	o.HttpOutputConfig = config.(*HttpOutputConfig)
 	if o.url, err = url.Parse(o.Address); err != nil {
-		return fmt.Errorf("Can't parse URL '%s': %s", o.Address, err.Error())
+		return fmt.Errorf("can't parse URL '%s': %s", o.Address, err.Error())
 	}
 	if o.url.Scheme != "http" && o.url.Scheme != "https" {
 		return errors.New("`address` must contain an absolute http or https URL.")
@@ -80,7 +80,7 @@ func (o *HttpOutput) Init(config interface{}) (err error) {
 	if o.url.Scheme == "https" {
 		transport := &http.Transport{}
 		if transport.TLSClientConfig, err = tcp.CreateGoTlsConfig(&o.Tls); err != nil {
-			return fmt.Errorf("TLS init error: %s", err.Error())
+			return fmt.Errorf("tLS init error: %s", err.Error())
 		}
 		o.client.Transport = transport
 	}
@@ -145,15 +145,15 @@ func (o *HttpOutput) request(or pipeline.OutputRunner, outBytes []byte) (err err
 		req.Body = readCloser
 	}
 	if resp, err = o.client.Do(req); err != nil {
-		return fmt.Errorf("Error making HTTP request: %s", err.Error())
+		return fmt.Errorf("error making HTTP request: %s", err.Error())
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("Error reading HTTP response: %s", err.Error())
+			return fmt.Errorf("error reading HTTP response: %s", err.Error())
 		}
-		return fmt.Errorf("HTTP Error code returned: %d %s - %s",
+		return fmt.Errorf("hTTP Error code returned: %d %s - %s",
 			resp.StatusCode, resp.Status, string(body))
 	} else {
 		io.Copy(ioutil.Discard, resp.Body)

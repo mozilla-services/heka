@@ -228,7 +228,7 @@ func UdpOutputSpec(c gs.Context) {
 		oth.MockOutputRunner.EXPECT().UpdateCursor("").AnyTimes()
 		oth.MockOutputRunner.EXPECT().Encoder().Return(encoder)
 		oth.MockOutputRunner.EXPECT().Encode(huge_pack).Return(encoder.Encode(huge_pack))
-		oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("Message has exceeded allowed UDP data size: 131014 > 65507"))
+		oth.MockOutputRunner.EXPECT().LogError(fmt.Errorf("message has exceeded allowed UDP data size: 131014 > 65507"))
 
 		config.Address = "localhost:12345"
 		err := udpOutput.Init(config)

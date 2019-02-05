@@ -90,7 +90,7 @@ func (hi *HttpInput) ConfigStruct() interface{} {
 func (hi *HttpInput) Init(config interface{}) error {
 	hi.conf = config.(*HttpInputConfig)
 	if (hi.conf.Urls == nil) && (hi.conf.Url == "") {
-		return fmt.Errorf("Url or Urls must contain at least one URL")
+		return fmt.Errorf("url or Urls must contain at least one URL")
 	}
 	if hi.conf.Urls != nil {
 		hi.urls = hi.conf.Urls

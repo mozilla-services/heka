@@ -72,7 +72,7 @@ func (hli *HttpListenInput) ConfigStruct() interface{} {
 func defaultStarter(hli *HttpListenInput) (err error) {
 	hli.listener, err = net.Listen("tcp", hli.conf.Address)
 	if err != nil {
-		return fmt.Errorf("Listener [%s] start fail: %s",
+		return fmt.Errorf("listener [%s] start fail: %s",
 			hli.conf.Address, err.Error())
 	} else {
 		hli.ir.LogMessage(fmt.Sprintf("Listening on %s",
@@ -87,7 +87,7 @@ func defaultStarter(hli *HttpListenInput) (err error) {
 
 	err = hli.server.Serve(hli.listener)
 	if err != nil {
-		return fmt.Errorf("Serve fail: %s", err.Error())
+		return fmt.Errorf("serve fail: %s", err.Error())
 	}
 
 	return nil
@@ -179,7 +179,7 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		if hli.conf.Username != "" && hli.conf.Password != "" {
 			user, pass, ok := req.BasicAuth()
 			if !ok || user != hli.conf.Username || pass != hli.conf.Password {
-				err = fmt.Errorf("Basic Auth Failed")
+				err = fmt.Errorf("basic Auth Failed")
 				hli.ir.LogError(err)
 			}
 		}
@@ -188,7 +188,7 @@ func (hli *HttpListenInput) RequestHandler(w http.ResponseWriter, req *http.Requ
 		if hli.conf.Key != "" {
 			api_key := req.Header.Get("X-API-Key")
 			if api_key != hli.conf.Key {
-				err = fmt.Errorf("API Auth Failed")
+				err = fmt.Errorf("aPI Auth Failed")
 				hli.ir.LogError(err)
 			}
 		}

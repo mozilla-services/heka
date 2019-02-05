@@ -384,12 +384,12 @@ func (self *PipelineConfig) StatAccumulator(name string) (statAccum StatAccumula
 	defer self.inputsLock.RUnlock()
 	iRunner, ok := self.InputRunners[name]
 	if !ok {
-		err = fmt.Errorf("No Input named '%s", name)
+		err = fmt.Errorf("no Input named '%s", name)
 		return
 	}
 	input := iRunner.Input()
 	if statAccum, ok = input.(StatAccumulator); !ok {
-		err = fmt.Errorf("Input '%s' is not a StatAccumulator", name)
+		err = fmt.Errorf("input '%s' is not a StatAccumulator", name)
 	}
 	return
 }
@@ -402,7 +402,7 @@ func (self *PipelineConfig) AddFilterRunner(fRunner FilterRunner) error {
 	self.filtersWg.Add(1)
 	if err := fRunner.Start(self, &self.filtersWg); err != nil {
 		self.filtersWg.Done()
-		return fmt.Errorf("AddFilterRunner '%s' failed to start: %s",
+		return fmt.Errorf("addFilterRunner '%s' failed to start: %s",
 			fRunner.Name(), err)
 	} else {
 		self.router.AddFilterMatcher() <- fRunner.MatchRunner()
@@ -437,7 +437,7 @@ func (self *PipelineConfig) AddInputRunner(iRunner InputRunner) error {
 	self.inputsWg.Add(1)
 	if err := iRunner.Start(self, &self.inputsWg); err != nil {
 		self.inputsWg.Done()
-		return fmt.Errorf("AddInputRunner '%s' failed to start: %s", iRunner.Name(), err)
+		return fmt.Errorf("addInputRunner '%s' failed to start: %s", iRunner.Name(), err)
 	}
 	return nil
 }
@@ -621,7 +621,7 @@ func (self *PipelineConfig) PreloadFromConfigFile(filename string) error {
 	}
 
 	if _, err = toml.Decode(contents, &configFile); err != nil {
-		return fmt.Errorf("Error decoding config file: %s", err)
+		return fmt.Errorf("error decoding config file: %s", err)
 	}
 
 	if self.makersByCategory == nil {

@@ -79,17 +79,17 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		}
 		unixAddr, err := net.ResolveUnixAddr(u.config.Net, u.config.Address)
 		if err != nil {
-			return fmt.Errorf("Error resolving unixgram address: %s", err)
+			return fmt.Errorf("error resolving unixgram address: %s", err)
 		}
 		u.listener, err = net.ListenUnixgram(u.config.Net, unixAddr)
 		if err != nil {
-			return fmt.Errorf("Error listening on unixgram: %s", err)
+			return fmt.Errorf("error listening on unixgram: %s", err)
 		}
 		// Ensure socket file is world writable, unless socket is abstract.
 		if !strings.HasPrefix(u.config.Address, "@") {
 			if err = os.Chmod(u.config.Address, 0666); err != nil {
 				return fmt.Errorf(
-					"Error changing unixgram socket permissions: %s", err)
+					"error changing unixgram socket permissions: %s", err)
 			}
 		}
 
@@ -102,24 +102,24 @@ func (u *UdpInput) Init(config interface{}) (err error) {
 		fdStr := u.config.Address[3:]
 		fdInt, err := strconv.ParseUint(fdStr, 0, 0)
 		if err != nil {
-			return fmt.Errorf("Error parsing file descriptor '%s': %s",
+			return fmt.Errorf("error parsing file descriptor '%s': %s",
 				u.config.Address, err)
 		}
 		fd := uintptr(fdInt)
 		udpFile := os.NewFile(fd, "udpFile")
 		u.listener, err = net.FileConn(udpFile)
 		if err != nil {
-			return fmt.Errorf("Error accessing UDP fd: %s\n", err.Error())
+			return fmt.Errorf("error accessing UDP fd: %s\n", err.Error())
 		}
 	} else {
 		// IP address
 		udpAddr, err := net.ResolveUDPAddr(u.config.Net, u.config.Address)
 		if err != nil {
-			return fmt.Errorf("ResolveUDPAddr failed: %s\n", err.Error())
+			return fmt.Errorf("resolveUDPAddr failed: %s\n", err.Error())
 		}
 		u.listener, err = net.ListenUDP(u.config.Net, udpAddr)
 		if err != nil {
-			return fmt.Errorf("ListenUDP failed: %s\n", err.Error())
+			return fmt.Errorf("listenUDP failed: %s\n", err.Error())
 		}
 		if u.config.SetHostname {
 			u.reader = UdpInputReader {
@@ -161,7 +161,7 @@ func (u *UdpInput) Run(ir InputRunner, h PluginHelper) error {
 			}
 			// "use of closed" -> we're stopping.
 			if err != nil && !strings.Contains(err.Error(), "use of closed") {
-				ir.LogError(fmt.Errorf("Read error: %s", err))
+				ir.LogError(fmt.Errorf("read error: %s", err))
 			}
 			sr.GetRemainingData() // reset the receiving buffer
 		}

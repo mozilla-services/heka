@@ -40,7 +40,7 @@ func makeSplitterRunner() (pipeline.SplitterRunner, error) {
 	config := splitter.ConfigStruct()
 	err := splitter.Init(config)
 	if err != nil {
-		return nil, fmt.Errorf("Error initializing HekaFramingSplitter: %s", err)
+		return nil, fmt.Errorf("error initializing HekaFramingSplitter: %s", err)
 	}
 	srConfig := pipeline.CommonSplitterConfig{}
 	sRunner := pipeline.NewSplitterRunner("HekaFramingSplitter", splitter, srConfig)

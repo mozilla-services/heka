@@ -40,7 +40,7 @@ func testSendMail(addr string, a smtp.Auth, from string, to []string, msg []byte
 	switch sendCount {
 	case 0:
 		if bytes.Compare(msg, results[0]) != 0 {
-			return fmt.Errorf("Expected %s, Received %s", results[0], msg)
+			return fmt.Errorf("expected %s, Received %s", results[0], msg)
 		}
 	default:
 		return fmt.Errorf("too many calls to SendMail")

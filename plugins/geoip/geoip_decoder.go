@@ -74,7 +74,7 @@ func (ld *GeoIpDecoder) Init(config interface{}) (err error) {
 		ld.gi, err = geoip.Open(conf.DatabaseFile)
 	}
 	if err != nil {
-		return fmt.Errorf("Could not open GeoIP database: %s\n")
+		return fmt.Errorf("could not open GeoIP database: %s\n")
 	}
 
 	return

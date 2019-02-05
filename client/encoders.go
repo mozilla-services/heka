@@ -64,7 +64,7 @@ func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 
 	msgSize := uint32(len(msgBytes))
 	if msgSize > message.MAX_MESSAGE_SIZE {
-		return fmt.Errorf("Message too big, requires %d (MAX_MESSAGE_SIZE = %d)",
+		return fmt.Errorf("message too big, requires %d (MAX_MESSAGE_SIZE = %d)",
 			len(msgBytes), message.MAX_MESSAGE_SIZE)
 	}
 
@@ -87,7 +87,7 @@ func CreateHekaStream(msgBytes []byte, outBytes *[]byte,
 	}
 	headerSize := proto.Size(h)
 	if headerSize > message.MAX_HEADER_SIZE {
-		return fmt.Errorf("Message header too big, requires %d (MAX_HEADER_SIZE = %d)",
+		return fmt.Errorf("message header too big, requires %d (MAX_HEADER_SIZE = %d)",
 			headerSize, message.MAX_HEADER_SIZE)
 	}
 

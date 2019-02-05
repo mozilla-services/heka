@@ -58,7 +58,7 @@ func (s *SinceTracker) Load() error {
 	// Initialize the sinces from the JSON since file.
 	sinceFile, err := os.Open(s.Path)
 	if err != nil {
-		return fmt.Errorf("Can't open \"since\" file '%s': %s", s.Path, err.Error())
+		return fmt.Errorf("can't open \\"since\\" file '%s': %s", s.Path, err.Error())
 	}
 
 	jsonDecoder := json.NewDecoder(sinceFile)
@@ -68,7 +68,7 @@ func (s *SinceTracker) Load() error {
 	s.Unlock()
 
 	if err != nil {
-		return fmt.Errorf("Can't decode \"since\" file '%s': %s", s.Path, err.Error())
+		return fmt.Errorf("can't decode \\"since\\" file '%s': %s", s.Path, err.Error())
 	}
 
 	return nil
@@ -78,7 +78,7 @@ func (s *SinceTracker) Load() error {
 func (s *SinceTracker) Write(t time.Time) {
 	sinceFile, err := os.Create(s.Path)
 	if err != nil {
-		s.ir.LogError(fmt.Errorf("Can't create \"since\" file '%s': %s", s.Path,
+		s.ir.LogError(fmt.Errorf("can't create \\"since\\" file '%s': %s", s.Path,
 			err.Error()))
 		return
 	}
@@ -105,13 +105,13 @@ func (s *SinceTracker) Write(t time.Time) {
 	}{&s.Since, &s.Containers}
 
 	if err = jsonEncoder.Encode(outStruct); err != nil {
-		s.ir.LogError(fmt.Errorf("Can't write to \"since\" file '%s': %s", s.Path,
+		s.ir.LogError(fmt.Errorf("can't write to \\"since\\" file '%s': %s", s.Path,
 			err.Error()))
 	}
 
 	s.Unlock()
 	if err = sinceFile.Close(); err != nil {
-		s.ir.LogError(fmt.Errorf("Can't close \"since\" file '%s': %s", s.Path,
+		s.ir.LogError(fmt.Errorf("can't close \\"since\\" file '%s': %s", s.Path,
 			err.Error()))
 	}
 }
@@ -123,27 +123,27 @@ func EnsureSincesFile(conf *DockerLogInputConfig, sincePath string) error {
 	if os.IsNotExist(err) {
 		sinceDir := filepath.Dir(sincePath)
 		if err = os.MkdirAll(sinceDir, 0700); err != nil {
-			return fmt.Errorf("Can't create storage directory '%s': %s", sinceDir,
+			return fmt.Errorf("can't create storage directory '%s': %s", sinceDir,
 				err.Error())
 		}
 
 		sinceFile, err := os.Create(sincePath)
 		if err != nil {
-			return fmt.Errorf("Can't create \"since\" file '%s': %s", sincePath,
+			return fmt.Errorf("can't create \\"since\\" file '%s': %s", sincePath,
 				err.Error())
 		}
 
 		jsonEncoder := json.NewEncoder(sinceFile)
 		if err = jsonEncoder.Encode(&SinceTracker{Containers: make(map[string]int64)}); err != nil {
-			return fmt.Errorf("Can't write to \"since\" file '%s': %s", sincePath,
+			return fmt.Errorf("can't write to \\"since\\" file '%s': %s", sincePath,
 				err.Error())
 		}
 		if err = sinceFile.Close(); err != nil {
-			return fmt.Errorf("Can't close \"since\" file '%s': %s", sincePath,
+			return fmt.Errorf("can't close \\"since\\" file '%s': %s", sincePath,
 				err.Error())
 		}
 	} else if err != nil {
-		return fmt.Errorf("Can't open \"since\" file '%s': %s", sincePath, err.Error())
+		return fmt.Errorf("can't open \\"since\\" file '%s': %s", sincePath, err.Error())
 	}
 
 	return nil

@@ -216,12 +216,12 @@ func (md *MultiDecoder) Init(config interface{}) (err error) {
 	)
 
 	if md.CascStrat, ok = mdStrategies[md.Config.CascadeStrategy]; !ok {
-		return fmt.Errorf("Unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
+		return fmt.Errorf("unrecognized cascade strategy: %s", md.Config.CascadeStrategy)
 	}
 
 	for i, name := range md.Config.Subs {
 		if decoder, ok = md.pConfig.Decoder(name); !ok {
-			return fmt.Errorf("Non-existent subdecoder: %s", name)
+			return fmt.Errorf("non-existent subdecoder: %s", name)
 		}
 		md.Decoders[i] = decoder
 	}
@@ -275,7 +275,7 @@ func (md *MultiDecoder) SetDecoderRunner(dr DecoderRunner) {
 			if realDRunner == nil {
 				// Couldn't get a *dRunner. Just log an error and pass the
 				// outer DecoderRunner through.
-				dr.LogError(fmt.Errorf("Can't create nested DecoderRunner for '%s'",
+				dr.LogError(fmt.Errorf("can't create nested DecoderRunner for '%s'",
 					subName))
 				wanter.SetDecoderRunner(dr)
 				continue
@@ -330,7 +330,7 @@ func (md *MultiDecoder) getDecodedPacks(chain []Decoder, inPacks []*PipelinePack
 			atomic.AddInt64(&md.processMessageFailures[md.idx], 1)
 			if err != nil && md.Config.LogSubErrors {
 				idx := len(md.Decoders) - len(chain)
-				err = fmt.Errorf("Subdecoder '%s' decode error: %s",
+				err = fmt.Errorf("subdecoder '%s' decode error: %s",
 					md.Config.Subs[idx], err)
 				md.dRunner.LogError(err)
 			}
@@ -386,7 +386,7 @@ func (md *MultiDecoder) Decode(pack *PipelinePack) (packs []*PipelinePack, err e
 			}
 			atomic.AddInt64(&md.processMessageFailures[i], 1)
 			if err != nil && md.Config.LogSubErrors {
-				err = fmt.Errorf("Subdecoder '%s' decode error: %s", md.Config.Subs[i],
+				err = fmt.Errorf("subdecoder '%s' decode error: %s", md.Config.Subs[i],
 					err)
 				md.dRunner.LogError(err)
 			}

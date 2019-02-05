@@ -74,11 +74,11 @@ func (t *TcpInput) Init(config interface{}) error {
 	t.config = config.(*TcpInputConfig)
 	address, err := net.ResolveTCPAddr(t.config.Net, t.config.Address)
 	if err != nil {
-		return fmt.Errorf("ResolveTCPAddress failed: %s\n", err.Error())
+		return fmt.Errorf("resolveTCPAddress failed: %s\n", err.Error())
 	}
 	t.listener, err = net.ListenTCP(t.config.Net, address)
 	if err != nil {
-		return fmt.Errorf("ListenTCP failed: %s\n", err.Error())
+		return fmt.Errorf("listenTCP failed: %s\n", err.Error())
 	}
 	// We're already listening, make sure we clean up if init fails later on.
 	closeIt := true
@@ -166,7 +166,7 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 	for {
 		if conn, e = t.listener.Accept(); e != nil {
 			if netErr, ok := e.(net.Error); ok && netErr.Temporary() {
-				t.ir.LogError(fmt.Errorf("TCP accept failed: %s", e))
+				t.ir.LogError(fmt.Errorf("tCP accept failed: %s", e))
 				continue
 			} else {
 				break
@@ -191,7 +191,7 @@ func (t *TcpInput) Run(ir InputRunner, h PluginHelper) error {
 
 func (t *TcpInput) Stop() {
 	if err := t.listener.Close(); err != nil {
-		t.ir.LogError(fmt.Errorf("Error closing listener: %s", err))
+		t.ir.LogError(fmt.Errorf("error closing listener: %s", err))
 	}
 	close(t.stopChan)
 }

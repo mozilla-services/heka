@@ -78,11 +78,11 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	var configFile map[string]toml.Primitive
 	p, err := os.Open(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening config file: %s", err)
+		return nil, fmt.Errorf("error opening config file: %s", err)
 	}
 	fi, err := p.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("Error fetching config file info: %s", err)
+		return nil, fmt.Errorf("error fetching config file info: %s", err)
 	}
 
 	if fi.IsDir() {
@@ -99,7 +99,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 				return nil, err
 			}
 			if _, err = toml.Decode(contents, &configFile); err != nil {
-				return nil, fmt.Errorf("Error decoding config file: %s", err)
+				return nil, fmt.Errorf("error decoding config file: %s", err)
 			}
 		}
 	} else {
@@ -108,7 +108,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 			return nil, err
 		}
 		if _, err = toml.Decode(contents, &configFile); err != nil {
-			return nil, fmt.Errorf("Error decoding config file: %s", err)
+			return nil, fmt.Errorf("error decoding config file: %s", err)
 		}
 	}
 
@@ -116,7 +116,7 @@ func LoadHekadConfig(configPath string) (config *HekadConfig, err error) {
 	parsed_config, ok := configFile[pipeline.HEKA_DAEMON]
 	if ok {
 		if err = toml.PrimitiveDecodeStrict(parsed_config, config, empty_ignore); err != nil {
-			err = fmt.Errorf("Can't unmarshal config: %s", err)
+			err = fmt.Errorf("can't unmarshal config: %s", err)
 		}
 	}
 

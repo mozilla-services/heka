@@ -69,7 +69,7 @@ func (f *HostFilter) Run(runner pipeline.FilterRunner, helper pipeline.PluginHel
 	)
 
 	if output, ok = helper.Output(f.output); !ok {
-		return fmt.Errorf("No output: %s", output)
+		return fmt.Errorf("no output: %s", output)
 	}
 	for pack := range runner.InChan() {
 		hostname = pack.Message.GetHostname()

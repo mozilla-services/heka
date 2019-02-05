@@ -284,7 +284,7 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	err error) {
 
 	if s.sb == nil {
-		err = fmt.Errorf("SandboxDecoder has been terminated")
+		err = fmt.Errorf("sandboxDecoder has been terminated")
 		return
 	}
 	s.pack = pack
@@ -304,17 +304,17 @@ func (s *SandboxDecoder) Decode(pack *pipeline.PipelinePack) (packs []*pipeline.
 	}
 	s.sample = 0 == rand.Intn(s.sampleDenominator)
 	if retval > 0 {
-		err = fmt.Errorf("FATAL: %s", s.sb.LastError())
+		err = fmt.Errorf("fATAL: %s", s.sb.LastError())
 		s.dRunner.LogError(err)
 		s.pConfig.Globals.ShutDown(1)
 	}
 	if retval < 0 {
 		atomic.AddInt64(&s.processMessageFailures, 1)
 		if s.pack != nil {
-			err = fmt.Errorf("Failed parsing: %s payload: %s",
+			err = fmt.Errorf("failed parsing: %s payload: %s",
 				s.sb.LastError(), s.pack.Message.GetPayload())
 		} else {
-			err = fmt.Errorf("Failed after a successful inject_message call: %s", s.sb.LastError())
+			err = fmt.Errorf("failed after a successful inject_message call: %s", s.sb.LastError())
 		}
 		if len(s.packs) > 1 {
 			for _, p := range s.packs[1:] {
@@ -346,7 +346,7 @@ func (s *SandboxDecoder) ReportMsg(msg *message.Message) error {
 	defer s.reportLock.Unlock()
 
 	if s.sb == nil {
-		return fmt.Errorf("Decoder is not running")
+		return fmt.Errorf("decoder is not running")
 	}
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,

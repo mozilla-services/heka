@@ -59,7 +59,7 @@ func (o *UdpOutput) Init(config interface{}) (err error) {
 	o.UdpOutputConfig = config.(*UdpOutputConfig) // assert we have the right config type
 
 	if o.UdpOutputConfig.MaxMessageSize < 512 {
-		return fmt.Errorf("Maximum message size can't be smaller than 512 bytes.")
+		return fmt.Errorf("maximum message size can't be smaller than 512 bytes")
 	}
 
 	if o.Net == "unixgram" {
@@ -69,35 +69,35 @@ func (o *UdpOutput) Init(config interface{}) (err error) {
 		var unixAddr, lAddr *net.UnixAddr
 		unixAddr, err = net.ResolveUnixAddr(o.Net, o.Address)
 		if err != nil {
-			return fmt.Errorf("Error resolving unixgram address '%s': %s", o.Address,
+			return fmt.Errorf("error resolving unixgram address '%s': %s", o.Address,
 				err.Error())
 		}
 		if o.LocalAddress != "" {
 			lAddr, err = net.ResolveUnixAddr(o.Net, o.LocalAddress)
 			if err != nil {
-				return fmt.Errorf("Error resolving local unixgram address '%s': %s",
+				return fmt.Errorf("error resolving local unixgram address '%s': %s",
 					o.LocalAddress, err.Error())
 			}
 		}
 		if o.conn, err = net.DialUnix(o.Net, lAddr, unixAddr); err != nil {
-			return fmt.Errorf("Can't connect to '%s': %s", o.Address,
+			return fmt.Errorf("can't connect to '%s': %s", o.Address,
 				err.Error())
 		}
 	} else {
 		var udpAddr, lAddr *net.UDPAddr
 		if udpAddr, err = net.ResolveUDPAddr(o.Net, o.Address); err != nil {
-			return fmt.Errorf("Error resolving UDP address '%s': %s", o.Address,
+			return fmt.Errorf("error resolving UDP address '%s': %s", o.Address,
 				err.Error())
 		}
 		if o.LocalAddress != "" {
 			lAddr, err = net.ResolveUDPAddr(o.Net, o.LocalAddress)
 			if err != nil {
-				return fmt.Errorf("Error resolving local UDP address '%s': %s",
+				return fmt.Errorf("error resolving local UDP address '%s': %s",
 					o.Address, err.Error())
 			}
 		}
 		if o.conn, err = net.DialUDP(o.Net, lAddr, udpAddr); err != nil {
-			return fmt.Errorf("Can't connect to '%s': %s", o.Address,
+			return fmt.Errorf("can't connect to '%s': %s", o.Address,
 				err.Error())
 		}
 	}
@@ -118,14 +118,14 @@ func (o *UdpOutput) Run(or pipeline.OutputRunner, h pipeline.PluginHelper) (err 
 	for pack := range or.InChan() {
 		if outBytes, e = or.Encode(pack); e != nil {
 			or.UpdateCursor(pack.QueueCursor)
-			e = fmt.Errorf("Error encoding message: %s", e.Error())
+			e = fmt.Errorf("error encoding message: %s", e.Error())
 			pack.Recycle(e)
 			continue
 		} else if outBytes != nil {
 			msgSize := len(outBytes)
 			if msgSize > o.UdpOutputConfig.MaxMessageSize {
 				or.UpdateCursor(pack.QueueCursor)
-				e = fmt.Errorf("Message has exceeded allowed UDP data size: %d > %d",
+				e = fmt.Errorf("message has exceeded allowed UDP data size: %d > %d",
 					msgSize, o.UdpOutputConfig.MaxMessageSize)
 				pack.Recycle(e)
 				continue

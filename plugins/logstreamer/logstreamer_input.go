@@ -247,7 +247,7 @@ func (li *LogstreamerInput) Run(ir p.InputRunner, h p.PluginHelper) (err error) 
 			for _, name := range newstreams {
 				stream, ok := li.logstreamSet.GetLogstream(name)
 				if !ok {
-					ir.LogError(fmt.Errorf("Found new logstream: %s, but couldn't fetch it.",
+					ir.LogError(fmt.Errorf("found new logstream: %s, but couldn't fetch it",
 						name))
 					continue
 				}

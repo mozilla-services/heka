@@ -407,7 +407,7 @@ func (e *ESJsonEncoder) Encode(pack *PipelinePack) (output []byte, err error) {
 				}
 			}
 		default:
-			err = fmt.Errorf("Unable to find field: %s", f)
+			err = fmt.Errorf("unable to find field: %s", f)
 			return
 		}
 	}
@@ -585,7 +585,7 @@ func (e *ESLogstashV0Encoder) Encode(pack *PipelinePack) (output []byte, err err
 			}
 			buf.WriteString(`}`) // end of fields
 		default:
-			err = fmt.Errorf("Unable to find field: %s", f)
+			err = fmt.Errorf("unable to find field: %s", f)
 			return
 		}
 		first = false

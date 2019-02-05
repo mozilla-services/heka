@@ -101,7 +101,7 @@ func (output *IrcOutput) Init(config interface{}) error {
 	output.IrcOutputConfig = conf
 	conn, err := output.InitIrcCon(conf)
 	if err != nil {
-		return fmt.Errorf("Error setting up Irc Connection: %s", err)
+		return fmt.Errorf("error setting up Irc Connection: %s", err)
 	}
 	output.Conn = conn
 
@@ -146,7 +146,7 @@ func (output *IrcOutput) Run(runner pipeline.OutputRunner,
 	// Connect to the Irc Server
 	err = output.Conn.Connect(output.Server)
 	if err != nil {
-		return fmt.Errorf("Unable to connect to irc server %s: %s",
+		return fmt.Errorf("unable to connect to irc server %s: %s",
 			output.Server, err)
 	}
 
@@ -314,7 +314,7 @@ func sendFromOutQueue(output *IrcOutput, ircMsg *IrcMsg) bool {
 			// Failed to put, which means the backlog for this Irc
 			// channel is full. So drop it and log a message.
 			output.runner.LogError(
-				fmt.Errorf("%s Channel: %s.",
+				fmt.Errorf("%s Channel: %s",
 					ErrBacklogQueueFull, ircMsg.IrcChannel))
 		}
 		return false
@@ -485,7 +485,7 @@ func registerCallbacks(output *IrcOutput) {
 		// If we've gotten this far, we should send a message about why we
 		// couldn't join
 		reason := event.Arguments[2]
-		err := fmt.Errorf("%s. Retrying in %d seconds.",
+		err := fmt.Errorf("%s. Retrying in %d seconds",
 			IrcCannotJoinError{ircChan, reason}, output.TimeBeforeRejoin)
 		output.runner.LogError(err)
 		// Increment our number of retries each time we try to join

@@ -121,21 +121,21 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	var intPerm int64
 
 	if intPerm, err = strconv.ParseInt(conf.FolderPerm, 8, 32); err != nil {
-		err = fmt.Errorf("FileOutput '%s' can't parse `folder_perm`, is it an octal integer string?",
+		err = fmt.Errorf("fileOutput '%s' can't parse `folder_perm`, is it an octal integer string",
 			o.Path)
 		return err
 	}
 	o.folderPerm = os.FileMode(intPerm)
 
 	if intPerm, err = strconv.ParseInt(conf.Perm, 8, 32); err != nil {
-		err = fmt.Errorf("FileOutput '%s' can't parse `perm`, is it an octal integer string?",
+		err = fmt.Errorf("fileOutput '%s' can't parse `perm`, is it an octal integer string",
 			o.Path)
 		return err
 	}
 	o.perm = os.FileMode(intPerm)
 
 	if conf.FlushCount < 1 {
-		err = fmt.Errorf("Parameter 'flush_count' needs to be greater 1.")
+		err = fmt.Errorf("parameter 'flush_count' needs to be greater 1")
 		return err
 	}
 	switch conf.FlushOperator {
@@ -144,7 +144,7 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 	case "OR":
 		o.flushOpAnd = false
 	default:
-		err = fmt.Errorf("Parameter 'flush_operator' needs to be either 'AND' or 'OR', is currently: '%s'",
+		err = fmt.Errorf("parameter 'flush_operator' needs to be either 'AND' or 'OR', is currently: '%s'",
 			conf.FlushOperator)
 		return err
 	}
@@ -158,11 +158,11 @@ func (o *FileOutput) Init(config interface{}) (err error) {
 		// RotationInterval value is allowed
 		o.startRotateNotifier()
 	default:
-		err = fmt.Errorf("Parameter 'rotation_interval' must be one of: 0, 1, 4, 12, 24.")
+		err = fmt.Errorf("parameter 'rotation_interval' must be one of: 0, 1, 4, 12, 24")
 		return err
 	}
 	if err = o.openFile(); err != nil {
-		err = fmt.Errorf("FileOutput '%s' error opening file: %s", o.path, err)
+		err = fmt.Errorf("fileOutput '%s' error opening file: %s", o.path, err)
 		close(o.closing)
 		return err
 	}
@@ -203,7 +203,7 @@ func (o *FileOutput) startRotateNotifier() {
 func (o *FileOutput) openFile() (err error) {
 	basePath := filepath.Dir(o.path)
 	if err = os.MkdirAll(basePath, o.folderPerm); err != nil {
-		return fmt.Errorf("Can't create the basepath for the FileOutput plugin: %s", err.Error())
+		return fmt.Errorf("can't create the basepath for the FileOutput plugin: %s", err.Error())
 	}
 	if err = plugins.CheckWritePermission(basePath); err != nil {
 		return
@@ -338,7 +338,7 @@ func (o *FileOutput) committer(or OutputRunner, errChan chan error) {
 			}
 			n, err := o.file.Write(out.data)
 			if err != nil {
-				or.LogError(fmt.Errorf("Can't write to %s: %s", o.path, err))
+				or.LogError(fmt.Errorf("can't write to %s: %s", o.path, err))
 			} else if n != len(out.data) {
 				or.LogError(fmt.Errorf("data loss - truncated output for %s", o.path))
 				or.UpdateCursor(out.cursor)

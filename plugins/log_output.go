@@ -50,7 +50,7 @@ func (self *LogOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	)
 	for pack = range inChan {
 		if outBytes, e = or.Encode(pack); e != nil {
-			or.LogError(fmt.Errorf("Error encoding message: %s", e))
+			or.LogError(fmt.Errorf("error encoding message: %s", e))
 		} else if outBytes != nil {
 			logOut.Print(string(outBytes))
 		}

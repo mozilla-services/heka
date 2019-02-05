@@ -158,7 +158,7 @@ func MultiDecoderSpec(c gospec.Context) {
 
 			// Expect that we log an error for undecoded message.
 			dRunner.EXPECT().LogError(fmt.Errorf(
-				"Subdecoder 'StartsWithM' decode error: No match: %s", regex_data)).AnyTimes()
+				"subdecoder 'StartsWithM' decode error: No match: %s", regex_data)).AnyTimes()
 
 			packs, err := decoder.Decode(pack)
 			c.Expect(len(packs), gs.Equals, 0)

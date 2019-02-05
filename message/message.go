@@ -329,7 +329,7 @@ func NewFieldInit(name string, valueType Field_ValueType, representation string)
 // Creates an array of values in this field, of the same type, in the order they were added
 func (f *Field) AddValue(value interface{}) error {
 	if f == nil {
-		return fmt.Errorf("Field is nil")
+		return fmt.Errorf("field is nil")
 	}
 	v := reflect.ValueOf(value)
 	t, err := getValueType(v)
@@ -337,7 +337,7 @@ func (f *Field) AddValue(value interface{}) error {
 		return err
 	}
 	if t != f.GetValueType() {
-		return fmt.Errorf("The field contains: %v; attempted to add %v",
+		return fmt.Errorf("the field contains: %v; attempted to add %v",
 			Field_ValueType_name[int32(f.GetValueType())], Field_ValueType_name[int32(t)])
 	}
 

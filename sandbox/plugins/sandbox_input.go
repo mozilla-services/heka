@@ -196,7 +196,7 @@ func (s *SandboxInput) ReportMsg(msg *message.Message) error {
 	defer s.reportLock.Unlock()
 
 	if s.sb == nil {
-		return fmt.Errorf("Input is not running")
+		return fmt.Errorf("input is not running")
 	}
 
 	message.NewIntField(msg, "Memory", int(s.sb.Usage(TYPE_MEMORY,

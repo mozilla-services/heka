@@ -40,7 +40,7 @@ func (pdh *PayloadDecoderHelper) DecodeTimestamp(pack *PipelinePack) {
 	if timeStamp, ok := pdh.Captures["Timestamp"]; ok {
 		val, err := ForgivingTimeParse(pdh.TimestampLayout, timeStamp, pdh.TzLocation)
 		if err != nil {
-			pdh.dRunner.LogError(fmt.Errorf("Don't recognize Timestamp: '%s'", timeStamp))
+			pdh.dRunner.LogError(fmt.Errorf("don't recognize Timestamp: '%s'", timeStamp))
 		}
 		// If we only get a timestamp, use the current date
 		if val.Year() == 0 && val.Month() == 1 && val.Day() == 1 {
@@ -69,7 +69,7 @@ func (pdh *PayloadDecoderHelper) DecodeSeverity(pack *PipelinePack) {
 			// No mapping => severity value should be an int.
 			sevInt, err := strconv.ParseInt(sevStr, 10, 32)
 			if err != nil {
-				pdh.dRunner.LogError(fmt.Errorf("Don't recognize severity: '%s'", sevStr))
+				pdh.dRunner.LogError(fmt.Errorf("don't recognize severity: '%s'", sevStr))
 			} else {
 				pack.Message.SetSeverity(int32(sevInt))
 			}

@@ -120,13 +120,13 @@ func (t *CarbonOutput) sendTCP(or OutputRunner, data []byte) {
 		if t.TCPConn == nil {
 			t.TCPConn, err = net.DialTCP("tcp", nil, t.TCPAddr)
 			if err != nil {
-				or.LogError(fmt.Errorf("Dial failed: %s", err.Error()))
+				or.LogError(fmt.Errorf("dial failed: %s", err.Error()))
 				return
 			}
 		}
 		_, err = t.TCPConn.Write(data)
 		if err != nil {
-			or.LogError(fmt.Errorf("Write to server failed: %s", err.Error()))
+			or.LogError(fmt.Errorf("write to server failed: %s", err.Error()))
 			return
 		}
 		return
@@ -160,13 +160,13 @@ func (t *CarbonOutput) sendTCP(or OutputRunner, data []byte) {
 func (t *CarbonOutput) sendUDP(or OutputRunner, data []byte) {
 	conn, err := net.DialUDP("udp", nil, t.UDPAddr)
 	if err != nil {
-		or.LogError(fmt.Errorf("Dial failed: %s", err.Error()))
+		or.LogError(fmt.Errorf("dial failed: %s", err.Error()))
 		return
 	}
 
 	_, err = conn.Write(data)
 	if err != nil {
-		or.LogError(fmt.Errorf("Write to server failed: %s", err.Error()))
+		or.LogError(fmt.Errorf("write to server failed: %s", err.Error()))
 		return
 	}
 }

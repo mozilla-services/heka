@@ -126,7 +126,7 @@ func (this *SandboxManagerFilter) createRunner(dir, name string, configSection t
 		return nil, err
 	}
 	if maker.Type() != "SandboxFilter" {
-		return nil, fmt.Errorf("Plugin must be a SandboxFilter, received %s",
+		return nil, fmt.Errorf("plugin must be a SandboxFilter, received %s",
 			maker.Type())
 	}
 
@@ -294,7 +294,7 @@ func (this *SandboxManagerFilter) Run(fr pipeline.FilterRunner,
 			delta = time.Now().UnixNano() - pack.Message.GetTimestamp()
 			if math.Abs(float64(delta)) >= 5e9 {
 				fr.UpdateCursor(pack.QueueCursor)
-				pack.Recycle(fmt.Errorf("Discarded control message: %d seconds skew",
+				pack.Recycle(fmt.Errorf("discarded control message: %d seconds skew",
 					delta/1e9))
 				break
 			}

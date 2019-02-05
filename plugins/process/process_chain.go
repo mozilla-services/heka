@@ -71,11 +71,11 @@ func (mc *ManagedCmd) Wait() (err error) {
 		for !done {
 			select {
 			case <-mc.Stopchan:
-				err = fmt.Errorf("ManagedCmd was stopped with error: [%s]", mc.kill())
+				err = fmt.Errorf("managedCmd was stopped with error: [%s]", mc.kill())
 				done = true
 			case <-time.After(mc.timeout_duration):
 				mc.Stopchan <- true
-				err = fmt.Errorf("ManagedCmd timedout")
+				err = fmt.Errorf("managedCmd timedout")
 			case err = <-mc.done:
 				done = true
 			}
@@ -83,7 +83,7 @@ func (mc *ManagedCmd) Wait() (err error) {
 	} else {
 		select {
 		case <-mc.Stopchan:
-			err = fmt.Errorf("ManagedCmd was stopped with error: [%s]", mc.kill())
+			err = fmt.Errorf("managedCmd was stopped with error: [%s]", mc.kill())
 		case err = <-mc.done:
 		}
 	}
@@ -169,14 +169,14 @@ func (cc *CommandChain) AddStep(Path string, Args ...string) (cmd *ManagedCmd) {
 
 func (cc *CommandChain) Stdout_r() (stdout io.Reader, err error) {
 	if len(cc.Cmds) == 0 {
-		return nil, fmt.Errorf("No commands are in this chain")
+		return nil, fmt.Errorf("no commands are in this chain")
 	}
 	return cc.Cmds[len(cc.Cmds)-1].Stdout_r, nil
 }
 
 func (cc *CommandChain) Stderr_r() (stderr io.Reader, err error) {
 	if len(cc.Cmds) == 0 {
-		return nil, fmt.Errorf("No commands are in this chain")
+		return nil, fmt.Errorf("no commands are in this chain")
 	}
 	return cc.Cmds[len(cc.Cmds)-1].Stderr_r, nil
 }
@@ -193,7 +193,7 @@ func (cc *CommandChain) Start() (err error) {
 		}
 
 		if err != nil {
-			return fmt.Errorf("Command [%s] triggered an error: [%s]",
+			return fmt.Errorf("command [%s] triggered an error: [%s]",
 				strings.Join(cmd.Args, " "),
 				err.Error())
 		}
