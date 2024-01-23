@@ -1,4 +1,4 @@
-This project is deprecated. Please see [this email]([https://mail.mozilla.org/pipermail/heka/2016-May/001059.html](https://web.archive.org/web/20230526160209/https://mail.mozilla.org/pipermail/heka/2016-May/001059.html)) for more details.
+This project is deprecated. Please see [this email](https://mail.mozilla.org/pipermail/heka/2016-May/001059.html](https://web.archive.org/web/20230526160209/https://mail.mozilla.org/pipermail/heka/2016-May/001059.html) for more details.
 
 # Heka
 
