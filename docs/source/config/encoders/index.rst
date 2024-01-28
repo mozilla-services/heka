@@ -17,6 +17,7 @@ Available Encoder Plugins
    esjson
    eslogstashv0
    espayload
+   opentsdb_batch
    payload
    protobuf
    rst

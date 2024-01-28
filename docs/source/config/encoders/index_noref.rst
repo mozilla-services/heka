@@ -18,6 +18,9 @@ Encoders
 .. include:: /config/encoders/espayload.rst
    :start-line: 1
 
+.. include:: /config/encoders/opentsdb_batch.rst
+   :start-line: 1
+
 .. include:: /config/encoders/payload.rst
    :start-line: 1
 
