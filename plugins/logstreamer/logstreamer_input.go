@@ -38,6 +38,9 @@ type LogstreamerInputConfig struct {
 	JournalDirectory string `toml:"journal_directory"`
 	// File match for regular expression
 	FileMatch string `toml:"file_match"`
+	// Glob pattern to be used as an alternative method for scanning log_directory path for
+	// file_match.
+	GlobPattern string `toml:"glob_pattern"`
 	// Priority to sort in
 	Priority []string
 	// Differentiator for splitting out logstreams if applicable
@@ -152,6 +155,7 @@ func (li *LogstreamerInput) Init(config interface{}) (err error) {
 		Translation:    conf.Translation,
 		Priority:       conf.Priority,
 		Differentiator: conf.Differentiator,
+		GlobPattern:    conf.GlobPattern,
 	}
 
 	// Create the main logstream set

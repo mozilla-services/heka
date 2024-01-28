@@ -46,6 +46,15 @@ Config:
     all backslashes to be escaped. For example, `'access\\.log'` will work as
     expected, but `"access\\.log"` will not, you would need `"access\\\\.log"`
     to achieve the same result.
+- glob_pattern (string, optional):
+    By default, the method for scanning the filesystem uses the filepath.Walk()
+    method. That will traverse every directory/file down "log_dir" and check
+    to see if it matches "file_match". This can be slower depending on the
+    complexity of the filesystem. "glob_pattern" provides an optional
+    alternative method for scanning the filesystem by quickly ruling out
+    locations that would otherwise be scanned. This is still used in conjunction
+    with "log_dir" and "file_match. Uses `format
+    <https://golang.org/pkg/path/filepath/#Match>`_. (e.x. `"/var/log/*/*.log*"`).
 - priority (list of strings):
     When using sequential logstreams, the priority is how to sort the logfiles
     in order from oldest to newest.

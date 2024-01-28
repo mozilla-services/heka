@@ -31,6 +31,7 @@ func FilehandlingSpec(c gs.Context) {
 	if runtime.GOOS == "windows" {
 		regex1, regex2 = `\\subdir\\.*\.log(\..*)?`, `\\subdir\\.*.logg(.*)?`
 	}
+	globPattern, globPattern2 := filepath.Join(dirPath, "subdir/*.log*"), filepath.Join(dirPath, "subdir/*.logg*")
 
 	c.Specify("The directory scanner", func() {
 
@@ -41,6 +42,19 @@ func FilehandlingSpec(c gs.Context) {
 
 		c.Specify("scans a directory with a bad regexp", func() {
 			results := ScanDirectoryForLogfiles(dirPath, fileMatchRegexp(dirPath, regex2))
+			c.Expect(len(results), gs.Equals, 0)
+		})
+	})
+
+	c.Specify("The glob scanner", func() {
+
+		c.Specify("globs a directory properly", func() {
+			results := GlobForLogfiles(dirPath, fileMatchRegexp(dirPath, regex1), globPattern)
+			c.Expect(len(results), gs.Equals, 3)
+		})
+
+		c.Specify("globs a directory with a bad pattern", func() {
+			results := GlobForLogfiles(dirPath, fileMatchRegexp(dirPath, regex2), globPattern2)
 			c.Expect(len(results), gs.Equals, 0)
 		})
 	})
