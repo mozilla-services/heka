@@ -1,0 +1,5 @@
+FROM debian:jessie
+MAINTAINER Xavier Lange <xrlange@tureus.com> (@tureus)
+
+ADD heka.deb /tmp/heka.deb
+RUN apt-get update && apt-get install -y libgeoip1 && dpkg -i /tmp/heka.deb && rm /tmp/heka.deb
