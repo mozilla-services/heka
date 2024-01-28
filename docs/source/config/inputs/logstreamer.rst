@@ -32,11 +32,12 @@ Config:
     should be suitably restricted to the most specific directory this
     selection of logfiles will be matched under. The log_directory path will
     be prepended to the file_match.
-- rescan_interval (int):
+- rescan_interval (string):
     During logfile rotation, or if the logfile is not originally
     present on the system, this interval is how often the existence of
     the logfile will be checked for. The default of 5 seconds is
-    usually fine. This interval is in milliseconds.
+    usually fine. This interval is a time duration string
+    (e.x. "2s", "2m", "2h").
 - file_match (string):
     Regular expression used to match files located under the
     ``log_directory``. This regular expression has ``$`` added to the end
