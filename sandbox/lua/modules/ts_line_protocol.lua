@@ -56,6 +56,26 @@ API
         an InfluxDB server after being looped through in an encoder
         implementing this API.
 
+**kairosdb_telnet_msg(config)**
+    Wrapper function that calls others within this module and the field_util
+    module to generate a table of KairosDB line protocol messages that are
+    derived from the base or dynamic fields in a Heka message. Base fields or
+    dynamic fields can be used in the metric name portion of the message and
+    included as tags if desired.  Configuration is implemented in the encoders
+    that utilize this module.
+
+    *Arguments*
+        - config (table or nil)
+            Table of config option overrides that come from the client
+            of this API.  Defaults for this module are defined within
+            the set_config function and clients implementing this API
+            can reference it for available options.
+
+    *Return*
+        A table of KairosDB telnet API messages ready to be sent to
+        an KairosDB server after being looped through in an encoder
+        implementing this API.
+
 **set_config(client_config)**
     This function takes a table of configuration options as input that can
     override the defaults that are set within it.  The table is then used to
@@ -100,7 +120,16 @@ local function influxdb_kv_fmt(string)
     return tostring(string):gsub("([ ,])", "\\%1")
 end
 
-local function points_tags_tables(config)
+local function kairosdb_kv_fmt(string)
+    return tostring(string):gsub("[:=]", "."):gsub("[^a-zA-Z0-9%.-_/]", "")
+end
+
+local function points_tags_tables(config, ...)
+    local arg={...}
+    local kv_fmt = "influxdb"
+    if #arg > 0 then
+        kv_fmt = arg[1]
+    end
     local name_prefix = config.name_prefix or ""
     if config.interp_name_prefix then
         name_prefix = interp.interpolate_from_msg(name_prefix)
@@ -120,8 +149,14 @@ local function points_tags_tables(config)
                 if config.tag_fields_all or config.tag_fields_all_base
                 or used_tag_fields[field] then
                     local value = read_message(field)
-                    local insert_str = string.format("%s=%s", influxdb_kv_fmt(field),
+                    local insert_str = ""
+                    if kv_fmt == "kairosdb" then
+			insert_str = string.format("%s=%s", kairosdb_kv_fmt(field),
+                                                     tostring(kairosdb_kv_fmt(value)))
+                    else
+                        insert_str = string.format("%s=%s", influxdb_kv_fmt(field),
                                                      tostring(influxdb_kv_fmt(value)))
+                    end
                     table.insert(tags, insert_str)
                 end
             end
@@ -171,9 +206,14 @@ local function points_tags_tables(config)
                 -- Convert value to a string as this is required by the API
                 if not config.carbon_format and config.tag_fields_all
                 or (config.used_tag_fields and used_tag_fields[field]) then
-                    local insert_str = string.format("%s=%s",
-                                                     influxdb_kv_fmt(field_out_name),
+                    local insert_str = ""
+                    if kv_fmt == "kairosdb" then
+                        insert_str = string.format("%s=%s", kairosdb_kv_fmt(field_out_name),
+                                                     tostring(kairosdb_kv_fmt(value)))
+                    else
+                        insert_str = string.format("%s=%s", influxdb_kv_fmt(field_out_name),
                                                      tostring(influxdb_kv_fmt(value)))
+                    end
                     table.insert(tags, insert_str)
                 end
 
@@ -256,6 +296,40 @@ function influxdb_line_msg(config)
         end
     end
 
+    return api_message
+end
+
+function kairosdb_telnet_msg(config)
+    local api_message = {}
+    local message_timestamp = field_util.message_timestamp(config.timestamp_precision)
+    local put_method = "putm"
+    if config.timestamp_precision == "s" then
+        put_method = "put"
+    end
+    local points, tags = points_tags_tables(config, "kairosdb")
+    for name, value in pairs(points) do
+        if type(value) == "string" then
+            value = string.format('"%s"', value:gsub('"', '\\"'))
+        end
+    
+        if type(value) == "number" or string.match(value, "^[%d.]+$") then
+            value = string.format(decimal_format_string, value)
+        end
+        
+        local insert_str
+        if tags and #tags > 0 then
+            -- put <metric name> <time stamp> <value> <tag> <tag>... \n
+            insert_str = string.format("%s %s %d %s %s", put_method, kairosdb_kv_fmt(name),
+                                       message_timestamp, value,
+                                       table.concat(tags, " "))
+            table.insert(api_message, insert_str)
+        else
+            insert_str = string.format("%s %s %d %s", put_method, kairosdb_kv_fmt(name),
+                                       message_timestamp, value)
+            table.insert(api_message, insert_str)
+        end
+    end
+    
     return api_message
 end
 
